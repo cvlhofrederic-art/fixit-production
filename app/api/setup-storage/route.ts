@@ -24,12 +24,15 @@ export async function POST(request: NextRequest) {
   ]
 
   for (const sql of migrations) {
-    const { error } = await supabaseAdmin.rpc('exec_sql', { sql }).catch(() => ({ error: null }))
-    // Si rpc n'existe pas, on tente directement
-    if (error) {
-      errors.push(`SQL: ${sql.substring(0, 50)}... → ${error.message}`)
-    } else {
-      results.push(`✅ ${sql.substring(0, 60)}...`)
+    try {
+      const { error } = await supabaseAdmin.rpc('exec_sql', { sql })
+      if (error) {
+        errors.push(`SQL: ${sql.substring(0, 50)}... → ${error.message}`)
+      } else {
+        results.push(`✅ ${sql.substring(0, 60)}...`)
+      }
+    } catch (e: any) {
+      errors.push(`SQL: ${sql.substring(0, 50)}... → ${e.message}`)
     }
   }
 
