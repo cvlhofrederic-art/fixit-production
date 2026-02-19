@@ -532,7 +532,7 @@ export default function DevisFactureForm({
                     if (!prestationDate) setPrestationDate(today)
                     // Ajouter la référence devis dans les notes
                     if (!notes.includes('Réf. devis')) {
-                      setNotes(prev => `Réf. devis : ${docNumber}${prev ? '\n' + prev : ''}`)
+                      setNotes((prev: string) => `Réf. devis : ${docNumber}${prev ? '\n' + prev : ''}`)
                     }
                   }
                 }}
