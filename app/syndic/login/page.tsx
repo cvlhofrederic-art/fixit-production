@@ -10,10 +10,14 @@ export default function SyndicLoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Vérifie si le rôle est un rôle syndic valide (admin ou employé)
+  const isSyndicRole = (role: string) => role === 'syndic' || role.startsWith('syndic_')
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user?.user_metadata?.role === 'syndic') {
+      const role = session?.user?.user_metadata?.role || ''
+      if (isSyndicRole(role)) {
         window.location.href = '/syndic/dashboard'
       }
     }
@@ -27,7 +31,8 @@ export default function SyndicLoginPage() {
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
-      if (data.user?.user_metadata?.role !== 'syndic') {
+      const role = data.user?.user_metadata?.role || ''
+      if (!isSyndicRole(role)) {
         await supabase.auth.signOut()
         setError('Ce compte n\'est pas un compte Syndic/Gestionnaire. Utilisez l\'espace approprié.')
         setLoading(false)
