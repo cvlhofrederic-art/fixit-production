@@ -44,7 +44,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <span className="text-3xl">{'\u26A1'}</span>
-            <span className="text-2xl font-bold text-[#FFC107]">Fixit</span>
+            <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
           </Link>
 
           {/* Desktop Nav */}

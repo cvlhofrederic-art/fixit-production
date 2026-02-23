@@ -5,11 +5,11 @@ export default function Footer() {
     <footer className="bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-          {/* Column 1 - Fixit */}
+          {/* Column 1 - VitFix */}
           <div>
             <div className="flex items-center gap-2 mb-4">
               <span className="text-3xl">{'\u26A1'}</span>
-              <span className="text-2xl font-bold text-[#FFC107]">Fixit</span>
+              <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
             </div>
             <p className="text-gray-400 mb-4">
               La plateforme de r&eacute;servation d&apos;artisans la plus simple de France.
@@ -117,7 +117,7 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="border-t border-gray-800 mt-10 pt-8 text-center text-gray-400">
-          <p>&copy; 2026 Fixit - Tous droits r&eacute;serv&eacute;s</p>
+          <p>&copy; 2026 VitFix - Tous droits r&eacute;serv&eacute;s</p>
         </div>
       </div>
     </footer>

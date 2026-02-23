@@ -277,7 +277,7 @@ export default function ProRegisterPage() {
         <div className="max-w-md w-full text-center">
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold mb-2">Bienvenue sur Fixit !</h2>
+            <h2 className="text-2xl font-bold mb-2">Bienvenue sur VitFix !</h2>
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
               <div className="flex items-center justify-center gap-2 text-green-700 font-semibold">
                 <span className="text-xl">✅</span>
@@ -304,7 +304,7 @@ export default function ProRegisterPage() {
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Devenir artisan Fixit</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Devenir artisan VitFix</h1>
           <p className="text-gray-600 mt-2">Rejoignez notre réseau d&apos;artisans et développez votre activité</p>
         </div>
 

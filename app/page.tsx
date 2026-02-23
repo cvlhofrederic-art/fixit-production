@@ -49,13 +49,13 @@ const services = [
     description: 'Portes, fenêtres, parquet, dressing et aménagements bois',
   },
   {
-    icon: '🏗️',
+    icon: '🔲',
     title: 'Carrelage',
     slug: 'carrelage',
     description: 'Pose de carrelage, faïence, mosaïque et joints',
   },
   {
-    icon: '🏠',
+    icon: '🏚️',
     title: 'Toiture',
     slug: 'toiture',
     description: 'Réparation de toits, zinguerie, couverture et étanchéité',
@@ -85,7 +85,7 @@ const services = [
     description: 'Remplacement de vitres, double vitrage, miroirs',
   },
   {
-    icon: '🏠',
+    icon: '🛠️',
     title: 'Petits travaux',
     slug: 'petits-travaux',
     description: 'Montage de meubles, fixations, petites réparations',

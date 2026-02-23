@@ -238,7 +238,7 @@ export default function ClientDashboardPage() {
           <div className="flex justify-between items-center py-4">
             <Link href="/" className="flex items-center gap-2">
               <span className="text-3xl">{'\u26A1'}</span>
-              <span className="text-2xl font-bold text-[#FFC107]">Fixit</span>
+              <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/recherche" className="hidden sm:flex items-center gap-2 text-gray-600 hover:text-[#FFC107] transition text-sm font-medium">

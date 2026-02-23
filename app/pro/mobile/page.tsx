@@ -201,7 +201,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
           Fonctionnalité mobile uniquement
         </h2>
         <p className="text-gray-400 text-sm text-center leading-relaxed">
-          Le Proof of Work nécessite l'application mobile Fixit Pro pour accéder à la caméra native et au GPS.
+          Le Proof of Work nécessite l'application mobile VitFix Pro pour accéder à la caméra native et au GPS.
           <br />Cette fonctionnalité est conçue pour éviter les fraudes.
         </p>
         <button
@@ -1421,7 +1421,7 @@ export default function MobileDashboard() {
             </button>
 
             <div className="text-center text-[10px] text-gray-300 pb-2">
-              Fixit Pro v1.0 · {artisan?.siret && `SIRET ${artisan.siret}`}
+              VitFix Pro v1.0 · {artisan?.siret && `SIRET ${artisan.siret}`}
             </div>
           </div>
         </div>

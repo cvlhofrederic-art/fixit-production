@@ -47,6 +47,35 @@ html, body {
   user-select: none;
 }
 
+/* ── Protection du contenu VitFix ──────────────────────────── */
+/* Bloque l'impression non autorisée */
+@media print {
+  body {
+    visibility: hidden;
+  }
+  body::before {
+    visibility: visible;
+    content: "© VitFix SAS — Reproduction interdite sans autorisation écrite préalable.";
+    font-size: 20px;
+    font-weight: bold;
+    display: block;
+    text-align: center;
+    padding: 40px;
+  }
+}
+
+/* Images non copiables */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
+
+/* Sauf les images interactives (boutons, liens) */
+a img, button img, [data-draggable] img {
+  pointer-events: auto;
+}
+
 /* ── Mobile animations ──────────────────────────────────────── */
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }

@@ -1359,7 +1359,7 @@ export default function DevisFactureForm({
           ))}
           {tvaEnabled && tvaNumber && <div>• N° TVA intracommunautaire : {tvaNumber}</div>}
           <div style={{ marginTop: '6px', color: '#C6C6C6', fontSize: '9px' }}>
-            Document généré par Fixit Pro — {new Date().toLocaleDateString('fr-FR')}
+            Document généré par VitFix Pro — {new Date().toLocaleDateString('fr-FR')}
           </div>
         </div>
       </div>

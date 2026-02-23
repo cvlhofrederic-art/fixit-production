@@ -107,7 +107,7 @@ export default function ProLoginPage() {
             <p className="text-gray-600 text-sm">
               Pas encore inscrit ?{' '}
               <Link href="/pro/register" className="text-[#FFC107] hover:underline font-semibold">
-                Devenir artisan Fixit
+                Devenir artisan VitFix
               </Link>
             </p>
           </div>

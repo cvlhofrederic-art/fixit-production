@@ -1887,7 +1887,7 @@ export default function DashboardPage() {
               <div className="p-6 lg:p-8 max-w-3xl mx-auto">
                 <div className="bg-white p-8 rounded-2xl shadow-sm mb-6">
                   <h2 className="text-xl font-bold mb-4">🚀 Démarrage rapide</h2>
-                  <p className="text-gray-500 mb-4 text-lg">Bienvenue sur Fixit Pro ! Voici comment commencer :</p>
+                  <p className="text-gray-500 mb-4 text-lg">Bienvenue sur VitFix Pro ! Voici comment commencer :</p>
                   <ol className="list-decimal pl-6 text-gray-600 space-y-3 text-lg leading-relaxed">
                     <li>Configurez vos motifs de consultation dans l&apos;onglet &quot;Motifs&quot;</li>
                     <li>Activez votre disponibilité dans le calendrier</li>
@@ -2850,7 +2850,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
       {/* Disclaimer */}
       <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs text-gray-400 text-center">
-        ℹ️ Léa fournit des informations indicatives basées sur vos données Fixit. Pour des conseils fiscaux engageant votre responsabilité, consultez un expert-comptable agréé.
+        ℹ️ Léa fournit des informations indicatives basées sur vos données VitFix. Pour des conseils fiscaux engageant votre responsabilité, consultez un expert-comptable agréé.
       </div>
     </div>
   )
@@ -3029,7 +3029,7 @@ function ClientsSection({ artisan, bookings, services, onNewRdv, onNewDevis }: {
                             {isExp ? 'Entreprise' : 'Particulier'}
                           </span>
                           {c.source === 'auth' && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Compte Fixit</span>
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Compte VitFix</span>
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1 flex-wrap">
@@ -3234,7 +3234,7 @@ function MateriauxSection({ artisan, onExportDevis }: { artisan: any; onExportDe
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
-            { headers: { 'User-Agent': 'Fixit-Pro/1.0' } }
+            { headers: { 'User-Agent': 'VitFix-Pro/1.0' } }
           )
           const data = await res.json()
           const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || null
