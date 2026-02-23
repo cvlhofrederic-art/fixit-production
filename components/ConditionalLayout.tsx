@@ -7,7 +7,7 @@ import SiteProtection from '@/components/SiteProtection'
 
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isDashboard = pathname?.startsWith('/pro/dashboard') || pathname?.startsWith('/client/dashboard') || pathname?.startsWith('/pro/mobile')
+  const isDashboard = pathname?.startsWith('/pro/dashboard') || pathname?.startsWith('/client/dashboard') || pathname?.startsWith('/pro/mobile') || pathname?.startsWith('/syndic/dashboard')
 
   if (isDashboard) {
     return <>{children}</>

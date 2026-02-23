@@ -59,9 +59,9 @@ const formatDateFR = (dateStr: string) => {
 }
 
 // ─── Bottom Nav Component ──────────────────────────────────────────────────────
-function BottomNav({ active, onChange, pendingCount }: { active: Tab; onChange: (t: Tab) => void; pendingCount: number }) {
+function BottomNav({ active, onChange, pendingCount, notifCount }: { active: Tab; onChange: (t: Tab) => void; pendingCount: number; notifCount?: number }) {
   const items: { tab: Tab; icon: string; label: string; badge?: number }[] = [
-    { tab: 'home', icon: '🏠', label: 'Accueil' },
+    { tab: 'home', icon: '🏠', label: 'Accueil', badge: notifCount && notifCount > 0 ? notifCount : undefined },
     { tab: 'agenda', icon: '📅', label: 'Agenda' },
     { tab: 'interventions', icon: '🔧', label: 'RDV', badge: pendingCount },
     { tab: 'documents', icon: '📄', label: 'Docs' },
@@ -667,6 +667,8 @@ export default function MobileDashboard() {
   const [savingMotif, setSavingMotif] = useState(false)
   const [autoAccept, setAutoAccept] = useState(false)
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
+  const [artisanNotifs, setArtisanNotifs] = useState<{ id: string; title: string; body: string; type: string; read: boolean; created_at: string }[]>([])
+  const [notifToast, setNotifToast] = useState<{ title: string; body: string } | null>(null)
 
   const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
@@ -678,6 +680,35 @@ export default function MobileDashboard() {
     }
     init()
   }, [])
+
+  // Supabase Realtime — notifications artisan in-app
+  useEffect(() => {
+    if (!artisan?.user_id) return
+
+    // Charger les notifs existantes
+    fetch(`/api/syndic/notify-artisan?artisan_id=${artisan.user_id}&limit=20`)
+      .then(r => r.json())
+      .then(d => { if (d.notifications) setArtisanNotifs(d.notifications) })
+      .catch(() => {})
+
+    const channel = supabase
+      .channel(`artisan_notifs_${artisan.user_id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'artisan_notifications',
+        filter: `artisan_id=eq.${artisan.user_id}`,
+      }, (payload) => {
+        const n = payload.new as any
+        setArtisanNotifs(prev => [{ id: n.id, title: n.title, body: n.body, type: n.type, read: false, created_at: n.created_at }, ...prev])
+        // Afficher toast in-app
+        setNotifToast({ title: n.title, body: n.body })
+        setTimeout(() => setNotifToast(null), 5000)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [artisan?.user_id])
 
   const loadData = async (user: any) => {
     const { data: artisanData } = await supabase
@@ -876,14 +907,62 @@ export default function MobileDashboard() {
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-20 safe-area-pt" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
+      {/* ─── Toast notification in-app artisan ─── */}
+      {notifToast && (
+        <div className="fixed top-4 left-4 right-4 z-50 animate-fade-in">
+          <div className="bg-gray-900 text-white rounded-2xl px-4 py-3 shadow-2xl flex items-start gap-3">
+            <span className="text-xl flex-shrink-0">📣</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">{notifToast.title}</p>
+              {notifToast.body && <p className="text-xs text-gray-300 mt-0.5 truncate">{notifToast.body}</p>}
+            </div>
+            <button onClick={() => setNotifToast(null)} className="text-gray-400 text-lg leading-none flex-shrink-0">×</button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Proof of Work Overlay ─── */}
       {proofBooking && (
         <ProofOfWork
           booking={proofBooking}
           artisan={artisan}
           onClose={() => setProofBooking(null)}
-          onComplete={(proof) => {
-            updateBookingStatus(proofBooking.id, 'completed')
+          onComplete={async (proof) => {
+            // 1. Mettre à jour le statut booking
+            await updateBookingStatus(proofBooking.id, 'completed')
+
+            // 2. Si booking a un syndic_id → envoyer rapport automatiquement
+            const syndicId = proofBooking?.syndic_id || proofBooking?.metadata?.syndic_id
+            if (syndicId && artisan) {
+              try {
+                // Extraire les dataUrl des photos pour l'envoi
+                const photosBase64Before = proof.beforePhotos.slice(0, 3).map(p => p.dataUrl)
+                const photosBase64After = proof.afterPhotos.slice(0, 3).map(p => p.dataUrl)
+                const firstGps = proof.beforePhotos.find(p => p.lat && p.lng) || proof.afterPhotos.find(p => p.lat && p.lng)
+
+                await fetch('/api/syndic/mission-report', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    syndic_id: syndicId,
+                    artisan_id: artisan.user_id,
+                    artisan_name: artisan.company_name,
+                    booking_id: proofBooking.id,
+                    mission_description: proofBooking.notes || proofBooking.services?.name || 'Intervention',
+                    description: proof.description,
+                    photos_before: photosBase64Before,
+                    photos_after: photosBase64After,
+                    signature_svg: proof.signature,
+                    gps: firstGps ? `${firstGps.lat},${firstGps.lng}` : (proof.gpsLat && proof.gpsLng ? `${proof.gpsLat},${proof.gpsLng}` : null),
+                    completed_at: proof.completedAt || new Date().toISOString(),
+                    immeuble: proofBooking?.address || '',
+                  }),
+                })
+              } catch (e) {
+                console.warn('Auto-rapport syndic failed:', e)
+              }
+            }
+
             setProofBooking(null)
           }}
         />
@@ -1428,7 +1507,7 @@ export default function MobileDashboard() {
       )}
 
       {/* Bottom Navigation */}
-      <BottomNav active={activeTab} onChange={setActiveTab} pendingCount={pendingBookings.length} />
+      <BottomNav active={activeTab} onChange={setActiveTab} pendingCount={pendingBookings.length} notifCount={artisanNotifs.filter(n => !n.read).length} />
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // Map nature_juridique codes to labels
 const NATURE_JURIDIQUE_MAP: Record<string, string> = {
@@ -40,6 +42,13 @@ function getNatureJuridiqueLabel(code: string): string {
 // Fetches the verified company data for an artisan (from profiles_artisan + SIRET API)
 // Used by DevisFactureForm to auto-fill and lock legal fields
 export async function GET(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`artisan_company_${ip}`, 30, 60_000)) return rateLimitResponse()
+
   const artisanId = request.nextUrl.searchParams.get('artisan_id')
 
   if (!artisanId) {

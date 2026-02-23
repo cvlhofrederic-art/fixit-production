@@ -1,20 +1,39 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUser, isArtisanRole } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // API pour récupérer tous les clients d'un artisan
 // Sources : bookings (notes parsing + client_id) + auth.users metadata
 export async function GET(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user || !isArtisanRole(user)) {
+    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`artisan_clients_${ip}`, 30, 60_000)) return rateLimitResponse()
+
   const artisanId = request.nextUrl.searchParams.get('artisan_id')
 
   if (!artisanId) {
     return NextResponse.json({ error: 'artisan_id requis' }, { status: 400 })
   }
 
+  // IDOR check : verify the artisanId belongs to the connected user
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { db: { schema: 'public' } }
   )
+
+  const { data: artisanRow } = await supabase
+    .from('profiles_artisan')
+    .select('user_id')
+    .eq('id', artisanId)
+    .single()
+  if (!artisanRow || artisanRow.user_id !== user.id) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  }
 
   try {
     // 1. Récupérer tous les bookings de l'artisan avec notes (contient info client)

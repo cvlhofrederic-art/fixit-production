@@ -2658,7 +2658,12 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
   }
 
   const formatMessage = (text: string) => {
-    return text
+    // 1. Escape HTML first (XSS prevention)
+    const escaped = text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+    // 2. Apply markdown transforms on escaped content
+    return escaped
       // gras
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       // code inline
@@ -3365,7 +3370,12 @@ function MateriauxSection({ artisan, onExportDevis }: { artisan: any; onExportDe
   }
 
   const formatMsg = (text: string) => {
-    return text
+    // 1. Escape HTML first (XSS prevention)
+    const escaped = text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+    // 2. Apply markdown on escaped content
+    return escaped
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br/>')
   }

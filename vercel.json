@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/email-agent/poll",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // Agent Comptable Léa — Powered by Groq (Llama 3.3-70B)
 // Expert-comptable senior BTP & artisanat — tous statuts juridiques — législation française 2026
@@ -192,6 +194,14 @@ Quand l'artisan demande une analyse "du X au Y" ou "sur le mois de Z" :
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting — 20 req/min
+    const ip = getClientIP(request)
+    if (!checkRateLimit(ip, 20, 60_000)) return rateLimitResponse()
+
+    // Auth
+    const user = await getAuthUser(request)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const body = await request.json()
     const { message, financialContext, conversationHistory } = body
 

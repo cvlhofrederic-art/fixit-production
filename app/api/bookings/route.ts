@@ -1,26 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { createServerClient } from '@supabase/ssr'
-
-async function getAuthUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
-}
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // GET: Fetch future bookings for an artisan
 export async function GET(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`bookings_get_${ip}`, 60, 60_000)) return rateLimitResponse()
+
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
 
@@ -48,6 +39,13 @@ export async function GET(request: NextRequest) {
 // POST: Create a new booking
 export async function POST(request: NextRequest) {
   try {
+    const user = await getAuthUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    }
+    const ip = getClientIP(request)
+    if (!checkRateLimit(`bookings_post_${ip}`, 20, 60_000)) return rateLimitResponse()
+
     const body = await request.json()
     const { artisan_id, service_id, booking_date, booking_time, duration_minutes, address, notes, price_ht, price_ttc, status } = body
 
@@ -95,11 +93,8 @@ export async function POST(request: NextRequest) {
       insertData.service_id = service_id
     }
 
-    // Attach client_id if user is authenticated
-    const user = await getAuthUser(request)
-    if (user) {
-      insertData.client_id = user.id
-    }
+    // Attach client_id from authenticated user
+    insertData.client_id = user.id
 
     const { data, error } = await supabaseAdmin
       .from('bookings')

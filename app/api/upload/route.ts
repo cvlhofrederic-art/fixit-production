@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 /**
  * POST /api/upload
@@ -13,6 +15,18 @@ import { supabaseAdmin } from '@/lib/supabase-server'
  *   field?      : 'insurance_url' | 'kbis_url' | 'profile_photo_url'
  */
 export async function POST(request: NextRequest) {
+  // Auth guard
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  }
+
+  // Rate limit : 20 uploads/min par IP
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`upload_${ip}`, 20, 60_000)) {
+    return rateLimitResponse()
+  }
+
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -80,6 +94,16 @@ export async function POST(request: NextRequest) {
     if (artisanId && field) {
       const allowedFields = ['insurance_url', 'kbis_url', 'profile_photo_url']
       if (allowedFields.includes(field)) {
+        // IDOR check : vérifier que l'utilisateur connecté est bien le propriétaire
+        const { data: artisanRow } = await supabaseAdmin
+          .from('profiles_artisan')
+          .select('user_id')
+          .eq('id', artisanId)
+          .single()
+        if (!artisanRow || artisanRow.user_id !== user.id) {
+          return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+        }
+
         const { error: updateError } = await supabaseAdmin
           .from('profiles_artisan')
           .update({ [field]: publicUrl, updated_at: new Date().toISOString() })
