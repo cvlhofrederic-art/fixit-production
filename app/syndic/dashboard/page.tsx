@@ -12,9 +12,9 @@ type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'planning' | 'do
 const ROLE_PAGES: Record<string, Page[]> = {
   syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
   syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
-  syndic_tech: ['accueil', 'missions', 'artisans', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'planning', 'alertes', 'ia', 'parametres'],
+  syndic_tech: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'planning', 'alertes', 'emails', 'ia', 'parametres'],
   syndic_secretaire: ['accueil', 'coproprios', 'missions', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
-  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'ia', 'parametres'],
+  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres'],
   syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'ia', 'parametres'],
 }
 

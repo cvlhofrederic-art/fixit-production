@@ -27,9 +27,9 @@ const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: str
   syndic_tech: {
     name: 'Gestionnaire Technique',
     emoji: '🔧',
-    expertise: 'Interventions techniques, artisans, missions, suivi travaux, comptabilité technique, proof of work',
-    pages: ['missions', 'artisans', 'planning', 'alertes', 'comptabilite_tech'],
-    actions: ['create_mission', 'navigate', 'update_mission', 'send_message'],
+    expertise: 'Interventions techniques, artisans, missions, suivi travaux, comptabilité technique, analyse devis/factures, facturation, copropriétaires, immeubles, emails, proof of work',
+    pages: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'planning', 'alertes', 'emails'],
+    actions: ['create_mission', 'navigate', 'update_mission', 'send_message', 'create_alert'],
   },
   syndic_secretaire: {
     name: 'Secrétaire',
@@ -41,9 +41,9 @@ const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: str
   syndic_gestionnaire: {
     name: 'Gestionnaire Copropriété',
     emoji: '🏘️',
-    expertise: 'Gestion copropriétés, immeubles, réglementaire, assemblées générales, contentieux, artisans',
-    pages: ['immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'emails'],
-    actions: ['create_mission', 'navigate', 'create_alert', 'create_document'],
+    expertise: 'Gestion copropriétés, immeubles, réglementaire, assemblées générales, contentieux, artisans, facturation, emails copropriétaires',
+    pages: ['immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails'],
+    actions: ['create_mission', 'navigate', 'create_alert', 'create_document', 'send_message'],
   },
   syndic_comptable: {
     name: 'Comptable',
