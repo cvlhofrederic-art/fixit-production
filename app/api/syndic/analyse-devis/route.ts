@@ -187,23 +187,54 @@ export async function POST(req: NextRequest) {
     ? `Voici le contenu du document "${filename}" à analyser :\n\n${content}`
     : `Voici le contenu du document à analyser :\n\n${content}`
 
+  // Prompt d'extraction structurée pour pré-remplir la création de mission
+  const EXTRACT_PROMPT = `Tu es un extracteur de données. À partir d'un devis ou d'une facture, extrais les informations clés au format JSON strict.
+
+Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans markdown, sans backticks.
+
+Champs à extraire :
+- "artisan_nom" : nom complet de l'entreprise ou de l'artisan (string, "" si non trouvé)
+- "artisan_metier" : corps de métier détecté (string, ex: "Plomberie", "Électricité", "Élagage", "Peinture", "Menuiserie", "Nettoyage", "Maçonnerie", "Serrurerie", "Toiture", "Ascenseur", "" si non trouvé)
+- "type_document" : "devis" ou "facture" ou "autre"
+- "description_travaux" : description courte des travaux (string, max 100 chars)
+- "immeuble" : nom ou adresse de l'immeuble/lieu d'intervention si mentionné (string, "" si non trouvé)
+- "montant_ht" : montant HT en nombre (number, 0 si non trouvé)
+- "montant_ttc" : montant TTC en nombre (number, 0 si non trouvé)
+- "date_intervention" : date d'intervention prévue au format YYYY-MM-DD (string, "" si non trouvé)
+- "artisan_email" : email de l'artisan si présent (string, "" si non trouvé)
+- "artisan_telephone" : téléphone de l'artisan si présent (string, "" si non trouvé)
+- "priorite" : "urgente", "normale" ou "planifiee" selon le contexte (urgence mentionnée → urgente, date proche → normale, date lointaine → planifiee)`
+
   try {
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 4000,
+    // Appels parallèles : analyse textuelle + extraction structurée
+    const [groqResponse, extractResponse] = await Promise.all([
+      fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.1,
+          max_tokens: 4000,
+        }),
       }),
-    })
+      fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: EXTRACT_PROMPT },
+            { role: 'user', content: `Document à analyser :\n\n${content}` },
+          ],
+          temperature: 0,
+          max_tokens: 500,
+        }),
+      }),
+    ])
 
     if (!groqResponse.ok) {
       const errText = await groqResponse.text()
@@ -214,9 +245,24 @@ export async function POST(req: NextRequest) {
     const groqData = await groqResponse.json()
     const analysis = groqData.choices?.[0]?.message?.content || ''
 
+    // Extraire les données structurées (best-effort)
+    let extracted: Record<string, unknown> = {}
+    try {
+      if (extractResponse.ok) {
+        const extractData = await extractResponse.json()
+        const rawJson = extractData.choices?.[0]?.message?.content || '{}'
+        // Nettoyer si l'IA a quand même mis des backticks
+        const cleaned = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        extracted = JSON.parse(cleaned)
+      }
+    } catch (e) {
+      console.warn('Extraction JSON failed (non-bloquant):', e)
+    }
+
     return NextResponse.json({
       success: true,
       analysis,
+      extracted,
       model: groqData.model,
       tokens: groqData.usage?.total_tokens,
     })

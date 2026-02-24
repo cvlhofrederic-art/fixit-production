@@ -610,15 +610,39 @@ function EquipeSection({ cabinetId, currentUserRole }: { cabinetId: string; curr
 
 // ─── Composant Analyse Devis / Factures ───────────────────────────────────────
 
-function AnalyseDevisSection() {
+interface DevisExtracted {
+  artisan_nom?: string
+  artisan_metier?: string
+  type_document?: string
+  description_travaux?: string
+  immeuble?: string
+  montant_ht?: number
+  montant_ttc?: number
+  date_intervention?: string
+  artisan_email?: string
+  artisan_telephone?: string
+  priorite?: 'urgente' | 'normale' | 'planifiee'
+}
+
+function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPage: (p: Page) => void }) {
   const [mode, setMode] = useState<'paste' | 'history'>('paste')
   const [docText, setDocText] = useState('')
   const [filename, setFilename] = useState('')
   const [loading, setLoading] = useState(false)
   const [analysis, setAnalysis] = useState<string | null>(null)
+  const [extracted, setExtracted] = useState<DevisExtracted | null>(null)
   const [error, setError] = useState('')
-  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string }[]>([])
+  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string; extracted?: DevisExtracted }[]>([])
   const [selectedHistory, setSelectedHistory] = useState<string | null>(null)
+  // Modal création mission
+  const [showMissionModal, setShowMissionModal] = useState(false)
+  const [missionForm, setMissionForm] = useState({
+    artisan: '', immeuble: '', type: '', description: '',
+    priorite: 'normale' as 'urgente' | 'normale' | 'planifiee',
+    montantDevis: 0, dateIntervention: '',
+  })
+  const [missionCreating, setMissionCreating] = useState(false)
+  const [missionSuccess, setMissionSuccess] = useState(false)
 
   // Charger l'historique depuis localStorage
   useEffect(() => {
@@ -628,8 +652,7 @@ function AnalyseDevisSection() {
     } catch {}
   }, [])
 
-  const saveToHistory = (fname: string, result: string) => {
-    // Extraire verdict et score du résultat
+  const saveToHistory = (fname: string, result: string, ext?: DevisExtracted) => {
     const verdictMatch = result.match(/\*\*Statut\*\*\s*:\s*([^\n]+)/)
     const scoreMatch = result.match(/\*\*Score de conformité\*\*\s*:\s*([^\n]+)/)
     const entry = {
@@ -639,6 +662,7 @@ function AnalyseDevisSection() {
       verdict: verdictMatch ? verdictMatch[1].trim() : '—',
       score: scoreMatch ? scoreMatch[1].trim() : '—',
       analysis: result,
+      extracted: ext,
     }
     const updated = [entry, ...history].slice(0, 20)
     setHistory(updated)
@@ -650,6 +674,7 @@ function AnalyseDevisSection() {
     setLoading(true)
     setError('')
     setAnalysis(null)
+    setExtracted(null)
     try {
       const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
       const res = await fetch('/api/syndic/analyse-devis', {
@@ -663,7 +688,8 @@ function AnalyseDevisSection() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Erreur lors de l\'analyse'); return }
       setAnalysis(data.analysis)
-      saveToHistory(filename || 'Document analysé', data.analysis)
+      setExtracted(data.extracted || null)
+      saveToHistory(filename || 'Document analysé', data.analysis, data.extracted)
     } catch {
       setError('Erreur réseau, veuillez réessayer.')
     } finally {
@@ -675,7 +701,72 @@ function AnalyseDevisSection() {
     setDocText('')
     setFilename('')
     setAnalysis(null)
+    setExtracted(null)
     setError('')
+    setMissionSuccess(false)
+  }
+
+  // Ouvrir le modal de création mission avec les données pré-remplies
+  const handleOpenMissionModal = (ext: DevisExtracted) => {
+    // Trouver l'artisan correspondant dans la liste (par nom ou email)
+    const matchedArtisan = artisans.find(a => {
+      if (ext.artisan_email && a.email?.toLowerCase() === ext.artisan_email.toLowerCase()) return true
+      if (ext.artisan_nom && a.nom?.toLowerCase().includes(ext.artisan_nom.toLowerCase())) return true
+      if (ext.artisan_nom && ext.artisan_nom.toLowerCase().includes(a.nom?.toLowerCase() || '')) return true
+      return false
+    })
+    setMissionForm({
+      artisan: matchedArtisan?.nom || ext.artisan_nom || '',
+      immeuble: ext.immeuble || '',
+      type: ext.artisan_metier || '',
+      description: ext.description_travaux || '',
+      priorite: ext.priorite || 'normale',
+      montantDevis: ext.montant_ht || 0,
+      dateIntervention: ext.date_intervention || '',
+    })
+    setShowMissionModal(true)
+  }
+
+  // Créer la mission
+  const handleCreateMission = async () => {
+    if (!missionForm.artisan || !missionForm.description) return
+    setMissionCreating(true)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      // Trouver l'artisan dans la liste pour récupérer son email
+      const artisanObj = artisans.find(a => a.nom === missionForm.artisan)
+      const artisanEmail = artisanObj?.email || ''
+
+      const res = await fetch('/api/syndic/assign-mission', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          artisan_email: artisanEmail,
+          artisan_name: missionForm.artisan,
+          description: missionForm.description,
+          type: missionForm.type,
+          immeuble: missionForm.immeuble,
+          priorite: missionForm.priorite,
+          montant_devis: missionForm.montantDevis,
+          date_intervention: missionForm.dateIntervention || null,
+          source: 'devis_analyse',
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setMissionSuccess(true)
+        setShowMissionModal(false)
+      } else {
+        alert(data.message || data.error || 'Erreur lors de la création')
+      }
+    } catch {
+      alert('Erreur réseau')
+    } finally {
+      setMissionCreating(false)
+    }
   }
 
   // Colorer le verdict
@@ -825,6 +916,82 @@ function AnalyseDevisSection() {
                 </button>
               </div>
 
+              {/* Carte récap extraite + bouton mission */}
+              {extracted && (extracted.artisan_nom || extracted.description_travaux) && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Informations extraites du document</p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                        {extracted.artisan_nom && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400">🔧</span>
+                            <span className="text-gray-700"><strong>{extracted.artisan_nom}</strong>{extracted.artisan_metier ? ` — ${extracted.artisan_metier}` : ''}</span>
+                          </div>
+                        )}
+                        {extracted.description_travaux && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400">📋</span>
+                            <span className="text-gray-700 truncate">{extracted.description_travaux}</span>
+                          </div>
+                        )}
+                        {extracted.immeuble && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400">🏢</span>
+                            <span className="text-gray-700">{extracted.immeuble}</span>
+                          </div>
+                        )}
+                        {(extracted.montant_ht || 0) > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400">💰</span>
+                            <span className="text-gray-700">
+                              <strong>{extracted.montant_ht?.toLocaleString('fr-FR')}€ HT</strong>
+                              {(extracted.montant_ttc || 0) > 0 && <span className="text-gray-400"> / {extracted.montant_ttc?.toLocaleString('fr-FR')}€ TTC</span>}
+                            </span>
+                          </div>
+                        )}
+                        {extracted.date_intervention && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400">📅</span>
+                            <span className="text-gray-700">{new Date(extracted.date_intervention).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                        )}
+                        {extracted.priorite && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400">🚦</span>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              extracted.priorite === 'urgente' ? 'bg-red-100 text-red-700' :
+                              extracted.priorite === 'normale' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>{extracted.priorite.charAt(0).toUpperCase() + extracted.priorite.slice(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      {missionSuccess ? (
+                        <div className="bg-green-100 text-green-700 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2">
+                          ✅ Mission créée !
+                          <button
+                            onClick={() => setPage('missions')}
+                            className="underline text-green-800 hover:text-green-900 ml-1"
+                          >
+                            Voir →
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenMissionModal(extracted)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 shadow-sm"
+                        >
+                          📋 Créer la mission
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <div
                   className="prose prose-sm max-w-none text-gray-800"
@@ -832,7 +999,7 @@ function AnalyseDevisSection() {
                 />
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 <button
                   onClick={() => {
                     const blob = new Blob([analysis], { type: 'text/plain; charset=utf-8' })
@@ -862,6 +1029,121 @@ function AnalyseDevisSection() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Modal création mission ── */}
+      {showMissionModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">📋 Créer la mission</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">Données pré-remplies depuis le devis</p>
+                </div>
+                <button onClick={() => setShowMissionModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Artisan <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={missionForm.artisan}
+                    onChange={e => setMissionForm(f => ({ ...f, artisan: e.target.value }))}
+                    list="artisans-list"
+                    placeholder="Nom de l'artisan"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                  <datalist id="artisans-list">
+                    {artisans.map(a => <option key={a.id} value={a.nom} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type de travaux</label>
+                  <input
+                    type="text"
+                    value={missionForm.type}
+                    onChange={e => setMissionForm(f => ({ ...f, type: e.target.value }))}
+                    placeholder="ex : Plomberie, Élagage..."
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
+                <textarea
+                  value={missionForm.description}
+                  onChange={e => setMissionForm(f => ({ ...f, description: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Immeuble</label>
+                  <input
+                    type="text"
+                    value={missionForm.immeuble}
+                    onChange={e => setMissionForm(f => ({ ...f, immeuble: e.target.value }))}
+                    placeholder="Nom ou adresse"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Montant HT (€)</label>
+                  <input
+                    type="number"
+                    value={missionForm.montantDevis || ''}
+                    onChange={e => setMissionForm(f => ({ ...f, montantDevis: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date d&apos;intervention</label>
+                  <input
+                    type="date"
+                    value={missionForm.dateIntervention}
+                    onChange={e => setMissionForm(f => ({ ...f, dateIntervention: e.target.value }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priorité</label>
+                  <select
+                    value={missionForm.priorite}
+                    onChange={e => setMissionForm(f => ({ ...f, priorite: e.target.value as 'urgente' | 'normale' | 'planifiee' }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  >
+                    <option value="urgente">🔴 Urgente</option>
+                    <option value="normale">🔵 Normale</option>
+                    <option value="planifiee">⚪ Planifiée</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={handleCreateMission}
+                disabled={missionCreating || !missionForm.artisan || !missionForm.description}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {missionCreating ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Création...</>
+                ) : '✅ Créer la mission'}
+              </button>
+              <button
+                onClick={() => setShowMissionModal(false)}
+                className="px-6 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition text-sm"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -4539,7 +4821,7 @@ export default function SyndicDashboard() {
 
           {/* ── ANALYSE DEVIS / FACTURES ── */}
           {page === 'analyse_devis' && (
-            <AnalyseDevisSection />
+            <AnalyseDevisSection artisans={artisans} setPage={setPage} />
           )}
 
           {/* ── PARAMÈTRES ── */}
