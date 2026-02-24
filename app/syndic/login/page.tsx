@@ -15,8 +15,9 @@ export default function SyndicLoginPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      const role = session?.user?.user_metadata?.role || ''
+      // Utiliser getUser() pour un check frais du token (évite les sessions stale)
+      const { data: { user } } = await supabase.auth.getUser()
+      const role = user?.user_metadata?.role || ''
       if (isSyndicRole(role)) {
         window.location.href = '/syndic/dashboard'
       }

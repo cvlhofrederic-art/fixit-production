@@ -36,38 +36,67 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // Helper: check if role is a syndic role
+  const isSyndicRole = (role: string | undefined) =>
+    role === 'syndic' || (typeof role === 'string' && role.startsWith('syndic_'))
+
   // Protected routes: redirect to login if not authenticated
-  if (!user && (pathname.startsWith('/client/dashboard') || pathname.startsWith('/pro/dashboard') || pathname.startsWith('/pro/mobile'))) {
+  if (!user && (
+    pathname.startsWith('/client/dashboard') ||
+    pathname.startsWith('/pro/dashboard') ||
+    pathname.startsWith('/pro/mobile') ||
+    pathname.startsWith('/syndic/dashboard')
+  )) {
     const url = request.nextUrl.clone()
     if (pathname.startsWith('/pro/')) {
       url.pathname = '/pro/login'
+    } else if (pathname.startsWith('/syndic/')) {
+      url.pathname = '/syndic/login'
     } else {
       url.pathname = '/auth/login'
     }
     return NextResponse.redirect(url)
   }
 
-  // Role-based access control: artisans can't access client dashboard, vice versa
+  // Role-based access control
   if (user) {
-    const role = user.user_metadata?.role
+    const role = user.user_metadata?.role as string | undefined
 
-    if (pathname.startsWith('/pro/dashboard') && role !== 'artisan') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/client/dashboard'
-      return NextResponse.redirect(url)
+    // Syndic users: redirect away from non-syndic dashboards
+    if (isSyndicRole(role)) {
+      if (
+        pathname.startsWith('/client/dashboard') ||
+        pathname.startsWith('/pro/dashboard') ||
+        pathname.startsWith('/pro/mobile')
+      ) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/syndic/dashboard'
+        return NextResponse.redirect(url)
+      }
     }
 
-    if (pathname.startsWith('/client/dashboard') && role === 'artisan') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/pro/dashboard'
-      return NextResponse.redirect(url)
+    // Artisan: can't access client or syndic dashboard
+    if (role === 'artisan') {
+      if (pathname.startsWith('/client/dashboard') || pathname.startsWith('/syndic/dashboard')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/pro/dashboard'
+        return NextResponse.redirect(url)
+      }
     }
 
-    // /pro/mobile is artisan-only
-    if (pathname.startsWith('/pro/mobile') && role !== 'artisan') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/client/dashboard'
-      return NextResponse.redirect(url)
+    // Client (particulier): can't access pro or syndic dashboard
+    if (!isSyndicRole(role) && role !== 'artisan') {
+      if (pathname.startsWith('/pro/dashboard') || pathname.startsWith('/pro/mobile')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/client/dashboard'
+        return NextResponse.redirect(url)
+      }
+      // Non-syndic users can't access syndic dashboard → redirect to their login
+      if (pathname.startsWith('/syndic/dashboard')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/auth/login'
+        return NextResponse.redirect(url)
+      }
     }
   }
 

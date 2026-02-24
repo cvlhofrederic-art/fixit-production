@@ -6,16 +6,16 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech'
+type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis'
 
 // Pages accessibles par rôle
 const ROLE_PAGES: Record<string, Page[]> = {
-  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'parametres'],
-  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'parametres'],
-  syndic_tech: ['accueil', 'missions', 'artisans', 'comptabilite_tech', 'planning', 'alertes', 'parametres'],
-  syndic_secretaire: ['accueil', 'coproprios', 'missions', 'planning', 'documents', 'alertes', 'emails', 'parametres'],
-  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'parametres'],
-  syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'parametres'],
+  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
+  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
+  syndic_tech: ['accueil', 'missions', 'artisans', 'comptabilite_tech', 'analyse_devis', 'planning', 'alertes', 'ia', 'parametres'],
+  syndic_secretaire: ['accueil', 'coproprios', 'missions', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
+  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'ia', 'parametres'],
+  syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'ia', 'parametres'],
 }
 
 interface Immeuble {
@@ -37,16 +37,39 @@ interface Immeuble {
 interface Artisan {
   id: string
   nom: string
+  prenom?: string
+  nom_famille?: string
   metier: string
   telephone: string
   email: string
   siret: string
   rcProValide: boolean
+  rc_pro_valide?: boolean
   rcProExpiration: string
+  rc_pro_expiration?: string
   note: number
   nbInterventions: number
+  nb_interventions?: number
   statut: 'actif' | 'suspendu' | 'en_attente'
   vitfixCertifie: boolean
+  vitfix_certifie?: boolean
+  artisan_user_id?: string | null
+  compte_existant?: boolean
+  cabinet_id?: string
+}
+
+interface SyndicMessage {
+  id: string
+  cabinet_id: string
+  artisan_user_id: string
+  sender_id: string
+  sender_role: 'syndic' | 'artisan'
+  sender_name: string
+  content: string
+  mission_id?: string | null
+  message_type: 'text' | 'rapport' | 'proof_of_work' | 'devis' | 'photo'
+  read_at?: string | null
+  created_at: string
 }
 
 interface Mission {
@@ -583,6 +606,379 @@ function EquipeSection({ cabinetId, currentUserRole }: { cabinetId: string; curr
       </div>
     </div>
   )
+}
+
+// ─── Composant Analyse Devis / Factures ───────────────────────────────────────
+
+function AnalyseDevisSection() {
+  const [mode, setMode] = useState<'paste' | 'history'>('paste')
+  const [docText, setDocText] = useState('')
+  const [filename, setFilename] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [analysis, setAnalysis] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string }[]>([])
+  const [selectedHistory, setSelectedHistory] = useState<string | null>(null)
+
+  // Charger l'historique depuis localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('vitfix_analyse_devis_history')
+      if (saved) setHistory(JSON.parse(saved))
+    } catch {}
+  }, [])
+
+  const saveToHistory = (fname: string, result: string) => {
+    // Extraire verdict et score du résultat
+    const verdictMatch = result.match(/\*\*Statut\*\*\s*:\s*([^\n]+)/)
+    const scoreMatch = result.match(/\*\*Score de conformité\*\*\s*:\s*([^\n]+)/)
+    const entry = {
+      id: Date.now().toString(),
+      filename: fname || 'Document sans nom',
+      date: new Date().toLocaleDateString('fr-FR'),
+      verdict: verdictMatch ? verdictMatch[1].trim() : '—',
+      score: scoreMatch ? scoreMatch[1].trim() : '—',
+      analysis: result,
+    }
+    const updated = [entry, ...history].slice(0, 20)
+    setHistory(updated)
+    try { localStorage.setItem('vitfix_analyse_devis_history', JSON.stringify(updated)) } catch {}
+  }
+
+  const handleAnalyse = async () => {
+    if (!docText.trim() || loading) return
+    setLoading(true)
+    setError('')
+    setAnalysis(null)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      const res = await fetch('/api/syndic/analyse-devis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ content: docText, filename }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Erreur lors de l\'analyse'); return }
+      setAnalysis(data.analysis)
+      saveToHistory(filename || 'Document analysé', data.analysis)
+    } catch {
+      setError('Erreur réseau, veuillez réessayer.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleReset = () => {
+    setDocText('')
+    setFilename('')
+    setAnalysis(null)
+    setError('')
+  }
+
+  // Colorer le verdict
+  const getVerdictColor = (verdict: string) => {
+    if (verdict.includes('CONFORME') && !verdict.includes('PARTIELLEMENT') && !verdict.includes('NON')) return 'text-green-700 bg-green-50 border-green-200'
+    if (verdict.includes('PARTIELLEMENT')) return 'text-yellow-700 bg-yellow-50 border-yellow-200'
+    if (verdict.includes('NON CONFORME')) return 'text-red-700 bg-red-50 border-red-200'
+    return 'text-gray-700 bg-gray-50 border-gray-200'
+  }
+
+  return (
+    <div className="max-w-5xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">🔍 Analyse Devis &amp; Factures</h1>
+          <p className="text-sm text-gray-500 mt-1">Vérification conformité juridique · Benchmark prix du marché · Détection risques litiges</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setMode('paste'); setSelectedHistory(null) }}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${mode === 'paste' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >
+            📋 Nouvelle analyse
+          </button>
+          <button
+            onClick={() => setMode('history')}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${mode === 'history' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >
+            🕐 Historique ({history.length})
+          </button>
+        </div>
+      </div>
+
+      {/* Bandeaux info */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-2xl">⚖️</span>
+          <div>
+            <p className="font-semibold text-blue-900 text-sm">Conformité juridique</p>
+            <p className="text-xs text-blue-600 mt-0.5">SIRET, TVA, RC Pro, garantie décennale, mentions obligatoires</p>
+          </div>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-2xl">💰</span>
+          <div>
+            <p className="font-semibold text-green-900 text-sm">Benchmark prix marché</p>
+            <p className="text-xs text-green-600 mt-0.5">Comparaison avec les tarifs 2024-2025 par corps de métier</p>
+          </div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-2xl">🛡️</span>
+          <div>
+            <p className="font-semibold text-amber-900 text-sm">Prévention litiges</p>
+            <p className="text-xs text-amber-600 mt-0.5">Détection des risques juridiques avant validation</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Mode : Nouvelle analyse */}
+      {mode === 'paste' && (
+        <div className="space-y-4">
+          {/* Zone de saisie */}
+          {!analysis ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Nom du document <span className="font-normal text-gray-400">(optionnel)</span>
+                </label>
+                <input
+                  type="text"
+                  value={filename}
+                  onChange={e => setFilename(e.target.value)}
+                  placeholder="ex : Devis plomberie Marc Fontaine — 24/02/2026"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Contenu du devis ou de la facture <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-400 mb-2">Copiez-collez le texte intégral du document (y compris les mentions légales, tableaux de prix, conditions générales...)</p>
+                <textarea
+                  value={docText}
+                  onChange={e => setDocText(e.target.value)}
+                  placeholder={`Exemple :\n\nEntreprise Plomberie Pro SARL\nSIRET : 12345678901234\n123 rue de la Paix, 75001 Paris\n\nDEVIS N° 2026-042\nDate : 24/02/2026\n\nDésignation : Remplacement colonne eau chaude cave\nQuantité : 15 ml × 85€ HT = 1 275,00 € HT\nTVA 10% : 127,50 €\nTotal TTC : 1 402,50 €\n\nRC Pro : Allianz n°12345, valide jusqu'au 31/12/2026\nGarantie décennale : AXA n°67890`}
+                  rows={14}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-mono resize-y"
+                />
+                <p className="text-xs text-gray-400 mt-1">{docText.length} caractères</p>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-center gap-2">
+                  <span>⚠️</span> {error}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAnalyse}
+                  disabled={loading || docText.trim().length < 10}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Analyse en cours...
+                    </>
+                  ) : (
+                    <>🔍 Analyser le document</>
+                  )}
+                </button>
+                {docText && (
+                  <button
+                    onClick={handleReset}
+                    className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition text-sm"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
+
+              {/* Astuce */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <p className="text-xs font-semibold text-gray-700 mb-2">💡 Comment obtenir le texte d&apos;un PDF ?</p>
+                <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
+                  <li>Ouvrir le PDF → Ctrl+A (tout sélectionner) → Ctrl+C (copier) → coller ici</li>
+                  <li>Ou utiliser Adobe Acrobat Reader : clic droit → &quot;Sélectionner tout le texte&quot;</li>
+                  <li>Pour les images scannées : utilisez un outil OCR (ex. Adobe, Google Lens)</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            /* Résultat d'analyse */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">
+                  📊 Résultat d&apos;analyse {filename && <span className="font-normal text-gray-500 text-base">— {filename}</span>}
+                </h2>
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-semibold transition"
+                >
+                  ← Nouvelle analyse
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div
+                  className="prose prose-sm max-w-none text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: formatAnalysis(analysis) }}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const blob = new Blob([analysis], { type: 'text/plain; charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `analyse-${filename || 'devis'}-${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}.txt`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium text-sm transition"
+                >
+                  💾 Exporter l&apos;analyse
+                </button>
+                <button
+                  onClick={() => navigator.clipboard.writeText(analysis).then(() => alert('Analyse copiée !'))}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium text-sm transition"
+                >
+                  📋 Copier
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition"
+                >
+                  🔍 Analyser un autre document
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mode : Historique */}
+      {mode === 'history' && (
+        <div className="space-y-4">
+          {history.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
+              <div className="text-4xl mb-3">📂</div>
+              <p className="font-semibold text-gray-700">Aucune analyse enregistrée</p>
+              <p className="text-sm text-gray-400 mt-1">Lancez votre première analyse pour la retrouver ici</p>
+            </div>
+          ) : selectedHistory ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedHistory(null)}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                >
+                  ← Retour à l&apos;historique
+                </button>
+              </div>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div
+                  className="prose prose-sm max-w-none text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: formatAnalysis(history.find(h => h.id === selectedHistory)?.analysis || '') }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Document</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Score</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {history.map(h => (
+                    <tr key={h.id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">📄</span>
+                          <p className="font-medium text-gray-900 text-sm">{h.filename}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">{h.date}</td>
+                      <td className="px-4 py-4 text-sm font-semibold text-gray-700">{h.score}</td>
+                      <td className="px-4 py-4">
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${getVerdictColor(h.verdict)}`}>
+                          {h.verdict}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <button
+                          onClick={() => setSelectedHistory(h.id)}
+                          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Voir →
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Convertit le markdown Groq en HTML lisible (table, bold, headers)
+function formatAnalysis(text: string): string {
+  if (!text) return ''
+  let html = text
+    // Échapper les balises HTML
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Headers ##
+    .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 mt-6 mb-2 border-b border-gray-100 pb-1">$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-gray-800 mt-4 mb-1">$1</h3>')
+    // Bold **text**
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+    // Italic *text*
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Tables (simple)
+    .replace(/^\|(.+)\|$/gm, (line) => {
+      const cells = line.split('|').filter(c => c.trim() !== '').map(c => c.trim())
+      const isHeader = cells.some(c => c.match(/^[-:]+$/))
+      if (isHeader) return ''
+      const tag = 'td'
+      const tdCells = cells.map(c => `<${tag} class="px-3 py-2 border border-gray-200 text-sm">${c}</${tag}>`).join('')
+      return `<tr>${tdCells}</tr>`
+    })
+    // Wrap table rows (remplace les <tr> consécutifs par un tableau)
+    .split(/(<tr>(?:[^<]|<(?!\/tr>))*<\/tr>)/)
+    .map((chunk, i, arr) => chunk)
+    .join('')
+    .replace(/(<tr>[^]*?<\/tr>)+/g, (match) =>
+      `<div class="overflow-x-auto my-3"><table class="w-full border-collapse border border-gray-200 rounded-xl overflow-hidden"><tbody>${match}</tbody></table></div>`
+    )
+    // Line items with ✅ ❌ ⚠️ 🔴 🟡 🟢
+    .replace(/^([✅❌⚠️🔴🟡🟢🔍💰🛡️📋🏷️]) (.+)$/gm, (_, emoji, rest) =>
+      `<div class="flex items-start gap-2 py-0.5"><span class="text-base flex-shrink-0">${emoji}</span><span class="text-sm text-gray-700">${rest}</span></div>`
+    )
+    // Horizontal rule ---
+    .replace(/^---$/gm, '<hr class="my-4 border-gray-100" />')
+    // Line breaks
+    .replace(/\n\n/g, '</p><p class="mb-2">')
+    .replace(/\n/g, '<br />')
+
+  return `<p class="mb-2">${html}</p>`
 }
 
 // ─── Composant Comptabilité Technique ─────────────────────────────────────────
@@ -2730,6 +3126,21 @@ export default function SyndicDashboard() {
   const [missions, setMissions] = useState<Mission[]>(MISSIONS_DEMO)
   const [alertes] = useState<Alerte[]>(ALERTES_DEMO)
   const [showModalMission, setShowModalMission] = useState(false)
+  // ── Artisan management ──────────────────────────────────────────────────────
+  const [showModalArtisan, setShowModalArtisan] = useState(false)
+  const [artisanForm, setArtisanForm] = useState({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' })
+  const [artisanSearchResult, setArtisanSearchResult] = useState<{ found: boolean; name?: string; role?: string } | null>(null)
+  const [artisanSearchLoading, setArtisanSearchLoading] = useState(false)
+  const [artisanSubmitting, setArtisanSubmitting] = useState(false)
+  const [artisanError, setArtisanError] = useState('')
+  const [artisanSuccess, setArtisanSuccess] = useState('')
+  const [artisansLoaded, setArtisansLoaded] = useState(false)
+  // ── Canal communication ─────────────────────────────────────────────────────
+  const [selectedArtisanChat, setSelectedArtisanChat] = useState<Artisan | null>(null)
+  const [messages, setMessages] = useState<SyndicMessage[]>([])
+  const [msgInput, setMsgInput] = useState('')
+  const [msgLoading, setMsgLoading] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
   const [iaMessages, setIaMessages] = useState<{ role: 'user' | 'assistant'; content: string; action?: any }[]>([
     { role: 'assistant', content: 'Bonjour ! Je suis **Max**, votre assistant IA expert VitFix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** : immeubles, artisans, missions, alertes, échéances réglementaires.\n\nJe peux aussi **agir directement** : créer une mission, naviguer vers une page, générer un courrier...\n\n🎙️ Vous pouvez me parler à voix haute en cliquant sur le micro !\n\nComment puis-je vous aider ?' }
   ])
@@ -2805,17 +3216,161 @@ export default function SyndicDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      const userRole = session?.user?.user_metadata?.role || ''
+      // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies)
+      const { data: { user: freshUser } } = await supabase.auth.getUser()
+      const userRole = freshUser?.user_metadata?.role || ''
       const isSyndic = userRole === 'syndic' || userRole.startsWith('syndic_')
-      if (!session?.user || !isSyndic) {
+      if (!freshUser || !isSyndic) {
         window.location.href = '/syndic/login'
         return
       }
-      setUser(session.user)
+      setUser(freshUser)
     }
     getUser()
   }, [])
+
+  // ── Charger les artisans depuis l'API quand on ouvre la page artisans ────────
+  useEffect(() => {
+    if (page === 'artisans' && !artisansLoaded && user) {
+      fetchArtisans()
+    }
+  }, [page, user, artisansLoaded])
+
+  const fetchArtisans = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch('/api/syndic/artisans', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.artisans && data.artisans.length > 0) {
+          // Convertir format API → format Artisan local
+          const mapped: Artisan[] = data.artisans.map((a: Artisan) => ({
+            ...a,
+            nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
+            rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
+            rcProExpiration: a.rc_pro_expiration ?? a.rcProExpiration ?? '',
+            nbInterventions: a.nb_interventions ?? a.nbInterventions ?? 0,
+            vitfixCertifie: a.vitfix_certifie ?? a.vitfixCertifie ?? false,
+          }))
+          setArtisans(mapped)
+        }
+        setArtisansLoaded(true)
+      }
+    } catch { /* silencieux */ }
+  }
+
+  // ── Charger messages du canal de communication ────────────────────────────────
+  const fetchMessages = async (artisan: Artisan) => {
+    if (!artisan.artisan_user_id) return
+    setMsgLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch(`/api/syndic/messages?artisan_id=${artisan.artisan_user_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data.messages || [])
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+      }
+    } catch { /* silencieux */ }
+    setMsgLoading(false)
+  }
+
+  const sendMessage = async () => {
+    if (!msgInput.trim() || !selectedArtisanChat?.artisan_user_id) return
+    const content = msgInput.trim()
+    setMsgInput('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      await fetch('/api/syndic/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          content,
+          artisan_user_id: selectedArtisanChat.artisan_user_id,
+        })
+      })
+      await fetchMessages(selectedArtisanChat)
+    } catch { /* silencieux */ }
+  }
+
+  // ── Ajouter/créer un artisan ─────────────────────────────────────────────────
+  const handleArtisanEmailSearch = async (email: string) => {
+    if (!email || !email.includes('@')) return
+    setArtisanSearchLoading(true)
+    setArtisanSearchResult(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch(`/api/syndic/artisans/search?email=${encodeURIComponent(email)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setArtisanSearchResult(data)
+        if (data.found) {
+          // Auto-remplir les champs avec les infos du compte existant
+          const fullName = data.name || ''
+          const parts = fullName.trim().split(' ')
+          // "Lepore Sebastien" ou "Sebastien Lepore" — le prénom est généralement le 1er mot
+          const prenom = parts.length > 1 ? parts[0] : ''
+          const nom = parts.length > 1 ? parts.slice(1).join(' ') : parts[0] || ''
+          setArtisanForm(f => ({
+            ...f,
+            nom,
+            prenom,
+            ...(data.telephone ? { telephone: data.telephone } : {}),
+            ...(data.metier ? { metier: data.metier } : {}),
+            ...(data.siret ? { siret: data.siret } : {}),
+          }))
+        }
+      } else {
+        // Même si l'API renvoie une erreur, on affiche "non trouvé"
+        setArtisanSearchResult({ found: false })
+      }
+    } catch {
+      setArtisanSearchResult({ found: false })
+    }
+    setArtisanSearchLoading(false)
+  }
+
+  const handleAddArtisan = async (createAccount: boolean) => {
+    setArtisanError('')
+    setArtisanSuccess('')
+    setArtisanSubmitting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch('/api/syndic/artisans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...artisanForm, action: createAccount ? 'create' : 'link' })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setArtisanError(data.error || 'Erreur lors de l\'ajout')
+      } else {
+        setArtisanSuccess(data.message || 'Artisan ajouté avec succès !')
+        setArtisansLoaded(false) // Forcer rechargement
+        setTimeout(() => {
+          setShowModalArtisan(false)
+          setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' })
+          setArtisanSearchResult(null)
+          setArtisanSuccess('')
+          fetchArtisans()
+        }, 1500)
+      }
+    } catch {
+      setArtisanError('Une erreur est survenue')
+    }
+    setArtisanSubmitting(false)
+  }
 
   useEffect(() => {
     iaEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -2836,8 +3391,12 @@ export default function SyndicDashboard() {
     })),
     artisans: artisans.map(a => ({
       nom: a.nom, metier: a.metier, statut: a.statut,
-      rcProValide: a.rcProValide, rcProExpiration: a.rcProExpiration,
-      note: a.note, vitfixCertifie: a.vitfixCertifie,
+      email: a.email, // IMPORTANT : pour l'attribution vocale de missions
+      telephone: a.telephone,
+      rcProValide: a.rc_pro_valide ?? a.rcProValide,
+      rcProExpiration: a.rc_pro_expiration ?? a.rcProExpiration,
+      note: a.note, vitfixCertifie: a.vitfix_certifie ?? a.vitfixCertifie,
+      artisan_user_id: a.artisan_user_id,
     })),
     missions: missions.map(m => ({
       immeuble: m.immeuble, artisan: m.artisan, type: m.type,
@@ -2899,9 +3458,9 @@ export default function SyndicDashboard() {
 
     const recognition = new SpeechRecognition()
     recognition.lang = 'fr-FR'
-    recognition.continuous = false
+    recognition.continuous = true
     recognition.interimResults = true
-    recognition.maxAlternatives = 1
+    recognition.maxAlternatives = 3
 
     recognition.onstart = () => setIaVoiceActive(true)
 
@@ -2926,7 +3485,7 @@ export default function SyndicDashboard() {
             }
             return prev
           })
-        }, 600)
+        }, 1500)
       }
     }
 
@@ -2953,13 +3512,15 @@ export default function SyndicDashboard() {
     setIaLoading(true)
 
     try {
+      const { data: { session: iaSession } } = await supabase.auth.getSession()
+      const iaToken = iaSession?.access_token
+
       const res = await fetch('/api/syndic/max-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
         body: JSON.stringify({
           message: userMsg,
           syndic_context: buildSyndicContext(),
-          // Historique complet de la session
           conversation_history: iaMessages.map(m => ({ role: m.role, content: m.content })),
         }),
       })
@@ -2967,12 +3528,12 @@ export default function SyndicDashboard() {
       const responseText = data.response || 'Désolé, je n\'ai pas pu répondre. Réessayez.'
       const action = data.action || null
 
-      // Ajouter la réponse avec l'action éventuelle
       setIaMessages(prev => [...prev, { role: 'assistant', content: responseText, action }])
 
-      // Exécuter l'action si présente
+      // ── Exécuter l'action si présente ─────────────────────────────────────
       if (action) {
         if (action.type === 'create_mission') {
+          // Créer mission localement + assigner à l'artisan via API
           const newMission: Mission = {
             id: Date.now().toString(),
             immeuble: action.immeuble || '',
@@ -2982,17 +3543,107 @@ export default function SyndicDashboard() {
             priorite: action.priorite || 'normale',
             statut: 'en_attente',
             dateCreation: new Date().toISOString().split('T')[0],
+            dateIntervention: action.date_intervention || undefined,
           }
           setMissions(prev => [newMission, ...prev])
+
+          // Si date et artisan fournis → assigner sur l'agenda artisan
+          if (action.date_intervention && action.artisan_email) {
+            fetch('/api/syndic/assign-mission', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+              body: JSON.stringify({
+                artisan_email: action.artisan_email,
+                artisan_name: action.artisan,
+                description: action.description,
+                type_travaux: action.type_travaux,
+                date_intervention: action.date_intervention,
+                immeuble: action.immeuble,
+                priorite: action.priorite || 'normale',
+                notes: action.notes || '',
+              }),
+            }).then(r => r.json()).then(d => {
+              if (d.success) {
+                setIaMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: `✅ **Mission envoyée sur l'agenda de ${action.artisan}** — Il a reçu une notification et la mission apparaît dans son planning.`,
+                }])
+                speakResponse(`Mission envoyée sur l'agenda de ${action.artisan}.`)
+              }
+            }).catch(() => {})
+          }
+
+        } else if (action.type === 'assign_mission') {
+          // Attribution directe vocale : "Lepore Sebastien, intervention élagage, 10 mars, Parc Corot"
+          if (action.artisan_email && action.date_intervention) {
+            fetch('/api/syndic/assign-mission', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+              body: JSON.stringify({
+                artisan_email: action.artisan_email,
+                artisan_name: action.artisan,
+                description: action.description,
+                type_travaux: action.type_travaux,
+                date_intervention: action.date_intervention,
+                immeuble: action.immeuble || action.lieu || '',
+                priorite: action.priorite || 'normale',
+                notes: action.notes || '',
+              }),
+            }).then(r => r.json()).then(d => {
+              const msg = d.artisan_found
+                ? `✅ **Mission assignée !**\n\n📅 **${action.type_travaux || action.description}** — ${action.immeuble || action.lieu || ''}\n👤 **${action.artisan}** — ${new Date(action.date_intervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}\n\nNotification envoyée — la mission apparaît sur son agenda.`
+                : `⚠️ Mission créée mais **${action.artisan}** n'a pas de compte VitFix. Ajoutez-le dans l'onglet Artisans pour la synchronisation agenda.`
+              setIaMessages(prev => [...prev, { role: 'assistant', content: msg }])
+              speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}. Il a reçu la notification.` : `Mission créée. L'artisan n'est pas encore sur VitFix.`)
+              // Ajouter à l'état local missions
+              setMissions(prev => [{
+                id: Date.now().toString(),
+                immeuble: action.immeuble || action.lieu || '',
+                artisan: action.artisan || '',
+                type: action.type_travaux || 'Intervention',
+                description: action.description || '',
+                priorite: action.priorite || 'normale',
+                statut: 'en_attente',
+                dateCreation: new Date().toISOString().split('T')[0],
+                dateIntervention: action.date_intervention,
+              } as Mission, ...prev])
+            }).catch(() => {})
+          }
+
         } else if (action.type === 'navigate') {
           if (action.page) setPage(action.page as Page)
+
         } else if (action.type === 'create_alert') {
-          // les alertes sont en state readonly dans la démo — log uniquement
           console.info('Max action — create_alert:', action)
+
+        } else if (action.type === 'send_message') {
+          // Envoyer message à un artisan via canal dédié
+          const targetArtisan = artisans.find(a =>
+            a.nom.toLowerCase().includes((action.artisan || '').toLowerCase()) ||
+            (action.artisan || '').toLowerCase().includes(a.nom.toLowerCase())
+          )
+          if (targetArtisan?.artisan_user_id && action.content) {
+            fetch('/api/syndic/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+              body: JSON.stringify({
+                content: action.content,
+                artisan_user_id: targetArtisan.artisan_user_id,
+              }),
+            }).catch(() => {})
+          }
+
+        } else if (action.type === 'create_document') {
+          // Afficher le document généré directement dans le chat
+          if (action.contenu) {
+            setIaMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `📄 **Document généré — ${action.type_doc || 'Courrier'}**\n\n---\n\n${action.contenu}`,
+            }])
+          }
         }
       }
 
-      // Synthèse vocale si activée
       speakResponse(responseText)
 
     } catch {
@@ -3015,6 +3666,7 @@ export default function SyndicDashboard() {
     { id: 'artisans', emoji: '🔧', label: 'Artisans', badge: artisans.filter(a => a.statut === 'actif').length },
     { id: 'missions', emoji: '📋', label: 'Ordres de mission', badge: missions.filter(m => m.statut === 'en_cours').length },
     { id: 'comptabilite_tech', emoji: '📊', label: 'Comptabilité Technique' },
+    { id: 'analyse_devis', emoji: '🔍', label: 'Analyse Devis/Factures' },
     { id: 'planning', emoji: '📅', label: 'Planning' },
     { id: 'reglementaire', emoji: '⚖️', label: 'Calendrier réglementaire' },
     { id: 'rapport', emoji: '📄', label: 'Rapport mensuel' },
@@ -3345,54 +3997,149 @@ export default function SyndicDashboard() {
           )}
 
           {/* ── ARTISANS ── */}
-          {page === 'artisans' && (
+          {page === 'artisans' && !selectedArtisanChat && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-gray-500 text-sm">{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie).length} certifiés VitFix</p>
-                <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                <p className="text-gray-500 text-sm">{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés VitFix</p>
+                <button onClick={() => { setShowModalArtisan(true); setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }); setArtisanSearchResult(null); setArtisanError(''); setArtisanSuccess(''); }} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
                   + Ajouter un artisan
                 </button>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
-                {artisans.map(a => (
-                  <div key={a.id} className={`bg-white rounded-2xl shadow-sm p-6 border-2 ${a.statut === 'suspendu' ? 'border-red-200' : 'border-gray-100'}`}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-gray-900">{a.nom}</h3>
-                          {a.vitfixCertifie && <span className="text-xs bg-[#FFC107] text-gray-900 px-2 py-0.5 rounded-full font-bold">⚡ Certifié</span>}
+                {artisans.map(a => {
+                  const certifie = a.vitfixCertifie || a.vitfix_certifie
+                  const rcOk = a.rcProValide || a.rc_pro_valide
+                  const rcExp = a.rcProExpiration || a.rc_pro_expiration || ''
+                  const nbInterv = a.nbInterventions || a.nb_interventions || 0
+                  const hasChat = !!(a.artisan_user_id)
+                  return (
+                    <div key={a.id} className={`bg-white rounded-2xl shadow-sm p-6 border-2 ${a.statut === 'suspendu' ? 'border-red-200' : 'border-gray-100'}`}>
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-gray-900">{a.nom}</h3>
+                            {certifie && <span className="text-xs bg-[#FFC107] text-gray-900 px-2 py-0.5 rounded-full font-bold">⚡ Certifié</span>}
+                            {a.compte_existant && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">🔗 Synchronisé</span>}
+                          </div>
+                          <p className="text-sm text-gray-500">{a.metier}</p>
                         </div>
-                        <p className="text-sm text-gray-500">{a.metier}</p>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-[#FFC107]">★ {a.note || '—'}</div>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            a.statut === 'actif' ? 'bg-green-100 text-green-700' :
+                            a.statut === 'suspendu' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {a.statut === 'actif' ? 'Actif' : a.statut === 'suspendu' ? 'Suspendu' : 'En attente'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-[#FFC107]">★ {a.note}</div>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                          a.statut === 'actif' ? 'bg-green-100 text-green-700' :
-                          a.statut === 'suspendu' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {a.statut === 'actif' ? 'Actif' : a.statut === 'suspendu' ? 'Suspendu' : 'En attente'}
-                        </span>
+                      <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 mb-3">
+                        <div>📞 {a.telephone || '—'}</div>
+                        <div>📧 {a.email}</div>
+                        <div>📋 {nbInterv} interventions</div>
+                        <div className={`${rcOk ? 'text-green-600' : 'text-red-500 font-semibold'}`}>
+                          {rcOk ? '✅ RC Pro valide' : '❌ RC Pro manquante'}
+                        </div>
+                      </div>
+                      {!rcOk && rcExp && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-3">
+                          ⚠️ RC Pro expirée le {new Date(rcExp).toLocaleDateString('fr-FR')}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {hasChat ? (
+                          <button onClick={() => { setSelectedArtisanChat(a); fetchMessages(a) }} className="flex-1 text-xs bg-blue-600 text-white py-1.5 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-1">
+                            💬 Canal dédié
+                          </button>
+                        ) : (
+                          <button className="flex-1 text-xs border border-gray-200 text-gray-400 py-1.5 rounded-lg cursor-not-allowed" title="Compte VitFix non lié">
+                            💬 Pas de compte lié
+                          </button>
+                        )}
+                        <button onClick={() => setShowModalMission(true)} className="flex-1 text-xs bg-purple-600 text-white py-1.5 rounded-lg hover:bg-purple-700 transition">Créer mission</button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 mb-3">
-                      <div>📞 {a.telephone}</div>
-                      <div>📧 {a.email}</div>
-                      <div>📋 {a.nbInterventions} interventions</div>
-                      <div className={`${a.rcProValide ? 'text-green-600' : 'text-red-500 font-semibold'}`}>
-                        {a.rcProValide ? '✅ RC Pro valide' : '❌ RC Pro expirée'}
-                      </div>
-                    </div>
-                    {!a.rcProValide && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-3">
-                        ⚠️ RC Pro expirée le {new Date(a.rcProExpiration).toLocaleDateString('fr-FR')} — Artisan suspendu de la marketplace
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <button className="flex-1 text-xs border border-gray-200 text-gray-600 py-1.5 rounded-lg hover:bg-gray-50 transition">Voir profil</button>
-                      <button onClick={() => setShowModalMission(true)} className="flex-1 text-xs bg-purple-600 text-white py-1.5 rounded-lg hover:bg-purple-700 transition">Créer mission</button>
-                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── CANAL COMMUNICATION ARTISAN ── */}
+          {page === 'artisans' && selectedArtisanChat && (
+            <div className="flex flex-col h-[calc(100vh-200px)]">
+              {/* Header canal */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-3">
+                <button onClick={() => { setSelectedArtisanChat(null); setMessages([]) }} className="text-gray-400 hover:text-gray-600 transition">
+                  ← Retour
+                </button>
+                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-lg font-bold text-purple-700">
+                  {selectedArtisanChat.nom.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">{selectedArtisanChat.nom}</h3>
+                  <p className="text-xs text-gray-500">{selectedArtisanChat.metier} · Canal dédié interventions</p>
+                </div>
+                <div className="ml-auto flex gap-2">
+                  <button onClick={() => setShowModalMission(true)} className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition">
+                    + Nouvelle mission
+                  </button>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 overflow-y-auto space-y-3 mb-4">
+                {msgLoading && (
+                  <div className="flex justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                   </div>
-                ))}
+                )}
+                {!msgLoading && messages.length === 0 && (
+                  <div className="text-center py-12 text-gray-400">
+                    <div className="text-4xl mb-2">💬</div>
+                    <p className="font-medium">Canal de communication dédié</p>
+                    <p className="text-sm mt-1">Envoyez votre premier message à {selectedArtisanChat.nom}</p>
+                    <p className="text-xs mt-2 text-gray-300">Les missions assignées, rapports et proof of work apparaîtront ici</p>
+                  </div>
+                )}
+                {messages.map(msg => {
+                  const isMine = msg.sender_role === 'syndic'
+                  return (
+                    <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${isMine ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                        {!isMine && <p className="text-xs font-semibold mb-1 text-purple-600">{msg.sender_name}</p>}
+                        {msg.message_type === 'proof_of_work' && <p className="text-xs font-bold mb-1">📸 Proof of Work</p>}
+                        {msg.message_type === 'rapport' && <p className="text-xs font-bold mb-1">📋 Rapport d'intervention</p>}
+                        {msg.message_type === 'devis' && <p className="text-xs font-bold mb-1">💶 Devis</p>}
+                        <p className="text-sm">{msg.content}</p>
+                        <p className={`text-xs mt-1 ${isMine ? 'text-purple-200' : 'text-gray-400'}`}>
+                          {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          {isMine && msg.read_at && ' · Lu'}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Zone de saisie */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex gap-2">
+                <input
+                  type="text"
+                  value={msgInput}
+                  onChange={e => setMsgInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder={`Message à ${selectedArtisanChat.nom}...`}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!msgInput.trim()}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-40"
+                >
+                  Envoyer
+                </button>
               </div>
             </div>
           )}
@@ -3790,6 +4537,11 @@ export default function SyndicDashboard() {
             <ComptabiliteTechSection missions={missions} artisans={artisans} immeubles={immeubles} />
           )}
 
+          {/* ── ANALYSE DEVIS / FACTURES ── */}
+          {page === 'analyse_devis' && (
+            <AnalyseDevisSection />
+          )}
+
           {/* ── PARAMÈTRES ── */}
           {page === 'parametres' && (
             <div className="max-w-2xl space-y-6">
@@ -3861,6 +4613,143 @@ export default function SyndicDashboard() {
           onClose={() => setShowModalMission(false)}
           onAdd={(m) => setMissions(prev => [{ ...m, id: Date.now().toString(), statut: 'en_attente', dateCreation: new Date().toISOString().split('T')[0] } as Mission, ...prev])}
         />
+      )}
+
+      {/* ── Modal Ajouter un Artisan ── */}
+      {showModalArtisan && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">🔧 Ajouter un artisan</h2>
+                <button onClick={() => setShowModalArtisan(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              </div>
+
+              {artisanSuccess ? (
+                <div className="text-center py-8">
+                  <div className="text-5xl mb-3">✅</div>
+                  <p className="text-green-700 font-semibold text-lg">{artisanSuccess}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Étape 1 : email */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email de l'artisan *</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={artisanForm.email}
+                        onChange={e => { setArtisanForm(f => ({ ...f, email: e.target.value })); setArtisanSearchResult(null) }}
+                        placeholder="artisan@exemple.fr"
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                      />
+                      <button
+                        onClick={() => handleArtisanEmailSearch(artisanForm.email)}
+                        disabled={artisanSearchLoading || !artisanForm.email.includes('@')}
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition disabled:opacity-40"
+                      >
+                        {artisanSearchLoading ? '⏳' : '🔍 Vérifier'}
+                      </button>
+                    </div>
+                    {artisanSearchResult && (
+                      <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-blue-50 border border-blue-200 text-blue-800' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
+                        {artisanSearchResult.found
+                          ? <>✅ Compte VitFix trouvé — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? 'artisan certifié' : artisanSearchResult.role})<br/><span className="text-xs">Il sera synchronisé avec votre cabinet.</span></>
+                          : <>⚠️ Aucun compte VitFix. Vous pouvez créer un compte artisan ou l'ajouter sans compte.</>
+                        }
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Infos artisan */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
+                      <input type="text" value={artisanForm.prenom} onChange={e => setArtisanForm(f => ({ ...f, prenom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" placeholder="Jean" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+                      <input type="text" value={artisanForm.nom} onChange={e => setArtisanForm(f => ({ ...f, nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" placeholder="Dupont" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                      <input type="tel" value={artisanForm.telephone} onChange={e => setArtisanForm(f => ({ ...f, telephone: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" placeholder="06 12 34 56 78" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Corps de métier</label>
+                      <select value={artisanForm.metier} onChange={e => setArtisanForm(f => ({ ...f, metier: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400">
+                        <option value="">Sélectionner...</option>
+                        <option>Plomberie</option>
+                        <option>Électricité</option>
+                        <option>Peinture</option>
+                        <option>Menuiserie</option>
+                        <option>Chauffage / Climatisation</option>
+                        <option>Serrurerie</option>
+                        <option>Maçonnerie</option>
+                        <option>Toiture</option>
+                        <option>Ascenseur</option>
+                        <option>Jardinage / Espaces verts</option>
+                        <option>Nettoyage</option>
+                        <option>Multi-services</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">SIRET (optionnel)</label>
+                    <input type="text" value={artisanForm.siret} onChange={e => setArtisanForm(f => ({ ...f, siret: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" placeholder="12345678901234" maxLength={14} />
+                  </div>
+
+                  {artisanError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">{artisanError}</div>
+                  )}
+
+                  {/* Boutons d'action */}
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setShowModalArtisan(false)} className="flex-1 px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
+                      Annuler
+                    </button>
+                    {artisanSearchResult?.found ? (
+                      <button
+                        onClick={() => handleAddArtisan(false)}
+                        disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
+                        className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
+                      >
+                        {artisanSubmitting ? 'Synchronisation...' : '🔗 Synchroniser avec mon cabinet'}
+                      </button>
+                    ) : artisanSearchResult && !artisanSearchResult.found ? (
+                      <div className="flex-1 flex flex-col gap-2">
+                        <button
+                          onClick={() => handleAddArtisan(true)}
+                          disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
+                          className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
+                        >
+                          {artisanSubmitting ? 'Création...' : '+ Créer le compte artisan'}
+                        </button>
+                        <button
+                          onClick={() => handleAddArtisan(false)}
+                          disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
+                          className="w-full px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition disabled:opacity-40"
+                        >
+                          Ajouter sans compte VitFix
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAddArtisan(false)}
+                        disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
+                        className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
+                      >
+                        {artisanSubmitting ? 'Ajout...' : '+ Ajouter l\'artisan'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
