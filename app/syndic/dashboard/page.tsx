@@ -6,13 +6,13 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis'
+type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions'
 
 // Pages accessibles par rôle
 const ROLE_PAGES: Record<string, Page[]> = {
   syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
   syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
-  syndic_tech: ['accueil', 'missions', 'artisans', 'comptabilite_tech', 'analyse_devis', 'planning', 'alertes', 'ia', 'parametres'],
+  syndic_tech: ['accueil', 'missions', 'artisans', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'planning', 'alertes', 'ia', 'parametres'],
   syndic_secretaire: ['accueil', 'coproprios', 'missions', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
   syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'ia', 'parametres'],
   syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'ia', 'parametres'],
@@ -1375,6 +1375,528 @@ function formatAnalysis(text: string): string {
     .replace(/\n/g, '<br />')
 
   return `<p class="mb-2">${html}</p>`
+}
+
+// ─── Composant Documents Interventions ────────────────────────────────────────
+
+interface DocIntervention {
+  id: string
+  mission_id?: string
+  artisan_nom: string
+  artisan_metier: string
+  immeuble: string
+  date_intervention: string
+  type: 'facture' | 'devis' | 'rapport' | 'photo' | 'autre'
+  filename: string
+  url: string
+  envoye_compta: boolean
+  envoye_compta_at?: string
+  notes?: string
+  montant?: number
+}
+
+function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; setPage: (p: Page) => void }) {
+  const [docs, setDocs] = useState<DocIntervention[]>([])
+  const [search, setSearch] = useState('')
+  const [filterType, setFilterType] = useState<string>('all')
+  const [filterStatut, setFilterStatut] = useState<'all' | 'envoye' | 'non_envoye'>('all')
+  const [filterArtisan, setFilterArtisan] = useState<string>('all')
+  const [uploading, setUploading] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadForm, setUploadForm] = useState({
+    artisan_nom: '', artisan_metier: '', immeuble: '',
+    date_intervention: new Date().toISOString().split('T')[0],
+    type: 'facture' as DocIntervention['type'],
+    notes: '', montant: '',
+  })
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState('')
+  const [sendingCompta, setSendingCompta] = useState<string | null>(null)
+  const uploadFileRef = useRef<HTMLInputElement>(null)
+
+  // Charger depuis localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('vitfix_docs_interventions')
+      if (saved) setDocs(JSON.parse(saved))
+    } catch {}
+  }, [])
+
+  const saveDocs = (updated: DocIntervention[]) => {
+    setDocs(updated)
+    try { localStorage.setItem('vitfix_docs_interventions', JSON.stringify(updated)) } catch {}
+  }
+
+  // Upload document
+  const handleUpload = async () => {
+    if (!uploadFile || !uploadForm.artisan_nom || !uploadForm.immeuble) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      const form = new FormData()
+      form.append('file', uploadFile)
+      form.append('bucket', 'artisan-documents')
+      form.append('folder', 'syndic-interventions')
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: form,
+      })
+      const data = await res.json()
+      if (!res.ok) { setUploadError(data.error || 'Erreur upload'); return }
+
+      const newDoc: DocIntervention = {
+        id: Date.now().toString(),
+        artisan_nom: uploadForm.artisan_nom,
+        artisan_metier: uploadForm.artisan_metier,
+        immeuble: uploadForm.immeuble,
+        date_intervention: uploadForm.date_intervention,
+        type: uploadForm.type,
+        filename: uploadFile.name,
+        url: data.url,
+        envoye_compta: false,
+        notes: uploadForm.notes,
+        montant: uploadForm.montant ? parseFloat(uploadForm.montant) : undefined,
+      }
+      saveDocs([newDoc, ...docs])
+      setShowUploadModal(false)
+      setUploadFile(null)
+      setUploadForm({ artisan_nom: '', artisan_metier: '', immeuble: '', date_intervention: new Date().toISOString().split('T')[0], type: 'facture', notes: '', montant: '' })
+    } catch { setUploadError('Erreur réseau') }
+    finally { setUploading(false) }
+  }
+
+  // Marquer comme envoyé à la comptabilité
+  const handleEnvoyerCompta = async (doc: DocIntervention) => {
+    setSendingCompta(doc.id)
+    // Simuler envoi (dans une vraie app : envoyer email/notification à syndic_comptable)
+    await new Promise(r => setTimeout(r, 800))
+    const updated = docs.map(d => d.id === doc.id
+      ? { ...d, envoye_compta: true, envoye_compta_at: new Date().toISOString() }
+      : d
+    )
+    saveDocs(updated)
+    setSendingCompta(null)
+  }
+
+  // Annuler l'envoi
+  const handleAnnulerEnvoi = (docId: string) => {
+    const updated = docs.map(d => d.id === docId ? { ...d, envoye_compta: false, envoye_compta_at: undefined } : d)
+    saveDocs(updated)
+  }
+
+  // Supprimer
+  const handleDelete = (docId: string) => {
+    if (!confirm('Supprimer ce document ?')) return
+    saveDocs(docs.filter(d => d.id !== docId))
+  }
+
+  // Filtres
+  const filtered = docs.filter(d => {
+    if (search && !d.filename.toLowerCase().includes(search.toLowerCase()) &&
+        !d.artisan_nom.toLowerCase().includes(search.toLowerCase()) &&
+        !d.immeuble.toLowerCase().includes(search.toLowerCase()) &&
+        !d.notes?.toLowerCase().includes(search.toLowerCase()) &&
+        !d.artisan_metier.toLowerCase().includes(search.toLowerCase())) return false
+    if (filterType !== 'all' && d.type !== filterType) return false
+    if (filterStatut === 'envoye' && !d.envoye_compta) return false
+    if (filterStatut === 'non_envoye' && d.envoye_compta) return false
+    if (filterArtisan !== 'all' && d.artisan_nom !== filterArtisan) return false
+    return true
+  })
+
+  const typeConfig: Record<string, { emoji: string; label: string; color: string }> = {
+    facture:  { emoji: '🧾', label: 'Facture',  color: 'bg-green-100 text-green-700' },
+    devis:    { emoji: '📝', label: 'Devis',    color: 'bg-blue-100 text-blue-700' },
+    rapport:  { emoji: '📋', label: 'Rapport',  color: 'bg-purple-100 text-purple-700' },
+    photo:    { emoji: '📷', label: 'Photo',    color: 'bg-orange-100 text-orange-700' },
+    autre:    { emoji: '📄', label: 'Autre',    color: 'bg-gray-100 text-gray-600' },
+  }
+
+  const artisansList = Array.from(new Set(docs.map(d => d.artisan_nom))).filter(Boolean)
+
+  const stats = {
+    total: docs.length,
+    envoyes: docs.filter(d => d.envoye_compta).length,
+    nonEnvoyes: docs.filter(d => !d.envoye_compta).length,
+    factures: docs.filter(d => d.type === 'facture').length,
+  }
+
+  return (
+    <div className="max-w-6xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">🗂️ Documents Interventions</h1>
+          <p className="text-sm text-gray-500 mt-1">Factures · Devis · Rapports · Photos — Transmission comptabilité</p>
+        </div>
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold transition flex items-center gap-2"
+        >
+          + Ajouter un document
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
+          <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+          <div className="text-xs text-gray-500 mt-1">Total documents</div>
+        </div>
+        <div className="bg-red-50 rounded-xl border border-red-100 p-4 text-center">
+          <div className="text-2xl font-bold text-red-600">{stats.nonEnvoyes}</div>
+          <div className="text-xs text-red-500 mt-1">Non transmis compta</div>
+        </div>
+        <div className="bg-green-50 rounded-xl border border-green-100 p-4 text-center">
+          <div className="text-2xl font-bold text-green-600">{stats.envoyes}</div>
+          <div className="text-xs text-green-500 mt-1">Transmis comptabilité</div>
+        </div>
+        <div className="bg-blue-50 rounded-xl border border-blue-100 p-4 text-center">
+          <div className="text-2xl font-bold text-blue-600">{stats.factures}</div>
+          <div className="text-xs text-blue-500 mt-1">Factures</div>
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="flex gap-3 flex-wrap items-center">
+          {/* Recherche */}
+          <div className="flex-1 min-w-64 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher par artisan, immeuble, fichier, notes..."
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+          {/* Type */}
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">📄 Tous types</option>
+            <option value="facture">🧾 Factures</option>
+            <option value="devis">📝 Devis</option>
+            <option value="rapport">📋 Rapports</option>
+            <option value="photo">📷 Photos</option>
+            <option value="autre">📄 Autres</option>
+          </select>
+          {/* Statut transmission */}
+          <select
+            value={filterStatut}
+            onChange={e => setFilterStatut(e.target.value as typeof filterStatut)}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">🔄 Tous statuts</option>
+            <option value="non_envoye">🔴 Non transmis</option>
+            <option value="envoye">✅ Transmis</option>
+          </select>
+          {/* Artisan */}
+          <select
+            value={filterArtisan}
+            onChange={e => setFilterArtisan(e.target.value)}
+            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">👷 Tous artisans</option>
+            {artisansList.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          {/* Reset */}
+          {(search || filterType !== 'all' || filterStatut !== 'all' || filterArtisan !== 'all') && (
+            <button
+              onClick={() => { setSearch(''); setFilterType('all'); setFilterStatut('all'); setFilterArtisan('all') }}
+              className="px-3 py-2.5 text-sm text-gray-500 hover:text-red-500 transition"
+            >
+              ✕ Effacer
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">{filtered.length} document{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</p>
+      </div>
+
+      {/* Liste documents */}
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
+          <div className="text-4xl mb-3">🗂️</div>
+          <p className="font-semibold text-gray-700">{docs.length === 0 ? 'Aucun document' : 'Aucun résultat'}</p>
+          <p className="text-sm text-gray-400 mt-1">{docs.length === 0 ? 'Ajoutez des factures, devis et rapports d\'intervention' : 'Modifiez vos filtres de recherche'}</p>
+          {docs.length === 0 && (
+            <button onClick={() => setShowUploadModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition">
+              + Ajouter un document
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(doc => (
+            <div
+              key={doc.id}
+              className={`bg-white rounded-2xl border-2 shadow-sm p-5 transition ${
+                doc.envoye_compta ? 'border-green-200' : 'border-orange-200'
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                {/* Badge type */}
+                <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gray-50 border border-gray-100">
+                  {typeConfig[doc.type]?.emoji || '📄'}
+                </div>
+
+                {/* Infos */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{doc.filename}</p>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeConfig[doc.type]?.color}`}>
+                      {typeConfig[doc.type]?.label}
+                    </span>
+                    {/* Badge transmission */}
+                    {doc.envoye_compta ? (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
+                        Transmis compta
+                      </span>
+                    ) : (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse inline-block" />
+                        Non transmis
+                      </span>
+                    )}
+                    {doc.montant && (
+                      <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                        {doc.montant.toLocaleString('fr-FR')}€ HT
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500 flex-wrap">
+                    <span>🔧 {doc.artisan_nom}{doc.artisan_metier ? ` — ${doc.artisan_metier}` : ''}</span>
+                    <span>🏢 {doc.immeuble}</span>
+                    <span>📅 {new Date(doc.date_intervention).toLocaleDateString('fr-FR')}</span>
+                    {doc.envoye_compta_at && (
+                      <span className="text-green-600">✅ transmis le {new Date(doc.envoye_compta_at).toLocaleDateString('fr-FR')}</span>
+                    )}
+                  </div>
+                  {doc.notes && (
+                    <p className="text-xs text-gray-400 mt-1 italic truncate">💬 {doc.notes}</p>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex-shrink-0 flex items-center gap-2">
+                  {/* Ouvrir */}
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                    title="Ouvrir"
+                  >
+                    👁️
+                  </a>
+
+                  {/* Analyser (si facture/devis) */}
+                  {(doc.type === 'facture' || doc.type === 'devis') && (
+                    <button
+                      onClick={() => setPage('analyse_devis')}
+                      className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                      title="Analyser avec IA"
+                    >
+                      🔍
+                    </button>
+                  )}
+
+                  {/* Envoyer / Annuler compta */}
+                  {!doc.envoye_compta ? (
+                    <button
+                      onClick={() => handleEnvoyerCompta(doc)}
+                      disabled={sendingCompta === doc.id}
+                      className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-50"
+                      title="Envoyer à la comptabilité"
+                    >
+                      {sendingCompta === doc.id ? (
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : '📤'}
+                      Envoyer compta
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAnnulerEnvoi(doc.id)}
+                      className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+                      title="Annuler l'envoi"
+                    >
+                      ↩️ Annuler
+                    </button>
+                  )}
+
+                  {/* Supprimer */}
+                  <button
+                    onClick={() => handleDelete(doc.id)}
+                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                    title="Supprimer"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Modal ajout document ── */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">📎 Ajouter un document</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Facture, devis, rapport ou photo d&apos;intervention</p>
+              </div>
+              <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Fichier */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Fichier <span className="text-red-500">*</span></label>
+                <div
+                  onClick={() => uploadFileRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${uploadFile ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'}`}
+                >
+                  <input
+                    ref={uploadFileRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  {uploadFile ? (
+                    <div className="space-y-1">
+                      <div className="text-3xl">✅</div>
+                      <p className="font-semibold text-green-700 text-sm">{uploadFile.name}</p>
+                      <p className="text-xs text-green-500">{(uploadFile.size / 1024).toFixed(0)} Ko · Cliquer pour changer</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-3xl">📎</div>
+                      <p className="text-sm text-gray-600">Glissez ou cliquez pour choisir</p>
+                      <p className="text-xs text-gray-400">PDF, JPG, PNG — max 10 Mo</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Type de document</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {(Object.entries(typeConfig) as [DocIntervention['type'], typeof typeConfig[string]][]).map(([k, v]) => (
+                    <button
+                      key={k}
+                      onClick={() => setUploadForm(f => ({ ...f, type: k }))}
+                      className={`py-2.5 rounded-xl text-center transition border-2 ${uploadForm.type === k ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <div className="text-xl">{v.emoji}</div>
+                      <div className="text-xs mt-0.5 font-medium text-gray-600">{v.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Artisan <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={uploadForm.artisan_nom}
+                    onChange={e => setUploadForm(f => ({ ...f, artisan_nom: e.target.value }))}
+                    list="artisans-docs-list"
+                    placeholder="Nom de l'artisan"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                  <datalist id="artisans-docs-list">
+                    {artisans.map(a => <option key={a.id} value={a.nom} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Métier</label>
+                  <input
+                    type="text"
+                    value={uploadForm.artisan_metier}
+                    onChange={e => setUploadForm(f => ({ ...f, artisan_metier: e.target.value }))}
+                    placeholder="ex: Plomberie"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Immeuble <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={uploadForm.immeuble}
+                    onChange={e => setUploadForm(f => ({ ...f, immeuble: e.target.value }))}
+                    placeholder="Résidence / adresse"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Date intervention</label>
+                  <input
+                    type="date"
+                    value={uploadForm.date_intervention}
+                    onChange={e => setUploadForm(f => ({ ...f, date_intervention: e.target.value }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Montant HT (€)</label>
+                  <input
+                    type="number"
+                    value={uploadForm.montant}
+                    onChange={e => setUploadForm(f => ({ ...f, montant: e.target.value }))}
+                    placeholder="0"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={uploadForm.notes}
+                    onChange={e => setUploadForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Commentaire..."
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              {uploadError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">⚠️ {uploadError}</div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={handleUpload}
+                disabled={uploading || !uploadFile || !uploadForm.artisan_nom || !uploadForm.immeuble}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {uploading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Upload...</> : '📤 Ajouter le document'}
+              </button>
+              <button onClick={() => setShowUploadModal(false)} className="px-6 py-3 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Composant Comptabilité Technique ─────────────────────────────────────────
@@ -4063,6 +4585,7 @@ export default function SyndicDashboard() {
     { id: 'missions', emoji: '📋', label: 'Ordres de mission', badge: missions.filter(m => m.statut === 'en_cours').length },
     { id: 'comptabilite_tech', emoji: '📊', label: 'Comptabilité Technique' },
     { id: 'analyse_devis', emoji: '🔍', label: 'Analyse Devis/Factures' },
+    { id: 'docs_interventions', emoji: '🗂️', label: 'Documents Interventions' },
     { id: 'planning', emoji: '📅', label: 'Planning' },
     { id: 'reglementaire', emoji: '⚖️', label: 'Calendrier réglementaire' },
     { id: 'rapport', emoji: '📄', label: 'Rapport mensuel' },
@@ -4936,6 +5459,11 @@ export default function SyndicDashboard() {
           {/* ── ANALYSE DEVIS / FACTURES ── */}
           {page === 'analyse_devis' && (
             <AnalyseDevisSection artisans={artisans} setPage={setPage} />
+          )}
+
+          {/* ── DOCUMENTS INTERVENTIONS ── */}
+          {page === 'docs_interventions' && (
+            <DocsInterventionsSection artisans={artisans} setPage={setPage} />
           )}
 
           {/* ── PARAMÈTRES ── */}
