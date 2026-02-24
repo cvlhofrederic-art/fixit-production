@@ -624,14 +624,21 @@ interface DevisExtracted {
   priorite?: 'urgente' | 'normale' | 'planifiee'
 }
 
+type InputMode = 'drop' | 'paste'
+
 function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPage: (p: Page) => void }) {
-  const [mode, setMode] = useState<'paste' | 'history'>('paste')
+  const [mode, setMode] = useState<'main' | 'history'>('main')
+  const [inputMode, setInputMode] = useState<InputMode>('drop')
   const [docText, setDocText] = useState('')
   const [filename, setFilename] = useState('')
   const [loading, setLoading] = useState(false)
+  const [extracting, setExtracting] = useState(false) // extraction PDF en cours
+  const [pdfReady, setPdfReady] = useState(false)     // PDF extrait, prêt à analyser
   const [analysis, setAnalysis] = useState<string | null>(null)
   const [extracted, setExtracted] = useState<DevisExtracted | null>(null)
   const [error, setError] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string; extracted?: DevisExtracted }[]>([])
   const [selectedHistory, setSelectedHistory] = useState<string | null>(null)
   // Modal création mission
@@ -651,6 +658,64 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
       if (saved) setHistory(JSON.parse(saved))
     } catch {}
   }, [])
+
+  // ── Extraction PDF ──────────────────────────────────────────────────────────
+  const handleFileDrop = async (file: File) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setError('Seuls les fichiers PDF sont acceptés.')
+      return
+    }
+    setError('')
+    setExtracting(true)
+    setPdfReady(false)
+    setDocText('')
+    setFilename(file.name)
+    setAnalysis(null)
+    setExtracted(null)
+    setMissionSuccess(false)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/syndic/extract-pdf', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: form,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.isScanned) {
+          // PDF scanné → basculer en mode texte avec message explicatif
+          setError('Ce PDF est un document scanné (image). Veuillez copier-coller le texte manuellement.')
+          setInputMode('paste')
+        } else {
+          setError(data.error || 'Erreur extraction PDF')
+        }
+        return
+      }
+      setDocText(data.text)
+      setPdfReady(true)
+    } catch {
+      setError('Erreur réseau lors de l\'extraction')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFileDrop(file)
+  }
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleFileDrop(file)
+    // Reset l'input pour pouvoir re-déposer le même fichier
+    e.target.value = ''
+  }
 
   const saveToHistory = (fname: string, result: string, ext?: DevisExtracted) => {
     const verdictMatch = result.match(/\*\*Statut\*\*\s*:\s*([^\n]+)/)
@@ -703,7 +768,9 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
     setAnalysis(null)
     setExtracted(null)
     setError('')
+    setPdfReady(false)
     setMissionSuccess(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   // Ouvrir le modal de création mission avec les données pré-remplies
@@ -779,26 +846,19 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
 
   return (
     <div className="max-w-5xl space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">🔍 Analyse Devis &amp; Factures</h1>
-          <p className="text-sm text-gray-500 mt-1">Vérification conformité juridique · Benchmark prix du marché · Détection risques litiges</p>
+          <p className="text-sm text-gray-500 mt-1">Conformité juridique · Benchmark prix marché · Prévention litiges</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setMode('paste'); setSelectedHistory(null) }}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${mode === 'paste' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-          >
-            📋 Nouvelle analyse
-          </button>
-          <button
-            onClick={() => setMode('history')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${mode === 'history' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-          >
-            🕐 Historique ({history.length})
-          </button>
-        </div>
+        <button
+          onClick={() => setMode(mode === 'history' ? 'main' : 'history')}
+          className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${mode === 'history' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          🕐 Historique ({history.length})
+        </button>
       </div>
 
       {/* Bandeaux info */}
@@ -807,111 +867,185 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
           <span className="text-2xl">⚖️</span>
           <div>
             <p className="font-semibold text-blue-900 text-sm">Conformité juridique</p>
-            <p className="text-xs text-blue-600 mt-0.5">SIRET, TVA, RC Pro, garantie décennale, mentions obligatoires</p>
+            <p className="text-xs text-blue-600 mt-0.5">SIRET, TVA, RC Pro, garantie décennale</p>
           </div>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
           <span className="text-2xl">💰</span>
           <div>
             <p className="font-semibold text-green-900 text-sm">Benchmark prix marché</p>
-            <p className="text-xs text-green-600 mt-0.5">Comparaison avec les tarifs 2024-2025 par corps de métier</p>
+            <p className="text-xs text-green-600 mt-0.5">Tarifs 2024-2025 par corps de métier</p>
           </div>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <span className="text-2xl">🛡️</span>
           <div>
             <p className="font-semibold text-amber-900 text-sm">Prévention litiges</p>
-            <p className="text-xs text-amber-600 mt-0.5">Détection des risques juridiques avant validation</p>
+            <p className="text-xs text-amber-600 mt-0.5">Détection des risques juridiques</p>
           </div>
         </div>
       </div>
 
-      {/* Mode : Nouvelle analyse */}
-      {mode === 'paste' && (
+      {/* ── MODE PRINCIPAL ── */}
+      {mode === 'main' && (
         <div className="space-y-4">
-          {/* Zone de saisie */}
           {!analysis ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Nom du document <span className="font-normal text-gray-400">(optionnel)</span>
-                </label>
-                <input
-                  type="text"
-                  value={filename}
-                  onChange={e => setFilename(e.target.value)}
-                  placeholder="ex : Devis plomberie Marc Fontaine — 24/02/2026"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
-                />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+
+              {/* Onglets PDF / Texte */}
+              <div className="flex border-b border-gray-100">
+                <button
+                  onClick={() => { setInputMode('drop'); setError('') }}
+                  className={`flex-1 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition ${inputMode === 'drop' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  📄 Déposer un PDF
+                </button>
+                <button
+                  onClick={() => { setInputMode('paste'); setError('') }}
+                  className={`flex-1 py-4 text-sm font-semibold flex items-center justify-center gap-2 transition ${inputMode === 'paste' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                  ✏️ Saisir le texte
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Contenu du devis ou de la facture <span className="text-red-500">*</span>
-                </label>
-                <p className="text-xs text-gray-400 mb-2">Copiez-collez le texte intégral du document (y compris les mentions légales, tableaux de prix, conditions générales...)</p>
-                <textarea
-                  value={docText}
-                  onChange={e => setDocText(e.target.value)}
-                  placeholder={`Exemple :\n\nEntreprise Plomberie Pro SARL\nSIRET : 12345678901234\n123 rue de la Paix, 75001 Paris\n\nDEVIS N° 2026-042\nDate : 24/02/2026\n\nDésignation : Remplacement colonne eau chaude cave\nQuantité : 15 ml × 85€ HT = 1 275,00 € HT\nTVA 10% : 127,50 €\nTotal TTC : 1 402,50 €\n\nRC Pro : Allianz n°12345, valide jusqu'au 31/12/2026\nGarantie décennale : AXA n°67890`}
-                  rows={14}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-mono resize-y"
-                />
-                <p className="text-xs text-gray-400 mt-1">{docText.length} caractères</p>
-              </div>
+              <div className="p-6 space-y-4">
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-center gap-2">
-                  <span>⚠️</span> {error}
-                </div>
-              )}
+                {/* ─ Zone Drop PDF ─ */}
+                {inputMode === 'drop' && (
+                  <div className="space-y-4">
+                    {!pdfReady ? (
+                      <div
+                        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
+                          dragOver
+                            ? 'border-blue-500 bg-blue-50 scale-[1.01]'
+                            : extracting
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'
+                        }`}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          onChange={handleFileInput}
+                          className="hidden"
+                        />
+                        {extracting ? (
+                          <div className="space-y-3">
+                            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="font-semibold text-blue-700">Extraction du texte en cours...</p>
+                            <p className="text-sm text-blue-500">{filename}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="text-6xl">📄</div>
+                            <div>
+                              <p className="text-lg font-bold text-gray-800">Glissez votre PDF ici</p>
+                              <p className="text-sm text-gray-500 mt-1">ou cliquez pour sélectionner un fichier</p>
+                            </div>
+                            <div className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm">
+                              📂 Choisir un PDF
+                            </div>
+                            <p className="text-xs text-gray-400">Devis, facture, bon de commande — max 20 Mo</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* PDF extrait et prêt */
+                      <div className="space-y-3">
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">✅</span>
+                            <div>
+                              <p className="font-semibold text-green-800 text-sm">{filename}</p>
+                              <p className="text-xs text-green-600">{docText.length.toLocaleString('fr-FR')} caractères extraits · Prêt à analyser</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleReset}
+                            className="text-sm text-gray-400 hover:text-red-500 transition"
+                          >
+                            Changer ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              <div className="flex gap-3">
+                {/* ─ Zone Texte manuel ─ */}
+                {inputMode === 'paste' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Nom du document <span className="font-normal text-gray-400">(optionnel)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={filename}
+                        onChange={e => setFilename(e.target.value)}
+                        placeholder="ex : Devis plomberie Marc Fontaine — 24/02/2026"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Texte du document <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={docText}
+                        onChange={e => setDocText(e.target.value)}
+                        placeholder={"Collez ici le contenu du devis ou de la facture...\n\nEx :\nEntreprise Fontaine Plomberie SARL\nSIRET : 12345678901234\nDEVIS N° 2026-042 — Date : 24/02/2026\nRemplacement colonne eau chaude cave\n1 275,00 € HT — TVA 10% — Total TTC : 1 402,50 €\nRC Pro Allianz n°12345, valide jusqu'au 31/12/2026"}
+                        rows={10}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-mono resize-y"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">{docText.length} caractères</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 text-xs text-gray-500 flex gap-2 items-start">
+                      <span>💡</span>
+                      <span>Pour extraire le texte d&apos;un PDF : ouvrir → Ctrl+A → Ctrl+C → coller ici. Pour un PDF scanné (image), utilisez Google Lens ou Adobe Acrobat.</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Erreur */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-2">
+                    <span className="flex-shrink-0">⚠️</span>
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* Bouton analyser */}
                 <button
                   onClick={handleAnalyse}
-                  disabled={loading || docText.trim().length < 10}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
+                  disabled={loading || extracting || docText.trim().length < 10}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold transition disabled:opacity-40 flex items-center justify-center gap-2 text-base"
                 >
                   {loading ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Analyse en cours...
+                      Analyse IA en cours...
                     </>
                   ) : (
                     <>🔍 Analyser le document</>
                   )}
                 </button>
-                {docText && (
-                  <button
-                    onClick={handleReset}
-                    className="px-5 py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition text-sm"
-                  >
-                    Effacer
-                  </button>
-                )}
-              </div>
-
-              {/* Astuce */}
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <p className="text-xs font-semibold text-gray-700 mb-2">💡 Comment obtenir le texte d&apos;un PDF ?</p>
-                <ul className="text-xs text-gray-500 space-y-1 list-disc list-inside">
-                  <li>Ouvrir le PDF → Ctrl+A (tout sélectionner) → Ctrl+C (copier) → coller ici</li>
-                  <li>Ou utiliser Adobe Acrobat Reader : clic droit → &quot;Sélectionner tout le texte&quot;</li>
-                  <li>Pour les images scannées : utilisez un outil OCR (ex. Adobe, Google Lens)</li>
-                </ul>
               </div>
             </div>
+
           ) : (
-            /* Résultat d'analyse */
+            /* ─ Résultat ─ */
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-gray-900">
-                  📊 Résultat d&apos;analyse {filename && <span className="font-normal text-gray-500 text-base">— {filename}</span>}
+                  📊 Résultat {filename && <span className="font-normal text-gray-500 text-base">— {filename}</span>}
                 </h2>
-                <button
-                  onClick={handleReset}
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-semibold transition"
-                >
+                <button onClick={handleReset} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">
                   ← Nouvelle analyse
                 </button>
               </div>
@@ -921,7 +1055,7 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Informations extraites du document</p>
+                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Informations extraites automatiquement</p>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                         {extracted.artisan_nom && (
                           <div className="flex items-center gap-2">
@@ -972,12 +1106,7 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                       {missionSuccess ? (
                         <div className="bg-green-100 text-green-700 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2">
                           ✅ Mission créée !
-                          <button
-                            onClick={() => setPage('missions')}
-                            className="underline text-green-800 hover:text-green-900 ml-1"
-                          >
-                            Voir →
-                          </button>
+                          <button onClick={() => setPage('missions')} className="underline text-green-800 hover:text-green-900 ml-1">Voir →</button>
                         </div>
                       ) : (
                         <button
@@ -993,10 +1122,7 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
               )}
 
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div
-                  className="prose prose-sm max-w-none text-gray-800"
-                  dangerouslySetInnerHTML={{ __html: formatAnalysis(analysis) }}
-                />
+                <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: formatAnalysis(analysis) }} />
               </div>
 
               <div className="flex gap-3 flex-wrap">
@@ -1012,7 +1138,7 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                   }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium text-sm transition"
                 >
-                  💾 Exporter l&apos;analyse
+                  💾 Exporter
                 </button>
                 <button
                   onClick={() => navigator.clipboard.writeText(analysis).then(() => alert('Analyse copiée !'))}
@@ -1024,9 +1150,68 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                   onClick={handleReset}
                   className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition"
                 >
-                  🔍 Analyser un autre document
+                  🔍 Analyser un autre
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MODE HISTORIQUE ── */}
+      {mode === 'history' && (
+        <div className="space-y-4">
+          <button onClick={() => setMode('main')} className="text-sm text-blue-600 hover:text-blue-800 font-semibold">← Retour</button>
+          {history.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
+              <div className="text-4xl mb-3">📂</div>
+              <p className="font-semibold text-gray-700">Aucune analyse enregistrée</p>
+              <p className="text-sm text-gray-400 mt-1">Lancez votre première analyse pour la retrouver ici</p>
+            </div>
+          ) : selectedHistory ? (
+            <div className="space-y-4">
+              <button onClick={() => setSelectedHistory(null)} className="text-sm text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
+                ← Retour à l&apos;historique
+              </button>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: formatAnalysis(history.find(h => h.id === selectedHistory)?.analysis || '') }} />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Document</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Score</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {history.map(h => (
+                    <tr key={h.id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">📄</span>
+                          <p className="font-medium text-gray-900 text-sm">{h.filename}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">{h.date}</td>
+                      <td className="px-4 py-4 text-sm font-semibold text-gray-700">{h.score}</td>
+                      <td className="px-4 py-4">
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${getVerdictColor(h.verdict)}`}>
+                          {h.verdict}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <button onClick={() => setSelectedHistory(h.id)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">Voir →</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -1053,11 +1238,11 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                     type="text"
                     value={missionForm.artisan}
                     onChange={e => setMissionForm(f => ({ ...f, artisan: e.target.value }))}
-                    list="artisans-list"
+                    list="artisans-list-devis"
                     placeholder="Nom de l'artisan"
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                   />
-                  <datalist id="artisans-list">
+                  <datalist id="artisans-list-devis">
                     {artisans.map(a => <option key={a.id} value={a.nom} />)}
                   </datalist>
                 </div>
@@ -1144,77 +1329,6 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Mode : Historique */}
-      {mode === 'history' && (
-        <div className="space-y-4">
-          {history.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
-              <div className="text-4xl mb-3">📂</div>
-              <p className="font-semibold text-gray-700">Aucune analyse enregistrée</p>
-              <p className="text-sm text-gray-400 mt-1">Lancez votre première analyse pour la retrouver ici</p>
-            </div>
-          ) : selectedHistory ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setSelectedHistory(null)}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
-                >
-                  ← Retour à l&apos;historique
-                </button>
-              </div>
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div
-                  className="prose prose-sm max-w-none text-gray-800"
-                  dangerouslySetInnerHTML={{ __html: formatAnalysis(history.find(h => h.id === selectedHistory)?.analysis || '') }}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Document</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Score</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {history.map(h => (
-                    <tr key={h.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">📄</span>
-                          <p className="font-medium text-gray-900 text-sm">{h.filename}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">{h.date}</td>
-                      <td className="px-4 py-4 text-sm font-semibold text-gray-700">{h.score}</td>
-                      <td className="px-4 py-4">
-                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${getVerdictColor(h.verdict)}`}>
-                          {h.verdict}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <button
-                          onClick={() => setSelectedHistory(h.id)}
-                          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Voir →
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
     </div>
