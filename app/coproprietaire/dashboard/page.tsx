@@ -6,7 +6,7 @@ import { formatPrice, formatDate } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type CoproPage = 'accueil' | 'documents' | 'paiements' | 'annonces' | 'signalement' | 'assemblees' | 'historique' | 'parametres'
+type CoproPage = 'accueil' | 'documents' | 'paiements' | 'annonces' | 'signalement' | 'assemblees' | 'historique' | 'parametres' | 'assistant'
 
 interface CoproProfile {
   id: string
@@ -356,6 +356,7 @@ const NAV_ITEMS: { id: CoproPage; emoji: string; label: string }[] = [
   { id: 'assemblees', emoji: '🏛️', label: 'Assemblées & Votes' },
   { id: 'historique', emoji: '📈', label: 'Historique' },
   { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
+  { id: 'assistant', emoji: '🤖', label: 'Assistant IA Sofia' },
 ]
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -408,6 +409,12 @@ export default function CoproprietaireDashboard() {
   // Paramètres
   const [editProfile, setEditProfile] = useState(false)
   const [profileForm, setProfileForm] = useState({ nom: '', prenom: '', email: '', telephone: '' })
+
+  // Assistant IA
+  const [assistantMessages, setAssistantMessages] = useState<{role:'user'|'assistant', content: string}[]>([])
+  const [assistantInput, setAssistantInput] = useState('')
+  const [assistantLoading, setAssistantLoading] = useState(false)
+  const assistantEndRef = React.useRef<HTMLDivElement>(null)
 
   // ── Auth ──
   useEffect(() => {
@@ -594,6 +601,79 @@ export default function CoproprietaireDashboard() {
       telephone: profileForm.telephone || prev.telephone,
     }))
     setEditProfile(false)
+  }
+
+  // ── Assistant IA ──
+  const buildCoproSystemPrompt = () => {
+    const paiementsAttente = paiements.filter(p => p.statut === 'en_attente')
+    const docsListe = documents.map(d => `- ${d.nom} (${d.annee}, ${DOC_TYPE_LABELS[d.type]?.label || d.type})`).join('\n')
+    return `Tu es Sofia, l'assistante IA personnelle de ${profile.prenom} ${profile.nom}, copropriétaire au ${profile.immeuble}, bâtiment ${profile.batiment}, étage ${profile.etage}, lot n°${profile.numLot}. Tu as accès à toutes les informations de sa copropriété. Réponds de façon claire, conviviale et accessible — certaines personnes ne sont pas à l'aise avec la technologie. Réponds toujours en français.
+
+=== PROFIL COPROPRIÉTAIRE ===
+Nom: ${profile.prenom} ${profile.nom}
+Email: ${profile.email} | Téléphone: ${profile.telephone}
+Immeuble: ${profile.immeuble} | Bâtiment: ${profile.batiment} | Étage: ${profile.etage} | Lot: ${profile.numLot}
+Tantièmes: ${profile.tantiemes}/10 000 | Quote-part: ${profile.quotePart}%
+
+=== SITUATION FINANCIÈRE ===
+Charges du mois: ${chargesDuMois?.montant || 285}€ — ${chargesDuMois?.statut === 'payee' ? 'PAYÉE' : 'EN ATTENTE'}
+Solde total à régler: ${solde}€ (${paiementsAttente.length} paiement(s) en attente)
+Détail paiements en attente:
+${paiementsAttente.map(p => `- ${p.description}: ${p.montant}€ (échéance ${formatDate(p.dateEcheance)}, réf: ${p.reference})`).join('\n') || '- Aucun paiement en attente'}
+
+=== PROCHAINES ÉCHÉANCES ===
+${echeances.sort((a, b) => a.date.localeCompare(b.date)).map(e => `- [${formatDate(e.date)}] ${e.titre}: ${e.description}${e.urgent ? ' ⚠️ URGENT' : ''}`).join('\n')}
+
+=== DOCUMENTS DISPONIBLES (onglet Documents) ===
+${docsListe}
+
+=== ANNONCES DU SYNDIC ===
+${annonces.map(a => `- [${a.date}] ${a.importance.toUpperCase()} — ${a.titre}: ${a.contenu}`).join('\n')}
+
+=== ASSEMBLÉES GÉNÉRALES ===
+${ags.map(ag => {
+  const resLines = ag.resolutions.map(r =>
+    `  • ${r.titre}: ${r.description.slice(0, 120)} | Mon vote: ${r.monVote || 'pas encore voté'} | Résultat: ${r.resultat || (r.statut === 'ouverte' ? 'vote en cours' : 'N/A')} | Pour: ${r.votePour} tantièmes, Contre: ${r.voteContre}, Abstention: ${r.voteAbstention}`
+  ).join('\n')
+  return `AG: ${ag.titre} — ${formatDate(ag.date)}, ${ag.lieu}\nStatut: ${ag.statut}\nOrdre du jour:${ag.ordreDuJour.map(o => `\n  • ${o}`).join('')}\nRésolutions:\n${resLines}`
+}).join('\n\n---\n\n')}
+
+=== HISTORIQUE RÉCENT ===
+${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${h.montant !== undefined ? ` (${h.montant >= 0 ? '+' : ''}${h.montant}€)` : ''}`).join('\n')}
+
+=== RÈGLES DE RÉPONSE ===
+- Sois précis avec les chiffres et les dates issus des données ci-dessus.
+- Pour télécharger un document → orienter vers l'onglet "Documents" du menu.
+- Pour voter en AG → onglet "Assemblées & Votes".
+- Pour payer → onglet "Paiements".
+- Pour un signalement → onglet "Signalement".
+- Aide les personnes peu à l'aise avec la technologie avec des explications simples et bienveillantes.
+- Tu peux répondre à TOUTES les questions: finances, règlement de copropriété, travaux, votes, comptabilité, droits du copropriétaire, etc.`
+  }
+
+  const sendAssistantMessage = async () => {
+    if (!assistantInput.trim() || assistantLoading) return
+    const userMsg = { role: 'user' as const, content: assistantInput.trim() }
+    const newMessages = [...assistantMessages, userMsg]
+    setAssistantMessages(newMessages)
+    setAssistantInput('')
+    setAssistantLoading(true)
+    setTimeout(() => assistantEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    try {
+      const res = await fetch('/api/comptable-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: newMessages, systemPrompt: buildCoproSystemPrompt() }),
+      })
+      const data = await res.json()
+      const reply = data.response || data.message || 'Désolée, je n\'ai pas pu répondre pour le moment.'
+      setAssistantMessages(prev => [...prev, { role: 'assistant', content: reply }])
+    } catch {
+      setAssistantMessages(prev => [...prev, { role: 'assistant', content: 'Une erreur est survenue. Veuillez réessayer.' }])
+    } finally {
+      setAssistantLoading(false)
+      setTimeout(() => assistantEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    }
   }
 
   // ── Loading ──
@@ -1720,7 +1800,185 @@ export default function CoproprietaireDashboard() {
             </div>
           )}
 
+          {/* ════════════════════════════════════════════════════════════════════════
+              PAGE : ASSISTANT IA SOFIA
+          ════════════════════════════════════════════════════════════════════════ */}
+          {page === 'assistant' && (
+            <div className="flex flex-col h-[calc(100vh-120px)] max-w-3xl mx-auto">
+
+              {/* En-tête assistant */}
+              <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-5 mb-4 flex items-center gap-4 shadow-md">
+                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-3xl flex-shrink-0">
+                  🤖
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Sofia — Assistante IA</h2>
+                  <p className="text-purple-200 text-sm">Je connais toute votre copropriété. Posez-moi n'importe quelle question !</p>
+                </div>
+                {assistantMessages.length > 0 && (
+                  <button
+                    onClick={() => setAssistantMessages([])}
+                    className="ml-auto text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg transition"
+                  >
+                    Nouvelle conversation
+                  </button>
+                )}
+              </div>
+
+              {/* Zone de chat */}
+              <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {assistantMessages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-8 text-center">
+                      <div className="text-5xl mb-4">💬</div>
+                      <p className="text-gray-600 font-medium text-lg mb-2">Bonjour {profile.prenom} !</p>
+                      <p className="text-gray-500 text-sm mb-6 max-w-md">
+                        Je suis Sofia, votre assistante personnelle pour la copropriété <strong>{profile.immeuble}</strong>.
+                        Je peux répondre à toutes vos questions — même si vous n'êtes pas à l'aise avec la technologie !
+                      </p>
+                      <p className="text-xs text-gray-400 mb-4 font-medium">Questions fréquentes :</p>
+                      <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+                        {[
+                          'Combien je dois payer ce mois ?',
+                          'Quelle est la prochaine assemblée générale ?',
+                          'Quels documents puis-je télécharger ?',
+                          'Quel est mon solde actuel ?',
+                          'Comment voter pour une résolution ?',
+                          'Y a-t-il des travaux prévus ?',
+                          'Quand est la prochaine coupure d\'eau ?',
+                          'C\'est quoi les tantièmes ?',
+                        ].map(q => (
+                          <button
+                            key={q}
+                            onClick={() => {
+                              setAssistantInput(q)
+                              setTimeout(() => {
+                                const input = document.getElementById('assistant-input')
+                                if (input) (input as HTMLInputElement).focus()
+                              }, 50)
+                            }}
+                            className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-2 rounded-full transition"
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {assistantMessages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          {msg.role === 'assistant' && (
+                            <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0 mt-0.5">
+                              🤖
+                            </div>
+                          )}
+                          <div
+                            className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                              msg.role === 'user'
+                                ? 'bg-purple-600 text-white rounded-tr-sm'
+                                : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                            }`}
+                          >
+                            {msg.content}
+                          </div>
+                        </div>
+                      ))}
+                      {assistantLoading && (
+                        <div className="flex justify-start">
+                          <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0">
+                            🤖
+                          </div>
+                          <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
+                            <div className="flex gap-1 items-center">
+                              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={assistantEndRef} />
+                    </>
+                  )}
+                </div>
+
+                {/* Suggestions rapides quand il y a déjà des messages */}
+                {assistantMessages.length > 0 && (
+                  <div className="px-4 py-2 border-t border-gray-100 flex gap-2 overflow-x-auto">
+                    {['Mes paiements en attente', 'Prochaine AG', 'Mes documents', 'Mon solde'].map(q => (
+                      <button
+                        key={q}
+                        onClick={() => {
+                          setAssistantInput(q)
+                          setTimeout(() => {
+                            const input = document.getElementById('assistant-input')
+                            if (input) (input as HTMLInputElement).focus()
+                          }, 50)
+                        }}
+                        className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-full transition flex-shrink-0"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Input */}
+                <div className="p-4 border-t border-gray-200">
+                  <form
+                    onSubmit={e => { e.preventDefault(); sendAssistantMessage() }}
+                    className="flex gap-2"
+                  >
+                    <input
+                      id="assistant-input"
+                      type="text"
+                      value={assistantInput}
+                      onChange={e => setAssistantInput(e.target.value)}
+                      placeholder="Posez votre question à Sofia…"
+                      disabled={assistantLoading}
+                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:bg-white disabled:opacity-60 transition"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!assistantInput.trim() || assistantLoading}
+                      className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold px-5 py-3 rounded-xl transition"
+                    >
+                      {assistantLoading ? (
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                      )}
+                    </button>
+                  </form>
+                  <p className="text-xs text-gray-400 mt-2 text-center">
+                    Sofia peut répondre à toutes vos questions sur votre copropriété
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
+
+        {/* Bouton flottant assistant IA */}
+        {page !== 'assistant' && (
+          <button
+            onClick={() => setPage('assistant')}
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-3 rounded-full shadow-xl transition-all hover:scale-105 active:scale-95"
+          >
+            <span className="text-xl">🤖</span>
+            <span className="text-sm">Assistant IA</span>
+          </button>
+        )}
+
       </main>
     </div>
   )
