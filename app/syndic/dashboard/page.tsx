@@ -86,6 +86,24 @@ interface SyndicMessage {
   created_at: string
 }
 
+interface CanalInterneMsg {
+  id: string
+  de: string
+  deRole: string
+  type: 'message' | 'tache' | 'planning'
+  contenu: string
+  date: string
+  lu: boolean
+  planningDate?: string
+  planningHeure?: string
+  planningResident?: string
+  planningResidence?: string
+  planningMissionCreee?: boolean
+  tacheAssignee?: string
+  tachePriorite?: 'normale' | 'urgente'
+  tacheStatut?: 'en_attente' | 'en_cours' | 'terminee'
+}
+
 interface Mission {
   id: string
   immeuble: string
@@ -365,6 +383,46 @@ function GmailConnectButton({ syndicId, userEmail }: { syndicId?: string; userEm
     </button>
   )
 }
+
+// ─── Canal Interne — données démo ─────────────────────────────────────────────
+
+const CANAL_INTERNE_DEMO: CanalInterneMsg[] = [
+  {
+    id: 'ci-1',
+    de: 'Marie Dupont',
+    deRole: 'Secrétaire',
+    type: 'planning',
+    contenu: '',
+    date: new Date(Date.now() - 1800000).toISOString(),
+    lu: false,
+    planningDate: new Date().toISOString().slice(0, 10),
+    planningHeure: '14:30',
+    planningResident: 'Mme Lebrun',
+    planningResidence: 'Résidence Les Acacias',
+    planningMissionCreee: false,
+  },
+  {
+    id: 'ci-2',
+    de: 'Marie Dupont',
+    deRole: 'Secrétaire',
+    type: 'tache',
+    contenu: 'Rappeler M. Fontaine concernant le devis toiture — en attente de validation',
+    date: new Date(Date.now() - 7200000).toISOString(),
+    lu: false,
+    tacheAssignee: 'Gestionnaire Technique',
+    tachePriorite: 'urgente',
+    tacheStatut: 'en_attente',
+  },
+  {
+    id: 'ci-3',
+    de: 'Marie Dupont',
+    deRole: 'Secrétaire',
+    type: 'message',
+    contenu: 'Bonjour ! Les comptes-rendus d\'intervention de la semaine sont à jour dans Documents Interventions. Bonne journée !',
+    date: new Date(Date.now() - 86400000).toISOString(),
+    lu: true,
+  },
+]
 
 // ─── Composant Équipe ─────────────────────────────────────────────────────────
 
@@ -4798,6 +4856,18 @@ export default function SyndicDashboard() {
   const [showMissionDetails, setShowMissionDetails] = useState(false)
   // ── Planning navigation ─────────────────────────────────────────────────────
   const [planningDate, setPlanningDate] = useState(new Date())
+  // ── Canal Interne ────────────────────────────────────────────────────────────
+  const [canalInternalTab, setCanalInternalTab] = useState<'artisans' | 'interne'>('artisans')
+  const [canalInterneMessages, setCanalInterneMessages] = useState<CanalInterneMsg[]>(CANAL_INTERNE_DEMO)
+  const [canalInterneInput, setCanalInterneInput] = useState('')
+  const [canalInterneType, setCanalInterneType] = useState<'message' | 'tache' | 'planning'>('message')
+  const [canalPlanDate, setCanalPlanDate] = useState(new Date().toISOString().slice(0, 10))
+  const [canalPlanHeure, setCanalPlanHeure] = useState('09:00')
+  const [canalPlanResident, setCanalPlanResident] = useState('')
+  const [canalPlanResidence, setCanalPlanResidence] = useState('')
+  const [canalTacheAssignee, setCanalTacheAssignee] = useState('')
+  const [canalTachePriorite, setCanalTachePriorite] = useState<'normale' | 'urgente'>('normale')
+  const canalInterneEndRef = useRef<HTMLDivElement>(null)
   // ── Paramètres ──────────────────────────────────────────────────────────────
   const [cabinetNom, setCabinetNom] = useState('')
   const [cabinetEmail, setCabinetEmail] = useState('')
@@ -4885,6 +4955,14 @@ export default function SyndicDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [user?.id])
 
+  // ── Persistance canal interne ──
+  useEffect(() => {
+    if (!user?.id) return
+    try {
+      localStorage.setItem(`fixit_canal_interne_${user.id}`, JSON.stringify(canalInterneMessages))
+    } catch {}
+  }, [canalInterneMessages, user?.id])
+
   const markAllNotifsRead = async () => {
     setNotifs(prev => prev.map(n => ({ ...n, read: true })))
     if (!user?.id) return
@@ -4930,6 +5008,9 @@ export default function SyndicDashboard() {
           setBatimentsConnus(noms)
           localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(noms))
         }
+
+        const savedCanalInterne = localStorage.getItem(`fixit_canal_interne_${uid}`)
+        if (savedCanalInterne) setCanalInterneMessages(JSON.parse(savedCanalInterne))
       } catch { /* silencieux */ }
       setDataLoaded(true)
 
@@ -5151,6 +5232,72 @@ export default function SyndicDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     window.location.href = '/syndic/login'
+  }
+
+  const sendCanalInterne = () => {
+    const contenuOk = canalInterneInput.trim() ||
+      (canalInterneType === 'planning' && canalPlanResident.trim())
+    if (!contenuOk) return
+
+    const autoContenu = canalInterneType === 'planning' && !canalInterneInput.trim()
+      ? `Visite ${canalPlanResident} à ${canalPlanHeure} — ${canalPlanResidence}`
+      : canalInterneInput.trim()
+
+    const msg: CanalInterneMsg = {
+      id: Date.now().toString(),
+      de: userName,
+      deRole: ROLE_LABELS_TEAM[userRole] || 'Gestionnaire',
+      type: canalInterneType,
+      contenu: autoContenu,
+      date: new Date().toISOString(),
+      lu: true,
+      ...(canalInterneType === 'planning' ? {
+        planningDate: canalPlanDate,
+        planningHeure: canalPlanHeure,
+        planningResident: canalPlanResident,
+        planningResidence: canalPlanResidence,
+        planningMissionCreee: false,
+      } : {}),
+      ...(canalInterneType === 'tache' ? {
+        tacheAssignee: canalTacheAssignee,
+        tachePriorite: canalTachePriorite,
+        tacheStatut: 'en_attente' as const,
+      } : {}),
+    }
+
+    if (canalInterneType === 'planning' && canalPlanDate && canalPlanResident.trim()) {
+      const newMission: Mission = {
+        id: `ci-${Date.now()}`,
+        type: `Visite — ${canalPlanResident}`,
+        description: canalInterneInput.trim() || `Visite ${canalPlanResident} à ${canalPlanHeure}, ${canalPlanResidence}`,
+        statut: 'en_attente',
+        priorite: 'planifiee',
+        dateCreation: new Date().toISOString(),
+        dateIntervention: canalPlanDate,
+        immeuble: canalPlanResidence || '',
+        artisan: '',
+        locataire: canalPlanResident,
+        telephoneLocataire: '',
+        demandeurNom: userName,
+        demandeurRole: 'technicien',
+        canalMessages: [],
+      }
+      setMissions(prev => {
+        const updated = [newMission, ...prev]
+        try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated)) } catch {}
+        return updated
+      })
+      msg.planningMissionCreee = true
+    }
+
+    setCanalInterneMessages(prev => [...prev, msg])
+    setCanalInterneInput('')
+    if (canalInterneType === 'planning') {
+      setCanalPlanResident('')
+      setCanalPlanResidence('')
+    }
+    if (canalInterneType === 'tache') setCanalTacheAssignee('')
+    setTimeout(() => canalInterneEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
   // ── Gestion Immeubles ────────────────────────────────────────────────────────
@@ -5550,9 +5697,9 @@ export default function SyndicDashboard() {
   const allNavItems: { id: Page; emoji: string; label: string; badge?: number }[] = [
     { id: 'accueil', emoji: '📊', label: 'Tableau de bord' },
     { id: 'missions', emoji: '📋', label: 'Ordres de mission', badge: missions.filter(m => m.statut === 'en_cours').length },
-    { id: 'planning', emoji: '📅', label: 'Planning' },
     { id: 'pointage', emoji: '📍', label: 'Pointage Terrain' },
-    { id: 'canal', emoji: '💬', label: 'Canal Communications', badge: missions.filter(m => (m.canalMessages?.length || 0) > 0).length },
+    { id: 'canal', emoji: '💬', label: 'Canal Communications', badge: missions.filter(m => (m.canalMessages?.length || 0) > 0).length + canalInterneMessages.filter(m => !m.lu).length },
+    { id: 'planning', emoji: '📅', label: 'Planning' },
     { id: 'immeubles', emoji: '🏢', label: 'Immeubles', badge: immeubles.length },
     { id: 'artisans', emoji: '🔧', label: 'Artisans', badge: artisans.filter(a => a.statut === 'actif').length },
     { id: 'coproprios', emoji: '👥', label: 'Copropriétaires' },
@@ -6205,32 +6352,282 @@ export default function SyndicDashboard() {
 
           {/* ── CANAL COMMUNICATIONS ── */}
           {page === 'canal' && (
-            <CanalCommunicationsPage
-              missions={missions}
-              artisans={artisans}
-              userRole={userRole}
-              user={user}
-              onUpdateMission={(updated) => {
-                setMissions(prev => prev.map(m => m.id === updated.id ? updated : m))
-                try {
-                  const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
-                  const newStored = stored.map((m: Mission) => m.id === updated.id ? updated : m)
-                  if (!newStored.find((m: Mission) => m.id === updated.id)) newStored.unshift(updated)
-                  localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(newStored))
-                } catch {}
-              }}
-              onAddMission={(newM) => {
-                setMissions(prev => {
-                  const updated = [newM, ...prev]
-                  try {
-                    localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated))
-                  } catch {}
-                  return updated
-                })
-              }}
-              onOpenMission={(m) => { setSelectedMission(m); setShowMissionDetails(true) }}
-              onCreateMission={() => setShowModalMission(true)}
-            />
+            <div className="space-y-4">
+              {/* Onglets Artisans / Interne */}
+              <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <button
+                  onClick={() => setCanalInternalTab('artisans')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition ${canalInternalTab === 'artisans' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  💬 Canal Artisans
+                </button>
+                <button
+                  onClick={() => {
+                    setCanalInternalTab('interne')
+                    setCanalInterneMessages(prev => prev.map(m => ({ ...m, lu: true })))
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition relative ${canalInternalTab === 'interne' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  🏢 Canal Interne
+                  {canalInterneMessages.filter(m => !m.lu).length > 0 && canalInternalTab !== 'interne' && (
+                    <span className="absolute top-2 right-6 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                      {canalInterneMessages.filter(m => !m.lu).length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Canal Artisans */}
+              {canalInternalTab === 'artisans' && (
+                <CanalCommunicationsPage
+                  missions={missions}
+                  artisans={artisans}
+                  userRole={userRole}
+                  user={user}
+                  onUpdateMission={(updated) => {
+                    setMissions(prev => prev.map(m => m.id === updated.id ? updated : m))
+                    try {
+                      const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
+                      const newStored = stored.map((m: Mission) => m.id === updated.id ? updated : m)
+                      if (!newStored.find((m: Mission) => m.id === updated.id)) newStored.unshift(updated)
+                      localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(newStored))
+                    } catch {}
+                  }}
+                  onAddMission={(newM) => {
+                    setMissions(prev => {
+                      const updated = [newM, ...prev]
+                      try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated)) } catch {}
+                      return updated
+                    })
+                  }}
+                  onOpenMission={(m) => { setSelectedMission(m); setShowMissionDetails(true) }}
+                  onCreateMission={() => setShowModalMission(true)}
+                />
+              )}
+
+              {/* Canal Interne */}
+              {canalInternalTab === 'interne' && (
+                <div className="flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 230px)' }}>
+
+                  {/* En-tête */}
+                  <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                    <span className="text-xl">🏢</span>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Canal Interne — Équipe Syndic</p>
+                      <p className="text-xs text-gray-500">Assignez des tâches, ajoutez des rendez-vous au planning</p>
+                    </div>
+                  </div>
+
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {canalInterneMessages.length === 0 && (
+                      <div className="text-center py-16 text-gray-400">
+                        <p className="text-4xl mb-3">🏢</p>
+                        <p className="font-medium text-gray-600">Canal interne vide</p>
+                        <p className="text-sm">Envoyez un message à votre équipe ci-dessous</p>
+                      </div>
+                    )}
+                    {[...canalInterneMessages].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(msg => {
+                      const isMine = msg.de === userName
+                      return (
+                        <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          {!isMine && (
+                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-xs font-bold text-purple-700 mr-2 flex-shrink-0 mt-1">
+                              {msg.de.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div className={`max-w-[72%]`}>
+                            {!isMine && (
+                              <p className="text-xs text-gray-500 mb-1 ml-1">{msg.de} · <span className="text-purple-600">{msg.deRole}</span></p>
+                            )}
+
+                            {/* Planning card */}
+                            {msg.type === 'planning' && (
+                              <div className={`rounded-2xl overflow-hidden border-2 border-blue-200 ${isMine ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                                <div className="bg-blue-600 text-white px-4 py-2 flex items-center gap-2">
+                                  <span>📅</span>
+                                  <span className="text-xs font-bold tracking-wide">AJOUT AU PLANNING</span>
+                                </div>
+                                <div className="bg-blue-50 px-4 py-3">
+                                  <p className="font-bold text-gray-900">{msg.planningResident}</p>
+                                  <p className="text-blue-700 font-semibold text-sm">{msg.planningHeure} · {msg.planningResidence}</p>
+                                  {msg.contenu && <p className="text-gray-600 text-xs mt-1 italic">{msg.contenu}</p>}
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {msg.planningDate && new Date(msg.planningDate + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                  </p>
+                                  {msg.planningMissionCreee ? (
+                                    <span className="inline-flex items-center gap-1 mt-2 text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full font-medium">
+                                      ✓ Ajouté au planning
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        const newMission: Mission = {
+                                          id: `ci-btn-${msg.id}`,
+                                          type: `Visite — ${msg.planningResident}`,
+                                          description: msg.contenu || `Visite ${msg.planningResident} à ${msg.planningHeure}, ${msg.planningResidence}`,
+                                          statut: 'en_attente',
+                                          priorite: 'planifiee',
+                                          dateCreation: msg.date,
+                                          dateIntervention: msg.planningDate,
+                                          immeuble: msg.planningResidence || '',
+                                          artisan: '',
+                                          locataire: msg.planningResident,
+                                          telephoneLocataire: '',
+                                          demandeurNom: msg.de,
+                                          demandeurRole: 'technicien',
+                                          canalMessages: [],
+                                        }
+                                        setMissions(prev => {
+                                          const updated = [newMission, ...prev]
+                                          try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated)) } catch {}
+                                          return updated
+                                        })
+                                        setCanalInterneMessages(prev => prev.map(m => m.id === msg.id ? { ...m, planningMissionCreee: true } : m))
+                                      }}
+                                      className="inline-flex items-center gap-1 mt-2 text-xs text-blue-700 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-full font-medium transition"
+                                    >
+                                      + Ajouter au planning
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tâche card */}
+                            {msg.type === 'tache' && (
+                              <div className={`rounded-2xl overflow-hidden border-2 ${msg.tachePriorite === 'urgente' ? 'border-red-200' : 'border-amber-200'} ${isMine ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                                <div className={`${msg.tachePriorite === 'urgente' ? 'bg-red-500' : 'bg-amber-500'} text-white px-4 py-2 flex items-center gap-2`}>
+                                  <span>✅</span>
+                                  <span className="text-xs font-bold tracking-wide">TÂCHE{msg.tachePriorite === 'urgente' ? ' — URGENTE 🔴' : ''}</span>
+                                </div>
+                                <div className={`${msg.tachePriorite === 'urgente' ? 'bg-red-50' : 'bg-amber-50'} px-4 py-3`}>
+                                  <p className="text-sm text-gray-800 font-medium">{msg.contenu}</p>
+                                  {msg.tacheAssignee && <p className="text-xs text-gray-500 mt-1">👤 Pour : <span className="font-medium">{msg.tacheAssignee}</span></p>}
+                                  <button
+                                    onClick={() => setCanalInterneMessages(prev => prev.map(m =>
+                                      m.id === msg.id ? { ...m, tacheStatut: m.tacheStatut === 'terminee' ? 'en_attente' : 'terminee' } : m
+                                    ))}
+                                    className={`inline-flex items-center gap-1 mt-2 text-xs px-3 py-1.5 rounded-full font-medium transition cursor-pointer ${msg.tacheStatut === 'terminee' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                  >
+                                    {msg.tacheStatut === 'terminee' ? '✓ Terminée — cliquer pour rouvrir' : '⏳ En attente — marquer terminée'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Message simple */}
+                            {msg.type === 'message' && (
+                              <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${isMine ? 'bg-purple-600 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}>
+                                {msg.contenu}
+                              </div>
+                            )}
+
+                            <p className={`text-xs text-gray-400 mt-1 ${isMine ? 'text-right' : ''}`}>
+                              {new Date(msg.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={canalInterneEndRef} />
+                  </div>
+
+                  {/* Zone de composition */}
+                  <div className="border-t border-gray-200 p-4 bg-gray-50">
+                    {/* Sélecteur de type */}
+                    <div className="flex gap-2 mb-3">
+                      {(['message', 'planning', 'tache'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setCanalInterneType(t)}
+                          className={`text-xs px-3 py-1.5 rounded-full font-medium border transition ${canalInterneType === t ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'}`}
+                        >
+                          {t === 'message' ? '💬 Message' : t === 'planning' ? '📅 Planning' : '✅ Tâche'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Champs Planning */}
+                    {canalInterneType === 'planning' && (
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <input
+                          type="text"
+                          placeholder="Résident (ex: Mme Lebrun)"
+                          value={canalPlanResident}
+                          onChange={e => setCanalPlanResident(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 bg-white"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Résidence (ex: Résidence Les Acacias)"
+                          value={canalPlanResidence}
+                          onChange={e => setCanalPlanResidence(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 bg-white"
+                        />
+                        <input
+                          type="date"
+                          value={canalPlanDate}
+                          onChange={e => setCanalPlanDate(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 bg-white"
+                        />
+                        <input
+                          type="time"
+                          value={canalPlanHeure}
+                          onChange={e => setCanalPlanHeure(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {/* Champs Tâche */}
+                    {canalInterneType === 'tache' && (
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <input
+                          type="text"
+                          placeholder="Assignée à (ex: Gestionnaire Tech)"
+                          value={canalTacheAssignee}
+                          onChange={e => setCanalTacheAssignee(e.target.value)}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 bg-white"
+                        />
+                        <select
+                          value={canalTachePriorite}
+                          onChange={e => setCanalTachePriorite(e.target.value as 'normale' | 'urgente')}
+                          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 bg-white"
+                        >
+                          <option value="normale">Priorité normale</option>
+                          <option value="urgente">🔴 Urgente</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Input + Envoyer */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder={
+                          canalInterneType === 'planning'
+                            ? 'Note complémentaire (optionnel)…'
+                            : canalInterneType === 'tache'
+                            ? 'Description de la tâche…'
+                            : 'Message à l\'équipe…'
+                        }
+                        value={canalInterneInput}
+                        onChange={e => setCanalInterneInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendCanalInterne()}
+                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-400 bg-white"
+                      />
+                      <button
+                        onClick={sendCanalInterne}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl transition font-medium text-sm"
+                      >
+                        Envoyer
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── PLANNING ── */}
