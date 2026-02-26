@@ -4,7 +4,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 
 // ── POST /api/syndic/extract-pdf ─────────────────────────────────────────────
 // Reçoit un fichier PDF en multipart/form-data
-// Retourne le texte extrait — pdf-parse v2 (API PDFParse class + getText())
+// Retourne le texte extrait — utilise unpdf (Vercel/Node.js compatible, sans binaires natifs)
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
@@ -28,21 +28,68 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // pdf-parse v2 : API classe PDFParse
-    const { PDFParse } = await import('pdf-parse')
+    // Vérifier les magic bytes %PDF
+    if (buffer.length < 5 || buffer.slice(0, 4).toString('ascii') !== '%PDF') {
+      return NextResponse.json({
+        error: 'Le fichier ne semble pas être un PDF valide.',
+        isCorrupt: true,
+      }, { status: 422 })
+    }
 
-    // Configurer le worker pdfjs pour Node.js
-    PDFParse.setWorker()
+    // Extraction via unpdf — compatible Vercel serverless, pas de binaires natifs
+    const { extractText } = await import('unpdf')
 
-    const parser = new PDFParse({ data: buffer })
-    // Sans paramètres = toutes les pages par défaut
-    const result = await parser.getText()
+    let text = ''
+    let numPages = 0
 
-    const text: string = (result as any).text || ''
+    try {
+      const uint8 = new Uint8Array(buffer)
+      const result = await extractText(uint8, { mergePages: true })
+      text = result.text || ''
+      numPages = result.totalPages || 0
+    } catch (parseErr: any) {
+      const errMsg = (parseErr?.message || '').toLowerCase()
+      const errName = parseErr?.name || ''
 
+      // PDF protégé par mot de passe
+      if (
+        errMsg.includes('password') ||
+        errMsg.includes('encrypted') ||
+        errMsg.includes('encrypt') ||
+        errName === 'PasswordException'
+      ) {
+        return NextResponse.json({
+          error: 'Ce PDF est protégé par un mot de passe. Veuillez le déverrouiller avant de l\'importer.',
+          isPasswordProtected: true,
+        }, { status: 422 })
+      }
+
+      // PDF corrompu
+      if (
+        errMsg.includes('invalid') ||
+        errMsg.includes('corrupt') ||
+        errMsg.includes('malformed') ||
+        errMsg.includes('not a pdf') ||
+        errMsg.includes('invalid pdf')
+      ) {
+        return NextResponse.json({
+          error: 'Le fichier PDF semble corrompu ou invalide.',
+          isCorrupt: true,
+        }, { status: 422 })
+      }
+
+      // Autres erreurs → probablement PDF scanné
+      console.error('[EXTRACT-PDF] Parse error:', parseErr?.message || parseErr)
+      return NextResponse.json({
+        error: 'Impossible d\'extraire le texte. Ce PDF est peut-être scanné (image). Utilisez l\'onglet "Saisir le texte" pour saisir manuellement.',
+        isScanned: true,
+      }, { status: 422 })
+    }
+
+    // PDF sans texte extractible → probablement scanné
     if (!text.trim()) {
       return NextResponse.json({
-        error: "Le PDF ne contient pas de texte extractible. Il s'agit peut-être d'un PDF scanné. Utilisez l'onglet 'Saisir le texte'.",
+        error: 'Ce PDF ne contient pas de texte extractible. Il s\'agit probablement d\'un PDF scanné (image). Utilisez l\'onglet "Saisir le texte".',
         isScanned: true,
       }, { status: 422 })
     }
@@ -50,14 +97,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       text: text.trim(),
-      pages: (result as any).pages?.length ?? 0,
+      pages: numPages,
       filename: file.name,
       chars: text.trim().length,
     })
+
   } catch (err: any) {
-    console.error('[EXTRACT-PDF]', err?.message || err)
+    console.error('[EXTRACT-PDF] Unexpected error:', err?.message || err)
     return NextResponse.json({
-      error: "Erreur lors de l'extraction. Vérifiez que le PDF n'est pas protégé par mot de passe.",
+      error: 'Une erreur inattendue s\'est produite. Réessayez ou utilisez l\'onglet "Saisir le texte".',
     }, { status: 500 })
   }
 }

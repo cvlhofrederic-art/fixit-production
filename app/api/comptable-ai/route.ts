@@ -203,8 +203,38 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { message, financialContext, conversationHistory } = body
+    const { message, financialContext, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt } = body
 
+    // ── Mode direct (agent copropriété) : messages + systemPrompt fournis directement ──
+    if (directMessages && Array.isArray(directMessages)) {
+      const systemPrompt = customSystemPrompt || buildSystemPrompt({})
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...directMessages.slice(-20).map((m: any) => ({ role: m.role, content: m.content })),
+      ]
+
+      if (!GROQ_API_KEY) {
+        return NextResponse.json({ reply: '⚠️ Clé API Groq non configurée. Contactez l\'administrateur.' })
+      }
+
+      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.15, max_tokens: 2500 }),
+      })
+
+      if (!groqResponse.ok) {
+        const errText = await groqResponse.text()
+        console.error('Groq API error:', groqResponse.status, errText)
+        return NextResponse.json({ reply: 'Erreur IA temporaire. Réessayez dans quelques instants.' }, { status: 500 })
+      }
+
+      const groqData = await groqResponse.json()
+      const reply = groqData.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer de réponse.'
+      return NextResponse.json({ reply })
+    }
+
+    // ── Mode legacy (agent artisan) : message + financialContext ──
     if (!message) {
       return NextResponse.json({ error: 'Message requis' }, { status: 400 })
     }

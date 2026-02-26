@@ -40,18 +40,51 @@ export async function middleware(request: NextRequest) {
   const isSyndicRole = (role: string | undefined) =>
     role === 'syndic' || (typeof role === 'string' && role.startsWith('syndic_'))
 
+  const role = user?.user_metadata?.role as string | undefined
+  const isAdminOverride = user?.user_metadata?._admin_override === true
+
+  const originalRole = user?.user_metadata?._original_role as string | undefined
+
+  // Super admin : accès libre à tout, pas de redirection
+  if (role === 'super_admin' && !isAdminOverride) {
+    // Redirige vers le dashboard admin si pas déjà dessus
+    if (!pathname.startsWith('/admin')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/admin/dashboard'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
+  // Admin revenant d'un sous-dashboard (rôle changé mais _original_role = super_admin)
+  // Laisser passer vers /admin/* pour que la page restaure le rôle
+  if (originalRole === 'super_admin' && pathname.startsWith('/admin')) {
+    return supabaseResponse
+  }
+
+  // Mode admin override : laisser passer vers n'importe quel dashboard
+  if (isAdminOverride) {
+    return supabaseResponse
+  }
+
   // Protected routes: redirect to login if not authenticated
   if (!user && (
     pathname.startsWith('/client/dashboard') ||
     pathname.startsWith('/pro/dashboard') ||
     pathname.startsWith('/pro/mobile') ||
-    pathname.startsWith('/syndic/dashboard')
+    pathname.startsWith('/syndic/dashboard') ||
+    pathname.startsWith('/admin/dashboard') ||
+    pathname.startsWith('/coproprietaire/dashboard')
   )) {
     const url = request.nextUrl.clone()
     if (pathname.startsWith('/pro/')) {
       url.pathname = '/pro/login'
     } else if (pathname.startsWith('/syndic/')) {
       url.pathname = '/syndic/login'
+    } else if (pathname.startsWith('/admin/')) {
+      url.pathname = '/admin/login'
+    } else if (pathname.startsWith('/coproprietaire/')) {
+      url.pathname = '/coproprietaire/portail'
     } else {
       url.pathname = '/auth/login'
     }
@@ -60,8 +93,6 @@ export async function middleware(request: NextRequest) {
 
   // Role-based access control
   if (user) {
-    const role = user.user_metadata?.role as string | undefined
-
     // Syndic users: redirect away from non-syndic dashboards
     if (isSyndicRole(role)) {
       if (
@@ -84,14 +115,33 @@ export async function middleware(request: NextRequest) {
       }
     }
 
+    // Pro roles (société, conciergerie, gestionnaire)
+    const isProRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')
+    if (isProRole) {
+      if (pathname.startsWith('/client/dashboard') || pathname.startsWith('/syndic/dashboard')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/pro/dashboard'
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // Copropriétaire / Locataire: redirect away from pro and syndic dashboards
+    const isCoproRole = role === 'coproprio' || role === 'locataire'
+    if (isCoproRole) {
+      if (pathname.startsWith('/pro/dashboard') || pathname.startsWith('/pro/mobile') || pathname.startsWith('/syndic/dashboard')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/coproprietaire/dashboard'
+        return NextResponse.redirect(url)
+      }
+    }
+
     // Client (particulier): can't access pro or syndic dashboard
-    if (!isSyndicRole(role) && role !== 'artisan') {
+    if (!isSyndicRole(role) && role !== 'artisan' && !isProRole && !isCoproRole) {
       if (pathname.startsWith('/pro/dashboard') || pathname.startsWith('/pro/mobile')) {
         const url = request.nextUrl.clone()
         url.pathname = '/client/dashboard'
         return NextResponse.redirect(url)
       }
-      // Non-syndic users can't access syndic dashboard → redirect to their login
       if (pathname.startsWith('/syndic/dashboard')) {
         const url = request.nextUrl.clone()
         url.pathname = '/auth/login'

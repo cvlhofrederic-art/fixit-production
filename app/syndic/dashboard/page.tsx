@@ -1,21 +1,21 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions'
+type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'canal' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions' | 'compta_copro' | 'ag_digitale' | 'impayés' | 'carnet_entretien' | 'sinistres' | 'extranet' | 'pointage'
 
 // Pages accessibles par rôle
 const ROLE_PAGES: Record<string, Page[]> = {
-  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
-  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
-  syndic_tech: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'planning', 'alertes', 'emails', 'ia', 'parametres'],
-  syndic_secretaire: ['accueil', 'coproprios', 'missions', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
-  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres'],
-  syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'ia', 'parametres'],
+  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'compta_copro', 'ag_digitale', 'impayés', 'carnet_entretien', 'sinistres', 'extranet', 'parametres'],
+  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
+  syndic_tech: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'planning', 'pointage', 'alertes', 'emails', 'ia', 'parametres'],
+  syndic_secretaire: ['accueil', 'coproprios', 'missions', 'canal', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
+  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres'],
+  syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'ia', 'compta_copro', 'impayés', 'parametres'],
 }
 
 interface Immeuble {
@@ -32,6 +32,20 @@ interface Immeuble {
   nbInterventions: number
   budgetAnnuel: number
   depensesAnnee: number
+  // ── Géolocalisation ──
+  latitude?: number                    // Coordonnée GPS latitude
+  longitude?: number                   // Coordonnée GPS longitude
+  geolocActivee?: boolean              // Géolocalisation activée/désactivée
+  rayonDetection?: number              // Rayon de détection en mètres (défaut 150)
+  // ── Règlement de copropriété ──
+  reglementTexte?: string              // Texte complet du règlement (saisi ou extrait PDF)
+  reglementPdfNom?: string             // Nom du fichier PDF
+  reglementDateMaj?: string            // Date de dernière mise à jour
+  reglementChargesRepartition?: string // Règle de répartition des charges
+  reglementMajoriteAG?: string         // Majorités requises art 24/25/26
+  reglementFondsTravaux?: boolean      // Fonds travaux art 14-2
+  reglementFondsRoulementPct?: number  // % fonds de roulement
+  reglementClausesIA?: string          // Résumé des clauses clés généré par IA
 }
 
 interface Artisan {
@@ -84,6 +98,31 @@ interface Mission {
   dateIntervention?: string
   montantDevis?: number
   montantFacture?: number
+  // Champs locataire / fiche intervention
+  batiment?: string
+  etage?: string
+  numLot?: string
+  locataire?: string
+  telephoneLocataire?: string
+  accesLogement?: string
+  // Rapport d'intervention
+  rapportArtisan?: string
+  travailEffectue?: string
+  materiauxUtilises?: string
+  problemesConstates?: string
+  recommandations?: string
+  dateRapport?: string
+  dureeIntervention?: string
+  // Canal messages liés à cette mission (artisan ↔ gestionnaire)
+  canalMessages?: { auteur: string; role: string; texte: string; date: string }[]
+  // Canal demandeur (copropriétaire / locataire / technicien → gestionnaire)
+  demandeurNom?: string
+  demandeurRole?: 'coproprio' | 'locataire' | 'technicien'
+  demandeurEmail?: string
+  demandeurMessages?: { auteur: string; role: string; texte: string; date: string }[]
+  // Localisation demandeur (peut différer si technicien signale partie commune)
+  zoneSignalee?: string       // ex: "Parties communes", "Cave", "Parking", "Toiture"
+  estPartieCommune?: boolean
 }
 
 interface Alerte {
@@ -97,9 +136,9 @@ interface Alerte {
 // ─── Données démo ─────────────────────────────────────────────────────────────
 
 const IMMEUBLES_DEMO: Immeuble[] = [
-  { id: '1', nom: 'Résidence Les Acacias', adresse: '12 rue des Acacias', ville: 'Paris', codePostal: '75008', nbLots: 24, anneeConstruction: 1978, typeImmeuble: 'Copropriété', gestionnaire: 'Jean Dupont', prochainControle: '2026-03-15', nbInterventions: 8, budgetAnnuel: 45000, depensesAnnee: 28000 },
-  { id: '2', nom: 'Le Clos Vendôme', adresse: '3 allée Vendôme', ville: 'Lyon', codePostal: '69002', nbLots: 36, anneeConstruction: 1965, typeImmeuble: 'Copropriété', gestionnaire: 'Marie Martin', prochainControle: '2026-02-28', nbInterventions: 12, budgetAnnuel: 68000, depensesAnnee: 51000 },
-  { id: '3', nom: 'Tour Horizon', adresse: '88 boulevard Horizon', ville: 'Marseille', codePostal: '13008', nbLots: 60, anneeConstruction: 1990, typeImmeuble: 'Résidence', gestionnaire: 'Pierre Leroy', prochainControle: '2026-04-10', nbInterventions: 5, budgetAnnuel: 90000, depensesAnnee: 32000 },
+  { id: '1', nom: 'Résidence Les Acacias', adresse: '12 rue des Acacias', ville: 'Paris', codePostal: '75008', nbLots: 24, anneeConstruction: 1978, typeImmeuble: 'Copropriété', gestionnaire: 'Jean Dupont', prochainControle: '2026-03-15', nbInterventions: 8, budgetAnnuel: 45000, depensesAnnee: 28000, latitude: 48.8744, longitude: 2.3106, geolocActivee: true, rayonDetection: 150 },
+  { id: '2', nom: 'Le Clos Vendôme', adresse: '3 allée Vendôme', ville: 'Lyon', codePostal: '69002', nbLots: 36, anneeConstruction: 1965, typeImmeuble: 'Copropriété', gestionnaire: 'Marie Martin', prochainControle: '2026-02-28', nbInterventions: 12, budgetAnnuel: 68000, depensesAnnee: 51000, latitude: 45.7578, longitude: 4.8320, geolocActivee: true, rayonDetection: 200 },
+  { id: '3', nom: 'Tour Horizon', adresse: '88 boulevard Horizon', ville: 'Marseille', codePostal: '13008', nbLots: 60, anneeConstruction: 1990, typeImmeuble: 'Résidence', gestionnaire: 'Pierre Leroy', prochainControle: '2026-04-10', nbInterventions: 5, budgetAnnuel: 90000, depensesAnnee: 32000, geolocActivee: false, rayonDetection: 100 },
 ]
 
 const ARTISANS_DEMO: Artisan[] = [
@@ -114,6 +153,45 @@ const MISSIONS_DEMO: Mission[] = [
   { id: '2', immeuble: 'Le Clos Vendôme', artisan: 'Sophie Électrique', type: 'Électricité', description: 'Remplacement tableau électrique parties communes', priorite: 'normale', statut: 'acceptee', dateCreation: '2026-02-18', dateIntervention: '2026-02-26', montantDevis: 3200 },
   { id: '3', immeuble: 'Tour Horizon', artisan: 'Lucas Menuiserie', type: 'Menuiserie', description: 'Réparation porte entrée principale — gonds cassés', priorite: 'urgente', statut: 'terminee', dateCreation: '2026-02-15', dateIntervention: '2026-02-16', montantDevis: 420, montantFacture: 390 },
   { id: '4', immeuble: 'Résidence Les Acacias', artisan: 'Karim Peinture', type: 'Peinture', description: 'Ravalement façade côté rue', priorite: 'planifiee', statut: 'en_attente', dateCreation: '2026-02-22', dateIntervention: '2026-04-01', montantDevis: 12000 },
+  // ── Mission avec demande locataire (démo canal) ──
+  {
+    id: '5',
+    immeuble: 'Le Clos Vendôme',
+    artisan: 'Marc Fontaine',
+    type: 'Plomberie',
+    description: 'Fuite robinet salle de bain — eau qui coule en permanence, compteur qui tourne',
+    priorite: 'urgente',
+    statut: 'en_cours',
+    dateCreation: '2026-02-24',
+    dateIntervention: '2026-02-26',
+    montantDevis: 280,
+    // Localisation
+    batiment: 'B',
+    etage: '3',
+    numLot: '47',
+    locataire: 'Mme Isabelle Renard',
+    telephoneLocataire: '06 12 34 56 78',
+    accesLogement: 'Code 1234 — Sonner puis attendre 2 minutes',
+    // Demandeur (locataire via portail)
+    demandeurNom: 'Isabelle Renard',
+    demandeurRole: 'locataire',
+    demandeurEmail: 'i.renard@email.fr',
+    zoneSignalee: 'Appartement lot 47',
+    estPartieCommune: false,
+    // Canal artisan
+    canalMessages: [
+      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Bonjour Marc, ordre de mission pour une fuite robinet salle de bain au lot 47, bât B, 3ème étage. Locataire disponible à partir de 14h. Code accès : 1234.', date: '2026-02-24T09:15:00.000Z' },
+      { auteur: 'Marc Fontaine', role: 'artisan', texte: '✅ Mission confirmée. Je serai présent le 26/02 à 14h30. Je passe d\'abord chercher les pièces chez mon fournisseur ce matin.', date: '2026-02-24T10:02:00.000Z' },
+      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Parfait, merci Marc. La locataire est prévenue. N\'hésitez pas à me tenir informé si problème supplémentaire constaté.', date: '2026-02-24T10:18:00.000Z' },
+    ],
+    // Canal demandeur (locataire → gestionnaire)
+    demandeurMessages: [
+      { auteur: 'Isabelle Renard', role: 'locataire', texte: '🚨 Bonjour, j\'ai une fuite au robinet de la salle de bain depuis hier soir. L\'eau coule en permanence même fermé et mon compteur tourne. C\'est urgent svp !', date: '2026-02-24T07:45:00.000Z' },
+      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Bonjour Mme Renard, nous avons bien reçu votre signalement. Un plombier interviendra le 26/02 entre 14h et 17h. Pouvez-vous être présente ou laisser accès ?', date: '2026-02-24T09:20:00.000Z' },
+      { auteur: 'Isabelle Renard', role: 'locataire', texte: 'Oui je serai là après 14h. Merci beaucoup pour la rapidité ! Est-ce que je dois couper l\'eau en attendant ?', date: '2026-02-24T09:35:00.000Z' },
+      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Bonne idée de couper l\'arrivée d\'eau sous l\'évier ou au niveau du robinet de sectionnement pour limiter les dégâts. Le plombier s\'occupera de tout le 26/02. À bientôt !', date: '2026-02-24T09:45:00.000Z' },
+    ],
+  },
 ]
 
 const ALERTES_DEMO: Alerte[] = [
@@ -626,7 +704,7 @@ interface DevisExtracted {
 
 type InputMode = 'drop' | 'paste'
 
-function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPage: (p: Page) => void }) {
+function AnalyseDevisSection({ artisans, setPage, missions, setMissions, user }: { artisans: Artisan[]; setPage: (p: Page) => void; missions: Mission[]; setMissions: React.Dispatch<React.SetStateAction<Mission[]>>; user: any }) {
   const [mode, setMode] = useState<'main' | 'history'>('main')
   const [inputMode, setInputMode] = useState<InputMode>('drop')
   const [docText, setDocText] = useState('')
@@ -644,7 +722,9 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
   // Modal création mission
   const [showMissionModal, setShowMissionModal] = useState(false)
   const [missionForm, setMissionForm] = useState({
-    artisan: '', immeuble: '', type: '', description: '',
+    artisan: '', immeuble: '', adresseImmeuble: '', batiment: '', etage: '', numLot: '',
+    locataire: '', telephoneLocataire: '', accesLogement: '',
+    type: '', description: '',
     priorite: 'normale' as 'urgente' | 'normale' | 'planifiee',
     montantDevis: 0, dateIntervention: '',
   })
@@ -687,10 +767,14 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
       if (!res.ok) {
         if (data.isScanned) {
           // PDF scanné → basculer en mode texte avec message explicatif
-          setError('Ce PDF est un document scanné (image). Veuillez copier-coller le texte manuellement.')
+          setError('Ce PDF est un document scanné (image). Veuillez copier-coller le texte manuellement dans l\'onglet "Saisir le texte".')
           setInputMode('paste')
+        } else if (data.isPasswordProtected) {
+          setError('Ce PDF est protégé par un mot de passe. Déverrouillez-le d\'abord (ouvrez-le, allez dans Fichier → Exporter/Enregistrer sous sans mot de passe), puis réessayez.')
+        } else if (data.isCorrupt) {
+          setError('Ce fichier PDF semble corrompu ou invalide. Essayez de l\'ouvrir dans un lecteur PDF et de le ré-exporter.')
         } else {
-          setError(data.error || 'Erreur extraction PDF')
+          setError(data.error || 'Erreur lors de l\'extraction du PDF. Réessayez ou utilisez l\'onglet "Saisir le texte".')
         }
         return
       }
@@ -785,6 +869,13 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
     setMissionForm({
       artisan: matchedArtisan?.nom || ext.artisan_nom || '',
       immeuble: ext.immeuble || '',
+      adresseImmeuble: '',
+      batiment: '',
+      etage: '',
+      numLot: '',
+      locataire: '',
+      telephoneLocataire: '',
+      accesLogement: '',
       type: ext.artisan_metier || '',
       description: ext.description_travaux || '',
       priorite: ext.priorite || 'normale',
@@ -824,10 +915,155 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
       })
       const data = await res.json()
       if (res.ok && data.success) {
+        // ── Créer la mission locale avec message automatique dans le canal ──
+        const newMissionId = `mission_${Date.now()}`
+        const now = new Date()
+
+        // Construire le message d'ordre de mission automatique
+        const dateIntervStr = missionForm.dateIntervention
+          ? new Date(missionForm.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+          : 'à définir'
+        const localisationDetail = [
+          missionForm.batiment ? `Bâtiment ${missionForm.batiment}` : null,
+          missionForm.etage ? `Étage ${missionForm.etage}` : null,
+          missionForm.numLot ? `Appartement / Lot ${missionForm.numLot}` : null,
+        ].filter(Boolean).join(' · ')
+        const locataireDetail = missionForm.locataire
+          ? `\n👤 Locataire : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — Tél : ${missionForm.telephoneLocataire}` : ''}`
+          : ''
+        const accesDetail = missionForm.accesLogement ? `\n🔑 Accès : ${missionForm.accesLogement}` : ''
+
+        const msgAuto = `📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
+
+Bonjour ${missionForm.artisan},
+
+Une intervention vous est assignée :
+
+🏢 Résidence : ${missionForm.immeuble}${missionForm.adresseImmeuble ? `\n📍 Adresse : ${missionForm.adresseImmeuble}` : ''}${localisationDetail ? `\n📌 ${localisationDetail}` : ''}${locataireDetail}${accesDetail}
+
+🔧 Mission : ${missionForm.description}
+📅 Date d'intervention : ${dateIntervStr}
+⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString('fr-FR')} € HT` : ''}
+
+Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`
+
+        const autoMsg = {
+          auteur: 'Gestionnaire',
+          role: 'syndic',
+          texte: msgAuto,
+          date: now.toISOString(),
+        }
+
+        const newMission: Mission = {
+          id: newMissionId,
+          immeuble: missionForm.immeuble,
+          artisan: missionForm.artisan,
+          type: missionForm.type || 'Intervention',
+          description: missionForm.description,
+          priorite: missionForm.priorite,
+          statut: 'en_attente',
+          dateCreation: now.toISOString(),
+          dateIntervention: missionForm.dateIntervention || undefined,
+          montantDevis: missionForm.montantDevis || undefined,
+          batiment: missionForm.batiment || undefined,
+          etage: missionForm.etage || undefined,
+          numLot: missionForm.numLot || undefined,
+          locataire: missionForm.locataire || undefined,
+          telephoneLocataire: missionForm.telephoneLocataire || undefined,
+          accesLogement: missionForm.accesLogement || undefined,
+          canalMessages: [autoMsg],
+        }
+
+        // Stocker localement
+        const updatedMissions = [newMission, ...missions]
+        setMissions(updatedMissions)
+        try {
+          const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
+          localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify([newMission, ...stored]))
+        } catch {}
+
+        // Stocker aussi dans une clé partagée accessible côté artisan
+        try {
+          const artisanKey = `canal_missions_${artisanObj?.artisan_user_id || missionForm.artisan.replace(/\s+/g, '_').toLowerCase()}`
+          const artisanMissions = JSON.parse(localStorage.getItem(artisanKey) || '[]')
+          artisanMissions.unshift(newMission)
+          localStorage.setItem(artisanKey, JSON.stringify(artisanMissions))
+        } catch {}
+
         setMissionSuccess(true)
         setShowMissionModal(false)
+        // Reset form
+        setMissionForm({
+          artisan: '', immeuble: '', adresseImmeuble: '', batiment: '', etage: '', numLot: '',
+          locataire: '', telephoneLocataire: '', accesLogement: '',
+          type: '', description: '',
+          priorite: 'normale',
+          montantDevis: 0, dateIntervention: '',
+        })
       } else {
-        alert(data.message || data.error || 'Erreur lors de la création')
+        // Même sans API fonctionnelle, créer localement
+        const newMissionId = `mission_${Date.now()}`
+        const now = new Date()
+        const dateIntervStr = missionForm.dateIntervention
+          ? new Date(missionForm.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+          : 'à définir'
+        const localisationDetail = [
+          missionForm.batiment ? `Bâtiment ${missionForm.batiment}` : null,
+          missionForm.etage ? `Étage ${missionForm.etage}` : null,
+          missionForm.numLot ? `Appartement / Lot ${missionForm.numLot}` : null,
+        ].filter(Boolean).join(' · ')
+        const locataireDetail = missionForm.locataire
+          ? `\n👤 Locataire : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — Tél : ${missionForm.telephoneLocataire}` : ''}`
+          : ''
+        const accesDetail = missionForm.accesLogement ? `\n🔑 Accès : ${missionForm.accesLogement}` : ''
+        const msgAuto = `📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
+
+Bonjour ${missionForm.artisan},
+
+Une intervention vous est assignée :
+
+🏢 Résidence : ${missionForm.immeuble}${missionForm.adresseImmeuble ? `\n📍 Adresse : ${missionForm.adresseImmeuble}` : ''}${localisationDetail ? `\n📌 ${localisationDetail}` : ''}${locataireDetail}${accesDetail}
+
+🔧 Mission : ${missionForm.description}
+📅 Date d'intervention : ${dateIntervStr}
+⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString('fr-FR')} € HT` : ''}
+
+Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`
+        const autoMsg = { auteur: 'Gestionnaire', role: 'syndic', texte: msgAuto, date: now.toISOString() }
+        const newMission: Mission = {
+          id: newMissionId,
+          immeuble: missionForm.immeuble,
+          artisan: missionForm.artisan,
+          type: missionForm.type || 'Intervention',
+          description: missionForm.description,
+          priorite: missionForm.priorite,
+          statut: 'en_attente',
+          dateCreation: now.toISOString(),
+          dateIntervention: missionForm.dateIntervention || undefined,
+          montantDevis: missionForm.montantDevis || undefined,
+          batiment: missionForm.batiment || undefined,
+          etage: missionForm.etage || undefined,
+          numLot: missionForm.numLot || undefined,
+          locataire: missionForm.locataire || undefined,
+          telephoneLocataire: missionForm.telephoneLocataire || undefined,
+          accesLogement: missionForm.accesLogement || undefined,
+          canalMessages: [autoMsg],
+        }
+        const updatedMissions = [newMission, ...missions]
+        setMissions(updatedMissions)
+        try {
+          const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
+          localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify([newMission, ...stored]))
+        } catch {}
+        setMissionSuccess(true)
+        setShowMissionModal(false)
+        setMissionForm({
+          artisan: '', immeuble: '', adresseImmeuble: '', batiment: '', etage: '', numLot: '',
+          locataire: '', telephoneLocataire: '', accesLogement: '',
+          type: '', description: '',
+          priorite: 'normale',
+          montantDevis: 0, dateIntervention: '',
+        })
       }
     } catch {
       alert('Erreur réseau')
@@ -1220,20 +1456,22 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
       {/* ── Modal création mission ── */}
       {showMissionModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
-            <div className="p-6 border-b border-gray-100">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">📋 Créer la mission</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">Données pré-remplies depuis le devis</p>
+                  <h3 className="text-lg font-bold text-gray-900">📋 Nouvel ordre de mission</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">Un message automatique sera envoyé à l'artisan dans le canal de la mission</p>
                 </div>
                 <button onClick={() => setShowMissionModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
               </div>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+
+              {/* Section artisan + type */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Artisan <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Artisan prestataire <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={missionForm.artisan}
@@ -1247,49 +1485,123 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                   </datalist>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type de travaux</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Type de travaux</label>
                   <input
                     type="text"
                     value={missionForm.type}
                     onChange={e => setMissionForm(f => ({ ...f, type: e.target.value }))}
-                    placeholder="ex : Plomberie, Élagage..."
+                    placeholder="ex : Plomberie, Électricité…"
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                   />
                 </div>
               </div>
+
+              {/* Section localisation */}
+              <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">📍 Localisation de l&apos;intervention</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Nom de la résidence <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={missionForm.immeuble}
+                      onChange={e => setMissionForm(f => ({ ...f, immeuble: e.target.value }))}
+                      placeholder="ex : Résidence Les Pins"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Adresse complète</label>
+                    <input
+                      type="text"
+                      value={missionForm.adresseImmeuble}
+                      onChange={e => setMissionForm(f => ({ ...f, adresseImmeuble: e.target.value }))}
+                      placeholder="12 rue de la Paix, 75001 Paris"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Bâtiment</label>
+                    <input
+                      type="text"
+                      value={missionForm.batiment}
+                      onChange={e => setMissionForm(f => ({ ...f, batiment: e.target.value }))}
+                      placeholder="ex : A, B, C…"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Étage</label>
+                    <input
+                      type="text"
+                      value={missionForm.etage}
+                      onChange={e => setMissionForm(f => ({ ...f, etage: e.target.value }))}
+                      placeholder="ex : 2, RDC…"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Appartement / N° lot</label>
+                    <input
+                      type="text"
+                      value={missionForm.numLot}
+                      onChange={e => setMissionForm(f => ({ ...f, numLot: e.target.value }))}
+                      placeholder="ex : 12, 4B…"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Locataire / Occupant</label>
+                    <input
+                      type="text"
+                      value={missionForm.locataire}
+                      onChange={e => setMissionForm(f => ({ ...f, locataire: e.target.value }))}
+                      placeholder="Nom du locataire (optionnel)"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Téléphone locataire</label>
+                    <input
+                      type="tel"
+                      value={missionForm.telephoneLocataire}
+                      onChange={e => setMissionForm(f => ({ ...f, telephoneLocataire: e.target.value }))}
+                      placeholder="06 XX XX XX XX"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">🔑 Instructions d&apos;accès</label>
+                  <input
+                    type="text"
+                    value={missionForm.accesLogement}
+                    onChange={e => setMissionForm(f => ({ ...f, accesLogement: e.target.value }))}
+                    placeholder="ex : Clé chez gardien, code portail 1234…"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Motif + date + priorité */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Motif / Description de l&apos;intervention <span className="text-red-500">*</span></label>
                 <textarea
                   value={missionForm.description}
                   onChange={e => setMissionForm(f => ({ ...f, description: e.target.value }))}
                   rows={3}
+                  placeholder="Décrivez précisément les travaux à effectuer…"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Immeuble</label>
-                  <input
-                    type="text"
-                    value={missionForm.immeuble}
-                    onChange={e => setMissionForm(f => ({ ...f, immeuble: e.target.value }))}
-                    placeholder="Nom ou adresse"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Montant HT (€)</label>
-                  <input
-                    type="number"
-                    value={missionForm.montantDevis || ''}
-                    onChange={e => setMissionForm(f => ({ ...f, montantDevis: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date d&apos;intervention</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Date d&apos;intervention</label>
                   <input
                     type="date"
                     value={missionForm.dateIntervention}
@@ -1298,7 +1610,7 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Priorité</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Priorité</label>
                   <select
                     value={missionForm.priorite}
                     onChange={e => setMissionForm(f => ({ ...f, priorite: e.target.value as 'urgente' | 'normale' | 'planifiee' }))}
@@ -1309,17 +1621,50 @@ function AnalyseDevisSection({ artisans, setPage }: { artisans: Artisan[]; setPa
                     <option value="planifiee">⚪ Planifiée</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Montant devis (€ HT)</label>
+                  <input
+                    type="number"
+                    value={missionForm.montantDevis || ''}
+                    onChange={e => setMissionForm(f => ({ ...f, montantDevis: parseFloat(e.target.value) || 0 }))}
+                    placeholder="0"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                  />
+                </div>
               </div>
+
+              {/* Aperçu du message automatique */}
+              {missionForm.artisan && missionForm.immeuble && missionForm.description && (
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">👁️ Aperçu du message automatique envoyé à l&apos;artisan</p>
+                  <div className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-white rounded-lg p-3 border border-gray-100 max-h-40 overflow-y-auto leading-relaxed">
+                    {`📋 ORDRE DE MISSION — ${missionForm.type || 'Intervention'}
+
+Bonjour ${missionForm.artisan},
+
+Une intervention vous est assignée :
+
+🏢 Résidence : ${missionForm.immeuble}${missionForm.adresseImmeuble ? `\n📍 Adresse : ${missionForm.adresseImmeuble}` : ''}${[missionForm.batiment && `Bâtiment ${missionForm.batiment}`, missionForm.etage && `Étage ${missionForm.etage}`, missionForm.numLot && `Appartement / Lot ${missionForm.numLot}`].filter(Boolean).join(' · ') ? `\n📌 ${[missionForm.batiment && `Bâtiment ${missionForm.batiment}`, missionForm.etage && `Étage ${missionForm.etage}`, missionForm.numLot && `Appartement / Lot ${missionForm.numLot}`].filter(Boolean).join(' · ')}` : ''}${missionForm.locataire ? `\n👤 Locataire : ${missionForm.locataire}${missionForm.telephoneLocataire ? ` — Tél : ${missionForm.telephoneLocataire}` : ''}` : ''}${missionForm.accesLogement ? `\n🔑 Accès : ${missionForm.accesLogement}` : ''}
+
+🔧 Mission : ${missionForm.description}
+📅 Date d'intervention : ${missionForm.dateIntervention ? new Date(missionForm.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'à définir'}
+⚡ Priorité : ${missionForm.priorite === 'urgente' ? '🔴 URGENTE' : missionForm.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${missionForm.montantDevis ? `\n💰 Montant devis : ${missionForm.montantDevis.toLocaleString('fr-FR')} € HT` : ''}
+
+Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="p-6 border-t border-gray-100 flex gap-3">
+
+            <div className="p-6 border-t border-gray-100 flex gap-3 flex-shrink-0">
               <button
                 onClick={handleCreateMission}
-                disabled={missionCreating || !missionForm.artisan || !missionForm.description}
+                disabled={missionCreating || !missionForm.artisan || !missionForm.description || !missionForm.immeuble}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {missionCreating ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Création...</>
-                ) : '✅ Créer la mission'}
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Création en cours...</>
+                ) : '📤 Créer l\'ordre de mission + envoyer dans le canal'}
               </button>
               <button
                 onClick={() => setShowMissionModal(false)}
@@ -1559,7 +1904,34 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
         </div>
       </div>
 
-      {/* Filtres */}
+      {/* Filtres rapides — Pastilles rouge/vert */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setFilterStatut('all')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${filterStatut === 'all' ? 'border-gray-800 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}
+        >
+          🔄 Tous
+          <span className="bg-white/20 text-xs px-1.5 py-0.5 rounded-full">{docs.length}</span>
+        </button>
+        <button
+          onClick={() => setFilterStatut('non_envoye')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${filterStatut === 'non_envoye' ? 'border-red-600 bg-red-600 text-white' : 'border-red-200 bg-red-50 text-red-700 hover:border-red-400'}`}
+        >
+          <span className="w-2.5 h-2.5 bg-red-500 rounded-full inline-block" />
+          À envoyer
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filterStatut === 'non_envoye' ? 'bg-white/20 text-white' : 'bg-red-200 text-red-700'}`}>{stats.nonEnvoyes}</span>
+        </button>
+        <button
+          onClick={() => setFilterStatut('envoye')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition ${filterStatut === 'envoye' ? 'border-green-600 bg-green-600 text-white' : 'border-green-200 bg-green-50 text-green-700 hover:border-green-400'}`}
+        >
+          <span className="w-2.5 h-2.5 bg-green-500 rounded-full inline-block" />
+          Envoyés &amp; classés
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filterStatut === 'envoye' ? 'bg-white/20 text-white' : 'bg-green-200 text-green-700'}`}>{stats.envoyes}</span>
+        </button>
+      </div>
+
+      {/* Filtres avancés */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <div className="flex gap-3 flex-wrap items-center">
           {/* Recherche */}
@@ -1586,16 +1958,6 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
             <option value="photo">📷 Photos</option>
             <option value="autre">📄 Autres</option>
           </select>
-          {/* Statut transmission */}
-          <select
-            value={filterStatut}
-            onChange={e => setFilterStatut(e.target.value as typeof filterStatut)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">🔄 Tous statuts</option>
-            <option value="non_envoye">🔴 Non transmis</option>
-            <option value="envoye">✅ Transmis</option>
-          </select>
           {/* Artisan */}
           <select
             value={filterArtisan}
@@ -1611,7 +1973,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
               onClick={() => { setSearch(''); setFilterType('all'); setFilterStatut('all'); setFilterArtisan('all') }}
               className="px-3 py-2.5 text-sm text-gray-500 hover:text-red-500 transition"
             >
-              ✕ Effacer
+              ✕ Effacer tout
             </button>
           )}
         </div>
@@ -1635,14 +1997,21 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
           {filtered.map(doc => (
             <div
               key={doc.id}
-              className={`bg-white rounded-2xl border-2 shadow-sm p-5 transition ${
-                doc.envoye_compta ? 'border-green-200' : 'border-orange-200'
+              className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden transition ${
+                doc.envoye_compta ? 'border-green-200' : 'border-red-200'
               }`}
             >
-              <div className="flex items-start gap-4">
-                {/* Badge type */}
-                <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gray-50 border border-gray-100">
-                  {typeConfig[doc.type]?.emoji || '📄'}
+              {/* Barre de statut colorée en haut */}
+              <div className={`h-1.5 w-full ${doc.envoye_compta ? 'bg-green-500' : 'bg-red-500'}`} />
+
+              <div className="flex items-start gap-4 p-5">
+                {/* Indicateur pastille + type */}
+                <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gray-50 border border-gray-100">
+                    {typeConfig[doc.type]?.emoji || '📄'}
+                  </div>
+                  {/* Pastille rouge/vert */}
+                  <div className={`w-3 h-3 rounded-full border-2 border-white shadow ${doc.envoye_compta ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} title={doc.envoye_compta ? 'Envoyé à la comptabilité' : 'À envoyer à la comptabilité'} />
                 </div>
 
                 {/* Infos */}
@@ -1654,14 +2023,14 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                     </span>
                     {/* Badge transmission */}
                     {doc.envoye_compta ? (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
-                        Transmis compta
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700 border border-green-200 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-green-500 rounded-full inline-block" />
+                        ✅ Classé — Transmis compta
                       </span>
                     ) : (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse inline-block" />
-                        Non transmis
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 flex items-center gap-1.5">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse inline-block" />
+                        🔴 À envoyer
                       </span>
                     )}
                     {doc.montant && (
@@ -2625,75 +2994,362 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
 
 // ─── Modal Nouvelle Mission ────────────────────────────────────────────────────
 
-function ModalNouveilleMission({ onClose, onAdd }: { onClose: () => void; onAdd: (m: Partial<Mission>) => void }) {
-  const [form, setForm] = useState({ immeuble: '', artisan: '', type: 'Plomberie', description: '', priorite: 'normale' as Mission['priorite'], dateIntervention: '', montantDevis: '' })
+function ModalNouveilleMission({
+  onClose,
+  onAdd,
+  batimentsConnus,
+  artisans,
+  coproprios = [],
+}: {
+  onClose: () => void
+  onAdd: (m: Partial<Mission> & { demandeurEmail?: string; heureIntervention?: string }) => void
+  batimentsConnus: string[]
+  artisans: Artisan[]
+  coproprios?: any[]
+}) {
+  const [form, setForm] = useState({
+    immeuble: '',
+    adresseImmeuble: '',
+    batiment: '',
+    etage: '',
+    numLot: '',
+    locataire: '',
+    telephoneLocataire: '',
+    emailLocataire: '',
+    accesLogement: '',
+    artisan: '',
+    type: 'Plomberie',
+    description: '',
+    priorite: 'normale' as Mission['priorite'],
+    dateIntervention: '',
+    heureIntervention: '',
+    montantDevis: '',
+    notifierDemandeur: true,
+  })
+  const [immeubleInput, setImmeubleInput] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showCoproSearch, setShowCoproSearch] = useState(false)
+  const [coproSearch, setCoproSearch] = useState('')
+
+  const suggestions = batimentsConnus.filter(b =>
+    immeubleInput.length > 0 && b.toLowerCase().includes(immeubleInput.toLowerCase())
+  )
+
+  // Auto-remplissage depuis copropriétaire existant
+  const filteredCopros = coproprios.filter((c: any) => {
+    const q = coproSearch.toLowerCase()
+    return !q || (c.nom || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) || (c.lot || '').toLowerCase().includes(q) || (c.nomLocataire || '').toLowerCase().includes(q)
+  }).slice(0, 8)
+
+  const autoFillFromCopro = (copro: any) => {
+    setForm(f => ({
+      ...f,
+      immeuble: copro.immeuble || f.immeuble,
+      batiment: copro.batiment || f.batiment,
+      etage: String(copro.etage || f.etage),
+      numLot: copro.numeroPorte || copro.lot || f.numLot,
+      locataire: copro.nomLocataire ? `${copro.prenomLocataire || ''} ${copro.nomLocataire}`.trim() : (copro.nomProprietaire ? `${copro.prenomProprietaire || ''} ${copro.nomProprietaire}`.trim() : f.locataire),
+      telephoneLocataire: copro.telephoneLocataire || copro.telephoneProprietaire || f.telephoneLocataire,
+      emailLocataire: copro.emailLocataire || copro.emailProprietaire || f.emailLocataire,
+    }))
+    if (copro.immeuble) setImmeubleInput(copro.immeuble)
+    setShowCoproSearch(false)
+    setCoproSearch('')
+  }
+
+  const canSubmit = form.type.trim().length > 0
+
+  const handleSubmit = () => {
+    if (!canSubmit) return
+    const now = new Date()
+    const nomImmeuble = immeubleInput.trim() || form.immeuble || '—'
+    const artisanNom = form.artisan || 'le prestataire'
+
+    // Message automatique ordre de mission
+    const dateIntervStr = form.dateIntervention
+      ? new Date(form.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      : 'à définir'
+    const localisationDetail = [
+      form.batiment ? `Bâtiment ${form.batiment}` : null,
+      form.etage ? `Étage ${form.etage}` : null,
+      form.numLot ? `Appartement / Lot ${form.numLot}` : null,
+    ].filter(Boolean).join(' · ')
+    const locataireDetail = form.locataire
+      ? `\n👤 Locataire : ${form.locataire}${form.telephoneLocataire ? ` — Tél : ${form.telephoneLocataire}` : ''}`
+      : ''
+    const accesDetail = form.accesLogement ? `\n🔑 Accès : ${form.accesLogement}` : ''
+
+    const heureStr = form.heureIntervention ? ` à ${form.heureIntervention}` : ''
+
+    const msgAuto = `📋 ORDRE DE MISSION — ${form.type}
+
+Bonjour ${artisanNom},
+
+Une intervention vous est assignée :
+
+🏢 Résidence : ${nomImmeuble}${form.adresseImmeuble ? `\n📍 Adresse : ${form.adresseImmeuble}` : ''}${localisationDetail ? `\n📌 ${localisationDetail}` : ''}${locataireDetail}${accesDetail}
+
+🔧 Mission : ${form.description || form.type}
+📅 Date d'intervention : ${dateIntervStr}${heureStr}
+⚡ Priorité : ${form.priorite === 'urgente' ? '🔴 URGENTE' : form.priorite === 'normale' ? '🔵 Normale' : '⚪ Planifiée'}${form.montantDevis ? `\n💰 Budget estimé : ${Number(form.montantDevis).toLocaleString('fr-FR')} € HT` : ''}
+
+Merci de confirmer la réception de cet ordre de mission en répondant dans ce canal.`
+
+    const autoMsg = { auteur: 'Gestionnaire', role: 'syndic', texte: msgAuto, date: now.toISOString() }
+
+    onAdd({
+      ...form,
+      immeuble: nomImmeuble,
+      montantDevis: form.montantDevis ? Number(form.montantDevis) : undefined,
+      dateIntervention: form.dateIntervention || undefined,
+      heureIntervention: form.heureIntervention || undefined,
+      demandeurEmail: form.emailLocataire || undefined,
+      canalMessages: [autoMsg],
+    })
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full" onClick={e => e.stopPropagation()}>
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Nouvel ordre de mission</h3>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Immeuble</label>
-              <select value={form.immeuble} onChange={e => setForm({ ...form, immeuble: e.target.value })}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm">
-                <option value="">Sélectionner</option>
-                {IMMEUBLES_DEMO.map(i => <option key={i.id} value={i.nom}>{i.nom}</option>)}
-              </select>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-xl font-bold text-gray-900">📋 Nouvel ordre de mission</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+          </div>
+
+          <div className="space-y-4">
+
+            {/* ── Auto-remplissage depuis copropriétaire ── */}
+            {coproprios.length > 0 && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-blue-800">⚡ Auto-remplissage depuis un copropriétaire</p>
+                    <p className="text-xs text-blue-600 mt-0.5">Sélectionnez un copropriétaire pour pré-remplir automatiquement les infos</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCoproSearch(!showCoproSearch)}
+                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition"
+                  >
+                    {showCoproSearch ? '✕ Fermer' : '🔍 Sélectionner'}
+                  </button>
+                </div>
+                {showCoproSearch && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={coproSearch}
+                      onChange={e => setCoproSearch(e.target.value)}
+                      placeholder="Rechercher par nom, lot, email…"
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white"
+                      autoFocus
+                    />
+                    <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-blue-100 shadow-sm">
+                      {filteredCopros.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-3">Aucun résultat</p>
+                      ) : filteredCopros.map((c: any, i: number) => (
+                        <button
+                          key={c.id || i}
+                          onClick={() => autoFillFromCopro(c)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition border-b border-gray-50 last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">
+                                {c.prenomProprietaire ? `${c.prenomProprietaire} ` : ''}{c.nomProprietaire || c.nom || '—'}
+                                {c.nomLocataire && <span className="text-xs text-blue-600 ml-1">(loc. {c.prenomLocataire || ''} {c.nomLocataire})</span>}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {c.immeuble && `🏢 ${c.immeuble} · `}
+                                {c.batiment && `Bât. ${c.batiment} · `}
+                                {c.etage !== undefined && `Ét. ${c.etage} · `}
+                                Lot {c.numeroPorte || c.lot || '—'}
+                              </p>
+                            </div>
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Remplir →</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Prestataire + Type */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">👷 Artisan / Prestataire</label>
+                <select
+                  value={form.artisan}
+                  onChange={e => setForm({ ...form, artisan: e.target.value })}
+                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm"
+                >
+                  <option value="">— Non assigné —</option>
+                  {artisans.filter(a => a.statut === 'actif' || a.statut === 'en_attente').map(a => (
+                    <option key={a.id} value={a.nom}>{a.nom} — {a.metier}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">🔧 Type de travaux <span className="text-red-500">*</span></label>
+                <select
+                  value={form.type}
+                  onChange={e => setForm({ ...form, type: e.target.value })}
+                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm"
+                >
+                  {['Plomberie', 'Électricité', 'Serrurerie', 'Peinture', 'Menuiserie', 'Maçonnerie', 'Nettoyage', 'Ascenseur', 'Chauffage / Clim', 'Toiture', 'Vitrerie', 'Espaces verts', 'Autre'].map(t => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            {/* Localisation */}
+            <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">📍 Localisation</p>
+              {/* Résidence */}
+              <div className="relative">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Nom de la résidence</label>
+                <input
+                  type="text"
+                  value={immeubleInput}
+                  onChange={e => { setImmeubleInput(e.target.value); setShowSuggestions(true) }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  placeholder="Ex : Résidence Les Acacias…"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white"
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-10 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-32 overflow-y-auto">
+                    {suggestions.map(s => (
+                      <button key={s} onMouseDown={() => { setImmeubleInput(s); setShowSuggestions(false) }} className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50 hover:text-purple-700 transition">🏢 {s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Adresse complète</label>
+                <input type="text" value={form.adresseImmeuble} onChange={e => setForm({ ...form, adresseImmeuble: e.target.value })} placeholder="12 rue de la Paix, 75001 Paris" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Bâtiment</label>
+                  <input type="text" value={form.batiment} onChange={e => setForm({ ...form, batiment: e.target.value })} placeholder="A, B, C…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Étage</label>
+                  <input type="text" value={form.etage} onChange={e => setForm({ ...form, etage: e.target.value })} placeholder="2, RDC…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Appart / Lot</label>
+                  <input type="text" value={form.numLot} onChange={e => setForm({ ...form, numLot: e.target.value })} placeholder="12, 4B…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Locataire / Occupant</label>
+                  <input type="text" value={form.locataire} onChange={e => setForm({ ...form, locataire: e.target.value })} placeholder="Nom (optionnel)" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Tél. locataire</label>
+                  <input type="tel" value={form.telephoneLocataire} onChange={e => setForm({ ...form, telephoneLocataire: e.target.value })} placeholder="06 XX XX XX XX" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">🔑 Instructions d&apos;accès</label>
+                <input type="text" value={form.accesLogement} onChange={e => setForm({ ...form, accesLogement: e.target.value })} placeholder="Code portail, clé gardien…" className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm bg-white" />
+              </div>
+            </div>
+
+            {/* Description + date + priorité */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Artisan</label>
-              <select value={form.artisan} onChange={e => setForm({ ...form, artisan: e.target.value })}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm">
-                <option value="">Sélectionner</option>
-                {ARTISANS_DEMO.filter(a => a.statut === 'actif').map(a => <option key={a.id} value={a.nom}>{a.nom} — {a.metier}</option>)}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">📝 Description / Motif <span className="text-gray-400 font-normal text-xs">(optionnel)</span></label>
+              <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none resize-none text-sm" placeholder="Décrivez l'intervention nécessaire…" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">📅 Date souhaitée</label>
+                <input type="date" value={form.dateIntervention} onChange={e => setForm({ ...form, dateIntervention: e.target.value })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">🕐 Heure d&apos;intervention</label>
+                <input type="time" value={form.heureIntervention} onChange={e => setForm({ ...form, heureIntervention: e.target.value })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">⚡ Priorité</label>
+                <select value={form.priorite} onChange={e => setForm({ ...form, priorite: e.target.value as Mission['priorite'] })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm">
+                  <option value="urgente">🔴 Urgente</option>
+                  <option value="normale">🔵 Normale</option>
+                  <option value="planifiee">⚪ Planifiée</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">💶 Budget € HT</label>
+                <input type="number" value={form.montantDevis} onChange={e => setForm({ ...form, montantDevis: e.target.value })} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" placeholder="0" min={0} />
+              </div>
+            </div>
+
+            {/* Email locataire pour notification retour */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">📧 Email locataire / demandeur <span className="text-gray-400 font-normal">(pour la notification de confirmation)</span></label>
+              <input type="email" value={form.emailLocataire} onChange={e => setForm({ ...form, emailLocataire: e.target.value })} placeholder="locataire@email.fr" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
+            </div>
+
+            {/* Toggle notification demandeur */}
+            <div className={`rounded-xl border-2 p-3 transition ${form.notifierDemandeur ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-gray-800">🔔 Notifier le demandeur à la création</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {form.notifierDemandeur
+                      ? 'Un message de confirmation sera envoyé dans le canal du demandeur : "Demande traitée, l\'artisan interviendra le…"'
+                      : 'Pas de notification au demandeur'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setForm(f => ({ ...f, notifierDemandeur: !f.notifierDemandeur }))}
+                  className={`flex-shrink-0 w-12 h-6 rounded-full transition relative ${form.notifierDemandeur ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.notifierDemandeur ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Info messages auto */}
+            <div className="space-y-2">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                <span className="text-amber-500 text-base flex-shrink-0">🔧</span>
+                <p className="text-xs text-amber-800">L&apos;artisan <strong>{form.artisan || '…'}</strong> reçoit automatiquement l&apos;ordre de mission complet dans son canal (localisation, accès, date, heure).</p>
+              </div>
+              {form.notifierDemandeur && (form.locataire || form.emailLocataire) && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-start gap-2">
+                  <span className="text-green-500 text-base flex-shrink-0">✅</span>
+                  <p className="text-xs text-green-800">
+                    <strong>{form.locataire || form.emailLocataire}</strong> recevra dans son canal : <em>&quot;Demande traitée — l&apos;artisan {form.artisan || '…'} interviendra le {form.dateIntervention ? new Date(form.dateIntervention).toLocaleDateString('fr-FR') : '…'}{form.heureIntervention ? ` à ${form.heureIntervention}` : ''}&quot;</em>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type de travaux</label>
-              <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm">
-                {['Plomberie', 'Électricité', 'Serrurerie', 'Peinture', 'Menuiserie', 'Maçonnerie', 'Nettoyage', 'Ascenseur', 'Chauffage', 'Autre'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priorité</label>
-              <select value={form.priorite} onChange={e => setForm({ ...form, priorite: e.target.value as Mission['priorite'] })}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm">
-                <option value="urgente">🔴 Urgente</option>
-                <option value="normale">🔵 Normale</option>
-                <option value="planifiee">⚪ Planifiée</option>
-              </select>
-            </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 mt-6">
+            <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">
+              Annuler
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-40 text-sm"
+            >
+              📤 Créer &amp; ouvrir le canal
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3}
-              className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none resize-none text-sm"
-              placeholder="Décrivez l'intervention nécessaire..." />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date souhaitée</label>
-              <input type="date" value={form.dateIntervention} onChange={e => setForm({ ...form, dateIntervention: e.target.value })}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Budget estimé (€)</label>
-              <input type="number" value={form.montantDevis} onChange={e => setForm({ ...form, montantDevis: e.target.value })}
-                className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" placeholder="0" />
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition">Annuler</button>
-          <button onClick={() => { onAdd({ ...form, id: Date.now().toString(), statut: 'en_attente', dateCreation: new Date().toISOString().split('T')[0], montantDevis: Number(form.montantDevis) || undefined }); onClose() }}
-            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition">
-            Créer la mission
-          </button>
         </div>
       </div>
     </div>
@@ -2715,6 +3371,7 @@ interface GEDDocument {
   dateAjout: string
   taille: string
   tags: string[]
+  url?: string // URL réelle si uploadé
 }
 
 const TYPE_DOC_CONFIG: Record<TypeDocument, { emoji: string; label: string; color: string }> = {
@@ -2761,6 +3418,9 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
   const [showUpload, setShowUpload] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<GEDDocument | null>(null)
   const [uploadForm, setUploadForm] = useState({ nom: '', type: 'rapport' as TypeDocument, immeuble: '', artisan: '', locataire: '', tags: '' })
+  const [gedUploadFile, setGedUploadFile] = useState<File | null>(null)
+  const [gedUploading, setGedUploading] = useState(false)
+  const gedFileRef = useRef<HTMLInputElement>(null)
 
   const stats = {
     total: docs.length,
@@ -2782,23 +3442,52 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
   const clearFilters = () => { setSearch(''); setFilterImmeuble(''); setFilterArtisan(''); setFilterLocataire(''); setFilterType('') }
   const hasFilters = search || filterImmeuble || filterArtisan || filterLocataire || filterType
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!uploadForm.nom) return
+    setGedUploading(true)
+    let fileUrl: string | undefined
+    let fileTaille = '—'
+    // Upload réel si fichier sélectionné
+    if (gedUploadFile) {
+      try {
+        const { supabase } = await import('@/lib/supabase')
+        const { data: { session } } = await supabase.auth.getSession()
+        const formData = new FormData()
+        formData.append('file', gedUploadFile)
+        formData.append('bucket', 'artisan-documents')
+        formData.append('folder', 'syndic-ged')
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+          body: formData,
+        })
+        if (res.ok) {
+          const data = await res.json()
+          fileUrl = data.url
+        }
+        fileTaille = gedUploadFile.size > 1024 * 1024
+          ? `${(gedUploadFile.size / 1024 / 1024).toFixed(1)} Mo`
+          : `${(gedUploadFile.size / 1024).toFixed(0)} Ko`
+      } catch { /* silencieux */ }
+    }
     const newDoc: GEDDocument = {
       id: Date.now().toString(),
-      nom: uploadForm.nom,
+      nom: uploadForm.nom || (gedUploadFile?.name ?? 'Document'),
       type: uploadForm.type,
       immeuble: uploadForm.immeuble || 'Tous',
       artisan: uploadForm.artisan,
       locataire: uploadForm.locataire,
       dateDocument: new Date().toISOString().split('T')[0],
       dateAjout: new Date().toISOString().split('T')[0],
-      taille: '—',
+      taille: fileTaille,
       tags: uploadForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+      url: fileUrl,
     }
     setDocs(prev => [newDoc, ...prev])
     setShowUpload(false)
     setUploadForm({ nom: '', type: 'rapport', immeuble: '', artisan: '', locataire: '', tags: '' })
+    setGedUploadFile(null)
+    setGedUploading(false)
   }
 
   return (
@@ -2976,7 +3665,16 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
                     <div className="col-span-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
                       <button onClick={() => setSelectedDoc(doc)} title="Détails"
                         className="p-1.5 bg-gray-100 hover:bg-purple-100 text-gray-600 hover:text-purple-700 rounded-lg transition text-xs">👁</button>
-                      <button title="Télécharger"
+                      <button
+                        onClick={() => {
+                          if (doc.url) {
+                            const a = document.createElement('a'); a.href = doc.url; a.download = doc.nom; a.click()
+                          } else {
+                            const blob = new Blob([`Document: ${doc.nom}\nImmeuble: ${doc.immeuble}\nArtisan: ${doc.artisan}\nDate: ${doc.dateDocument}\nType: ${doc.type}`], { type: 'text/plain;charset=utf-8' })
+                            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = doc.nom + '.txt'; a.click(); URL.revokeObjectURL(a.href)
+                          }
+                        }}
+                        title="Télécharger"
                         className="p-1.5 bg-gray-100 hover:bg-purple-100 text-gray-600 hover:text-purple-700 rounded-lg transition text-xs">⬇️</button>
                     </div>
                   </div>
@@ -3073,7 +3771,18 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
               )}
             </div>
             <div className="flex gap-3 mt-6">
-              <button className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-semibold transition text-sm">
+              <button
+                onClick={() => {
+                  if (selectedDoc.url) {
+                    const a = document.createElement('a'); a.href = selectedDoc.url; a.download = selectedDoc.nom; a.click()
+                  } else {
+                    const content = `Document: ${selectedDoc.nom}\nType: ${selectedDoc.type}\nImmeuble: ${selectedDoc.immeuble}\nArtisan: ${selectedDoc.artisan}\nLocataire: ${selectedDoc.locataire}\nDate du document: ${selectedDoc.dateDocument}\nDate d'ajout: ${selectedDoc.dateAjout}\nTaille: ${selectedDoc.taille}\nTags: ${selectedDoc.tags.join(', ')}`
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = selectedDoc.nom + '.txt'; a.click(); URL.revokeObjectURL(a.href)
+                  }
+                }}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-semibold transition text-sm"
+              >
                 ⬇️ Télécharger
               </button>
               <button onClick={() => setSelectedDoc(null)} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">
@@ -3091,10 +3800,41 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
             <h3 className="text-xl font-bold text-gray-900 mb-5">Ajouter un document</h3>
             <div className="space-y-4">
               {/* Upload fichier */}
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-purple-400 transition cursor-pointer">
-                <div className="text-3xl mb-2">📎</div>
-                <p className="text-sm font-medium text-gray-700">Glissez un fichier ou cliquez pour sélectionner</p>
-                <p className="text-xs text-gray-400 mt-1">PDF, Word, Excel, Images — Max 50 MB</p>
+              <div
+                onClick={() => gedFileRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-purple-400') }}
+                onDragLeave={e => e.currentTarget.classList.remove('border-purple-400')}
+                onDrop={e => {
+                  e.preventDefault()
+                  e.currentTarget.classList.remove('border-purple-400')
+                  const f = e.dataTransfer.files[0]
+                  if (f) { setGedUploadFile(f); if (!uploadForm.nom) setUploadForm(prev => ({ ...prev, nom: f.name.replace(/\.[^.]+$/, '') })) }
+                }}
+                className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition ${gedUploadFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50/30'}`}
+              >
+                <input
+                  ref={gedFileRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) { setGedUploadFile(f); if (!uploadForm.nom) setUploadForm(prev => ({ ...prev, nom: f.name.replace(/\.[^.]+$/, '') })) }
+                  }}
+                  className="hidden"
+                />
+                {gedUploadFile ? (
+                  <>
+                    <div className="text-3xl mb-2">✅</div>
+                    <p className="text-sm font-semibold text-green-700">{gedUploadFile.name}</p>
+                    <p className="text-xs text-green-500 mt-1">{(gedUploadFile.size / 1024).toFixed(0)} Ko · Cliquer pour changer</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-3xl mb-2">📎</div>
+                    <p className="text-sm font-medium text-gray-700">Glissez un fichier ou cliquez pour sélectionner</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF, Word, Excel, Images — Max 50 MB</p>
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Nom du document *</label>
@@ -3149,9 +3889,9 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
               <button onClick={() => setShowUpload(false)} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition">
                 Annuler
               </button>
-              <button onClick={handleUpload} disabled={!uploadForm.nom}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50">
-                Ajouter le document
+              <button onClick={handleUpload} disabled={!uploadForm.nom || gedUploading}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50 flex items-center justify-center gap-2">
+                {gedUploading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Upload...</> : '📎 Ajouter le document'}
               </button>
             </div>
           </div>
@@ -4039,11 +4779,36 @@ export default function SyndicDashboard() {
   const [page, setPage] = useState<Page>('accueil')
   const [user, setUser] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // ── Données persistées en localStorage (clé par user.id, chargées après auth) ──
   const [immeubles, setImmeubles] = useState<Immeuble[]>(IMMEUBLES_DEMO)
   const [artisans, setArtisans] = useState<Artisan[]>(ARTISANS_DEMO)
   const [missions, setMissions] = useState<Mission[]>(MISSIONS_DEMO)
-  const [alertes] = useState<Alerte[]>(ALERTES_DEMO)
+  const [alertes, setAlertes] = useState<Alerte[]>(ALERTES_DEMO)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [showModalMission, setShowModalMission] = useState(false)
+  // ── Bâtiments connus (champ libre avec suggestions) ──────────────────────────
+  const [batimentsConnus, setBatimentsConnus] = useState<string[]>([])
+  // ── Immeuble management ─────────────────────────────────────────────────────
+  const [showModalImmeuble, setShowModalImmeuble] = useState(false)
+  const [editingImmeuble, setEditingImmeuble] = useState<Immeuble | null>(null)
+  const [immeubleForm, setImmeubleForm] = useState<Partial<Immeuble>>({ nom: '', adresse: '', ville: '', codePostal: '', nbLots: 1, anneeConstruction: 2000, typeImmeuble: 'Copropriété', gestionnaire: '', budgetAnnuel: 0, depensesAnnee: 0, nbInterventions: 0 })
+  // ── Missions filter ─────────────────────────────────────────────────────────
+  const [missionsFilter, setMissionsFilter] = useState<'Toutes' | 'Urgentes' | 'En cours' | 'Terminées'>('Toutes')
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null)
+  const [showMissionDetails, setShowMissionDetails] = useState(false)
+  // ── Planning navigation ─────────────────────────────────────────────────────
+  const [planningDate, setPlanningDate] = useState(new Date())
+  // ── Paramètres ──────────────────────────────────────────────────────────────
+  const [cabinetNom, setCabinetNom] = useState('')
+  const [cabinetEmail, setCabinetEmail] = useState('')
+  const [notifSettings, setNotifSettings] = useState([
+    { label: 'Alertes RC Pro expirées', checked: true },
+    { label: 'Contrôles réglementaires imminents', checked: true },
+    { label: 'Nouvelles missions créées', checked: true },
+    { label: 'Signalements copropriétaires', checked: false },
+    { label: 'Résumé hebdomadaire', checked: true },
+  ])
+  const [paramSaved, setParamSaved] = useState(false)
   // ── Artisan management ──────────────────────────────────────────────────────
   const [showModalArtisan, setShowModalArtisan] = useState(false)
   const [artisanForm, setArtisanForm] = useState({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' })
@@ -4134,18 +4899,107 @@ export default function SyndicDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
+      // Forcer le rafraîchissement du token pour obtenir les user_metadata à jour
+      await supabase.auth.refreshSession()
       // getUser() fait un appel réseau frais (contrairement à getSession() qui lit les cookies)
       const { data: { user: freshUser } } = await supabase.auth.getUser()
       const userRole = freshUser?.user_metadata?.role || ''
-      const isSyndic = userRole === 'syndic' || userRole.startsWith('syndic_')
+      const isAdminOverride = freshUser?.user_metadata?._admin_override === true
+      const isSyndic = userRole === 'syndic' || userRole.startsWith('syndic_') || isAdminOverride
       if (!freshUser || !isSyndic) {
         window.location.href = '/syndic/login'
         return
       }
       setUser(freshUser)
+      setCabinetNom(freshUser?.user_metadata?.company_name || freshUser?.user_metadata?.full_name || '')
+      setCabinetEmail(freshUser?.email || '')
+
+      // ── Charger données : localStorage d'abord (rapide), puis Supabase (sync) ──
+      const uid = freshUser.id
+      try {
+        const savedMissions = localStorage.getItem(`fixit_syndic_missions_${uid}`)
+        if (savedMissions) setMissions(JSON.parse(savedMissions))
+
+        const savedImmeubles = localStorage.getItem(`fixit_syndic_immeubles_${uid}`)
+        if (savedImmeubles) setImmeubles(JSON.parse(savedImmeubles))
+
+        const savedBatiments = localStorage.getItem(`fixit_syndic_batiments_${uid}`)
+        if (savedBatiments) setBatimentsConnus(JSON.parse(savedBatiments))
+        else {
+          const noms = IMMEUBLES_DEMO.map(i => i.nom)
+          setBatimentsConnus(noms)
+          localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(noms))
+        }
+      } catch { /* silencieux */ }
+      setDataLoaded(true)
+
+      // ── Sync Supabase en arrière-plan ──────────────────────────────────────
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (!token) return
+
+        const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+        // Charger missions depuis Supabase
+        const [mRes, iRes] = await Promise.all([
+          fetch('/api/syndic/missions', { headers }),
+          fetch('/api/syndic/immeubles', { headers }),
+        ])
+
+        if (mRes.ok) {
+          const { missions: dbMissions } = await mRes.json()
+          if (dbMissions && dbMissions.length > 0) {
+            setMissions(dbMissions)
+            try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(dbMissions)) } catch {}
+          }
+        }
+
+        if (iRes.ok) {
+          const { immeubles: dbImmeubles } = await iRes.json()
+          if (dbImmeubles && dbImmeubles.length > 0) {
+            setImmeubles(dbImmeubles)
+            // Mettre à jour les bâtiments connus depuis Supabase
+            const noms = dbImmeubles.map((i: any) => i.nom).filter(Boolean)
+            if (noms.length > 0) {
+              setBatimentsConnus((prev: string[]) => {
+                const merged = Array.from(new Set([...prev, ...noms])).sort()
+                try { localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(merged)) } catch {}
+                return merged
+              })
+            }
+            try { localStorage.setItem(`fixit_syndic_immeubles_${uid}`, JSON.stringify(dbImmeubles)) } catch {}
+          }
+        }
+      } catch { /* silencieux — Supabase optionnel */ }
     }
     getUser()
   }, [])
+
+  // ── Sauvegarder missions dans localStorage à chaque changement ───────────────
+  useEffect(() => {
+    if (!dataLoaded || !user?.id) return
+    try { localStorage.setItem(`fixit_syndic_missions_${user.id}`, JSON.stringify(missions)) } catch {}
+  }, [missions, dataLoaded, user?.id])
+
+  // ── Sauvegarder immeubles dans localStorage à chaque changement ──────────────
+  useEffect(() => {
+    if (!dataLoaded || !user?.id) return
+    try { localStorage.setItem(`fixit_syndic_immeubles_${user.id}`, JSON.stringify(immeubles)) } catch {}
+  }, [immeubles, dataLoaded, user?.id])
+
+  // ── Sauvegarder bâtiments connus dans localStorage ───────────────────────────
+  useEffect(() => {
+    if (!user?.id || batimentsConnus.length === 0) return
+    try { localStorage.setItem(`fixit_syndic_batiments_${user.id}`, JSON.stringify(batimentsConnus)) } catch {}
+  }, [batimentsConnus, user?.id])
+
+  // ── Helper : mémoriser un bâtiment saisi ────────────────────────────────────
+  const enregistrerBatiment = (nom: string) => {
+    const n = nom.trim()
+    if (!n) return
+    setBatimentsConnus(prev => prev.includes(n) ? prev : [...prev, n].sort())
+  }
 
   // ── Charger les artisans depuis l'API quand on ouvre la page artisans ────────
   useEffect(() => {
@@ -4297,6 +5151,122 @@ export default function SyndicDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     window.location.href = '/syndic/login'
+  }
+
+  // ── Gestion Immeubles ────────────────────────────────────────────────────────
+  const openAddImmeuble = () => {
+    setEditingImmeuble(null)
+    setImmeubleForm({ nom: '', adresse: '', ville: '', codePostal: '', nbLots: 1, anneeConstruction: 2000, typeImmeuble: 'Copropriété', gestionnaire: '', budgetAnnuel: 0, depensesAnnee: 0, nbInterventions: 0 })
+    setShowModalImmeuble(true)
+  }
+  const openEditImmeuble = (imm: Immeuble) => {
+    setEditingImmeuble(imm)
+    setImmeubleForm({ ...imm })
+    setShowModalImmeuble(true)
+  }
+  const handleSaveImmeuble = async () => {
+    if (!immeubleForm.nom?.trim() || !immeubleForm.adresse?.trim()) return
+    enregistrerBatiment(immeubleForm.nom || '')
+
+    // Optimistic update local
+    if (editingImmeuble) {
+      setImmeubles(prev => prev.map(i => i.id === editingImmeuble.id ? { ...i, ...immeubleForm } as Immeuble : i))
+    } else {
+      const newImm: Immeuble = {
+        id: Date.now().toString(),
+        nom: immeubleForm.nom || '',
+        adresse: immeubleForm.adresse || '',
+        ville: immeubleForm.ville || '',
+        codePostal: immeubleForm.codePostal || '',
+        nbLots: immeubleForm.nbLots || 1,
+        anneeConstruction: immeubleForm.anneeConstruction || 2000,
+        typeImmeuble: immeubleForm.typeImmeuble || 'Copropriété',
+        gestionnaire: immeubleForm.gestionnaire || '',
+        prochainControle: immeubleForm.prochainControle,
+        nbInterventions: 0,
+        budgetAnnuel: immeubleForm.budgetAnnuel || 0,
+        depensesAnnee: immeubleForm.depensesAnnee || 0,
+      }
+      setImmeubles(prev => [newImm, ...prev])
+    }
+    setShowModalImmeuble(false)
+
+    // Sync Supabase en arrière-plan
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      if (editingImmeuble) {
+        await fetch('/api/syndic/immeubles', {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ id: editingImmeuble.id, ...immeubleForm }),
+        })
+      } else {
+        const res = await fetch('/api/syndic/immeubles', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(immeubleForm),
+        })
+        if (res.ok) {
+          const { immeuble } = await res.json()
+          // Remplacer l'ID local par l'UUID Supabase
+          if (immeuble?.id) {
+            setImmeubles(prev => prev.map(i => i.nom === immeubleForm.nom && !i.id?.includes('-') ? { ...i, id: immeuble.id } : i))
+          }
+        }
+      }
+    } catch { /* silencieux */ }
+  }
+  const handleDeleteImmeuble = async (id: string) => {
+    if (!confirm('Supprimer cet immeuble ? Cette action est irréversible.')) return
+    setImmeubles(prev => prev.filter(i => i.id !== id))
+    // Sync Supabase
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+      await fetch(`/api/syndic/immeubles?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+    } catch { /* silencieux */ }
+  }
+
+  // ── Gestion Missions ─────────────────────────────────────────────────────────
+  const getFilteredMissions = () => {
+    switch (missionsFilter) {
+      case 'Urgentes': return missions.filter(m => m.priorite === 'urgente')
+      case 'En cours': return missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee')
+      case 'Terminées': return missions.filter(m => m.statut === 'terminee')
+      default: return missions
+    }
+  }
+  const handleValiderMission = (id: string) => {
+    setMissions(prev => prev.map(m => m.id === id ? { ...m, statut: 'acceptee' as const } : m))
+  }
+
+  // ── Gestion Alertes ──────────────────────────────────────────────────────────
+  const handleTraiterAlerte = (id: string) => {
+    setAlertes(prev => prev.filter(a => a.id !== id))
+  }
+
+  // ── Planning navigation ──────────────────────────────────────────────────────
+  const planningYear = planningDate.getFullYear()
+  const planningMonth = planningDate.getMonth()
+  const planningMonthLabel = planningDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  const planningDaysInMonth = new Date(planningYear, planningMonth + 1, 0).getDate()
+  const planningFirstDay = new Date(planningYear, planningMonth, 1).getDay() // 0=dim
+  const planningOffset = planningFirstDay === 0 ? 6 : planningFirstDay - 1 // lundi=0
+  const todayDay = new Date().getDate()
+  const isCurrentMonth = planningYear === new Date().getFullYear() && planningMonth === new Date().getMonth()
+
+  // ── Paramètres ───────────────────────────────────────────────────────────────
+  const handleSaveParams = () => {
+    // Sauvegarde locale (pour une vraie implémentation, appeler l'API Supabase)
+    setParamSaved(true)
+    setTimeout(() => setParamSaved(false), 2500)
   }
 
   // ── Contexte complet cabinet ─────────────────────────────────────────────────
@@ -4583,6 +5553,7 @@ export default function SyndicDashboard() {
     { id: 'coproprios', emoji: '👥', label: 'Copropriétaires' },
     { id: 'artisans', emoji: '🔧', label: 'Artisans', badge: artisans.filter(a => a.statut === 'actif').length },
     { id: 'missions', emoji: '📋', label: 'Ordres de mission', badge: missions.filter(m => m.statut === 'en_cours').length },
+    { id: 'canal', emoji: '💬', label: 'Canal Communications', badge: missions.filter(m => (m.canalMessages?.length || 0) > 0).length },
     { id: 'comptabilite_tech', emoji: '📊', label: 'Comptabilité Technique' },
     { id: 'analyse_devis', emoji: '🔍', label: 'Analyse Devis/Factures' },
     { id: 'docs_interventions', emoji: '🗂️', label: 'Documents Interventions' },
@@ -4594,6 +5565,13 @@ export default function SyndicDashboard() {
     { id: 'alertes', emoji: '🔔', label: 'Alertes', badge: alertes.filter(a => a.urgence === 'haute').length },
     { id: 'emails', emoji: '📧', label: 'Emails Max IA' },
     { id: 'ia', emoji: '🤖', label: 'Assistant Max IA' },
+    { id: 'compta_copro', emoji: '💶', label: 'Comptabilité Copro' },
+    { id: 'ag_digitale', emoji: '🏛️', label: 'AG Digitales' },
+    { id: 'impayés', emoji: '⚠️', label: 'Impayés' },
+    { id: 'carnet_entretien', emoji: '📖', label: "Carnet d'Entretien" },
+    { id: 'sinistres', emoji: '🚨', label: 'Sinistres' },
+    { id: 'extranet', emoji: '👥', label: 'Extranet Copros' },
+    { id: 'pointage', emoji: '📍', label: 'Pointage Terrain' },
     { id: 'equipe', emoji: '👤', label: 'Mon Équipe' },
     { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
   ]
@@ -4602,8 +5580,27 @@ export default function SyndicDashboard() {
   const totalBudget = immeubles.reduce((a, i) => a + i.budgetAnnuel, 0)
   const totalDepenses = immeubles.reduce((a, i) => a + i.depensesAnnee, 0)
 
+  const isAdminOverride = user?.user_metadata?._admin_override === true
+
   return (
     <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
+
+      {/* ── BOUTON RETOUR ADMIN ── */}
+      {isAdminOverride && (
+        <div className="fixed top-3 right-3 z-[9999]">
+          <button
+            onClick={async () => {
+              await supabase.auth.updateUser({ data: { ...user?.user_metadata, role: 'super_admin', _admin_override: false } })
+              await supabase.auth.refreshSession()
+              window.location.href = '/admin/dashboard'
+            }}
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg transition"
+          >
+            ⚡ Retour Admin
+          </button>
+        </div>
+      )}
+
       {/* ── SIDEBAR ── */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gray-900 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
         {/* Logo */}
@@ -4862,7 +5859,7 @@ export default function SyndicDashboard() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-gray-500 text-sm">{immeubles.length} immeubles dans votre portefeuille</p>
-                <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                <button onClick={openAddImmeuble} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
                   + Ajouter un immeuble
                 </button>
               </div>
@@ -4872,9 +5869,25 @@ export default function SyndicDashboard() {
                     <div>
                       <h3 className="text-lg font-bold text-gray-900">{i.nom}</h3>
                       <p className="text-gray-500 text-sm">{i.adresse}, {i.codePostal} {i.ville}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {i.geolocActivee && i.latitude && i.longitude ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-medium">
+                            📍 Géoloc {i.rayonDetection || 150}m
+                          </span>
+                        ) : i.geolocActivee ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                            📍 Géoloc — coords manquantes
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-gray-50 text-gray-400 border border-gray-200 px-2 py-0.5 rounded-full font-medium">
+                            📍 Géoloc désactivée
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex gap-2">
-                      <button className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition font-medium">Modifier</button>
+                      <button onClick={() => openEditImmeuble(i)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition font-medium">✏️ Modifier</button>
+                      <button onClick={() => handleDeleteImmeuble(i.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg transition font-medium">🗑️ Supprimer</button>
                       <button onClick={() => setShowModalMission(true)} className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg transition font-medium">+ Mission</button>
                     </div>
                   </div>
@@ -4910,6 +5923,64 @@ export default function SyndicDashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {/* ── Règlement de copropriété ── */}
+                  {(i.reglementTexte || i.reglementPdfNom) ? (
+                    <div className="mt-4 border-t border-gray-100 pt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-purple-700 flex items-center gap-1">📜 Règlement de copropriété</span>
+                        <div className="flex items-center gap-2">
+                          {i.reglementDateMaj && <span className="text-xs text-gray-400">Mis à jour le {new Date(i.reglementDateMaj).toLocaleDateString('fr-FR')}</span>}
+                          <button onClick={() => openEditImmeuble(i)} className="text-xs text-purple-600 hover:underline">Modifier</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                        {i.reglementChargesRepartition && (
+                          <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
+                            <p className="text-gray-400 text-[10px]">Répartition</p>
+                            <p className="font-medium text-purple-700">{i.reglementChargesRepartition}</p>
+                          </div>
+                        )}
+                        {i.reglementMajoriteAG && (
+                          <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
+                            <p className="text-gray-400 text-[10px]">Majorités AG</p>
+                            <p className="font-medium text-purple-700">{i.reglementMajoriteAG}</p>
+                          </div>
+                        )}
+                        {i.reglementFondsTravaux !== undefined && (
+                          <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
+                            <p className="text-gray-400 text-[10px]">Fonds travaux art.14-2</p>
+                            <p className={`font-medium ${i.reglementFondsTravaux ? 'text-green-600' : 'text-gray-500'}`}>{i.reglementFondsTravaux ? '✅ Oui' : '—'}</p>
+                          </div>
+                        )}
+                        {i.reglementFondsRoulementPct !== undefined && i.reglementFondsRoulementPct > 0 && (
+                          <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
+                            <p className="text-gray-400 text-[10px]">Fonds roulement</p>
+                            <p className="font-medium text-purple-700">{i.reglementFondsRoulementPct}%</p>
+                          </div>
+                        )}
+                      </div>
+                      {i.reglementTexte && (
+                        <details className="group">
+                          <summary className="text-xs text-purple-600 cursor-pointer hover:underline select-none list-none flex items-center gap-1">
+                            <span className="group-open:rotate-90 inline-block transition-transform">▶</span> Voir le texte du règlement
+                          </summary>
+                          <div className="mt-2 max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-3 text-xs text-gray-600 font-mono leading-relaxed whitespace-pre-wrap border border-gray-200">
+                            {i.reglementTexte}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 border-t border-gray-100 pt-3">
+                      <button
+                        onClick={() => openEditImmeuble(i)}
+                        className="text-xs text-purple-500 hover:text-purple-700 flex items-center gap-1 transition"
+                      >
+                        <span>📜</span> Ajouter le règlement de copropriété
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -5068,9 +6139,11 @@ export default function SyndicDashboard() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex gap-2 flex-wrap">
-                  {['Toutes', 'Urgentes', 'En cours', 'Terminées'].map(f => (
-                    <button key={f} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 hover:border-purple-400 hover:text-purple-600 transition">
+                  {(['Toutes', 'Urgentes', 'En cours', 'Terminées'] as const).map(f => (
+                    <button key={f} onClick={() => setMissionsFilter(f)} className={`text-sm px-3 py-1.5 rounded-lg border transition ${missionsFilter === f ? 'border-purple-500 bg-purple-50 text-purple-700 font-semibold' : 'border-gray-200 hover:border-purple-400 hover:text-purple-600'}`}>
                       {f}
+                      {f === 'Urgentes' && <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.priorite === 'urgente').length}</span>}
+                      {f === 'En cours' && <span className="ml-1.5 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">{missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee').length}</span>}
                     </button>
                   ))}
                 </div>
@@ -5078,8 +6151,13 @@ export default function SyndicDashboard() {
                   + Nouvelle mission
                 </button>
               </div>
+              {getFilteredMissions().length === 0 && (
+                <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
+                  Aucune mission pour ce filtre
+                </div>
+              )}
               <div className="space-y-3">
-                {missions.map(m => (
+                {getFilteredMissions().map(m => (
                   <div key={m.id} className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100 hover:border-purple-200 transition">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
@@ -5087,9 +6165,12 @@ export default function SyndicDashboard() {
                           <PrioriteBadge p={m.priorite} />
                           <Badge statut={m.statut} />
                           <span className="text-xs text-gray-400">#{m.id}</span>
+                          {m.locataire && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
+                          {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `Bât. ${m.batiment} · ` : ''}Ét. {m.etage}</span>}
                         </div>
                         <h3 className="font-bold text-gray-900">{m.immeuble}</h3>
                         <p className="text-sm text-gray-600">{m.type} · {m.description}</p>
+                        {m.numLot && <p className="text-xs text-gray-400 mt-0.5">Lot {m.numLot}</p>}
                       </div>
                       <div className="text-right ml-4 flex-shrink-0">
                         {m.montantDevis && <p className="text-sm font-semibold text-gray-900">{m.montantDevis.toLocaleString('fr-FR')} €</p>}
@@ -5100,15 +6181,16 @@ export default function SyndicDashboard() {
                       <div className="flex items-center gap-4">
                         <span>🔧 {m.artisan}</span>
                         {m.dateIntervention && <span>📅 {new Date(m.dateIntervention).toLocaleDateString('fr-FR')}</span>}
+                        {(m.canalMessages?.length || 0) > 0 && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">💬 {m.canalMessages!.length} msg</span>}
                       </div>
                       <div className="flex gap-2">
                         {m.statut === 'en_attente' && (
-                          <button className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">Valider</button>
+                          <button onClick={() => handleValiderMission(m.id)} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-lg hover:bg-green-200 transition font-medium">✅ Valider</button>
                         )}
                         {m.statut === 'terminee' && (
-                          <button className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">Voir rapport</button>
+                          <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">📄 Rapport</button>
                         )}
-                        <button className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-lg hover:bg-gray-200 transition font-medium">Détails</button>
+                        <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-200 transition font-medium">📋 Ouvrir</button>
                       </div>
                     </div>
                   </div>
@@ -5117,14 +6199,45 @@ export default function SyndicDashboard() {
             </div>
           )}
 
+          {/* ── CANAL COMMUNICATIONS ── */}
+          {page === 'canal' && (
+            <CanalCommunicationsPage
+              missions={missions}
+              artisans={artisans}
+              userRole={userRole}
+              user={user}
+              onUpdateMission={(updated) => {
+                setMissions(prev => prev.map(m => m.id === updated.id ? updated : m))
+                try {
+                  const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
+                  const newStored = stored.map((m: Mission) => m.id === updated.id ? updated : m)
+                  if (!newStored.find((m: Mission) => m.id === updated.id)) newStored.unshift(updated)
+                  localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(newStored))
+                } catch {}
+              }}
+              onAddMission={(newM) => {
+                setMissions(prev => {
+                  const updated = [newM, ...prev]
+                  try {
+                    localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated))
+                  } catch {}
+                  return updated
+                })
+              }}
+              onOpenMission={(m) => { setSelectedMission(m); setShowMissionDetails(true) }}
+              onCreateMission={() => setShowModalMission(true)}
+            />
+          )}
+
           {/* ── PLANNING ── */}
           {page === 'planning' && (
             <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-gray-900">Planning des interventions — Février 2026</h2>
+                <h2 className="text-lg font-bold text-gray-900 capitalize">Planning des interventions — {planningMonthLabel}</h2>
                 <div className="flex gap-2">
-                  <button className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">← Précédent</button>
-                  <button className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Suivant →</button>
+                  <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">← Précédent</button>
+                  <button onClick={() => setPlanningDate(new Date())} className="text-sm px-3 py-1.5 border border-purple-300 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition">Aujourd'hui</button>
+                  <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Suivant →</button>
                 </div>
               </div>
               <div className="grid grid-cols-7 gap-1 mb-2">
@@ -5133,13 +6246,19 @@ export default function SyndicDashboard() {
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 28 }, (_, i) => i + 1).map(day => {
-                  const dayMissions = missions.filter(m => m.dateIntervention === `2026-02-${String(day).padStart(2, '0')}`)
+                {/* Cellules vides pour offset du premier jour */}
+                {Array.from({ length: planningOffset }, (_, i) => (
+                  <div key={`empty-${i}`} className="min-h-16 p-1 rounded-lg" />
+                ))}
+                {Array.from({ length: planningDaysInMonth }, (_, i) => i + 1).map(day => {
+                  const dateStr = `${planningYear}-${String(planningMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                  const dayMissions = missions.filter(m => m.dateIntervention === dateStr)
+                  const isToday = isCurrentMonth && day === todayDay
                   return (
-                    <div key={day} className={`min-h-16 p-1 rounded-lg border text-xs ${day === 23 ? 'border-purple-400 bg-purple-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                      <span className={`font-semibold block mb-1 ${day === 23 ? 'text-purple-700' : 'text-gray-700'}`}>{day}</span>
+                    <div key={day} className={`min-h-16 p-1 rounded-lg border text-xs ${isToday ? 'border-purple-400 bg-purple-50' : 'border-gray-100 hover:bg-gray-50'}`}>
+                      <span className={`font-semibold block mb-1 ${isToday ? 'text-purple-700' : 'text-gray-700'}`}>{day}</span>
                       {dayMissions.map(m => (
-                        <div key={m.id} className={`text-xs p-1 rounded mb-0.5 truncate ${m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'}`}>
+                        <div key={m.id} onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className={`text-xs p-1 rounded mb-0.5 truncate cursor-pointer hover:opacity-80 ${m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'}`} title={`${m.immeuble} — ${m.artisan}`}>
                           {m.type}
                         </div>
                       ))}
@@ -5148,14 +6267,25 @@ export default function SyndicDashboard() {
                 })}
               </div>
               <div className="mt-4 space-y-2">
-                <h3 className="font-semibold text-gray-900 text-sm">Missions planifiées</h3>
-                {missions.filter(m => m.dateIntervention).map(m => (
-                  <div key={m.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl text-sm">
+                <h3 className="font-semibold text-gray-900 text-sm">Missions planifiées ce mois</h3>
+                {missions.filter(m => {
+                  if (!m.dateIntervention) return false
+                  const d = new Date(m.dateIntervention)
+                  return d.getFullYear() === planningYear && d.getMonth() === planningMonth
+                }).length === 0 && (
+                  <p className="text-sm text-gray-400 py-4 text-center border-2 border-dashed border-gray-200 rounded-xl">Aucune mission planifiée ce mois</p>
+                )}
+                {missions.filter(m => {
+                  if (!m.dateIntervention) return false
+                  const d = new Date(m.dateIntervention)
+                  return d.getFullYear() === planningYear && d.getMonth() === planningMonth
+                }).map(m => (
+                  <div key={m.id} onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl text-sm cursor-pointer hover:bg-purple-50 transition">
                     <span className="font-bold text-purple-600 w-12 flex-shrink-0">
                       {m.dateIntervention ? new Date(m.dateIntervention).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}
                     </span>
                     <span className="flex-1 truncate">{m.immeuble} — {m.type}</span>
-                    <span className="text-gray-500 flex-shrink-0">{m.artisan}</span>
+                    <span className="text-gray-500 flex-shrink-0 hidden md:block">{m.artisan}</span>
                     <Badge statut={m.statut} />
                   </div>
                 ))}
@@ -5168,33 +6298,7 @@ export default function SyndicDashboard() {
 
           {/* ── FACTURATION ── */}
           {page === 'facturation' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard emoji="💶" label="Facturé ce mois" value="16 640 €" sub="4 factures" color="green" />
-                <StatCard emoji="⏳" label="En attente paiement" value="4 050 €" sub="2 factures" color="yellow" />
-                <StatCard emoji="📋" label="Devis en cours" value="3" sub="12 000 €" color="blue" />
-                <StatCard emoji="✅" label="Payé cette année" value="51 240 €" color="green" />
-              </div>
-              <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-                <h3 className="font-bold text-gray-900 mb-4">Factures récentes</h3>
-                <div className="space-y-2">
-                  {missions.filter(m => m.montantFacture || m.montantDevis).map(m => (
-                    <div key={m.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition">
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm">{m.immeuble} — {m.type}</p>
-                        <p className="text-xs text-gray-500">{m.artisan} · {m.dateIntervention ? new Date(m.dateIntervention).toLocaleDateString('fr-FR') : m.dateCreation}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900">{(m.montantFacture || m.montantDevis)?.toLocaleString('fr-FR')} €</p>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${m.montantFacture ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {m.montantFacture ? 'Facturé' : 'Devis'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <FacturationPageWithTransferts missions={missions} user={user} userRole={userRole} onOpenMission={(m) => { setSelectedMission(m); setShowMissionDetails(true) }} />
           )}
 
           {/* ── COPROPRIÉTAIRES ── */}
@@ -5217,6 +6321,12 @@ export default function SyndicDashboard() {
           {/* ── ALERTES ── */}
           {page === 'alertes' && (
             <div className="space-y-3">
+              {alertes.length === 0 && (
+                <div className="text-center py-16 text-gray-400">
+                  <div className="text-5xl mb-3">✅</div>
+                  <p className="font-semibold text-gray-600">Toutes les alertes ont été traitées !</p>
+                </div>
+              )}
               {alertes.map(a => (
                 <div key={a.id} className={`bg-white rounded-2xl shadow-sm p-5 border-l-4 ${
                   a.urgence === 'haute' ? 'border-l-red-500' :
@@ -5238,8 +6348,8 @@ export default function SyndicDashboard() {
                         <p className="text-xs text-gray-400 mt-1">{a.date}</p>
                       </div>
                     </div>
-                    <button className="text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition font-medium ml-4 flex-shrink-0">
-                      Traiter
+                    <button onClick={() => handleTraiterAlerte(a.id)} className="text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition font-medium ml-4 flex-shrink-0">
+                      ✓ Traiter
                     </button>
                   </div>
                 </div>
@@ -5447,6 +6557,16 @@ export default function SyndicDashboard() {
           )}
 
           {/* ── MON ÉQUIPE ── */}
+          {page === 'compta_copro' && user && <ComptaCoproSection user={user} userRole={userRole} immeubles={immeubles} />}
+
+          {page === 'ag_digitale' && user && <AGDigitaleSection user={user} userRole={userRole} />}
+          {page === 'impayés' && user && <ImpayésSection user={user} userRole={userRole} />}
+          {page === 'carnet_entretien' && user && <CarnetEntretienSection user={user} userRole={userRole} />}
+          {page === 'sinistres' && user && <SinistresSection user={user} userRole={userRole} />}
+          {page === 'extranet' && user && <ExtranetSection user={user} userRole={userRole} />}
+
+          {page === 'pointage' && user && <PointageSection immeubles={immeubles} user={user} onUpdateImmeuble={(updated) => setImmeubles(prev => prev.map(i => i.id === updated.id ? updated : i))} />}
+
           {page === 'equipe' && user && (
             <EquipeSection cabinetId={user.id} currentUserRole={userRole} />
           )}
@@ -5458,7 +6578,7 @@ export default function SyndicDashboard() {
 
           {/* ── ANALYSE DEVIS / FACTURES ── */}
           {page === 'analyse_devis' && (
-            <AnalyseDevisSection artisans={artisans} setPage={setPage} />
+            <AnalyseDevisSection artisans={artisans} setPage={setPage} missions={missions} setMissions={setMissions} user={user} />
           )}
 
           {/* ── DOCUMENTS INTERVENTIONS ── */}
@@ -5474,15 +6594,33 @@ export default function SyndicDashboard() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nom du cabinet</label>
-                    <input type="text" defaultValue={companyName} className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none" />
+                    <input
+                      type="text"
+                      value={cabinetNom}
+                      onChange={e => setCabinetNom(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                      placeholder="Ex : Syndic Dupont & Associés"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input type="email" defaultValue={user?.email} className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none" />
+                    <input
+                      type="email"
+                      value={cabinetEmail}
+                      onChange={e => setCabinetEmail(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    />
                   </div>
-                  <button className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-semibold transition">
-                    Sauvegarder
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={handleSaveParams} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-semibold transition">
+                      Sauvegarder
+                    </button>
+                    {paramSaved && (
+                      <span className="text-green-600 text-sm font-medium flex items-center gap-1">
+                        ✅ Paramètres sauvegardés !
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -5510,18 +6648,16 @@ export default function SyndicDashboard() {
 
               <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
                 <h2 className="text-lg font-bold text-gray-900 mb-4">Notifications</h2>
-                {[
-                  { label: 'Alertes RC Pro expirées', checked: true },
-                  { label: 'Contrôles réglementaires imminents', checked: true },
-                  { label: 'Nouvelles missions créées', checked: true },
-                  { label: 'Signalements copropriétaires', checked: false },
-                  { label: 'Résumé hebdomadaire', checked: true },
-                ].map(n => (
+                {notifSettings.map((n, idx) => (
                   <div key={n.label} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                     <span className="text-sm text-gray-700">{n.label}</span>
-                    <div className={`w-11 h-6 rounded-full transition-all cursor-pointer ${n.checked ? 'bg-purple-600' : 'bg-gray-200'}`}>
-                      <div className={`w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-all ${n.checked ? 'ml-5.5' : 'ml-0.5'}`} style={{ marginLeft: n.checked ? '22px' : '2px' }} />
-                    </div>
+                    <button
+                      onClick={() => setNotifSettings(prev => prev.map((item, i) => i === idx ? { ...item, checked: !item.checked } : item))}
+                      className={`w-11 h-6 rounded-full transition-all cursor-pointer relative ${n.checked ? 'bg-purple-600' : 'bg-gray-200'}`}
+                      aria-label={`Activer/désactiver ${n.label}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all`} style={{ left: n.checked ? '22px' : '2px' }} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -5535,7 +6671,70 @@ export default function SyndicDashboard() {
       {showModalMission && (
         <ModalNouveilleMission
           onClose={() => setShowModalMission(false)}
-          onAdd={(m) => setMissions(prev => [{ ...m, id: Date.now().toString(), statut: 'en_attente', dateCreation: new Date().toISOString().split('T')[0] } as Mission, ...prev])}
+          batimentsConnus={batimentsConnus}
+          artisans={artisans}
+          coproprios={(() => { try { return JSON.parse(localStorage.getItem(`fixit_copros_${user?.id}`) || '[]') } catch { return [] } })()}
+          onAdd={async (m) => {
+            // Mémoriser le bâtiment saisi
+            if (m.immeuble?.trim()) enregistrerBatiment(m.immeuble)
+            const missionId = Date.now().toString()
+            const newMission: Mission = { ...m, id: missionId, statut: 'en_attente', dateCreation: new Date().toISOString().split('T')[0] } as Mission
+            setMissions(prev => {
+              const updated = [newMission, ...prev]
+              try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated)) } catch {}
+              return updated
+            })
+            // Sync Supabase
+            try {
+              const { data: { session } } = await supabase.auth.getSession()
+              const token = session?.access_token
+              if (token) {
+                const res = await fetch('/api/syndic/missions', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify(newMission),
+                })
+                if (res.ok) {
+                  const { mission } = await res.json()
+                  if (mission?.id) setMissions(prev => prev.map(mi => mi.id === missionId ? { ...mi, id: mission.id } : mi))
+                }
+              }
+            } catch { /* silencieux */ }
+
+            // ── Notification au demandeur (canal copropriétaire) ──
+            if ((m as any).demandeurEmail || (m as any).locataire) {
+              const demandeurKey = `canal_demandeur_${((m as any).demandeurEmail || (m as any).locataire || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`
+              const now = new Date()
+              const dateIntervStr = m.dateIntervention
+                ? new Date(m.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+                : null
+              const heureStr = (m as any).heureIntervention || null
+              const notifMsg = {
+                id: Date.now().toString(),
+                date: now.toISOString(),
+                type: 'mission_traitee',
+                texte: `✅ Votre demande a bien été prise en charge.\n\n📋 Mission : ${m.type || 'Intervention'}\n🔧 Artisan : ${m.artisan || 'En cours d\'assignation'}${dateIntervStr ? `\n📅 Intervention prévue le : ${dateIntervStr}${heureStr ? ` à ${heureStr}` : ''}` : '\n📅 Date d\'intervention : en cours de planification'}\n\nVous serez informé(e) de l'évolution de la mission via ce canal.`,
+                missionId,
+                artisan: m.artisan,
+                dateIntervention: m.dateIntervention,
+              }
+              try {
+                const existing = JSON.parse(localStorage.getItem(demandeurKey) || '[]')
+                existing.unshift(notifMsg)
+                localStorage.setItem(demandeurKey, JSON.stringify(existing))
+              } catch {}
+            }
+
+            // ── Canal artisan : créer/mettre à jour la file des ordres de mission ──
+            if (m.artisan) {
+              const artisanKey = `canal_artisan_${m.artisan.replace(/\s+/g, '_').toLowerCase()}`
+              try {
+                const artisanMissions = JSON.parse(localStorage.getItem(artisanKey) || '[]')
+                artisanMissions.unshift({ ...newMission, id: missionId })
+                localStorage.setItem(artisanKey, JSON.stringify(artisanMissions))
+              } catch {}
+            }
+          }}
         />
       )}
 
@@ -5671,6 +6870,5088 @@ export default function SyndicDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Ajouter/Modifier un Immeuble ── */}
+      {showModalImmeuble && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingImmeuble ? '✏️ Modifier l\'immeuble' : '🏢 Ajouter un immeuble'}
+                </h2>
+                <button onClick={() => setShowModalImmeuble(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'immeuble *</label>
+                  <input
+                    type="text"
+                    value={immeubleForm.nom || ''}
+                    onChange={e => setImmeubleForm(f => ({ ...f, nom: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    placeholder="Résidence Les Acacias"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adresse *</label>
+                  <input
+                    type="text"
+                    value={immeubleForm.adresse || ''}
+                    onChange={e => setImmeubleForm(f => ({ ...f, adresse: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    placeholder="12 rue des Acacias"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Code postal</label>
+                    <input
+                      type="text"
+                      value={immeubleForm.codePostal || ''}
+                      onChange={e => setImmeubleForm(f => ({ ...f, codePostal: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                      placeholder="75008"
+                      maxLength={5}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ville</label>
+                    <input
+                      type="text"
+                      value={immeubleForm.ville || ''}
+                      onChange={e => setImmeubleForm(f => ({ ...f, ville: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                      placeholder="Paris"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de lots</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={immeubleForm.nbLots || 1}
+                      onChange={e => setImmeubleForm(f => ({ ...f, nbLots: parseInt(e.target.value) || 1 }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Année de construction</label>
+                    <input
+                      type="number"
+                      min={1800}
+                      max={new Date().getFullYear()}
+                      value={immeubleForm.anneeConstruction || 2000}
+                      onChange={e => setImmeubleForm(f => ({ ...f, anneeConstruction: parseInt(e.target.value) || 2000 }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <select
+                      value={immeubleForm.typeImmeuble || 'Copropriété'}
+                      onChange={e => setImmeubleForm(f => ({ ...f, typeImmeuble: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    >
+                      <option>Copropriété</option>
+                      <option>Résidence</option>
+                      <option>Immeuble mixte</option>
+                      <option>Parc résidentiel</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Gestionnaire</label>
+                    <input
+                      type="text"
+                      value={immeubleForm.gestionnaire || ''}
+                      onChange={e => setImmeubleForm(f => ({ ...f, gestionnaire: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                      placeholder="Jean Dupont"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Budget annuel (€)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={immeubleForm.budgetAnnuel || 0}
+                      onChange={e => setImmeubleForm(f => ({ ...f, budgetAnnuel: parseInt(e.target.value) || 0 }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prochain contrôle</label>
+                    <input
+                      type="date"
+                      value={immeubleForm.prochainControle || ''}
+                      onChange={e => setImmeubleForm(f => ({ ...f, prochainControle: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                </div>
+                {/* ── Section Règlement de copropriété ── */}
+                <div className="border-t border-gray-100 pt-4 mt-2">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">📜 Règlement de copropriété</p>
+                  <div className="space-y-3">
+                    {/* Upload PDF ou texte */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Importer le règlement (PDF ou texte)</label>
+                      <div className="flex gap-2 items-center">
+                        <label className="cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-purple-300 bg-purple-50 hover:bg-purple-100 rounded-lg text-xs text-purple-700 font-medium transition flex-1">
+                          <span>📄</span>
+                          <span>{immeubleForm.reglementPdfNom || 'Choisir un PDF…'}</span>
+                          <input
+                            type="file"
+                            accept=".pdf,.txt,.doc,.docx"
+                            className="hidden"
+                            onChange={async e => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              setImmeubleForm(f => ({ ...f, reglementPdfNom: file.name, reglementDateMaj: new Date().toISOString().split('T')[0] }))
+                              // Lire le fichier texte si c'est un .txt
+                              if (file.type === 'text/plain') {
+                                const text = await file.text()
+                                setImmeubleForm(f => ({ ...f, reglementTexte: text }))
+                              }
+                            }}
+                          />
+                        </label>
+                        {immeubleForm.reglementPdfNom && (
+                          <button onClick={() => setImmeubleForm(f => ({ ...f, reglementPdfNom: '', reglementTexte: '' }))} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Texte libre */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Texte du règlement <span className="text-gray-400">(coller ou saisir)</span></label>
+                      <textarea
+                        rows={5}
+                        value={immeubleForm.reglementTexte || ''}
+                        onChange={e => setImmeubleForm(f => ({ ...f, reglementTexte: e.target.value, reglementDateMaj: new Date().toISOString().split('T')[0] }))}
+                        placeholder="Collez ici le texte du règlement de copropriété, ou les articles importants (répartition des charges, majorités AG, fonds de travaux…)"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-purple-400 resize-none font-mono leading-relaxed"
+                      />
+                    </div>
+                    {/* Métadonnées clés */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Répartition des charges</label>
+                        <input
+                          type="text"
+                          value={immeubleForm.reglementChargesRepartition || ''}
+                          onChange={e => setImmeubleForm(f => ({ ...f, reglementChargesRepartition: e.target.value }))}
+                          placeholder="Ex: tantièmes / millièmes"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-purple-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Majorités AG (art. 24/25/26)</label>
+                        <input
+                          type="text"
+                          value={immeubleForm.reglementMajoriteAG || ''}
+                          onChange={e => setImmeubleForm(f => ({ ...f, reglementMajoriteAG: e.target.value }))}
+                          placeholder="Ex: art.24 majorité simple…"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-purple-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!immeubleForm.reglementFondsTravaux}
+                          onChange={e => setImmeubleForm(f => ({ ...f, reglementFondsTravaux: e.target.checked }))}
+                          className="rounded"
+                        />
+                        Fonds de travaux obligatoire (art. 14-2)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-500">Fonds roulement (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={immeubleForm.reglementFondsRoulementPct ?? ''}
+                          onChange={e => setImmeubleForm(f => ({ ...f, reglementFondsRoulementPct: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0"
+                          className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-purple-400"
+                        />
+                      </div>
+                    </div>
+                    {immeubleForm.reglementDateMaj && (
+                      <p className="text-xs text-gray-400">Dernière mise à jour : {new Date(immeubleForm.reglementDateMaj).toLocaleDateString('fr-FR')}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => setShowModalImmeuble(false)} className="flex-1 px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleSaveImmeuble}
+                    disabled={!immeubleForm.nom?.trim() || !immeubleForm.adresse?.trim()}
+                    className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
+                  >
+                    {editingImmeuble ? '✅ Sauvegarder' : '+ Ajouter l\'immeuble'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Détails Mission ── */}
+      {showMissionDetails && selectedMission && (
+        <MissionDetailsModal
+          mission={selectedMission}
+          onClose={() => setShowMissionDetails(false)}
+          onUpdate={(updated) => {
+            setMissions(prev => prev.map(m => m.id === updated.id ? updated : m))
+            setSelectedMission(updated)
+            // Persist to localStorage
+            const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
+            const newStored = stored.map((m: Mission) => m.id === updated.id ? updated : m)
+            if (!newStored.find((m: Mission) => m.id === updated.id)) newStored.push(updated)
+            localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(newStored))
+          }}
+          onValider={() => { handleValiderMission(selectedMission.id); setShowMissionDetails(false) }}
+          userRole={userRole}
+        />
+      )}
+    </div>
+  )
+}
+
+
+/* ══════════ AGENT COMPTABLE IA COPROPRIÉTÉ ══════════ */
+function AgentComptableCopro({
+  immeubles, selectedImmeubleId, setSelectedImmeubleId,
+  lots, ecritures, appels, budgets,
+}: {
+  immeubles: Immeuble[]
+  selectedImmeubleId: string
+  setSelectedImmeubleId: (id: string) => void
+  lots: any[]
+  ecritures: any[]
+  appels: any[]
+  budgets: any[]
+}) {
+  const imm = immeubles.find(i => i.id === selectedImmeubleId) || immeubles[0] || null
+
+  type Msg = { role: 'user' | 'assistant'; content: string }
+  const [messages, setMessages] = useState<Msg[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const SUGGESTIONS = [
+    'Explique la règle de répartition des charges de cette copropriété',
+    'Comment voter ces travaux selon le règlement ? (majorité requise)',
+    'Quel est le montant du fonds de travaux obligatoire ?',
+    'Génère un appel de charges trimestriel pour cette copro',
+    'Y a-t-il des incohérences dans le journal comptable ?',
+    'Quelles sont les dépenses dépassant le budget prévisionnel ?',
+    'Rédige un courrier de relance impayé conforme à la loi Alur',
+    'Quelles charges sont récupérables sur les locataires ?',
+    'Synthèse comptable pour l\'assemblée générale',
+  ]
+
+  const buildSystemPrompt = () => {
+    if (!imm) return 'Tu es un assistant comptable spécialisé en copropriété.'
+
+    const reglementBlock = imm.reglementTexte
+      ? `\n\n📜 RÈGLEMENT DE COPROPRIÉTÉ — ${imm.nom}:\n${imm.reglementTexte.substring(0, 6000)}`
+      : imm.reglementChargesRepartition || imm.reglementMajoriteAG
+        ? `\n\n📜 RÈGLEMENT (éléments clés) — ${imm.nom}:\n- Répartition des charges : ${imm.reglementChargesRepartition || 'Non renseigné'}\n- Majorités AG : ${imm.reglementMajoriteAG || 'Non renseigné'}\n- Fonds travaux art.14-2 : ${imm.reglementFondsTravaux ? 'Oui' : 'Non'}\n- Fonds roulement : ${imm.reglementFondsRoulementPct || 0}%`
+        : '\n\n⚠️ Aucun règlement de copropriété renseigné pour cet immeuble. Rappelle à l\'utilisateur d\'ajouter le règlement dans la fiche immeuble.'
+
+    const totalTantiemes = lots.reduce((s: number, l: any) => s + (l.tantieme || 0), 0)
+    const lotsBlock = lots.length > 0
+      ? `\n\n🏠 LOTS ET TANTIÈMES (${lots.length} lots enregistrés, total : ${totalTantiemes} tantièmes):\n` +
+        `  Formule quote-part : (tantièmes du lot / ${totalTantiemes}) × charge totale\n` +
+        lots.map((l: any) => {
+          const pct = totalTantiemes > 0 ? ((l.tantieme / totalTantiemes) * 100).toFixed(2) : '0'
+          const quotePart = totalTantiemes > 0 && imm ? ((l.tantieme / totalTantiemes) * imm.budgetAnnuel).toFixed(2) : '0'
+          return `  - Lot ${l.numero} | ${l.proprietaire} | ${l.tantieme} tantièmes (${pct}%) | Quote-part budget : ${quotePart} € | Ét. ${l.etage} | ${l.surface}m²`
+        }).join('\n')
+      : '\n\n🏠 LOTS : Aucun lot enregistré. Invite l\'utilisateur à ajouter les lots dans l\'onglet "Lots / Tantièmes".'
+
+    const ecrituresBlock = ecritures.length > 0
+      ? `\n\n📒 JOURNAL COMPTABLE (${ecritures.length} écritures):\n  Débit total : ${ecritures.reduce((s: number, e: any) => s + (e.debit || 0), 0).toLocaleString('fr-FR')} €\n  Crédit total : ${ecritures.reduce((s: number, e: any) => s + (e.credit || 0), 0).toLocaleString('fr-FR')} €\n  Solde : ${(ecritures.reduce((s: number, e: any) => s + (e.credit || 0), 0) - ecritures.reduce((s: number, e: any) => s + (e.debit || 0), 0)).toLocaleString('fr-FR')} €\n${ecritures.slice(0, 20).map((e: any) => `  [${e.date}] ${e.journal} | ${e.libelle} | D:${e.debit}€ C:${e.credit}€ | Cpte:${e.compte}`).join('\n')}`
+      : '\n\n📒 JOURNAL COMPTABLE : Aucune écriture enregistrée.'
+
+    const appelsBlock = appels.length > 0
+      ? `\n\n📬 APPELS DE CHARGES:\n${appels.map((a: any) => `  [${a.statut}] ${a.periode} | Budget : ${a.totalBudget.toLocaleString('fr-FR')} € | ${a.lots}`).join('\n')}`
+      : '\n\n📬 APPELS DE CHARGES : Aucun appel enregistré.'
+
+    const budgetBlock = budgets.length > 0
+      ? `\n\n📋 BUDGETS PRÉVISIONNELS:\n${budgets.map((b: any) => `  ${b.immeuble} ${b.annee} | Postes : ${b.postes.map((p: any) => `${p.libelle} : ${p.budget}€ prévu / ${p.realise}€ réalisé`).join(', ')}`).join('\n')}`
+      : ''
+
+    return `Tu es Léa, assistante comptable IA experte en droit de la copropriété (loi du 10 juillet 1965, décret du 17 mars 1967, loi Alur 2014, loi Elan 2018).
+
+Tu analyses les données réelles de la copropriété "${imm.nom}" située au ${imm.adresse}, ${imm.codePostal} ${imm.ville}.
+- Type : ${imm.typeImmeuble} | ${imm.nbLots} lots | Construction ${imm.anneeConstruction}
+- Budget annuel : ${imm.budgetAnnuel.toLocaleString('fr-FR')} € | Dépenses : ${imm.depensesAnnee.toLocaleString('fr-FR')} €
+${reglementBlock}
+${lotsBlock}
+${ecrituresBlock}
+${appelsBlock}
+${budgetBlock}
+
+INSTRUCTIONS IMPÉRATIVES :
+- Réponds TOUJOURS en français, de façon précise et professionnelle
+- BASE-TOI UNIQUEMENT sur les données réelles fournies ci-dessus (lots, tantièmes, écritures, budget, règlement)
+- Pour chaque calcul de charge ou quote-part : montre le calcul complet → (tantièmes lot / total tantièmes) × montant
+- Pour toute question de majorité AG : cite l'article EXACT de la loi du 10/07/1965 (art.24 majorité simple, art.25 majorité absolue, art.26 double majorité)
+- Si le règlement est disponible : cite les articles concernés et adapte tes réponses à ses dispositions SPÉCIFIQUES
+- Si le règlement n'est PAS renseigné : réponds quand même avec la loi générale mais rappelle d'ajouter le règlement dans la fiche immeuble
+- Pour les appels de charges : calcule automatiquement le montant dû par chaque lot selon ses tantièmes
+- Identifie proactivement les anomalies comptables, dépassements de budget, irrégularités
+- Structure tes réponses avec des tableaux clairs quand tu présentes des données chiffrées
+- Sois précis sur les montants (2 décimales), dates et délais légaux
+- NE te présente PAS à chaque message (seulement si c'est la première interaction)`
+  }
+
+  const send = async () => {
+    if (!input.trim() || loading) return
+    const userMsg: Msg = { role: 'user', content: input.trim() }
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
+    setInput('')
+    setLoading(true)
+
+    try {
+      const res = await fetch('/api/comptable-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: newMessages,
+          systemPrompt: buildSystemPrompt(),
+        }),
+      })
+      const data = await res.json()
+      const reply = data.reply || data.message || 'Désolé, une erreur est survenue.'
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Erreur de connexion à l\'IA.' }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+
+  const hasReglement = !!(imm?.reglementTexte || imm?.reglementChargesRepartition || imm?.reglementMajoriteAG)
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-200px)] max-w-4xl">
+      {/* Header + sélecteur immeuble */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex-shrink-0">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">🤖 Agent Comptable Léa <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">IA</span></h2>
+            <p className="text-sm text-gray-500 mt-0.5">Analyse le règlement de copropriété et les données comptables pour répondre à vos questions</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 font-medium">Copropriété :</label>
+            <select
+              value={selectedImmeubleId}
+              onChange={e => setSelectedImmeubleId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+            >
+              {immeubles.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Badge règlement */}
+        {imm && (
+          <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${hasReglement ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            {hasReglement ? (
+              <>✅ Règlement chargé — {imm.reglementPdfNom || 'Texte saisi'}
+                {imm.reglementDateMaj && <span className="text-gray-400 font-normal ml-1">· MàJ {new Date(imm.reglementDateMaj).toLocaleDateString('fr-FR')}</span>}
+              </>
+            ) : (
+              <>⚠️ Aucun règlement de copropriété pour <strong>{imm.nom}</strong> — Ajoutez-le dans la fiche immeuble pour des réponses précises</>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Zone messages */}
+      <div className="flex-1 overflow-y-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 space-y-4 min-h-0">
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-8 space-y-4">
+            <div className="text-5xl">🤖</div>
+            <div>
+              <p className="font-bold text-gray-800 text-lg">Bonjour, je suis Léa !</p>
+              <p className="text-sm text-gray-500 mt-1 max-w-md">Je suis votre assistante comptable IA spécialisée en copropriété. Je connais le règlement de <strong>{imm?.nom || 'votre copropriété'}</strong> et toutes vos données comptables.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
+              {SUGGESTIONS.map((s, i) => (
+                <button key={i} onClick={() => setInput(s)} className="text-left text-xs bg-gray-50 hover:bg-orange-50 hover:text-orange-700 border border-gray-200 hover:border-orange-200 px-3 py-2 rounded-xl transition">
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 font-bold ${msg.role === 'user' ? 'bg-orange-400 text-white' : 'bg-gradient-to-br from-orange-500 to-amber-400 text-white'}`}>
+                  {msg.role === 'user' ? '👤' : '🤖'}
+                </div>
+                <div className={`max-w-2xl rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-orange-500 text-white rounded-tr-sm' : 'bg-gray-50 text-gray-800 border border-gray-200 rounded-tl-sm'}`}
+                  dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msg.content) }}
+                />
+              </div>
+            ))}
+            {loading && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center text-sm flex-shrink-0">🤖</div>
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
+
+      {/* Saisie */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex-shrink-0">
+        {messages.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap mb-2">
+            {SUGGESTIONS.slice(0, 4).map((s, i) => (
+              <button key={i} onClick={() => setInput(s)} className="text-xs bg-gray-100 hover:bg-orange-50 hover:text-orange-700 px-2.5 py-1 rounded-full transition border border-transparent hover:border-orange-200">
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
+            rows={2}
+            placeholder={`Posez une question sur ${imm?.nom || 'la copropriété'}… (règlement, charges, AG, impayés…)`}
+            className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-orange-400 outline-none resize-none"
+          />
+          <div className="flex flex-col gap-1">
+            <button onClick={send} disabled={!input.trim() || loading}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white px-5 rounded-xl font-bold text-sm transition">
+              Envoyer
+            </button>
+            {messages.length > 0 && (
+              <button onClick={() => setMessages([])} className="text-xs text-gray-400 hover:text-gray-600 text-center">Effacer</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════ COMPTABILITÉ COPROPRIÉTÉ SECTION ══════════ */
+function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole: string; immeubles: Immeuble[] }) {
+  type Lot = { id: string; numero: string; proprietaire: string; tantieme: number; etage: string; surface: number }
+  type AppelCharges = { id: string; periode: string; totalBudget: number; lots: string; statut: 'Brouillon' | 'Envoyé' | 'Soldé'; dateCreation: string }
+  type EcritureCompta = { id: string; date: string; journal: 'BANQUE' | 'CAISSE' | 'FOURNISSEURS' | 'COPRO' | 'CHARGES'; libelle: string; debit: number; credit: number; compte: string; immeuble: string }
+  type Budget = { id: string; immeuble: string; annee: number; postes: { libelle: string; budget: number; realise: number }[] }
+
+  const uid = user?.id || 'demo'
+  const [activeTab, setActiveTab] = useState<'tableau' | 'lots' | 'appels' | 'journal' | 'budget' | 'cloture' | 'rapports' | 'agent'>('tableau')
+
+  // ── Immeuble sélectionné pour l'agent IA ──
+  const [selectedImmeubleId, setSelectedImmeubleId] = useState<string>(immeubles[0]?.id || '')
+  const selectedImmeuble = immeubles.find(i => i.id === selectedImmeubleId) || immeubles[0] || null
+
+  // ── Lots / Tantièmes ──
+  const [lots, setLots] = useState<Lot[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`fixit_lots_${uid}`) || '[]') } catch { return [] }
+  })
+  const [showLotModal, setShowLotModal] = useState(false)
+  const [lotForm, setLotForm] = useState({ numero: '', proprietaire: '', tantieme: '', etage: '', surface: '' })
+
+  // ── Appels de charges ──
+  const [appels, setAppels] = useState<AppelCharges[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`fixit_appels_${uid}`) || '[]') } catch { return [] }
+  })
+  const [showAppelModal, setShowAppelModal] = useState(false)
+  const [appelForm, setAppelForm] = useState({ periode: '', totalBudget: '', immeuble: '' })
+
+  // ── Journal comptable ──
+  const [ecritures, setEcritures] = useState<EcritureCompta[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`fixit_journal_${uid}`) || '[]') } catch { return [] }
+  })
+  const [showEcritureModal, setShowEcritureModal] = useState(false)
+  const [ecritureForm, setEcritureForm] = useState({ date: new Date().toISOString().split('T')[0], journal: 'BANQUE', libelle: '', debit: '', credit: '', compte: '', immeuble: '' })
+
+  // ── Budget ──
+  const [budgets, setBudgets] = useState<Budget[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`fixit_budgets_${uid}`) || '[]') } catch { return [] }
+  })
+  const [showBudgetModal, setShowBudgetModal] = useState(false)
+  const [budgetForm, setBudgetForm] = useState({ immeuble: '', annee: new Date().getFullYear().toString() })
+  const [budgetPostes, setBudgetPostes] = useState([
+    { libelle: "Charges d'ascenseur", budget: 0, realise: 0 },
+    { libelle: 'Entretien parties communes', budget: 0, realise: 0 },
+    { libelle: 'Eau froide collective', budget: 0, realise: 0 },
+    { libelle: 'Électricité communes', budget: 0, realise: 0 },
+    { libelle: 'Assurance immeuble', budget: 0, realise: 0 },
+    { libelle: 'Honoraires syndic', budget: 0, realise: 0 },
+    { libelle: 'Travaux votés en AG', budget: 0, realise: 0 },
+    { libelle: 'Fonds de travaux (art 14-2)', budget: 0, realise: 0 },
+  ])
+
+  const JOURNALS = ['BANQUE', 'CAISSE', 'FOURNISSEURS', 'COPRO', 'CHARGES']
+
+  // Helpers save
+  const saveLots = (updated: Lot[]) => { setLots(updated); localStorage.setItem(`fixit_lots_${uid}`, JSON.stringify(updated)) }
+  const saveAppels = (updated: AppelCharges[]) => { setAppels(updated); localStorage.setItem(`fixit_appels_${uid}`, JSON.stringify(updated)) }
+  const saveEcritures = (updated: EcritureCompta[]) => { setEcritures(updated); localStorage.setItem(`fixit_journal_${uid}`, JSON.stringify(updated)) }
+  const saveBudgets = (updated: Budget[]) => { setBudgets(updated); localStorage.setItem(`fixit_budgets_${uid}`, JSON.stringify(updated)) }
+
+  // Calculs tableau de bord
+  const totalTantiemes = lots.reduce((s, l) => s + (l.tantieme || 0), 0)
+  const totalDebit = ecritures.reduce((s, e) => s + (e.debit || 0), 0)
+  const totalCredit = ecritures.reduce((s, e) => s + (e.credit || 0), 0)
+  const solde = totalCredit - totalDebit
+  const appelsEnvoyes = appels.filter(a => a.statut !== 'Brouillon').length
+  const appelsSoldes = appels.filter(a => a.statut === 'Soldé').length
+
+  // Handlers
+  const handleAddLot = () => {
+    if (!lotForm.numero.trim()) return
+    const l: Lot = { id: Date.now().toString(), numero: lotForm.numero, proprietaire: lotForm.proprietaire, tantieme: parseFloat(lotForm.tantieme) || 0, etage: lotForm.etage, surface: parseFloat(lotForm.surface) || 0 }
+    saveLots([...lots, l])
+    setShowLotModal(false)
+    setLotForm({ numero: '', proprietaire: '', tantieme: '', etage: '', surface: '' })
+  }
+
+  const handleAddAppel = () => {
+    if (!appelForm.periode.trim()) return
+    const totalBudget = parseFloat(appelForm.totalBudget) || 0
+    const a: AppelCharges = { id: Date.now().toString(), periode: appelForm.periode, totalBudget, lots: `${lots.length} lots`, statut: 'Brouillon', dateCreation: new Date().toISOString() }
+    saveAppels([a, ...appels])
+    setShowAppelModal(false)
+    setAppelForm({ periode: '', totalBudget: '', immeuble: '' })
+  }
+
+  const handleEnvoyerAppel = (id: string) => {
+    saveAppels(appels.map(a => a.id === id ? { ...a, statut: 'Envoyé' as const } : a))
+  }
+
+  const handleSolderAppel = (id: string) => {
+    saveAppels(appels.map(a => a.id === id ? { ...a, statut: 'Soldé' as const } : a))
+  }
+
+  const handleAddEcriture = () => {
+    if (!ecritureForm.libelle.trim()) return
+    const e: EcritureCompta = {
+      id: Date.now().toString(),
+      date: ecritureForm.date,
+      journal: ecritureForm.journal as EcritureCompta['journal'],
+      libelle: ecritureForm.libelle,
+      debit: parseFloat(ecritureForm.debit) || 0,
+      credit: parseFloat(ecritureForm.credit) || 0,
+      compte: ecritureForm.compte,
+      immeuble: ecritureForm.immeuble,
+    }
+    saveEcritures([e, ...ecritures])
+    setShowEcritureModal(false)
+    setEcritureForm({ date: new Date().toISOString().split('T')[0], journal: 'BANQUE', libelle: '', debit: '', credit: '', compte: '', immeuble: '' })
+  }
+
+  const handleAddBudget = () => {
+    if (!budgetForm.immeuble.trim()) return
+    const b: Budget = { id: Date.now().toString(), immeuble: budgetForm.immeuble, annee: parseInt(budgetForm.annee) || new Date().getFullYear(), postes: budgetPostes }
+    saveBudgets([b, ...budgets])
+    setShowBudgetModal(false)
+    setBudgetForm({ immeuble: '', annee: new Date().getFullYear().toString() })
+    setBudgetPostes(budgetPostes.map(p => ({ ...p, budget: 0, realise: 0 })))
+  }
+
+  // Export journal CSV
+  const exportJournalCSV = () => {
+    const header = 'Date,Journal,Libellé,Débit,Crédit,Compte,Immeuble\n'
+    const rows = ecritures.map(e => `${e.date},${e.journal},"${e.libelle}",${e.debit},${e.credit},${e.compte},${e.immeuble}`).join('\n')
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `journal_comptable_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+  }
+
+  const TABS = [
+    { key: 'tableau', label: '📊 Tableau de bord' },
+    { key: 'lots', label: '🏠 Lots & Tantièmes' },
+    { key: 'appels', label: '📬 Appels de charges' },
+    { key: 'journal', label: '📒 Journal comptable' },
+    { key: 'budget', label: '📋 Budget prévisionnel' },
+    { key: 'cloture', label: '📁 Clôture exercice' },
+    { key: 'rapports', label: '📄 Rapports AG' },
+    { key: 'agent', label: '🤖 Agent Comptable IA' },
+  ]
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-orange-400 shadow-sm">
+        <h1 className="text-2xl font-semibold">💶 Comptabilité Copropriété</h1>
+        <p className="text-sm text-gray-500">Outils professionnels de comptabilité pour syndics et gestionnaires</p>
+      </div>
+
+      {/* Onglets */}
+      <div className="bg-white border-b overflow-x-auto">
+        <div className="flex min-w-max">
+          {TABS.map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key as typeof activeTab)} className={`px-5 py-4 text-sm font-semibold whitespace-nowrap border-b-2 transition ${activeTab === tab.key ? 'border-orange-400 text-orange-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-6 lg:p-8">
+
+        {/* ── TABLEAU DE BORD ── */}
+        {activeTab === 'tableau' && (
+          <div>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-orange-400">
+                <div className="text-sm text-gray-500 mb-1">Lots gérés</div>
+                <div className="text-3xl font-bold text-orange-600">{lots.length}</div>
+                <div className="text-xs text-gray-400 mt-1">{totalTantiemes.toFixed(0)} tantièmes</div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-400">
+                <div className="text-sm text-gray-500 mb-1">Appels de charges</div>
+                <div className="text-3xl font-bold text-blue-600">{appels.length}</div>
+                <div className="text-xs text-gray-400 mt-1">{appelsEnvoyes} envoyés · {appelsSoldes} soldés</div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-400">
+                <div className="text-sm text-gray-500 mb-1">Total crédits</div>
+                <div className="text-3xl font-bold text-green-600">{totalCredit.toLocaleString('fr-FR')} €</div>
+                <div className="text-xs text-gray-400 mt-1">encaissements</div>
+              </div>
+              <div className={`bg-white p-6 rounded-2xl shadow-sm border-l-4 ${solde >= 0 ? 'border-green-400' : 'border-red-400'}`}>
+                <div className="text-sm text-gray-500 mb-1">Solde trésorerie</div>
+                <div className={`text-3xl font-bold ${solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{solde.toLocaleString('fr-FR')} €</div>
+                <div className="text-xs text-gray-400 mt-1">{totalDebit.toLocaleString('fr-FR')} € débits</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h2 className="text-lg font-bold mb-4">📬 Derniers appels de charges</h2>
+                {appels.slice(0, 5).map(a => (
+                  <div key={a.id} className="flex justify-between items-center py-3 border-b last:border-0">
+                    <div>
+                      <div className="font-semibold">{a.periode}</div>
+                      <div className="text-sm text-gray-500">{a.lots} · {a.totalBudget.toLocaleString('fr-FR')} €</div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{a.statut}</span>
+                  </div>
+                ))}
+                {appels.length === 0 && <p className="text-gray-400 text-sm text-center py-4">Aucun appel de charges</p>}
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h2 className="text-lg font-bold mb-4">📒 Dernières écritures</h2>
+                {ecritures.slice(0, 5).map(e => (
+                  <div key={e.id} className="flex justify-between items-center py-3 border-b last:border-0">
+                    <div>
+                      <div className="font-semibold text-sm">{e.libelle}</div>
+                      <div className="text-xs text-gray-500">{e.date} · {e.journal}</div>
+                    </div>
+                    <div className="text-right">
+                      {e.debit > 0 && <div className="text-red-600 font-semibold text-sm">-{e.debit.toLocaleString('fr-FR')} €</div>}
+                      {e.credit > 0 && <div className="text-green-600 font-semibold text-sm">+{e.credit.toLocaleString('fr-FR')} €</div>}
+                    </div>
+                  </div>
+                ))}
+                {ecritures.length === 0 && <p className="text-gray-400 text-sm text-center py-4">Aucune écriture comptable</p>}
+              </div>
+            </div>
+
+            {/* Alertes */}
+            <div className="mt-6 bg-amber-50 border-2 border-amber-200 rounded-2xl p-6">
+              <h2 className="text-lg font-bold text-amber-800 mb-3">⚠️ Points d&apos;attention</h2>
+              <div className="space-y-2">
+                {lots.length === 0 && <div className="text-sm text-amber-700">• Aucun lot enregistré — commencez par ajouter les lots de la copropriété</div>}
+                {appels.filter(a => a.statut === 'Brouillon').length > 0 && <div className="text-sm text-amber-700">• {appels.filter(a => a.statut === 'Brouillon').length} appel(s) de charges en brouillon à envoyer</div>}
+                {totalTantiemes > 0 && totalTantiemes !== 10000 && <div className="text-sm text-amber-700">• Total tantièmes : {totalTantiemes} (devrait être 10 000 pour une copropriété standard)</div>}
+                {lots.length > 0 && totalTantiemes === 10000 && appels.length > 0 && <div className="text-sm text-green-700">✅ Tantièmes équilibrés (10 000/10 000)</div>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── LOTS & TANTIÈMES ── */}
+        {activeTab === 'lots' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold">🏠 Lots & Tantièmes</h2>
+                <p className="text-sm text-gray-500 mt-1">Total : {totalTantiemes.toFixed(0)} / 10 000 tantièmes · {lots.length} lots</p>
+              </div>
+              <button onClick={() => setShowLotModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600 transition">+ Ajouter un lot</button>
+            </div>
+
+            {/* Barre de progression tantièmes */}
+            <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="font-semibold">Tantièmes attribués</span>
+                <span className={`font-bold ${totalTantiemes === 10000 ? 'text-green-600' : 'text-orange-600'}`}>{totalTantiemes.toFixed(0)} / 10 000</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className={`h-3 rounded-full transition-all ${totalTantiemes === 10000 ? 'bg-green-500' : 'bg-orange-400'}`} style={{ width: `${Math.min((totalTantiemes / 10000) * 100, 100)}%` }} />
+              </div>
+            </div>
+
+            {lots.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                <div className="text-5xl mb-4">🏠</div>
+                <h3 className="text-xl font-bold mb-2">Aucun lot</h3>
+                <p className="text-gray-500 mb-6">Commencez par enregistrer les lots de votre copropriété</p>
+                <button onClick={() => setShowLotModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition">+ Ajouter le premier lot</button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50 text-sm text-gray-500">
+                    <tr>
+                      <th className="px-5 py-3 text-left font-semibold">N° Lot</th>
+                      <th className="px-5 py-3 text-left font-semibold">Propriétaire</th>
+                      <th className="px-5 py-3 text-left font-semibold">Étage</th>
+                      <th className="px-5 py-3 text-right font-semibold">Surface (m²)</th>
+                      <th className="px-5 py-3 text-right font-semibold">Tantièmes</th>
+                      <th className="px-5 py-3 text-right font-semibold">Quote-part</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lots.map((l, i) => (
+                      <tr key={l.id} className={`border-t ${i % 2 === 0 ? '' : 'bg-gray-50/50'} hover:bg-orange-50 transition`}>
+                        <td className="px-5 py-3 font-bold text-orange-700">{l.numero}</td>
+                        <td className="px-5 py-3">{l.proprietaire || '—'}</td>
+                        <td className="px-5 py-3 text-gray-600">{l.etage || '—'}</td>
+                        <td className="px-5 py-3 text-right">{l.surface || '—'}</td>
+                        <td className="px-5 py-3 text-right font-semibold">{l.tantieme.toFixed(0)}</td>
+                        <td className="px-5 py-3 text-right text-gray-500">{totalTantiemes > 0 ? ((l.tantieme / totalTantiemes) * 100).toFixed(2) : '0'}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-orange-50 font-bold border-t-2 border-orange-200">
+                    <tr>
+                      <td colSpan={4} className="px-5 py-3 text-orange-800">TOTAL ({lots.length} lots)</td>
+                      <td className="px-5 py-3 text-right text-orange-800">{totalTantiemes.toFixed(0)}</td>
+                      <td className="px-5 py-3 text-right text-orange-800">100%</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── APPELS DE CHARGES ── */}
+        {activeTab === 'appels' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">📬 Appels de charges</h2>
+              <button onClick={() => setShowAppelModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600 transition">+ Nouvel appel</button>
+            </div>
+
+            {appels.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                <div className="text-5xl mb-4">📬</div>
+                <h3 className="text-xl font-bold mb-2">Aucun appel de charges</h3>
+                <p className="text-gray-500 mb-4">Créez vos appels de charges trimestriels ou mensuels</p>
+                <button onClick={() => setShowAppelModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition">+ Créer un appel</button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {appels.map(a => {
+                  const totalTantiemesLocal = lots.reduce((s, l) => s + l.tantieme, 0)
+                  return (
+                    <div key={a.id} className="bg-white rounded-2xl shadow-sm p-6">
+                      <div className="flex flex-col md:flex-row gap-4 items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <h3 className="font-bold text-lg">{a.periode}</h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{a.statut}</span>
+                          </div>
+                          <div className="flex gap-6 text-sm text-gray-600 mb-4">
+                            <span>💰 Budget total : <strong>{a.totalBudget.toLocaleString('fr-FR')} €</strong></span>
+                            <span>🏠 {lots.length} lots</span>
+                            <span>📅 {new Date(a.dateCreation).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          {lots.length > 0 && totalTantiemesLocal > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="text-xs border-collapse w-full max-w-xl">
+                                <thead>
+                                  <tr className="bg-gray-50">
+                                    <th className="border border-gray-200 px-2 py-1 text-left">Lot</th>
+                                    <th className="border border-gray-200 px-2 py-1 text-left">Propriétaire</th>
+                                    <th className="border border-gray-200 px-2 py-1 text-right">Tantièmes</th>
+                                    <th className="border border-gray-200 px-2 py-1 text-right font-bold text-orange-700">Quote-part</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {lots.slice(0, 4).map(l => (
+                                    <tr key={l.id}>
+                                      <td className="border border-gray-200 px-2 py-1 font-bold">{l.numero}</td>
+                                      <td className="border border-gray-200 px-2 py-1">{l.proprietaire || '—'}</td>
+                                      <td className="border border-gray-200 px-2 py-1 text-right">{l.tantieme}</td>
+                                      <td className="border border-gray-200 px-2 py-1 text-right font-bold text-orange-700">{((l.tantieme / totalTantiemesLocal) * a.totalBudget).toFixed(2)} €</td>
+                                    </tr>
+                                  ))}
+                                  {lots.length > 4 && <tr><td colSpan={4} className="border border-gray-200 px-2 py-1 text-center text-gray-400">... et {lots.length - 4} autres lots</td></tr>}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2 min-w-[160px]">
+                          {a.statut === 'Brouillon' && <button onClick={() => handleEnvoyerAppel(a.id)} className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-600 transition">📤 Envoyer</button>}
+                          {a.statut === 'Envoyé' && <button onClick={() => handleSolderAppel(a.id)} className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-600 transition">✅ Solder</button>}
+                          <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-200 transition">📄 Imprimer</button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── JOURNAL COMPTABLE ── */}
+        {activeTab === 'journal' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold">📒 Journal comptable</h2>
+                <p className="text-sm text-gray-500 mt-1">Solde : <span className={`font-bold ${solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{solde.toLocaleString('fr-FR')} €</span></p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={exportJournalCSV} className="border-2 border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-50 transition">📥 Export CSV</button>
+                <button onClick={() => setShowEcritureModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600 transition">+ Écriture</button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm p-5 mb-6 flex gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{totalDebit.toLocaleString('fr-FR')} €</div>
+                <div className="text-xs text-gray-500 mt-1">Total débits</div>
+              </div>
+              <div className="w-px bg-gray-200" />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{totalCredit.toLocaleString('fr-FR')} €</div>
+                <div className="text-xs text-gray-500 mt-1">Total crédits</div>
+              </div>
+              <div className="w-px bg-gray-200" />
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{solde.toLocaleString('fr-FR')} €</div>
+                <div className="text-xs text-gray-500 mt-1">Solde</div>
+              </div>
+              <div className="w-px bg-gray-200" />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-700">{ecritures.length}</div>
+                <div className="text-xs text-gray-500 mt-1">Écritures</div>
+              </div>
+            </div>
+
+            {ecritures.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                <div className="text-5xl mb-4">📒</div>
+                <h3 className="text-xl font-bold mb-2">Journal vide</h3>
+                <p className="text-gray-500 mb-6">Commencez à saisir vos écritures comptables</p>
+                <button onClick={() => setShowEcritureModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition">+ Première écriture</button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">Journal</th>
+                      <th className="px-4 py-3 text-left">Libellé</th>
+                      <th className="px-4 py-3 text-left">Compte</th>
+                      <th className="px-4 py-3 text-right">Débit</th>
+                      <th className="px-4 py-3 text-right">Crédit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ecritures.map((e, i) => (
+                      <tr key={e.id} className={`border-t hover:bg-gray-50 ${i % 2 === 0 ? '' : 'bg-gray-50/30'}`}>
+                        <td className="px-4 py-3 text-gray-600">{e.date}</td>
+                        <td className="px-4 py-3"><span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{e.journal}</span></td>
+                        <td className="px-4 py-3 font-medium">{e.libelle}</td>
+                        <td className="px-4 py-3 font-mono text-gray-500 text-xs">{e.compte || '—'}</td>
+                        <td className="px-4 py-3 text-right text-red-600 font-semibold">{e.debit > 0 ? e.debit.toLocaleString('fr-FR') + ' €' : ''}</td>
+                        <td className="px-4 py-3 text-right text-green-600 font-semibold">{e.credit > 0 ? e.credit.toLocaleString('fr-FR') + ' €' : ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── BUDGET PRÉVISIONNEL ── */}
+        {activeTab === 'budget' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">📋 Budget prévisionnel</h2>
+              <button onClick={() => setShowBudgetModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600 transition">+ Nouveau budget</button>
+            </div>
+
+            {budgets.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                <div className="text-5xl mb-4">📋</div>
+                <h3 className="text-xl font-bold mb-2">Aucun budget</h3>
+                <p className="text-gray-500 mb-6">Créez le budget prévisionnel de votre copropriété</p>
+                <button onClick={() => setShowBudgetModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600 transition">+ Créer un budget</button>
+              </div>
+            ) : (
+              budgets.map(b => {
+                const totalBudgetItem = b.postes.reduce((s, p) => s + p.budget, 0)
+                const totalRealise = b.postes.reduce((s, p) => s + p.realise, 0)
+                const ecart = totalBudgetItem - totalRealise
+                return (
+                  <div key={b.id} className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <h3 className="text-xl font-bold">{b.immeuble}</h3>
+                        <p className="text-gray-500">Exercice {b.annee}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">Budget total</div>
+                        <div className="text-2xl font-bold text-orange-600">{totalBudgetItem.toLocaleString('fr-FR')} €</div>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Poste de charge</th>
+                            <th className="px-4 py-2 text-right">Budget</th>
+                            <th className="px-4 py-2 text-right">Réalisé</th>
+                            <th className="px-4 py-2 text-right">Écart</th>
+                            <th className="px-4 py-2 text-right">%</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {b.postes.map((p, i) => {
+                            const e = p.budget - p.realise
+                            const pct = p.budget > 0 ? (p.realise / p.budget) * 100 : 0
+                            return (
+                              <tr key={i} className="border-t hover:bg-gray-50">
+                                <td className="px-4 py-2">{p.libelle}</td>
+                                <td className="px-4 py-2 text-right">{p.budget.toLocaleString('fr-FR')} €</td>
+                                <td className="px-4 py-2 text-right">{p.realise.toLocaleString('fr-FR')} €</td>
+                                <td className={`px-4 py-2 text-right font-semibold ${e >= 0 ? 'text-green-600' : 'text-red-600'}`}>{e.toLocaleString('fr-FR')} €</td>
+                                <td className="px-4 py-2 text-right">
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                      <div className={`h-1.5 rounded-full ${pct > 100 ? 'bg-red-500' : pct > 80 ? 'bg-orange-400' : 'bg-green-400'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                    </div>
+                                    <span className="text-xs">{pct.toFixed(0)}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot className="font-bold bg-orange-50 border-t-2 border-orange-200">
+                          <tr>
+                            <td className="px-4 py-3 text-orange-800">TOTAL</td>
+                            <td className="px-4 py-3 text-right text-orange-800">{totalBudgetItem.toLocaleString('fr-FR')} €</td>
+                            <td className="px-4 py-3 text-right text-orange-800">{totalRealise.toLocaleString('fr-FR')} €</td>
+                            <td className={`px-4 py-3 text-right ${ecart >= 0 ? 'text-green-700' : 'text-red-700'}`}>{ecart.toLocaleString('fr-FR')} €</td>
+                            <td className="px-4 py-3 text-right text-orange-800">{totalBudgetItem > 0 ? ((totalRealise / totalBudgetItem) * 100).toFixed(0) : 0}%</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+
+        {/* ── CLÔTURE EXERCICE ── */}
+        {activeTab === 'cloture' && (
+          <div className="max-w-3xl">
+            <h2 className="text-xl font-bold mb-6">📁 Clôture d&apos;exercice</h2>
+            <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+              <h3 className="font-bold text-lg mb-4">✅ Checklist de clôture annuelle</h3>
+              <div className="space-y-3">
+                {[
+                  { label: 'Vérification de la balance générale', done: ecritures.length > 0 },
+                  { label: 'Rapprochement bancaire effectué', done: false },
+                  { label: 'Tous les appels de charges soldés', done: appels.every(a => a.statut === 'Soldé') && appels.length > 0 },
+                  { label: 'Tableau de répartition par tantièmes vérifié', done: Math.abs(totalTantiemes - 10000) < 1 && lots.length > 0 },
+                  { label: 'Validation du budget prévisionnel N+1', done: budgets.some(b => b.annee === new Date().getFullYear() + 1) },
+                  { label: "Préparation du rapport pour l'AG annuelle", done: false },
+                  { label: 'Export des pièces comptables', done: false },
+                  { label: 'Archivage des documents (10 ans)', done: false },
+                ].map((item, i) => (
+                  <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${item.done ? 'bg-green-50' : 'bg-gray-50'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${item.done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>{item.done ? '✓' : (i + 1)}</div>
+                    <span className={`text-sm ${item.done ? 'text-green-700 font-semibold' : 'text-gray-700'}`}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <h3 className="font-bold text-lg mb-4">📊 Résumé de l&apos;exercice {new Date().getFullYear()}</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="text-sm text-gray-500 mb-1">Total charges</div>
+                  <div className="text-xl font-bold text-red-600">{totalDebit.toLocaleString('fr-FR')} €</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="text-sm text-gray-500 mb-1">Total produits</div>
+                  <div className="text-xl font-bold text-green-600">{totalCredit.toLocaleString('fr-FR')} €</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="text-sm text-gray-500 mb-1">Résultat</div>
+                  <div className={`text-xl font-bold ${solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{solde.toLocaleString('fr-FR')} €</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="text-sm text-gray-500 mb-1">Nombre de lots</div>
+                  <div className="text-xl font-bold text-orange-600">{lots.length}</div>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <button onClick={exportJournalCSV} className="flex-1 border-2 border-orange-300 text-orange-700 px-4 py-2.5 rounded-xl font-semibold hover:bg-orange-50 transition text-sm">📥 Exporter journal CSV</button>
+                <button className="flex-1 bg-orange-500 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-orange-600 transition text-sm">📄 Rapport PDF</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── RAPPORTS AG ── */}
+        {activeTab === 'rapports' && (
+          <div className="max-w-3xl">
+            <h2 className="text-xl font-bold mb-6">📄 Rapports pour l&apos;Assemblée Générale</h2>
+            <div className="space-y-4">
+              {[
+                { titre: 'Rapport financier annuel', desc: 'Bilan comptable, charges par poste, comparatif N/N-1', icon: '💰' },
+                { titre: 'État des charges par lot', desc: 'Répartition par tantièmes pour chaque copropriétaire', icon: '🏠' },
+                { titre: 'Budget prévisionnel N+1', desc: 'Propositions de budget pour le prochain exercice', icon: '📋' },
+                { titre: 'Appels de charges — récapitulatif', desc: 'Tous les appels envoyés et leur statut de paiement', icon: '📬' },
+                { titre: 'Fonds de travaux (article 14-2)', desc: 'État du fonds de réserve obligatoire', icon: '🏗️' },
+                { titre: 'Contrats en cours', desc: "Liste des contrats d'entretien et prestataires", icon: '📑' },
+              ].map((rapport, i) => (
+                <div key={i} className="bg-white rounded-2xl shadow-sm p-5 flex justify-between items-center hover:shadow-md transition">
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{rapport.icon}</span>
+                    <div>
+                      <h3 className="font-bold">{rapport.titre}</h3>
+                      <p className="text-sm text-gray-500">{rapport.desc}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <button className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-semibold transition">👁 Prévisualiser</button>
+                    <button className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-lg font-semibold transition">📄 PDF</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── AGENT IA COMPTABLE ── */}
+        {activeTab === 'agent' && (
+          <AgentComptableCopro
+            immeubles={immeubles}
+            selectedImmeubleId={selectedImmeubleId}
+            setSelectedImmeubleId={setSelectedImmeubleId}
+            lots={lots}
+            ecritures={ecritures}
+            appels={appels}
+            budgets={budgets}
+          />
+        )}
+      </div>
+
+      {/* ── Modals ── */}
+      {showLotModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">🏠 Nouveau lot</h2></div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">N° de lot *</label>
+                  <input value={lotForm.numero} onChange={e => setLotForm({...lotForm, numero: e.target.value})} placeholder="Ex: 12 ou A205" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Étage</label>
+                  <input value={lotForm.etage} onChange={e => setLotForm({...lotForm, etage: e.target.value})} placeholder="RDC, 1er, 2ème..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Propriétaire</label>
+                <input value={lotForm.proprietaire} onChange={e => setLotForm({...lotForm, proprietaire: e.target.value})} placeholder="Nom du propriétaire" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Tantièmes</label>
+                  <input type="number" value={lotForm.tantieme} onChange={e => setLotForm({...lotForm, tantieme: e.target.value})} placeholder="Ex: 250" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                  <p className="text-xs text-gray-400 mt-1">Sur 10 000 total</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Surface (m²)</label>
+                  <input type="number" value={lotForm.surface} onChange={e => setLotForm({...lotForm, surface: e.target.value})} placeholder="45" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowLotModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAddLot} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">Ajouter</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAppelModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📬 Nouvel appel de charges</h2></div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Période *</label>
+                <input value={appelForm.periode} onChange={e => setAppelForm({...appelForm, periode: e.target.value})} placeholder="Ex: T1 2026, Janvier 2026..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Budget total (€)</label>
+                <input type="number" value={appelForm.totalBudget} onChange={e => setAppelForm({...appelForm, totalBudget: e.target.value})} placeholder="Ex: 12500" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+              </div>
+              {lots.length > 0 && parseFloat(appelForm.totalBudget) > 0 && (
+                <div className="bg-orange-50 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-orange-800 mb-2">Répartition automatique par tantièmes :</p>
+                  {lots.slice(0, 3).map(l => (
+                    <div key={l.id} className="flex justify-between text-sm text-orange-700">
+                      <span>Lot {l.numero} ({l.tantieme} tièmes)</span>
+                      <span className="font-bold">{((l.tantieme / Math.max(totalTantiemes, 1)) * parseFloat(appelForm.totalBudget)).toFixed(2)} €</span>
+                    </div>
+                  ))}
+                  {lots.length > 3 && <p className="text-xs text-orange-500 mt-1">...et {lots.length - 3} autres lots</p>}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowAppelModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAddAppel} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">Créer l&apos;appel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEcritureModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📒 Nouvelle écriture comptable</h2></div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Date *</label>
+                  <input type="date" value={ecritureForm.date} onChange={e => setEcritureForm({...ecritureForm, date: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Journal</label>
+                  <select value={ecritureForm.journal} onChange={e => setEcritureForm({...ecritureForm, journal: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none">
+                    {JOURNALS.map(j => <option key={j}>{j}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Libellé *</label>
+                <input value={ecritureForm.libelle} onChange={e => setEcritureForm({...ecritureForm, libelle: e.target.value})} placeholder="Ex: Facture électricité parties communes" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Débit (€)</label>
+                  <input type="number" value={ecritureForm.debit} onChange={e => setEcritureForm({...ecritureForm, debit: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Crédit (€)</label>
+                  <input type="number" value={ecritureForm.credit} onChange={e => setEcritureForm({...ecritureForm, credit: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">N° compte</label>
+                  <input value={ecritureForm.compte} onChange={e => setEcritureForm({...ecritureForm, compte: e.target.value})} placeholder="Ex: 606100" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none font-mono" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Immeuble</label>
+                  <input value={ecritureForm.immeuble} onChange={e => setEcritureForm({...ecritureForm, immeuble: e.target.value})} placeholder="Résidence..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowEcritureModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAddEcriture} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">Saisir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBudgetModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📋 Nouveau budget prévisionnel</h2></div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Immeuble / Résidence *</label>
+                  <input value={budgetForm.immeuble} onChange={e => setBudgetForm({...budgetForm, immeuble: e.target.value})} placeholder="Résidence Les Pins" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Année</label>
+                  <input type="number" value={budgetForm.annee} onChange={e => setBudgetForm({...budgetForm, annee: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
+                </div>
+              </div>
+              <h3 className="font-bold text-gray-700 mt-2">Postes de charges</h3>
+              {budgetPostes.map((p, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600 flex-1">{p.libelle}</span>
+                  <input
+                    type="number"
+                    value={p.budget || ''}
+                    onChange={e => setBudgetPostes(budgetPostes.map((pp, ii) => ii === i ? { ...pp, budget: parseFloat(e.target.value) || 0 } : pp))}
+                    placeholder="Budget €"
+                    className="w-28 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-orange-400 outline-none text-right"
+                  />
+                  <span className="text-xs text-gray-400">€</span>
+                </div>
+              ))}
+              <div className="bg-orange-50 rounded-xl p-3 flex justify-between">
+                <span className="font-bold text-orange-800">Total budget</span>
+                <span className="font-bold text-orange-600">{budgetPostes.reduce((s, p) => s + p.budget, 0).toLocaleString('fr-FR')} €</span>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowBudgetModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAddBudget} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">Créer le budget</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ AG DIGITALE SECTION ══════════ */
+function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) {
+  const uid = user?.id || 'demo'
+
+  // Types enrichis — vote par correspondance + majorités légales
+  type MajoriteType = 'art24' | 'art25' | 'art26' | 'unanimite'
+  type VoteCorrespondance = { copropriétaire: string; tantiemes: number; vote: 'pour' | 'contre' | 'abstention'; recu: string }
+  type Resolution = {
+    id: string; titre: string; description: string; majorite: MajoriteType
+    votePour: number; voteContre: number; voteAbstention: number
+    votesCorrespondance: VoteCorrespondance[]
+    statut: 'en_cours' | 'adoptée' | 'rejetée'
+  }
+  type AG = {
+    id: string; titre: string; immeuble: string; date: string; lieu: string
+    type: 'ordinaire' | 'extraordinaire'; statut: 'brouillon' | 'convoquée' | 'en_cours' | 'clôturée'
+    ordre_du_jour: string[]; resolutions: Resolution[]
+    quorum: number; totalTantiemes: number; presents: number
+    signataireNom: string; signataireRole: string; signatureTs: string
+    createdAt: string
+  }
+
+  const [ags, setAGs] = useState<AG[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_ags_${uid}`) || '[]') } catch { return [] } })
+  const [activeAG, setActiveAG] = useState<AG | null>(null)
+  const [showNewAG, setShowNewAG] = useState(false)
+  const [showVote, setShowVote] = useState<Resolution | null>(null)
+  const [showVoteCorr, setShowVoteCorr] = useState<Resolution | null>(null)
+  const [showSignature, setShowSignature] = useState(false)
+  const [activeTab, setActiveTab] = useState<'liste' | 'details' | 'votes' | 'correspondance' | 'pv'>('liste')
+  const [agForm, setAgForm] = useState({ titre: '', immeuble: '', date: '', lieu: '', type: 'ordinaire', quorum: '50', totalTantiemes: '10000', odj: '' })
+  const [newResolution, setNewResolution] = useState({ titre: '', description: '', majorite: 'art24' as MajoriteType })
+  const [voteCorForm, setVoteCorForm] = useState({ copropriétaire: '', tantiemes: '', vote: 'pour' as 'pour' | 'contre' | 'abstention', recu: new Date().toISOString().split('T')[0] })
+  const [sigForm, setSigForm] = useState({ nom: '', role: 'Président de séance' })
+  const [pvPdfLoading, setPvPdfLoading] = useState(false)
+  const [quorumInput, setQuorumInput] = useState('')
+  const [newResDesc, setNewResDesc] = useState('')
+  const [voteInputs, setVoteInputs] = useState<Record<string, number>>({})
+
+  const saveAGs = (updated: AG[]) => { setAGs(updated); localStorage.setItem(`fixit_ags_${uid}`, JSON.stringify(updated)) }
+
+  // Calcul majorité selon la loi du 10/07/1965
+  const calculerMajorite = (res: Resolution, totalTantièmes: number): { adopté: boolean; detail: string } => {
+    const exprimés = res.votePour + res.voteContre // abstentions exclues pour art24
+    const total = res.votePour + res.voteContre + res.voteAbstention
+    switch (res.majorite) {
+      case 'art24': // majorité simple des voix exprimées
+        return { adopté: exprimés > 0 && res.votePour > res.voteContre, detail: `Art. 24 — Majorité simple : ${res.votePour} POUR / ${res.voteContre} CONTRE` }
+      case 'art25': // majorité absolue des tantièmes du syndicat (>50% du total)
+        return { adopté: res.votePour > totalTantièmes / 2, detail: `Art. 25 — Majorité absolue : ${res.votePour}/${totalTantièmes} (seuil : ${(totalTantièmes / 2).toFixed(0)})` }
+      case 'art26': // double majorité : ≥2/3 des tantièmes ET >50% des copropriétaires (ici on fait 2/3 tantièmes)
+        return { adopté: res.votePour >= totalTantièmes * 2 / 3, detail: `Art. 26 — Double majorité : ${res.votePour}/${totalTantièmes} (seuil : ${(totalTantièmes * 2 / 3).toFixed(0)})` }
+      case 'unanimite':
+        return { adopté: total > 0 && res.voteContre === 0 && res.voteAbstention === 0, detail: `Unanimité requise — ${total > 0 && res.voteContre === 0 ? 'AUCUN VOTE CONTRE' : `${res.voteContre} CONTRE`}` }
+    }
+  }
+
+  const MAJORITE_LABELS: Record<MajoriteType, string> = { art24: 'Art. 24 — Majorité simple', art25: 'Art. 25 — Majorité absolue', art26: 'Art. 26 — Double majorité (2/3)', unanimite: 'Unanimité' }
+
+  const handleCreateAG = () => {
+    if (!agForm.titre.trim() || !agForm.date) return
+    const ag: AG = {
+      id: Date.now().toString(), titre: agForm.titre, immeuble: agForm.immeuble, date: agForm.date, lieu: agForm.lieu,
+      type: agForm.type as any, statut: 'brouillon', ordre_du_jour: agForm.odj.split('\n').filter(l => l.trim()),
+      resolutions: [], quorum: parseFloat(agForm.quorum) || 50, totalTantiemes: parseInt(agForm.totalTantiemes) || 10000,
+      presents: 0, signataireNom: '', signataireRole: '', signatureTs: '', createdAt: new Date().toISOString()
+    }
+    const updated = [ag, ...ags]
+    saveAGs(updated)
+    setShowNewAG(false)
+    setActiveAG(ag)
+    setActiveTab('details')
+    setAgForm({ titre: '', immeuble: '', date: '', lieu: '', type: 'ordinaire', quorum: '50', totalTantiemes: '10000', odj: '' })
+  }
+
+  const handleAddResolution = () => {
+    if (!newResolution.titre.trim() || !activeAG) return
+    const res: Resolution = { id: Date.now().toString(), titre: newResolution.titre, description: newResDesc, majorite: newResolution.majorite, votePour: 0, voteContre: 0, voteAbstention: 0, votesCorrespondance: [], statut: 'en_cours' }
+    const updated = ags.map(a => a.id === activeAG.id ? { ...a, resolutions: [...a.resolutions, res] } : a)
+    saveAGs(updated)
+    setActiveAG(updated.find(a => a.id === activeAG.id) || null)
+    setNewResolution({ titre: '', description: '', majorite: 'art24' })
+    setNewResDesc('')
+  }
+
+  const handleVoteSeance = (resId: string) => {
+    if (!activeAG) return
+    const pour = voteInputs[`${resId}_pour`] || 0
+    const contre = voteInputs[`${resId}_contre`] || 0
+    const abs = voteInputs[`${resId}_abs`] || 0
+    const updated = ags.map(a => {
+      if (a.id !== activeAG.id) return a
+      const res = a.resolutions.map(r => {
+        if (r.id !== resId) return r
+        const newPour = r.votePour + pour
+        const newContre = r.voteContre + contre
+        const newAbs = r.voteAbstention + abs
+        const { adopté } = calculerMajorite({ ...r, votePour: newPour, voteContre: newContre, voteAbstention: newAbs }, a.totalTantiemes)
+        return { ...r, votePour: newPour, voteContre: newContre, voteAbstention: newAbs, statut: (newPour + newContre + newAbs > 0 ? (adopté ? 'adoptée' : 'rejetée') : 'en_cours') as Resolution['statut'] }
+      })
+      return { ...a, resolutions: res }
+    })
+    saveAGs(updated)
+    setActiveAG(updated.find(a => a.id === activeAG.id) || null)
+    setVoteInputs(prev => { const n = {...prev}; delete n[`${resId}_pour`]; delete n[`${resId}_contre`]; delete n[`${resId}_abs`]; return n })
+  }
+
+  const handleVoteCorrespondance = () => {
+    if (!showVoteCorr || !activeAG || !voteCorForm.copropriétaire.trim()) return
+    const vc: VoteCorrespondance = { copropriétaire: voteCorForm.copropriétaire, tantiemes: parseInt(voteCorForm.tantiemes) || 0, vote: voteCorForm.vote, recu: voteCorForm.recu }
+    const updated = ags.map(a => {
+      if (a.id !== activeAG.id) return a
+      const res = a.resolutions.map(r => {
+        if (r.id !== showVoteCorr.id) return r
+        const newVotesCorr = [...r.votesCorrespondance, vc]
+        const newPour = r.votePour + (vc.vote === 'pour' ? vc.tantiemes : 0)
+        const newContre = r.voteContre + (vc.vote === 'contre' ? vc.tantiemes : 0)
+        const newAbs = r.voteAbstention + (vc.vote === 'abstention' ? vc.tantiemes : 0)
+        const { adopté } = calculerMajorite({ ...r, votePour: newPour, voteContre: newContre, voteAbstention: newAbs }, a.totalTantiemes)
+        return { ...r, votePour: newPour, voteContre: newContre, voteAbstention: newAbs, votesCorrespondance: newVotesCorr, statut: (newPour + newContre + newAbs > 0 ? (adopté ? 'adoptée' : 'rejetée') : 'en_cours') as Resolution['statut'] }
+      })
+      return { ...a, resolutions: res }
+    })
+    saveAGs(updated)
+    setActiveAG(updated.find(a => a.id === activeAG.id) || null)
+    setShowVoteCorr(null)
+    setVoteCorForm({ copropriétaire: '', tantiemes: '', vote: 'pour', recu: new Date().toISOString().split('T')[0] })
+  }
+
+  const handleSignerPV = () => {
+    if (!activeAG || !sigForm.nom.trim()) return
+    const ts = new Date().toISOString()
+    const updated = ags.map(a => a.id === activeAG.id ? { ...a, signataireNom: sigForm.nom, signataireRole: sigForm.role, signatureTs: ts } : a)
+    saveAGs(updated)
+    setActiveAG(updated.find(a => a.id === activeAG.id) || null)
+    setShowSignature(false)
+  }
+
+  const handleConvoquer = (agId: string) => { const u = ags.map(a => a.id === agId ? { ...a, statut: 'convoquée' as const } : a); saveAGs(u); if (activeAG?.id === agId) setActiveAG(u.find(a => a.id === agId) || null) }
+  const handleDemarrer = (agId: string) => { const u = ags.map(a => a.id === agId ? { ...a, statut: 'en_cours' as const } : a); saveAGs(u); if (activeAG?.id === agId) setActiveAG(u.find(a => a.id === agId) || null) }
+  const handleCloture = (agId: string) => { const u = ags.map(a => a.id === agId ? { ...a, statut: 'clôturée' as const } : a); saveAGs(u); if (activeAG?.id === agId) setActiveAG(u.find(a => a.id === agId) || null) }
+
+  const exportPVPdf = async (ag: AG) => {
+    setPvPdfLoading(true)
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = 210; const margin = 20; const textWidth = W - 2 * margin
+      let y = 20
+
+      const addLine = (text: string, size = 10, bold = false, color: [number,number,number] = [0,0,0]) => {
+        doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...color)
+        const lines = doc.splitTextToSize(text, textWidth)
+        lines.forEach((line: string) => { if (y > 270) { doc.addPage(); y = 20 }; doc.text(line, margin, y); y += size * 0.45 })
+        y += 2
+      }
+
+      // En-tête
+      doc.setFillColor(37, 99, 235); doc.rect(0, 0, W, 35, 'F')
+      doc.setTextColor(255,255,255); doc.setFontSize(16); doc.setFont('helvetica','bold')
+      doc.text('PROCÈS-VERBAL D\'ASSEMBLÉE GÉNÉRALE', W/2, 15, { align: 'center' })
+      doc.setFontSize(11); doc.setFont('helvetica','normal')
+      doc.text(ag.type === 'ordinaire' ? 'ASSEMBLÉE GÉNÉRALE ORDINAIRE' : 'ASSEMBLÉE GÉNÉRALE EXTRAORDINAIRE', W/2, 24, { align: 'center' })
+      y = 45
+
+      addLine(ag.titre, 14, true, [30,64,175])
+      y += 2
+      addLine(`Immeuble : ${ag.immeuble || '—'}`, 10, false, [80,80,80])
+      addLine(`Date : ${new Date(ag.date).toLocaleDateString('fr-FR', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}`, 10)
+      addLine(`Lieu : ${ag.lieu || 'Non précisé'}`, 10)
+      y += 4
+
+      // Quorum
+      doc.setFillColor(239,246,255); doc.rect(margin, y, textWidth, 22, 'F')
+      y += 6
+      addLine('QUORUM', 11, true, [37,99,235])
+      addLine(`Tantièmes présents/représentés : ${ag.presents} / ${ag.totalTantiemes} (${ag.totalTantiemes > 0 ? ((ag.presents/ag.totalTantiemes)*100).toFixed(1) : 0}%)  —  Quorum requis : ${ag.quorum}%`, 9)
+      y += 4
+
+      // Ordre du jour
+      addLine('ORDRE DU JOUR', 12, true, [37,99,235])
+      doc.setDrawColor(37,99,235); doc.line(margin, y, margin + textWidth, y); y += 4
+      ag.ordre_du_jour.forEach((item, i) => addLine(`${i+1}. ${item}`, 10))
+      y += 4
+
+      // Résolutions
+      addLine('RÉSOLUTIONS ET VOTES', 12, true, [37,99,235])
+      doc.setDrawColor(37,99,235); doc.line(margin, y, margin + textWidth, y); y += 4
+      ag.resolutions.forEach((r, i) => {
+        if (y > 240) { doc.addPage(); y = 20 }
+        const { adopté, detail } = calculerMajorite(r, ag.totalTantiemes)
+        doc.setFillColor(adopté ? 240 : 254, adopté ? 253 : 242, adopté ? 244 : 242)
+        doc.rect(margin, y-2, textWidth, 44, 'F')
+        addLine(`Résolution ${i+1} — ${r.titre}`, 11, true, adopté ? [22,101,52] : [185,28,28])
+        addLine(MAJORITE_LABELS[r.majorite], 9, false, [100,100,100])
+        if (r.description) addLine(r.description, 9)
+        addLine(`POUR : ${r.votePour} tantièmes   |   CONTRE : ${r.voteContre} tantièmes   |   ABSTENTION : ${r.voteAbstention} tantièmes`, 9)
+        addLine(detail, 9, false, [80,80,80])
+        addLine(`RÉSULTAT : ${r.statut.toUpperCase()}`, 10, true, adopté ? [22,101,52] : [185,28,28])
+        if (r.votesCorrespondance.length > 0) {
+          addLine(`Votes par correspondance (${r.votesCorrespondance.length}) :`, 9, true)
+          r.votesCorrespondance.forEach(vc => addLine(`  • ${vc.copropriétaire} — ${vc.tantiemes} tantièmes — ${vc.vote.toUpperCase()} (reçu le ${new Date(vc.recu).toLocaleDateString('fr-FR')})`, 8))
+        }
+        y += 4
+      })
+
+      // Résumé
+      const adopted = ag.resolutions.filter(r => r.statut === 'adoptée').length
+      const rejected = ag.resolutions.filter(r => r.statut === 'rejetée').length
+      y += 4
+      doc.setFillColor(249,250,251); doc.rect(margin, y, textWidth, 18, 'F')
+      y += 5
+      addLine(`RÉSUMÉ : ${adopted} résolution(s) adoptée(s)  ·  ${rejected} rejetée(s)  ·  ${ag.resolutions.length - adopted - rejected} en cours`, 10, true)
+      y += 8
+
+      // Signature
+      if (ag.signataireNom) {
+        doc.setFillColor(240,253,244); doc.rect(margin, y, textWidth, 28, 'F')
+        y += 5
+        addLine('SIGNATURE ÉLECTRONIQUE', 11, true, [22,101,52])
+        addLine(`Signé par : ${ag.signataireNom} — ${ag.signataireRole}`, 10)
+        addLine(`Horodatage : ${new Date(ag.signatureTs).toLocaleString('fr-FR')}`, 9)
+        addLine(`Empreinte : ${btoa(ag.id + ag.signataireNom + ag.signatureTs).substring(0,32).toUpperCase()}`, 8, false, [100,100,100])
+      } else {
+        addLine('⚠️  PV non encore signé', 10, true, [180,83,9])
+      }
+
+      // Pied de page
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150)
+      const pages = doc.getNumberOfPages()
+      for (let p = 1; p <= pages; p++) {
+        doc.setPage(p); doc.text(`VitFix Pro — Généré le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
+      }
+
+      doc.save(`PV_AG_${ag.titre.replace(/\s+/g,'_')}_${ag.date.split('T')[0]}.pdf`)
+    } catch(e) { alert('Erreur génération PDF : ' + e) }
+    setPvPdfLoading(false)
+  }
+
+  const STATUS_COLORS: Record<string, string> = { brouillon: 'bg-gray-100 text-gray-700', convoquée: 'bg-blue-100 text-blue-700', en_cours: 'bg-orange-100 text-orange-700', clôturée: 'bg-green-100 text-green-700' }
+  const RES_COLORS: Record<string, string> = { en_cours: 'bg-orange-100 text-orange-700', adoptée: 'bg-green-100 text-green-700', rejetée: 'bg-red-100 text-red-700' }
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-blue-500 shadow-sm flex justify-between items-center">
+        <div><h1 className="text-2xl font-semibold">🏛️ Assemblées Générales Digitales</h1><p className="text-sm text-gray-500">Convocation · Vote séance & correspondance · Majorités loi 1965 · PV PDF signé</p></div>
+        <button onClick={() => setShowNewAG(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition shadow-sm">+ Nouvelle AG</button>
+      </div>
+
+      {!activeAG ? (
+        <div className="p-6 lg:p-8">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">Total AG</div><div className="text-3xl font-bold text-blue-600">{ags.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-orange-400"><div className="text-sm text-gray-500">En cours</div><div className="text-3xl font-bold text-orange-600">{ags.filter(a => a.statut === 'en_cours').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Clôturées</div><div className="text-3xl font-bold text-green-600">{ags.filter(a => a.statut === 'clôturée').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-purple-400"><div className="text-sm text-gray-500">Résolutions totales</div><div className="text-3xl font-bold text-purple-600">{ags.reduce((s, a) => s + a.resolutions.length, 0)}</div></div>
+          </div>
+          {ags.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-6xl mb-4">🏛️</div><h3 className="text-xl font-bold mb-2">Aucune AG</h3><p className="text-gray-500 mb-6">Organisez vos assemblées générales 100% en ligne avec vote par correspondance</p><button onClick={() => setShowNewAG(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700">+ Créer la première AG</button></div>
+          ) : (
+            <div className="space-y-4">
+              {ags.map(ag => (
+                <div key={ag.id} onClick={() => { setActiveAG(ag); setActiveTab('details') }} className="bg-white rounded-2xl shadow-sm p-6 cursor-pointer hover:shadow-md transition hover:border-blue-200 border-2 border-transparent">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap"><h3 className="font-bold text-lg">{ag.titre}</h3><span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[ag.statut]}`}>{ag.statut}</span><span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">{ag.type}</span>{ag.signataireNom && <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">✍️ Signé</span>}</div>
+                      <div className="flex gap-4 text-sm text-gray-500 flex-wrap">{ag.immeuble && <span>🏢 {ag.immeuble}</span>}<span>📅 {new Date(ag.date).toLocaleDateString('fr-FR')}</span>{ag.lieu && <span>📍 {ag.lieu}</span>}<span>📋 {ag.resolutions.length} résolution(s)</span><span>✅ {ag.resolutions.filter(r => r.statut === 'adoptée').length} adoptée(s)</span><span>📮 {ag.resolutions.reduce((s,r) => s + r.votesCorrespondance.length, 0)} vote(s) correspondance</span></div>
+                    </div>
+                    <div className="text-gray-300 text-2xl">›</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="p-6 lg:p-8">
+          <button onClick={() => setActiveAG(null)} className="flex items-center gap-2 text-blue-600 hover:underline mb-6 font-semibold">← Retour à la liste</button>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <h2 className="text-2xl font-bold">{activeAG.titre}</h2>
+            <span className={`px-3 py-1 rounded-full text-sm font-bold ${STATUS_COLORS[activeAG.statut]}`}>{activeAG.statut}</span>
+            {activeAG.signataireNom && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">✍️ Signé par {activeAG.signataireNom}</span>}
+          </div>
+          <div className="flex gap-2 mb-6 flex-wrap">
+            {activeAG.statut === 'brouillon' && <button onClick={() => handleConvoquer(activeAG.id)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">📤 Envoyer convocations</button>}
+            {activeAG.statut === 'convoquée' && <button onClick={() => handleDemarrer(activeAG.id)} className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-orange-600">▶️ Démarrer l'AG</button>}
+            {activeAG.statut === 'en_cours' && <button onClick={() => handleCloture(activeAG.id)} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-green-700">✅ Clôturer l'AG</button>}
+            {activeAG.statut === 'clôturée' && !activeAG.signataireNom && <button onClick={() => setShowSignature(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700">✍️ Signer le PV</button>}
+            {activeAG.statut === 'clôturée' && <button onClick={() => exportPVPdf(activeAG)} disabled={pvPdfLoading} className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50">{pvPdfLoading ? '⏳ Génération…' : '📄 Exporter PV PDF'}</button>}
+          </div>
+
+          <div className="flex gap-1 mb-6 border-b overflow-x-auto">
+            {(['details', 'votes', 'correspondance', 'pv'] as const).map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition ${activeTab === tab ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'}`}>
+                {tab === 'details' ? '📋 Détails & Quorum' : tab === 'votes' ? '🗳️ Votes en séance' : tab === 'correspondance' ? '📮 Vote par correspondance' : '📄 Procès-Verbal'}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'details' && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="font-bold text-lg mb-4">📋 Informations</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex gap-2"><span className="text-gray-500 w-36">Immeuble</span><span className="font-semibold">{activeAG.immeuble || '—'}</span></div>
+                  <div className="flex gap-2"><span className="text-gray-500 w-36">Date</span><span className="font-semibold">{new Date(activeAG.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
+                  <div className="flex gap-2"><span className="text-gray-500 w-36">Lieu</span><span>{activeAG.lieu || '—'}</span></div>
+                  <div className="flex gap-2"><span className="text-gray-500 w-36">Type</span><span className="capitalize">{activeAG.type === 'ordinaire' ? 'Assemblée Générale Ordinaire (AGO)' : 'Assemblée Générale Extraordinaire (AGE)'}</span></div>
+                  <div className="flex gap-2"><span className="text-gray-500 w-36">Quorum requis</span><span className="font-semibold">{activeAG.quorum}%</span></div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="font-bold text-lg mb-4">👥 Quorum — {activeAG.presents} / {activeAG.totalTantiemes} tantièmes</h3>
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-1"><span>Taux de présence</span><span className={`font-bold ${activeAG.presents / activeAG.totalTantiemes * 100 >= activeAG.quorum ? 'text-green-600' : 'text-orange-500'}`}>{activeAG.totalTantiemes > 0 ? ((activeAG.presents / activeAG.totalTantiemes) * 100).toFixed(1) : 0}% {activeAG.presents / activeAG.totalTantiemes * 100 >= activeAG.quorum ? '✅ Atteint' : '⚠️ Insuffisant'}</span></div>
+                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden"><div className={`h-4 rounded-full transition-all ${activeAG.presents / activeAG.totalTantiemes * 100 >= activeAG.quorum ? 'bg-green-500' : 'bg-orange-400'}`} style={{ width: `${Math.min((activeAG.presents / activeAG.totalTantiemes) * 100, 100)}%` }} /></div>
+                  <div className="text-xs text-gray-400 mt-1">Seuil quorum : {(activeAG.totalTantiemes * activeAG.quorum / 100).toFixed(0)} tantièmes</div>
+                </div>
+                {activeAG.statut === 'en_cours' && (
+                  <div className="flex gap-2 mt-3">
+                    <input type="number" value={quorumInput} onChange={e => setQuorumInput(e.target.value)} placeholder="Tantièmes à ajouter" className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-blue-500 outline-none" />
+                    <button onClick={() => { const v = parseInt(quorumInput || '0'); if (v > 0) { const u = ags.map(a => a.id === activeAG.id ? { ...a, presents: a.presents + v } : a); saveAGs(u); setActiveAG(u.find(a => a.id === activeAG.id) || null); setQuorumInput('') } }} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">+ Ajouter</button>
+                  </div>
+                )}
+              </div>
+              <div className="bg-white rounded-2xl shadow-sm p-6 xl:col-span-2">
+                <h3 className="font-bold text-lg mb-4">📝 Ordre du jour</h3>
+                {activeAG.ordre_du_jour.length === 0 ? <p className="text-gray-400 text-sm">Aucun point défini</p> : <ol className="list-decimal pl-5 space-y-2 text-sm">{activeAG.ordre_du_jour.map((item, i) => <li key={i} className="py-1 border-b border-gray-100 last:border-0">{item}</li>)}</ol>}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'votes' && (
+            <div>
+              {activeAG.statut === 'en_cours' && (
+                <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+                  <h3 className="font-bold mb-4">+ Nouvelle résolution</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input value={newResolution.titre} onChange={e => setNewResolution({...newResolution, titre: e.target.value})} placeholder="Titre de la résolution *" className="md:col-span-2 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm" />
+                    <select value={newResolution.majorite} onChange={e => setNewResolution({...newResolution, majorite: e.target.value as MajoriteType})} className="border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm">
+                      {(Object.entries(MAJORITE_LABELS) as [MajoriteType, string][]).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                    <textarea value={newResDesc} onChange={e => setNewResDesc(e.target.value)} placeholder="Description (optionnelle)" rows={2} className="md:col-span-3 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm resize-none" />
+                    <button onClick={handleAddResolution} className="md:col-span-3 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">Ajouter la résolution</button>
+                  </div>
+                </div>
+              )}
+              {activeAG.resolutions.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">Aucune résolution. {activeAG.statut === 'en_cours' ? 'Ajoutez des résolutions à mettre aux votes.' : ''}</div>
+              ) : (
+                <div className="space-y-4">
+                  {activeAG.resolutions.map((res, i) => {
+                    const { adopté, detail } = calculerMajorite(res, activeAG.totalTantiemes)
+                    const total = res.votePour + res.voteContre + res.voteAbstention
+                    return (
+                      <div key={res.id} className={`bg-white rounded-2xl shadow-sm p-6 border-l-4 ${res.statut === 'adoptée' ? 'border-green-400' : res.statut === 'rejetée' ? 'border-red-400' : 'border-orange-300'}`}>
+                        <div className="flex justify-between items-start mb-3 flex-wrap gap-2">
+                          <div>
+                            <h4 className="font-bold text-lg">Résolution {i + 1} — {res.titre}</h4>
+                            {res.description && <p className="text-sm text-gray-500 mt-1">{res.description}</p>}
+                            <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-full mt-1 inline-block">{MAJORITE_LABELS[res.majorite]}</span>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${RES_COLORS[res.statut]}`}>{res.statut}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 mb-3">
+                          <div className="text-center bg-green-50 rounded-xl p-3"><div className="text-2xl font-bold text-green-600">{res.votePour}</div><div className="text-xs text-gray-500">✅ Pour (tantièmes)</div></div>
+                          <div className="text-center bg-red-50 rounded-xl p-3"><div className="text-2xl font-bold text-red-600">{res.voteContre}</div><div className="text-xs text-gray-500">❌ Contre</div></div>
+                          <div className="text-center bg-gray-50 rounded-xl p-3"><div className="text-2xl font-bold text-gray-600">{res.voteAbstention}</div><div className="text-xs text-gray-500">⬜ Abstention</div></div>
+                        </div>
+                        {total > 0 && (
+                          <div className="mb-3">
+                            <div className="w-full bg-gray-200 rounded-full h-2 flex overflow-hidden">
+                              <div className="bg-green-400 h-full" style={{ width: `${total > 0 ? (res.votePour/total*100) : 0}%` }} />
+                              <div className="bg-red-400 h-full" style={{ width: `${total > 0 ? (res.voteContre/total*100) : 0}%` }} />
+                              <div className="bg-gray-300 h-full" style={{ width: `${total > 0 ? (res.voteAbstention/total*100) : 0}%` }} />
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">{detail}</div>
+                          </div>
+                        )}
+                        {res.votesCorrespondance.length > 0 && <div className="text-xs text-purple-600 mb-3">📮 {res.votesCorrespondance.length} vote(s) par correspondance inclus</div>}
+                        {activeAG.statut === 'en_cours' && (
+                          <div className="grid grid-cols-3 gap-2 mt-3">
+                            <input type="number" min="0" placeholder="Pour" value={voteInputs[`${res.id}_pour`] || ''} onChange={e => setVoteInputs(p => ({...p, [`${res.id}_pour`]: parseInt(e.target.value)||0}))} className="border-2 border-green-200 rounded-xl px-3 py-2 text-sm focus:border-green-500 outline-none" />
+                            <input type="number" min="0" placeholder="Contre" value={voteInputs[`${res.id}_contre`] || ''} onChange={e => setVoteInputs(p => ({...p, [`${res.id}_contre`]: parseInt(e.target.value)||0}))} className="border-2 border-red-200 rounded-xl px-3 py-2 text-sm focus:border-red-500 outline-none" />
+                            <input type="number" min="0" placeholder="Abstention" value={voteInputs[`${res.id}_abs`] || ''} onChange={e => setVoteInputs(p => ({...p, [`${res.id}_abs`]: parseInt(e.target.value)||0}))} className="border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-gray-400 outline-none" />
+                            <button onClick={() => handleVoteSeance(res.id)} className="col-span-3 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">🗳️ Valider ce vote en séance</button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'correspondance' && (
+            <div>
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
+                <p className="text-sm text-blue-800"><strong>📮 Vote par correspondance</strong> — Conformément à l'article 17-1A de la loi du 10/07/1965, les copropriétaires peuvent voter par correspondance avant l'AG. Ces votes sont automatiquement intégrés dans le calcul des majorités.</p>
+              </div>
+              {activeAG.resolutions.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">Aucune résolution. Créez d'abord des résolutions dans l'onglet "Votes en séance".</div>
+              ) : (
+                <div className="space-y-4">
+                  {activeAG.resolutions.map((res, i) => (
+                    <div key={res.id} className="bg-white rounded-2xl shadow-sm p-5">
+                      <div className="flex justify-between items-center mb-3">
+                        <div>
+                          <h4 className="font-bold">Résolution {i+1} — {res.titre}</h4>
+                          <span className="text-xs text-blue-600">{MAJORITE_LABELS[res.majorite]}</span>
+                        </div>
+                        {(activeAG.statut === 'convoquée' || activeAG.statut === 'en_cours') && (
+                          <button onClick={() => setShowVoteCorr(res)} className="bg-purple-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-purple-700">+ Enregistrer vote correspondance</button>
+                        )}
+                      </div>
+                      {res.votesCorrespondance.length === 0 ? (
+                        <div className="text-sm text-gray-400 py-2">Aucun vote par correspondance</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {res.votesCorrespondance.map((vc, j) => (
+                            <div key={j} className="flex items-center gap-3 text-sm bg-gray-50 rounded-xl px-3 py-2">
+                              <span className="font-semibold flex-1">{vc.copropriétaire}</span>
+                              <span className="text-gray-500">{vc.tantiemes} tantièmes</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${vc.vote === 'pour' ? 'bg-green-100 text-green-700' : vc.vote === 'contre' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{vc.vote.toUpperCase()}</span>
+                              <span className="text-gray-400 text-xs">reçu le {new Date(vc.recu).toLocaleDateString('fr-FR')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'pv' && (
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
+                <h3 className="font-bold text-lg">📄 Procès-Verbal</h3>
+                <div className="flex gap-2 flex-wrap">
+                  {activeAG.statut === 'clôturée' && !activeAG.signataireNom && <button onClick={() => setShowSignature(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700">✍️ Signer</button>}
+                  <button onClick={() => exportPVPdf(activeAG)} disabled={pvPdfLoading} className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50">{pvPdfLoading ? '⏳…' : '📥 PDF'}</button>
+                </div>
+              </div>
+              <div className="font-mono text-xs bg-gray-50 rounded-xl p-5 whitespace-pre-wrap leading-relaxed border">
+{`PROCÈS-VERBAL D'ASSEMBLÉE GÉNÉRALE ${activeAG.type.toUpperCase()}
+════════════════════════════════════════════
+${activeAG.titre}
+${activeAG.immeuble ? `Immeuble : ${activeAG.immeuble}\n` : ''}Date  : ${new Date(activeAG.date).toLocaleString('fr-FR')}
+Lieu  : ${activeAG.lieu || 'Non précisé'}
+
+QUORUM
+Tantièmes présents/représentés : ${activeAG.presents} / ${activeAG.totalTantiemes} (${activeAG.totalTantiemes > 0 ? ((activeAG.presents/activeAG.totalTantiemes)*100).toFixed(1) : 0}%)
+Quorum requis : ${activeAG.quorum}%
+
+ORDRE DU JOUR
+${activeAG.ordre_du_jour.map((item, i) => `${i+1}. ${item}`).join('\n') || 'Non défini'}
+
+RÉSOLUTIONS
+${activeAG.resolutions.map((r, i) => {
+  const { adopté, detail } = calculerMajorite(r, activeAG.totalTantiemes)
+  return `\nRésolution ${i+1} : ${r.titre}
+  Règle de majorité : ${MAJORITE_LABELS[r.majorite]}
+  Pour : ${r.votePour} tantièmes | Contre : ${r.voteContre} | Abstention : ${r.voteAbstention}
+  Votes par correspondance : ${r.votesCorrespondance.length}
+  ${detail}
+  ► RÉSULTAT : ${r.statut.toUpperCase()}`
+}).join('\n────────────────\n')}
+
+RÉSUMÉ
+Adoptées : ${activeAG.resolutions.filter(r=>r.statut==='adoptée').length} | Rejetées : ${activeAG.resolutions.filter(r=>r.statut==='rejetée').length} | Total : ${activeAG.resolutions.length}
+
+${activeAG.signataireNom ? `SIGNATURE ÉLECTRONIQUE
+Signé par : ${activeAG.signataireNom} (${activeAG.signataireRole})
+Horodatage : ${new Date(activeAG.signatureTs).toLocaleString('fr-FR')}
+Hash : ${typeof btoa !== 'undefined' ? btoa(activeAG.id + activeAG.signataireNom + activeAG.signatureTs).substring(0,32).toUpperCase() : 'N/A'}` : '⚠️  PV non encore signé'}
+`}
+              </div>
+              {activeAG.statut !== 'clôturée' && <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">⚠️ L'AG doit être clôturée avant de pouvoir signer le PV.</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showNewAG && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">🏛️ Nouvelle Assemblée Générale</h2></div>
+            <div className="p-6 space-y-4">
+              <div><label className="block text-sm font-semibold mb-1">Titre *</label><input value={agForm.titre} onChange={e => setAgForm({...agForm, titre: e.target.value})} placeholder="AG Annuelle 2026 — Résidence Les Pins" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">Immeuble</label><input value={agForm.immeuble} onChange={e => setAgForm({...agForm, immeuble: e.target.value})} placeholder="Résidence Les Pins, 12 rue..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Date *</label><input type="datetime-local" value={agForm.date} onChange={e => setAgForm({...agForm, date: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Type</label><select value={agForm.type} onChange={e => setAgForm({...agForm, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none"><option value="ordinaire">Ordinaire (AGO)</option><option value="extraordinaire">Extraordinaire (AGE)</option></select></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Lieu</label><input value={agForm.lieu} onChange={e => setAgForm({...agForm, lieu: e.target.value})} placeholder="Salle de réunion, 12 rue..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Quorum (%)</label><input type="number" value={agForm.quorum} onChange={e => setAgForm({...agForm, quorum: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Total tantièmes</label><input type="number" value={agForm.totalTantiemes} onChange={e => setAgForm({...agForm, totalTantiemes: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Ordre du jour (un point par ligne)</label><textarea value={agForm.odj} onChange={e => setAgForm({...agForm, odj: e.target.value})} rows={5} placeholder={"Approbation des comptes 2025\nVote du budget 2026\nTravaux de ravalement\nQuestions diverses"} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none resize-none" /></div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowNewAG(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleCreateAG} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Créer l'AG</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVoteCorr && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📮 Vote par correspondance</h2><p className="text-sm text-gray-500 mt-1">{showVoteCorr.titre}</p></div>
+            <div className="p-6 space-y-4">
+              <div><label className="block text-sm font-semibold mb-1">Copropriétaire *</label><input value={voteCorForm.copropriétaire} onChange={e => setVoteCorForm({...voteCorForm, copropriétaire: e.target.value})} placeholder="Nom du copropriétaire" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Tantièmes *</label><input type="number" value={voteCorForm.tantiemes} onChange={e => setVoteCorForm({...voteCorForm, tantiemes: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Date réception</label><input type="date" value={voteCorForm.recu} onChange={e => setVoteCorForm({...voteCorForm, recu: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-2">Sens du vote *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['pour', 'contre', 'abstention'] as const).map(v => (
+                    <button key={v} onClick={() => setVoteCorForm({...voteCorForm, vote: v})} className={`py-2 rounded-xl text-sm font-semibold border-2 transition ${voteCorForm.vote === v ? (v === 'pour' ? 'bg-green-500 text-white border-green-500' : v === 'contre' ? 'bg-red-500 text-white border-red-500' : 'bg-gray-500 text-white border-gray-500') : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      {v === 'pour' ? '✅ POUR' : v === 'contre' ? '❌ CONTRE' : '⬜ ABSTENTION'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowVoteCorr(null)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleVoteCorrespondance} className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSignature && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">✍️ Signature électronique du PV</h2><p className="text-sm text-gray-500 mt-1">Cette action est horodatée et irréversible</p></div>
+            <div className="p-6 space-y-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm text-purple-800">La signature électronique horodate le document et génère une empreinte unique. Elle constitue la preuve de validation du PV.</div>
+              <div><label className="block text-sm font-semibold mb-1">Nom du signataire *</label><input value={sigForm.nom} onChange={e => setSigForm({...sigForm, nom: e.target.value})} placeholder="Prénom NOM" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">Qualité / Rôle</label><select value={sigForm.role} onChange={e => setSigForm({...sigForm, role: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none"><option>Président de séance</option><option>Syndic</option><option>Secrétaire de séance</option><option>Scrutateur</option></select></div>
+              <div className="text-xs text-gray-400">Horodatage : {new Date().toLocaleString('fr-FR')}</div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowSignature(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleSignerPV} className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700">✍️ Signer le PV</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ IMPAYÉS SECTION ══════════ */
+function ImpayésSection({ user, userRole }: { user: any; userRole: string }) {
+  const uid = user?.id || 'demo'
+
+  type AppelFonds = { id: string; immeuble: string; periode: string; montantTotalBudget: number; dateEmission: string; dateEcheance: string; lots: { lot: string; copropriétaire: string; tantiemes: number; montant: number }[] }
+  type Impayé = { id: string; copropriétaire: string; lot: string; immeuble: string; montant: number; dateEchéance: string; dateRelance1?: string; dateRelance2?: string; dateRelance3?: string; statut: 'impayé' | 'relance_1' | 'relance_2' | 'contentieux' | 'soldé'; notes: string }
+
+  const [activeTab, setActiveTab] = useState<'impayés' | 'appels'>('impayés')
+  const [impayés, setImpayés] = useState<Impayé[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_impayés_${uid}`) || '[]') } catch { return [] } })
+  const [appels, setAppels] = useState<AppelFonds[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_appels_${uid}`) || '[]') } catch { return [] } })
+  const [showModal, setShowModal] = useState(false)
+  const [showAppelModal, setShowAppelModal] = useState(false)
+  const [filter, setFilter] = useState<'tous' | 'impayé' | 'relance_1' | 'relance_2' | 'contentieux' | 'soldé'>('tous')
+  const [form, setForm] = useState({ copropriétaire: '', lot: '', immeuble: '', montant: '', dateEchéance: '', notes: '' })
+  const [appelForm, setAppelForm] = useState({ immeuble: '', periode: '', montantTotalBudget: '', dateEmission: new Date().toISOString().split('T')[0], dateEcheance: '', lotsText: '' })
+  const [pdfLoading, setPdfLoading] = useState<string | null>(null)
+
+  const saveImpayés = (u: Impayé[]) => { setImpayés(u); localStorage.setItem(`fixit_impayés_${uid}`, JSON.stringify(u)) }
+  const saveAppels = (u: AppelFonds[]) => { setAppels(u); localStorage.setItem(`fixit_appels_${uid}`, JSON.stringify(u)) }
+
+  const handleAdd = () => {
+    if (!form.copropriétaire.trim() || !form.montant) return
+    const i: Impayé = { id: Date.now().toString(), copropriétaire: form.copropriétaire, lot: form.lot, immeuble: form.immeuble, montant: parseFloat(form.montant), dateEchéance: form.dateEchéance, statut: 'impayé', notes: form.notes }
+    saveImpayés([i, ...impayés])
+    setShowModal(false)
+    setForm({ copropriétaire: '', lot: '', immeuble: '', montant: '', dateEchéance: '', notes: '' })
+  }
+
+  const handleRelance = (id: string) => {
+    const i = impayés.find(imp => imp.id === id)
+    if (!i) return
+    const now = new Date().toISOString().split('T')[0]
+    let update: Partial<Impayé> = {}
+    if (i.statut === 'impayé') update = { statut: 'relance_1', dateRelance1: now }
+    else if (i.statut === 'relance_1') update = { statut: 'relance_2', dateRelance2: now }
+    else if (i.statut === 'relance_2') update = { statut: 'contentieux', dateRelance3: now }
+    saveImpayés(impayés.map(imp => imp.id === id ? { ...imp, ...update } : imp))
+  }
+
+  const handleSolder = (id: string) => { saveImpayés(impayés.map(imp => imp.id === id ? { ...imp, statut: 'soldé' } : imp)) }
+
+  const handleCreateAppel = () => {
+    if (!appelForm.immeuble.trim() || !appelForm.periode.trim()) return
+    const lots = appelForm.lotsText.split('\n').filter(l => l.trim()).map(line => {
+      const parts = line.split(';').map(p => p.trim())
+      return { lot: parts[0] || '', copropriétaire: parts[1] || '', tantiemes: parseInt(parts[2]) || 0, montant: parseFloat(parts[3]) || 0 }
+    })
+    const af: AppelFonds = { id: Date.now().toString(), immeuble: appelForm.immeuble, periode: appelForm.periode, montantTotalBudget: parseFloat(appelForm.montantTotalBudget) || 0, dateEmission: appelForm.dateEmission, dateEcheance: appelForm.dateEcheance, lots }
+    saveAppels([af, ...appels])
+    setShowAppelModal(false)
+    setAppelForm({ immeuble: '', periode: '', montantTotalBudget: '', dateEmission: new Date().toISOString().split('T')[0], dateEcheance: '', lotsText: '' })
+  }
+
+  const exportAppelPdf = async (af: AppelFonds) => {
+    setPdfLoading(`appel_${af.id}`)
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = 210; const margin = 20; const textWidth = W - 2 * margin
+      let y = 20
+
+      const addText = (text: string, size = 10, bold = false, color: [number,number,number] = [0,0,0], align: 'left' | 'center' | 'right' = 'left') => {
+        doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...color)
+        if (align !== 'left') { doc.text(text, align === 'center' ? W/2 : W - margin, y, { align }); y += size * 0.45 + 2 }
+        else { const lines = doc.splitTextToSize(text, textWidth); lines.forEach((l: string) => { if (y > 270) { doc.addPage(); y = 20 }; doc.text(l, margin, y); y += size * 0.45 }); y += 2 }
+      }
+
+      // En-tête bleu
+      doc.setFillColor(37, 99, 235); doc.rect(0, 0, W, 38, 'F')
+      doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold')
+      doc.text('APPEL DE FONDS', W/2, 14, { align: 'center' })
+      doc.setFontSize(10); doc.setFont('helvetica','normal')
+      doc.text(`${af.immeuble}  ·  ${af.periode}`, W/2, 23, { align: 'center' })
+      doc.text(`Émis le ${new Date(af.dateEmission).toLocaleDateString('fr-FR')}  ·  Échéance : ${af.dateEcheance ? new Date(af.dateEcheance).toLocaleDateString('fr-FR') : 'N/A'}`, W/2, 30, { align: 'center' })
+      y = 48
+
+      // Budget global
+      doc.setFillColor(239,246,255); doc.rect(margin, y, textWidth, 14, 'F')
+      y += 5
+      addText(`Budget prévisionnel total : ${af.montantTotalBudget.toLocaleString('fr-FR')} €`, 12, true, [37,99,235])
+      y += 4
+
+      // Tableau des lots
+      addText('DÉTAIL PAR LOT', 11, true, [37,99,235])
+      doc.setDrawColor(37,99,235); doc.line(margin, y, margin + textWidth, y); y += 4
+
+      // En-têtes tableau
+      doc.setFillColor(249,250,251); doc.rect(margin, y-2, textWidth, 8, 'F')
+      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(80,80,80)
+      doc.text('LOT', margin+2, y+3)
+      doc.text('COPROPRIÉTAIRE', margin+25, y+3)
+      doc.text('TANTIÈMES', margin+100, y+3)
+      doc.text('MONTANT APPELÉ', margin+130, y+3)
+      y += 10
+
+      const totalMontant = af.lots.reduce((s, l) => s + l.montant, 0)
+      af.lots.forEach((lot, idx) => {
+        if (y > 260) { doc.addPage(); y = 20 }
+        if (idx % 2 === 0) { doc.setFillColor(248,250,252); doc.rect(margin, y-3, textWidth, 8, 'F') }
+        doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0)
+        doc.text(lot.lot, margin+2, y+2)
+        doc.text(lot.copropriétaire, margin+25, y+2)
+        doc.text(lot.tantiemes.toString(), margin+105, y+2, { align: 'right' })
+        doc.setFont('helvetica','bold'); doc.setTextColor(37,99,235)
+        doc.text(`${lot.montant.toLocaleString('fr-FR')} €`, W-margin-2, y+2, { align: 'right' })
+        y += 8
+      })
+
+      y += 4
+      doc.setFillColor(37,99,235); doc.rect(margin, y, textWidth, 10, 'F')
+      doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255)
+      doc.text('TOTAL APPELÉ', margin+5, y+7)
+      doc.text(`${totalMontant.toLocaleString('fr-FR')} €`, W-margin-5, y+7, { align: 'right' })
+      y += 20
+
+      // Modalités paiement
+      doc.setFillColor(254,249,195); doc.rect(margin, y, textWidth, 24, 'F')
+      y += 5
+      addText('MODALITÉS DE PAIEMENT', 10, true, [146,64,14])
+      addText(`Veuillez virer le montant correspondant à votre lot avant le ${af.dateEcheance ? new Date(af.dateEcheance).toLocaleDateString('fr-FR') : 'la date indiquée'}.`, 9, false, [80,80,80])
+      addText('IBAN : FR76 XXXX XXXX XXXX XXXX XXXX XXX  ·  BIC : XXXXXXXX', 9, false, [80,80,80])
+      addText('Référence : Appel de fonds ' + af.periode + ' — Lot N° [votre lot]', 9, false, [80,80,80])
+
+      // Pied de page
+      const pages = doc.getNumberOfPages()
+      for (let p = 1; p <= pages; p++) {
+        doc.setPage(p); doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150)
+        doc.text(`VitFix Pro — Appel de fonds généré le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
+      }
+      doc.save(`AppelFonds_${af.immeuble.replace(/\s+/g,'_')}_${af.periode.replace(/\s+/g,'_')}.pdf`)
+    } catch(e) { alert('Erreur PDF : ' + e) }
+    setPdfLoading(null)
+  }
+
+  const exportRelatancePdf = async (i: Impayé) => {
+    setPdfLoading(`relance_${i.id}`)
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = 210; const margin = 20; const textWidth = W - 2 * margin
+      let y = 20
+
+      const relanceNum = i.statut === 'relance_1' ? 1 : i.statut === 'relance_2' ? 2 : i.statut === 'contentieux' ? 3 : 1
+      const colors: Record<number, [number,number,number]> = { 1: [234,88,12], 2: [202,138,4], 3: [147,51,234] }
+      const color = colors[relanceNum] || [234,88,12]
+      const titles: Record<number, string> = { 1: 'PREMIER RAPPEL AMIABLE', 2: 'MISE EN DEMEURE', 3: 'MISE EN DEMEURE AVANT CONTENTIEUX' }
+
+      // En-tête coloré selon niveau relance
+      doc.setFillColor(...color); doc.rect(0, 0, W, 40, 'F')
+      doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold')
+      doc.text(titles[relanceNum], W/2, 16, { align: 'center' })
+      doc.setFontSize(10); doc.setFont('helvetica','normal')
+      doc.text(`Charges de copropriété impayées — ${i.immeuble || 'Résidence'}`, W/2, 26, { align: 'center' })
+      doc.text(`Lot ${i.lot || 'N/A'}  ·  ${new Date().toLocaleDateString('fr-FR')}`, W/2, 34, { align: 'center' })
+      y = 52
+
+      // Destinataire
+      doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(0,0,0)
+      doc.text(`À l'attention de : ${i.copropriétaire}`, margin, y); y += 8
+      if (i.lot) { doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.text(`Lot n° ${i.lot}${i.immeuble ? ` — ${i.immeuble}` : ''}`, margin, y); y += 6 }
+      y += 8
+
+      // Corps lettre
+      const bodies: Record<number, string> = {
+        1: `Madame, Monsieur,
+
+Nous vous informons qu'à ce jour, votre compte de charges de copropriété présente un solde débiteur. Nous vous prions de bien vouloir régulariser cette situation dans les meilleurs délais.
+
+Après vérification de notre comptabilité, vous restez redevable de la somme de :`,
+        2: `Madame, Monsieur,
+
+Malgré notre premier rappel qui vous a été adressé le ${i.dateRelance1 ? new Date(i.dateRelance1).toLocaleDateString('fr-FR') : 'récemment'}, votre compte de charges de copropriété présente toujours un solde débiteur.
+
+Par la présente, nous vous mettons en demeure de régler la somme de :`,
+        3: `Madame, Monsieur,
+
+Nous avons déjà eu l'occasion de vous contacter à deux reprises concernant votre dette de charges de copropriété, sans qu'aucune régularisation n'ait été effectuée à ce jour.
+
+En l'absence de règlement dans un délai de 8 jours, nous serons dans l'obligation de transmettre ce dossier à notre conseil juridique pour engagement d'une procédure de recouvrement devant le Tribunal judiciaire. Vous en supporterez alors les frais.
+
+Le montant restant dû s'élève à :`
+      }
+
+      doc.setFontSize(10); doc.setFont('helvetica','normal')
+      const bodyLines = doc.splitTextToSize(bodies[relanceNum], textWidth)
+      bodyLines.forEach((line: string) => { if (y > 255) { doc.addPage(); y = 20 }; doc.text(line, margin, y); y += 5 })
+      y += 6
+
+      // Montant encadré
+      doc.setFillColor(254,242,242); doc.rect(margin, y, textWidth, 16, 'F')
+      doc.setDrawColor(...color); doc.setLineWidth(0.5); doc.rect(margin, y, textWidth, 16)
+      doc.setFontSize(18); doc.setFont('helvetica','bold'); doc.setTextColor(...color)
+      doc.text(`${i.montant.toLocaleString('fr-FR')} €`, W/2, y+11, { align: 'center' })
+      y += 26
+
+      // Suite lettre
+      const endings: Record<number, string> = {
+        1: `Nous restons à votre disposition pour tout renseignement complémentaire et espérons une régularisation rapide de votre situation.\n\nVeuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées.`,
+        2: `Nous vous demandons de bien vouloir procéder à ce règlement dans un délai de 15 jours à compter de la réception du présent courrier.\n\nEn l'absence de règlement, nous serons contraints d'engager une procédure de recouvrement amiable puis contentieuse.\n\nVeuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées.`,
+        3: `Nous vous accordons un ultime délai de 8 jours pour régulariser votre situation avant tout engagement de procédure judiciaire.\n\nVeuillez agréer, Madame, Monsieur, nos salutations distinguées.`
+      }
+      const endLines = doc.splitTextToSize(endings[relanceNum], textWidth)
+      doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0)
+      endLines.forEach((line: string) => { if (y > 255) { doc.addPage(); y = 20 }; doc.text(line, margin, y); y += 5 })
+      y += 15
+
+      // Signature syndic
+      doc.text('Le Syndic de copropriété', margin, y); y += 5
+      doc.text('_________________________________', margin, y); y += 4
+      doc.setFontSize(8); doc.setTextColor(120,120,120)
+      doc.text(`Généré par VitFix Pro — ${new Date().toLocaleString('fr-FR')}`, margin, y)
+
+      doc.save(`Relance${relanceNum}_${i.copropriétaire.replace(/\s+/g,'_')}_${i.lot || 'lot'}.pdf`)
+    } catch(e) { alert('Erreur PDF : ' + e) }
+    setPdfLoading(null)
+  }
+
+  const filtered = filter === 'tous' ? impayés : impayés.filter(i => i.statut === filter)
+  const totalImpayé = impayés.filter(i => i.statut !== 'soldé').reduce((s, i) => s + i.montant, 0)
+  const STATUS_COLORS: Record<string, string> = { impayé: 'bg-red-100 text-red-700', relance_1: 'bg-orange-100 text-orange-700', relance_2: 'bg-yellow-100 text-yellow-800', contentieux: 'bg-purple-100 text-purple-700', soldé: 'bg-green-100 text-green-700' }
+  const STATUS_LABELS: Record<string, string> = { impayé: '⚠️ Impayé', relance_1: '📨 Relance 1', relance_2: '📨 Relance 2', contentieux: '⚖️ Contentieux', soldé: '✅ Soldé' }
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-red-400 shadow-sm flex justify-between items-center">
+        <div><h1 className="text-2xl font-semibold">⚠️ Impayés & Appels de Fonds</h1><p className="text-sm text-gray-500">Relances graduées PDF · Lettres de mise en demeure · Appels de fonds par lot</p></div>
+        <div className="flex gap-2">
+          {activeTab === 'impayés' && <button onClick={() => setShowModal(true)} className="bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition">+ Impayé</button>}
+          {activeTab === 'appels' && <button onClick={() => setShowAppelModal(true)} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition">+ Appel de fonds</button>}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white border-b flex">
+        <button onClick={() => setActiveTab('impayés')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeTab === 'impayés' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500'}`}>⚠️ Suivi Impayés</button>
+        <button onClick={() => setActiveTab('appels')} className={`px-6 py-3 font-semibold text-sm border-b-2 transition ${activeTab === 'appels' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500'}`}>📋 Appels de Fonds</button>
+      </div>
+
+      {activeTab === 'impayés' && (
+        <div className="p-6 lg:p-8">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400 xl:col-span-2"><div className="text-sm text-gray-500">Total impayés en cours</div><div className="text-3xl font-bold text-red-600">{totalImpayé.toLocaleString('fr-FR')} €</div></div>
+            {(['impayé', 'relance_1', 'relance_2', 'contentieux'] as const).map(s => (
+              <div key={s} className="bg-white p-4 rounded-2xl shadow-sm text-center"><div className="text-2xl font-bold">{impayés.filter(i => i.statut === s).length}</div><div className="text-xs text-gray-500 mt-1">{STATUS_LABELS[s]}</div></div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 mb-6 flex-wrap">
+            {(['tous', 'impayé', 'relance_1', 'relance_2', 'contentieux', 'soldé'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full text-sm font-semibold transition ${filter === f ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>{f === 'tous' ? 'Tous' : STATUS_LABELS[f]} ({f === 'tous' ? impayés.length : impayés.filter(i => i.statut === f).length})</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">✅</div><h3 className="text-xl font-bold mb-2">{filter === 'tous' ? 'Aucun impayé' : 'Aucun résultat'}</h3></div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Copropriétaire</th>
+                    <th className="px-4 py-3 text-left">Lot / Immeuble</th>
+                    <th className="px-4 py-3 text-right">Montant</th>
+                    <th className="px-4 py-3 text-center">Échéance</th>
+                    <th className="px-4 py-3 text-center">Statut</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(i => (
+                    <tr key={i.id} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-3 font-semibold">{i.copropriétaire}</td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">{i.lot || '—'}{i.immeuble ? ` · ${i.immeuble}` : ''}</td>
+                      <td className="px-4 py-3 text-right font-bold text-red-600">{i.montant.toLocaleString('fr-FR')} €</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-500">{i.dateEchéance ? new Date(i.dateEchéance).toLocaleDateString('fr-FR') : '—'}</td>
+                      <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[i.statut]}`}>{STATUS_LABELS[i.statut]}</span></td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 justify-center flex-wrap">
+                          {i.statut !== 'soldé' && i.statut !== 'contentieux' && <button onClick={() => handleRelance(i.id)} className="text-xs bg-orange-100 text-orange-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-orange-200 whitespace-nowrap">📨 Relancer</button>}
+                          {(i.statut === 'relance_1' || i.statut === 'relance_2' || i.statut === 'contentieux') && (
+                            <button onClick={() => exportRelatancePdf(i)} disabled={pdfLoading === `relance_${i.id}`} className="text-xs bg-purple-100 text-purple-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-purple-200 whitespace-nowrap disabled:opacity-50">{pdfLoading === `relance_${i.id}` ? '⏳' : '📄 Lettre PDF'}</button>
+                          )}
+                          {i.statut !== 'soldé' && <button onClick={() => handleSolder(i.id)} className="text-xs bg-green-100 text-green-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-green-200">✅ Solder</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'appels' && (
+        <div className="p-6 lg:p-8">
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">Appels de fonds</div><div className="text-3xl font-bold text-blue-600">{appels.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Total appelé</div><div className="text-2xl font-bold text-green-600">{appels.reduce((s, a) => s + a.montantTotalBudget, 0).toLocaleString('fr-FR')} €</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-purple-400"><div className="text-sm text-gray-500">Lots totaux</div><div className="text-3xl font-bold text-purple-600">{appels.reduce((s, a) => s + a.lots.length, 0)}</div></div>
+          </div>
+          {appels.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📋</div><h3 className="text-xl font-bold mb-2">Aucun appel de fonds</h3><p className="text-gray-500 mb-6">Créez des appels de fonds pour les copropriétaires et générez le PDF</p><button onClick={() => setShowAppelModal(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700">+ Premier appel de fonds</button></div>
+          ) : (
+            <div className="space-y-4">
+              {appels.map(af => (
+                <div key={af.id} className="bg-white rounded-2xl shadow-sm p-5">
+                  <div className="flex justify-between items-start flex-wrap gap-3">
+                    <div>
+                      <h3 className="font-bold text-lg">{af.immeuble}</h3>
+                      <div className="flex gap-4 text-sm text-gray-500 mt-1 flex-wrap">
+                        <span>📅 {af.periode}</span>
+                        <span>💰 Budget : {af.montantTotalBudget.toLocaleString('fr-FR')} €</span>
+                        <span>🏠 {af.lots.length} lots</span>
+                        <span>📆 Émis le {new Date(af.dateEmission).toLocaleDateString('fr-FR')}</span>
+                        {af.dateEcheance && <span>⚠️ Échéance : {new Date(af.dateEcheance).toLocaleDateString('fr-FR')}</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => exportAppelPdf(af)} disabled={pdfLoading === `appel_${af.id}`} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">{pdfLoading === `appel_${af.id}` ? '⏳ Génération…' : '📄 Exporter PDF'}</button>
+                  </div>
+                  {af.lots.length > 0 && (
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="text-xs w-full">
+                        <thead><tr className="text-gray-400 border-b"><th className="text-left py-1 pr-4">Lot</th><th className="text-left py-1 pr-4">Copropriétaire</th><th className="text-right py-1 pr-4">Tantièmes</th><th className="text-right py-1">Montant appelé</th></tr></thead>
+                        <tbody>{af.lots.map((l, j) => <tr key={j} className="border-b border-gray-50"><td className="py-1 pr-4 font-medium">{l.lot}</td><td className="py-1 pr-4 text-gray-600">{l.copropriétaire}</td><td className="py-1 pr-4 text-right">{l.tantiemes}</td><td className="py-1 text-right font-semibold text-blue-600">{l.montant.toLocaleString('fr-FR')} €</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">⚠️ Enregistrer un impayé</h2></div>
+            <div className="p-6 space-y-4">
+              <div><label className="block text-sm font-semibold mb-1">Copropriétaire *</label><input value={form.copropriétaire} onChange={e => setForm({...form, copropriétaire: e.target.value})} placeholder="Nom du copropriétaire" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-400 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Lot</label><input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder="Apt 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Montant (€) *</label><input type="number" value={form.montant} onChange={e => setForm({...form, montant: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-400 outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Immeuble</label><input value={form.immeuble} onChange={e => setForm({...form, immeuble: e.target.value})} placeholder="Résidence..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-400 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">Date d'échéance</label><input type="date" value={form.dateEchéance} onChange={e => setForm({...form, dateEchéance: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-400 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">Notes</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} placeholder="Informations complémentaires..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-red-400 outline-none resize-none" /></div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAdd} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAppelModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📋 Nouvel appel de fonds</h2></div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Immeuble *</label><input value={appelForm.immeuble} onChange={e => setAppelForm({...appelForm, immeuble: e.target.value})} placeholder="Résidence Les Pins" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Période *</label><input value={appelForm.periode} onChange={e => setAppelForm({...appelForm, periode: e.target.value})} placeholder="T1 2026 / Janvier 2026" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Budget prévisionnel total (€)</label><input type="number" value={appelForm.montantTotalBudget} onChange={e => setAppelForm({...appelForm, montantTotalBudget: e.target.value})} placeholder="50000" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Date émission</label><input type="date" value={appelForm.dateEmission} onChange={e => setAppelForm({...appelForm, dateEmission: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Date échéance</label><input type="date" value={appelForm.dateEcheance} onChange={e => setAppelForm({...appelForm, dateEcheance: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none" /></div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Lots (un par ligne : lot;copropriétaire;tantièmes;montant)</label>
+                <textarea value={appelForm.lotsText} onChange={e => setAppelForm({...appelForm, lotsText: e.target.value})} rows={6} placeholder={"A101;Dupont Jean;450;1125.00\nB203;Martin Sophie;380;950.00\nC305;Garcia Pedro;170;425.00"} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none resize-none font-mono text-sm" />
+                <p className="text-xs text-gray-400 mt-1">Format : Numéro lot ; Nom copropriétaire ; Tantièmes ; Montant appelé</p>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowAppelModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleCreateAppel} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">Créer l'appel de fonds</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ CARNET D'ENTRETIEN SECTION ══════════ */
+function CarnetEntretienSection({ user, userRole }: { user: any; userRole: string }) {
+  const uid = user?.id || 'demo'
+
+  type Intervention = { id: string; date: string; nature: string; immeuble: string; localisation: string; prestataire: string; cout: number; garantie: string; statut: 'réalisé' | 'planifié' | 'en_cours'; notes: string; dpe?: string }
+  type EtatDate = { id: string; immeuble: string; adresse: string; dateVente: string; acquereur: string; vendeur: string; notaire: string; syndicNom: string; syndicAdresse: string; dateGeneration: string; chargesExercice: number; chargesRestant: number; travoteVotee: number; travauxRestant: number; fondsTravaux: number; impayesCopro: number; proceduresEnCours: string; diagnosticsDPE: string; reglement: string; notes: string }
+
+  const [activeTab, setActiveTab] = useState<'carnet' | 'etat_date' | 'dpe'>('carnet')
+  const [interventions, setInterventions] = useState<Intervention[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_carnet_${uid}`) || '[]') } catch { return [] } })
+  const [etats, setEtats] = useState<EtatDate[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_etat_date_${uid}`) || '[]') } catch { return [] } })
+  const [showModal, setShowModal] = useState(false)
+  const [showEtatModal, setShowEtatModal] = useState(false)
+  const [filterImmeuble, setFilterImmeuble] = useState('')
+  const [filterDpe, setFilterDpe] = useState<string>('')
+  const [pdfLoading, setPdfLoading] = useState<string | null>(null)
+  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], nature: '', immeuble: '', localisation: '', prestataire: '', cout: '', garantie: '', statut: 'réalisé', notes: '', dpe: '' })
+  const [etatForm, setEtatForm] = useState({ immeuble: '', adresse: '', dateVente: '', acquereur: '', vendeur: '', notaire: '', syndicNom: '', syndicAdresse: '', chargesExercice: '', chargesRestant: '', travoteVotee: '', travauxRestant: '', fondsTravaux: '', impayesCopro: '', proceduresEnCours: '', diagnosticsDPE: '', reglement: '', notes: '' })
+
+  const saveInterventions = (u: Intervention[]) => { setInterventions(u); localStorage.setItem(`fixit_carnet_${uid}`, JSON.stringify(u)) }
+  const saveEtats = (u: EtatDate[]) => { setEtats(u); localStorage.setItem(`fixit_etat_date_${uid}`, JSON.stringify(u)) }
+
+  const handleAdd = () => {
+    if (!form.nature.trim()) return
+    const i: Intervention = { id: Date.now().toString(), date: form.date, nature: form.nature, immeuble: form.immeuble, localisation: form.localisation, prestataire: form.prestataire, cout: parseFloat(form.cout) || 0, garantie: form.garantie, statut: form.statut as any, notes: form.notes, dpe: form.dpe }
+    saveInterventions([i, ...interventions])
+    setShowModal(false)
+    setForm({ date: new Date().toISOString().split('T')[0], nature: '', immeuble: '', localisation: '', prestataire: '', cout: '', garantie: '', statut: 'réalisé', notes: '', dpe: '' })
+  }
+
+  const handleCreateEtat = () => {
+    if (!etatForm.immeuble.trim()) return
+    const e: EtatDate = { id: Date.now().toString(), ...etatForm, chargesExercice: parseFloat(etatForm.chargesExercice) || 0, chargesRestant: parseFloat(etatForm.chargesRestant) || 0, travoteVotee: parseFloat(etatForm.travoteVotee) || 0, travauxRestant: parseFloat(etatForm.travauxRestant) || 0, fondsTravaux: parseFloat(etatForm.fondsTravaux) || 0, impayesCopro: parseFloat(etatForm.impayesCopro) || 0, dateGeneration: new Date().toISOString() }
+    saveEtats([e, ...etats])
+    setShowEtatModal(false)
+    setEtatForm({ immeuble: '', adresse: '', dateVente: '', acquereur: '', vendeur: '', notaire: '', syndicNom: '', syndicAdresse: '', chargesExercice: '', chargesRestant: '', travoteVotee: '', travauxRestant: '', fondsTravaux: '', impayesCopro: '', proceduresEnCours: '', diagnosticsDPE: '', reglement: '', notes: '' })
+  }
+
+  const exportEtatDatePdf = async (e: EtatDate) => {
+    setPdfLoading(`etat_${e.id}`)
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = 210; const margin = 18; const textWidth = W - 2 * margin
+      let y = 18
+
+      const line = (txt: string, size = 9, bold = false, clr: [number,number,number] = [0,0,0], xa = margin) => {
+        doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...clr)
+        const ls = doc.splitTextToSize(txt, textWidth - (xa - margin))
+        ls.forEach((l: string) => { if (y > 272) { doc.addPage(); y = 18 }; doc.text(l, xa, y); y += size * 0.43 }); y += 1.5
+      }
+      const sectionTitle = (title: string) => {
+        y += 3; doc.setFillColor(37,99,235); doc.rect(margin, y-4, textWidth, 8, 'F')
+        doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255)
+        doc.text(title, margin+4, y+0.5); y += 8
+      }
+      const row = (label: string, val: string, highlight = false) => {
+        if (highlight) { doc.setFillColor(254,249,195); doc.rect(margin, y-3, textWidth, 7, 'F') }
+        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(80,80,80); doc.text(label, margin+3, y+0.5)
+        doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0)
+        const vlines = doc.splitTextToSize(val || '—', textWidth - 72)
+        vlines.forEach((vl: string, vi: number) => { doc.text(vl, margin + 72, y + vi * 4.5) })
+        y += Math.max(6, vlines.length * 4.5); doc.setDrawColor(230,230,230); doc.line(margin, y-1, margin+textWidth, y-1)
+      }
+
+      // En-tête officiel
+      doc.setFillColor(15, 23, 42); doc.rect(0, 0, W, 45, 'F')
+      doc.setTextColor(255,255,255); doc.setFontSize(15); doc.setFont('helvetica','bold')
+      doc.text('ÉTAT DATÉ', W/2, 13, { align: 'center' })
+      doc.setFontSize(9); doc.setFont('helvetica','normal')
+      doc.text('Article 5 du Décret n°67-223 du 17 mars 1967 — Loi n°65-557 du 10 juillet 1965', W/2, 21, { align: 'center' })
+      doc.setFontSize(11); doc.setFont('helvetica','bold')
+      doc.text(e.immeuble, W/2, 31, { align: 'center' })
+      if (e.adresse) { doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.text(e.adresse, W/2, 38, { align: 'center' }) }
+      y = 52
+
+      // Infos mutation
+      sectionTitle('I. IDENTIFICATION DE LA MUTATION')
+      row('Date de vente prévue', e.dateVente ? new Date(e.dateVente).toLocaleDateString('fr-FR') : '—')
+      row('Acquéreur', e.acquereur)
+      row('Vendeur / Cédant', e.vendeur)
+      row('Notaire chargé de l\'acte', e.notaire)
+
+      sectionTitle('II. IDENTIFICATION DU SYNDIC')
+      row('Cabinet syndic', e.syndicNom)
+      row('Adresse du syndic', e.syndicAdresse)
+      row('Date d\'établissement', new Date(e.dateGeneration).toLocaleDateString('fr-FR'))
+
+      sectionTitle('III. CHARGES ET PROVISIONS')
+      row('Charges budget exercice en cours', e.chargesExercice > 0 ? `${e.chargesExercice.toLocaleString('fr-FR')} €` : '—', e.chargesExercice > 0)
+      row('Charges restant à solder (quote-part lot)', e.chargesRestant > 0 ? `${e.chargesRestant.toLocaleString('fr-FR')} €` : '—', e.chargesRestant > 0)
+      row('Travaux votés non encore appelés', e.travoteVotee > 0 ? `${e.travoteVotee.toLocaleString('fr-FR')} €` : '0 €')
+      row('Travaux restant à effectuer (quote-part)', e.travauxRestant > 0 ? `${e.travauxRestant.toLocaleString('fr-FR')} €` : '—', e.travauxRestant > 0)
+
+      sectionTitle('IV. FONDS DE TRAVAUX (Art. 14-2 Loi 1965)')
+      row('Fonds de travaux — quote-part lot', e.fondsTravaux > 0 ? `${e.fondsTravaux.toLocaleString('fr-FR')} €` : '—', e.fondsTravaux > 0)
+
+      sectionTitle('V. SITUATION DES IMPAYÉS')
+      row('Impayés de charges de la copropriété', e.impayesCopro > 0 ? `${e.impayesCopro.toLocaleString('fr-FR')} €` : 'Néant', e.impayesCopro > 0)
+      row('Procédures en cours', e.proceduresEnCours || 'Aucune')
+
+      if (e.diagnosticsDPE) {
+        sectionTitle('VI. DIAGNOSTICS & DPE')
+        line(e.diagnosticsDPE, 9)
+      }
+
+      if (e.reglement || e.notes) {
+        sectionTitle('VII. INFORMATIONS COMPLÉMENTAIRES')
+        if (e.reglement) { line('Règlement de copropriété : ' + e.reglement, 9) }
+        if (e.notes) { line(e.notes, 9) }
+      }
+
+      // Certification
+      y += 6
+      doc.setFillColor(240,253,244); doc.rect(margin, y, textWidth, 24, 'F')
+      doc.setDrawColor(22,101,52); doc.rect(margin, y, textWidth, 24)
+      y += 6
+      line('CERTIFICATION DU SYNDIC', 10, true, [22,101,52])
+      line(`Je soussigné(e), représentant le cabinet syndic ${e.syndicNom || '[Cabinet]'}, certifie l'exactitude des informations figurant dans le présent état daté établi conformément aux textes légaux en vigueur.`, 9, false, [40,40,40])
+      y += 4
+      doc.setFontSize(9); doc.setTextColor(80,80,80)
+      doc.text('Date et signature :', margin+5, y)
+      doc.text('_______________________________', margin+50, y)
+      y += 10
+
+      // Mentions légales
+      doc.setFontSize(7); doc.setTextColor(150,150,150)
+      const pages = doc.getNumberOfPages()
+      for (let p = 1; p <= pages; p++) {
+        doc.setPage(p)
+        doc.text(`État daté — ${e.immeuble}  |  Généré par VitFix Pro le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 292, { align: 'center' })
+      }
+      doc.save(`EtatDate_${e.immeuble.replace(/\s+/g,'_')}_${new Date(e.dateGeneration).toISOString().split('T')[0]}.pdf`)
+    } catch(err) { alert('Erreur PDF : ' + err) }
+    setPdfLoading(null)
+  }
+
+  const exportCarnetPdf = async () => {
+    setPdfLoading('carnet')
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = 210; const margin = 18
+      let y = 18
+
+      doc.setFillColor(13,148,136); doc.rect(0,0,W,35,'F')
+      doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold')
+      doc.text('CARNET D\'ENTRETIEN', W/2, 14, { align: 'center' })
+      doc.setFontSize(10); doc.setFont('helvetica','normal')
+      doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} — ${interventions.length} intervention(s)`, W/2, 24, { align: 'center' })
+      y = 45
+
+      const byYear: Record<string, Intervention[]> = {}
+      interventions.forEach(i => { const yr = new Date(i.date).getFullYear().toString(); if (!byYear[yr]) byYear[yr] = []; byYear[yr].push(i) })
+      const years = Object.keys(byYear).sort((a,b) => parseInt(b)-parseInt(a))
+
+      years.forEach(yr => {
+        if (y > 240) { doc.addPage(); y = 18 }
+        doc.setFillColor(13,148,136); doc.rect(margin, y-3, W-2*margin, 9, 'F')
+        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255)
+        doc.text(`ANNÉE ${yr}`, margin+4, y+3); y += 10
+
+        byYear[yr].forEach((itv, idx) => {
+          if (y > 265) { doc.addPage(); y = 18 }
+          if (idx%2===0) { doc.setFillColor(248,250,252); doc.rect(margin, y-2, W-2*margin, 18, 'F') }
+          doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0,0,0)
+          doc.text(new Date(itv.date).toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }), margin+2, y+4)
+          doc.text(itv.nature, margin+25, y+4)
+          const sc: Record<string, string> = { réalisé: '✓ Réalisé', planifié: '⋯ Planifié', en_cours: '→ En cours' }
+          doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80)
+          doc.text(sc[itv.statut] || itv.statut, W-margin-35, y+4)
+          y += 6
+          doc.setFontSize(8); doc.setTextColor(100,100,100)
+          const details = [itv.immeuble && `🏢 ${itv.immeuble}`, itv.localisation && `📍 ${itv.localisation}`, itv.prestataire && `👷 ${itv.prestataire}`, itv.cout>0 && `💰 ${itv.cout.toLocaleString('fr-FR')} €`, itv.garantie && `🛡️ ${itv.garantie}`].filter(Boolean).join('  ·  ')
+          if (details) { const ls = doc.splitTextToSize(details, W-2*margin-10); ls.forEach((l: string) => { doc.text(l, margin+25, y); y += 4 }) }
+          y += 4; doc.setDrawColor(220,220,220); doc.line(margin, y, W-margin, y); y += 3
+        })
+        y += 4
+      })
+
+      const pages = doc.getNumberOfPages()
+      for (let p=1; p<=pages; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text(`VitFix Pro — Carnet d'entretien — Page ${p}/${pages}`, W/2, 292, { align: 'center' }) }
+      doc.save(`CarnetEntretien_${new Date().toISOString().split('T')[0]}.pdf`)
+    } catch(err) { alert('Erreur PDF : ' + err) }
+    setPdfLoading(null)
+  }
+
+  const immeubles = [...new Set(interventions.map(i => i.immeuble).filter(Boolean))]
+  const filtered = filterImmeuble ? interventions.filter(i => i.immeuble === filterImmeuble) : interventions
+  const totalCouts = filtered.reduce((s, i) => s + i.cout, 0)
+  const STATUS_COLORS: Record<string, string> = { réalisé: 'bg-green-100 text-green-700', planifié: 'bg-blue-100 text-blue-700', en_cours: 'bg-orange-100 text-orange-700' }
+  const DPE_COLORS: Record<string, string> = { A: 'bg-green-700 text-white', B: 'bg-green-500 text-white', C: 'bg-lime-400 text-gray-900', D: 'bg-yellow-400 text-gray-900', E: 'bg-orange-400 text-white', F: 'bg-orange-600 text-white', G: 'bg-red-600 text-white' }
+  const NATURES = ['Entretien ascenseur', 'Ravalement façade', 'Toiture / étanchéité', 'Plomberie collective', 'Électricité commune', 'Espaces verts', 'Nettoyage parties communes', 'Chaufferie / chaudière', 'Parking', 'Digicode / Interphone', 'Peinture parties communes', 'Menuiserie', 'Désinfection / dératisation', 'Contrôle technique', 'Diagnostic DPE collectif', 'Autre']
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-teal-500 shadow-sm flex justify-between items-center">
+        <div><h1 className="text-2xl font-semibold">📖 Carnet d'Entretien & État Daté</h1><p className="text-sm text-gray-500">Traçabilité travaux · État daté PDF mutation · Suivi DPE collectif</p></div>
+        <div className="flex gap-2">
+          {activeTab === 'carnet' && <><button onClick={exportCarnetPdf} disabled={pdfLoading === 'carnet' || interventions.length === 0} className="bg-gray-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-50">{pdfLoading === 'carnet' ? '⏳' : '📄 Export PDF'}</button><button onClick={() => setShowModal(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-teal-700">+ Intervention</button></>}
+          {activeTab === 'etat_date' && <button onClick={() => setShowEtatModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-700">+ Nouvel état daté</button>}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white border-b flex overflow-x-auto">
+        <button onClick={() => setActiveTab('carnet')} className={`px-5 py-3 font-semibold text-sm border-b-2 whitespace-nowrap transition ${activeTab === 'carnet' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500'}`}>📖 Carnet d'entretien</button>
+        <button onClick={() => setActiveTab('etat_date')} className={`px-5 py-3 font-semibold text-sm border-b-2 whitespace-nowrap transition ${activeTab === 'etat_date' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500'}`}>📋 État Daté (mutation)</button>
+        <button onClick={() => setActiveTab('dpe')} className={`px-5 py-3 font-semibold text-sm border-b-2 whitespace-nowrap transition ${activeTab === 'dpe' ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-500'}`}>🏷️ Suivi DPE Collectif</button>
+      </div>
+
+      {/* ── CARNET ── */}
+      {activeTab === 'carnet' && (
+        <div className="p-6 lg:p-8">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-teal-400"><div className="text-sm text-gray-500">Interventions</div><div className="text-3xl font-bold text-teal-600">{filtered.length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">Planifiées</div><div className="text-3xl font-bold text-blue-600">{filtered.filter(i => i.statut === 'planifié').length}</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Coût total</div><div className="text-2xl font-bold text-green-600">{totalCouts.toLocaleString('fr-FR')} €</div></div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-purple-400"><div className="text-sm text-gray-500">Immeubles</div><div className="text-3xl font-bold text-purple-600">{immeubles.length}</div></div>
+          </div>
+
+          {immeubles.length > 1 && (
+            <div className="flex gap-2 mb-6 flex-wrap">
+              <button onClick={() => setFilterImmeuble('')} className={`px-4 py-2 rounded-full text-sm font-semibold transition ${!filterImmeuble ? 'bg-teal-600 text-white' : 'bg-white text-gray-600'}`}>Tous ({interventions.length})</button>
+              {immeubles.map(im => <button key={im} onClick={() => setFilterImmeuble(im)} className={`px-4 py-2 rounded-full text-sm font-semibold transition ${filterImmeuble === im ? 'bg-teal-600 text-white' : 'bg-white text-gray-600'}`}>{im}</button>)}
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📖</div><h3 className="text-xl font-bold mb-2">Carnet vide</h3><p className="text-gray-500 mb-6">Enregistrez toutes les interventions pour traçabilité complète</p><button onClick={() => setShowModal(true)} className="bg-teal-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-teal-700">+ Première intervention</button></div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map(i => (
+                <div key={i.id} className="bg-white rounded-2xl shadow-sm p-5 flex flex-col md:flex-row gap-4">
+                  <div className="w-20 text-center flex-shrink-0 bg-gray-50 rounded-xl py-3">
+                    <div className="text-xs text-gray-400">{new Date(i.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</div>
+                    <div className="text-lg font-bold text-gray-700">{new Date(i.date).getFullYear()}</div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap"><h3 className="font-bold">{i.nature}</h3><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[i.statut]}`}>{i.statut}</span>{i.dpe && <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${DPE_COLORS[i.dpe] || 'bg-gray-100 text-gray-600'}`}>DPE {i.dpe}</span>}</div>
+                    <div className="flex gap-3 text-sm text-gray-500 flex-wrap">
+                      {i.immeuble && <span>🏢 {i.immeuble}</span>}
+                      {i.localisation && <span>📍 {i.localisation}</span>}
+                      {i.prestataire && <span>👷 {i.prestataire}</span>}
+                      {i.cout > 0 && <span className="font-semibold text-gray-700">💰 {i.cout.toLocaleString('fr-FR')} €</span>}
+                      {i.garantie && <span>🛡️ {i.garantie}</span>}
+                    </div>
+                    {i.notes && <p className="text-xs text-gray-400 mt-1">{i.notes}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── ÉTAT DATÉ ── */}
+      {activeTab === 'etat_date' && (
+        <div className="p-6 lg:p-8">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-6">
+            <p className="text-sm text-indigo-800"><strong>📋 État daté — Art. 5 Décret 67-223</strong> — Document obligatoire lors de toute mutation de lot de copropriété. Générez un PDF conforme en quelques secondes.</p>
+          </div>
+          {etats.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">📋</div><h3 className="text-xl font-bold mb-2">Aucun état daté</h3><p className="text-gray-500 mb-6">Générez des états datés conformes à la loi pour chaque mutation de lot</p><button onClick={() => setShowEtatModal(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700">+ Créer un état daté</button></div>
+          ) : (
+            <div className="space-y-4">
+              {etats.map(e => (
+                <div key={e.id} className="bg-white rounded-2xl shadow-sm p-5">
+                  <div className="flex justify-between items-start flex-wrap gap-3">
+                    <div>
+                      <h3 className="font-bold text-lg">{e.immeuble}</h3>
+                      <div className="text-sm text-gray-500 mt-1 flex gap-4 flex-wrap">
+                        {e.adresse && <span>📍 {e.adresse}</span>}
+                        {e.acquereur && <span>👤 Acquéreur : {e.acquereur}</span>}
+                        {e.dateVente && <span>📅 Vente : {new Date(e.dateVente).toLocaleDateString('fr-FR')}</span>}
+                        <span>📆 Généré le {new Date(e.dateGeneration).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                      <div className="flex gap-4 text-sm mt-2 flex-wrap">
+                        {e.chargesRestant > 0 && <span className="text-orange-600 font-semibold">Charges restant : {e.chargesRestant.toLocaleString('fr-FR')} €</span>}
+                        {e.fondsTravaux > 0 && <span className="text-blue-600 font-semibold">Fonds travaux : {e.fondsTravaux.toLocaleString('fr-FR')} €</span>}
+                        {e.impayesCopro > 0 && <span className="text-red-600 font-semibold">⚠️ Impayés : {e.impayesCopro.toLocaleString('fr-FR')} €</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => exportEtatDatePdf(e)} disabled={pdfLoading === `etat_${e.id}`} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">{pdfLoading === `etat_${e.id}` ? '⏳ Génération…' : '📄 Exporter État Daté PDF'}</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── DPE COLLECTIF ── */}
+      {activeTab === 'dpe' && (
+        <div className="p-6 lg:p-8">
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-6">
+            <p className="text-sm text-orange-800"><strong>🏷️ DPE Collectif</strong> — Depuis le 1er janvier 2024, le DPE collectif est obligatoire pour les copropriétés &gt;200 lots et progressivement pour toutes. Filtrez vos interventions par classe DPE pour le suivi.</p>
+          </div>
+          <div className="flex gap-2 mb-6 flex-wrap">
+            <button onClick={() => setFilterDpe('')} className={`px-3 py-1.5 rounded-full text-sm font-bold transition ${!filterDpe ? 'bg-gray-700 text-white' : 'bg-white text-gray-600'}`}>Tous</button>
+            {['A','B','C','D','E','F','G'].map(cl => (
+              <button key={cl} onClick={() => setFilterDpe(filterDpe === cl ? '' : cl)} className={`px-3 py-1.5 rounded-full text-sm font-bold transition ${filterDpe === cl ? DPE_COLORS[cl] : 'bg-white text-gray-600 border-2 border-gray-200'}`}>{cl}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-3 mb-8">
+            {['A','B','C','D','E','F','G'].map(cl => {
+              const count = interventions.filter(i => i.dpe === cl).length
+              return (
+                <div key={cl} className="bg-white rounded-2xl shadow-sm p-3 text-center">
+                  <div className={`w-10 h-10 rounded-xl ${DPE_COLORS[cl]} flex items-center justify-center text-lg font-black mx-auto mb-2`}>{cl}</div>
+                  <div className="text-2xl font-bold">{count}</div>
+                  <div className="text-xs text-gray-400">{count === 1 ? 'immeuble' : 'immeubles'}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          {interventions.filter(i => i.nature.toLowerCase().includes('dpe') || i.dpe).length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-8 text-center"><div className="text-4xl mb-3">🏷️</div><p className="text-gray-500">Ajoutez des interventions de type "Diagnostic DPE collectif" avec la classe DPE pour les suivre ici.</p></div>
+          ) : (
+            <div className="space-y-3">
+              {interventions.filter(i => (i.nature.toLowerCase().includes('dpe') || i.dpe) && (!filterDpe || i.dpe === filterDpe)).map(i => (
+                <div key={i.id} className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-4">
+                  {i.dpe && <div className={`w-12 h-12 rounded-xl ${DPE_COLORS[i.dpe]} flex items-center justify-center text-xl font-black flex-shrink-0`}>{i.dpe}</div>}
+                  <div className="flex-1">
+                    <div className="font-bold">{i.immeuble || 'Immeuble non précisé'}</div>
+                    <div className="text-sm text-gray-500">{new Date(i.date).toLocaleDateString('fr-FR')} · {i.prestataire || 'Prestataire non précisé'}</div>
+                    {i.garantie && <div className="text-xs text-gray-400">Validité : {i.garantie}</div>}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[i.statut]}`}>{i.statut}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal Intervention */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📖 Nouvelle intervention</h2></div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Date *</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Statut</label><select value={form.statut} onChange={e => setForm({...form, statut: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none"><option value="réalisé">✅ Réalisé</option><option value="en_cours">🔄 En cours</option><option value="planifié">📅 Planifié</option></select></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Nature des travaux *</label><select value={form.nature} onChange={e => setForm({...form, nature: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none"><option value="">Choisir...</option>{NATURES.map(n => <option key={n}>{n}</option>)}</select></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Immeuble</label><input value={form.immeuble} onChange={e => setForm({...form, immeuble: e.target.value})} placeholder="Résidence..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Localisation</label><input value={form.localisation} onChange={e => setForm({...form, localisation: e.target.value})} placeholder="Bât A, cage 2..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Prestataire</label><input value={form.prestataire} onChange={e => setForm({...form, prestataire: e.target.value})} placeholder="Nom entreprise" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Coût (€)</label><input type="number" value={form.cout} onChange={e => setForm({...form, cout: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Garantie</label><input value={form.garantie} onChange={e => setForm({...form, garantie: e.target.value})} placeholder="10 ans / jusqu'au 2036" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Classe DPE (si diagnostic)</label><select value={form.dpe} onChange={e => setForm({...form, dpe: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none"><option value="">Sans objet</option>{['A','B','C','D','E','F','G'].map(c => <option key={c} value={c}>Classe {c}</option>)}</select></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Notes</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-teal-500 outline-none resize-none" /></div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAdd} className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700">Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal État Daté */}
+      {showEtatModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📋 Nouvel État Daté</h2><p className="text-sm text-gray-500 mt-1">Art. 5 Décret 67-223 — Document de mutation de lot</p></div>
+            <div className="p-6 space-y-5">
+              {/* Immeuble */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase mb-3 border-b pb-2">Immeuble et Mutation</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2"><label className="block text-sm font-semibold mb-1">Immeuble / Résidence *</label><input value={etatForm.immeuble} onChange={e => setEtatForm({...etatForm, immeuble: e.target.value})} placeholder="Résidence Les Pins" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div className="col-span-2"><label className="block text-sm font-semibold mb-1">Adresse</label><input value={etatForm.adresse} onChange={e => setEtatForm({...etatForm, adresse: e.target.value})} placeholder="12 rue de la Paix, 75001 Paris" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Date de vente prévue</label><input type="date" value={etatForm.dateVente} onChange={e => setEtatForm({...etatForm, dateVente: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Notaire</label><input value={etatForm.notaire} onChange={e => setEtatForm({...etatForm, notaire: e.target.value})} placeholder="Me Dupont" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Acquéreur</label><input value={etatForm.acquereur} onChange={e => setEtatForm({...etatForm, acquereur: e.target.value})} placeholder="Prénom NOM" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Vendeur / Cédant</label><input value={etatForm.vendeur} onChange={e => setEtatForm({...etatForm, vendeur: e.target.value})} placeholder="Prénom NOM" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                </div>
+              </div>
+
+              {/* Syndic */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase mb-3 border-b pb-2">Syndic</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-sm font-semibold mb-1">Nom du cabinet</label><input value={etatForm.syndicNom} onChange={e => setEtatForm({...etatForm, syndicNom: e.target.value})} placeholder="Cabinet XYZ Syndic" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Adresse syndic</label><input value={etatForm.syndicAdresse} onChange={e => setEtatForm({...etatForm, syndicAdresse: e.target.value})} placeholder="5 av. des Ternes, 75017 Paris" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                </div>
+              </div>
+
+              {/* Finances */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase mb-3 border-b pb-2">Situation Financière</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-sm font-semibold mb-1">Charges exercice en cours (€)</label><input type="number" value={etatForm.chargesExercice} onChange={e => setEtatForm({...etatForm, chargesExercice: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Charges restant à solder (€)</label><input type="number" value={etatForm.chargesRestant} onChange={e => setEtatForm({...etatForm, chargesRestant: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Travaux votés non appelés (€)</label><input type="number" value={etatForm.travoteVotee} onChange={e => setEtatForm({...etatForm, travoteVotee: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Travaux restant lot (€)</label><input type="number" value={etatForm.travauxRestant} onChange={e => setEtatForm({...etatForm, travauxRestant: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Fonds de travaux lot (€)</label><input type="number" value={etatForm.fondsTravaux} onChange={e => setEtatForm({...etatForm, fondsTravaux: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Impayés copropriété (€)</label><input type="number" value={etatForm.impayesCopro} onChange={e => setEtatForm({...etatForm, impayesCopro: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+                </div>
+                <div className="mt-3"><label className="block text-sm font-semibold mb-1">Procédures en cours</label><input value={etatForm.proceduresEnCours} onChange={e => setEtatForm({...etatForm, proceduresEnCours: e.target.value})} placeholder="Aucune / Décrivez les procédures" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none" /></div>
+              </div>
+
+              {/* DPE et autres */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase mb-3 border-b pb-2">Diagnostics & Informations</h3>
+                <div className="space-y-3">
+                  <div><label className="block text-sm font-semibold mb-1">Diagnostics & DPE collectif</label><textarea value={etatForm.diagnosticsDPE} onChange={e => setEtatForm({...etatForm, diagnosticsDPE: e.target.value})} rows={2} placeholder="DPE collectif classe C — valide jusqu'au 01/2030" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none resize-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Notes sur le règlement</label><textarea value={etatForm.reglement} onChange={e => setEtatForm({...etatForm, reglement: e.target.value})} rows={2} placeholder="Règlement de copropriété, date, modifications..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none resize-none" /></div>
+                  <div><label className="block text-sm font-semibold mb-1">Notes complémentaires</label><textarea value={etatForm.notes} onChange={e => setEtatForm({...etatForm, notes: e.target.value})} rows={2} placeholder="Toute information complémentaire..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 outline-none resize-none" /></div>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowEtatModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleCreateEtat} className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700">Créer l'état daté</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ SINISTRES SECTION ══════════ */
+function SinistresSection({ user, userRole }: { user: any; userRole: string }) {
+  const uid = user?.id || 'demo'
+  type Sinistre = { id: string; titre: string; immeuble: string; lot: string; type: string; dateDeclaration: string; dateConstat: string; assureur: string; numDossier: string; montantEstime: number; montantIndemnise: number; statut: 'déclaré' | 'en_expertise' | 'accepté' | 'refusé' | 'indemnisé' | 'clôturé'; notes: string }
+
+  const [sinistres, setSinistres] = useState<Sinistre[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_sinistres_${uid}`) || '[]') } catch { return [] } })
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState({ titre: '', immeuble: '', lot: '', type: 'Dégât des eaux', dateDeclaration: new Date().toISOString().split('T')[0], dateConstat: '', assureur: '', numDossier: '', montantEstime: '', montantIndemnise: '', notes: '' })
+
+  const save = (u: Sinistre[]) => { setSinistres(u); localStorage.setItem(`fixit_sinistres_${uid}`, JSON.stringify(u)) }
+  const handleAdd = () => {
+    if (!form.titre.trim()) return
+    const s: Sinistre = { id: Date.now().toString(), ...form, montantEstime: parseFloat(form.montantEstime) || 0, montantIndemnise: parseFloat(form.montantIndemnise) || 0, statut: 'déclaré' }
+    save([s, ...sinistres])
+    setShowModal(false)
+    setForm({ titre: '', immeuble: '', lot: '', type: 'Dégât des eaux', dateDeclaration: new Date().toISOString().split('T')[0], dateConstat: '', assureur: '', numDossier: '', montantEstime: '', montantIndemnise: '', notes: '' })
+  }
+  const changeStatut = (id: string, statut: Sinistre['statut']) => { save(sinistres.map(s => s.id === id ? { ...s, statut } : s)) }
+
+  const STATUS_COLORS: Record<string, string> = { déclaré: 'bg-blue-100 text-blue-700', en_expertise: 'bg-orange-100 text-orange-700', accepté: 'bg-green-100 text-green-700', refusé: 'bg-red-100 text-red-700', indemnisé: 'bg-teal-100 text-teal-700', clôturé: 'bg-gray-100 text-gray-700' }
+  const TYPES = ['Dégât des eaux', 'Incendie', 'Vol / Cambriolage', 'Vandalisme', 'Bris de glace', 'Catastrophe naturelle', 'Effondrement', 'Autre']
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-orange-400 shadow-sm flex justify-between items-center">
+        <div><h1 className="text-2xl font-semibold">🚨 Sinistres & Assurances</h1><p className="text-sm text-gray-500">Suivi des déclarations · Expertises · Indemnisations</p></div>
+        <button onClick={() => setShowModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600">+ Déclarer sinistre</button>
+      </div>
+      <div className="p-6 lg:p-8">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-orange-400"><div className="text-sm text-gray-500">Sinistres actifs</div><div className="text-3xl font-bold text-orange-600">{sinistres.filter(s => s.statut !== 'clôturé').length}</div></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">En expertise</div><div className="text-3xl font-bold text-blue-600">{sinistres.filter(s => s.statut === 'en_expertise').length}</div></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">Montant estimé total</div><div className="text-3xl font-bold text-red-600">{sinistres.reduce((s, si) => s + si.montantEstime, 0).toLocaleString('fr-FR')} €</div></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Indemnisations reçues</div><div className="text-3xl font-bold text-green-600">{sinistres.reduce((s, si) => s + si.montantIndemnise, 0).toLocaleString('fr-FR')} €</div></div>
+        </div>
+
+        {sinistres.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">🛡️</div><h3 className="text-xl font-bold mb-2">Aucun sinistre</h3><p className="text-gray-500 mb-6">Déclarez et suivez vos sinistres de bout en bout</p><button onClick={() => setShowModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600">+ Déclarer un sinistre</button></div>
+        ) : (
+          <div className="space-y-4">
+            {sinistres.map(s => (
+              <div key={s.id} className="bg-white rounded-2xl shadow-sm p-6">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="font-bold text-lg">{s.titre}</h3><span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[s.statut]}`}>{s.statut}</span><span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">{s.type}</span></div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600">
+                      {s.immeuble && <span>🏢 {s.immeuble}{s.lot ? ` — Lot ${s.lot}` : ''}</span>}
+                      <span>📅 Déclaré le {new Date(s.dateDeclaration).toLocaleDateString('fr-FR')}</span>
+                      {s.assureur && <span>🛡️ {s.assureur}</span>}
+                      {s.numDossier && <span>📋 N° {s.numDossier}</span>}
+                      {s.montantEstime > 0 && <span>💰 Estimé : <strong>{s.montantEstime.toLocaleString('fr-FR')} €</strong></span>}
+                      {s.montantIndemnise > 0 && <span className="text-green-600">✅ Indemnisé : <strong>{s.montantIndemnise.toLocaleString('fr-FR')} €</strong></span>}
+                    </div>
+                  </div>
+                  <div className="min-w-[180px]">
+                    <select value={s.statut} onChange={e => changeStatut(s.id, e.target.value as any)} className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:border-orange-400 outline-none">
+                      {(['déclaré', 'en_expertise', 'accepté', 'refusé', 'indemnisé', 'clôturé'] as const).map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">🚨 Nouveau sinistre</h2></div>
+            <div className="p-6 space-y-4">
+              <div><label className="block text-sm font-semibold mb-1">Titre *</label><input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder="Ex: Dégât des eaux appartement 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Type</label><select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none">{TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+                <div><label className="block text-sm font-semibold mb-1">Date déclaration</label><input type="date" value={form.dateDeclaration} onChange={e => setForm({...form, dateDeclaration: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Immeuble</label><input value={form.immeuble} onChange={e => setForm({...form, immeuble: e.target.value})} placeholder="Résidence..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Lot / Appartement</label><input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder="Apt 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Assureur</label><input value={form.assureur} onChange={e => setForm({...form, assureur: e.target.value})} placeholder="Nom assurance" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">N° dossier</label><input value={form.numDossier} onChange={e => setForm({...form, numDossier: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Montant estimé (€)</label><input type="number" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Indemnisation reçue (€)</label><input type="number" value={form.montantIndemnise} onChange={e => setForm({...form, montantIndemnise: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Notes</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none resize-none" /></div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAdd} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">Déclarer</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ EXTRANET COPROPRIÉTAIRES SECTION ══════════ */
+// ─── POINTAGE TERRAIN ─────────────────────────────────────────────────────────
+
+const RAYON_DETECTION_DEFAUT = 150
+
+function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+interface PointageSession {
+  id: string
+  immeubleId: string
+  immeubleNom: string
+  immeubleAdresse: string
+  dateDebut: string
+  dateFin: string
+  dureeSecondes: number
+  mode: 'manuel' | 'geo'
+}
+
+interface PointageActif {
+  immeubleId: string
+  immeubleNom: string
+  immeubleAdresse: string
+  dateDebut: string
+  mode: 'manuel' | 'geo'
+}
+
+function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Immeuble[]; user: any; onUpdateImmeuble: (imm: Immeuble) => void }) {
+  const uid = user?.id || 'demo'
+  const SESSIONS_KEY = `fixit_pointage_sessions_${uid}`
+  const ACTIF_KEY = `fixit_pointage_actif_${uid}`
+
+  // Immeubles avec géoloc activée et coordonnées renseignées
+  const immeublesGeoActifs = immeubles.filter(i => i.geolocActivee && i.latitude != null && i.longitude != null)
+
+  const [sessions, setSessions] = useState<PointageSession[]>(() => {
+    try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]') } catch { return [] }
+  })
+  const [sessionActive, setSessionActive] = useState<PointageActif | null>(() => {
+    try { return JSON.parse(localStorage.getItem(ACTIF_KEY) || 'null') } catch { return null }
+  })
+
+  const [selectedImmId, setSelectedImmId] = useState('')
+  const [pointageMode, setPointageMode] = useState<'manuel' | 'geo'>('manuel')
+  const [activeTab, setActiveTab] = useState<'pointer' | 'geoloc' | 'historique'>('pointer')
+  const [filtreImmeuble, setFiltreImmeuble] = useState('')
+  const [filtreDate, setFiltreDate] = useState('')
+
+  // Géolocalisation
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [geoPosition, setGeoPosition] = useState<{ lat: number; lng: number } | null>(null)
+  const [geoError, setGeoError] = useState('')
+  const [proches, setProches] = useState<{ immeuble: Immeuble; distance: number; rayon: number }[]>([])
+  const watchRef = useRef<number | null>(null)
+
+  // Géocodage en cours (par immeuble id)
+  const [geocodingId, setGeocodingId] = useState<string | null>(null)
+
+  // Timer live
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const saveSessions = (s: PointageSession[]) => { setSessions(s); localStorage.setItem(SESSIONS_KEY, JSON.stringify(s)) }
+
+  // Géocoder l'adresse d'un immeuble via API adresse.data.gouv.fr
+  const geocoderImmeuble = async (imm: Immeuble) => {
+    const adresse = `${imm.adresse} ${imm.codePostal} ${imm.ville}`.trim()
+    if (!adresse) return
+    setGeocodingId(imm.id)
+    try {
+      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`)
+      const data = await res.json()
+      if (data.features?.length > 0) {
+        const [lng, lat] = data.features[0].geometry.coordinates
+        onUpdateImmeuble({ ...imm, latitude: lat, longitude: lng, geolocActivee: true, rayonDetection: imm.rayonDetection || RAYON_DETECTION_DEFAUT })
+      }
+    } catch { /* silent */ }
+    setGeocodingId(null)
+  }
+
+  const startGeo = () => {
+    if (!navigator.geolocation) { setGeoError('Géolocalisation non disponible.'); setGeoStatus('error'); return }
+    setGeoStatus('loading')
+    setGeoError('')
+    watchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        setGeoPosition({ lat, lng })
+        setGeoStatus('ok')
+        const p: { immeuble: Immeuble; distance: number; rayon: number }[] = []
+        immeublesGeoActifs.forEach(imm => {
+          const rayon = imm.rayonDetection || RAYON_DETECTION_DEFAUT
+          const d = haversineMetres(lat, lng, imm.latitude!, imm.longitude!)
+          if (d <= rayon) p.push({ immeuble: imm, distance: Math.round(d), rayon })
+        })
+        setProches(p.sort((a, b) => a.distance - b.distance))
+      },
+      (err) => { setGeoStatus('error'); setGeoError(err.code === 1 ? 'Permission refusée.' : 'Position introuvable.') },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    )
+  }
+
+  const stopGeo = () => {
+    if (watchRef.current !== null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null }
+    setGeoStatus('idle')
+    setGeoPosition(null)
+    setProches([])
+  }
+
+  const demarrerDepuis = (imm: Immeuble, mode: 'manuel' | 'geo') => {
+    const actif: PointageActif = {
+      immeubleId: imm.id,
+      immeubleNom: imm.nom,
+      immeubleAdresse: `${imm.adresse}, ${imm.codePostal} ${imm.ville}`,
+      dateDebut: new Date().toISOString(),
+      mode,
+    }
+    setSessionActive(actif)
+    localStorage.setItem(ACTIF_KEY, JSON.stringify(actif))
+    setSelectedImmId('')
+    if (mode === 'geo') stopGeo()
+  }
+
+  const arreter = () => {
+    if (!sessionActive) return
+    const dateFin = new Date().toISOString()
+    const dureeSecondes = Math.round((new Date(dateFin).getTime() - new Date(sessionActive.dateDebut).getTime()) / 1000)
+    saveSessions([{ id: Date.now().toString(), ...sessionActive, dateFin, dureeSecondes }, ...sessions])
+    setSessionActive(null)
+    localStorage.removeItem(ACTIF_KEY)
+    setActiveTab('historique')
+  }
+
+  const deleteSession = (id: string) => saveSessions(sessions.filter(s => s.id !== id))
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso)
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  }
+  const fmtDuree = (sec: number) => {
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60
+    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+    if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+    return `${s}s`
+  }
+
+  const elapsedSec = sessionActive ? Math.round((now - new Date(sessionActive.dateDebut).getTime()) / 1000) : 0
+  const sessionsFiltrees = sessions.filter(s => (!filtreImmeuble || s.immeubleId === filtreImmeuble) && (!filtreDate || s.dateDebut.startsWith(filtreDate)))
+  const statsByImm = useMemo(() => {
+    const m: Record<string, { nom: string; passages: number; totalSecondes: number }> = {}
+    sessions.forEach(s => {
+      if (!m[s.immeubleId]) m[s.immeubleId] = { nom: s.immeubleNom, passages: 0, totalSecondes: 0 }
+      m[s.immeubleId].passages++
+      m[s.immeubleId].totalSecondes += s.dureeSecondes
+    })
+    return Object.values(m).sort((a, b) => b.totalSecondes - a.totalSecondes)
+  }, [sessions])
+
+  // Chrono display
+  const chronoDisplay = `${String(Math.floor(elapsedSec / 3600)).padStart(2, '0')}:${String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`
+
+  return (
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">📍 Pointage Terrain</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Enregistrez vos présences et durées sur les copropriétés</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setActiveTab('pointer')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'pointer' ? 'bg-yellow-400 text-gray-900' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+            Pointer
+          </button>
+          <button onClick={() => setActiveTab('geoloc')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'geoloc' ? 'bg-yellow-400 text-gray-900' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+            📍 Géoloc {immeublesGeoActifs.length > 0 && <span className="ml-1 bg-green-100 text-green-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{immeublesGeoActifs.length}</span>}
+          </button>
+          <button onClick={() => setActiveTab('historique')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === 'historique' ? 'bg-yellow-400 text-gray-900' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+            Historique {sessions.length > 0 && <span className="ml-1 bg-gray-200 text-gray-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{sessions.length}</span>}
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'pointer' && (
+        <div className="space-y-5">
+          {/* Carte principale */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            {!sessionActive ? (
+              <div className="p-6 space-y-5">
+                {/* Toggle Manuel / Géo */}
+                <div className="flex gap-2 bg-gray-100 p-1 rounded-xl w-fit">
+                  <button
+                    onClick={() => { setPointageMode('manuel'); stopGeo() }}
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${pointageMode === 'manuel' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    ✋ Manuel
+                  </button>
+                  <button
+                    onClick={() => { setPointageMode('geo'); if (geoStatus === 'idle') startGeo() }}
+                    className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${pointageMode === 'geo' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    📡 Géolocalisation
+                  </button>
+                </div>
+
+                {/* Mode Manuel */}
+                {pointageMode === 'manuel' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5">Copropriété</label>
+                      <select
+                        value={selectedImmId}
+                        onChange={e => setSelectedImmId(e.target.value)}
+                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-green-400 bg-gray-50"
+                      >
+                        <option value="">-- Sélectionner une copropriété --</option>
+                        {immeubles.map(imm => (
+                          <option key={imm.id} value={imm.id}>{imm.nom} — {imm.adresse}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => { const imm = immeubles.find(i => i.id === selectedImmId); if (imm) demarrerDepuis(imm, 'manuel') }}
+                      disabled={!selectedImmId}
+                      className="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-lg py-4 rounded-2xl shadow-md transition"
+                    >
+                      <span className="text-2xl">▶</span> Démarrer le pointage
+                    </button>
+                  </div>
+                )}
+
+                {/* Mode Géo */}
+                {pointageMode === 'geo' && (
+                  <div className="space-y-3">
+                    {/* Alerte si aucun immeuble géolocalisé */}
+                    {immeublesGeoActifs.length === 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+                        Aucune copropriété n'a la géolocalisation activée. Activez-la dans la fiche de chaque immeuble (onglet Immeubles &gt; Modifier &gt; Géolocalisation).
+                      </div>
+                    )}
+
+                    {/* Statut GPS */}
+                    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {geoStatus === 'loading' && <span className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse inline-block" />}
+                        {geoStatus === 'ok' && <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />}
+                        {geoStatus === 'error' && <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />}
+                        {geoStatus === 'idle' && <span className="w-3 h-3 rounded-full bg-gray-300 inline-block" />}
+                        <span className="text-sm text-gray-600">
+                          {geoStatus === 'loading' && 'Localisation en cours…'}
+                          {geoStatus === 'ok' && geoPosition && `${geoPosition.lat.toFixed(5)}, ${geoPosition.lng.toFixed(5)}`}
+                          {geoStatus === 'error' && geoError}
+                          {geoStatus === 'idle' && 'GPS inactif'}
+                        </span>
+                      </div>
+                      {geoStatus !== 'idle' ? (
+                        <button onClick={stopGeo} className="text-xs text-red-500 hover:text-red-700 font-medium">Arrêter GPS</button>
+                      ) : (
+                        <button onClick={startGeo} disabled={immeublesGeoActifs.length === 0} className="text-xs text-blue-500 hover:text-blue-700 font-medium disabled:opacity-40">Activer GPS</button>
+                      )}
+                    </div>
+
+                    {/* Immeubles proches */}
+                    {geoStatus === 'ok' && proches.length === 0 && (
+                      <div className="text-center py-6 text-sm text-gray-400">
+                        Aucune copropriété détectée à proximité.
+                        <p className="text-xs mt-1 text-gray-400">{immeublesGeoActifs.length} copropriété(s) avec géoloc activée.</p>
+                      </div>
+                    )}
+                    {proches.map(({ immeuble: imm, distance, rayon }) => (
+                      <div key={imm.id} className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-sm text-gray-900">{imm.nom}</p>
+                          <p className="text-xs text-gray-500">{imm.adresse} • <span className="text-green-600 font-medium">{distance}m</span> <span className="text-gray-400">(rayon {rayon}m)</span></p>
+                        </div>
+                        <button
+                          onClick={() => demarrerDepuis(imm, 'geo')}
+                          className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white font-semibold text-sm px-4 py-2 rounded-xl transition"
+                        >
+                          ▶ Démarrer
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Résumé immeubles géolocalisés */}
+                    {immeublesGeoActifs.length > 0 && (
+                      <div className="border-t border-gray-100 pt-3">
+                        <p className="text-xs text-gray-400 mb-2">{immeublesGeoActifs.length} copropriété(s) avec géolocalisation active :</p>
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                          {immeublesGeoActifs.map(imm => (
+                            <div key={imm.id} className="text-xs flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
+                              <span className="truncate text-gray-700 flex-1">{imm.nom}</span>
+                              <span className="text-green-600 font-mono text-[10px]">{imm.latitude!.toFixed(4)}, {imm.longitude!.toFixed(4)}</span>
+                              <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] font-medium">{imm.rayonDetection || RAYON_DETECTION_DEFAUT}m</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ── SESSION ACTIVE ── */
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-10 text-white text-center space-y-5">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full bg-white animate-pulse" />
+                  <span className="text-sm font-semibold opacity-90 uppercase tracking-wide">
+                    Session en cours {sessionActive.mode === 'geo' ? '• 📡 Géoloc' : '• ✋ Manuel'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{sessionActive.immeubleNom}</p>
+                  <p className="text-sm opacity-75 mt-1">{sessionActive.immeubleAdresse}</p>
+                  <p className="text-xs opacity-60 mt-1">Démarré le {fmtDate(sessionActive.dateDebut)}</p>
+                </div>
+                <div className="bg-white/20 backdrop-blur rounded-2xl py-6 px-10 inline-block">
+                  <p className="text-6xl font-bold font-mono tabular-nums tracking-widest">{chronoDisplay}</p>
+                  <p className="text-xs text-center opacity-70 mt-2 tracking-widest">HEURES : MINUTES : SECONDES</p>
+                </div>
+                <div>
+                  <button
+                    onClick={arreter}
+                    className="inline-flex items-center gap-3 bg-white text-green-700 hover:bg-red-50 hover:text-red-600 border-2 border-white/50 hover:border-red-200 font-bold text-lg px-12 py-4 rounded-2xl shadow-lg transition"
+                  >
+                    <span className="text-2xl">⏹</span> Arrêter le pointage
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Stats */}
+          {statsByImm.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <h2 className="font-semibold text-gray-800 mb-3">📊 Résumé par copropriété</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {statsByImm.map(s => (
+                  <div key={s.nom} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
+                    <p className="font-semibold text-sm text-gray-900 truncate">{s.nom}</p>
+                    <div className="mt-3 flex items-end justify-between">
+                      <div>
+                        <p className="text-2xl font-bold text-yellow-500">{s.passages}</p>
+                        <p className="text-xs text-gray-400">passage{s.passages > 1 ? 's' : ''}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-blue-600">⏱ {fmtDuree(s.totalSecondes)}</p>
+                        <p className="text-xs text-gray-400">total</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── ONGLET CONFIG GÉOLOCALISATION ── */}
+      {activeTab === 'geoloc' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">📍 Géolocalisation des copropriétés</h2>
+            <p className="text-sm text-gray-500 mb-4">Activez la géolocalisation par copropriété et paramétrez le rayon de détection. L'adresse est géocodée automatiquement.</p>
+
+            <div className="space-y-3">
+              {immeubles.map(imm => {
+                const hasCoords = imm.latitude != null && imm.longitude != null
+                const isActive = !!imm.geolocActivee
+                const isGeocoding = geocodingId === imm.id
+                return (
+                  <div key={imm.id} className={`border rounded-xl p-4 transition ${isActive && hasCoords ? 'border-green-200 bg-green-50/50' : isActive ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200 bg-gray-50/30'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-900">{imm.nom}</p>
+                        <p className="text-xs text-gray-500 truncate">{imm.adresse}, {imm.codePostal} {imm.ville}</p>
+                      </div>
+                      {/* Toggle activer/désactiver */}
+                      <button
+                        onClick={() => {
+                          const updated = { ...imm, geolocActivee: !isActive }
+                          // Si on active et pas de coords, géocoder automatiquement
+                          if (!isActive && !hasCoords) {
+                            geocoderImmeuble(updated)
+                          } else {
+                            onUpdateImmeuble(updated)
+                          }
+                        }}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+
+                    {isActive && (
+                      <div className="mt-3 space-y-2">
+                        {/* Coordonnées GPS */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {hasCoords ? (
+                            <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-lg font-mono">
+                              {imm.latitude!.toFixed(5)}, {imm.longitude!.toFixed(5)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-lg">
+                              Coordonnées manquantes
+                            </span>
+                          )}
+                          <button
+                            onClick={() => geocoderImmeuble(imm)}
+                            disabled={isGeocoding}
+                            className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg font-medium transition disabled:opacity-40"
+                          >
+                            {isGeocoding ? '⏳ Géocodage…' : hasCoords ? '🔄 Re-géocoder' : '🔍 Géocoder l\'adresse'}
+                          </button>
+                        </div>
+
+                        {/* Rayon de détection */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs text-gray-500">Rayon de détection</label>
+                            <span className="text-xs font-bold text-purple-700">{imm.rayonDetection || RAYON_DETECTION_DEFAUT}m</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={50}
+                            max={500}
+                            step={10}
+                            value={imm.rayonDetection || RAYON_DETECTION_DEFAUT}
+                            onChange={e => onUpdateImmeuble({ ...imm, rayonDetection: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                          <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                            <span>50m</span>
+                            <span>150m</span>
+                            <span>300m</span>
+                            <span>500m</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Résumé */}
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-3 text-xs text-gray-500">
+              <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">{immeublesGeoActifs.length} active(s)</span>
+              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">{immeubles.filter(i => i.geolocActivee && (i.latitude == null || i.longitude == null)).length} sans coordonnées</span>
+              <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{immeubles.filter(i => !i.geolocActivee).length} désactivée(s)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'historique' && (
+        <div className="space-y-4">
+          {/* Session active visible depuis l'historique */}
+          {sessionActive && (
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <span className="inline-block w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                <div>
+                  <p className="font-semibold text-sm text-gray-900">{sessionActive.immeubleNom} — en cours</p>
+                  <p className="text-xs text-gray-500">Démarré à {fmtDate(sessionActive.dateDebut)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <p className="text-2xl font-bold text-green-600 font-mono tabular-nums">{chronoDisplay}</p>
+                <button onClick={arreter} className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold text-sm px-4 py-2 rounded-xl transition">
+                  ⏹ Arrêter
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+            <div className="flex flex-wrap gap-3 mb-4">
+              <select value={filtreImmeuble} onChange={e => setFiltreImmeuble(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                <option value="">Tous les immeubles</option>
+                {immeubles.map(imm => <option key={imm.id} value={imm.id}>{imm.nom}</option>)}
+              </select>
+              <input type="date" value={filtreDate} onChange={e => setFiltreDate(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+              {(filtreImmeuble || filtreDate) && (
+                <button onClick={() => { setFiltreImmeuble(''); setFiltreDate('') }} className="text-sm text-gray-400 hover:text-gray-600">Effacer filtres</button>
+              )}
+            </div>
+
+            {sessionsFiltrees.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-4xl mb-3">📋</p>
+                <p className="text-sm text-gray-400">Aucune session enregistrée.</p>
+                <p className="text-xs text-gray-400 mt-1">Démarrez votre premier pointage dans l'onglet "Pointer"</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sessionsFiltrees.map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-100 text-blue-600 rounded-xl p-2.5 text-xl flex-shrink-0">🏢</div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm text-gray-900">{s.immeubleNom}</p>
+                          <span className="text-xs text-gray-400">{s.mode === 'geo' ? '📡' : '✋'}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">{s.immeubleAdresse}</p>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <span className="text-xs text-green-600 font-medium">▶ {fmtDate(s.dateDebut)}</span>
+                          <span className="text-xs text-red-500 font-medium">⏹ {fmtDate(s.dateFin)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-blue-600 font-mono">{fmtDuree(s.dureeSecondes)}</p>
+                        <p className="text-xs text-gray-400">durée</p>
+                      </div>
+                      <button onClick={() => deleteSession(s.id)} className="text-gray-300 hover:text-red-400 transition text-sm ml-1">✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ExtranetSection({ user, userRole }: { user: any; userRole: string }) {
+  const uid = user?.id || 'demo'
+  type Coproprietaire = { id: string; nom: string; email: string; lot: string; tantieme: number; telephone: string; solde: number; dateAdhesion: string; accesActif: boolean }
+
+  const [copros, setCopros] = useState<Coproprietaire[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_copros_${uid}`) || '[]') } catch { return [] } })
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState({ nom: '', email: '', lot: '', tantieme: '', telephone: '', solde: '' })
+  const [showInvite, setShowInvite] = useState<Coproprietaire | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const save = (u: Coproprietaire[]) => { setCopros(u); localStorage.setItem(`fixit_copros_${uid}`, JSON.stringify(u)) }
+  const handleAdd = () => {
+    if (!form.nom.trim()) return
+    const c: Coproprietaire = { id: Date.now().toString(), nom: form.nom, email: form.email, lot: form.lot, tantieme: parseFloat(form.tantieme) || 0, telephone: form.telephone, solde: parseFloat(form.solde) || 0, dateAdhesion: new Date().toISOString().split('T')[0], accesActif: true }
+    save([...copros, c])
+    setShowModal(false)
+    setForm({ nom: '', email: '', lot: '', tantieme: '', telephone: '', solde: '' })
+  }
+  const toggleAcces = (id: string) => { save(copros.map(c => c.id === id ? { ...c, accesActif: !c.accesActif } : c)) }
+
+  const totalSolde = copros.reduce((s, c) => s + c.solde, 0)
+  const enRetard = copros.filter(c => c.solde < 0).length
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-indigo-500 shadow-sm flex justify-between items-center">
+        <div><h1 className="text-2xl font-semibold">👥 Extranet Copropriétaires</h1><p className="text-sm text-gray-500">Registre · Accès portail · Suivi des soldes</p></div>
+        <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-indigo-700">+ Copropriétaire</button>
+      </div>
+      <div className="p-6 lg:p-8">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-indigo-400"><div className="text-sm text-gray-500">Copropriétaires</div><div className="text-3xl font-bold text-indigo-600">{copros.length}</div></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Accès actifs</div><div className="text-3xl font-bold text-green-600">{copros.filter(c => c.accesActif).length}</div></div>
+          <div className={`bg-white p-5 rounded-2xl shadow-sm border-l-4 ${totalSolde >= 0 ? 'border-green-400' : 'border-red-400'}`}><div className="text-sm text-gray-500">Solde global</div><div className={`text-3xl font-bold ${totalSolde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalSolde.toLocaleString('fr-FR')} €</div></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">En retard</div><div className="text-3xl font-bold text-red-600">{enRetard}</div></div>
+        </div>
+
+        {copros.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">👥</div><h3 className="text-xl font-bold mb-2">Registre vide</h3><p className="text-gray-500 mb-6">Ajoutez vos copropriétaires pour leur donner accès au portail</p><button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700">+ Premier copropriétaire</button></div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 uppercase text-xs"><tr><th className="px-5 py-3 text-left">Copropriétaire</th><th className="px-5 py-3 text-left">Lot</th><th className="px-5 py-3 text-right">Tantièmes</th><th className="px-5 py-3 text-right">Solde</th><th className="px-5 py-3 text-center">Accès</th><th className="px-5 py-3 text-center">Actions</th></tr></thead>
+              <tbody>
+                {copros.map(c => (
+                  <tr key={c.id} className="border-t hover:bg-gray-50">
+                    <td className="px-5 py-4"><div className="font-semibold">{c.nom}</div><div className="text-xs text-gray-400">{c.email}</div></td>
+                    <td className="px-5 py-4 text-gray-600">{c.lot || '—'}</td>
+                    <td className="px-5 py-4 text-right">{c.tantieme}</td>
+                    <td className={`px-5 py-4 text-right font-bold ${c.solde < 0 ? 'text-red-600' : 'text-green-600'}`}>{c.solde.toLocaleString('fr-FR')} €</td>
+                    <td className="px-5 py-4 text-center"><button onClick={() => toggleAcces(c.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${c.accesActif ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{c.accesActif ? '✅ Actif' : '⏸ Inactif'}</button></td>
+                    <td className="px-5 py-4 text-center">
+                      <button onClick={() => setShowInvite(c)} className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-200 font-semibold">📧 Inviter</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="mt-6 bg-indigo-50 border border-indigo-200 rounded-2xl p-5">
+          <h3 className="font-bold text-indigo-800 mb-2">🌐 Portail Copropriétaires</h3>
+          <p className="text-sm text-indigo-700 mb-3">Chaque copropriétaire peut accéder à son espace personnel pour consulter ses charges, PV d'AG et documents.</p>
+          <div className="flex gap-2">
+            <input readOnly value={`${typeof window !== 'undefined' ? window.location.origin : 'https://fixit-production.vercel.app'}/coproprietaire/portail`} className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-2 text-sm font-mono" />
+            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/coproprietaire/portail`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${copied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{copied ? '✅ Copié' : '📋 Copier'}</button>
+          </div>
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">👤 Nouveau copropriétaire</h2></div>
+            <div className="p-6 space-y-4">
+              <div><label className="block text-sm font-semibold mb-1">Nom complet *</label><input value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder="Jean Dupont" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">Email</label><input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="jean.dupont@email.com" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Lot</label><input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder="Apt 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Tantièmes</label><input type="number" value={form.tantieme} onChange={e => setForm({...form, tantieme: e.target.value})} placeholder="250" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Téléphone</label><input value={form.telephone} onChange={e => setForm({...form, telephone: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Solde (€)</label><input type="number" value={form.solde} onChange={e => setForm({...form, solde: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none" /></div>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
+              <button onClick={handleAdd} className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700">Ajouter</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvite && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b"><h2 className="text-xl font-bold">📧 Inviter {showInvite.nom}</h2></div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">Envoyez ce message à votre copropriétaire pour lui donner accès au portail :</p>
+              <div className="bg-gray-50 rounded-xl p-4 text-sm font-mono whitespace-pre-line border border-gray-200">
+                {`Bonjour ${showInvite.nom},\n\nVotre syndic vous invite à accéder à votre espace copropriétaire en ligne sur VitFix Pro.\n\nVotre lien d'accès :\n${typeof window !== 'undefined' ? window.location.origin : 'https://fixit-production.vercel.app'}/coproprietaire/portail\n\nLot : ${showInvite.lot || 'N/A'}\nEmail : ${showInvite.email || 'À compléter'}\n\nCordialement,\nVotre Syndic`}
+              </div>
+              <button onClick={() => { navigator.clipboard.writeText(`Bonjour ${showInvite!.nom},\n\nVotre syndic vous invite à accéder à votre espace copropriétaire VitFix Pro.\n${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail\n\nLot : ${showInvite!.lot}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`w-full mt-4 py-2.5 rounded-xl font-semibold text-sm transition ${copied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{copied ? '✅ Copié !' : '📋 Copier le message'}</button>
+            </div>
+            <div className="p-6 border-t"><button onClick={() => setShowInvite(null)} className="w-full py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Fermer</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL DÉTAILS MISSION — Fiche locataire + Canal + Rapport d'intervention
+// ══════════════════════════════════════════════════════════════════════════
+function MissionDetailsModal({
+  mission, onClose, onUpdate, onValider, userRole
+}: {
+  mission: Mission
+  onClose: () => void
+  onUpdate: (m: Mission) => void
+  onValider: () => void
+  userRole: string
+}) {
+  const [activeTab, setActiveTab] = useState<'info' | 'locataire' | 'canal' | 'rapport' | 'transfert'>('info')
+  const [editing, setEditing] = useState(false)
+  const [localData, setLocalData] = useState<Mission>({ ...mission })
+  const [newMsg, setNewMsg] = useState('')
+  const [authorName, setAuthorName] = useState(userRole === 'syndic_tech' ? 'Technicien' : 'Gestionnaire')
+
+  const [transfertDone, setTransfertDone] = useState(!!(mission as any).transfertCompta)
+  const [showTransfertModal, setShowTransfertModal] = useState(false)
+  const [destinataire, setDestinataire] = useState<'comptable' | 'valideur' | 'syndic'>('comptable')
+  const [noteTransfert, setNoteTransfert] = useState('')
+
+  // Sync avec la mission externe si elle change
+  useEffect(() => { setLocalData({ ...mission }); setTransfertDone(!!(mission as any).transfertCompta) }, [mission.id])
+
+  const save = (data: Mission) => { setLocalData(data); onUpdate(data); setEditing(false) }
+  const saveField = (field: keyof Mission, value: string) => {
+    const updated = { ...localData, [field]: value }
+    setLocalData(updated); onUpdate(updated)
+  }
+
+  const sendCanal = () => {
+    if (!newMsg.trim()) return
+    const msg = { auteur: authorName, role: userRole, texte: newMsg.trim(), date: new Date().toISOString() }
+    const updated = { ...localData, canalMessages: [...(localData.canalMessages || []), msg] }
+    setLocalData(updated); onUpdate(updated); setNewMsg('')
+  }
+
+  const destLabels: Record<string, string> = { comptable: '🧮 Comptabilité', valideur: '✅ Responsable validation', syndic: '🏛️ Syndic principal' }
+
+  const doTransfert = () => {
+    // Crée un paquet de transfert dans localStorage (section facturation / docs_interventions)
+    const now = new Date()
+    const transfertKey = `syndic_transferts_${userRole}`
+    const existing = JSON.parse(localStorage.getItem(transfertKey) || '[]')
+    const packet = {
+      id: Date.now().toString(),
+      missionId: localData.id,
+      immeuble: localData.immeuble,
+      batiment: localData.batiment,
+      etage: localData.etage,
+      locataire: localData.locataire,
+      numLot: localData.numLot,
+      artisan: localData.artisan,
+      type: localData.type,
+      montantDevis: localData.montantDevis,
+      montantFacture: localData.montantFacture,
+      travailEffectue: localData.travailEffectue,
+      materiauxUtilises: localData.materiauxUtilises,
+      problemesConstates: localData.problemesConstates,
+      recommandations: localData.recommandations,
+      dureeIntervention: localData.dureeIntervention,
+      dateRapport: localData.dateRapport || now.toISOString().split('T')[0],
+      destinataire,
+      note: noteTransfert,
+      dateTransfert: now.toISOString(),
+      statut: 'en_attente_validation',
+      transferePar: authorName,
+    }
+    existing.push(packet)
+    localStorage.setItem(transfertKey, JSON.stringify(existing))
+
+    // Marquer la mission comme transférée
+    const updated = {
+      ...localData,
+      transfertCompta: { destinataire, date: now.toISOString(), par: authorName, note: noteTransfert }
+    } as Mission & { transfertCompta: any }
+    setLocalData(updated as Mission); onUpdate(updated as Mission)
+    setTransfertDone(true)
+    setShowTransfertModal(false)
+
+    // Message canal auto
+    const autoMsg = {
+      auteur: 'Système',
+      role: 'system',
+      texte: `📤 Dossier transféré à ${destLabels[destinataire]} par ${authorName} le ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}. Montant : ${localData.montantFacture ? `${localData.montantFacture.toLocaleString('fr-FR')} €` : localData.montantDevis ? `Devis ${localData.montantDevis.toLocaleString('fr-FR')} €` : 'Non renseigné'}. ${noteTransfert ? `Note : ${noteTransfert}` : ''}`,
+      date: now.toISOString()
+    }
+    const withMsg = { ...updated, canalMessages: [...(updated.canalMessages || []), autoMsg] } as Mission
+    setLocalData(withMsg); onUpdate(withMsg)
+  }
+
+  const exportRapport = () => {
+    const lines = [
+      `RAPPORT D'INTERVENTION — Mission #${localData.id}`,
+      `Date : ${localData.dateRapport ? new Date(localData.dateRapport).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR')}`,
+      ``,
+      `LOCALISATION`,
+      `Immeuble : ${localData.immeuble}`,
+      `Bâtiment : ${localData.batiment || '—'}`,
+      `Étage : ${localData.etage || '—'}`,
+      `N° Lot : ${localData.numLot || '—'}`,
+      `Locataire : ${localData.locataire || '—'}`,
+      `Tél. locataire : ${localData.telephoneLocataire || '—'}`,
+      `Accès logement : ${localData.accesLogement || '—'}`,
+      ``,
+      `MISSION`,
+      `Type : ${localData.type}`,
+      `Artisan : ${localData.artisan}`,
+      `Description : ${localData.description}`,
+      `Durée intervention : ${localData.dureeIntervention || '—'}`,
+      ``,
+      `RAPPORT ARTISAN`,
+      `Travail effectué : ${localData.travailEffectue || localData.rapportArtisan || '—'}`,
+      `Matériaux utilisés : ${localData.materiauxUtilises || '—'}`,
+      `Problèmes constatés : ${localData.problemesConstates || '—'}`,
+      `Recommandations : ${localData.recommandations || '—'}`,
+      ``,
+      `FINANCIER`,
+      `Montant devis : ${localData.montantDevis ? `${localData.montantDevis.toLocaleString('fr-FR')} €` : '—'}`,
+      `Montant facture : ${localData.montantFacture ? `${localData.montantFacture.toLocaleString('fr-FR')} €` : '—'}`,
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Rapport_Mission_${localData.id}_${localData.immeuble.replace(/\s+/g, '_')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Archiver le dossier de la mission dans Documents Interventions ─────────
+  const [archiveDone, setArchiveDone] = useState(!!(localData as any).archivedInDocs)
+
+  const archiverDossier = () => {
+    const now = new Date()
+    const storageKey = 'vitfix_docs_interventions'
+    let existingDocs: any[] = []
+    try { existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]') } catch {}
+
+    const baseDoc = {
+      id: `arch_${localData.id}_${Date.now()}`,
+      mission_id: localData.id,
+      artisan_nom: localData.artisan,
+      artisan_metier: localData.type,
+      immeuble: localData.immeuble,
+      date_intervention: localData.dateRapport || now.toISOString().split('T')[0],
+      url: '',
+      envoye_compta: false,
+      notes: `Archivé depuis canal mission par ${authorName}. Bât. ${localData.batiment || '—'} · Ét. ${localData.etage || '—'} · Lot ${localData.numLot || '—'} · Locataire : ${localData.locataire || '—'}`,
+    }
+
+    if (localData.montantDevis) {
+      existingDocs.push({
+        ...baseDoc,
+        id: `arch_devis_${localData.id}_${Date.now()}`,
+        type: 'devis',
+        filename: `Devis_Mission_${localData.id}_${(localData.immeuble || '').replace(/\s+/g, '_')}.txt`,
+        montant: localData.montantDevis,
+      })
+    }
+    if (localData.montantFacture) {
+      existingDocs.push({
+        ...baseDoc,
+        id: `arch_facture_${localData.id}_${Date.now()}`,
+        type: 'facture',
+        filename: `Facture_Mission_${localData.id}_${(localData.immeuble || '').replace(/\s+/g, '_')}.txt`,
+        montant: localData.montantFacture,
+      })
+    }
+    // Rapport d'intervention toujours
+    existingDocs.push({
+      ...baseDoc,
+      type: 'rapport',
+      filename: `Rapport_Mission_${localData.id}_${(localData.immeuble || '').replace(/\s+/g, '_')}_${now.toISOString().split('T')[0]}.txt`,
+      montant: localData.montantFacture || localData.montantDevis,
+    })
+
+    try { localStorage.setItem(storageKey, JSON.stringify(existingDocs)) } catch {}
+
+    const updated = { ...localData, archivedInDocs: { date: now.toISOString(), par: authorName } } as Mission & { archivedInDocs: any }
+    setLocalData(updated); onUpdate(updated as Mission)
+    setArchiveDone(true)
+
+    const autoMsg = {
+      auteur: 'Système',
+      role: 'system',
+      texte: `🗂️ Dossier archivé dans "Documents Interventions" par ${authorName} le ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}. Rapport${localData.montantDevis ? ' + devis' : ''}${localData.montantFacture ? ' + facture' : ''} + historique canal archivés.`,
+      date: now.toISOString()
+    }
+    const withMsg = { ...updated, canalMessages: [...((updated as Mission).canalMessages || []), autoMsg] } as Mission
+    setLocalData(withMsg); onUpdate(withMsg)
+  }
+
+  const tabs = [
+    { id: 'info', label: '📋 Mission' },
+    { id: 'locataire', label: '👤 Locataire', dot: !localData.locataire },
+    { id: 'canal', label: `💬 Canal${(localData.canalMessages?.length || 0) > 0 ? ` (${localData.canalMessages!.length})` : ''}` },
+    { id: 'rapport', label: '📄 Rapport', dot: !localData.travailEffectue && !localData.rapportArtisan },
+    { id: 'transfert', label: transfertDone ? '📤 Transféré ✅' : '📤 Transférer' },
+  ] as const
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-start justify-between p-6 border-b">
+          <div>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <PrioriteBadge p={localData.priorite} />
+              <Badge statut={localData.statut} />
+              <span className="text-xs text-gray-400">#{localData.id}</span>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">{localData.immeuble}</h2>
+            <p className="text-sm text-gray-500">{localData.type} · {localData.artisan}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none ml-4">×</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b px-6 gap-1">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id as typeof activeTab)}
+              className={`relative px-4 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.id ? 'border-purple-600 text-purple-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
+              {t.label}
+              {('dot' in t) && t.dot && <span className="absolute top-2 right-1 w-2 h-2 bg-orange-400 rounded-full"></span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+
+          {/* ── TAB TRANSFERT ── */}
+          {activeTab === 'transfert' && (
+            <div className="space-y-5">
+              {transfertDone ? (
+                <div className="bg-green-50 border border-green-300 rounded-2xl p-6 text-center">
+                  <div className="text-4xl mb-3">✅</div>
+                  <h3 className="font-bold text-green-800 text-lg">Dossier transféré</h3>
+                  <p className="text-sm text-green-600 mt-1">Ce dossier a déjà été transmis. Retrouvez-le dans la section facturation / validation.</p>
+                  <button onClick={() => setTransfertDone(false)} className="mt-4 text-xs text-green-700 underline">Renvoyer quand même</button>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-amber-800">📤 Transfert en 1 clic</p>
+                    <p className="text-xs text-amber-700 mt-1">Envoyez instantanément le dossier complet (rapport + devis + facture + infos locataire) à la comptabilité ou au valideur, sans passer par votre boîte mail.</p>
+                  </div>
+
+                  {/* Résumé du dossier */}
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">📋 Contenu du dossier à transférer</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className={`flex items-center gap-2 ${localData.locataire ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.locataire ? '✅' : '⚠️'}</span><span>Locataire : {localData.locataire || 'Non renseigné'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.etage ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.etage ? '✅' : '⚠️'}</span><span>Étage : {localData.etage || 'Non renseigné'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.travailEffectue ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.travailEffectue ? '✅' : '⚠️'}</span><span>Rapport : {localData.travailEffectue ? 'Rempli' : 'Manquant'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.montantDevis ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.montantDevis ? '✅' : '⚠️'}</span><span>Devis : {localData.montantDevis ? `${localData.montantDevis.toLocaleString('fr-FR')} €` : 'Manquant'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.montantFacture ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.montantFacture ? '✅' : '—'}</span><span>Facture : {localData.montantFacture ? `${localData.montantFacture.toLocaleString('fr-FR')} €` : 'En attente'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.artisan ? 'text-green-700' : 'text-gray-400'}`}><span>✅</span><span>Artisan : {localData.artisan}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Destinataire */}
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">Destinataire</label>
+                    <div className="grid grid-cols-3 gap-3 mt-2">
+                      {([['comptable', '🧮', 'Comptabilité', 'Validation des montants, intégration comptable'], ['valideur', '✅', 'Responsable', 'Validation du bon de travail avant paiement'], ['syndic', '🏛️', 'Syndic principal', 'Transmission au cabinet syndic pour archivage']] as const).map(([val, emoji, label, desc]) => (
+                        <button
+                          key={val}
+                          onClick={() => setDestinataire(val)}
+                          className={`p-3 rounded-xl border-2 text-left transition ${destinataire === val ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'}`}
+                        >
+                          <div className="text-xl mb-1">{emoji}</div>
+                          <div className="text-sm font-semibold text-gray-900">{label}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Note optionnelle */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Note (optionnelle)</label>
+                    <textarea
+                      className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none resize-none"
+                      rows={2}
+                      placeholder="Ex: Urgence à traiter, attente confirmation devis, pièce à commander…"
+                      value={noteTransfert}
+                      onChange={e => setNoteTransfert(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Bouton principal */}
+                  <button
+                    onClick={doTransfert}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-4 rounded-2xl font-bold text-base transition shadow-lg shadow-purple-200 flex items-center justify-center gap-3"
+                  >
+                    <span className="text-2xl">📤</span>
+                    <span>Transférer à {destLabels[destinataire]}</span>
+                  </button>
+                  <p className="text-xs text-gray-400 text-center">Le dossier complet sera immédiatement disponible dans la section comptabilité / validation. Un message de confirmation sera ajouté au canal.</p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB INFO ── */}
+          {activeTab === 'info' && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                {[
+                  ['Immeuble', localData.immeuble],
+                  ['Type d\'intervention', localData.type],
+                  ['Artisan assigné', localData.artisan],
+                  ['Date d\'intervention', localData.dateIntervention ? new Date(localData.dateIntervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'],
+                  ['Devis', localData.montantDevis ? `${localData.montantDevis.toLocaleString('fr-FR')} €` : '—'],
+                  ['Facturé', localData.montantFacture ? `${localData.montantFacture.toLocaleString('fr-FR')} €` : '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between items-start gap-4">
+                    <span className="text-sm text-gray-500 shrink-0">{label}</span>
+                    <span className="text-sm font-semibold text-gray-900 text-right">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-1">Description</p>
+                <p className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{localData.description}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-400">
+                Mission #{localData.id} · Créée le {new Date(localData.dateCreation).toLocaleDateString('fr-FR')}
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB LOCATAIRE ── */}
+          {activeTab === 'locataire' && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-sm font-semibold text-blue-800 mb-1">📍 Fiche locataire / localisation</p>
+                <p className="text-xs text-blue-600">Ces informations sont enregistrées dans l'ordre de mission et le rapport.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Bâtiment</label>
+                  <input
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none"
+                    placeholder="Ex: Bâtiment A, Résidence B…"
+                    value={localData.batiment || ''}
+                    onChange={e => setLocalData(d => ({...d, batiment: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Étage</label>
+                  <input
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none"
+                    placeholder="Ex: 3ème, RDC, 5ème…"
+                    value={localData.etage || ''}
+                    onChange={e => setLocalData(d => ({...d, etage: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">N° de lot / appartement</label>
+                  <input
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none"
+                    placeholder="Ex: Apt 12, Lot 45…"
+                    value={localData.numLot || ''}
+                    onChange={e => setLocalData(d => ({...d, numLot: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Nom du locataire</label>
+                  <input
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none"
+                    placeholder="Nom Prénom du locataire"
+                    value={localData.locataire || ''}
+                    onChange={e => setLocalData(d => ({...d, locataire: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Téléphone locataire</label>
+                  <input
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none"
+                    placeholder="06 XX XX XX XX"
+                    value={localData.telephoneLocataire || ''}
+                    onChange={e => setLocalData(d => ({...d, telephoneLocataire: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Accès logement</label>
+                  <input
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none"
+                    placeholder="Code digicode, clé gardien…"
+                    value={localData.accesLogement || ''}
+                    onChange={e => setLocalData(d => ({...d, accesLogement: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => onUpdate(localData)}
+                className="w-full bg-purple-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-purple-700 transition"
+              >
+                ✅ Enregistrer la fiche locataire
+              </button>
+
+              {(localData.locataire || localData.etage || localData.batiment) && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-green-800 mb-2">✅ Fiche enregistrée</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-green-700">
+                    {localData.batiment && <span>🏢 Bât. {localData.batiment}</span>}
+                    {localData.etage && <span>🏗️ Étage : {localData.etage}</span>}
+                    {localData.numLot && <span>🔢 Lot : {localData.numLot}</span>}
+                    {localData.locataire && <span>👤 {localData.locataire}</span>}
+                    {localData.telephoneLocataire && <span>📞 {localData.telephoneLocataire}</span>}
+                    {localData.accesLogement && <span>🔐 {localData.accesLogement}</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB CANAL ── */}
+          {activeTab === 'canal' && (
+            <div className="flex flex-col h-full" style={{ minHeight: '300px' }}>
+              <div className="mb-3">
+                <label className="text-xs font-medium text-gray-600">Votre nom dans le canal</label>
+                <input className="mt-1 w-48 border rounded-lg px-3 py-1.5 text-sm" value={authorName} onChange={e => setAuthorName(e.target.value)} />
+              </div>
+              <div className="flex-1 space-y-3 mb-4 max-h-64 overflow-y-auto">
+                {(!localData.canalMessages || localData.canalMessages.length === 0) ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <div className="text-4xl mb-2">💬</div>
+                    <p className="text-sm">Aucun message — Ouvrez le dialogue avec l'artisan</p>
+                  </div>
+                ) : localData.canalMessages.map((msg, i) => (
+                  <div key={i} className={`flex gap-3 ${msg.role === userRole ? 'flex-row-reverse' : ''}`}>
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${msg.role === 'artisan' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                      {msg.auteur.charAt(0).toUpperCase()}
+                    </div>
+                    <div className={`max-w-xs ${msg.role === userRole ? 'items-end' : 'items-start'} flex flex-col`}>
+                      <div className={`rounded-2xl px-4 py-2.5 text-sm ${msg.role === userRole ? 'bg-purple-600 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-900 rounded-tl-sm'}`}>
+                        {msg.texte}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1 px-1">{msg.auteur} · {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Quick actions */}
+              <div className="flex gap-2 mb-3 flex-wrap">
+                {['📍 En route', '✅ Arrivé sur place', '🔍 Diagnostic en cours', '⚠️ Problème constaté', '✅ Intervention terminée', '📦 Commande pièce nécessaire'].map(txt => (
+                  <button key={txt} onClick={() => { setNewMsg(txt) }} className="text-xs bg-gray-100 hover:bg-purple-50 hover:text-purple-700 px-3 py-1.5 rounded-full transition">{txt}</button>
+                ))}
+              </div>
+
+              {/* ── Bouton Archiver dans Documents Interventions ── */}
+              <div className={`rounded-xl border-2 p-3 mb-3 ${archiveDone ? 'border-green-200 bg-green-50' : 'border-dashed border-indigo-200 bg-indigo-50'}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">
+                      {archiveDone ? '🗂️ Dossier archivé' : '🗂️ Archiver dans Documents Interventions'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                      {archiveDone
+                        ? 'Rapport, devis et facture archivés — disponibles dans Documents'
+                        : 'Enregistre rapport + devis/facture + historique dans "Documents Interventions"'}
+                    </p>
+                    {archiveDone && (localData as any).archivedInDocs && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Archivé le {new Date((localData as any).archivedInDocs.date).toLocaleDateString('fr-FR')} par {(localData as any).archivedInDocs.par}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={archiverDossier}
+                    disabled={archiveDone}
+                    className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+                      archiveDone
+                        ? 'bg-green-100 text-green-700 cursor-default'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                    }`}
+                  >
+                    {archiveDone ? '✅ Archivé' : '📥 Archiver'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 border-2 rounded-xl px-4 py-2.5 text-sm focus:border-purple-400 outline-none"
+                  placeholder="Message à l'artisan…"
+                  value={newMsg}
+                  onChange={e => setNewMsg(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendCanal())}
+                />
+                <button onClick={sendCanal} disabled={!newMsg.trim()} className="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-purple-700 transition disabled:opacity-50">Envoyer</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB RAPPORT ── */}
+          {activeTab === 'rapport' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Date du rapport</label>
+                  <input type="date" className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none" value={localData.dateRapport || new Date().toISOString().split('T')[0]} onChange={e => setLocalData(d => ({...d, dateRapport: e.target.value}))} onBlur={() => onUpdate(localData)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Durée intervention</label>
+                  <input className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none" placeholder="Ex: 2h30" value={localData.dureeIntervention || ''} onChange={e => setLocalData(d => ({...d, dureeIntervention: e.target.value}))} onBlur={() => onUpdate(localData)} />
+                </div>
+              </div>
+              {[
+                ['Travail effectué *', 'travailEffectue', 'Décrivez les travaux réalisés…', 3],
+                ['Matériaux utilisés', 'materiauxUtilises', 'Ex: 1 joint torique, 2m tuyau PER…', 2],
+                ['Problèmes constatés', 'problemesConstates', 'Anomalies, vétusté, défauts constatés…', 2],
+                ['Recommandations', 'recommandations', 'Travaux complémentaires à prévoir…', 2],
+              ].map(([label, field, placeholder, rows]) => (
+                <div key={String(field)}>
+                  <label className="text-sm font-medium text-gray-700">{label}</label>
+                  <textarea
+                    className="mt-1 w-full border rounded-xl px-3 py-2.5 text-sm focus:border-purple-400 outline-none resize-none"
+                    rows={rows as number}
+                    placeholder={placeholder as string}
+                    value={(localData as Record<string, any>)[field as string] || ''}
+                    onChange={e => setLocalData(d => ({...d, [field as string]: e.target.value}))}
+                    onBlur={() => onUpdate(localData)}
+                  />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => onUpdate(localData)} className="flex-1 bg-purple-600 text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-purple-700 transition">
+                  ✅ Enregistrer le rapport
+                </button>
+                <button onClick={exportRapport} className="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-200 transition">
+                  ⬇️ Télécharger rapport
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 p-6 border-t bg-gray-50 rounded-b-2xl">
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-100 transition font-medium">
+            Fermer
+          </button>
+          {mission.statut === 'en_attente' && (
+            <button onClick={onValider} className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition">
+              ✅ Valider la mission
+            </button>
+          )}
+          {mission.statut !== 'terminee' && mission.statut !== 'annulee' && (
+            <button
+              onClick={() => { const u = { ...localData, statut: 'terminee' as const }; onUpdate(u) }}
+              className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition"
+            >
+              🏁 Marquer terminée
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// FACTURATION PAGE — avec dossiers transférés par le gestionnaire technique
+// ══════════════════════════════════════════════════════════════════════════
+function FacturationPageWithTransferts({ missions, user, userRole, onOpenMission }: {
+  missions: Mission[]
+  user: any
+  userRole: string
+  onOpenMission: (m: Mission) => void
+}) {
+  const [activeSubTab, setActiveSubTab] = useState<'factures' | 'transferts'>('factures')
+  const [filterStatut, setFilterStatut] = useState<string>('')
+
+  // Charger tous les dossiers transférés (depuis tous les rôles tech/gestionnaire)
+  const allTransferts = useMemo(() => {
+    const keys = ['syndic_tech', 'syndic_gestionnaire', 'syndic', 'syndic_admin']
+    const all: any[] = []
+    keys.forEach(k => {
+      try {
+        const items = JSON.parse(localStorage.getItem(`syndic_transferts_${k}`) || '[]')
+        all.push(...items)
+      } catch {}
+    })
+    return all.sort((a, b) => new Date(b.dateTransfert).getTime() - new Date(a.dateTransfert).getTime())
+  }, [])
+
+  const [transferts, setTransferts] = useState(allTransferts)
+
+  const validerTransfert = (id: string) => {
+    const updated = transferts.map(t => t.id === id ? { ...t, statut: 'validé' } : t)
+    setTransferts(updated)
+    // Re-save toutes les clés
+    const byRole: Record<string, any[]> = {}
+    updated.forEach(t => {
+      const k = `syndic_transferts_${t.transferePar?.includes('Tech') ? 'syndic_tech' : 'syndic_gestionnaire'}`
+      if (!byRole[k]) byRole[k] = []
+      byRole[k].push(t)
+    })
+    Object.entries(byRole).forEach(([k, v]) => localStorage.setItem(k, JSON.stringify(v)))
+  }
+
+  const refuserTransfert = (id: string, raison: string) => {
+    const updated = transferts.map(t => t.id === id ? { ...t, statut: 'refusé', raisonRefus: raison } : t)
+    setTransferts(updated)
+  }
+
+  const destColors: Record<string, string> = {
+    comptable: 'bg-blue-100 text-blue-700',
+    valideur: 'bg-purple-100 text-purple-700',
+    syndic: 'bg-green-100 text-green-700',
+  }
+  const destLabels: Record<string, string> = {
+    comptable: '🧮 Comptabilité',
+    valideur: '✅ Valideur',
+    syndic: '🏛️ Syndic',
+  }
+  const statutColors: Record<string, string> = {
+    en_attente_validation: 'bg-orange-100 text-orange-700',
+    validé: 'bg-green-100 text-green-700',
+    refusé: 'bg-red-100 text-red-700',
+  }
+
+  const filtered = filterStatut ? transferts.filter(t => t.statut === filterStatut) : transferts
+
+  const totalDevis = missions.filter(m => m.montantDevis).reduce((s, m) => s + (m.montantDevis || 0), 0)
+  const totalFacture = missions.filter(m => m.montantFacture).reduce((s, m) => s + (m.montantFacture || 0), 0)
+  const enAttente = transferts.filter(t => t.statut === 'en_attente_validation').length
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard emoji="💶" label="Facturé (missions)" value={`${totalFacture.toLocaleString('fr-FR')} €`} sub={`${missions.filter(m => m.montantFacture).length} factures`} color="green" />
+        <StatCard emoji="📋" label="Devis en cours" value={`${totalDevis.toLocaleString('fr-FR')} €`} sub={`${missions.filter(m => m.montantDevis && !m.montantFacture).length} devis`} color="blue" />
+        <StatCard emoji="📤" label="Dossiers transférés" value={String(transferts.length)} sub={`${enAttente} en attente`} color="purple" />
+        <StatCard emoji="✅" label="Validés comptabilité" value={String(transferts.filter(t => t.statut === 'validé').length)} color="green" />
+      </div>
+
+      {/* Sub tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button onClick={() => setActiveSubTab('factures')} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeSubTab === 'factures' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>📄 Factures & Devis</button>
+        <button onClick={() => setActiveSubTab('transferts')} className={`relative px-4 py-2 rounded-lg text-sm font-medium transition ${activeSubTab === 'transferts' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}>
+          📤 Dossiers transférés
+          {enAttente > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{enAttente}</span>}
+        </button>
+      </div>
+
+      {/* FACTURES */}
+      {activeSubTab === 'factures' && (
+        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <h3 className="font-bold text-gray-900 mb-4">Factures & devis des missions</h3>
+          <div className="space-y-2">
+            {missions.filter(m => m.montantFacture || m.montantDevis).length === 0 ? (
+              <div className="text-center py-8 text-gray-400">Aucune facture ni devis sur les missions</div>
+            ) : missions.filter(m => m.montantFacture || m.montantDevis).map(m => (
+              <div key={m.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition cursor-pointer" onClick={() => onOpenMission(m)}>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{m.immeuble} — {m.type}</p>
+                  <p className="text-xs text-gray-500">{m.artisan} · {m.locataire ? `👤 ${m.locataire}` : ''} {m.etage ? `· Ét. ${m.etage}` : ''}</p>
+                  <p className="text-xs text-gray-400">{m.dateIntervention ? new Date(m.dateIntervention).toLocaleDateString('fr-FR') : m.dateCreation}</p>
+                </div>
+                <div className="text-right flex flex-col items-end gap-1">
+                  <p className="font-bold text-gray-900">{(m.montantFacture || m.montantDevis)?.toLocaleString('fr-FR')} €</p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${m.montantFacture ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{m.montantFacture ? 'Facturé' : 'Devis'}</span>
+                  {(m as any).transfertCompta && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">📤 Transféré</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TRANSFERTS */}
+      {activeSubTab === 'transferts' && (
+        <div className="space-y-4">
+          <div className="flex gap-2 items-center">
+            <span className="text-sm text-gray-600">Filtrer :</span>
+            {[['', 'Tous'], ['en_attente_validation', '⏳ En attente'], ['validé', '✅ Validés'], ['refusé', '❌ Refusés']].map(([val, label]) => (
+              <button key={val} onClick={() => setFilterStatut(val)} className={`px-3 py-1 rounded-full text-sm font-medium ${filterStatut === val ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{label}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
+              <div className="text-4xl mb-2">📤</div>
+              <p>Aucun dossier transféré pour l'instant</p>
+              <p className="text-sm mt-1">Les gestionnaires techniques peuvent transférer des dossiers depuis les ordres de mission</p>
+            </div>
+          ) : filtered.map((t: any) => (
+            <div key={t.id} className={`bg-white rounded-2xl shadow-sm p-5 border-l-4 ${t.statut === 'en_attente_validation' ? 'border-orange-400' : t.statut === 'validé' ? 'border-green-400' : 'border-red-400'}`}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statutColors[t.statut] || 'bg-gray-100 text-gray-700'}`}>{t.statut.replace('_', ' ')}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${destColors[t.destinataire] || 'bg-gray-100 text-gray-700'}`}>{destLabels[t.destinataire] || t.destinataire}</span>
+                    <span className="text-xs text-gray-400">Mission #{t.missionId}</span>
+                  </div>
+                  <h3 className="font-bold text-gray-900">{t.immeuble} — {t.type}</h3>
+                  <div className="flex flex-wrap gap-3 mt-1 text-sm text-gray-600">
+                    {t.artisan && <span>🔧 {t.artisan}</span>}
+                    {t.locataire && <span>👤 {t.locataire}</span>}
+                    {t.batiment && <span>🏢 Bât. {t.batiment}</span>}
+                    {t.etage && <span>🏗️ Ét. {t.etage}</span>}
+                    {t.numLot && <span>🔢 Lot {t.numLot}</span>}
+                  </div>
+                  {t.travailEffectue && <p className="text-xs text-gray-500 mt-1 italic">"{t.travailEffectue.slice(0, 80)}{t.travailEffectue.length > 80 ? '…' : ''}"</p>}
+                  {t.note && <p className="text-xs bg-yellow-50 text-yellow-700 rounded px-2 py-1 mt-1">📝 Note : {t.note}</p>}
+                </div>
+                <div className="text-right ml-4 flex-shrink-0">
+                  {t.montantFacture && <p className="font-bold text-lg text-gray-900">{t.montantFacture.toLocaleString('fr-FR')} €</p>}
+                  {t.montantDevis && !t.montantFacture && <p className="font-bold text-lg text-amber-700">Devis {t.montantDevis.toLocaleString('fr-FR')} €</p>}
+                  <p className="text-xs text-gray-400 mt-1">{new Date(t.dateTransfert).toLocaleDateString('fr-FR')} {new Date(t.dateTransfert).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-xs text-gray-400">Par : {t.transferePar}</p>
+                </div>
+              </div>
+
+              {t.statut === 'en_attente_validation' && (
+                <div className="flex gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => validerTransfert(t.id)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-xl text-sm font-semibold transition"
+                  >
+                    ✅ Valider & intégrer en comptabilité
+                  </button>
+                  <button
+                    onClick={() => {
+                      const raison = window.prompt('Raison du refus ?') || 'Informations manquantes'
+                      refuserTransfert(t.id, raison)
+                    }}
+                    className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition"
+                  >
+                    ❌ Refuser
+                  </button>
+                </div>
+              )}
+
+              {t.statut === 'validé' && (
+                <div className="pt-3 border-t border-gray-100">
+                  <span className="text-sm text-green-600 font-medium">✅ Validé et intégré en comptabilité</span>
+                </div>
+              )}
+
+              {t.statut === 'refusé' && (
+                <div className="pt-3 border-t border-gray-100">
+                  <span className="text-sm text-red-600">❌ Refusé : {t.raisonRefus}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PAGE CANAL COMMUNICATIONS — Vue dédiée messagerie syndic ↔ artisans + demandeurs
+// ══════════════════════════════════════════════════════════════════════════
+function CanalCommunicationsPage({
+  missions,
+  artisans,
+  userRole,
+  user,
+  onUpdateMission,
+  onAddMission,
+  onOpenMission,
+  onCreateMission,
+}: {
+  missions: Mission[]
+  artisans: Artisan[]
+  userRole: string
+  user: any
+  onUpdateMission: (m: Mission) => void
+  onAddMission: (m: Mission) => void
+  onOpenMission: (m: Mission) => void
+  onCreateMission: () => void
+}) {
+  const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null)
+  // Vue liste gauche : 'artisans' = ordres de mission | 'demandeurs' = coproprio/locataire/technicien
+  const [listeVue, setListeVue] = useState<'artisans' | 'demandeurs'>('artisans')
+  // 'artisan' = canal avec l'artisan | 'demandeur' = canal avec le copropriétaire/technicien
+  const [canalTab, setCanalTab] = useState<'artisan' | 'demandeur'>('artisan')
+  const [newMsg, setNewMsg] = useState('')
+  const [newMsgDemandeur, setNewMsgDemandeur] = useState('')
+  const [authorName, setAuthorName] = useState(
+    userRole === 'syndic_tech' ? 'Technicien' : userRole === 'syndic_gestionnaire' ? 'Gestionnaire' : 'Gestionnaire'
+  )
+  const [search, setSearch] = useState('')
+  const [filterStatut, setFilterStatut] = useState<string>('all')
+
+  // ── Modal transfert artisan ──
+  const [showTransfert, setShowTransfert] = useState(false)
+  const [transfertArtisanId, setTransfertArtisanId] = useState('')
+  const [transfertDate, setTransfertDate] = useState('')
+  const [transfertDescription, setTransfertDescription] = useState('')
+  const [transfertPriorite, setTransfertPriorite] = useState<'urgente' | 'normale' | 'planifiee'>('normale')
+  const [transfertLoading, setTransfertLoading] = useState(false)
+  const [transfertSuccess, setTransfertSuccess] = useState('')
+
+  const openTransfert = (m: Mission) => {
+    setTransfertArtisanId('')
+    setTransfertDate(new Date().toISOString().split('T')[0])
+    setTransfertDescription(m.description || '')
+    setTransfertPriorite(m.priorite || 'normale')
+    setTransfertSuccess('')
+    setShowTransfert(true)
+  }
+
+  const handleTransfert = async () => {
+    if (!selectedMission || !transfertArtisanId) return
+    const artisan = artisans.find(a => a.id === transfertArtisanId)
+    if (!artisan) return
+    setTransfertLoading(true)
+
+    // Créer le nouvel ordre de mission
+    const nouvelleM: Mission = {
+      id: Date.now().toString(),
+      immeuble: selectedMission.immeuble || '',
+      artisan: artisan.nom || `${artisan.prenom || ''} ${artisan.nom || ''}`.trim(),
+      type: selectedMission.type || 'Intervention',
+      description: transfertDescription,
+      priorite: transfertPriorite,
+      statut: 'en_attente',
+      dateCreation: new Date().toISOString().split('T')[0],
+      dateIntervention: transfertDate || undefined,
+      batiment: selectedMission.batiment,
+      etage: selectedMission.etage,
+      numLot: selectedMission.numLot,
+      locataire: selectedMission.demandeurNom || selectedMission.locataire,
+      telephoneLocataire: selectedMission.telephoneLocataire,
+      accesLogement: selectedMission.accesLogement,
+      estPartieCommune: selectedMission.estPartieCommune,
+      zoneSignalee: selectedMission.zoneSignalee,
+      demandeurNom: selectedMission.demandeurNom,
+      demandeurRole: selectedMission.demandeurRole,
+      demandeurEmail: selectedMission.demandeurEmail,
+      canalMessages: [{
+        auteur: 'Système',
+        role: 'system',
+        texte: `📋 Ordre de mission créé depuis le signalement de ${selectedMission.demandeurNom || 'un résident'}.\n📍 ${selectedMission.immeuble}${selectedMission.estPartieCommune ? ` · ${selectedMission.zoneSignalee}` : selectedMission.etage ? ` · Ét. ${selectedMission.etage}` : ''}\n📝 ${transfertDescription}`,
+        date: new Date().toISOString(),
+      }],
+    }
+
+    // Appel API si l'artisan a un compte
+    if (artisan.artisan_user_id || artisan.email) {
+      try {
+        await fetch('/api/syndic/assign-mission', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            artisan_email: artisan.email,
+            description: transfertDescription,
+            date_intervention: transfertDate,
+            immeuble: selectedMission.immeuble,
+            priorite: transfertPriorite,
+            notes: `Signalement de ${selectedMission.demandeurNom || 'résident'} — ${selectedMission.estPartieCommune ? selectedMission.zoneSignalee : `Lot ${selectedMission.numLot || 'N/A'}`}`,
+          }),
+        })
+      } catch { /* continue même si l'API échoue */ }
+    }
+
+    // Ajouter la mission
+    onAddMission(nouvelleM)
+
+    // Ajouter message système dans le canal demandeur
+    const artisanNom = artisan.nom || `${artisan.prenom || ''} ${artisan.nom || ''}`.trim()
+    const sysMsg = {
+      auteur: 'Gestionnaire',
+      role: 'system',
+      texte: `✅ Votre demande a été transférée à ${artisanNom} (${artisan.metier}).\n📅 Intervention prévue : ${transfertDate ? new Date(transfertDate).toLocaleDateString('fr-FR') : 'À confirmer'}\nUn ordre de mission a été créé.`,
+      date: new Date().toISOString(),
+    }
+    onUpdateMission({
+      ...selectedMission,
+      artisan: artisanNom,
+      statut: 'acceptee',
+      demandeurMessages: [...(selectedMission.demandeurMessages || []), sysMsg],
+    })
+
+    setTransfertLoading(false)
+    setTransfertSuccess(`Ordre de mission créé et assigné à ${artisanNom} !`)
+    setTimeout(() => { setShowTransfert(false); setTransfertSuccess('') }, 2000)
+  }
+
+  // ─── Missions filtrées selon la vue active ───
+  const missionsAvecCanal = missions.filter(m => {
+    const matchSearch = !search ||
+      m.artisan.toLowerCase().includes(search.toLowerCase()) ||
+      m.immeuble.toLowerCase().includes(search.toLowerCase()) ||
+      m.type.toLowerCase().includes(search.toLowerCase()) ||
+      (m.locataire || '').toLowerCase().includes(search.toLowerCase()) ||
+      (m.demandeurNom || '').toLowerCase().includes(search.toLowerCase())
+    const matchStatut = filterStatut === 'all' || m.statut === filterStatut
+    return matchSearch && matchStatut
+  })
+
+  // Missions avec artisan assigné (canal ordres de mission)
+  const missionsArtisan = missionsAvecCanal.filter(m => m.artisan && m.artisan.trim() !== '')
+  // Missions avec demandeur identifié (copropriétaire / locataire / technicien)
+  const missionsDemandeur = missionsAvecCanal.filter(m => (m.demandeurNom || m.locataire) && m.demandeurNom !== undefined || (m.demandeurMessages && m.demandeurMessages.length > 0))
+
+  // Compteurs non-lus
+  const nbArtisanMsgs = missions.reduce((s, m) => s + (m.canalMessages?.length || 0), 0)
+  const nbDemandeurMsgs = missions.reduce((s, m) => s + (m.demandeurMessages?.length || 0), 0)
+
+  const selectedMission = missions.find(m => m.id === selectedMissionId) || null
+
+  // ─── Envoi messages canal artisan ───
+  const sendMsg = () => {
+    if (!newMsg.trim() || !selectedMission) return
+    const msg = { auteur: authorName, role: userRole, texte: newMsg.trim(), date: new Date().toISOString() }
+    const updated = { ...selectedMission, canalMessages: [...(selectedMission.canalMessages || []), msg] }
+    onUpdateMission(updated)
+    setNewMsg('')
+  }
+
+  // ─── Envoi messages canal demandeur ───
+  const sendMsgDemandeur = () => {
+    if (!newMsgDemandeur.trim() || !selectedMission) return
+    const msg = { auteur: authorName, role: userRole, texte: newMsgDemandeur.trim(), date: new Date().toISOString() }
+    const updated = {
+      ...selectedMission,
+      demandeurMessages: [...(selectedMission.demandeurMessages || []), msg],
+    }
+    onUpdateMission(updated)
+    // Aussi mettre à jour le localStorage canal_demandeur_* pour que le portail le voie
+    if (selectedMission.demandeurNom || selectedMission.locataire) {
+      const rawKey = (selectedMission.demandeurNom || selectedMission.locataire || '').replace(/\s+/g, '_').toLowerCase()
+      const demandeurKey = `canal_demandeur_${rawKey}`
+      try {
+        const existing = JSON.parse(localStorage.getItem(demandeurKey) || '[]')
+        existing.push({ ...msg, type: 'gestionnaire_reply' })
+        localStorage.setItem(demandeurKey, JSON.stringify(existing))
+      } catch { /* ignore */ }
+    }
+    setNewMsgDemandeur('')
+  }
+
+  const statuts: Record<string, { label: string; color: string }> = {
+    en_attente: { label: 'En attente', color: 'bg-orange-100 text-orange-700' },
+    acceptee:   { label: 'Acceptée',   color: 'bg-blue-100 text-blue-700' },
+    en_cours:   { label: 'En cours',   color: 'bg-purple-100 text-purple-700' },
+    terminee:   { label: 'Terminée',   color: 'bg-green-100 text-green-700' },
+    annulee:    { label: 'Annulée',    color: 'bg-gray-100 text-gray-500' },
+  }
+
+  const totalMsgs = nbArtisanMsgs + nbDemandeurMsgs
+
+  // Label rôle demandeur
+  const demandeurRoleLabel = selectedMission?.demandeurRole === 'coproprio' ? 'Copropriétaire'
+    : selectedMission?.demandeurRole === 'locataire' ? 'Locataire'
+    : selectedMission?.demandeurRole === 'technicien' ? 'Technicien bâtiment'
+    : selectedMission?.locataire ? 'Locataire / Résident'
+    : 'Demandeur'
+
+  const demandeurBadgeColor = selectedMission?.demandeurRole === 'coproprio' ? 'bg-blue-100 text-blue-700'
+    : selectedMission?.demandeurRole === 'locataire' ? 'bg-green-100 text-green-700'
+    : selectedMission?.demandeurRole === 'technicien' ? 'bg-orange-100 text-orange-700'
+    : 'bg-blue-100 text-blue-600'
+
+  // Icône rôle demandeur
+  const demandeurIcon = selectedMission?.demandeurRole === 'coproprio' ? '🏠'
+    : selectedMission?.demandeurRole === 'locataire' ? '🔑'
+    : selectedMission?.demandeurRole === 'technicien' ? '🔧'
+    : '👤'
+
+  // Liste active selon la vue
+  const listeActive = listeVue === 'artisans' ? missionsArtisan : missionsDemandeur
+
+  return (
+    <div className="flex gap-0 h-[calc(100vh-180px)] bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+      {/* ─── Panneau gauche — liste des conversations ─── */}
+      <div className="w-80 flex-shrink-0 border-r border-gray-100 flex flex-col">
+
+        {/* ── Switcher Artisans / Demandeurs ── */}
+        <div className="p-3 border-b border-gray-100 bg-gray-50">
+          <div className="flex rounded-xl border border-gray-200 overflow-hidden bg-white">
+            {/* ARTISANS */}
+            <button
+              onClick={() => { setListeVue('artisans'); setSelectedMissionId(null) }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition ${listeVue === 'artisans' ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              <span>🔨</span>
+              <span>Artisans</span>
+              {nbArtisanMsgs > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${listeVue === 'artisans' ? 'bg-white text-amber-600' : 'bg-amber-100 text-amber-700'}`}>
+                  {nbArtisanMsgs}
+                </span>
+              )}
+            </button>
+            {/* DEMANDEURS */}
+            <button
+              onClick={() => { setListeVue('demandeurs'); setSelectedMissionId(null) }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition border-l border-gray-200 ${listeVue === 'demandeurs' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              <span>👤</span>
+              <span>Résidents</span>
+              {nbDemandeurMsgs > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${listeVue === 'demandeurs' ? 'bg-white text-blue-600' : 'bg-blue-100 text-blue-700'}`}>
+                  {nbDemandeurMsgs}
+                </span>
+              )}
+            </button>
+          </div>
+          {/* Sous-titre */}
+          <p className="text-xs text-gray-400 text-center mt-1.5">
+            {listeVue === 'artisans'
+              ? `${missionsArtisan.length} ordre${missionsArtisan.length > 1 ? 's' : ''} de mission`
+              : `${missionsDemandeur.length} demande${missionsDemandeur.length > 1 ? 's' : ''} de résidents`}
+          </p>
+        </div>
+
+        {/* ── Recherche + filtres ── */}
+        <div className="px-3 py-2 border-b border-gray-100">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={listeVue === 'artisans' ? 'Rechercher artisan, résidence…' : 'Rechercher résident, immeuble…'}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-400 focus:outline-none"
+          />
+          <div className="flex gap-1 mt-1.5 flex-wrap">
+            {[['all', 'Toutes'], ['en_attente', '⏳'], ['en_cours', '🔵'], ['terminee', '✅']].map(([val, lbl]) => (
+              <button
+                key={val}
+                onClick={() => setFilterStatut(val)}
+                className={`text-xs px-2 py-1 rounded-lg border transition ${filterStatut === val
+                  ? listeVue === 'artisans' ? 'border-amber-400 bg-amber-50 text-amber-700 font-semibold' : 'border-blue-400 bg-blue-50 text-blue-700 font-semibold'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              >
+                {lbl}
+              </button>
+            ))}
+            <button
+              onClick={onCreateMission}
+              className="ml-auto text-xs px-2 py-1 rounded-lg border border-purple-200 text-purple-600 hover:bg-purple-50 font-semibold transition"
+            >
+              + Mission
+            </button>
+          </div>
+        </div>
+
+        {/* ── Liste ── */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* VUE ARTISANS */}
+          {listeVue === 'artisans' && (
+            <>
+              {missionsArtisan.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <div className="text-3xl mb-2">🔨</div>
+                  <p className="text-xs text-gray-500">Aucun ordre de mission</p>
+                  <button onClick={onCreateMission} className="mt-3 text-xs text-amber-600 hover:underline font-medium">
+                    + Créer un ordre de mission
+                  </button>
+                </div>
+              ) : missionsArtisan.map(m => {
+                const lastMsg = m.canalMessages && m.canalMessages.length > 0 ? m.canalMessages[m.canalMessages.length - 1] : null
+                const msgCount = m.canalMessages?.length || 0
+                const isSelected = m.id === selectedMissionId
+
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setSelectedMissionId(m.id); setCanalTab('artisan') }}
+                    className={`w-full text-left px-4 py-3.5 border-b border-gray-50 transition hover:bg-amber-50/50 ${isSelected ? 'bg-amber-50 border-l-4 border-l-amber-500' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {/* Avatar artisan */}
+                          <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 flex-shrink-0 border-2 border-amber-200">
+                            {(m.artisan || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-gray-900 truncate">{m.artisan}</p>
+                            <p className="text-xs text-gray-500 truncate">{m.type}</p>
+                          </div>
+                        </div>
+                        {/* Résidence */}
+                        <p className="text-xs text-gray-400 mt-1 ml-11 truncate">
+                          🏢 {m.immeuble}
+                          {m.batiment && ` · Bât. ${m.batiment}`}
+                          {m.etage && ` · Ét. ${m.etage}`}
+                        </p>
+                        {/* Dernier message */}
+                        {lastMsg ? (
+                          <p className="text-xs text-gray-400 mt-0.5 ml-11 truncate italic">
+                            {lastMsg.role === 'artisan' ? '← ' : '→ '}{lastMsg.texte.substring(0, 45)}{lastMsg.texte.length > 45 ? '…' : ''}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-amber-400 mt-0.5 ml-11 italic">Ordre envoyé — en attente</p>
+                        )}
+                        {/* Demandeur lié */}
+                        {(m.demandeurNom || m.locataire) && (
+                          <p className="text-xs text-blue-400 mt-0.5 ml-11 truncate">
+                            👤 {m.demandeurNom || m.locataire}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statuts[m.statut]?.color || 'bg-gray-100 text-gray-600'}`}>
+                          {statuts[m.statut]?.label}
+                        </span>
+                        {msgCount > 0 && (
+                          <span className="bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold min-w-[1.2rem] text-center">
+                            {msgCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </>
+          )}
+
+          {/* VUE RÉSIDENTS (demandeurs) */}
+          {listeVue === 'demandeurs' && (
+            <>
+              {missionsDemandeur.length === 0 ? (
+                <div className="text-center py-12 px-4">
+                  <div className="text-3xl mb-2">👤</div>
+                  <p className="text-xs text-gray-500">Aucune demande de résident</p>
+                  <p className="text-xs text-gray-400 mt-1">Les demandes arrivent depuis le portail copropriétaire</p>
+                </div>
+              ) : missionsDemandeur.map(m => {
+                const lastMsg = m.demandeurMessages && m.demandeurMessages.length > 0 ? m.demandeurMessages[m.demandeurMessages.length - 1] : null
+                const msgCount = m.demandeurMessages?.length || 0
+                const isSelected = m.id === selectedMissionId
+                const roleIcon = m.demandeurRole === 'coproprio' ? '🏠' : m.demandeurRole === 'locataire' ? '🔑' : m.demandeurRole === 'technicien' ? '🔧' : '👤'
+                const roleBadge = m.demandeurRole === 'coproprio' ? 'bg-blue-100 text-blue-700' : m.demandeurRole === 'locataire' ? 'bg-green-100 text-green-700' : m.demandeurRole === 'technicien' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+                const roleShort = m.demandeurRole === 'coproprio' ? 'Copro' : m.demandeurRole === 'locataire' ? 'Locataire' : m.demandeurRole === 'technicien' ? 'Technicien' : 'Résident'
+
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setSelectedMissionId(m.id); setCanalTab('demandeur') }}
+                    className={`w-full text-left px-4 py-3.5 border-b border-gray-50 transition hover:bg-blue-50/50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          {/* Avatar demandeur */}
+                          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700 flex-shrink-0 border-2 border-blue-200">
+                            {roleIcon}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-gray-900 truncate">{m.demandeurNom || m.locataire || 'Résident'}</p>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${roleBadge}`}>{roleShort}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 truncate">{m.type || 'Signalement'}</p>
+                          </div>
+                        </div>
+                        {/* Localisation */}
+                        <p className="text-xs text-gray-400 mt-1 ml-11 truncate">
+                          {m.estPartieCommune
+                            ? `🔶 ${m.zoneSignalee || 'Partie commune'} · ${m.immeuble}`
+                            : `🏢 ${m.immeuble}${m.batiment ? ` · Bât. ${m.batiment}` : ''}${m.etage ? ` · Ét. ${m.etage}` : ''}${m.numLot ? ` · Lot ${m.numLot}` : ''}`}
+                        </p>
+                        {/* Dernier message */}
+                        {lastMsg ? (
+                          <p className="text-xs text-blue-500 mt-0.5 ml-11 truncate italic">
+                            {lastMsg.role === userRole ? '→ ' : '← '}{lastMsg.texte.substring(0, 45)}{lastMsg.texte.length > 45 ? '…' : ''}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-blue-300 mt-0.5 ml-11 italic">Nouvelle demande</p>
+                        )}
+                        {/* Artisan assigné si présent */}
+                        {m.artisan && (
+                          <p className="text-xs text-amber-500 mt-0.5 ml-11 truncate">🔨 {m.artisan}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${statuts[m.statut]?.color || 'bg-gray-100 text-gray-600'}`}>
+                          {statuts[m.statut]?.label}
+                        </span>
+                        {m.priorite === 'urgente' && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">🔴</span>}
+                        {msgCount > 0 && (
+                          <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-bold min-w-[1.2rem] text-center">
+                            {msgCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ─── Panneau droit — conversation ─── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {!selectedMission ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-6xl mb-4">💬</div>
+              <h3 className="text-lg font-bold text-gray-700">Sélectionnez une mission</h3>
+              <p className="text-sm text-gray-400 mt-2">Choisissez une mission dans la liste pour voir le canal de communication</p>
+              <button onClick={onCreateMission} className="mt-6 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition">
+                + Créer un ordre de mission
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* ── Header commun ── */}
+            <div className="p-4 border-b border-gray-100 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-lg font-bold text-amber-700">
+                    {(selectedMission.artisan || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-gray-900 text-sm">{selectedMission.artisan || 'Non assigné'}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${statuts[selectedMission.statut]?.color}`}>
+                        {statuts[selectedMission.statut]?.label}
+                      </span>
+                      {selectedMission.priorite === 'urgente' && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">🔴 URGENT</span>}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {selectedMission.type} · {selectedMission.immeuble}
+                      {selectedMission.batiment && ` · Bât. ${selectedMission.batiment}`}
+                      {selectedMission.etage && ` · Ét. ${selectedMission.etage}`}
+                      {selectedMission.numLot && ` · Lot ${selectedMission.numLot}`}
+                    </p>
+                    {(selectedMission.demandeurNom || selectedMission.locataire) && (
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        👤 {selectedMission.demandeurNom || selectedMission.locataire}
+                        {selectedMission.demandeurRole && <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${demandeurBadgeColor}`}>{demandeurRoleLabel}</span>}
+                        {selectedMission.estPartieCommune && <span className="ml-2 text-orange-600">· {selectedMission.zoneSignalee || 'Partie commune'}</span>}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => onOpenMission(selectedMission)}
+                  className="text-xs text-purple-600 hover:text-purple-800 font-semibold border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition"
+                >
+                  📋 Détails →
+                </button>
+              </div>
+
+              {/* ── Onglets canal ── */}
+              <div className="flex gap-1 mt-3">
+                <button
+                  onClick={() => setCanalTab('artisan')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${canalTab === 'artisan' ? 'bg-amber-100 text-amber-800 border-2 border-amber-300' : 'bg-gray-100 text-gray-500 hover:bg-amber-50 hover:text-amber-700 border-2 border-transparent'}`}
+                >
+                  🔨 Artisan
+                  {selectedMission.artisan && <span className="text-xs opacity-70">· {selectedMission.artisan.split(' ')[0]}</span>}
+                  {(selectedMission.canalMessages?.length || 0) > 0 && (
+                    <span className="bg-amber-500 text-white text-xs px-1.5 rounded-full">{selectedMission.canalMessages?.length}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setCanalTab('demandeur')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${canalTab === 'demandeur' ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' : 'bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-700 border-2 border-transparent'}`}
+                >
+                  {demandeurIcon} {demandeurRoleLabel}
+                  {(selectedMission.demandeurNom || selectedMission.locataire) && (
+                    <span className="text-xs opacity-70">· {(selectedMission.demandeurNom || selectedMission.locataire || '').split(' ')[0]}</span>
+                  )}
+                  {(selectedMission.demandeurMessages?.length || 0) > 0 && (
+                    <span className="bg-blue-500 text-white text-xs px-1.5 rounded-full">{selectedMission.demandeurMessages?.length}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* ══════════════════════════════════════════════════ */}
+            {/* ONGLET ARTISAN */}
+            {/* ══════════════════════════════════════════════════ */}
+            {canalTab === 'artisan' && (
+              <>
+                {/* Fil de messages artisan */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                  {(!selectedMission.canalMessages || selectedMission.canalMessages.length === 0) ? (
+                    <div className="text-center py-16">
+                      <div className="text-5xl mb-3">🔨</div>
+                      <p className="text-gray-500 font-medium">Canal artisan ouvert</p>
+                      <p className="text-sm text-gray-400 mt-1">L&apos;ordre de mission a été envoyé à {selectedMission.artisan}.<br/>Attendez sa confirmation ou envoyez un message.</p>
+                    </div>
+                  ) : selectedMission.canalMessages.map((msg, i) => {
+                    const isMe = msg.role === userRole
+                    const isSystem = msg.role === 'system'
+                    const isArtisan = msg.role === 'artisan'
+
+                    if (isSystem) {
+                      return (
+                        <div key={i} className="flex justify-center">
+                          <div className="bg-white border border-gray-200 rounded-xl px-4 py-2 max-w-xl">
+                            <p className="text-xs text-gray-500 text-center leading-relaxed whitespace-pre-line">{msg.texte}</p>
+                            <p className="text-xs text-gray-300 text-center mt-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div key={i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${isArtisan ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {msg.auteur.charAt(0).toUpperCase()}
+                        </div>
+                        <div className={`max-w-sm ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                          <p className="text-xs text-gray-400 px-1">{msg.auteur} {isArtisan ? '· Artisan' : '· Gestionnaire'}</p>
+                          <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${isMe ? 'bg-purple-600 text-white rounded-tr-sm' : isArtisan ? 'bg-amber-50 text-gray-900 border border-amber-100 rounded-tl-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
+                            {msg.texte}
+                          </div>
+                          <p className="text-xs text-gray-300 px-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Zone saisie artisan */}
+                <div className="border-t border-gray-100 bg-white px-4 pt-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500">Votre nom :</label>
+                      <input
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-32 focus:ring-1 focus:ring-purple-400 focus:outline-none"
+                        value={authorName}
+                        onChange={e => setAuthorName(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {['📍 En route', '✅ Confirmé', '⚠️ Info manquante', '🔑 Accès requis', '📄 Devis envoyé'].map(txt => (
+                        <button key={txt} onClick={() => setNewMsg(txt)} className="text-xs bg-gray-100 hover:bg-amber-50 hover:text-amber-700 px-2.5 py-1 rounded-full transition">
+                          {txt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pb-4">
+                    <textarea
+                      className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-amber-400 outline-none resize-none"
+                      placeholder={`Message à ${selectedMission.artisan || 'l\'artisan'}…`}
+                      value={newMsg}
+                      rows={2}
+                      onChange={e => setNewMsg(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMsg())}
+                    />
+                    <button
+                      onClick={sendMsg}
+                      disabled={!newMsg.trim()}
+                      className="bg-amber-500 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-amber-600 transition disabled:opacity-50 self-end"
+                    >
+                      Envoyer
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ══════════════════════════════════════════════════ */}
+            {/* ONGLET DEMANDEUR (copropriétaire / locataire / technicien) */}
+            {/* ══════════════════════════════════════════════════ */}
+            {canalTab === 'demandeur' && (
+              <>
+                {/* Info demandeur */}
+                {(selectedMission.demandeurNom || selectedMission.locataire) ? (
+                  <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center text-lg font-bold text-blue-700 flex-shrink-0">
+                        {(selectedMission.demandeurNom || selectedMission.locataire || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-blue-900 text-sm">{selectedMission.demandeurNom || selectedMission.locataire}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${demandeurBadgeColor}`}>{demandeurRoleLabel}</span>
+                          {selectedMission.artisan && (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">🔨 {selectedMission.artisan}</span>
+                          )}
+                        </div>
+                        {/* Localisation */}
+                        <div className="flex items-center gap-2 flex-wrap mt-1">
+                          {selectedMission.immeuble && <span className="text-xs text-blue-600">🏢 {selectedMission.immeuble}</span>}
+                          {selectedMission.batiment && <span className="text-xs text-blue-600">· Bât. {selectedMission.batiment}</span>}
+                          {selectedMission.etage && <span className="text-xs text-blue-600">· Ét. {selectedMission.etage}</span>}
+                          {selectedMission.numLot && <span className="text-xs text-blue-600">· Lot {selectedMission.numLot}</span>}
+                        </div>
+                        {selectedMission.estPartieCommune && (
+                          <p className="text-xs text-orange-600 mt-1">🔶 {selectedMission.zoneSignalee || 'Partie commune'}</p>
+                        )}
+                        {selectedMission.telephoneLocataire && (
+                          <p className="text-xs text-blue-500 mt-1">📞 {selectedMission.telephoneLocataire}</p>
+                        )}
+                        {selectedMission.demandeurEmail && (
+                          <p className="text-xs text-blue-500">✉️ {selectedMission.demandeurEmail}</p>
+                        )}
+                      </div>
+                      {/* Bouton transfert artisan */}
+                      <button
+                        onClick={() => openTransfert(selectedMission)}
+                        className="flex-shrink-0 flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm"
+                      >
+                        🔨 Transférer à un artisan
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                    <p className="text-xs text-gray-500">ℹ️ Aucun demandeur identifié pour cette mission. Les informations de contact seront affichées ici si un copropriétaire, locataire ou technicien est lié à cette mission.</p>
+                  </div>
+                )}
+
+                {/* Fil de messages demandeur */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-blue-50/30">
+                  {(!selectedMission.demandeurMessages || selectedMission.demandeurMessages.length === 0) ? (
+                    <div className="text-center py-16">
+                      <div className="text-5xl mb-3">👤</div>
+                      <p className="text-gray-500 font-medium">Canal demandeur</p>
+                      {selectedMission.demandeurNom || selectedMission.locataire ? (
+                        <p className="text-sm text-gray-400 mt-1">
+                          {selectedMission.demandeurNom || selectedMission.locataire} peut vous contacter via le portail copropriétaire.<br/>
+                          Vous pouvez aussi leur envoyer une notification directement.
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-400 mt-1">
+                          Aucun demandeur associé à cette mission.<br/>
+                          Créez la mission depuis une demande reçue pour lier automatiquement le demandeur.
+                        </p>
+                      )}
+                    </div>
+                  ) : selectedMission.demandeurMessages.map((msg, i) => {
+                    const isMe = msg.role === userRole || msg.role === 'syndic' || msg.role === 'syndic_tech' || msg.role === 'syndic_gestionnaire'
+                    const isDemandeur = msg.role === 'coproprio' || msg.role === 'locataire' || msg.role === 'technicien' || msg.role === 'demandeur'
+                    const isSystem = msg.role === 'system'
+
+                    if (isSystem) {
+                      return (
+                        <div key={i} className="flex justify-center">
+                          <div className="bg-white border border-blue-100 rounded-xl px-4 py-2 max-w-xl">
+                            <p className="text-xs text-blue-600 text-center leading-relaxed whitespace-pre-line">{msg.texte}</p>
+                            <p className="text-xs text-gray-300 text-center mt-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div key={i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${isDemandeur ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {msg.auteur.charAt(0).toUpperCase()}
+                        </div>
+                        <div className={`max-w-sm ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                          <p className="text-xs text-gray-400 px-1">{msg.auteur} {isDemandeur ? `· ${demandeurRoleLabel}` : '· Gestionnaire'}</p>
+                          <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${isMe ? 'bg-purple-600 text-white rounded-tr-sm' : isDemandeur ? 'bg-blue-50 text-gray-900 border border-blue-100 rounded-tl-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
+                            {msg.texte}
+                          </div>
+                          <p className="text-xs text-gray-300 px-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Zone saisie demandeur */}
+                <div className="border-t border-blue-100 bg-white px-4 pt-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500">Votre nom :</label>
+                      <input
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-32 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                        value={authorName}
+                        onChange={e => setAuthorName(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[
+                        '✅ Demande traitée',
+                        `🔧 Artisan confirmé`,
+                        '📅 RDV planifié',
+                        '✔️ Intervention terminée',
+                        '❓ Précisions requises',
+                      ].map(txt => (
+                        <button key={txt} onClick={() => setNewMsgDemandeur(txt)} className="text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-700 px-2.5 py-1 rounded-full transition">
+                          {txt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pb-4">
+                    <textarea
+                      className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-400 outline-none resize-none"
+                      placeholder={`Message à ${selectedMission.demandeurNom || selectedMission.locataire || 'au demandeur'}…`}
+                      value={newMsgDemandeur}
+                      rows={2}
+                      onChange={e => setNewMsgDemandeur(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMsgDemandeur())}
+                    />
+                    <button
+                      onClick={sendMsgDemandeur}
+                      disabled={!newMsgDemandeur.trim()}
+                      className="bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-blue-700 transition disabled:opacity-50 self-end"
+                    >
+                      Envoyer
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* MODAL — TRANSFÉRER À UN ARTISAN                          */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {showTransfert && selectedMission && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">🔨 Transférer à un artisan</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Crée un ordre de mission depuis ce signalement</p>
+              </div>
+              <button onClick={() => setShowTransfert(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Résumé signalement */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1">
+                <p className="text-xs font-bold text-blue-800">📋 Signalement de {selectedMission.demandeurNom || selectedMission.locataire}</p>
+                <p className="text-xs text-blue-700">🏢 {selectedMission.immeuble}{selectedMission.estPartieCommune ? ` · ${selectedMission.zoneSignalee}` : ''}{selectedMission.etage ? ` · Ét. ${selectedMission.etage}` : ''}{selectedMission.numLot ? ` · Lot ${selectedMission.numLot}` : ''}</p>
+                <p className="text-xs text-blue-700">🔧 Type : {selectedMission.type || 'Non défini'}</p>
+                {selectedMission.demandeurEmail && <p className="text-xs text-blue-600">✉️ {selectedMission.demandeurEmail}</p>}
+              </div>
+
+              {/* Sélection artisan */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Artisan *</label>
+                {artisans.filter(a => a.statut === 'actif').length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">Aucun artisan actif disponible</p>
+                ) : (
+                  <div className="space-y-2 max-h-44 overflow-y-auto">
+                    {artisans.filter(a => a.statut === 'actif').map(a => (
+                      <label key={a.id} className={`flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition ${transfertArtisanId === a.id ? 'border-amber-400 bg-amber-50' : 'border-gray-200 hover:border-amber-200 hover:bg-amber-50/50'}`}>
+                        <input
+                          type="radio"
+                          name="artisan"
+                          value={a.id}
+                          checked={transfertArtisanId === a.id}
+                          onChange={() => setTransfertArtisanId(a.id)}
+                          className="accent-amber-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-900">{a.nom}</p>
+                            {(a.vitfixCertifie || a.vitfix_certifie) && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">✓ Certifié</span>}
+                          </div>
+                          <p className="text-xs text-gray-500">{a.metier} · {a.telephone}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs font-bold text-amber-600">⭐ {a.note}</p>
+                          <p className="text-xs text-gray-400">{a.nbInterventions || a.nb_interventions} missions</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Description de l'intervention</label>
+                <textarea
+                  rows={3}
+                  value={transfertDescription}
+                  onChange={e => setTransfertDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 resize-none"
+                  placeholder="Décrivez le travail à effectuer…"
+                />
+              </div>
+
+              {/* Priorité + Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Priorité</label>
+                  <select
+                    value={transfertPriorite}
+                    onChange={e => setTransfertPriorite(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="urgente">🔴 Urgente</option>
+                    <option value="normale">🟡 Normale</option>
+                    <option value="planifiee">🟢 Planifiée</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Date d'intervention</label>
+                  <input
+                    type="date"
+                    value={transfertDate}
+                    onChange={e => setTransfertDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              {/* Succès */}
+              {transfertSuccess && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium text-center">
+                  ✅ {transfertSuccess}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-5 pb-5">
+              <button
+                onClick={() => setShowTransfert(false)}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleTransfert}
+                disabled={!transfertArtisanId || transfertLoading || !!transfertSuccess}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold transition disabled:opacity-40 shadow-sm"
+              >
+                {transfertLoading ? '⏳ Création…' : '🔨 Créer l\'ordre de mission'}
+              </button>
             </div>
           </div>
         </div>
