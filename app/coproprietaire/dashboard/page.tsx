@@ -660,13 +660,13 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
     setAssistantLoading(true)
     setTimeout(() => assistantEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     try {
-      const res = await fetch('/api/comptable-ai', {
+      const res = await fetch('/api/copro-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages, systemPrompt: buildCoproSystemPrompt() }),
       })
       const data = await res.json()
-      const reply = data.response || data.message || 'Désolée, je n\'ai pas pu répondre pour le moment.'
+      const reply = data.reply || data.response || data.message || 'Désolée, je n\'ai pas pu répondre pour le moment.'
       setAssistantMessages(prev => [...prev, { role: 'assistant', content: reply }])
     } catch {
       setAssistantMessages(prev => [...prev, { role: 'assistant', content: 'Une erreur est survenue. Veuillez réessayer.' }])
