@@ -5549,30 +5549,30 @@ export default function SyndicDashboard() {
 
   const allNavItems: { id: Page; emoji: string; label: string; badge?: number }[] = [
     { id: 'accueil', emoji: '📊', label: 'Tableau de bord' },
-    { id: 'immeubles', emoji: '🏢', label: 'Immeubles', badge: immeubles.length },
-    { id: 'coproprios', emoji: '👥', label: 'Copropriétaires' },
-    { id: 'artisans', emoji: '🔧', label: 'Artisans', badge: artisans.filter(a => a.statut === 'actif').length },
     { id: 'missions', emoji: '📋', label: 'Ordres de mission', badge: missions.filter(m => m.statut === 'en_cours').length },
+    { id: 'planning', emoji: '📅', label: 'Planning' },
+    { id: 'pointage', emoji: '📍', label: 'Pointage Terrain' },
     { id: 'canal', emoji: '💬', label: 'Canal Communications', badge: missions.filter(m => (m.canalMessages?.length || 0) > 0).length },
+    { id: 'immeubles', emoji: '🏢', label: 'Immeubles', badge: immeubles.length },
+    { id: 'artisans', emoji: '🔧', label: 'Artisans', badge: artisans.filter(a => a.statut === 'actif').length },
+    { id: 'coproprios', emoji: '👥', label: 'Copropriétaires' },
+    { id: 'docs_interventions', emoji: '🗂️', label: 'Documents Interventions' },
     { id: 'comptabilite_tech', emoji: '📊', label: 'Comptabilité Technique' },
     { id: 'analyse_devis', emoji: '🔍', label: 'Analyse Devis/Factures' },
-    { id: 'docs_interventions', emoji: '🗂️', label: 'Documents Interventions' },
-    { id: 'planning', emoji: '📅', label: 'Planning' },
-    { id: 'reglementaire', emoji: '⚖️', label: 'Calendrier réglementaire' },
-    { id: 'rapport', emoji: '📄', label: 'Rapport mensuel' },
-    { id: 'documents', emoji: '📁', label: 'Documents (GED)' },
     { id: 'facturation', emoji: '💶', label: 'Facturation' },
     { id: 'alertes', emoji: '🔔', label: 'Alertes', badge: alertes.filter(a => a.urgence === 'haute').length },
-    { id: 'emails', emoji: '📧', label: 'Emails Max IA' },
-    { id: 'ia', emoji: '🤖', label: 'Assistant Max IA' },
+    { id: 'rapport', emoji: '📄', label: 'Rapport mensuel' },
+    { id: 'reglementaire', emoji: '⚖️', label: 'Calendrier réglementaire' },
+    { id: 'documents', emoji: '📁', label: 'Documents (GED)' },
     { id: 'compta_copro', emoji: '💶', label: 'Comptabilité Copro' },
     { id: 'ag_digitale', emoji: '🏛️', label: 'AG Digitales' },
     { id: 'impayés', emoji: '⚠️', label: 'Impayés' },
     { id: 'carnet_entretien', emoji: '📖', label: "Carnet d'Entretien" },
     { id: 'sinistres', emoji: '🚨', label: 'Sinistres' },
     { id: 'extranet', emoji: '👥', label: 'Extranet Copros' },
-    { id: 'pointage', emoji: '📍', label: 'Pointage Terrain' },
     { id: 'equipe', emoji: '👤', label: 'Mon Équipe' },
+    { id: 'emails', emoji: '📧', label: 'Emails Max IA' },
+    { id: 'ia', emoji: '🤖', label: 'Assistant Max IA' },
     { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
   ]
   const navItems = allNavItems.filter(item => allowedPages.includes(item.id))
@@ -5647,6 +5647,13 @@ export default function SyndicDashboard() {
               )}
             </button>
           ))}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all text-gray-500 hover:bg-red-900/30 hover:text-red-400"
+          >
+            <span className="text-lg flex-shrink-0">🚪</span>
+            {sidebarOpen && <span className="text-sm font-medium truncate">Déconnexion</span>}
+          </button>
         </nav>
 
         {/* User */}
@@ -5661,9 +5668,6 @@ export default function SyndicDashboard() {
                 <p className="text-xs text-purple-400 truncate">
                   {ROLE_LABELS_TEAM[userRole] || 'Admin Cabinet'}
                 </p>
-                <button onClick={handleLogout} className="text-xs text-gray-500 hover:text-red-400 transition">
-                  Déconnexion
-                </button>
               </div>
             )}
           </div>
