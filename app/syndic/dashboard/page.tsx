@@ -6,16 +6,22 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'canal' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions' | 'compta_copro' | 'ag_digitale' | 'impayés' | 'carnet_entretien' | 'sinistres' | 'extranet' | 'pointage'
+type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'canal' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions' | 'compta_copro' | 'ag_digitale' | 'impayés' | 'carnet_entretien' | 'sinistres' | 'extranet' | 'pointage' | 'echéances' | 'recouvrement' | 'preparateur_ag'
 
 // Pages accessibles par rôle
 const ROLE_PAGES: Record<string, Page[]> = {
-  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'compta_copro', 'ag_digitale', 'impayés', 'carnet_entretien', 'sinistres', 'extranet', 'parametres'],
-  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'alertes', 'emails', 'ia', 'equipe', 'analyse_devis', 'parametres'],
-  syndic_tech: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'planning', 'pointage', 'alertes', 'emails', 'ia', 'parametres'],
-  syndic_secretaire: ['accueil', 'coproprios', 'missions', 'canal', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
-  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres'],
-  syndic_comptable: ['accueil', 'facturation', 'rapport', 'documents', 'ia', 'compta_copro', 'impayés', 'parametres'],
+  // Directeur / Propriétaire du cabinet — accès total
+  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'pointage', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'reglementaire', 'rapport', 'documents', 'facturation', 'compta_copro', 'ag_digitale', 'impayés', 'carnet_entretien', 'sinistres', 'extranet', 'alertes', 'emails', 'ia', 'equipe', 'parametres', 'echéances', 'recouvrement', 'preparateur_ag'],
+  // Administrateur cabinet — accès large sauf terrain
+  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'compta_copro', 'ag_digitale', 'impayés', 'analyse_devis', 'alertes', 'emails', 'ia', 'equipe', 'parametres', 'echéances', 'recouvrement', 'preparateur_ag'],
+  // Gestionnaire Technique — interventions, terrain, comptabilité tech
+  syndic_tech: ['accueil', 'missions', 'planning', 'pointage', 'canal', 'immeubles', 'artisans', 'coproprios', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'alertes', 'emails', 'ia', 'parametres'],
+  // Secrétaire — coordination, planning de toute l'équipe, communication
+  syndic_secretaire: ['accueil', 'coproprios', 'immeubles', 'artisans', 'missions', 'canal', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
+  // Gestionnaire Copropriété — déjà paramétré, ne pas modifier
+  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres', 'echéances', 'preparateur_ag'],
+  // Comptable — finances, rapports, comptabilité copropriété
+  syndic_comptable: ['accueil', 'facturation', 'compta_copro', 'impayés', 'analyse_devis', 'rapport', 'documents', 'emails', 'ia', 'parametres', 'recouvrement'],
 }
 
 interface Immeuble {
@@ -141,6 +147,7 @@ interface Mission {
   // Localisation demandeur (peut différer si technicien signale partie commune)
   zoneSignalee?: string       // ex: "Parties communes", "Cave", "Parking", "Toiture"
   estPartieCommune?: boolean
+  trackingToken?: string   // Token de suivi GPS en temps réel
 }
 
 interface Alerte {
@@ -149,6 +156,20 @@ interface Alerte {
   message: string
   urgence: 'haute' | 'moyenne' | 'basse'
   date: string
+}
+
+interface PlanningEvent {
+  id: string
+  titre: string
+  date: string        // YYYY-MM-DD
+  heure: string       // HH:MM
+  dureeMin: number
+  type: 'reunion' | 'visite' | 'rdv' | 'tache' | 'autre'
+  assigneA: string
+  assigneRole: string
+  description?: string
+  creePar: string
+  statut: 'planifie' | 'termine' | 'annule'
 }
 
 // ─── Données démo ─────────────────────────────────────────────────────────────
@@ -218,6 +239,40 @@ const ALERTES_DEMO: Alerte[] = [
   { id: '3', type: 'budget', message: 'Le Clos Vendôme : 75% du budget annuel consommé', urgence: 'moyenne', date: '2026-02-22' },
   { id: '4', type: 'document', message: 'Diagnostic DPE manquant pour Tour Horizon', urgence: 'basse', date: '2026-02-20' },
 ]
+
+// ─── Équipe démo (utilisée pour l'assignation planning) ──────────────────────
+
+const EQUIPE_NOMS_DEMO = [
+  { nom: 'Toute l\'équipe', role: '' },
+  { nom: 'Jean-Pierre Martin', role: 'Gestionnaire Technique' },
+  { nom: 'Marie Dupont', role: 'Secrétaire' },
+  { nom: 'Sophie Leroy', role: 'Gestionnaire Copropriété' },
+  { nom: 'Bernard Petit', role: 'Comptable' },
+  { nom: 'Directeur Général', role: 'Administrateur' },
+]
+
+const EVENT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  reunion: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+  visite:  { bg: 'bg-blue-100',   text: 'text-blue-800',   border: 'border-blue-300' },
+  rdv:     { bg: 'bg-green-100',  text: 'text-green-800',  border: 'border-green-300' },
+  tache:   { bg: 'bg-amber-100',  text: 'text-amber-800',  border: 'border-amber-300' },
+  autre:   { bg: 'bg-gray-100',   text: 'text-gray-700',   border: 'border-gray-300' },
+}
+
+const PLANNING_EVENTS_DEMO: PlanningEvent[] = (() => {
+  const today = new Date()
+  const d = (offset: number) => {
+    const dt = new Date(today)
+    dt.setDate(dt.getDate() + offset)
+    return dt.toISOString().slice(0, 10)
+  }
+  return [
+    { id: 'pe-1', titre: 'Visite Mme Lebrun — Résidence Les Acacias', date: d(0), heure: '14:30', dureeMin: 60, type: 'visite', assigneA: 'Jean-Pierre Martin', assigneRole: 'Gestionnaire Technique', description: 'Visite planifiée via canal interne', creePar: 'Marie Dupont', statut: 'planifie' },
+    { id: 'pe-2', titre: 'Réunion d\'équipe hebdomadaire', date: d(2), heure: '09:00', dureeMin: 90, type: 'reunion', assigneA: 'Toute l\'équipe', assigneRole: '', description: 'Point hebdomadaire équipe', creePar: 'Marie Dupont', statut: 'planifie' },
+    { id: 'pe-3', titre: 'RDV Expert toiture — Le Clos Vendôme', date: d(5), heure: '10:00', dureeMin: 120, type: 'rdv', assigneA: 'Jean-Pierre Martin', assigneRole: 'Gestionnaire Technique', description: 'Expertise suite infiltrations bât. D', creePar: 'Marie Dupont', statut: 'planifie' },
+    { id: 'pe-4', titre: 'Clôture comptes annuels 2025', date: d(7), heure: '14:00', dureeMin: 180, type: 'tache', assigneA: 'Bernard Petit', assigneRole: 'Comptable', description: 'Finaliser la clôture comptable et préparer l\'envoi aux copropriétaires', creePar: 'Marie Dupont', statut: 'planifie' },
+  ]
+})()
 
 // ─── Composants UI ────────────────────────────────────────────────────────────
 
@@ -4856,6 +4911,18 @@ export default function SyndicDashboard() {
   const [showMissionDetails, setShowMissionDetails] = useState(false)
   // ── Planning navigation ─────────────────────────────────────────────────────
   const [planningDate, setPlanningDate] = useState(new Date())
+  const [planningEvents, setPlanningEvents] = useState<PlanningEvent[]>(PLANNING_EVENTS_DEMO)
+  const [showPlanningModal, setShowPlanningModal] = useState(false)
+  const [selectedPlanningDay, setSelectedPlanningDay] = useState<string | null>(null)
+  const [planningViewFilter, setPlanningViewFilter] = useState('tous')
+  const [planningEventForm, setPlanningEventForm] = useState({
+    titre: '',
+    type: 'visite' as PlanningEvent['type'],
+    heure: '09:00',
+    dureeMin: 60,
+    assigneA: '',
+    description: '',
+  })
   // ── Canal Interne ────────────────────────────────────────────────────────────
   const [canalInternalTab, setCanalInternalTab] = useState<'artisans' | 'interne'>('artisans')
   const [canalInterneMessages, setCanalInterneMessages] = useState<CanalInterneMsg[]>(CANAL_INTERNE_DEMO)
@@ -4963,6 +5030,14 @@ export default function SyndicDashboard() {
     } catch {}
   }, [canalInterneMessages, user?.id])
 
+  // ── Persistance planning events ──
+  useEffect(() => {
+    if (!user?.id) return
+    try {
+      localStorage.setItem(`fixit_planning_events_${user.id}`, JSON.stringify(planningEvents))
+    } catch {}
+  }, [planningEvents, user?.id])
+
   const markAllNotifsRead = async () => {
     setNotifs(prev => prev.map(n => ({ ...n, read: true })))
     if (!user?.id) return
@@ -5011,6 +5086,9 @@ export default function SyndicDashboard() {
 
         const savedCanalInterne = localStorage.getItem(`fixit_canal_interne_${uid}`)
         if (savedCanalInterne) setCanalInterneMessages(JSON.parse(savedCanalInterne))
+
+        const savedPlanningEvents = localStorage.getItem(`fixit_planning_events_${uid}`)
+        if (savedPlanningEvents) setPlanningEvents(JSON.parse(savedPlanningEvents))
       } catch { /* silencieux */ }
       setDataLoaded(true)
 
@@ -5298,6 +5376,28 @@ export default function SyndicDashboard() {
     }
     if (canalInterneType === 'tache') setCanalTacheAssignee('')
     setTimeout(() => canalInterneEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  const addPlanningEvent = () => {
+    if (!planningEventForm.titre.trim() || !selectedPlanningDay) return
+    const newEvent: PlanningEvent = {
+      id: Date.now().toString(),
+      titre: planningEventForm.titre.trim(),
+      date: selectedPlanningDay,
+      heure: planningEventForm.heure,
+      dureeMin: planningEventForm.dureeMin,
+      type: planningEventForm.type,
+      assigneA: planningEventForm.assigneA || userName,
+      assigneRole: planningEventForm.assigneA
+        ? (EQUIPE_NOMS_DEMO.find(e => e.nom === planningEventForm.assigneA)?.role || '')
+        : (ROLE_LABELS_TEAM[userRole] || 'Gestionnaire'),
+      description: planningEventForm.description,
+      creePar: userName,
+      statut: 'planifie',
+    }
+    setPlanningEvents(prev => [...prev, newEvent])
+    setShowPlanningModal(false)
+    setPlanningEventForm({ titre: '', type: 'visite', heure: '09:00', dureeMin: 60, assigneA: '', description: '' })
   }
 
   // ── Gestion Immeubles ────────────────────────────────────────────────────────
@@ -5717,6 +5817,9 @@ export default function SyndicDashboard() {
     { id: 'carnet_entretien', emoji: '📖', label: "Carnet d'Entretien" },
     { id: 'sinistres', emoji: '🚨', label: 'Sinistres' },
     { id: 'extranet', emoji: '👥', label: 'Extranet Copros' },
+    { id: 'echéances', emoji: '📅', label: 'Échéances légales' },
+    { id: 'recouvrement', emoji: '💸', label: 'Recouvrement auto' },
+    { id: 'preparateur_ag', emoji: '📝', label: 'Préparateur AG' },
     { id: 'equipe', emoji: '👤', label: 'Mon Équipe' },
     { id: 'emails', emoji: '📧', label: 'Emails Max IA' },
     { id: 'ia', emoji: '🤖', label: 'Assistant Max IA' },
@@ -6631,68 +6734,137 @@ export default function SyndicDashboard() {
           )}
 
           {/* ── PLANNING ── */}
-          {page === 'planning' && (
-            <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-gray-900 capitalize">Planning des interventions — {planningMonthLabel}</h2>
-                <div className="flex gap-2">
-                  <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">← Précédent</button>
-                  <button onClick={() => setPlanningDate(new Date())} className="text-sm px-3 py-1.5 border border-purple-300 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition">Aujourd'hui</button>
-                  <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">Suivant →</button>
+          {page === 'planning' && (() => {
+            const canAssign = userRole === 'syndic_secretaire' || userRole === 'syndic' || userRole === 'syndic_admin'
+            const filteredEvents = planningViewFilter === 'tous'
+              ? planningEvents
+              : planningEvents.filter(e => e.assigneA === planningViewFilter || e.creePar === planningViewFilter)
+            const monthEvents = filteredEvents.filter(e => {
+              const d = new Date(e.date + 'T00:00:00')
+              return d.getFullYear() === planningYear && d.getMonth() === planningMonth
+            })
+            const monthMissions = missions.filter(m => {
+              if (!m.dateIntervention) return false
+              const d = new Date(m.dateIntervention)
+              return d.getFullYear() === planningYear && d.getMonth() === planningMonth
+            })
+            return (
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                  {/* Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-gray-900 capitalize">Planning — {planningMonthLabel}</h2>
+                      <button
+                        onClick={() => { setSelectedPlanningDay(new Date().toISOString().slice(0,10)); setShowPlanningModal(true) }}
+                        className="flex items-center gap-1 text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg transition font-medium"
+                      >
+                        + Ajouter
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Filtre employé — visible secrétaire/admin */}
+                      {canAssign && (
+                        <select
+                          value={planningViewFilter}
+                          onChange={e => setPlanningViewFilter(e.target.value)}
+                          className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-400 bg-white"
+                        >
+                          <option value="tous">👥 Toute l'équipe</option>
+                          {EQUIPE_NOMS_DEMO.filter(e => e.nom !== 'Toute l\'équipe').map(e => (
+                            <option key={e.nom} value={e.nom}>{e.nom}{e.role ? ` — ${e.role}` : ''}</option>
+                          ))}
+                        </select>
+                      )}
+                      <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">←</button>
+                      <button onClick={() => setPlanningDate(new Date())} className="text-sm px-3 py-1.5 border border-purple-300 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition">Aujourd'hui</button>
+                      <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">→</button>
+                    </div>
+                  </div>
+
+                  {/* Légende types */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {Object.entries({ reunion: 'Réunion', visite: 'Visite', rdv: 'RDV', tache: 'Tâche', autre: 'Autre' }).map(([k, v]) => (
+                      <span key={k} className={`text-xs px-2 py-0.5 rounded-full font-medium ${EVENT_COLORS[k].bg} ${EVENT_COLORS[k].text}`}>{v}</span>
+                    ))}
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">🔧 Mission artisan</span>
+                  </div>
+
+                  {/* Grille calendrier */}
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
+                      <div key={d} className="text-center text-xs font-semibold text-gray-500 py-2">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: planningOffset }, (_, i) => (
+                      <div key={`empty-${i}`} className="min-h-20 p-1 rounded-lg" />
+                    ))}
+                    {Array.from({ length: planningDaysInMonth }, (_, i) => i + 1).map(day => {
+                      const dateStr = `${planningYear}-${String(planningMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                      const dayMissions = missions.filter(m => m.dateIntervention === dateStr)
+                      const dayEvents = filteredEvents.filter(e => e.date === dateStr)
+                      const isToday = isCurrentMonth && day === todayDay
+                      const total = dayMissions.length + dayEvents.length
+                      return (
+                        <div
+                          key={day}
+                          onClick={() => { setSelectedPlanningDay(dateStr); setPlanningEventForm(f => ({ ...f, heure: '09:00' })); setShowPlanningModal(true) }}
+                          className={`min-h-20 p-1 rounded-lg border text-xs cursor-pointer transition group relative ${isToday ? 'border-purple-400 bg-purple-50' : 'border-gray-100 hover:border-purple-300 hover:bg-purple-50/40'}`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`font-semibold text-xs ${isToday ? 'text-purple-700' : 'text-gray-700'}`}>{day}</span>
+                            {total > 0 && <span className="text-gray-400 text-xs">{total}</span>}
+                          </div>
+                          {/* Events */}
+                          {dayEvents.slice(0, 2).map(e => (
+                            <div key={e.id} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate font-medium ${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`} title={`${e.heure} — ${e.titre} (${e.assigneA})`}>
+                              {e.heure} {e.titre}
+                            </div>
+                          ))}
+                          {/* Missions */}
+                          {dayMissions.slice(0, 2 - Math.min(dayEvents.length, 2)).map(m => (
+                            <div key={m.id} onClick={ev => { ev.stopPropagation(); setSelectedMission(m); setShowMissionDetails(true) }} className={`text-xs p-0.5 rounded mb-0.5 truncate cursor-pointer hover:opacity-80 ${m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'}`} title={`${m.immeuble} — ${m.artisan}`}>
+                              🔧 {m.type}
+                            </div>
+                          ))}
+                          {total > 2 && <div className="text-gray-400 text-xs">+{total - 2}</div>}
+                          {/* "+" hint on hover */}
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                            <span className="text-purple-400 text-lg font-light">+</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Liste mensuelle */}
+                <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
+                  <h3 className="font-bold text-gray-900 mb-3">📋 Agenda du mois — {planningMonthLabel}</h3>
+                  {monthEvents.length === 0 && monthMissions.length === 0 && (
+                    <p className="text-sm text-gray-400 py-6 text-center border-2 border-dashed border-gray-200 rounded-xl">Aucun événement ce mois</p>
+                  )}
+                  <div className="space-y-2">
+                    {[
+                      ...monthEvents.map(e => ({ key: `e-${e.id}`, date: e.date, heure: e.heure, label: e.titre, sub: e.assigneA, color: `${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`, tag: e.type, statut: e.statut, onClick: () => {} })),
+                      ...monthMissions.map(m => ({ key: `m-${m.id}`, date: m.dateIntervention!, heure: '08:00', label: `${m.immeuble} — ${m.type}`, sub: m.artisan, color: m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700', tag: '🔧', statut: m.statut, onClick: () => { setSelectedMission(m); setShowMissionDetails(true) } })),
+                    ].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)).map(item => (
+                      <div key={item.key} onClick={item.onClick} className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-purple-50 rounded-xl text-sm cursor-pointer transition">
+                        <div className="text-center w-14 flex-shrink-0">
+                          <p className="font-bold text-purple-700 text-xs">{new Date(item.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
+                          <p className="text-gray-500 text-xs">{item.heure}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${item.color}`}>{item.tag}</span>
+                        <span className="flex-1 font-medium truncate text-gray-800">{item.label}</span>
+                        <span className="text-gray-400 text-xs flex-shrink-0 hidden md:block">{item.sub}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
-                  <div key={d} className="text-center text-xs font-semibold text-gray-500 py-2">{d}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {/* Cellules vides pour offset du premier jour */}
-                {Array.from({ length: planningOffset }, (_, i) => (
-                  <div key={`empty-${i}`} className="min-h-16 p-1 rounded-lg" />
-                ))}
-                {Array.from({ length: planningDaysInMonth }, (_, i) => i + 1).map(day => {
-                  const dateStr = `${planningYear}-${String(planningMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                  const dayMissions = missions.filter(m => m.dateIntervention === dateStr)
-                  const isToday = isCurrentMonth && day === todayDay
-                  return (
-                    <div key={day} className={`min-h-16 p-1 rounded-lg border text-xs ${isToday ? 'border-purple-400 bg-purple-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                      <span className={`font-semibold block mb-1 ${isToday ? 'text-purple-700' : 'text-gray-700'}`}>{day}</span>
-                      {dayMissions.map(m => (
-                        <div key={m.id} onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className={`text-xs p-1 rounded mb-0.5 truncate cursor-pointer hover:opacity-80 ${m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'}`} title={`${m.immeuble} — ${m.artisan}`}>
-                          {m.type}
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-4 space-y-2">
-                <h3 className="font-semibold text-gray-900 text-sm">Missions planifiées ce mois</h3>
-                {missions.filter(m => {
-                  if (!m.dateIntervention) return false
-                  const d = new Date(m.dateIntervention)
-                  return d.getFullYear() === planningYear && d.getMonth() === planningMonth
-                }).length === 0 && (
-                  <p className="text-sm text-gray-400 py-4 text-center border-2 border-dashed border-gray-200 rounded-xl">Aucune mission planifiée ce mois</p>
-                )}
-                {missions.filter(m => {
-                  if (!m.dateIntervention) return false
-                  const d = new Date(m.dateIntervention)
-                  return d.getFullYear() === planningYear && d.getMonth() === planningMonth
-                }).map(m => (
-                  <div key={m.id} onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl text-sm cursor-pointer hover:bg-purple-50 transition">
-                    <span className="font-bold text-purple-600 w-12 flex-shrink-0">
-                      {m.dateIntervention ? new Date(m.dateIntervention).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}
-                    </span>
-                    <span className="flex-1 truncate">{m.immeuble} — {m.type}</span>
-                    <span className="text-gray-500 flex-shrink-0 hidden md:block">{m.artisan}</span>
-                    <Badge statut={m.statut} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* ── DOCUMENTS GED ── */}
           {page === 'documents' && <GEDSection immeubles={immeubles} artisans={artisans} />}
@@ -6967,6 +7139,10 @@ export default function SyndicDashboard() {
           {page === 'extranet' && user && <ExtranetSection user={user} userRole={userRole} />}
 
           {page === 'pointage' && user && <PointageSection immeubles={immeubles} user={user} onUpdateImmeuble={(updated) => setImmeubles(prev => prev.map(i => i.id === updated.id ? updated : i))} />}
+
+          {page === 'echéances' && user && <EcheancesSection user={user} userRole={userRole} immeubles={immeubles} />}
+          {page === 'recouvrement' && user && <RecouvrementSection user={user} userRole={userRole} />}
+          {page === 'preparateur_ag' && user && <PreparateurAGSection user={user} userRole={userRole} immeubles={immeubles} />}
 
           {page === 'equipe' && user && (
             <EquipeSection cabinetId={user.id} currentUserRole={userRole} />
@@ -7531,10 +7707,920 @@ export default function SyndicDashboard() {
           userRole={userRole}
         />
       )}
+
+      {/* ── Modal Ajout Événement Planning ── */}
+      {showPlanningModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPlanningModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-800">Nouvel événement</h3>
+                {selectedPlanningDay && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {new Date(selectedPlanningDay + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setShowPlanningModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-3">
+              {/* Titre */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Titre *</label>
+                <input
+                  type="text"
+                  value={planningEventForm.titre}
+                  onChange={e => setPlanningEventForm(f => ({ ...f, titre: e.target.value }))}
+                  placeholder="Ex : Visite Mme Dupont, Réunion CA..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Type + Heure */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+                  <select
+                    value={planningEventForm.type}
+                    onChange={e => setPlanningEventForm(f => ({ ...f, type: e.target.value as PlanningEvent['type'] }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="visite">Visite</option>
+                    <option value="reunion">Réunion</option>
+                    <option value="rdv">Rendez-vous</option>
+                    <option value="tache">Tâche</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Heure</label>
+                  <input
+                    type="time"
+                    value={planningEventForm.heure}
+                    onChange={e => setPlanningEventForm(f => ({ ...f, heure: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Durée */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Durée</label>
+                <select
+                  value={planningEventForm.dureeMin}
+                  onChange={e => setPlanningEventForm(f => ({ ...f, dureeMin: Number(e.target.value) }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value={30}>30 minutes</option>
+                  <option value={60}>1 heure</option>
+                  <option value={90}>1h30</option>
+                  <option value={120}>2 heures</option>
+                  <option value={180}>3 heures</option>
+                </select>
+              </div>
+
+              {/* Assigné à — visible secrétaire / admin / syndic */}
+              {(userRole === 'syndic' || userRole === 'syndic_admin' || userRole === 'syndic_secretaire') && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Assigné à</label>
+                  <select
+                    value={planningEventForm.assigneA}
+                    onChange={e => setPlanningEventForm(f => ({ ...f, assigneA: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Moi-même</option>
+                    {EQUIPE_NOMS_DEMO.filter(e => e.nom !== 'Toute l\'équipe').map(e => (
+                      <option key={e.nom} value={e.nom}>{e.nom}{e.role ? ` (${e.role})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Description <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <textarea
+                  value={planningEventForm.description}
+                  onChange={e => setPlanningEventForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Détails complémentaires..."
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-5 pb-5">
+              <button
+                onClick={() => setShowPlanningModal(false)}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={addPlanningEvent}
+                disabled={!planningEventForm.titre.trim()}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition disabled:opacity-40 shadow-sm"
+              >
+                ✅ Ajouter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
+
+/* ══════════ ÉCHÉANCES LÉGALES MULTI-IMMEUBLES ══════════ */
+function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: string; immeubles: Immeuble[] }) {
+  type EcheanceType = 'inspection_ascenseur' | 'ramonage' | 'controle_elec' | 'dta' | 'dtg' | 'pppt' | 'ag_annuelle' | 'verification_extincteurs' | 'controle_gaz' | 'assurance_immeuble' | 'audit_energetique' | 'revision_budget'
+  interface Echeance {
+    id: string; type: EcheanceType; label: string; description: string
+    immeuble_id: string; immeuble_nom: string; date_echeance: string
+    periodicite_ans: number; statut: 'fait' | 'a_faire'; notes: string
+    date_realisation?: string; prestataire?: string; added_at: string
+  }
+  const TYPES: { key: EcheanceType; label: string; icon: string; desc: string; periodicite: number; obligatoire: boolean; refs: string }[] = [
+    { key: 'ag_annuelle', label: 'AG annuelle', icon: '🏛️', desc: 'Assemblée Générale ordinaire annuelle', periodicite: 1, obligatoire: true, refs: 'Art. 7 Décret n°67-223 du 17/03/1967' },
+    { key: 'revision_budget', label: 'Budget prévisionnel', icon: '💶', desc: 'Vote du budget en Assemblée Générale', periodicite: 1, obligatoire: true, refs: 'Art. 14-1 Loi n°65-557 du 10/07/1965' },
+    { key: 'verification_extincteurs', label: 'Vérification extincteurs', icon: '🧯', desc: 'Contrôle annuel obligatoire', periodicite: 1, obligatoire: true, refs: 'Code du travail R.4227-38' },
+    { key: 'assurance_immeuble', label: 'Renouvellement assurance', icon: '🛡️', desc: 'Assurance multirisque immeuble', periodicite: 1, obligatoire: true, refs: 'Loi du 13/07/1965 — Art. 9-1' },
+    { key: 'controle_gaz', label: 'Contrôle installations gaz', icon: '🔌', desc: 'Révision chaudière collective + réseau gaz', periodicite: 1, obligatoire: false, refs: 'Arrêtés 02/08/1977 et 23/06/1978' },
+    { key: 'ramonage', label: 'Ramonage cheminées', icon: '🔥', desc: 'Obligatoire 2x/an pour conduits collectifs', periodicite: 0.5, obligatoire: true, refs: 'Arrêté du 22/10/1969' },
+    { key: 'inspection_ascenseur', label: 'Inspection ascenseur', icon: '🛗', desc: 'Contrôle obligatoire quinquennal', periodicite: 5, obligatoire: true, refs: 'Décret n°2004-964 du 09/09/2004' },
+    { key: 'controle_elec', label: 'Contrôle électrique', icon: '⚡', desc: 'Parties communes — NF C 15-100', periodicite: 5, obligatoire: true, refs: 'NF C 15-100 + décret du 14/06/1969' },
+    { key: 'dta', label: 'DTA (amiante)', icon: '⚠️', desc: 'Dossier Technique Amiante — vérification', periodicite: 3, obligatoire: true, refs: 'Code de la santé pub. L.1334-13' },
+    { key: 'dtg', label: 'DTG', icon: '🏗️', desc: 'Diagnostic Technique Global', periodicite: 10, obligatoire: true, refs: 'Loi ALUR art. 58 — > 10 ans' },
+    { key: 'pppt', label: 'Plan Pluriannuel Travaux', icon: '🔨', desc: 'PPT obligatoire pour immeubles > 15 ans', periodicite: 10, obligatoire: true, refs: 'Loi Climat & Résilience 2022' },
+    { key: 'audit_energetique', label: 'Audit énergétique DPE', icon: '🌿', desc: 'DPE collectif et audit énergétique', periodicite: 10, obligatoire: false, refs: 'Loi ELAN 2018 — Décret 2021-919' },
+  ]
+  const storageKey = `fixit_echeances_${user.id}`
+  const [echeances, setEcheances] = useState<Echeance[]>([])
+  const [filterImmeuble, setFilterImmeuble] = useState('tous')
+  const [filterStatut, setFilterStatut] = useState('tous')
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [formData, setFormData] = useState({ type: 'ag_annuelle' as EcheanceType, immeuble_id: '', date_echeance: '', notes: '', prestataire: '' })
+  const [selectedE, setSelectedE] = useState<Echeance | null>(null)
+
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey)
+    if (saved) try { setEcheances(JSON.parse(saved)) } catch {}
+  }, [storageKey])
+
+  const save = (list: Echeance[]) => { setEcheances(list); localStorage.setItem(storageKey, JSON.stringify(list)) }
+
+  const addEcheance = () => {
+    if (!formData.immeuble_id || !formData.date_echeance) return
+    const typeInfo = TYPES.find(t => t.key === formData.type)!
+    const imm = immeubles.find(i => i.id === formData.immeuble_id)!
+    save([...echeances, { id: Date.now().toString(36), type: formData.type, label: typeInfo.label, description: typeInfo.desc, immeuble_id: formData.immeuble_id, immeuble_nom: imm.nom, date_echeance: formData.date_echeance, periodicite_ans: typeInfo.periodicite, statut: 'a_faire', notes: formData.notes, prestataire: formData.prestataire, added_at: new Date().toISOString() }])
+    setShowAddModal(false)
+    setFormData({ type: 'ag_annuelle', immeuble_id: '', date_echeance: '', notes: '', prestataire: '' })
+  }
+
+  const markDone = (id: string) => save(echeances.map(e => e.id === id ? { ...e, statut: 'fait' as const, date_realisation: new Date().toISOString().split('T')[0] } : e))
+  const deleteE = (id: string) => save(echeances.filter(e => e.id !== id))
+
+  const autoInit = () => {
+    const newOnes: Echeance[] = []
+    immeubles.forEach(imm => {
+      TYPES.filter(t => t.obligatoire).forEach(t => {
+        if (echeances.some(e => e.immeuble_id === imm.id && e.type === t.key)) return
+        const next = new Date()
+        next.setMonth(next.getMonth() + Math.floor(t.periodicite * 12))
+        newOnes.push({ id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`, type: t.key, label: t.label, description: t.desc, immeuble_id: imm.id, immeuble_nom: imm.nom, date_echeance: next.toISOString().split('T')[0], periodicite_ans: t.periodicite, statut: 'a_faire', notes: '', added_at: new Date().toISOString() })
+      })
+    })
+    if (newOnes.length > 0) save([...echeances, ...newOnes])
+  }
+
+  const getDaysLeft = (d: string) => Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
+  const getColor = (e: Echeance) => {
+    if (e.statut === 'fait') return 'bg-green-100 text-green-700 border-green-200'
+    const d = getDaysLeft(e.date_echeance)
+    if (d < 0) return 'bg-red-100 text-red-700 border-red-200'
+    if (d < 30) return 'bg-orange-100 text-orange-700 border-orange-200'
+    if (d < 90) return 'bg-amber-100 text-amber-700 border-amber-200'
+    return 'bg-gray-100 text-gray-600 border-gray-200'
+  }
+  const getLabel = (e: Echeance) => {
+    if (e.statut === 'fait') return '✓ Réalisée'
+    const d = getDaysLeft(e.date_echeance)
+    if (d < 0) return `⚠ En retard (${Math.abs(d)}j)`
+    if (d === 0) return "📍 Aujourd'hui !"
+    return `Dans ${d}j`
+  }
+
+  const filtered = echeances
+    .filter(e => filterImmeuble === 'tous' || e.immeuble_id === filterImmeuble)
+    .filter(e => {
+      if (filterStatut === 'tous') return true
+      if (filterStatut === 'urgent') return e.statut !== 'fait' && getDaysLeft(e.date_echeance) < 30 && getDaysLeft(e.date_echeance) >= 0
+      if (filterStatut === 'en_retard') return e.statut !== 'fait' && getDaysLeft(e.date_echeance) < 0
+      if (filterStatut === 'fait') return e.statut === 'fait'
+      return true
+    })
+    .sort((a, b) => a.statut === 'fait' && b.statut !== 'fait' ? 1 : b.statut === 'fait' && a.statut !== 'fait' ? -1 : new Date(a.date_echeance).getTime() - new Date(b.date_echeance).getTime())
+
+  const urgentC = echeances.filter(e => e.statut !== 'fait' && getDaysLeft(e.date_echeance) < 30 && getDaysLeft(e.date_echeance) >= 0).length
+  const retardC = echeances.filter(e => e.statut !== 'fait' && getDaysLeft(e.date_echeance) < 0).length
+
+  return (
+    <div className="space-y-4 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">📅 Échéances légales</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Suivi des obligations réglementaires multi-immeubles</p>
+        </div>
+        <div className="flex gap-2">
+          {immeubles.length > 0 && <button onClick={autoInit} className="px-4 py-2 bg-purple-100 text-purple-700 rounded-xl text-sm font-semibold hover:bg-purple-200 transition">⚡ Auto-init</button>}
+          <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">+ Ajouter</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Total', val: echeances.length, cls: 'bg-gray-50 border-gray-200 text-gray-800' },
+          { label: 'En retard', val: retardC, cls: 'bg-red-50 border-red-200 text-red-700' },
+          { label: 'Urgent < 30j', val: urgentC, cls: 'bg-orange-50 border-orange-200 text-orange-700' },
+          { label: 'Réalisées', val: echeances.filter(e => e.statut === 'fait').length, cls: 'bg-green-50 border-green-200 text-green-700' },
+        ].map(k => (
+          <div key={k.label} className={`border rounded-xl p-3 text-center ${k.cls}`}>
+            <p className="text-2xl font-bold">{k.val}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{k.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <select value={filterImmeuble} onChange={e => setFilterImmeuble(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-400">
+          <option value="tous">Tous les immeubles</option>
+          {immeubles.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+        </select>
+        <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-400">
+          <option value="tous">Tous les statuts</option>
+          <option value="en_retard">En retard</option>
+          <option value="urgent">Urgent (&lt;30j)</option>
+          <option value="a_faire">À faire</option>
+          <option value="fait">Réalisées</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
+          <div className="text-5xl mb-3">📅</div>
+          <h3 className="font-bold text-gray-700 mb-1">Aucune échéance</h3>
+          <p className="text-sm text-gray-400 mb-4">Utilisez "Auto-init" pour générer automatiquement toutes les obligations légales de vos immeubles</p>
+          {immeubles.length > 0 && <button onClick={autoInit} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold">⚡ Générer automatiquement</button>}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(e => (
+            <div key={e.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:border-purple-200 transition cursor-pointer" onClick={() => setSelectedE(e)}>
+              <div className="text-2xl flex-shrink-0">{TYPES.find(t => t.key === e.type)?.icon || '📋'}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-gray-800 text-sm">{e.label}</p>
+                  <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full border border-purple-100">{e.immeuble_nom}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">{new Date(e.date_echeance).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}{e.prestataire ? ` · ${e.prestataire}` : ''}</p>
+              </div>
+              <div className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex-shrink-0 ${getColor(e)}`}>{getLabel(e)}</div>
+              <div className="flex gap-1 flex-shrink-0" onClick={ev => ev.stopPropagation()}>
+                {e.statut !== 'fait' && <button onClick={() => markDone(e.id)} className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-semibold hover:bg-green-200 transition">✓</button>}
+                <button onClick={() => deleteE(e.id)} className="px-2 py-1.5 text-red-400 hover:text-red-600 text-xs">🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-800 text-lg">Nouvelle échéance</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type d'obligation</label>
+                <select value={formData.type} onChange={e => setFormData(f => ({ ...f, type: e.target.value as EcheanceType }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400">
+                  {TYPES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}{t.obligatoire ? ' *' : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Immeuble</label>
+                <select value={formData.immeuble_id} onChange={e => setFormData(f => ({ ...f, immeuble_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400">
+                  <option value="">Sélectionner...</option>
+                  {immeubles.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date d'échéance</label>
+                <input type="date" value={formData.date_echeance} onChange={e => setFormData(f => ({ ...f, date_echeance: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prestataire (optionnel)</label>
+                <input type="text" placeholder="Nom du prestataire..." value={formData.prestataire} onChange={e => setFormData(f => ({ ...f, prestataire: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea rows={2} value={formData.notes} onChange={e => setFormData(f => ({ ...f, notes: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 resize-none" placeholder="Observations..." />
+              </div>
+              {formData.type && <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">📖 {TYPES.find(t => t.key === formData.type)?.refs}</div>}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Annuler</button>
+              <button onClick={addEcheance} disabled={!formData.immeuble_id || !formData.date_echeance} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">Ajouter</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedE && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelectedE(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6" onClick={ev => ev.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-800 text-lg">{TYPES.find(t => t.key === selectedE.type)?.icon} {selectedE.label}</h3>
+              <button onClick={() => setSelectedE(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Immeuble</p><p className="font-semibold">{selectedE.immeuble_nom}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Échéance</p><p className="font-semibold">{new Date(selectedE.date_echeance).toLocaleDateString('fr-FR')}</p></div>
+                {selectedE.prestataire && <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Prestataire</p><p className="font-semibold">{selectedE.prestataire}</p></div>}
+                {selectedE.date_realisation && <div className="bg-green-50 rounded-xl p-3"><p className="text-xs text-green-600 mb-1">Réalisée le</p><p className="font-semibold text-green-700">{new Date(selectedE.date_realisation).toLocaleDateString('fr-FR')}</p></div>}
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3">
+                <p className="text-xs text-blue-600 mb-1 font-semibold">Base légale</p>
+                <p className="text-blue-800">{TYPES.find(t => t.key === selectedE.type)?.refs}</p>
+                <p className="text-blue-600 mt-1 text-xs">{selectedE.description}</p>
+              </div>
+              {selectedE.notes && <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Notes</p><p className="text-gray-700">{selectedE.notes}</p></div>}
+            </div>
+            <div className="flex gap-2 mt-4">
+              {selectedE.statut !== 'fait' && <button onClick={() => { markDone(selectedE.id); setSelectedE(null) }} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700">✓ Marquer comme réalisée</button>}
+              <button onClick={() => { deleteE(selectedE.id); setSelectedE(null) }} className="px-4 py-2 border border-red-200 text-red-500 rounded-xl text-sm hover:bg-red-50">🗑️</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ RECOUVREMENT AUTOMATISÉ ══════════ */
+function RecouvrementSection({ user, userRole }: { user: any; userRole: string }) {
+  type StageRec = 'amiable' | 'relance_1' | 'relance_2' | 'mise_en_demeure' | 'contentieux' | 'huissier' | 'regle'
+  interface DossierRec {
+    id: string; coproprio_nom: string; coproprio_email: string; coproprio_lot: string
+    immeuble_nom: string; montant_initial: number; montant_actuel: number
+    date_premiere_echeance: string; stage: StageRec
+    historique: { date: string; action: string; auteur: string }[]
+    notes: string; date_derniere_action: string; added_at: string
+  }
+  const STAGES: { key: StageRec; label: string; icon: string; color: string; action: string }[] = [
+    { key: 'amiable', label: 'Contact amiable', icon: '📞', color: 'blue', action: 'Rappel amiable envoyé' },
+    { key: 'relance_1', label: 'Relance 1', icon: '📧', color: 'amber', action: '1ère lettre de relance' },
+    { key: 'relance_2', label: 'Relance 2', icon: '📨', color: 'orange', action: '2ème relance recommandée' },
+    { key: 'mise_en_demeure', label: 'Mise en demeure', icon: '⚖️', color: 'red', action: 'Mise en demeure LRAR' },
+    { key: 'contentieux', label: 'Contentieux', icon: '🏛️', color: 'purple', action: 'Saisine tribunal judiciaire' },
+    { key: 'huissier', label: 'Huissier', icon: '🔔', color: 'gray', action: 'Transmission à huissier' },
+    { key: 'regle', label: 'Réglé ✓', icon: '✅', color: 'green', action: 'Dossier clôturé — réglé' },
+  ]
+  const STAGE_ORDER: StageRec[] = ['amiable', 'relance_1', 'relance_2', 'mise_en_demeure', 'contentieux', 'huissier', 'regle']
+  const stageCls: Record<string, string> = {
+    blue: 'bg-blue-100 text-blue-700 border-blue-200', amber: 'bg-amber-100 text-amber-700 border-amber-200',
+    orange: 'bg-orange-100 text-orange-700 border-orange-200', red: 'bg-red-100 text-red-700 border-red-200',
+    purple: 'bg-purple-100 text-purple-700 border-purple-200', gray: 'bg-gray-100 text-gray-600 border-gray-200',
+    green: 'bg-green-100 text-green-700 border-green-200',
+  }
+
+  const storageKey = `fixit_recouvrement_${user.id}`
+  const [dossiers, setDossiers] = useState<DossierRec[]>([])
+  const [selected, setSelected] = useState<DossierRec | null>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [letter, setLetter] = useState<string | null>(null)
+  const [form, setForm] = useState({ coproprio_nom: '', coproprio_email: '', coproprio_lot: '', immeuble_nom: '', montant_initial: '', date_premiere_echeance: '' })
+  const [copiedLetter, setCopiedLetter] = useState(false)
+
+  useEffect(() => {
+    const s = localStorage.getItem(storageKey)
+    if (s) try { setDossiers(JSON.parse(s)) } catch {}
+  }, [storageKey])
+
+  const saveDossiers = (list: DossierRec[]) => { setDossiers(list); localStorage.setItem(storageKey, JSON.stringify(list)) }
+
+  const addDossier = () => {
+    if (!form.coproprio_nom || !form.montant_initial) return
+    saveDossiers([...dossiers, { id: Date.now().toString(36), coproprio_nom: form.coproprio_nom, coproprio_email: form.coproprio_email, coproprio_lot: form.coproprio_lot, immeuble_nom: form.immeuble_nom, montant_initial: parseFloat(form.montant_initial), montant_actuel: parseFloat(form.montant_initial), date_premiere_echeance: form.date_premiere_echeance, stage: 'amiable', historique: [{ date: new Date().toISOString(), action: 'Dossier ouvert', auteur: 'Syndic' }], notes: '', date_derniere_action: new Date().toISOString(), added_at: new Date().toISOString() }])
+    setShowAdd(false)
+    setForm({ coproprio_nom: '', coproprio_email: '', coproprio_lot: '', immeuble_nom: '', montant_initial: '', date_premiere_echeance: '' })
+  }
+
+  const escalate = (id: string) => {
+    const updated = dossiers.map(d => {
+      if (d.id !== id) return d
+      const idx = STAGE_ORDER.indexOf(d.stage)
+      const next = STAGE_ORDER[Math.min(idx + 1, STAGE_ORDER.length - 1)]
+      const info = STAGES.find(s => s.key === next)!
+      return { ...d, stage: next, date_derniere_action: new Date().toISOString(), historique: [...d.historique, { date: new Date().toISOString(), action: info.action, auteur: 'Syndic' }] }
+    })
+    saveDossiers(updated)
+    if (selected?.id === id) setSelected(updated.find(d => d.id === id) || null)
+  }
+
+  const markRegle = (id: string) => {
+    const updated = dossiers.map(d => d.id !== id ? d : { ...d, stage: 'regle' as StageRec, date_derniere_action: new Date().toISOString(), historique: [...d.historique, { date: new Date().toISOString(), action: 'Dossier réglé — clôture', auteur: 'Syndic' }] })
+    saveDossiers(updated)
+    setSelected(null)
+  }
+
+  const generateLetter = (d: DossierRec) => {
+    const templates: Partial<Record<StageRec, string>> = {
+      amiable: `Objet : Rappel amiable — Arriéré de charges de copropriété\n\nMonsieur/Madame ${d.coproprio_nom},\n\nNous vous contactons au sujet d'un arriéré de charges de copropriété d'un montant de ${d.montant_actuel.toFixed(2)} € relatif au lot n°${d.coproprio_lot || '?'} de la résidence ${d.immeuble_nom || '?'}.\n\nNous vous invitons à régulariser cette situation dans les meilleurs délais. Pour tout arrangement, n'hésitez pas à nous contacter.\n\nCordialement,\nLe Syndic`,
+      relance_1: `Objet : 1ère Relance — Charges de copropriété impayées\n\nMonsieur/Madame ${d.coproprio_nom},\n\nMalgré notre précédent rappel amiable, votre solde débiteur de ${d.montant_actuel.toFixed(2)} € (lot n°${d.coproprio_lot || '?'} — ${d.immeuble_nom || '?'}) n'a pas été régularisé.\n\nNous vous demandons de procéder au règlement sous 15 jours. À défaut, nous serons contraints d'engager une procédure de recouvrement.\n\nCordialement,\nLe Syndic`,
+      relance_2: `Objet : 2ème Relance (Recommandée) — Urgence règlement charges\n\nMonsieur/Madame ${d.coproprio_nom},\n\nEn l'absence de règlement de votre part malgré nos précédentes demandes, nous vous adressons cette seconde relance par recommandé.\n\nMontant dû : ${d.montant_actuel.toFixed(2)} € — Lot n°${d.coproprio_lot || '?'} — ${d.immeuble_nom || '?'}\n\nVous disposez de 8 jours pour régulariser. Passé ce délai, un courrier de mise en demeure vous sera adressé.\n\nCordialement,\nLe Syndic`,
+      mise_en_demeure: `MISE EN DEMEURE\n\nMonsieur/Madame ${d.coproprio_nom},\n\nPar la présente, nous vous mettons en demeure de régler, dans un délai de 8 jours à compter de la réception de ce courrier, la somme de ${d.montant_actuel.toFixed(2)} € représentant vos charges de copropriété impayées (lot n°${d.coproprio_lot || '?'} — ${d.immeuble_nom || '?'}).\n\nÀ défaut de règlement dans ce délai, nous nous réservons le droit de saisir le tribunal judiciaire compétent, conformément aux articles 14-1 et 19-2 de la loi du 10 juillet 1965.\n\nFait à ______, le ${new Date().toLocaleDateString('fr-FR')}\n\nLE SYNDIC\n[Signature]`,
+    }
+    setLetter(templates[d.stage] || `Dossier : ${d.coproprio_nom} — Lot n°${d.coproprio_lot || '?'}\nImmeuble : ${d.immeuble_nom || '?'}\nMontant : ${d.montant_actuel.toFixed(2)} €\nStade : ${STAGES.find(s => s.key === d.stage)?.label}\n\n[Adapter le courrier selon le stade actuel]`)
+  }
+
+  const actifs = dossiers.filter(d => d.stage !== 'regle')
+  const regles = dossiers.filter(d => d.stage === 'regle')
+  const totalEncours = actifs.reduce((s, d) => s + d.montant_actuel, 0)
+  const totalRegle = regles.reduce((s, d) => s + d.montant_actuel, 0)
+
+  return (
+    <div className="space-y-4 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">💸 Recouvrement automatisé</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Pipeline d'escalade — charges impayées copropriétaires</p>
+        </div>
+        <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">+ Nouveau dossier</button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center"><p className="text-2xl font-bold text-red-700">{totalEncours.toFixed(0)} €</p><p className="text-xs text-red-500 mt-0.5">En cours de recouvrement</p></div>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center"><p className="text-2xl font-bold text-gray-700">{actifs.length}</p><p className="text-xs text-gray-500 mt-0.5">Dossiers actifs</p></div>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center"><p className="text-2xl font-bold text-green-700">{totalRegle.toFixed(0)} €</p><p className="text-xs text-green-500 mt-0.5">Récupérés</p></div>
+      </div>
+
+      {actifs.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 overflow-x-auto">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Pipeline d'escalade</p>
+          <div className="flex gap-2 min-w-max">
+            {STAGES.filter(s => s.key !== 'regle').map(stage => {
+              const cnt = actifs.filter(d => d.stage === stage.key).length
+              return (
+                <div key={stage.key} className={`flex-1 min-w-24 rounded-xl border p-3 text-center transition ${cnt > 0 ? stageCls[stage.color] : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="text-lg mb-1">{stage.icon}</div>
+                  <p className="text-xs font-bold">{stage.label}</p>
+                  <p className={`text-xl font-bold mt-1 ${cnt > 0 ? '' : 'text-gray-400'}`}>{cnt}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {dossiers.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
+          <div className="text-5xl mb-3">💸</div>
+          <h3 className="font-bold text-gray-700 mb-1">Aucun dossier</h3>
+          <p className="text-sm text-gray-400">Ajoutez un dossier d'impayé pour suivre son escalade automatiquement</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {actifs.map(d => {
+            const si = STAGES.find(s => s.key === d.stage)!
+            return (
+              <div key={d.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:border-purple-200 transition cursor-pointer" onClick={() => setSelected(d)}>
+                <div className="text-2xl flex-shrink-0">{si.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-800 text-sm">{d.coproprio_nom}</p>
+                    {d.coproprio_lot && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Lot {d.coproprio_lot}</span>}
+                    {d.immeuble_nom && <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full border border-purple-100">{d.immeuble_nom}</span>}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">Depuis le {new Date(d.added_at).toLocaleDateString('fr-FR')} · Dernière action {new Date(d.date_derniere_action).toLocaleDateString('fr-FR')}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="font-bold text-red-600 text-base">{d.montant_actuel.toFixed(2)} €</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${stageCls[si.color]}`}>{si.label}</span>
+                </div>
+              </div>
+            )
+          })}
+          {regles.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-600 font-medium">✅ {regles.length} dossier(s) réglé(s) — {totalRegle.toFixed(0)} € récupérés</summary>
+              <div className="mt-2 space-y-2">
+                {regles.map(d => (
+                  <div key={d.id} className="bg-green-50 rounded-xl border border-green-100 p-3 flex items-center gap-3">
+                    <span className="text-xl">✅</span>
+                    <div className="flex-1"><p className="text-sm font-semibold text-green-800">{d.coproprio_nom}</p><p className="text-xs text-green-600">{d.immeuble_nom} · {d.montant_actuel.toFixed(2)} € récupérés</p></div>
+                    <button onClick={() => saveDossiers(dossiers.filter(x => x.id !== d.id))} className="text-red-400 hover:text-red-600 text-xs p-1">🗑️</button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-800 text-lg">Nouveau dossier impayé</h3>
+              <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom copropriétaire *</label><input type="text" placeholder="Jean Dupont" value={form.coproprio_nom} onChange={e => setForm(f => ({ ...f, coproprio_nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Numéro de lot</label><input type="text" placeholder="42" value={form.coproprio_lot} onChange={e => setForm(f => ({ ...f, coproprio_lot: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" /></div>
+              </div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" placeholder="jean.dupont@email.com" value={form.coproprio_email} onChange={e => setForm(f => ({ ...f, coproprio_email: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Résidence / Immeuble</label><input type="text" placeholder="Résidence Les Pins" value={form.immeuble_nom} onChange={e => setForm(f => ({ ...f, immeuble_nom: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Montant dû (€) *</label><input type="number" min="0" step="0.01" placeholder="1250.00" value={form.montant_initial} onChange={e => setForm(f => ({ ...f, montant_initial: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">1ère échéance</label><input type="date" value={form.date_premiere_echeance} onChange={e => setForm(f => ({ ...f, date_premiere_echeance: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" /></div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowAdd(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Annuler</button>
+              <button onClick={addDossier} disabled={!form.coproprio_nom || !form.montant_initial} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">Créer le dossier</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={ev => ev.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-800 text-lg">Dossier — {selected.coproprio_nom}</h3>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
+              {STAGES.filter(s => s.key !== 'regle').map(s => (
+                <div key={s.key} className={`flex-1 min-w-14 text-center p-2 rounded-lg text-xs font-bold border transition ${selected.stage === s.key ? stageCls[s.color] : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                  <div className="text-base mb-0.5">{s.icon}</div>{s.label}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-red-50 rounded-xl p-3 text-center"><p className="text-xl font-bold text-red-700">{selected.montant_actuel.toFixed(2)} €</p><p className="text-xs text-red-500">Montant dû</p></div>
+              <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-sm font-bold text-gray-700">Lot {selected.coproprio_lot || 'N/A'}</p><p className="text-xs text-gray-500">{selected.immeuble_nom || 'N/D'}</p></div>
+              <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-sm font-bold text-gray-700">{new Date(selected.added_at).toLocaleDateString('fr-FR')}</p><p className="text-xs text-gray-500">Ouverture</p></div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Historique</p>
+              <div className="space-y-2">
+                {[...selected.historique].reverse().map((h, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full mt-1.5 flex-shrink-0" />
+                    <div><p className="text-sm text-gray-700 font-medium">{h.action}</p><p className="text-xs text-gray-400">{new Date(h.date).toLocaleDateString('fr-FR')} · {h.auteur}</p></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {selected.stage !== 'regle' && (
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={() => generateLetter(selected)} className="flex-1 min-w-32 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">📝 Générer courrier</button>
+                <button onClick={() => escalate(selected.id)} className="flex-1 min-w-32 px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-semibold hover:bg-orange-700 transition">⬆️ Escalader</button>
+                <button onClick={() => markRegle(selected.id)} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition">✅ Réglé</button>
+                <button onClick={() => { saveDossiers(dossiers.filter(d => d.id !== selected.id)); setSelected(null) }} className="px-4 py-2 border border-red-200 text-red-500 rounded-xl text-sm hover:bg-red-50 transition">🗑️</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {letter && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={() => setLetter(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6" onClick={ev => ev.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-gray-800">📝 Courrier généré</h3>
+              <button onClick={() => setLetter(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <textarea readOnly value={letter} rows={14} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono resize-none focus:outline-none" />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { navigator.clipboard.writeText(letter); setCopiedLetter(true); setTimeout(() => setCopiedLetter(false), 2000) }} className={`flex-1 px-4 py-2 rounded-xl text-sm font-semibold transition ${copiedLetter ? 'bg-green-600 text-white' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+                {copiedLetter ? '✓ Copié !' : '📋 Copier le courrier'}
+              </button>
+              {selected?.coproprio_email && (
+                <a href={`mailto:${selected.coproprio_email}?subject=Charges%20de%20copropri%C3%A9t%C3%A9%20impay%C3%A9es&body=${encodeURIComponent(letter)}`} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition text-center">📧 Envoyer par email</a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ══════════ PRÉPARATEUR AG AUTOMATIQUE ══════════ */
+function PreparateurAGSection({ user, userRole, immeubles }: { user: any; userRole: string; immeubles: Immeuble[] }) {
+  type AGStep = 'infos' | 'ordre_du_jour' | 'documents' | 'convocation' | 'export'
+  type AGStatut = 'brouillon' | 'convocations_envoyees' | 'termine'
+  interface AGResolution { id: string; type: 'ordinaire' | 'majorite_renforcee' | 'double_majorite'; titre: string; description: string; obligatoire: boolean }
+  interface AGProject { id: string; immeuble_id: string; date_ag: string; heure_ag: string; lieu: string; type_ag: 'ordinaire' | 'extraordinaire'; resolutions: AGResolution[]; notes_president: string; created_at: string; statut: AGStatut }
+
+  const RESOLUTIONS_STD: AGResolution[] = [
+    { id: 'approbation_comptes', type: 'ordinaire', titre: "Approbation des comptes de l'exercice", description: 'Vote à la majorité simple — art. 24 loi 1965', obligatoire: true },
+    { id: 'budget_previsionnel', type: 'ordinaire', titre: 'Vote du budget prévisionnel', description: 'Budget exercice suivant — art. 14-1 loi 1965', obligatoire: true },
+    { id: 'fonds_travaux', type: 'ordinaire', titre: 'Cotisation fonds de travaux', description: '5% min du budget prévisionnel — loi ALUR', obligatoire: true },
+    { id: 'designation_syndic', type: 'majorite_renforcee', titre: 'Désignation/renouvellement du syndic', description: 'Contrat de syndic — art. 25 loi 1965', obligatoire: false },
+    { id: 'conseil_syndical', type: 'ordinaire', titre: 'Élection du conseil syndical', description: 'Membres du CS — art. 21 loi 1965', obligatoire: false },
+    { id: 'travaux_pc', type: 'majorite_renforcee', titre: 'Autorisation travaux parties communes', description: 'Majorité art. 25 ou art. 26 selon travaux', obligatoire: false },
+    { id: 'contrats_entretien', type: 'ordinaire', titre: 'Renouvellement contrats entretien', description: 'Ascenseur, espaces verts, nettoyage...', obligatoire: false },
+    { id: 'assurance', type: 'ordinaire', titre: "Renouvellement contrat d'assurance", description: 'Assurance multirisque immeuble', obligatoire: false },
+    { id: 'divers', type: 'ordinaire', titre: 'Questions diverses', description: 'Points remontés par le CS ou copropriétaires', obligatoire: false },
+  ]
+
+  const STEPS_NAV: { key: AGStep; label: string; icon: string }[] = [
+    { key: 'infos', label: 'Infos', icon: '📋' },
+    { key: 'ordre_du_jour', label: 'Ordre du jour', icon: '📝' },
+    { key: 'documents', label: 'Documents', icon: '📁' },
+    { key: 'convocation', label: 'Convocation', icon: '📧' },
+    { key: 'export', label: 'Export', icon: '✅' },
+  ]
+
+  const DOCS_CHECKLIST = [
+    { doc: "Comptes de l'exercice précédent", obligatoire: true, note: 'Bilan + compte de résultat signé par le syndic' },
+    { doc: 'Budget prévisionnel détaillé', obligatoire: true, note: 'Détail par poste de charge' },
+    { doc: 'Relevé des charges individuelles', obligatoire: true, note: 'Par lot — répartition tantièmes' },
+    { doc: "État de la dette de la copropriété", obligatoire: true, note: 'Impayés, provisions et créances' },
+    { doc: 'Formulaire de pouvoir (mandataire)', obligatoire: true, note: 'Pour mandater un représentant en AG' },
+    { doc: 'Projet de contrat syndic', obligatoire: false, note: 'Si renouvellement syndic à l\'ordre du jour' },
+    { doc: 'Note d\'information travaux', obligatoire: false, note: 'Descriptif et devis si travaux à voter' },
+    { doc: 'Devis comparatifs (3 minimum)', obligatoire: false, note: 'Obligatoires si vote travaux > seuil' },
+  ]
+
+  const storageKey = `fixit_ag_projects_${user.id}`
+  const [projects, setProjects] = useState<AGProject[]>([])
+  const [current, setCurrent] = useState<AGProject | null>(null)
+  const [step, setStep] = useState<AGStep>('infos')
+  const [convocation, setConvocation] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const s = localStorage.getItem(storageKey)
+    if (s) try { setProjects(JSON.parse(s)) } catch {}
+  }, [storageKey])
+
+  const saveProjects = (list: AGProject[]) => { setProjects(list); localStorage.setItem(storageKey, JSON.stringify(list)) }
+
+  const updateCurrent = (p: AGProject) => {
+    setCurrent(p)
+    const updated = projects.find(x => x.id === p.id) ? projects.map(x => x.id === p.id ? p : x) : [...projects, p]
+    saveProjects(updated)
+  }
+
+  const createNew = () => {
+    const p: AGProject = { id: Date.now().toString(36), immeuble_id: immeubles[0]?.id || '', date_ag: '', heure_ag: '18:00', lieu: '', type_ag: 'ordinaire', resolutions: RESOLUTIONS_STD.filter(r => r.obligatoire), notes_president: '', created_at: new Date().toISOString(), statut: 'brouillon' }
+    setCurrent(p)
+    setStep('infos')
+  }
+
+  const toggleRes = (res: AGResolution) => {
+    if (!current) return
+    const exists = current.resolutions.find(r => r.id === res.id)
+    updateCurrent({ ...current, resolutions: exists ? current.resolutions.filter(r => r.id !== res.id) : [...current.resolutions, res] })
+  }
+
+  const genConvocation = () => {
+    if (!current) return
+    const imm = immeubles.find(i => i.id === current.immeuble_id)
+    const dateAG = current.date_ag ? new Date(current.date_ag).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '[DATE À DÉFINIR]'
+    const dateEnvoi = current.date_ag ? new Date(new Date(current.date_ag).getTime() - 21 * 86400000).toLocaleDateString('fr-FR') : '[21 jours avant AG]'
+    const typeLabel: Record<string, string> = { ordinaire: 'Art. 24 — majorité simple', majorite_renforcee: 'Art. 25 — majorité renforcée', double_majorite: 'Art. 26 — double majorité' }
+    const odj = current.resolutions.map((r, i) => `  ${i + 1}. ${r.titre}\n     → ${r.description}\n     → Vote : ${typeLabel[r.type] || r.type}`).join('\n\n')
+    const conv = `CONVOCATION À L'ASSEMBLÉE GÉNÉRALE ${current.type_ag === 'extraordinaire' ? 'EXTRAORDINAIRE' : 'ORDINAIRE'}\n\nRésidence : ${imm?.nom || '[NOM RÉSIDENCE]'}\n${imm?.adresse || '[ADRESSE]'}\n\nDate d'envoi de la convocation : ${dateEnvoi}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nMadame, Monsieur,\n\nNous avons l'honneur de vous convoquer à l'Assemblée Générale ${current.type_ag === 'extraordinaire' ? 'Extraordinaire' : 'Ordinaire'} des copropriétaires qui se tiendra :\n\n  📅 Le : ${dateAG}\n  🕐 À : ${current.heure_ag || '[HEURE]'}\n  📍 Au : ${current.lieu || '[LIEU À DÉFINIR]'}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nORDRE DU JOUR\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${odj}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nLes pièces justificatives (comptes, budget, contrats) sont tenues à votre disposition au cabinet syndic. Vous pouvez vous faire représenter par un mandataire de votre choix (formulaire de pouvoir ci-joint).\n\nVeuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées.\n\nLe Syndic\nDate : ${new Date().toLocaleDateString('fr-FR')}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️  Document généré par Fixit — À adapter selon les spécificités de la copropriété\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    setConvocation(conv)
+  }
+
+  const typeClsRes: Record<string, string> = { ordinaire: 'bg-blue-50 text-blue-600 border-blue-200', majorite_renforcee: 'bg-orange-50 text-orange-600 border-orange-200', double_majorite: 'bg-red-50 text-red-600 border-red-200' }
+  const typeLabels: Record<string, string> = { ordinaire: 'Art. 24', majorite_renforcee: 'Art. 25', double_majorite: 'Art. 26' }
+
+  if (!current) {
+    return (
+      <div className="space-y-4 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">📝 Préparateur AG</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Générez convocations et ordre du jour en quelques clics</p>
+          </div>
+          <button onClick={createNew} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">+ Nouvelle AG</button>
+        </div>
+        {projects.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
+            <div className="text-5xl mb-3">🏛️</div>
+            <h3 className="font-bold text-gray-700 mb-1">Aucune AG préparée</h3>
+            <p className="text-sm text-gray-400 mb-4">Préparez votre prochaine assemblée générale avec convocation, ordre du jour et checklist documents</p>
+            <button onClick={createNew} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">Commencer la préparation</button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {projects.map(p => {
+              const imm = immeubles.find(i => i.id === p.immeuble_id)
+              return (
+                <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:border-purple-200 transition cursor-pointer" onClick={() => { setCurrent(p); setStep('infos') }}>
+                  <div className="text-2xl">🏛️</div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">AG {p.type_ag === 'extraordinaire' ? 'Extraordinaire' : 'Ordinaire'} — {imm?.nom || 'Immeuble non défini'}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{p.date_ag ? new Date(p.date_ag).toLocaleDateString('fr-FR') : 'Date non définie'} · {p.resolutions.length} résolutions</p>
+                  </div>
+                  <span className={`text-xs px-3 py-1 rounded-full font-semibold flex-shrink-0 ${p.statut === 'termine' ? 'bg-green-100 text-green-700' : p.statut === 'convocations_envoyees' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {p.statut === 'termine' ? '✅ Terminée' : p.statut === 'convocations_envoyees' ? '📧 Convoquée' : '✏️ Brouillon'}
+                  </span>
+                  <button onClick={ev => { ev.stopPropagation(); saveProjects(projects.filter(x => x.id !== p.id)) }} className="text-red-400 hover:text-red-600 text-sm p-1 flex-shrink-0">🗑️</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const imm = immeubles.find(i => i.id === current.immeuble_id)
+  const stepIdx = STEPS_NAV.findIndex(s => s.key === step)
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <button onClick={() => { setCurrent(null); setConvocation('') }} className="mb-4 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition">← Retour à la liste</button>
+
+      <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-2xl p-5 mb-4 text-white">
+        <h2 className="font-bold text-lg mb-1">📝 AG {current.type_ag === 'extraordinaire' ? 'Extraordinaire' : 'Ordinaire'} — {imm?.nom || 'Immeuble'}</h2>
+        <p className="text-purple-200 text-sm">{current.date_ag ? new Date(current.date_ag).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : 'Date à définir'} · {current.lieu || 'Lieu à définir'}</p>
+        <div className="flex gap-1 mt-3">
+          {STEPS_NAV.map((s, i) => (
+            <button key={s.key} onClick={() => setStep(s.key)} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition ${step === s.key ? 'bg-white text-purple-700' : i < stepIdx ? 'bg-purple-400 text-white' : 'bg-purple-700/50 text-purple-300'}`}>
+              {s.icon} {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        {step === 'infos' && (
+          <div className="space-y-4">
+            <h3 className="font-bold text-gray-800">Informations générales</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Immeuble</label>
+                <select value={current.immeuble_id} onChange={e => updateCurrent({ ...current, immeuble_id: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400">
+                  {immeubles.length === 0 ? <option value="">Aucun immeuble</option> : immeubles.map(i => <option key={i.id} value={i.id}>{i.nom}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type d'AG</label>
+                <select value={current.type_ag} onChange={e => updateCurrent({ ...current, type_ag: e.target.value as 'ordinaire' | 'extraordinaire' })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400">
+                  <option value="ordinaire">AG Ordinaire (annuelle)</option>
+                  <option value="extraordinaire">AG Extraordinaire</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date de l'AG</label>
+                <input type="date" value={current.date_ag} onChange={e => updateCurrent({ ...current, date_ag: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Heure</label>
+                <input type="time" value={current.heure_ag} onChange={e => updateCurrent({ ...current, heure_ag: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lieu</label>
+                <input type="text" placeholder="Salle polyvalente de la résidence, 12 rue des Pins..." value={current.lieu} onChange={e => updateCurrent({ ...current, lieu: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+              </div>
+            </div>
+            {current.date_ag && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+                📧 Convocations à envoyer avant le : <strong>{new Date(new Date(current.date_ag).getTime() - 21 * 86400000).toLocaleDateString('fr-FR')}</strong> (21 jours min — art. 9 décret 1967)
+              </div>
+            )}
+            <button onClick={() => setStep('ordre_du_jour')} className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">Suivant : Ordre du jour →</button>
+          </div>
+        )}
+
+        {step === 'ordre_du_jour' && (
+          <div className="space-y-4">
+            <h3 className="font-bold text-gray-800">Ordre du jour ({current.resolutions.length} résolutions)</h3>
+            <div className="space-y-2">
+              {RESOLUTIONS_STD.map(res => {
+                const sel = !!current.resolutions.find(r => r.id === res.id)
+                return (
+                  <div key={res.id} onClick={() => !res.obligatoire && toggleRes(res)} className={`rounded-xl border p-3 flex items-start gap-3 transition ${sel ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-white'} ${!res.obligatoire ? 'cursor-pointer hover:border-purple-200' : ''}`}>
+                    <div className={`w-5 h-5 rounded mt-0.5 flex-shrink-0 border-2 flex items-center justify-center ${sel ? 'bg-purple-600 border-purple-600' : 'border-gray-300'}`}>
+                      {sel && <span className="text-white text-xs font-bold">✓</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-800">{res.titre}</p>
+                        {res.obligatoire && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full border border-red-200">Obligatoire</span>}
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${typeClsRes[res.type]}`}>{typeLabels[res.type]}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{res.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setStep('infos')} className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">← Retour</button>
+              <button onClick={() => setStep('documents')} className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">Suivant : Documents →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 'documents' && (
+          <div className="space-y-4">
+            <h3 className="font-bold text-gray-800">Checklist documents à joindre</h3>
+            <p className="text-sm text-gray-500">Documents obligatoires à annexer à la convocation (art. 11 décret 1967)</p>
+            <div className="space-y-2">
+              {DOCS_CHECKLIST.map((item, i) => (
+                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${item.obligatoire ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className={`w-5 h-5 rounded-full mt-0.5 flex-shrink-0 border-2 flex items-center justify-center ${item.obligatoire ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                    {item.obligatoire && <span className="text-white text-xs font-bold">✓</span>}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{item.doc} {item.obligatoire && <span className="text-xs text-blue-600 font-medium">(obligatoire)</span>}</p>
+                    <p className="text-xs text-gray-500">{item.note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes pour le président de séance</label>
+              <textarea rows={3} value={current.notes_president} onChange={e => updateCurrent({ ...current, notes_president: e.target.value })} placeholder="Points à surveiller, contexte particulier, tensions attendues, ordre de vote..." className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400 resize-none" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setStep('ordre_du_jour')} className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">← Retour</button>
+              <button onClick={() => setStep('convocation')} className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">Suivant : Convocation →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 'convocation' && (
+          <div className="space-y-4">
+            <h3 className="font-bold text-gray-800">Génération de la convocation</h3>
+            {!convocation ? (
+              <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-2xl p-8 text-center">
+                <div className="text-5xl mb-3">📧</div>
+                <h4 className="font-bold text-purple-800 mb-1">Convocation légale prête</h4>
+                <p className="text-sm text-purple-600 mb-4">{current.resolutions.length} résolutions · Format conforme décret 1967</p>
+                <button onClick={genConvocation} className="px-6 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition text-sm">📄 Générer la convocation</button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-gray-700">Aperçu de la convocation</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => { navigator.clipboard.writeText(convocation); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition ${copied ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}>{copied ? '✓ Copié !' : '📋 Copier'}</button>
+                    <button onClick={() => setConvocation('')} className="text-xs px-3 py-1.5 rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50">↩ Regénérer</button>
+                  </div>
+                </div>
+                <textarea readOnly value={convocation} rows={18} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono resize-none focus:outline-none" />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setStep('documents')} className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">← Retour</button>
+              <button onClick={() => { updateCurrent({ ...current, statut: 'convocations_envoyees' }); setStep('export') }} className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">Suivant : Export final →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 'export' && (
+          <div className="space-y-4 text-center">
+            <div className="text-6xl mb-2">✅</div>
+            <h3 className="font-bold text-gray-800 text-xl">AG prête !</h3>
+            <p className="text-gray-500 text-sm">Votre assemblée générale est correctement configurée et prête à être envoyée</p>
+            <div className="grid grid-cols-3 gap-3 text-left mt-4">
+              <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-2xl font-bold text-gray-800">{current.resolutions.length}</p><p className="text-xs text-gray-500">Résolutions</p></div>
+              <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-lg font-bold text-gray-800">{current.date_ag ? new Date(current.date_ag).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : 'N/A'}</p><p className="text-xs text-gray-500">Date AG</p></div>
+              <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="text-lg font-bold text-gray-800">{current.heure_ag}</p><p className="text-xs text-gray-500">Heure</p></div>
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center mt-4">
+              <button onClick={() => { genConvocation(); setStep('convocation') }} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">📋 Voir convocation</button>
+              <button onClick={() => { updateCurrent({ ...current, statut: 'termine' }); setCurrent(null) }} className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition">✅ Marquer AG terminée</button>
+              <button onClick={() => setCurrent(null)} className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50">Retour à la liste</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 /* ══════════ AGENT COMPTABLE IA COPROPRIÉTÉ ══════════ */
 function AgentComptableCopro({
@@ -9951,96 +11037,457 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
 /* ══════════ SINISTRES SECTION ══════════ */
 function SinistresSection({ user, userRole }: { user: any; userRole: string }) {
   const uid = user?.id || 'demo'
-  type Sinistre = { id: string; titre: string; immeuble: string; lot: string; type: string; dateDeclaration: string; dateConstat: string; assureur: string; numDossier: string; montantEstime: number; montantIndemnise: number; statut: 'déclaré' | 'en_expertise' | 'accepté' | 'refusé' | 'indemnisé' | 'clôturé'; notes: string }
 
-  const [sinistres, setSinistres] = useState<Sinistre[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_sinistres_${uid}`) || '[]') } catch { return [] } })
+  // ── Types ──
+  type SinistreStatut = 'déclaré' | 'artisan_assigné' | 'en_expertise' | 'résolution' | 'indemnisé' | 'clôturé' | 'refusé'
+  type SinistreEvent = { id: string; date: string; auteur: string; type: 'statut' | 'note' | 'mission' | 'assurance'; contenu: string }
+  type Sinistre = {
+    id: string; titre: string; immeuble: string; lot: string; type: string
+    dateDeclaration: string; declarantNom: string; declarantRole: 'coproprio' | 'locataire' | 'technicien' | 'syndic'
+    assureur: string; numDossier: string; emailAssureur: string
+    artisanAssigne: string; missionId: string
+    montantEstime: number; montantIndemnise: number
+    statut: SinistreStatut; urgence: 'haute' | 'normale'
+    notes: string; events: SinistreEvent[]
+  }
+
+  const PIPELINE: { key: SinistreStatut; label: string; icon: string; color: string }[] = [
+    { key: 'déclaré',        label: 'Déclaré',          icon: '🚨', color: 'bg-red-500' },
+    { key: 'artisan_assigné',label: 'Artisan assigné',  icon: '🔨', color: 'bg-orange-500' },
+    { key: 'en_expertise',   label: 'En expertise',     icon: '🔍', color: 'bg-blue-500' },
+    { key: 'résolution',     label: 'Résolution',        icon: '🔧', color: 'bg-purple-500' },
+    { key: 'indemnisé',      label: 'Indemnisé',         icon: '💰', color: 'bg-teal-500' },
+    { key: 'clôturé',        label: 'Clôturé',           icon: '✅', color: 'bg-green-500' },
+  ]
+  const STATUS_COLORS: Record<string, string> = {
+    déclaré: 'bg-red-100 text-red-700', artisan_assigné: 'bg-orange-100 text-orange-700',
+    en_expertise: 'bg-blue-100 text-blue-700', résolution: 'bg-purple-100 text-purple-700',
+    indemnisé: 'bg-teal-100 text-teal-700', clôturé: 'bg-green-100 text-green-700', refusé: 'bg-gray-100 text-gray-600'
+  }
+  const TYPES = ['Dégât des eaux', 'Incendie', 'Vol / Cambriolage', 'Vandalisme', 'Bris de glace', 'Catastrophe naturelle', 'Effondrement', 'Infiltration', 'Bris de canalisations', 'Autre']
+
+  const ARTISANS_DEMO = ['Marc Fontaine (Plomberie)', 'Sophie Laurent (Électricité)', 'Karim Bensaid (Maçonnerie)', 'Pierre Martin (Couverture)', 'Ali Hassan (Multi-technique)']
+
+  const emptyForm = { titre: '', immeuble: '', lot: '', type: 'Dégât des eaux', dateDeclaration: new Date().toISOString().split('T')[0], declarantNom: '', declarantRole: 'coproprio' as 'coproprio' | 'locataire' | 'technicien' | 'syndic', assureur: '', numDossier: '', emailAssureur: '', artisanAssigne: '', missionId: '', montantEstime: '', montantIndemnise: '', notes: '', urgence: 'normale' as 'haute' | 'normale' }
+
+  const [sinistres, setSinistres] = useState<Sinistre[]>(() => { try { return JSON.parse(localStorage.getItem(`fixit_sinistres_v2_${uid}`) || '[]') } catch { return [] } })
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ titre: '', immeuble: '', lot: '', type: 'Dégât des eaux', dateDeclaration: new Date().toISOString().split('T')[0], dateConstat: '', assureur: '', numDossier: '', montantEstime: '', montantIndemnise: '', notes: '' })
+  const [selectedSinistre, setSelectedSinistre] = useState<Sinistre | null>(null)
+  const [form, setForm] = useState(emptyForm)
+  const [noteInput, setNoteInput] = useState('')
+  const [filterStatut, setFilterStatut] = useState<string>('')
+  const [showEmailTemplate, setShowEmailTemplate] = useState(false)
+  const [emailCopied, setEmailCopied] = useState(false)
 
-  const save = (u: Sinistre[]) => { setSinistres(u); localStorage.setItem(`fixit_sinistres_${uid}`, JSON.stringify(u)) }
+  const save = (u: Sinistre[]) => { setSinistres(u); localStorage.setItem(`fixit_sinistres_v2_${uid}`, JSON.stringify(u)) }
+
   const handleAdd = () => {
     if (!form.titre.trim()) return
-    const s: Sinistre = { id: Date.now().toString(), ...form, montantEstime: parseFloat(form.montantEstime) || 0, montantIndemnise: parseFloat(form.montantIndemnise) || 0, statut: 'déclaré' }
+    const now = new Date().toISOString()
+    const s: Sinistre = {
+      id: Date.now().toString(), ...form,
+      montantEstime: parseFloat(form.montantEstime) || 0,
+      montantIndemnise: parseFloat(form.montantIndemnise) || 0,
+      statut: 'déclaré',
+      events: [{ id: '1', date: now, auteur: 'Système', type: 'statut', contenu: `Sinistre déclaré par ${form.declarantNom || 'le gestionnaire'} — ${form.type}` }]
+    }
     save([s, ...sinistres])
     setShowModal(false)
-    setForm({ titre: '', immeuble: '', lot: '', type: 'Dégât des eaux', dateDeclaration: new Date().toISOString().split('T')[0], dateConstat: '', assureur: '', numDossier: '', montantEstime: '', montantIndemnise: '', notes: '' })
+    setForm(emptyForm)
   }
-  const changeStatut = (id: string, statut: Sinistre['statut']) => { save(sinistres.map(s => s.id === id ? { ...s, statut } : s)) }
 
-  const STATUS_COLORS: Record<string, string> = { déclaré: 'bg-blue-100 text-blue-700', en_expertise: 'bg-orange-100 text-orange-700', accepté: 'bg-green-100 text-green-700', refusé: 'bg-red-100 text-red-700', indemnisé: 'bg-teal-100 text-teal-700', clôturé: 'bg-gray-100 text-gray-700' }
-  const TYPES = ['Dégât des eaux', 'Incendie', 'Vol / Cambriolage', 'Vandalisme', 'Bris de glace', 'Catastrophe naturelle', 'Effondrement', 'Autre']
+  const advanceStatut = (id: string, statut: SinistreStatut, extra?: Partial<Sinistre>) => {
+    const now = new Date().toISOString()
+    const label = PIPELINE.find(p => p.key === statut)?.label || statut
+    const updated = sinistres.map(s => s.id === id ? {
+      ...s, ...extra, statut,
+      events: [...(s.events || []), { id: Date.now().toString(), date: now, auteur: 'Gestionnaire', type: 'statut' as const, contenu: `Statut → ${label}` }]
+    } : s)
+    save(updated)
+    if (selectedSinistre?.id === id) setSelectedSinistre(updated.find(s => s.id === id) || null)
+  }
+
+  const addNote = (id: string) => {
+    if (!noteInput.trim()) return
+    const now = new Date().toISOString()
+    const updated = sinistres.map(s => s.id === id ? {
+      ...s, events: [...(s.events || []), { id: Date.now().toString(), date: now, auteur: 'Gestionnaire', type: 'note' as const, contenu: noteInput.trim() }]
+    } : s)
+    save(updated)
+    if (selectedSinistre?.id === id) setSelectedSinistre(updated.find(s => s.id === id) || null)
+    setNoteInput('')
+  }
+
+  const assignArtisan = (id: string, artisan: string) => {
+    const now = new Date().toISOString()
+    const updated = sinistres.map(s => s.id === id ? {
+      ...s, artisanAssigne: artisan, statut: 'artisan_assigné' as SinistreStatut,
+      events: [...(s.events || []),
+        { id: Date.now().toString(), date: now, auteur: 'Gestionnaire', type: 'mission' as const, contenu: `Artisan assigné : ${artisan}` },
+        { id: (Date.now() + 1).toString(), date: now, auteur: 'Système', type: 'statut' as const, contenu: 'Statut → Artisan assigné' }
+      ]
+    } : s)
+    save(updated)
+    if (selectedSinistre?.id === id) setSelectedSinistre(updated.find(s => s.id === id) || null)
+  }
+
+  const generateEmailAssureur = (s: Sinistre) => {
+    return `Objet : Déclaration de sinistre — ${s.titre} — ${s.immeuble}
+
+Madame, Monsieur,
+
+Nous vous contactons pour déclarer un sinistre survenu dans la copropriété que nous gérons.
+
+📋 INFORMATIONS DU SINISTRE
+• Type : ${s.type}
+• Immeuble : ${s.immeuble}${s.lot ? ` — Lot/Appartement : ${s.lot}` : ''}
+• Date de déclaration : ${new Date(s.dateDeclaration).toLocaleDateString('fr-FR')}
+• Déclarant : ${s.declarantNom || 'Non précisé'} (${s.declarantRole})
+• Description : ${s.titre}
+${s.montantEstime > 0 ? `• Montant estimé des dégâts : ${s.montantEstime.toLocaleString('fr-FR')} €` : ''}
+${s.artisanAssigne ? `• Artisan intervenant : ${s.artisanAssigne}` : ''}
+${s.numDossier ? `• N° dossier existant : ${s.numDossier}` : ''}
+
+Nous restons à votre disposition pour tout complément d'information.
+
+Cordialement,
+Le Gestionnaire — Cabinet de Syndic`
+  }
+
+  const filteredSinistres = filterStatut ? sinistres.filter(s => s.statut === filterStatut) : sinistres
+  const actifs = sinistres.filter(s => s.statut !== 'clôturé' && s.statut !== 'refusé')
+  const urgents = sinistres.filter(s => s.urgence === 'haute' && s.statut !== 'clôturé')
+  const totalEstime = sinistres.reduce((t, s) => t + s.montantEstime, 0)
+  const totalIndemnise = sinistres.reduce((t, s) => t + s.montantIndemnise, 0)
 
   return (
     <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-orange-400 shadow-sm flex justify-between items-center">
-        <div><h1 className="text-2xl font-semibold">🚨 Sinistres & Assurances</h1><p className="text-sm text-gray-500">Suivi des déclarations · Expertises · Indemnisations</p></div>
-        <button onClick={() => setShowModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600">+ Déclarer sinistre</button>
+      {/* Header */}
+      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-orange-400 shadow-sm flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">🚨 Pipeline Sinistres</h1>
+          <p className="text-sm text-gray-500">Déclaration → Artisan → Expertise → Indemnisation → Clôture</p>
+        </div>
+        <button onClick={() => setShowModal(true)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600 shadow-sm">
+          + Nouveau sinistre
+        </button>
       </div>
+
       <div className="p-6 lg:p-8">
+        {/* KPIs */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-orange-400"><div className="text-sm text-gray-500">Sinistres actifs</div><div className="text-3xl font-bold text-orange-600">{sinistres.filter(s => s.statut !== 'clôturé').length}</div></div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400"><div className="text-sm text-gray-500">En expertise</div><div className="text-3xl font-bold text-blue-600">{sinistres.filter(s => s.statut === 'en_expertise').length}</div></div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400"><div className="text-sm text-gray-500">Montant estimé total</div><div className="text-3xl font-bold text-red-600">{sinistres.reduce((s, si) => s + si.montantEstime, 0).toLocaleString('fr-FR')} €</div></div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400"><div className="text-sm text-gray-500">Indemnisations reçues</div><div className="text-3xl font-bold text-green-600">{sinistres.reduce((s, si) => s + si.montantIndemnise, 0).toLocaleString('fr-FR')} €</div></div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400">
+            <div className="text-sm text-gray-500">Sinistres actifs</div>
+            <div className="text-3xl font-bold text-red-600">{actifs.length}</div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-400">
+            <div className="text-sm text-gray-500">Urgences</div>
+            <div className="text-3xl font-bold text-amber-600">{urgents.length}</div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-400">
+            <div className="text-sm text-gray-500">Montant estimé</div>
+            <div className="text-2xl font-bold text-blue-600">{totalEstime.toLocaleString('fr-FR')} €</div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400">
+            <div className="text-sm text-gray-500">Indemnisations</div>
+            <div className="text-2xl font-bold text-green-600">{totalIndemnise.toLocaleString('fr-FR')} €</div>
+          </div>
         </div>
 
-        {sinistres.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center"><div className="text-5xl mb-4">🛡️</div><h3 className="text-xl font-bold mb-2">Aucun sinistre</h3><p className="text-gray-500 mb-6">Déclarez et suivez vos sinistres de bout en bout</p><button onClick={() => setShowModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600">+ Déclarer un sinistre</button></div>
+        {/* Pipeline kanban view */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 overflow-x-auto">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Vue pipeline</p>
+          <div className="flex gap-2 min-w-max">
+            {PIPELINE.map(stage => {
+              const count = sinistres.filter(s => s.statut === stage.key).length
+              return (
+                <div
+                  key={stage.key}
+                  onClick={() => setFilterStatut(filterStatut === stage.key ? '' : stage.key)}
+                  className={`flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl cursor-pointer transition-all min-w-[100px] ${filterStatut === stage.key ? stage.color + ' text-white shadow-md' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}
+                >
+                  <span className="text-xl">{stage.icon}</span>
+                  <span className="text-xs font-bold text-center leading-tight">{stage.label}</span>
+                  <span className={`text-lg font-black ${filterStatut === stage.key ? 'text-white' : 'text-gray-800'}`}>{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Liste sinistres */}
+        {filteredSinistres.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+            <div className="text-5xl mb-4">🛡️</div>
+            <h3 className="text-xl font-bold mb-2">{filterStatut ? 'Aucun sinistre à ce stade' : 'Aucun sinistre'}</h3>
+            <p className="text-gray-500 mb-6">
+              {filterStatut ? 'Changez de filtre ou déclarez un nouveau sinistre.' : 'Déclarez et suivez vos sinistres de bout en bout — de la déclaration à l\'indemnisation.'}
+            </p>
+            <button onClick={() => setShowModal(true)} className="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-orange-600">+ Déclarer un sinistre</button>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {sinistres.map(s => (
-              <div key={s.id} className="bg-white rounded-2xl shadow-sm p-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="font-bold text-lg">{s.titre}</h3><span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[s.statut]}`}>{s.statut}</span><span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">{s.type}</span></div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600">
-                      {s.immeuble && <span>🏢 {s.immeuble}{s.lot ? ` — Lot ${s.lot}` : ''}</span>}
-                      <span>📅 Déclaré le {new Date(s.dateDeclaration).toLocaleDateString('fr-FR')}</span>
-                      {s.assureur && <span>🛡️ {s.assureur}</span>}
-                      {s.numDossier && <span>📋 N° {s.numDossier}</span>}
-                      {s.montantEstime > 0 && <span>💰 Estimé : <strong>{s.montantEstime.toLocaleString('fr-FR')} €</strong></span>}
-                      {s.montantIndemnise > 0 && <span className="text-green-600">✅ Indemnisé : <strong>{s.montantIndemnise.toLocaleString('fr-FR')} €</strong></span>}
+          <div className="space-y-3">
+            {filteredSinistres.map(s => {
+              const pipelineIdx = PIPELINE.findIndex(p => p.key === s.statut)
+              return (
+                <div
+                  key={s.id}
+                  className={`bg-white rounded-2xl shadow-sm border-l-4 cursor-pointer hover:shadow-md transition-all ${s.urgence === 'haute' ? 'border-red-500' : 'border-orange-300'}`}
+                  onClick={() => setSelectedSinistre(s)}
+                >
+                  <div className="p-4 flex flex-col md:flex-row gap-3 items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        {s.urgence === 'haute' && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">🔴 URGENT</span>}
+                        <h3 className="font-bold text-gray-900">{s.titre}</h3>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[s.statut] || 'bg-gray-100 text-gray-600'}`}>{s.statut.replace('_', ' ')}</span>
+                        <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">{s.type}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                        {s.immeuble && <span>🏢 {s.immeuble}{s.lot ? ` · Lot ${s.lot}` : ''}</span>}
+                        <span>📅 {new Date(s.dateDeclaration).toLocaleDateString('fr-FR')}</span>
+                        {s.artisanAssigne && <span>🔨 {s.artisanAssigne}</span>}
+                        {s.assureur && <span>🛡️ {s.assureur}{s.numDossier ? ` · N° ${s.numDossier}` : ''}</span>}
+                        {s.montantEstime > 0 && <span>💰 {s.montantEstime.toLocaleString('fr-FR')} €</span>}
+                      </div>
+                    </div>
+                    {/* Mini-pipeline */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {PIPELINE.slice(0, 5).map((stage, i) => (
+                        <div key={stage.key} className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${i <= pipelineIdx ? stage.color + ' text-white' : 'bg-gray-100 text-gray-400'}`}>
+                          {i < pipelineIdx ? '✓' : stage.icon}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="min-w-[180px]">
-                    <select value={s.statut} onChange={e => changeStatut(s.id, e.target.value as any)} className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:border-orange-400 outline-none">
-                      {(['déclaré', 'en_expertise', 'accepté', 'refusé', 'indemnisé', 'clôturé'] as const).map(st => <option key={st} value={st}>{st}</option>)}
-                    </select>
-                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
 
+      {/* ── Modal Détails Sinistre ── */}
+      {selectedSinistre && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className={`px-5 pt-5 pb-4 border-b border-gray-100 flex items-start justify-between gap-3`}>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  {selectedSinistre.urgence === 'haute' && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">🔴 URGENT</span>}
+                  <h2 className="text-lg font-bold text-gray-900">{selectedSinistre.titre}</h2>
+                </div>
+                <p className="text-sm text-gray-500">{selectedSinistre.type} · {selectedSinistre.immeuble}</p>
+              </div>
+              <button onClick={() => setSelectedSinistre(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Pipeline steps */}
+              <div className="flex items-center gap-1">
+                {PIPELINE.map((stage, i) => {
+                  const idx = PIPELINE.findIndex(p => p.key === selectedSinistre.statut)
+                  return (
+                    <div key={stage.key} className="flex items-center flex-1">
+                      <button
+                        onClick={() => { if (i > idx) advanceStatut(selectedSinistre.id, stage.key) }}
+                        className={`flex flex-col items-center flex-1 transition-all ${i <= idx ? 'opacity-100' : 'opacity-40 hover:opacity-70 cursor-pointer'}`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${i < idx ? 'bg-green-500 text-white' : i === idx ? stage.color + ' text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}>
+                          {i < idx ? '✓' : stage.icon}
+                        </div>
+                        <span className="text-[9px] mt-1 text-center font-semibold text-gray-600 leading-tight">{stage.label}</span>
+                      </button>
+                      {i < PIPELINE.length - 1 && <div className={`h-0.5 w-2 ${i < idx ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Infos */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Déclarant</p>
+                  <p className="font-semibold text-gray-800">{selectedSinistre.declarantNom || '—'}</p>
+                  <p className="text-xs text-gray-500 capitalize">{selectedSinistre.declarantRole}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Assureur</p>
+                  <p className="font-semibold text-gray-800">{selectedSinistre.assureur || '—'}</p>
+                  {selectedSinistre.numDossier && <p className="text-xs text-gray-500">N° {selectedSinistre.numDossier}</p>}
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Montant estimé</p>
+                  <p className="font-bold text-blue-600 text-lg">{selectedSinistre.montantEstime > 0 ? `${selectedSinistre.montantEstime.toLocaleString('fr-FR')} €` : '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Indemnisation</p>
+                  <p className="font-bold text-green-600 text-lg">{selectedSinistre.montantIndemnise > 0 ? `${selectedSinistre.montantIndemnise.toLocaleString('fr-FR')} €` : '—'}</p>
+                </div>
+              </div>
+
+              {/* Assigner artisan */}
+              {selectedSinistre.statut === 'déclaré' && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                  <p className="text-sm font-bold text-orange-800 mb-2">🔨 Assigner un artisan</p>
+                  <div className="flex gap-2">
+                    <select
+                      id="artisan-select"
+                      className="flex-1 border border-orange-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none"
+                    >
+                      <option value="">Choisir un artisan...</option>
+                      {ARTISANS_DEMO.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                    <button
+                      onClick={() => {
+                        const sel = (document.getElementById('artisan-select') as HTMLSelectElement)?.value
+                        if (sel) assignArtisan(selectedSinistre.id, sel)
+                      }}
+                      className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-600"
+                    >
+                      Assigner
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedSinistre.artisanAssigne && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
+                  <span className="text-xl">🔨</span>
+                  <div>
+                    <p className="text-xs font-bold text-amber-800">Artisan assigné</p>
+                    <p className="text-sm font-semibold text-amber-900">{selectedSinistre.artisanAssigne}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Email assureur */}
+              <div>
+                <button
+                  onClick={() => setShowEmailTemplate(!showEmailTemplate)}
+                  className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-100 transition"
+                >
+                  {showEmailTemplate ? '▲ Masquer' : '📧 Générer email déclaration assureur'}
+                </button>
+                {showEmailTemplate && (
+                  <div className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-gray-600">Email pré-rempli (à copier)</p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generateEmailAssureur(selectedSinistre)).then(() => { setEmailCopied(true); setTimeout(() => setEmailCopied(false), 2000) })
+                        }}
+                        className={`text-xs font-bold px-3 py-1 rounded-lg transition ${emailCopied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                      >
+                        {emailCopied ? '✅ Copié' : 'Copier'}
+                      </button>
+                    </div>
+                    <pre className="text-xs text-gray-600 whitespace-pre-wrap font-sans leading-relaxed max-h-48 overflow-y-auto">
+                      {generateEmailAssureur(selectedSinistre)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Timeline événements */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📅 Historique</p>
+                <div className="space-y-2 max-h-52 overflow-y-auto">
+                  {(selectedSinistre.events || []).map((ev, i) => (
+                    <div key={ev.id} className="flex gap-3 text-sm">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${ev.type === 'statut' ? 'bg-orange-100 text-orange-600' : ev.type === 'mission' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {ev.type === 'statut' ? '→' : ev.type === 'mission' ? '🔨' : '💬'}
+                        </div>
+                        {i < (selectedSinistre.events?.length || 0) - 1 && <div className="w-px flex-1 bg-gray-200 my-1" />}
+                      </div>
+                      <div className="pb-2 flex-1">
+                        <p className="text-gray-700 font-medium leading-snug">{ev.contenu}</p>
+                        <p className="text-xs text-gray-400">{ev.auteur} · {new Date(ev.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ajouter note */}
+              <div className="flex gap-2">
+                <input
+                  value={noteInput}
+                  onChange={e => setNoteInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addNote(selectedSinistre.id)}
+                  placeholder="Ajouter une note..."
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <button onClick={() => addNote(selectedSinistre.id)} className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-orange-600">
+                  ✓
+                </button>
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="border-t border-gray-100 px-5 py-4 flex flex-wrap gap-2">
+              {selectedSinistre.statut !== 'clôturé' && selectedSinistre.statut !== 'refusé' && (
+                <button
+                  onClick={() => advanceStatut(selectedSinistre.id, 'refusé')}
+                  className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50"
+                >
+                  ❌ Marquer refusé
+                </button>
+              )}
+              {selectedSinistre.statut !== 'clôturé' && (
+                <button
+                  onClick={() => advanceStatut(selectedSinistre.id, 'clôturé')}
+                  className="px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600"
+                >
+                  ✅ Clôturer
+                </button>
+              )}
+              <button onClick={() => setSelectedSinistre(null)} className="ml-auto px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50">
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Nouveau Sinistre ── */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b"><h2 className="text-xl font-bold">🚨 Nouveau sinistre</h2></div>
+            <div className="p-6 border-b flex items-center justify-between">
+              <h2 className="text-xl font-bold">🚨 Déclarer un sinistre</h2>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 text-2xl">×</button>
+            </div>
             <div className="p-6 space-y-4">
               <div><label className="block text-sm font-semibold mb-1">Titre *</label><input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder="Ex: Dégât des eaux appartement 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">Type</label><select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none">{TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
-                <div><label className="block text-sm font-semibold mb-1">Date déclaration</label><input type="date" value={form.dateDeclaration} onChange={e => setForm({...form, dateDeclaration: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Type</label><select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none bg-white">{TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+                <div><label className="block text-sm font-semibold mb-1">Urgence</label><select value={form.urgence} onChange={e => setForm({...form, urgence: e.target.value as 'haute' | 'normale'})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none bg-white"><option value="normale">Normale</option><option value="haute">🔴 Haute</option></select></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="block text-sm font-semibold mb-1">Immeuble</label><input value={form.immeuble} onChange={e => setForm({...form, immeuble: e.target.value})} placeholder="Résidence..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
                 <div><label className="block text-sm font-semibold mb-1">Lot / Appartement</label><input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder="Apt 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">Assureur</label><input value={form.assureur} onChange={e => setForm({...form, assureur: e.target.value})} placeholder="Nom assurance" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">N° dossier</label><input value={form.numDossier} onChange={e => setForm({...form, numDossier: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Déclarant (nom)</label><input value={form.declarantNom} onChange={e => setForm({...form, declarantNom: e.target.value})} placeholder="Marie Dupont" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Rôle déclarant</label><select value={form.declarantRole} onChange={e => setForm({...form, declarantRole: e.target.value as any})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none bg-white"><option value="coproprio">Copropriétaire</option><option value="locataire">Locataire</option><option value="technicien">Technicien</option><option value="syndic">Syndic</option></select></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-semibold mb-1">Montant estimé (€)</label><input type="number" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
-                <div><label className="block text-sm font-semibold mb-1">Indemnisation reçue (€)</label><input type="number" value={form.montantIndemnise} onChange={e => setForm({...form, montantIndemnise: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Assureur</label><input value={form.assureur} onChange={e => setForm({...form, assureur: e.target.value})} placeholder="AXA, Allianz..." className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">N° dossier existant</label><input value={form.numDossier} onChange={e => setForm({...form, numDossier: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
               </div>
-              <div><label className="block text-sm font-semibold mb-1">Notes</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none resize-none" /></div>
+              <div><label className="block text-sm font-semibold mb-1">Email assureur</label><input type="email" value={form.emailAssureur} onChange={e => setForm({...form, emailAssureur: e.target.value})} placeholder="contact@assureur.fr" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-sm font-semibold mb-1">Montant estimé (€)</label><input type="number" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+                <div><label className="block text-sm font-semibold mb-1">Date déclaration</label><input type="date" value={form.dateDeclaration} onChange={e => setForm({...form, dateDeclaration: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold mb-1">Notes / Description</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none resize-none" /></div>
             </div>
             <div className="p-6 border-t flex gap-3">
               <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
-              <button onClick={handleAdd} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600">Déclarer</button>
+              <button onClick={handleAdd} disabled={!form.titre.trim()} className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 disabled:opacity-40">🚨 Déclarer</button>
             </div>
           </div>
         </div>
@@ -11035,6 +12482,40 @@ function MissionDetailsModal({
                 <p className="text-sm font-medium text-gray-700 mb-1">Description</p>
                 <p className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{localData.description}</p>
               </div>
+
+              {/* ── Lien de suivi GPS ── */}
+              {localData.trackingToken && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    <p className="text-sm font-bold text-blue-800">Suivi GPS actif</p>
+                  </div>
+                  <p className="text-xs text-blue-600 mb-2">L'artisan partage sa position en direct. Partagez ce lien au copropriétaire :</p>
+                  <div className="flex gap-2">
+                    <code className="flex-1 text-xs bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-blue-700 truncate">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/tracking/${localData.trackingToken}` : `/tracking/${localData.trackingToken}`}
+                    </code>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/tracking/${localData.trackingToken}`
+                        navigator.clipboard.writeText(url).catch(() => {})
+                      }}
+                      className="flex-shrink-0 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Copier
+                    </button>
+                  </div>
+                  <a
+                    href={`/tracking/${localData.trackingToken}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-medium"
+                  >
+                    📍 Voir le suivi en direct →
+                  </a>
+                </div>
+              )}
+
               <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-400">
                 Mission #{localData.id} · Créée le {new Date(localData.dateCreation).toLocaleDateString('fr-FR')}
               </div>
