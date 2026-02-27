@@ -26,6 +26,274 @@ import {
 const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
+// ------------------------------------------------------------------
+// Smart price helper — returns meaningful price info based on service
+// ------------------------------------------------------------------
+type PriceTier = { label: string; price: string; widths?: { label: string; price: string }[] }
+type PriceInfo = {
+  type: 'fixed' | 'devis' | 'per_sqm' | 'per_ml' | 'hourly' | 'tiered'
+  label: string
+  tiers?: PriceTier[]
+}
+
+function getSmartPrice(serviceName: string, priceTTC: number): PriceInfo {
+  const n = (serviceName || '').toLowerCase()
+
+  // ── Élagage spécifique par taille ────────────────────────────────
+  if ((n.includes('élagage') || n.includes('elagage')) && n.includes('palmier')) {
+    return { type: 'fixed', label: '150 – 450€/palmier' }
+  }
+  if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('petit') || n.includes('< 5m') || n.includes('<5m'))) {
+    return { type: 'fixed', label: '150 – 350€/arbre' }
+  }
+  if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('moyen') || (n.includes('5') && n.includes('10m')))) {
+    return { type: 'fixed', label: '350 – 800€/arbre' }
+  }
+  if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('grand') && !n.includes('très') && !n.includes('tres') || (n.includes('10') && n.includes('20m')))) {
+    return { type: 'fixed', label: '800 – 1 600€/arbre' }
+  }
+  if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('très grand') || n.includes('tres grand') || n.includes('> 20m') || n.includes('>20m'))) {
+    return { type: 'fixed', label: '1 600 – 3 000€/arbre' }
+  }
+  // ── Élagage générique — paliers hauteur ──────────────────────────
+  if (n.includes('élagage') || n.includes('elagage') || n.includes('elaguage')) {
+    return {
+      type: 'tiered',
+      label: 'Selon hauteur de l\'arbre',
+      tiers: [
+        { label: '< 5 m',    price: '150 – 350€' },
+        { label: '5 – 10 m', price: '350 – 800€' },
+        { label: '10 – 20 m',price: '800 – 1 600€' },
+        { label: '> 20 m',   price: '1 600 – 3 000€' },
+      ],
+    }
+  }
+
+  // ── Abattage par taille ───────────────────────────────────────────
+  if (n.includes('abattage') && (n.includes('petit') || n.includes('< 10m') || n.includes('<10m'))) {
+    return { type: 'fixed', label: '450 – 900€/arbre' }
+  }
+  if (n.includes('abattage') && (n.includes('moyen') || (n.includes('10') && n.includes('20m')))) {
+    return { type: 'fixed', label: '900 – 1 800€/arbre' }
+  }
+  if (n.includes('abattage') && (n.includes('grand') || n.includes('> 20m') || n.includes('>20m'))) {
+    return { type: 'fixed', label: '1 800 – 3 500€/arbre' }
+  }
+  if (n.includes('abattage')) {
+    return { type: 'devis', label: 'Sur devis' }
+  }
+
+  // ── Taille fruitiers ──────────────────────────────────────────────
+  if (n.includes('fruitier')) {
+    return { type: 'fixed', label: '180 – 500€/arbre' }
+  }
+
+  // ── Taille arbustes / rosiers ─────────────────────────────────────
+  if (n.includes('arbuste') || n.includes('rosier')) {
+    return { type: 'per_sqm', label: '4 – 10€/m²' }
+  }
+
+  // ── Taille de haie ────────────────────────────────────────────────
+  if (n.includes('haie')) {
+    return { type: 'per_ml', label: '8 – 20€/ml' }
+  }
+
+  // ── Tonte pelouse ─────────────────────────────────────────────────
+  if (n.includes('tonte') || (n.includes('pelouse') && !n.includes('scarif'))) {
+    return { type: 'per_sqm', label: '0,80 – 1,80€/m²' }
+  }
+
+  // ── Scarification ─────────────────────────────────────────────────
+  if (n.includes('scarif')) {
+    return { type: 'per_sqm', label: '0,80 – 1,50€/m²' }
+  }
+
+  // ── Ramassage feuilles ────────────────────────────────────────────
+  if (n.includes('feuille') || n.includes('ramassage')) {
+    return { type: 'per_sqm', label: '0,50 – 1,00€/m²' }
+  }
+
+  // ── Débroussaillage ───────────────────────────────────────────────
+  if (n.includes('débroussail') || n.includes('debroussail') || n.includes('broussaille')) {
+    return { type: 'per_sqm', label: '0,90 – 1,80€/m²' }
+  }
+
+  // ── Désherbage & nettoyage massifs ────────────────────────────────
+  if (n.includes('désherb') || n.includes('desherb') || (n.includes('nettoyage') && n.includes('massif'))) {
+    return { type: 'per_sqm', label: '3 – 8€/m²' }
+  }
+
+  // ── Broyage de branches ───────────────────────────────────────────
+  if (n.includes('broyage')) {
+    return { type: 'fixed', label: '150 – 300€/tonne' }
+  }
+
+  // ── Évacuation déchets verts ──────────────────────────────────────
+  if (n.includes('évacuation') || n.includes('evacuation') || n.includes('déchets verts') || n.includes('dechets verts')) {
+    return { type: 'fixed', label: '120 – 250€/tonne' }
+  }
+
+  // ── Gazon synthétique ─────────────────────────────────────────────
+  if (n.includes('synthét') || n.includes('synthet')) {
+    return { type: 'per_sqm', label: '35 – 70€/m²' }
+  }
+
+  // ── Gazon en rouleaux ─────────────────────────────────────────────
+  if (n.includes('rouleau')) {
+    return { type: 'per_sqm', label: '18 – 35€/m²' }
+  }
+
+  // ── Semis gazon naturel ───────────────────────────────────────────
+  if (n.includes('semis') || (n.includes('gazon') && n.includes('naturel'))) {
+    return { type: 'per_sqm', label: '8 – 15€/m²' }
+  }
+
+  // ── Arrosage automatique ──────────────────────────────────────────
+  if (n.includes('arrosage')) {
+    return { type: 'per_sqm', label: '8 – 25€/m²' }
+  }
+
+  // ── Création massifs / Plantations ───────────────────────────────
+  if ((n.includes('création') || n.includes('creation')) && (n.includes('massif') || n.includes('plantation'))) {
+    return { type: 'per_sqm', label: '40 – 120€/m²' }
+  }
+
+  // ── Création allées / bordures ────────────────────────────────────
+  if (n.includes('allée') || n.includes('allee') || (n.includes('bordure') && (n.includes('création') || n.includes('creation')))) {
+    return { type: 'per_sqm', label: '60 – 150€/m²' }
+  }
+
+  // ── Aménagement paysager complet ──────────────────────────────────
+  if (n.includes('aménagement') || n.includes('amenagement') || n.includes('paysager')) {
+    return { type: 'per_sqm', label: '80 – 300€/m²' }
+  }
+
+  // ── Dessouchage / Rognage ─────────────────────────────────────────
+  if (n.includes('dessouchage') || n.includes('rognage') || n.includes('souche')) {
+    return { type: 'devis', label: 'Sur devis' }
+  }
+
+  // ── Copropriété / Entretien espaces verts collectifs ─────────────
+  if (n.includes('copropriété') || n.includes('copropriete') || n.includes('copro') || (n.includes('espaces verts') && n.includes('entretien'))) {
+    return { type: 'devis', label: 'Sur devis' }
+  }
+
+  // ── Traitement ────────────────────────────────────────────────────
+  if (n.includes('traitement') || n.includes('charançon') || n.includes('charancon') || n.includes('phytosanitaire')) {
+    return { type: 'devis', label: 'Sur devis' }
+  }
+
+  // ── Nettoyage de terrain ──────────────────────────────────────────
+  if (n.includes('nettoyage de terrain') || (n.includes('nettoyage') && n.includes('terrain'))) {
+    return { type: 'devis', label: 'Sur devis' }
+  }
+
+  // ── Devis ─────────────────────────────────────────────────────────
+  if (n.includes('devis')) {
+    return { type: 'devis', label: 'Gratuit (chantier standard)' }
+  }
+
+  // ── Entretien jardin / espaces verts ──────────────────────────────
+  if (n.includes('entretien') || n.includes('jardinage')) {
+    return { type: 'hourly', label: '35 – 60€/h' }
+  }
+
+  // ── Prix fixe renseigné ───────────────────────────────────────────
+  if (priceTTC > 0) return { type: 'fixed', label: `${priceTTC}€` }
+
+  return { type: 'devis', label: 'Sur devis' }
+}
+
+// Calcule une estimation de prix selon la quantité saisie
+function calculateEstimatedPrice(priceInfo: PriceInfo, qty: number): string {
+  if (!qty || qty <= 0) return ''
+  const match = priceInfo.label.match(/([\d,]+)\s*[–\-]\s*([\d,]+)/)
+  if (!match) return priceInfo.label
+  const low  = parseFloat(match[1].replace(',', '.'))
+  const high = parseFloat(match[2].replace(',', '.'))
+  const totalLow  = Math.round(low  * qty)
+  const totalHigh = Math.round(high * qty)
+  const unit = priceInfo.type === 'per_ml' ? 'ml' : 'm²'
+  return `${totalLow} – ${totalHigh}€ pour ${qty} ${unit}`
+}
+
+// ── Multi-service helpers ──────────────────────────────────────────
+function parseServiceTag(service: any): { unit: string; min: number; max: number } | null {
+  const match = (service.description || '').match(/\[unit:([^|]+)\|min:([\d.]+)\|max:([\d.]+)\]/)
+  if (match) return { unit: match[1], min: parseFloat(match[2]), max: parseFloat(match[3]) }
+  return null
+}
+
+function cleanServiceDesc(service: any): string {
+  return (service.description || '')
+    .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
+    .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+    .trim()
+}
+
+const UNIT_LABELS: Record<string, string> = { m2: 'm²', ml: 'ml', arbre: 'arbre(s)', tonne: 'tonne(s)', heure: 'h', forfait: '', unite: 'unité(s)' }
+
+function getServiceEstimate(service: any, qty: string): { minVal: number; maxVal: number; needsQty: boolean; unit: string } {
+  const tag = parseServiceTag(service)
+  if (tag) {
+    const needsQty = ['m2', 'ml', 'arbre', 'tonne'].includes(tag.unit)
+    const q = parseFloat(qty) || 0
+    if (needsQty && q > 0) return { minVal: Math.round(tag.min * q * 100) / 100, maxVal: Math.round(tag.max * q * 100) / 100, needsQty, unit: tag.unit }
+    return { minVal: tag.min, maxVal: tag.max, needsQty, unit: tag.unit }
+  }
+  // Fallback: getSmartPrice label
+  const info = getSmartPrice(service.name, service.price_ttc)
+  const rm = info.label.match(/([\d,]+)\s*[–\-]\s*([\d,]+)/)
+  if (rm) {
+    const mn = parseFloat(rm[1].replace(',', '.')), mx = parseFloat(rm[2].replace(',', '.'))
+    const needsQty = info.type === 'per_sqm' || info.type === 'per_ml'
+    const q = parseFloat(qty) || 0
+    if (needsQty && q > 0) return { minVal: Math.round(mn * q), maxVal: Math.round(mx * q), needsQty, unit: info.type === 'per_ml' ? 'ml' : 'm2' }
+    return { minVal: mn, maxVal: mx, needsQty, unit: info.type === 'per_ml' ? 'ml' : 'm2' }
+  }
+  return { minVal: service.price_ttc || 0, maxVal: service.price_ttc || 0, needsQty: false, unit: 'forfait' }
+}
+// ──────────────────────────────────────────────────────────────────
+
+// Group services by detected category
+const SERVICE_CATEGORIES: { key: string; label: string; emoji: string; keywords: string[] }[] = [
+  { key: 'elagage', label: 'Élagage', emoji: '🌳', keywords: ['élagage', 'elagage', 'palmier'] },
+  { key: 'abattage', label: 'Abattage & Dessouchage', emoji: '🪓', keywords: ['abattage', 'dessouchage', 'rognage', 'souche'] },
+  { key: 'taille', label: 'Taille & Haies', emoji: '✂️', keywords: ['taille', 'haie', 'arbuste', 'rosier', 'fruitier'] },
+  { key: 'pelouse', label: 'Pelouse & Gazon', emoji: '🌿', keywords: ['tonte', 'pelouse', 'gazon', 'scarification'] },
+  { key: 'entretien', label: 'Entretien', emoji: '🧹', keywords: ['entretien', 'débroussaillage', 'debroussaillage', 'désherbage', 'desherbage', 'ramassage', 'feuille'] },
+  { key: 'amenagement', label: 'Aménagement', emoji: '🏡', keywords: ['aménagement', 'amenagement', 'création', 'creation', 'plantation', 'massif', 'allée', 'allee', 'bordure', 'arrosage'] },
+  { key: 'traitement', label: 'Traitements', emoji: '💊', keywords: ['traitement', 'phytosanitaire', 'charançon'] },
+  { key: 'evacuation', label: 'Évacuation & Nettoyage', emoji: '♻️', keywords: ['broyage', 'évacuation', 'evacuation', 'nettoyage de terrain', 'déchet'] },
+]
+
+function getServiceCategory(name: string): string {
+  const lower = name.toLowerCase()
+  for (const cat of SERVICE_CATEGORIES) {
+    if (cat.keywords.some(kw => lower.includes(kw))) return cat.key
+  }
+  return 'autres'
+}
+
+function groupServicesByCategory(servicesList: any[]): { key: string; label: string; emoji: string; services: any[] }[] {
+  const grouped: Record<string, any[]> = {}
+  for (const svc of servicesList) {
+    const cat = getServiceCategory(svc.name)
+    if (!grouped[cat]) grouped[cat] = []
+    grouped[cat].push(svc)
+  }
+  const result: { key: string; label: string; emoji: string; services: any[] }[] = []
+  for (const cat of SERVICE_CATEGORIES) {
+    if (grouped[cat.key]?.length) {
+      result.push({ key: cat.key, label: cat.label, emoji: cat.emoji, services: grouped[cat.key] })
+    }
+  }
+  if (grouped['autres']?.length) {
+    result.push({ key: 'autres', label: 'Autres services', emoji: '🔧', services: grouped['autres'] })
+  }
+  return result
+}
+
 // Mapping of service name keywords to emojis
 function getServiceEmoji(name: string): string {
   const lower = name.toLowerCase()
@@ -72,6 +340,17 @@ export default function ArtisanProfilePage() {
   const [selectedService, setSelectedService] = useState<any>(null)
   const [customMotif, setCustomMotif] = useState('')
   const [useCustomMotif, setUseCustomMotif] = useState(false)
+  const [selectedPriceTier, setSelectedPriceTier] = useState<PriceTier | null>(null)
+  const [selectedTreeWidth, setSelectedTreeWidth] = useState<{ label: string; price: string } | null>(null)
+  // Pour les services au m² / ml : question superficie
+  const [quantityKnown, setQuantityKnown] = useState<boolean | null>(null)
+  const [quantityValue, setQuantityValue] = useState<string>('')
+
+  // ── Multi-service cart ────────────────────────────────────────────
+  const [selectedServices, setSelectedServices] = useState<any[]>([])
+  const [serviceQuantities, setServiceQuantities] = useState<Record<string, string>>({})
+  const [showEstimateModal, setShowEstimateModal] = useState(false)
+  // ─────────────────────────────────────────────────────────────────
 
   // Calendar state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -245,6 +524,10 @@ export default function ArtisanProfilePage() {
     setUseCustomMotif(false)
     setCustomMotif('')
     setSelectedService(service)
+    setSelectedPriceTier(null)
+    setSelectedTreeWidth(null)
+    setQuantityKnown(null)
+    setQuantityValue('')
   }
 
   const toggleCustomMotif = () => {
@@ -259,6 +542,13 @@ export default function ArtisanProfilePage() {
 
   const goToCalendar = () => {
     if (!selectedService && !useCustomMotif) return
+    // Si service avec paliers, un palier doit être sélectionné
+    if (selectedService) {
+      const priceInfo = getSmartPrice(selectedService.name, selectedService.price_ttc)
+      if (priceInfo.type === 'tiered' && !selectedPriceTier) return
+      if (selectedPriceTier?.widths && !selectedTreeWidth) return
+      if ((priceInfo.type === 'per_sqm' || priceInfo.type === 'per_ml') && quantityKnown === null) return
+    }
     setStep('calendar')
     setSelectedDate(null)
     setSelectedSlot(null)
@@ -293,16 +583,41 @@ export default function ArtisanProfilePage() {
 
     const dateStr = selectedDate.toISOString().split('T')[0]
 
+    // Determine service list (multi or single)
+    const multiMode = selectedServices.length > 0
+    const serviceList = multiMode ? selectedServices : (selectedService ? [selectedService] : [])
+    const mainService = serviceList[0] || selectedService
+
+    // Compute combined price estimate
+    let totalMin = 0, totalMax = 0
+    for (const svc of serviceList) {
+      const { minVal, maxVal } = getServiceEstimate(svc, serviceQuantities[svc.id] || '')
+      totalMin += minVal
+      totalMax += maxVal
+    }
+
+    // Combined notes
+    const multiNote = multiMode
+      ? `Services: ${serviceList.map(s => {
+          const qty = serviceQuantities[s.id]
+          const t = parseServiceTag(s)
+          const unitLbl = t ? (UNIT_LABELS[t.unit] || '') : ''
+          return qty ? `${s.name} (${qty} ${unitLbl})` : s.name
+        }).join(', ')}. ` : ''
+    const singleNotes = `${useCustomMotif ? `Motif: ${customMotif}. ` : ''}${selectedPriceTier ? `Arbre hauteur ${selectedPriceTier.label}. ` : ''}${selectedService && (() => { const pi = getSmartPrice(selectedService.name, selectedService.price_ttc); if (pi.type !== 'per_sqm' && pi.type !== 'per_ml') return ''; const unit = pi.type === 'per_ml' ? 'ml' : 'm²'; return quantityKnown === false ? `Superficie à mesurer sur place. ` : quantityValue ? `${pi.type === 'per_ml' ? 'Linéaire' : 'Superficie'}: ${quantityValue}${unit}. ` : '' })() || ''}`
+
+    const estimNote = totalMax > 0 ? `Estimation: ${totalMin.toLocaleString('fr-FR')}–${totalMax.toLocaleString('fr-FR')}€. ` : ''
+
     const insertData: any = {
       artisan_id: params.id,
       status: 'pending',
       booking_date: dateStr,
       booking_time: selectedSlot,
-      duration_minutes: selectedService?.duration_minutes || 60,
+      duration_minutes: serviceList.reduce((sum, s) => sum + (s.duration_minutes || 60), 0) || 60,
       address: bookingForm.address || 'A definir',
-      notes: `Client: ${bookingForm.name} | Tel: ${bookingForm.phone} | Email: ${bookingForm.email || '-'} | ${bookingForm.notes || ''}${useCustomMotif ? ` | Motif personnalisé: ${customMotif}` : ''}`,
-      price_ht: selectedService?.price_ht || 0,
-      price_ttc: selectedService?.price_ttc || 0,
+      notes: `${multiNote}${singleNotes}${estimNote}Client: ${bookingForm.name} | Tel: ${bookingForm.phone} | Email: ${bookingForm.email || '-'} | ${bookingForm.notes || ''}`,
+      price_ht: totalMin || mainService?.price_ht || 0,
+      price_ttc: totalMax || mainService?.price_ttc || 0,
     }
 
     // Link booking to connected client account
@@ -310,8 +625,8 @@ export default function ArtisanProfilePage() {
       insertData.client_id = connectedUser.id
     }
 
-    if (selectedService) {
-      insertData.service_id = selectedService.id
+    if (mainService) {
+      insertData.service_id = mainService.id
     }
 
     // Use API route to bypass RLS
@@ -389,9 +704,17 @@ export default function ArtisanProfilePage() {
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
             <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-8">
               <div className="flex flex-col sm:flex-row items-start gap-6">
-                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-3xl font-bold text-[#FFC107] shadow-lg flex-shrink-0">
-                  {initials}
-                </div>
+                {artisan.profile_photo_url ? (
+                  <img
+                    src={artisan.profile_photo_url}
+                    alt={artisan.company_name}
+                    className="w-24 h-24 rounded-full object-cover shadow-lg flex-shrink-0 border-4 border-white"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-3xl font-bold text-[#FFC107] shadow-lg flex-shrink-0">
+                    {initials}
+                  </div>
+                )}
                 <div className="flex-1 text-white">
                   <h1 className="text-3xl font-bold mb-2">{artisan.company_name}</h1>
                   <div className="flex flex-wrap items-center gap-4 mb-3">
@@ -427,51 +750,264 @@ export default function ArtisanProfilePage() {
 
               {/* Services */}
               <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4">Services propos&eacute;s</h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-2xl font-bold">Services propos&eacute;s</h2>
+                  {selectedServices.length > 0 && (
+                    <span className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1 rounded-full">
+                      {selectedServices.length} s&eacute;lectionn&eacute;{selectedServices.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-500 text-sm mb-4">
+                  Cliquez sur <strong>+</strong> pour combiner plusieurs services dans une m&ecirc;me intervention
+                </p>
                 {services.length === 0 ? (
                   <p className="text-gray-600">Aucun service disponible pour le moment.</p>
                 ) : (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {services.map((service) => (
-                      <div
-                        key={service.id}
-                        onClick={() => {
-                          setSelectedService(service)
-                          setStep('motif')
-                          window.scrollTo({ top: 0, behavior: 'smooth' })
-                        }}
-                        className="border-2 border-gray-200 rounded-xl p-6 transition cursor-pointer hover:border-[#FFC107] hover:shadow-md hover:-translate-y-0.5"
-                      >
-                        <div className="flex items-start gap-3 mb-3">
-                          <span className="text-2xl">{getServiceEmoji(service.name)}</span>
-                          <h3 className="font-bold text-lg">{service.name}</h3>
+                  <div className="space-y-6">
+                    {groupServicesByCategory(services).map((group) => (
+                      <div key={group.key}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xl">{group.emoji}</span>
+                          <h3 className="font-bold text-lg text-gray-800">{group.label}</h3>
+                          <span className="text-xs text-gray-400 ml-1">({group.services.length})</span>
                         </div>
-                        <p className="text-gray-600 text-sm mb-4">{service.description}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1 text-gray-500 text-sm">
-                            <Clock className="w-4 h-4" />
-                            <span>~{formatDuration(service.duration_minutes)}</span>
-                          </div>
-                          <div className="text-lg font-bold text-[#FFC107]">{formatPrice(service.price_ttc)}</div>
+                        <div className="grid md:grid-cols-2 gap-3">
+                          {group.services.map((service) => {
+                            const priceInfo = getSmartPrice(service.name, service.price_ttc)
+                            const tag = parseServiceTag(service)
+                            const isInCart = selectedServices.some(s => s.id === service.id)
+                            return (
+                              <div
+                                key={service.id}
+                                className={`relative border-2 rounded-xl p-5 transition hover:shadow-md hover:-translate-y-0.5 ${isInCart ? 'border-[#FFC107] bg-amber-50 shadow-md' : 'border-gray-200 hover:border-[#FFC107]'}`}
+                              >
+                                {/* Toggle + / ✓ button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedServices(prev => {
+                                      const exists = prev.find(s => s.id === service.id)
+                                      if (exists) {
+                                        setServiceQuantities(q => { const nq = { ...q }; delete nq[service.id]; return nq })
+                                        return prev.filter(s => s.id !== service.id)
+                                      }
+                                      return [...prev, service]
+                                    })
+                                  }}
+                                  title={isInCart ? 'Retirer du panier' : 'Ajouter au panier'}
+                                  className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center font-bold text-base transition z-10 ${
+                                    isInCart ? 'bg-[#FFC107] border-[#FFC107] text-gray-900' : 'border-gray-300 text-gray-400 hover:border-[#FFC107] hover:text-[#FFC107] bg-white'
+                                  }`}
+                                >
+                                  {isInCart ? '✓' : '+'}
+                                </button>
+
+                                {/* Card body → single service motif step */}
+                                <div
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedService(service)
+                                    setSelectedPriceTier(null)
+                                    setStep('motif')
+                                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                                  }}
+                                >
+                                  <div className="flex items-start gap-3 mb-2 pr-10">
+                                    <h3 className="font-bold text-base">{service.name}</h3>
+                                  </div>
+                                  <p className="text-gray-600 text-sm mb-3">{cleanServiceDesc(service)}</p>
+                                  <div className="flex items-center justify-between">
+                                    {tag ? (
+                                      tag.min === 0 && tag.max === 0 ? (
+                                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">Sur devis</span>
+                                      ) : tag.unit === 'm2' ? (
+                                        <span className="text-sm font-semibold text-[#FFC107]">{tag.min} – {tag.max}€/m²</span>
+                                      ) : tag.unit === 'ml' ? (
+                                        <span className="text-sm font-semibold text-[#FFC107]">{tag.min} – {tag.max}€/ml</span>
+                                      ) : tag.unit === 'heure' ? (
+                                        <span className="text-sm font-semibold text-[#FFC107]">{tag.min} – {tag.max}€/h</span>
+                                      ) : (
+                                        <span className="text-sm font-bold text-[#FFC107]">
+                                          {tag.min === tag.max ? `${tag.min}€` : `${tag.min} – ${tag.max}€`}
+                                          {tag.unit === 'arbre' ? '/arbre' : tag.unit === 'tonne' ? '/t' : ''}
+                                        </span>
+                                      )
+                                    ) : (
+                                      <>
+                                        {priceInfo.type === 'devis' && <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">Sur devis</span>}
+                                        {priceInfo.type === 'per_sqm' && <span className="text-sm font-semibold text-[#FFC107]">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'per_ml' && <span className="text-sm font-semibold text-[#FFC107]">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'hourly' && <span className="text-sm font-semibold text-[#FFC107]">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'tiered' && <span className="text-sm font-semibold text-[#FFC107]">Selon hauteur</span>}
+                                        {priceInfo.type === 'fixed' && <span className="text-lg font-bold text-[#FFC107]">{priceInfo.label}</span>}
+                                      </>
+                                    )}
+                                    <span className="text-xs text-gray-400">Voir d&eacute;tails &rarr;</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* CTA to go to motif selection */}
+                {/* CTA — single ou multi selon cart */}
                 {services.length > 0 && (
-                  <div className="mt-6 text-center">
+                  <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center items-center">
                     <button
                       onClick={goToMotif}
-                      className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition text-lg inline-flex items-center gap-2"
+                      className="border-2 border-[#FFC107] text-gray-800 px-6 py-3 rounded-lg font-semibold transition text-base inline-flex items-center gap-2 hover:bg-amber-50"
                     >
                       <Calendar className="w-5 h-5" />
-                      Prendre rendez-vous
+                      Choisir un seul service
                     </button>
+                    {selectedServices.length > 0 && (
+                      <button
+                        onClick={() => setShowEstimateModal(true)}
+                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-bold transition text-base inline-flex items-center gap-2 shadow-md"
+                      >
+                        🛒 Voir l&apos;estimation ({selectedServices.length} motif{selectedServices.length > 1 ? 's' : ''})
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* ── Estimate Modal ─────────────────────────────────────────── */}
+              {showEstimateModal && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setShowEstimateModal(false)}>
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-5">
+                        <h2 className="text-xl font-bold">📋 R&eacute;capitulatif de votre demande</h2>
+                        <button onClick={() => setShowEstimateModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+                      </div>
+
+                      <div className="space-y-3 mb-5">
+                        {selectedServices.map(svc => {
+                          const t = parseServiceTag(svc)
+                          const needsQty = t ? ['m2', 'ml', 'arbre', 'tonne'].includes(t.unit) : false
+                          const qty = serviceQuantities[svc.id] || ''
+                          const { minVal, maxVal } = getServiceEstimate(svc, qty)
+                          const unitLbl = t ? (UNIT_LABELS[t.unit] || t.unit) : ''
+                          const isDevis = t ? (t.min === 0 && t.max === 0) : false
+                          return (
+                            <div key={svc.id} className="bg-gray-50 rounded-xl p-4">
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="font-semibold text-sm">{getServiceEmoji(svc.name)} {svc.name}</span>
+                                <button
+                                  onClick={() => setSelectedServices(prev => prev.filter(s => s.id !== svc.id))}
+                                  className="text-red-400 hover:text-red-600 text-xs ml-2 flex-shrink-0"
+                                >Retirer</button>
+                              </div>
+                              {needsQty && (
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className="text-xs text-gray-500">Quantité :</span>
+                                  <input
+                                    type="number"
+                                    value={qty}
+                                    onChange={e => setServiceQuantities(q => ({ ...q, [svc.id]: e.target.value }))}
+                                    placeholder={`en ${unitLbl}`}
+                                    min="1" step="1"
+                                    className="w-24 border-2 border-gray-200 rounded-lg px-2 py-1 text-sm focus:border-[#FFC107] focus:outline-none"
+                                  />
+                                  <span className="text-xs text-gray-500">{unitLbl}</span>
+                                </div>
+                              )}
+                              <div className="text-right mt-2">
+                                {isDevis ? (
+                                  <span className="text-blue-600 text-sm font-semibold">Sur devis</span>
+                                ) : needsQty && !qty ? (
+                                  <span className="text-gray-400 text-xs">Entrez la quantit&eacute; pour estimer</span>
+                                ) : (
+                                  <span className="text-[#FFC107] font-bold text-sm">
+                                    {t && t.min === t.max ? `${t.min}€` : `${minVal} – ${maxVal}€`}
+                                    {t && t.unit !== 'forfait' && !needsQty ? `/${t.unit === 'arbre' ? 'arbre' : t.unit === 'tonne' ? 't' : t.unit}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Total */}
+                      {(() => {
+                        let totalMin = 0, totalMax = 0, hasDevis = false, hasUnknown = false
+                        for (const svc of selectedServices) {
+                          const t = parseServiceTag(svc)
+                          if (t && t.min === 0 && t.max === 0) { hasDevis = true; continue }
+                          const needsQty = t ? ['m2', 'ml', 'arbre', 'tonne'].includes(t.unit) : false
+                          const qty = serviceQuantities[svc.id] || ''
+                          if (needsQty && !qty) { hasUnknown = true; continue }
+                          const { minVal, maxVal } = getServiceEstimate(svc, qty)
+                          totalMin += minVal
+                          totalMax += maxVal
+                        }
+                        const hasTotal = totalMin > 0 || totalMax > 0
+                        return (
+                          <div className="bg-amber-50 border-2 border-[#FFC107] rounded-xl p-4 mb-5">
+                            {hasTotal ? (
+                              <>
+                                <p className="text-gray-700 text-sm mb-1">
+                                  {hasUnknown || hasDevis ? 'Estimation partielle (sans les éléments non renseignés) :' : 'Votre intervention est estimée entre :'}
+                                </p>
+                                <p className="text-2xl font-bold text-gray-900">
+                                  {totalMin.toLocaleString('fr-FR')} € – {totalMax.toLocaleString('fr-FR')} €
+                                  <span className="text-sm font-normal text-gray-500 ml-2">TTC</span>
+                                </p>
+                                {(hasUnknown || hasDevis) && <p className="text-xs text-gray-500 mt-1">+ montants non estimés</p>}
+                                <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+                                  * Ceci est une estimation indicative. Le montant final dépendra des conditions d&apos;accès au chantier, de la complexité des travaux et d&apos;autres détails à clarifier avec l&apos;artisan. Des frais supplémentaires peuvent être appliqués.
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-gray-600 font-semibold">Renseignez les quantit&eacute;s ci-dessus pour obtenir une estimation</p>
+                            )}
+                          </div>
+                        )
+                      })()}
+
+                      <button
+                        onClick={() => {
+                          setShowEstimateModal(false)
+                          setSelectedService(selectedServices[0] || null)
+                          setStep('calendar')
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
+                        className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3.5 rounded-xl font-bold text-lg transition"
+                      >
+                        ✅ Oui, je prends rendez-vous
+                      </button>
+                      <button onClick={() => setShowEstimateModal(false)} className="w-full text-gray-500 py-2.5 mt-2 text-sm hover:text-gray-700 transition">
+                        Modifier ma s&eacute;lection
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Sticky cart bar ───────────────────────────────────────── */}
+              {selectedServices.length > 0 && !showEstimateModal && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900 text-white px-4 py-3 flex items-center justify-between gap-3 shadow-2xl">
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400">Panier multi-services</p>
+                    <p className="font-semibold text-sm truncate">
+                      {selectedServices.map(s => s.name).join(' · ')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowEstimateModal(true)}
+                    className="flex-shrink-0 bg-[#FFC107] text-gray-900 px-4 py-2 rounded-lg font-bold text-sm"
+                  >
+                    Voir l&apos;estimation 🛒
+                  </button>
+                </div>
+              )}
 
               {/* Info section */}
               <div>
@@ -575,58 +1111,218 @@ export default function ArtisanProfilePage() {
             </div>
           </div>
 
-          {/* Motifs grid */}
+          {/* Motifs grid — élagage dédupliqué en 1 seule carte */}
+          {(() => {
+            const ELAGAGE_KW = ['élagage', 'elagage', 'elaguage']
+            const isElag = (name: string) => ELAGAGE_KW.some(k => name.toLowerCase().includes(k))
+            let elagSeen = false
+            const displayedServices = services.reduce<any[]>((acc, svc) => {
+              if (isElag(svc.name)) {
+                if (!elagSeen) {
+                  elagSeen = true
+                  acc.push({ ...svc, name: 'Élagage arbre', description: 'Taille et soin de vos arbres selon leur hauteur et envergure de feuillage.' })
+                }
+              } else {
+                acc.push(svc)
+              }
+              return acc
+            }, [])
+
+            return (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {services.map((service) => {
+            {displayedServices.map((service) => {
               const isSelected = selectedService?.id === service.id && !useCustomMotif
+              const priceInfo = getSmartPrice(service.name, service.price_ttc)
+              const needsQty = priceInfo.type === 'per_sqm' || priceInfo.type === 'per_ml'
+              const qtyUnit = priceInfo.type === 'per_ml' ? 'mètres linéaires' : 'm²'
+              const qtyUnitShort = priceInfo.type === 'per_ml' ? 'ml' : 'm²'
               return (
-                <div
-                  key={service.id}
-                  onClick={() => selectMotif(service)}
-                  className={`relative bg-white rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 ${
-                    isSelected
-                      ? 'border-[#FFC107] bg-[#FFF9E6] shadow-lg -translate-y-1'
-                      : 'border-gray-200 hover:border-[#FFC107] hover:shadow-md hover:-translate-y-0.5'
-                  }`}
-                >
-                  {/* Selected checkmark */}
-                  {isSelected && (
-                    <div className="absolute top-3 right-3 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
+                <div key={service.id} className="flex flex-col gap-2">
+                  <div
+                    onClick={() => selectMotif(service)}
+                    className={`relative bg-white rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 ${
+                      isSelected
+                        ? 'border-[#FFC107] bg-[#FFF9E6] shadow-lg -translate-y-1'
+                        : 'border-gray-200 hover:border-[#FFC107] hover:shadow-md hover:-translate-y-0.5'
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-3 right-3 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+
+                    <div className="text-3xl mb-3">{getServiceEmoji(service.name)}</div>
+                    <h3 className="font-bold text-gray-900 mb-1">{service.name}</h3>
+                    <p className="text-sm text-gray-500 mb-4 line-clamp-2">{service.description}</p>
+
+                    {/* Smart price */}
+                    <div className="pt-3 border-t border-gray-100">
+                      {priceInfo.type === 'devis' && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">
+                          📋 Sur devis — nous vous contacterons
+                        </span>
+                      )}
+                      {priceInfo.type === 'per_sqm' && (
+                        <span className="text-sm font-semibold text-[#FFC107]">📐 {priceInfo.label}</span>
+                      )}
+                      {priceInfo.type === 'per_ml' && (
+                        <span className="text-sm font-semibold text-[#FFC107]">📏 {priceInfo.label}</span>
+                      )}
+                      {priceInfo.type === 'hourly' && (
+                        <span className="text-sm font-semibold text-[#FFC107]">⏱ {priceInfo.label}</span>
+                      )}
+                      {priceInfo.type === 'tiered' && (
+                        <span className="text-sm font-semibold text-[#FFC107]">🌳 Tarif selon hauteur & envergure</span>
+                      )}
+                      {priceInfo.type === 'fixed' && (
+                        <span className="text-lg font-bold text-[#FFC107]">{priceInfo.label}</span>
+                      )}
+                    </div>
+
+                    {/* Jour dispo */}
+                    {Object.keys(dayServicesConfig).some(k => dayServicesConfig[k]?.length > 0) && (
+                      <div className="mt-2 pt-2 border-t border-gray-50">
+                        <div className="flex flex-wrap gap-1">
+                          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((dayName, i) => {
+                            const dayNum = i === 6 ? 0 : i + 1
+                            const avail = availability.find(a => a.day_of_week === dayNum && a.is_available)
+                            const serviceOk = isServiceAvailableOnDay(service.id, dayNum)
+                            return (
+                              <span key={dayNum} className={`text-[10px] px-1.5 py-0.5 rounded ${avail && serviceOk ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                                {dayName}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sélecteur hauteur × largeur (élagage) */}
+                  {isSelected && priceInfo.type === 'tiered' && priceInfo.tiers && (
+                    <div className="bg-amber-50 border-2 border-[#FFC107] rounded-xl p-4 flex flex-col gap-4">
+
+                      {/* ── Étape 1 : Hauteur ── */}
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 mb-3">📏 Hauteur de l'arbre</p>
+                        <div className="flex flex-col gap-2">
+                          {priceInfo.tiers.map((tier) => (
+                            <button
+                              key={tier.label}
+                              onClick={(e) => { e.stopPropagation(); setSelectedPriceTier(tier); setSelectedTreeWidth(null) }}
+                              className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition text-sm font-semibold ${
+                                selectedPriceTier?.label === tier.label
+                                  ? 'border-[#FFC107] bg-[#FFC107] text-gray-900'
+                                  : 'border-gray-200 bg-white hover:border-[#FFC107] text-gray-700'
+                              }`}
+                            >
+                              <span>🌳 {tier.label}</span>
+                              {selectedPriceTier?.label !== tier.label && (
+                                <span className="text-xs text-gray-400 font-normal">Sélectionner</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        {!selectedPriceTier && (
+                          <p className="text-xs text-amber-700 mt-2">⚠️ Sélectionnez une hauteur pour continuer</p>
+                        )}
+                      </div>
+
+                      {/* ── Étape 2 : Largeur/Envergure (affiché après hauteur) ── */}
+                      {selectedPriceTier?.widths && (
+                        <div>
+                          <p className="text-sm font-bold text-gray-900 mb-3">📐 Envergure du feuillage (largeur)</p>
+                          <div className="flex flex-col gap-2">
+                            {selectedPriceTier.widths.map((w) => (
+                              <button
+                                key={w.label}
+                                onClick={(e) => { e.stopPropagation(); setSelectedTreeWidth(w) }}
+                                className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition text-sm font-semibold ${
+                                  selectedTreeWidth?.label === w.label
+                                    ? 'border-[#FFC107] bg-[#FFC107] text-gray-900'
+                                    : 'border-gray-200 bg-white hover:border-[#FFC107] text-gray-700'
+                                }`}
+                              >
+                                <span>🌿 {w.label}</span>
+                                <span className={`font-bold ${selectedTreeWidth?.label === w.label ? 'text-gray-900' : 'text-[#FFC107]'}`}>
+                                  {w.price}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          {!selectedTreeWidth && (
+                            <p className="text-xs text-amber-700 mt-2">⚠️ Sélectionnez l'envergure pour obtenir le tarif</p>
+                          )}
+                        </div>
+                      )}
+
                     </div>
                   )}
 
-                  <div className="text-3xl mb-3">{getServiceEmoji(service.name)}</div>
-                  <h3 className="font-bold text-gray-900 mb-1">{service.name}</h3>
-                  <p className="text-sm text-gray-500 mb-4 line-clamp-2">{service.description}</p>
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                      ⏱️ ~{formatDuration(service.duration_minutes)}
-                    </span>
-                    <span className="font-bold text-[#FFC107]">{formatPrice(service.price_ttc)}</span>
-                  </div>
-                  {/* Show available days indicator if dayServices config exists */}
-                  {Object.keys(dayServicesConfig).some(k => dayServicesConfig[k]?.length > 0) && (
-                    <div className="mt-2 pt-2 border-t border-gray-50">
-                      <div className="flex flex-wrap gap-1">
-                        {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((dayName, i) => {
-                          const dayNum = i === 6 ? 0 : i + 1
-                          const avail = availability.find(a => a.day_of_week === dayNum && a.is_available)
-                          const serviceOk = isServiceAvailableOnDay(service.id, dayNum)
-                          return (
-                            <span
-                              key={dayNum}
-                              className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                avail && serviceOk
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-gray-100 text-gray-400'
-                              }`}
-                            >
-                              {dayName}
-                            </span>
-                          )
-                        })}
+                  {/* ── Widget superficie / mètres linéaires ── */}
+                  {isSelected && needsQty && (
+                    <div className="bg-amber-50 border-2 border-[#FFC107] rounded-xl p-4 flex flex-col gap-3">
+                      <p className="text-sm font-bold text-gray-900">
+                        📐 Connaissez-vous la superficie à traiter ?
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setQuantityKnown(true) }}
+                          className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition ${
+                            quantityKnown === true
+                              ? 'border-[#FFC107] bg-[#FFC107] text-gray-900'
+                              : 'border-gray-200 bg-white hover:border-[#FFC107] text-gray-700'
+                          }`}
+                        >
+                          ✅ Oui, je connais
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setQuantityKnown(false); setQuantityValue('') }}
+                          className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition ${
+                            quantityKnown === false
+                              ? 'border-gray-600 bg-gray-600 text-white'
+                              : 'border-gray-200 bg-white hover:border-gray-400 text-gray-700'
+                          }`}
+                        >
+                          ❌ Non / à estimer
+                        </button>
                       </div>
+
+                      {quantityKnown === true && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={quantityValue}
+                            onChange={(e) => setQuantityValue(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="ex: 150"
+                            className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm"
+                          />
+                          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{qtyUnit}</span>
+                        </div>
+                      )}
+
+                      {quantityKnown === true && quantityValue && Number(quantityValue) > 0 && (
+                        <div className="bg-white border-2 border-[#FFC107] rounded-lg px-4 py-3">
+                          <p className="text-xs text-gray-500 mb-1">💰 Estimation du prix</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {calculateEstimatedPrice(priceInfo, Number(quantityValue))}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">* Estimation indicative. Le montant final dépendra des conditions d&apos;accès et de la complexité des travaux.</p>
+                        </div>
+                      )}
+
+                      {quantityKnown === false && (
+                        <p className="text-sm text-gray-600 bg-white rounded-lg px-3 py-2 border border-gray-200">
+                          Pas de problème, l'artisan mesurera et vous confirmera le prix sur place. ✓
+                        </p>
+                      )}
+
+                      {quantityKnown === null && (
+                        <p className="text-xs text-amber-700">⚠️ Répondez pour continuer vers le calendrier</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -662,6 +1358,8 @@ export default function ArtisanProfilePage() {
               )}
             </div>
           </div>
+            )
+          })()}
         </div>
 
         {/* Fixed bottom bar */}
@@ -676,11 +1374,21 @@ export default function ArtisanProfilePage() {
                       ? `Autre : ${customMotif || '...'}`
                       : selectedService?.name}
                   </p>
-                  {selectedService && (
-                    <p className="text-sm text-[#FFC107] font-semibold">
-                      {formatPrice(selectedService.price_ttc)} &middot; ~{formatDuration(selectedService.duration_minutes)}
-                    </p>
-                  )}
+                  {selectedService && (() => {
+                    const pi = getSmartPrice(selectedService.name, selectedService.price_ttc)
+                    const isQty = pi.type === 'per_sqm' || pi.type === 'per_ml'
+                    const unit = pi.type === 'per_ml' ? 'ml' : 'm²'
+                    let label = pi.label
+                    if (selectedPriceTier) {
+                      label = `🌳 ${selectedPriceTier.label}${selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ' — ?'}`
+                    } else if (isQty && quantityKnown === true && quantityValue && Number(quantityValue) > 0) {
+                      const est = calculateEstimatedPrice(pi, Number(quantityValue))
+                      label = `📐 ${quantityValue} ${unit} → ${est}`
+                    } else if (isQty && quantityKnown === false) {
+                      label = `📐 ${pi.label} · superficie à mesurer sur place`
+                    }
+                    return <p className="text-sm text-[#FFC107] font-semibold">{label}</p>
+                  })()}
                 </div>
               ) : (
                 <p className="text-gray-400 text-sm">Aucun motif s&eacute;lectionn&eacute;</p>
@@ -838,8 +1546,13 @@ export default function ArtisanProfilePage() {
                       Cr&eacute;neaux du {DAY_NAMES[selectedDate.getDay()]} {selectedDate.getDate()}{' '}
                       {MONTH_NAMES[selectedDate.getMonth()]}
                     </h3>
+                    {selectedPriceTier && (
+                      <p className="text-sm text-amber-700 font-semibold mb-3">
+                        🌳 Élagage {selectedPriceTier.label}{selectedTreeWidth ? ` · ${selectedTreeWidth.label} — ${selectedTreeWidth.price}` : ''}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 mb-5">
-                      Dur&eacute;e du service : {selectedService ? formatDuration(selectedService.duration_minutes) : '1h'}
+                      S&eacute;lectionnez l&apos;heure de d&eacute;but d&apos;intervention
                     </p>
 
                     {availableSlots.length > 0 ? (

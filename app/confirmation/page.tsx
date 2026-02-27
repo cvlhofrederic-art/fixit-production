@@ -223,7 +223,7 @@ function ConfirmationContent() {
               </div>
 
               {/* Address row */}
-              <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <span className="flex items-center gap-2 text-gray-500 text-sm">
                   <span className="text-base">{'📍'}</span>
                   Adresse
@@ -232,6 +232,28 @@ function ConfirmationContent() {
                   {booking.address || '\u00C0 d\u00E9finir'}
                 </span>
               </div>
+
+              {/* Estimate row */}
+              {booking.price_ht > 0 && booking.price_ttc > 0 && (
+                <div className="px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-gray-500 text-sm">
+                      <span className="text-base">{'💰'}</span>
+                      Devis estim&eacute;
+                    </span>
+                    <span className="font-bold text-[#FFC107] text-sm">
+                      {booking.price_ht === booking.price_ttc
+                        ? `${Number(booking.price_ttc).toLocaleString('fr-FR')} €`
+                        : `${Number(booking.price_ht).toLocaleString('fr-FR')} € – ${Number(booking.price_ttc).toLocaleString('fr-FR')} €`
+                      }
+                      <span className="text-xs font-normal text-gray-400 ml-1">TTC</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                    * Estimation indicative. Le montant final d&eacute;pendra des conditions d&apos;acc&egrave;s au chantier, de la complexit&eacute; des travaux et d&apos;autres d&eacute;tails &agrave; clarifier avec l&apos;artisan. Des frais suppl&eacute;mentaires peuvent &ecirc;tre appliqu&eacute;s.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
