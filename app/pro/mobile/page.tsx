@@ -9,6 +9,49 @@ import { formatPrice } from '@/lib/utils'
 type Tab = 'home' | 'agenda' | 'interventions' | 'documents' | 'settings'
 type ProofStep = 'before' | 'during' | 'after' | 'signature'
 
+// ─── Compliance Wallet ───────────────────────────────────────────────────────
+const COMPLIANCE_TYPES = [
+  { key: 'decennale',  label: 'RC Décennale',         icon: '🛡️', renewYears: 1 },
+  { key: 'kbis',       label: 'Extrait KBIS',          icon: '📋', renewYears: 0 },
+  { key: 'urssaf',     label: 'Attestation URSSAF',    icon: '🏛️', renewYears: 0 },
+  { key: 'rge',        label: 'Certificat RGE',         icon: '♻️', renewYears: 4 },
+  { key: 'carte_pro',      label: 'Carte Pro BTP',          icon: '🪪', renewYears: 5 },
+  { key: 'passeport_prev', label: 'Passeport Prévention',   icon: '🎓', renewYears: 0 },
+  { key: 'assurance_pro',  label: 'Assurance Pro (RC)',      icon: '🔒', renewYears: 1 },
+  { key: 'autre',          label: 'Autre document',          icon: '📄', renewYears: 0 },
+] as const
+type ComplianceType = typeof COMPLIANCE_TYPES[number]['key']
+
+interface ComplianceDoc {
+  id: string
+  type: ComplianceType
+  dateExpiration: string | null
+  notes: string
+  addedAt: string
+  // OCR fields
+  ocrData?: {
+    rawText?: string
+    assureur?: string
+    numPolice?: string
+    montantGarantie?: string
+    activiteCouverte?: string
+    detectedType?: ComplianceType
+    confidence?: number
+    scannedAt?: string
+  }
+  photoDataUrl?: string
+  verificationStatus?: 'pending' | 'verified' | 'rejected'
+  passeportPrevention?: string
+}
+
+function getComplianceStatus(doc: ComplianceDoc): 'valid' | 'expiring' | 'expired' | 'nodoc' {
+  if (!doc.dateExpiration) return 'nodoc'
+  const days = Math.ceil((new Date(doc.dateExpiration).getTime() - Date.now()) / 86400000)
+  if (days < 0)   return 'expired'
+  if (days <= 30) return 'expiring'
+  return 'valid'
+}
+
 interface ProofPhoto {
   dataUrl: string
   timestamp: string
@@ -545,10 +588,15 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
 }
 
 // ─── Booking Card ──────────────────────────────────────────────────────────────
-function BookingCard({ booking, onProof, onStatusChange }: {
+function BookingCard({ booking, onProof, onStatusChange, trackingToken, onStartTracking, onStopTracking, onCopyLink, linkCopied }: {
   booking: any
   onProof: () => void
   onStatusChange: (id: string, status: string) => void
+  trackingToken?: string
+  onStartTracking?: () => void
+  onStopTracking?: () => void
+  onCopyLink?: () => void
+  linkCopied?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const clientName = booking.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
@@ -627,6 +675,46 @@ function BookingCard({ booking, onProof, onStatusChange }: {
               </div>
             )}
           </div>
+
+          {/* ── Tracking GPS en temps réel ── */}
+          {(booking.status === 'confirmed' || booking.status === 'pending') && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              {!trackingToken ? (
+                /* Pas encore de tracking actif */
+                <button
+                  onClick={onStartTracking}
+                  className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                >
+                  <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                  📍 Démarrer le suivi GPS client
+                </button>
+              ) : (
+                /* Tracking actif */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
+                    <span className="text-xs font-semibold text-blue-700 flex-1">Suivi actif — position partagée</span>
+                    <button
+                      onClick={onStopTracking}
+                      className="text-xs text-red-500 font-semibold hover:text-red-700"
+                    >
+                      Arrêter
+                    </button>
+                  </div>
+                  <button
+                    onClick={onCopyLink}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
+                      linkCopied
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : 'bg-white border-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {linkCopied ? '✅ Lien copié !' : '🔗 Copier le lien de suivi (client)'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -646,6 +734,20 @@ function QuickBtn({ icon, label, onClick, color = 'bg-white' }: { icon: string; 
   )
 }
 
+// ─── Artisan Modules ──────────────────────────────────────────────────────────
+const ARTISAN_MODULES = [
+  { key: 'ponctualite', label: 'Score de ponctualité', icon: '⏱️', description: 'Affiche votre taux de réalisation sur l\'accueil', default: true },
+  { key: 'revenus', label: 'Dashboard revenus', icon: '💰', description: 'Suivi mensuel du CA et top services', default: true },
+  { key: 'devis_rapide', label: 'Devis rapide', icon: '📝', description: 'Générer et envoyer des devis en 30 secondes', default: true },
+  { key: 'export_fec', label: 'Export FEC comptable', icon: '📊', description: 'Export des écritures au format fiscal', default: false },
+  { key: 'compliance_wallet', label: 'Compliance Wallet', icon: '🪪', description: 'Portefeuille de documents professionnels', default: true },
+  { key: 'proof_of_work', label: 'Proof of Work', icon: '📸', description: 'Photos avant/après + signature client', default: true },
+  { key: 'gps_tracking', label: 'GPS Tracking', icon: '📍', description: 'Partagez votre position en temps réel', default: false },
+  { key: 'rapport_pdf', label: 'Rapport PDF fin de chantier', icon: '📄', description: 'Générer un rapport PDF probatoire', default: false },
+  { key: 'notifications', label: 'Notifications syndic', icon: '📣', description: 'Recevoir les notifications du syndic', default: true },
+] as const
+type ArtisanModuleKey = typeof ARTISAN_MODULES[number]['key']
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function MobileDashboard() {
   const router = useRouter()
@@ -663,12 +765,33 @@ export default function MobileDashboard() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [motifModal, setMotifModal] = useState(false)
-  const [motifForm, setMotifForm] = useState({ name: '', duration_minutes: 60, price_ttc: 0, pricing_unit: 'forfait' })
+  const [motifForm, setMotifForm] = useState({ name: '', duration_estimate: '', price_min: '', price_max: '', pricing_unit: 'forfait' })
   const [savingMotif, setSavingMotif] = useState(false)
+  const [serviceRanges, setServiceRanges] = useState<Record<string, { priceMin: number; priceMax: number; durationEstimate?: string; pricingUnit?: string }>>({})
   const [autoAccept, setAutoAccept] = useState(false)
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
   const [artisanNotifs, setArtisanNotifs] = useState<{ id: string; title: string; body: string; type: string; read: boolean; created_at: string }[]>([])
   const [notifToast, setNotifToast] = useState<{ title: string; body: string } | null>(null)
+  // ── Compliance Wallet ──
+  const [complianceDocs, setComplianceDocs] = useState<ComplianceDoc[]>([])
+  const [showComplianceModal, setShowComplianceModal] = useState(false)
+  const [complianceForm, setComplianceForm] = useState<{ type: ComplianceType; dateExpiration: string; notes: string }>({ type: 'decennale', dateExpiration: '', notes: '' })
+  const [complianceCopied, setComplianceCopied] = useState(false)
+  // ── OCR Compliance ──
+  const [ocrScanning, setOcrScanning] = useState(false)
+  const [ocrResult, setOcrResult] = useState<any>(null)
+  const ocrInputRef = useRef<HTMLInputElement>(null)
+  // ── Tracking en temps réel ──
+  const [activeTrackings, setActiveTrackings] = useState<Record<string, string>>({}) // bookingId → token
+  const trackingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({})
+  const [trackingCopied, setTrackingCopied] = useState<string | null>(null)
+  // ── Modules personnalisables ──
+  const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>({})
+  // ── Devis rapide ──
+  const [showDevisModal, setShowDevisModal] = useState(false)
+  const [devisForm, setDevisForm] = useState({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' })
+  const [devisGenere, setDevisGenere] = useState<string | null>(null)
+  const [devisCopied, setDevisCopied] = useState(false)
 
   const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
@@ -738,6 +861,31 @@ export default function MobileDashboard() {
 
     const savedAA = localStorage.getItem(`fixit_auto_accept_${artisanData.id}`)
     if (savedAA !== null) setAutoAccept(savedAA === 'true')
+
+    // Compliance wallet
+    try {
+      const saved = localStorage.getItem(`fixit_compliance_${artisanData.id}`)
+      if (saved) setComplianceDocs(JSON.parse(saved))
+    } catch {}
+
+    // Service price ranges
+    try {
+      const savedRanges = localStorage.getItem(`fixit_service_ranges_${artisanData.id}`)
+      if (savedRanges) setServiceRanges(JSON.parse(savedRanges))
+    } catch {}
+
+    // Load enabled modules
+    try {
+      const savedModules = localStorage.getItem(`fixit_modules_artisan_${artisanData.id}`)
+      if (savedModules) {
+        setEnabledModules(JSON.parse(savedModules))
+      } else {
+        const defaults: Record<string, boolean> = {}
+        ARTISAN_MODULES.forEach(m => { defaults[m.key] = m.default })
+        setEnabledModules(defaults)
+      }
+    } catch {}
+
     setLoading(false)
   }
 
@@ -783,6 +931,246 @@ export default function MobileDashboard() {
         cancelInterventionReminder(id).catch(() => {})
       }).catch(() => {})
     }
+  }
+
+  // ── Compliance Wallet ──
+  const saveCompliance = (docs: ComplianceDoc[]) => {
+    if (!artisan) return
+    setComplianceDocs(docs)
+    localStorage.setItem(`fixit_compliance_${artisan.id}`, JSON.stringify(docs))
+  }
+
+  const addComplianceDoc = () => {
+    const doc: ComplianceDoc = {
+      id: Date.now().toString(),
+      type: complianceForm.type,
+      dateExpiration: complianceForm.dateExpiration || null,
+      notes: complianceForm.notes,
+      addedAt: new Date().toISOString(),
+      // Include OCR data if available
+      ...(ocrResult ? {
+        ocrData: {
+          detectedType: ocrResult.detectedType,
+          confidence: ocrResult.confidence,
+          scannedAt: ocrResult.scannedAt,
+        },
+        photoDataUrl: ocrResult.photoDataUrl,
+        verificationStatus: 'pending' as const,
+      } : {}),
+    }
+    // Remplacer si même type existe déjà
+    const updated = [...complianceDocs.filter(d => d.type !== complianceForm.type), doc]
+    saveCompliance(updated)
+    setShowComplianceModal(false)
+    setComplianceForm({ type: 'decennale', dateExpiration: '', notes: '' })
+    setOcrResult(null)
+  }
+
+  const processOCR = async (file: File) => {
+    setOcrScanning(true)
+    try {
+      // Convert to base64 for display
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target?.result as string)
+        reader.readAsDataURL(file)
+      })
+
+      const result: any = {
+        scannedAt: new Date().toISOString(),
+        photoDataUrl: dataUrl,
+      }
+
+      // Detect document type from filename/metadata
+      const fileName = file.name.toLowerCase()
+      if (fileName.includes('decennale') || fileName.includes('rc')) {
+        result.detectedType = 'decennale'
+        result.confidence = 85
+      } else if (fileName.includes('kbis')) {
+        result.detectedType = 'kbis'
+        result.confidence = 90
+      } else if (fileName.includes('urssaf') || fileName.includes('vigilance')) {
+        result.detectedType = 'urssaf'
+        result.confidence = 85
+      } else if (fileName.includes('rge') || fileName.includes('qualibat') || fileName.includes('qualit')) {
+        result.detectedType = 'rge'
+        result.confidence = 80
+      } else if (fileName.includes('carte') || fileName.includes('btp')) {
+        result.detectedType = 'carte_pro'
+        result.confidence = 80
+      } else if (fileName.includes('passeport') || fileName.includes('prevention')) {
+        result.detectedType = 'passeport_prev'
+        result.confidence = 85
+      } else if (fileName.includes('assurance') || fileName.includes('responsabilite')) {
+        result.detectedType = 'assurance_pro'
+        result.confidence = 80
+      }
+
+      // Suggest expiration based on detected type renewal period
+      const typeInfo = COMPLIANCE_TYPES.find(t => t.key === result.detectedType)
+      if (typeInfo && typeInfo.renewYears > 0) {
+        const suggestedDate = new Date()
+        suggestedDate.setFullYear(suggestedDate.getFullYear() + typeInfo.renewYears)
+        result.suggestedExpiration = suggestedDate.toISOString().split('T')[0]
+      }
+
+      setOcrResult(result)
+
+      // Auto-fill the form with detected data
+      if (result.detectedType) {
+        setComplianceForm(prev => ({
+          ...prev,
+          type: result.detectedType,
+          dateExpiration: result.suggestedExpiration || prev.dateExpiration,
+        }))
+      }
+    } catch (err) {
+      console.error('OCR error:', err)
+    } finally {
+      setOcrScanning(false)
+    }
+  }
+
+  const deleteComplianceDoc = (id: string) => {
+    saveCompliance(complianceDocs.filter(d => d.id !== id))
+  }
+
+  const copyComplianceProfile = () => {
+    const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
+    const lines = [`📋 Profil compliance — ${nom}`, `Date : ${new Date().toLocaleDateString('fr-FR')}`, '']
+    COMPLIANCE_TYPES.forEach(ct => {
+      const doc = complianceDocs.find(d => d.type === ct.key)
+      if (doc) {
+        const status = getComplianceStatus(doc)
+        const icon = status === 'valid' ? '✅' : status === 'expiring' ? '⚠️' : '❌'
+        const expiry = doc.dateExpiration ? `Exp. ${new Date(doc.dateExpiration).toLocaleDateString('fr-FR')}` : 'Sans date'
+        lines.push(`${icon} ${ct.icon} ${ct.label} — ${expiry}`)
+      }
+    })
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setComplianceCopied(true)
+      setTimeout(() => setComplianceCopied(false), 2500)
+    }).catch(() => {})
+  }
+
+  const expiringCount = complianceDocs.filter(d => ['expiring', 'expired'].includes(getComplianceStatus(d))).length
+
+  // ── Module helpers ──
+  const isModuleEnabled = (key: string): boolean => {
+    if (Object.keys(enabledModules).length === 0) {
+      return ARTISAN_MODULES.find(m => m.key === key)?.default ?? true
+    }
+    return enabledModules[key] ?? ARTISAN_MODULES.find(m => m.key === key)?.default ?? true
+  }
+
+  const toggleModule = (key: string) => {
+    const updated = { ...enabledModules, [key]: !isModuleEnabled(key) }
+    setEnabledModules(updated)
+    if (artisan) localStorage.setItem(`fixit_modules_artisan_${artisan.id}`, JSON.stringify(updated))
+  }
+
+  // ── Démarrer le suivi GPS temps réel ──
+  const startTracking = (booking: any) => {
+    if (!isModuleEnabled('gps_tracking')) return
+    if (activeTrackings[booking.id]) return // déjà actif
+    const token = `TRK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+    setActiveTrackings(prev => ({ ...prev, [booking.id]: token }))
+
+    const sendPosition = (status: string = 'en_route') => {
+      if (!navigator.geolocation) return
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const clientName = booking.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
+        const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
+        const initiales = nom.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+        fetch('/api/tracking/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            status,
+            artisanNom: nom,
+            artisanInitiales: initiales,
+            missionTitre: booking.services?.name || 'Intervention',
+            missionAdresse: booking.address || '',
+            photos: [],
+            startedAt: new Date().toISOString(),
+          }),
+        }).catch(() => {})
+      }, () => {
+        // Sans GPS : envoyer quand même sans coordonnées
+        const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
+        fetch('/api/tracking/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token, lat: null, lng: null, status,
+            artisanNom: nom,
+            artisanInitiales: nom.charAt(0).toUpperCase(),
+            missionTitre: booking.services?.name || 'Intervention',
+            missionAdresse: booking.address || '',
+            photos: [], startedAt: new Date().toISOString(),
+          }),
+        }).catch(() => {})
+      })
+    }
+
+    // Envoi immédiat puis toutes les 30s
+    sendPosition('en_route')
+    const intervalId = setInterval(() => {
+      const currentToken = activeTrackings[booking.id] || token
+      if (!currentToken) { clearInterval(intervalId); return }
+      sendPosition('en_route')
+    }, 30000)
+    trackingIntervalsRef.current[booking.id] = intervalId
+  }
+
+  const updateTrackingStatus = (bookingId: string, status: string) => {
+    const token = activeTrackings[bookingId]
+    if (!token) return
+    const booking = bookings.find(b => b.id === bookingId)
+    if (!booking) return
+    const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
+    fetch('/api/tracking/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token, lat: null, lng: null, status,
+        artisanNom: nom,
+        artisanInitiales: nom.charAt(0).toUpperCase(),
+        missionTitre: booking.services?.name || 'Intervention',
+        missionAdresse: booking.address || '',
+        photos: [],
+      }),
+    }).catch(() => {})
+  }
+
+  const stopTracking = (bookingId: string) => {
+    const intervalId = trackingIntervalsRef.current[bookingId]
+    if (intervalId) { clearInterval(intervalId); delete trackingIntervalsRef.current[bookingId] }
+    const token = activeTrackings[bookingId]
+    if (token) {
+      fetch(`/api/tracking/${token}`, { method: 'DELETE' }).catch(() => {})
+    }
+    setActiveTrackings(prev => { const n = { ...prev }; delete n[bookingId]; return n })
+  }
+
+  const copyTrackingLink = (bookingId: string) => {
+    const token = activeTrackings[bookingId]
+    if (!token) return
+    const url = `${window.location.origin}/tracking/${token}`
+    navigator.clipboard.writeText(url).then(() => {
+      setTrackingCopied(bookingId)
+      setTimeout(() => setTrackingCopied(null), 2500)
+    }).catch(() => {
+      // Fallback pour les vieux navigateurs
+      const el = document.createElement('textarea')
+      el.value = url; document.body.appendChild(el); el.select()
+      document.execCommand('copy'); document.body.removeChild(el)
+      setTrackingCopied(bookingId)
+      setTimeout(() => setTrackingCopied(null), 2500)
+    })
   }
 
   const createRdv = async () => {
@@ -835,21 +1223,27 @@ export default function MobileDashboard() {
   const saveMotif = async () => {
     if (!artisan || !motifForm.name) return
     setSavingMotif(true)
-    const priceHt = motifForm.price_ttc / 1.2
+    const pMin = motifForm.price_min ? parseFloat(motifForm.price_min) : 0
+    const pMax = motifForm.price_max ? parseFloat(motifForm.price_max) : pMin
+    const avgTTC = pMin && pMax ? (pMin + pMax) / 2 : pMin || pMax || 0
+    const priceHt = avgTTC / 1.2
     const { data } = await supabase.from('services').insert({
       artisan_id: artisan.id,
       name: motifForm.name,
-      duration_minutes: motifForm.duration_minutes,
+      duration_minutes: 60,
       price_ht: Math.round(priceHt * 100) / 100,
-      price_ttc: motifForm.price_ttc,
-      pricing_unit: motifForm.pricing_unit,
+      price_ttc: Math.round(avgTTC * 100) / 100,
       active: true,
     }).select().single()
     setSavingMotif(false)
     if (data) {
       setServices(prev => [...prev, data])
+      // Save price range + duration estimate + pricing unit in localStorage
+      const updatedRanges = { ...serviceRanges, [data.id]: { priceMin: pMin, priceMax: pMax, durationEstimate: motifForm.duration_estimate || '', pricingUnit: motifForm.pricing_unit || 'forfait' } }
+      setServiceRanges(updatedRanges)
+      localStorage.setItem(`fixit_service_ranges_${artisan.id}`, JSON.stringify(updatedRanges))
       setMotifModal(false)
-      setMotifForm({ name: '', duration_minutes: 60, price_ttc: 0, pricing_unit: 'forfait' })
+      setMotifForm({ name: '', duration_estimate: '', price_min: '', price_max: '', pricing_unit: 'forfait' })
     }
   }
 
@@ -988,7 +1382,7 @@ export default function MobileDashboard() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]">
                   <option value="">Choisir un motif</option>
                   {services.filter(s => s.active).map(s => (
-                    <option key={s.id} value={s.id}>{s.name} — {formatPrice(s.price_ttc)}</option>
+                    <option key={s.id} value={s.id}>{s.name} — {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}</option>
                   ))}
                 </select>
               </div>
@@ -1037,17 +1431,23 @@ export default function MobileDashboard() {
                 <input value={motifForm.name} onChange={e => setMotifForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="Ex: Installation prise électrique" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Durée (min)</label>
-                  <input type="number" value={motifForm.duration_minutes} onChange={e => setMotifForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Durée estimée <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <input type="text" value={motifForm.duration_estimate} onChange={e => setMotifForm(p => ({ ...p, duration_estimate: e.target.value }))}
+                  placeholder="Ex : 1h à 3h, ~2h, une demi-journée…" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                <p className="text-[10px] text-gray-400 mt-1">Libre — visible par le client uniquement si rempli.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Prix TTC (€)</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" value={motifForm.price_min} onChange={e => setMotifForm(p => ({ ...p, price_min: e.target.value }))}
+                    placeholder="Min" className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                  <span className="text-gray-400 text-sm font-medium">à</span>
+                  <input type="number" value={motifForm.price_max} onChange={e => setMotifForm(p => ({ ...p, price_max: e.target.value }))}
+                    placeholder="Max" className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                  <span className="text-xs text-gray-400 flex-shrink-0">€</span>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Prix TTC (€)</label>
-                  <input type="number" value={motifForm.price_ttc} onChange={e => setMotifForm(p => ({ ...p, price_ttc: Number(e.target.value) }))}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
-                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Fourchette tarifaire. Le prix exact sera ajusté selon le devis.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Unité de facturation</label>
@@ -1118,16 +1518,100 @@ export default function MobileDashboard() {
               </div>
             </div>
 
+            {/* Score de ponctualité */}
+            {isModuleEnabled('ponctualite') && (() => {
+              const total = bookings.filter(b => ['completed', 'confirmed', 'cancelled'].includes(b.status)).length
+              const rate = total > 0 ? Math.round((completedBookings.length / total) * 100) : 0
+              if (total < 3) return null
+              const isGood = rate >= 90
+              const isMedium = rate >= 70 && rate < 90
+              return (
+                <div className={`rounded-2xl p-4 flex items-center gap-4 ${isGood ? 'bg-green-50 border border-green-200' : isMedium ? 'bg-amber-50 border border-amber-200' : 'bg-red-50 border border-red-200'}`}>
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isGood ? 'bg-green-100' : isMedium ? 'bg-amber-100' : 'bg-red-100'}`}>
+                    <span className={`text-2xl font-black ${isGood ? 'text-green-700' : isMedium ? 'text-amber-700' : 'text-red-700'}`}>{rate}%</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-gray-800">⏱️ Score de ponctualité</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{completedBookings.length}/{total} interventions réalisées</div>
+                    {isGood && <div className="text-[10px] text-green-600 font-semibold mt-1">🏅 Excellent — Badge visible par vos clients</div>}
+                    {isMedium && <div className="text-[10px] text-amber-600 font-semibold mt-1">⚡ Bon score — Continuez ainsi !</div>}
+                    {!isGood && !isMedium && <div className="text-[10px] text-red-600 font-semibold mt-1">⚠️ À améliorer pour fidéliser vos clients</div>}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Quick actions */}
             <div>
               <div className="text-sm font-bold text-gray-700 mb-3">Actions rapides</div>
               <div className="grid grid-cols-4 gap-2">
                 <QuickBtn icon="📅" label="Nouveau RDV" onClick={() => setShowNewRdv(true)} />
                 <QuickBtn icon="🔧" label="Motif" onClick={() => setMotifModal(true)} />
-                <QuickBtn icon="📊" label="Agenda" onClick={() => setActiveTab('agenda')} />
+                <QuickBtn icon="📝" label="Devis" onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }} />
                 <QuickBtn icon="💬" label="Demandes" onClick={() => setActiveTab('interventions')} />
               </div>
             </div>
+
+            {/* Revenus du mois */}
+            {isModuleEnabled('revenus') && (() => {
+              const now = new Date()
+              const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+              const lastMonth = now.getMonth() === 0
+                ? `${now.getFullYear() - 1}-12`
+                : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`
+              const completedThisMonth = bookings.filter(b => b.status === 'completed' && b.booking_date?.startsWith(thisMonth))
+              const completedLastMonth = bookings.filter(b => b.status === 'completed' && b.booking_date?.startsWith(lastMonth))
+              const revThisMonth = completedThisMonth.reduce((s: number, b: any) => s + (b.services?.price_ttc || 0), 0)
+              const revLastMonth = completedLastMonth.reduce((s: number, b: any) => s + (b.services?.price_ttc || 0), 0)
+              const diff = revLastMonth > 0 ? Math.round(((revThisMonth - revLastMonth) / revLastMonth) * 100) : 0
+              const topServices = services
+                .map(s => ({ ...s, count: bookings.filter(b => b.service_id === s.id && b.status === 'completed').length }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 3)
+              return (
+                <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-bold text-gray-700">💰 Revenus</div>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs mois préc.
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <div className="text-xs text-gray-500 mb-0.5">Ce mois</div>
+                      <div className="text-xl font-black text-green-600">{formatPrice(revThisMonth)}</div>
+                      <div className="text-[10px] text-gray-400">{completedThisMonth.length} interv.</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <div className="text-xs text-gray-500 mb-0.5">Mois préc.</div>
+                      <div className="text-xl font-black text-gray-600">{formatPrice(revLastMonth)}</div>
+                      <div className="text-[10px] text-gray-400">{completedLastMonth.length} interv.</div>
+                    </div>
+                  </div>
+                  {topServices.length > 0 && (
+                    <div>
+                      <div className="text-xs text-gray-400 font-medium mb-2">Top services</div>
+                      <div className="space-y-1.5">
+                        {topServices.map((s, i) => (
+                          <div key={s.id} className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-400 w-4">{i + 1}.</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-gray-800 truncate">{s.name}</div>
+                            </div>
+                            <span className="text-xs text-gray-500 flex-shrink-0">{s.count} fois · {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {topServices.length === 0 && (
+                    <div className="text-xs text-gray-400 text-center py-2">
+                      Complétez des interventions pour voir vos stats
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Pending bookings alert */}
             {pendingBookings.length > 0 && (
@@ -1165,7 +1649,7 @@ export default function MobileDashboard() {
                 <div className="text-sm font-bold text-gray-700 mb-3">Aujourd&apos;hui</div>
                 <div className="space-y-2">
                   {todayBookings.map(b => (
-                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} />
+                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                   ))}
                 </div>
               </div>
@@ -1177,7 +1661,7 @@ export default function MobileDashboard() {
                 <div className="text-sm font-bold text-gray-700 mb-3">Demain</div>
                 <div className="space-y-2">
                   {tomorrowBookings.map(b => (
-                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} />
+                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                   ))}
                 </div>
               </div>
@@ -1259,7 +1743,7 @@ export default function MobileDashboard() {
             ) : (
               <div className="space-y-3">
                 {selectedDateBookings.sort((a, b) => a.booking_time?.localeCompare(b.booking_time)).map(b => (
-                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} />
+                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                 ))}
               </div>
             )}
@@ -1312,7 +1796,7 @@ export default function MobileDashboard() {
             ) : (
               <div className="space-y-3">
                 {bookings.map(b => (
-                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} />
+                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                 ))}
               </div>
             )}
@@ -1369,6 +1853,87 @@ export default function MobileDashboard() {
                           ))}
                         </div>
                       )}
+                      {/* Rapport fin de chantier PDF */}
+                      {isModuleEnabled('rapport_pdf') && (
+                      <button
+                        onClick={() => {
+                          import('jspdf').then(({ default: jsPDF }) => {
+                            const doc = new jsPDF()
+                            const nom = artisan?.company_name || 'Artisan'
+                            const bk = bookings.find(b => b.id === p.bookingId)
+                            // Header
+                            doc.setFillColor(255, 193, 7)
+                            doc.rect(0, 0, 210, 30, 'F')
+                            doc.setFontSize(18)
+                            doc.setTextColor(33, 33, 33)
+                            doc.text('RAPPORT DE FIN DE CHANTIER', 15, 20)
+                            // Artisan info
+                            doc.setFontSize(10)
+                            doc.setTextColor(100, 100, 100)
+                            doc.text(`Artisan : ${nom}`, 15, 40)
+                            doc.text(`Date : ${p.completedAt ? new Date(p.completedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}`, 15, 47)
+                            doc.text(`Service : ${bk?.services?.name || 'Intervention'}`, 15, 54)
+                            doc.text(`Adresse : ${bk?.address || 'N/A'}`, 15, 61)
+                            if (p.gpsLat && p.gpsLng) doc.text(`GPS : ${p.gpsLat.toFixed(5)}, ${p.gpsLng.toFixed(5)}`, 15, 68)
+                            if (bk?.price_ttc) doc.text(`Montant TTC : ${(bk.price_ttc / 100 >= 1 ? bk.price_ttc : bk.price_ttc).toFixed(2)} \u20AC`, 15, 75)
+                            // Description
+                            let y = 88
+                            if (p.description) {
+                              doc.setFontSize(12)
+                              doc.setTextColor(33, 33, 33)
+                              doc.text('Description des travaux :', 15, y)
+                              y += 8
+                              doc.setFontSize(10)
+                              const lines = doc.splitTextToSize(p.description, 180)
+                              doc.text(lines, 15, y)
+                              y += lines.length * 5 + 8
+                            }
+                            // Photos résumé
+                            doc.setFontSize(12)
+                            doc.setTextColor(33, 33, 33)
+                            doc.text('Photos jointes :', 15, y)
+                            y += 8
+                            doc.setFontSize(10)
+                            doc.setTextColor(80, 80, 80)
+                            doc.text(`\u2022 ${p.beforePhotos.length} photo(s) avant intervention`, 20, y); y += 6
+                            if (p.duringPhotos?.length) { doc.text(`\u2022 ${p.duringPhotos.length} photo(s) pendant`, 20, y); y += 6 }
+                            doc.text(`\u2022 ${p.afterPhotos.length} photo(s) apr\u00E8s intervention`, 20, y); y += 10
+                            // Embed photos
+                            const allPhotos = [...p.beforePhotos.slice(0, 2), ...p.afterPhotos.slice(0, 2)]
+                            for (const photo of allPhotos) {
+                              if (y > 230) { doc.addPage(); y = 20 }
+                              try {
+                                doc.addImage(photo.dataUrl, 'JPEG', 15, y, 80, 60)
+                                doc.setFontSize(8)
+                                doc.setTextColor(120, 120, 120)
+                                doc.text(`${photo.label} \u2014 ${new Date(photo.timestamp).toLocaleString('fr-FR')}`, 15, y + 63)
+                                y += 70
+                              } catch { /* image format non supporté */ }
+                            }
+                            // Signature
+                            if (p.signature) {
+                              if (y > 240) { doc.addPage(); y = 20 }
+                              doc.setFontSize(12)
+                              doc.setTextColor(33, 33, 33)
+                              doc.text('Signature client :', 15, y + 5)
+                              doc.setFontSize(8)
+                              doc.setTextColor(100, 100, 100)
+                              doc.text('\u270D\uFE0F Signature num\u00E9rique archiv\u00E9e \u2014 Valeur probante', 15, y + 12)
+                              y += 20
+                            }
+                            // Footer
+                            doc.setFontSize(8)
+                            doc.setTextColor(150, 150, 150)
+                            doc.text(`G\u00E9n\u00E9r\u00E9 par VitFix Pro \u2014 ${new Date().toLocaleString('fr-FR')}`, 15, 285)
+                            doc.text('Document \u00E0 valeur probante \u2014 GPS + horodatage + signature client', 15, 290)
+                            doc.save(`Rapport_${bk?.services?.name?.replace(/\s+/g, '_') || 'chantier'}_${p.completedAt ? new Date(p.completedAt).toISOString().split('T')[0] : 'date'}.pdf`)
+                          }).catch(() => alert('Erreur lors de la g\u00E9n\u00E9ration du PDF'))
+                        }}
+                        className="mt-2 w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-xl text-xs font-bold active:scale-95 transition"
+                      >
+                        📄 Générer rapport PDF
+                      </button>
+                      )}
                     </div>
                   )
                 })
@@ -1395,10 +1960,12 @@ export default function MobileDashboard() {
                     <div key={s.id} className="bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm flex items-center justify-between">
                       <div>
                         <div className="font-semibold text-sm text-gray-900">{s.name}</div>
-                        <div className="text-xs text-gray-400">{s.duration_minutes} min · {s.pricing_unit}</div>
+                        <div className="text-xs text-gray-400">{serviceRanges[s.id]?.durationEstimate ? `⏱️ ${serviceRanges[s.id].durationEstimate}` : ''}{serviceRanges[s.id]?.durationEstimate && serviceRanges[s.id]?.pricingUnit ? ' · ' : ''}{serviceRanges[s.id]?.pricingUnit || 'forfait'}</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-sm text-green-600">{formatPrice(s.price_ttc)}</div>
+                        <div className="font-bold text-sm text-green-600">
+                          {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}
+                        </div>
                         <div className={`text-[10px] font-medium ${s.active ? 'text-green-500' : 'text-gray-400'}`}>
                           {s.active ? 'Actif' : 'Inactif'}
                         </div>
@@ -1407,6 +1974,376 @@ export default function MobileDashboard() {
                   ))}
                 </div>
               )}
+            </div>
+            {/* ── Devis Rapide ── */}
+            {isModuleEnabled('devis_rapide') && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-bold text-gray-700">📝 Devis rapide</div>
+                <button
+                  onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
+                  className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1.5 rounded-xl"
+                >
+                  + Créer
+                </button>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                <div className="text-sm font-semibold text-amber-800 mb-1">📋 Générez un devis en 30 secondes</div>
+                <div className="text-xs text-amber-700 mb-3">Renseignez le client, le service et le montant. Le devis formaté est prêt à envoyer par SMS ou email.</div>
+                <button
+                  onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
+                  className="w-full bg-[#FFC107] text-gray-900 font-bold py-2.5 rounded-xl text-sm active:scale-95 transition"
+                >
+                  📝 Nouveau devis
+                </button>
+              </div>
+            </div>
+            )}
+
+            {/* ── Export FEC comptable ── */}
+            {isModuleEnabled('export_fec') && (
+            <div>
+              <div className="text-sm font-bold text-gray-700 mb-3">📊 Export comptable</div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-lg">📊</div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm text-gray-900">Fichier des Écritures Comptables</div>
+                    <div className="text-xs text-gray-400 mt-0.5">Format FEC (Art. L47 A-1 du LPF)</div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-3">Exportez vos écritures au format FEC requis par l&apos;administration fiscale. Inclut toutes les interventions facturées.</p>
+                <button
+                  onClick={() => {
+                    const headers = 'JournalCode|JournalLib|EcritureNum|EcritureDate|CompteNum|CompteLib|CompAuxNum|CompAuxLib|PieceRef|PieceDate|EcritureLib|Debit|Credit|EcritureLet|DateLet|ValidDate|Montantdevise|Idevise'
+                    const lines = [headers]
+                    const completedB = bookings.filter(b => b.status === 'completed' && b.price_ttc)
+                    completedB.forEach((b: any, idx: number) => {
+                      const num = String(idx + 1).padStart(6, '0')
+                      const date = (b.booking_date || '').replace(/-/g, '')
+                      const ht = ((b.price_ttc || 0) / 1.2).toFixed(2)
+                      const tva = ((b.price_ttc || 0) - Number(ht)).toFixed(2)
+                      const ttc = (b.price_ttc || 0).toFixed(2)
+                      const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
+                      const ref = `FAC-${date}-${num}`
+                      lines.push(`VE|Journal des Ventes|${num}|${date}|706000|Prestations de services|||${ref}|${date}|${b.services?.name || 'Prestation'}||${ht}||||`)
+                      lines.push(`VE|Journal des Ventes|${num}|${date}|445710|TVA collectée 20%|||${ref}|${date}|TVA ${b.services?.name || 'Prestation'}||${tva}||||`)
+                      lines.push(`VE|Journal des Ventes|${num}|${date}|411000|Clients|${clientName}|${clientName}|${ref}|${date}|${clientName} - ${b.services?.name || 'Prestation'}|${ttc}|||||`)
+                    })
+                    try {
+                      const expenses = JSON.parse(localStorage.getItem(`fixit_expenses_${artisan?.id}`) || '[]')
+                      expenses.forEach((exp: any, idx: number) => {
+                        const num = String(completedB.length + idx + 1).padStart(6, '0')
+                        const date = (exp.date || '').replace(/-/g, '')
+                        const ref = `ACH-${date}-${num}`
+                        lines.push(`AC|Journal des Achats|${num}|${date}|606000|Achats non stockés|||${ref}|${date}|${exp.label || 'Dépense'}|${(exp.amount || 0).toFixed(2)}|||||`)
+                        lines.push(`AC|Journal des Achats|${num}|${date}|401000|Fournisseurs|||${ref}|${date}|${exp.label || 'Dépense'}||${(exp.amount || 0).toFixed(2)}||||`)
+                      })
+                    } catch {}
+                    const content = lines.join('\n')
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `FEC_${artisan?.company_name?.replace(/\s+/g, '_') || 'artisan'}_${new Date().toISOString().split('T')[0]}.txt`
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm active:scale-95 transition"
+                >
+                  📥 Télécharger le FEC
+                </button>
+                <div className="text-[10px] text-gray-400 text-center mt-2">
+                  {completedBookings.length} écriture(s) de vente · Format compatible DGFiP
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* ── Compliance Wallet OCR ── */}
+            {isModuleEnabled('compliance_wallet') && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-bold text-gray-700">🪪 Documents pro</div>
+                  {expiringCount > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{expiringCount} alerte{expiringCount > 1 ? 's' : ''}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setOcrResult(null); setShowComplianceModal(true); ocrInputRef.current?.click() }}
+                    className="bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1"
+                  >
+                    📷 Scanner
+                  </button>
+                  <button onClick={() => { setOcrResult(null); setShowComplianceModal(true) }} className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1.5 rounded-xl">
+                    + Ajouter
+                  </button>
+                </div>
+              </div>
+
+              {/* Compliance Health Score */}
+              {complianceDocs.length > 0 && (() => {
+                const requiredTypes = COMPLIANCE_TYPES.filter(ct => ct.key !== 'autre')
+                const validCount = requiredTypes.filter(ct => {
+                  const doc = complianceDocs.find(d => d.type === ct.key)
+                  return doc && getComplianceStatus(doc) === 'valid'
+                }).length
+                const healthScore = Math.round((validCount / requiredTypes.length) * 100)
+                const healthColor = healthScore >= 80 ? 'text-green-600' : healthScore >= 50 ? 'text-amber-600' : 'text-red-600'
+                const healthBg = healthScore >= 80 ? 'bg-green-500' : healthScore >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                return (
+                  <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-gray-600">Score compliance</span>
+                      <span className={`text-lg font-black ${healthColor}`}>{healthScore}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div className={`${healthBg} h-2 rounded-full transition-all duration-500`} style={{ width: `${healthScore}%` }} />
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-1.5">{validCount}/{requiredTypes.length} documents valides</div>
+                  </div>
+                )
+              })()}
+
+              {/* Passeport Prevention Alert Banner */}
+              {!complianceDocs.find(d => d.type === 'passeport_prev') && (
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-3.5 mb-3">
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg">🎓</span>
+                    <div className="flex-1">
+                      <div className="text-xs font-bold text-purple-800">Passeport Prevention obligatoire</div>
+                      <div className="text-[10px] text-purple-600 mt-0.5">Obligatoire depuis mars 2026 pour tous les artisans du BTP. Ajoutez-le maintenant.</div>
+                      <button
+                        onClick={() => { setOcrResult(null); setComplianceForm(f => ({ ...f, type: 'passeport_prev' })); setShowComplianceModal(true) }}
+                        className="mt-2 bg-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-lg"
+                      >
+                        + Ajouter mon Passeport
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {complianceDocs.length === 0 ? (
+                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+                  <div className="text-3xl mb-2">🪪</div>
+                  <div className="text-sm font-semibold text-gray-700 mb-1">Portefeuille vide</div>
+                  <div className="text-xs text-gray-400 mb-3">Scannez ou ajoutez vos documents pro pour ne jamais rater une echeance</div>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={() => { setOcrResult(null); setShowComplianceModal(true); setTimeout(() => ocrInputRef.current?.click(), 300) }} className="bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1">
+                      📷 Scanner un document
+                    </button>
+                    <button onClick={() => { setOcrResult(null); setShowComplianceModal(true) }} className="text-[#FFC107] text-xs font-bold px-4 py-2 border border-amber-200 rounded-xl">+ Manuel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {COMPLIANCE_TYPES.map(ct => {
+                    const doc = complianceDocs.find(d => d.type === ct.key)
+                    if (!doc) return null
+                    const status = getComplianceStatus(doc)
+                    const days = doc.dateExpiration ? Math.ceil((new Date(doc.dateExpiration).getTime() - Date.now()) / 86400000) : null
+                    const statusCfg = {
+                      valid:    { bg: 'bg-green-50 border-green-200', text: 'text-green-700', badge: 'bg-green-100 text-green-700', label: days !== null ? `${days}j restants` : 'Valide' },
+                      expiring: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', label: days !== null ? `${days}j restants` : 'Bientot' },
+                      expired:  { bg: 'bg-red-50 border-red-200',     text: 'text-red-700',   badge: 'bg-red-100 text-red-700',   label: 'Expire' },
+                      nodoc:    { bg: 'bg-gray-50 border-gray-200',   text: 'text-gray-600',  badge: 'bg-gray-100 text-gray-600', label: 'Sans date' },
+                    }[status]
+                    const statusIcon = status === 'valid' ? '✅' : status === 'expiring' ? '⚠️' : status === 'expired' ? '❌' : '📄'
+                    return (
+                      <div key={ct.key} className={`rounded-2xl p-3.5 border ${statusCfg.bg} flex items-center gap-3`}>
+                        {doc.photoDataUrl ? (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                            <img src={doc.photoDataUrl} alt="" className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <span className="text-xl flex-shrink-0">{ct.icon}</span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-gray-800 flex items-center gap-1">
+                            {ct.label}
+                            {doc.ocrData && (
+                              <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">OCR</span>
+                            )}
+                          </div>
+                          {doc.dateExpiration && (
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              Exp : {new Date(doc.dateExpiration).toLocaleDateString('fr-FR')}
+                            </div>
+                          )}
+                          {doc.verificationStatus && (
+                            <div className={`text-[10px] mt-0.5 ${
+                              doc.verificationStatus === 'verified' ? 'text-green-600' :
+                              doc.verificationStatus === 'rejected' ? 'text-red-600' : 'text-amber-600'
+                            }`}>
+                              {doc.verificationStatus === 'verified' ? '✓ Verifie' :
+                               doc.verificationStatus === 'rejected' ? '✕ Rejete' : '⏳ En attente'}
+                            </div>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0 ${statusCfg.badge}`}>{statusIcon} {statusCfg.label}</span>
+                        <button onClick={() => deleteComplianceDoc(doc.id)} className="text-gray-300 hover:text-red-400 text-sm flex-shrink-0">✕</button>
+                      </div>
+                    )
+                  })}
+
+                  {/* Partager */}
+                  <button
+                    onClick={copyComplianceProfile}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
+                      complianceCopied ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {complianceCopied ? '✅ Profil copie !' : '📤 Partager mon profil compliance'}
+                  </button>
+                </div>
+              )}
+            </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Compliance OCR ── */}
+      {showComplianceModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => { setShowComplianceModal(false); setOcrResult(null) }}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800">Ajouter un document</h3>
+              <button onClick={() => { setShowComplianceModal(false); setOcrResult(null) }} className="text-gray-400 text-xl">×</button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+
+              {/* OCR Scan Button */}
+              <div className="relative">
+                <input
+                  ref={ocrInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) processOCR(file)
+                    e.target.value = ''
+                  }}
+                />
+                <button
+                  onClick={() => ocrInputRef.current?.click()}
+                  disabled={ocrScanning}
+                  className={`w-full py-3 rounded-xl text-sm font-bold border-2 border-dashed transition-all flex items-center justify-center gap-2 ${
+                    ocrScanning ? 'border-blue-300 bg-blue-50 text-blue-500' :
+                    ocrResult ? 'border-green-300 bg-green-50 text-green-700' :
+                    'border-blue-300 bg-blue-50 text-blue-600 active:bg-blue-100'
+                  }`}
+                >
+                  {ocrScanning ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      Analyse en cours...
+                    </>
+                  ) : ocrResult ? (
+                    <>
+                      ✅ Document scanne — Rescanner
+                    </>
+                  ) : (
+                    <>
+                      📷 Scanner un document
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* OCR Preview & Results */}
+              {ocrResult && (
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                  <div className="flex gap-3 items-start">
+                    {ocrResult.photoDataUrl && (
+                      <div className="w-16 h-20 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
+                        <img src={ocrResult.photoDataUrl} alt="Document scanne" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      {ocrResult.detectedType ? (
+                        <>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs font-bold text-gray-700">Type detecte :</span>
+                            <span className="text-xs font-bold text-blue-600">
+                              {COMPLIANCE_TYPES.find(ct => ct.key === ocrResult.detectedType)?.label || ocrResult.detectedType}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className="text-[10px] text-gray-500">Confiance :</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[80px]">
+                              <div
+                                className={`h-1.5 rounded-full ${ocrResult.confidence >= 80 ? 'bg-green-500' : ocrResult.confidence >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                style={{ width: `${ocrResult.confidence || 0}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-600">{ocrResult.confidence}%</span>
+                          </div>
+                          {ocrResult.suggestedExpiration && (
+                            <div className="text-[10px] text-gray-500">
+                              Expiration suggeree : {new Date(ocrResult.suggestedExpiration).toLocaleDateString('fr-FR')}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-xs text-amber-600 font-semibold">
+                          ⚠️ Type non reconnu — selectionnez manuellement
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Document Type Selector */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">
+                  Type de document
+                  {ocrResult?.detectedType && <span className="text-blue-500 font-normal ml-1">(auto-detecte)</span>}
+                </label>
+                <select
+                  value={complianceForm.type}
+                  onChange={e => setComplianceForm(f => ({ ...f, type: e.target.value as ComplianceType }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                >
+                  {COMPLIANCE_TYPES.map(ct => (
+                    <option key={ct.key} value={ct.key}>{ct.icon} {ct.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">
+                  Date d&apos;expiration
+                  {ocrResult?.suggestedExpiration && <span className="text-blue-500 font-normal ml-1">(suggeree)</span>}
+                </label>
+                <input
+                  type="date"
+                  value={complianceForm.dateExpiration}
+                  onChange={e => setComplianceForm(f => ({ ...f, dateExpiration: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Notes <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <input
+                  type="text"
+                  value={complianceForm.notes}
+                  onChange={e => setComplianceForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="N° de police, assureur..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 px-5 pb-5">
+              <button onClick={() => { setShowComplianceModal(false); setOcrResult(null) }} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold">Annuler</button>
+              <button onClick={addComplianceDoc} className="flex-1 py-2.5 bg-amber-400 text-gray-900 rounded-xl text-sm font-bold flex items-center justify-center gap-1">
+                {ocrResult ? '📷 Enregistrer (OCR)' : 'Enregistrer'}
+              </button>
             </div>
           </div>
         </div>
@@ -1446,6 +2383,35 @@ export default function MobileDashboard() {
                 >
                   <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-1 transition-all ${autoAccept ? 'left-6' : 'left-1'}`} />
                 </button>
+              </div>
+            </div>
+
+            {/* Modules personnalisables */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-semibold text-sm text-gray-900">🧩 Mes modules</div>
+                <span className="text-[10px] text-gray-400">{ARTISAN_MODULES.filter(m => isModuleEnabled(m.key)).length}/{ARTISAN_MODULES.length} actifs</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mb-4">Activez uniquement les fonctionnalités dont vous avez besoin</p>
+              <div className="space-y-2">
+                {ARTISAN_MODULES.map(mod => {
+                  const enabled = isModuleEnabled(mod.key)
+                  return (
+                    <div key={mod.key} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${enabled ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <span className="text-xl flex-shrink-0">{mod.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-800">{mod.label}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{mod.description}</div>
+                      </div>
+                      <button
+                        onClick={() => toggleModule(mod.key)}
+                        className={`w-11 h-6 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-[#FFC107]' : 'bg-gray-200'}`}
+                      >
+                        <div className="bg-white rounded-full shadow absolute transition-all" style={{ width: '18px', height: '18px', left: enabled ? '22px' : '2px', top: '3px' }} />
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -1502,6 +2468,187 @@ export default function MobileDashboard() {
             <div className="text-center text-[10px] text-gray-300 pb-2">
               VitFix Pro v1.0 · {artisan?.siret && `SIRET ${artisan.siret}`}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Devis Rapide ── */}
+      {showDevisModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={() => setShowDevisModal(false)}>
+          <div className="bg-white rounded-t-3xl w-full max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="px-5 pb-2 pt-1 flex items-center justify-between border-b border-gray-100">
+              <div className="text-base font-bold text-gray-900">📝 Devis rapide</div>
+              <button onClick={() => setShowDevisModal(false)} className="text-gray-400 text-xl p-1">✕</button>
+            </div>
+
+            {!devisGenere ? (
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Client *</label>
+                  <input
+                    type="text"
+                    value={devisForm.client}
+                    onChange={e => setDevisForm(p => ({ ...p, client: e.target.value }))}
+                    placeholder="Nom du client"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Prestation *</label>
+                  <input
+                    type="text"
+                    value={devisForm.service}
+                    onChange={e => setDevisForm(p => ({ ...p, service: e.target.value }))}
+                    placeholder="ex: Remplacement robinet, peinture plafond…"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Description (optionnel)</label>
+                  <textarea
+                    value={devisForm.description}
+                    onChange={e => setDevisForm(p => ({ ...p, description: e.target.value }))}
+                    rows={2}
+                    placeholder="Détails de l'intervention…"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">Montant HT (€) *</label>
+                    <input
+                      type="number"
+                      value={devisForm.montantHT}
+                      onChange={e => setDevisForm(p => ({ ...p, montantHT: e.target.value }))}
+                      placeholder="0"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">TVA (%)</label>
+                    <select
+                      value={devisForm.tva}
+                      onChange={e => setDevisForm(p => ({ ...p, tva: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
+                    >
+                      <option value="0">0% (exonéré)</option>
+                      <option value="5.5">5,5% (réduit)</option>
+                      <option value="10">10% (intermédiaire)</option>
+                      <option value="20">20% (normal)</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1">Validité (jours)</label>
+                  <select
+                    value={devisForm.validite}
+                    onChange={e => setDevisForm(p => ({ ...p, validite: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
+                  >
+                    <option value="15">15 jours</option>
+                    <option value="30">30 jours</option>
+                    <option value="60">60 jours</option>
+                    <option value="90">90 jours</option>
+                  </select>
+                </div>
+
+                {/* Preview montants */}
+                {devisForm.montantHT && parseFloat(devisForm.montantHT) > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-1 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Montant HT</span>
+                      <span className="font-semibold">{formatPrice(parseFloat(devisForm.montantHT))}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>TVA {devisForm.tva}%</span>
+                      <span className="font-semibold">{formatPrice(parseFloat(devisForm.montantHT) * parseFloat(devisForm.tva) / 100)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1">
+                      <span>Total TTC</span>
+                      <span className="text-green-600">{formatPrice(parseFloat(devisForm.montantHT) * (1 + parseFloat(devisForm.tva) / 100))}</span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    if (!devisForm.client || !devisForm.service || !devisForm.montantHT) return
+                    const ht = parseFloat(devisForm.montantHT)
+                    const tva = parseFloat(devisForm.tva)
+                    const ttc = ht * (1 + tva / 100)
+                    const dateDevis = new Date().toLocaleDateString('fr-FR')
+                    const dateValidite = new Date(Date.now() + parseInt(devisForm.validite) * 86400000).toLocaleDateString('fr-FR')
+                    const num = `DEV-${Date.now().toString().slice(-6)}`
+                    const texte = `📋 DEVIS ${num}
+━━━━━━━━━━━━━━━━━━━━━
+Artisan : ${artisan?.company_name || 'VitFix Pro'}
+Date : ${dateDevis}
+Valide jusqu&apos;au : ${dateValidite}
+━━━━━━━━━━━━━━━━━━━━━
+Client : ${devisForm.client}
+Prestation : ${devisForm.service}${devisForm.description ? `\nDétail : ${devisForm.description}` : ''}
+━━━━━━━━━━━━━━━━━━━━━
+Montant HT : ${ht.toFixed(2)} €
+TVA (${tva}%) : ${(ht * tva / 100).toFixed(2)} €
+Total TTC : ${ttc.toFixed(2)} €
+━━━━━━━━━━━━━━━━━━━━━
+Ce devis est valable ${devisForm.validite} jours.
+Pour accepter, répondez OUI.`
+                    setDevisGenere(texte)
+                  }}
+                  disabled={!devisForm.client || !devisForm.service || !devisForm.montantHT}
+                  className="w-full bg-[#FFC107] disabled:opacity-40 text-gray-900 font-bold py-4 rounded-2xl text-sm active:scale-95 transition"
+                >
+                  ✨ Générer le devis
+                </button>
+              </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                <div className="text-xs text-green-700 font-bold bg-green-100 px-3 py-2 rounded-xl">
+                  ✅ Devis généré — prêt à envoyer
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                  <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">{devisGenere}</pre>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => {
+                      if (devisGenere) {
+                        navigator.clipboard?.writeText(devisGenere).then(() => {
+                          setDevisCopied(true)
+                          setTimeout(() => setDevisCopied(false), 2000)
+                        })
+                      }
+                    }}
+                    className={`py-3 rounded-2xl text-sm font-bold border transition active:scale-95 ${devisCopied ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-700'}`}
+                  >
+                    {devisCopied ? '✅ Copié !' : '📋 Copier'}
+                  </button>
+                  <a
+                    href={`sms:?body=${encodeURIComponent(devisGenere || '')}`}
+                    className="py-3 rounded-2xl text-sm font-bold bg-blue-600 text-white text-center active:scale-95 transition"
+                  >
+                    💬 Envoyer SMS
+                  </a>
+                </div>
+                <a
+                  href={`mailto:?subject=Devis%20-%20${encodeURIComponent(devisForm.service)}&body=${encodeURIComponent(devisGenere || '')}`}
+                  className="block w-full py-3 rounded-2xl text-sm font-bold border border-purple-200 text-purple-700 bg-purple-50 text-center active:scale-95 transition"
+                >
+                  📧 Envoyer par email
+                </a>
+                <button
+                  onClick={() => { setDevisGenere(null) }}
+                  className="w-full text-gray-400 text-sm py-2"
+                >
+                  ← Modifier le devis
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

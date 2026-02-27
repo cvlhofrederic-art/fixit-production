@@ -3,8 +3,45 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
+// ── Helper : catégories artisan → libellé métier syndic ──────────────────────
+function categoriesToMetier(categories: string[]): string {
+  if (!categories?.length) return ''
+  const map: Record<string, string> = {
+    plomberie:     'Plomberie',
+    electricite:   'Électricité',
+    peinture:      'Peinture',
+    maconnerie:    'Maçonnerie',
+    menuiserie:    'Menuiserie',
+    chauffage:     'Chauffage / Climatisation',
+    climatisation: 'Chauffage / Climatisation',
+    serrurerie:    'Serrurerie',
+    carrelage:     'Carrelage',
+    toiture:       'Toiture',
+    jardinage:     'Jardinage / Espaces verts',
+    paysagiste:    'Jardinage / Espaces verts',
+    nettoyage:     'Nettoyage',
+    demenagement:  'Déménagement',
+    renovation:    'Multi-services',
+    multi:         'Multi-services',
+  }
+  for (const cat of categories) {
+    const found = map[cat.toLowerCase()]
+    if (found) return found
+  }
+  return categories[0] || ''
+}
+
+// ── Helper : enrichit avec profiles_artisan (colonnes réelles du schéma) ─────
+async function enrichFromProfile(userId: string) {
+  const { data: profile } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('siret, categories, company_name, hourly_rate')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return profile || null
+}
+
 // ── GET /api/syndic/artisans/search?email=xxx ─────────────────────────────────
-// Vérifier si un email correspond à un compte VitFix existant
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!checkRateLimit(`artisan_search_${ip}`, 20, 60_000)) return rateLimitResponse()
@@ -21,8 +58,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
   }
 
-  // ── Stratégie 1 : requête SQL directe sur auth.users (la plus fiable)
-  // Le service role a accès à auth.users via rpc ou raw SQL
+  // ── Stratégie 1 : requête SQL directe via RPC (la plus fiable)
   try {
     const { data: rawUsers, error: sqlError } = await supabaseAdmin
       .rpc('get_user_by_email', { p_email: email })
@@ -30,41 +66,39 @@ export async function GET(request: NextRequest) {
     if (!sqlError && rawUsers && rawUsers.length > 0) {
       const u = rawUsers[0]
       const userId = u.id
+      const meta = u.raw_user_meta_data || {}
 
-      // Enrichir avec profiles_artisan
-      let metier = u.raw_user_meta_data?.metier || ''
-      let telephone = u.raw_user_meta_data?.telephone || ''
-      let siret = ''
+      // Téléphone : user_metadata.phone OR .telephone
+      let telephone = meta.phone || meta.telephone || ''
+      // SIRET : user_metadata.siret en priorité
+      let siret = meta.siret || ''
+      // Métier : via categories du profil artisan
+      let metier = meta.metier || ''
 
-      if (u.raw_user_meta_data?.role === 'artisan') {
-        const { data: profile } = await supabaseAdmin
-          .from('profiles_artisan')
-          .select('metier, telephone, siret')
-          .eq('user_id', userId)
-          .maybeSingle()
-        if (profile) {
-          metier = profile.metier || metier
-          telephone = profile.telephone || telephone
-          siret = profile.siret || ''
+      const profile = await enrichFromProfile(userId)
+      if (profile) {
+        if (!telephone && profile.categories) {
+          // pas de phone dans le profil, on garde vide
         }
+        if (!siret && profile.siret) siret = profile.siret
+        if (!metier && profile.categories) metier = categoriesToMetier(profile.categories)
       }
 
       return NextResponse.json({
         found: true,
-        name: u.raw_user_meta_data?.full_name || u.email,
-        role: u.raw_user_meta_data?.role || 'inconnu',
+        name: meta.full_name || u.email,
+        role: meta.role || 'inconnu',
         userId,
-        metier,
         telephone,
         siret,
+        metier,
       })
     }
   } catch {
     // La fonction RPC n'existe peut-être pas — on continue avec le fallback
   }
 
-  // ── Stratégie 2 : getUserById via admin API après lookup dans auth.users par SQL
-  // Utiliser une requête sur la vue auth.users accessible avec service role
+  // ── Stratégie 2 : getUserById via admin API après lookup SQL direct
   try {
     const { data: adminData, error: adminError } = await supabaseAdmin
       .from('auth.users' as any)
@@ -77,31 +111,26 @@ export async function GET(request: NextRequest) {
       const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId)
       if (authUser?.user) {
         const u = authUser.user
-        let metier = u.user_metadata?.metier || ''
-        let telephone = u.user_metadata?.telephone || ''
-        let siret = ''
+        const meta = u.user_metadata || {}
 
-        if (u.user_metadata?.role === 'artisan') {
-          const { data: profile } = await supabaseAdmin
-            .from('profiles_artisan')
-            .select('metier, telephone, siret')
-            .eq('user_id', u.id)
-            .maybeSingle()
-          if (profile) {
-            metier = profile.metier || metier
-            telephone = profile.telephone || telephone
-            siret = profile.siret || ''
-          }
+        let telephone = meta.phone || meta.telephone || ''
+        let siret = meta.siret || ''
+        let metier = meta.metier || ''
+
+        const profile = await enrichFromProfile(userId)
+        if (profile) {
+          if (!siret && profile.siret) siret = profile.siret
+          if (!metier && profile.categories) metier = categoriesToMetier(profile.categories)
         }
 
         return NextResponse.json({
           found: true,
-          name: u.user_metadata?.full_name || u.email,
-          role: u.user_metadata?.role || 'inconnu',
+          name: meta.full_name || u.email,
+          role: meta.role || 'inconnu',
           userId: u.id,
-          metier,
           telephone,
           siret,
+          metier,
         })
       }
     }
@@ -130,30 +159,25 @@ export async function GET(request: NextRequest) {
   }
 
   const u = foundUser
-  let metier = u.user_metadata?.metier || ''
-  let telephone = u.user_metadata?.telephone || ''
-  let siret = ''
+  const meta = u.user_metadata || {}
 
-  if (u.user_metadata?.role === 'artisan') {
-    const { data: profile } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('metier, telephone, siret')
-      .eq('user_id', u.id)
-      .maybeSingle()
-    if (profile) {
-      metier = profile.metier || metier
-      telephone = profile.telephone || telephone
-      siret = profile.siret || ''
-    }
+  let telephone = meta.phone || meta.telephone || ''
+  let siret = meta.siret || ''
+  let metier = meta.metier || ''
+
+  const profile = await enrichFromProfile(u.id)
+  if (profile) {
+    if (!siret && profile.siret) siret = profile.siret
+    if (!metier && profile.categories) metier = categoriesToMetier(profile.categories)
   }
 
   return NextResponse.json({
     found: true,
-    name: u.user_metadata?.full_name || u.email,
-    role: u.user_metadata?.role || 'inconnu',
+    name: meta.full_name || u.email,
+    role: meta.role || 'inconnu',
     userId: u.id,
-    metier,
     telephone,
     siret,
+    metier,
   })
 }

@@ -6,7 +6,7 @@ import { formatPrice, formatDate } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type CoproPage = 'accueil' | 'documents' | 'paiements' | 'annonces' | 'signalement' | 'assemblees' | 'historique' | 'parametres' | 'assistant'
+type CoproPage = 'accueil' | 'documents' | 'paiements' | 'annonces' | 'signalement' | 'assemblees' | 'historique' | 'parametres' | 'assistant' | 'interventions_suivi' | 'mes_charges' | 'quittances' | 'mon_bail' | 'modules'
 
 interface CoproProfile {
   id: string
@@ -347,14 +347,1083 @@ const ZONES_COMMUNES = [
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
+// ─── Types nouveaux ────────────────────────────────────────────────────────────
+
+interface SuiviIntervention {
+  id: string
+  type: string
+  description: string
+  artisan: string
+  artisanPhone: string
+  statut: 'planifie' | 'en_route' | 'sur_place' | 'termine' | 'annule'
+  dateRdv: string
+  heureRdv: string
+  progression: number
+  note?: number
+  commentaire?: string
+  gpsLat?: number
+  gpsLng?: number
+  gpsEta?: number
+  preuve?: { avantPhotos: number; apresPhotos: number; signee: boolean }
+}
+
+interface PosteCharge {
+  label: string
+  emoji: string
+  montantAnnuel: number
+  budget: number
+  couleur: string
+}
+
+// ─── Données démo interventions ────────────────────────────────────────────────
+
+const INTERVENTIONS_DEMO: SuiviIntervention[] = [
+  {
+    id: 'int-1',
+    type: 'Plomberie',
+    description: 'Fuite robinet salle de bain',
+    artisan: 'Mohamed Ait — Plomberie Express',
+    artisanPhone: '06 89 34 56 12',
+    statut: 'en_route',
+    dateRdv: '2026-02-26',
+    heureRdv: '14:00',
+    progression: 35,
+    gpsLat: 48.8566,
+    gpsLng: 2.3522,
+    gpsEta: 12,
+  },
+  {
+    id: 'int-2',
+    type: 'Électricité',
+    description: 'Remplacement tableau électrique',
+    artisan: 'Paul Martin — Électro Services',
+    artisanPhone: '06 12 78 45 90',
+    statut: 'termine',
+    dateRdv: '2026-02-20',
+    heureRdv: '09:00',
+    progression: 100,
+    note: 5,
+    commentaire: 'Travail très propre, artisan ponctuel',
+    preuve: { avantPhotos: 3, apresPhotos: 4, signee: true },
+  },
+  {
+    id: 'int-3',
+    type: 'Serrurerie',
+    description: 'Remplacement serrure porte palière',
+    artisan: 'Jean Dupont — Serrurerie Dupont',
+    artisanPhone: '06 55 43 21 98',
+    statut: 'planifie',
+    dateRdv: '2026-03-05',
+    heureRdv: '10:30',
+    progression: 0,
+  },
+  {
+    id: 'int-4',
+    type: 'Peinture',
+    description: 'Reprise peinture couloir',
+    artisan: 'Sophie Renard — Déco & Co',
+    artisanPhone: '06 34 12 98 76',
+    statut: 'sur_place',
+    dateRdv: '2026-02-25',
+    heureRdv: '08:00',
+    progression: 65,
+    preuve: { avantPhotos: 2, apresPhotos: 0, signee: false },
+  },
+]
+
+const POSTES_CHARGES: PosteCharge[] = [
+  { label: 'Gardiennage', emoji: '🔑', montantAnnuel: 1200, budget: 1300, couleur: '#6366f1' },
+  { label: 'Assurance', emoji: '🛡️', montantAnnuel: 480, budget: 500, couleur: '#10b981' },
+  { label: 'Entretien espaces verts', emoji: '🌿', montantAnnuel: 360, budget: 400, couleur: '#22c55e' },
+  { label: 'Eau froide parties communes', emoji: '💧', montantAnnuel: 220, budget: 250, couleur: '#3b82f6' },
+  { label: 'Électricité communes', emoji: '⚡', montantAnnuel: 310, budget: 320, couleur: '#f59e0b' },
+  { label: 'Ascenseur (maintenance)', emoji: '🏢', montantAnnuel: 540, budget: 600, couleur: '#8b5cf6' },
+  { label: 'Nettoyage', emoji: '🧹', montantAnnuel: 260, budget: 280, couleur: '#ec4899' },
+  { label: 'Fonds travaux art.14-2', emoji: '🏗️', montantAnnuel: 880, budget: 880, couleur: '#ef4444' },
+]
+
+// ─── Composant MesInterventionsSection ────────────────────────────────────────
+
+function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
+  const [interventions, setInterventions] = useState<SuiviIntervention[]>(() => {
+    if (typeof window === 'undefined') return INTERVENTIONS_DEMO
+    const saved = localStorage.getItem(`fixit_interventions_copro_${profile.id}`)
+    return saved ? JSON.parse(saved) : INTERVENTIONS_DEMO
+  })
+  const [selected, setSelected] = useState<SuiviIntervention | null>(null)
+  const [noteModal, setNoteModal] = useState<SuiviIntervention | null>(null)
+  const [noteVal, setNoteVal] = useState(5)
+  const [noteComment, setNoteComment] = useState('')
+  const [filterStatut, setFilterStatut] = useState<string>('all')
+
+  const save = (list: SuiviIntervention[]) => {
+    setInterventions(list)
+    localStorage.setItem(`fixit_interventions_copro_${profile.id}`, JSON.stringify(list))
+  }
+
+  const submitNote = () => {
+    if (!noteModal) return
+    const updated = interventions.map(i => i.id === noteModal.id ? { ...i, note: noteVal, commentaire: noteComment } : i)
+    save(updated)
+    setNoteModal(null)
+    setNoteComment('')
+  }
+
+  const statutCfg: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
+    planifie:  { label: 'Planifié',   color: 'text-blue-700',  bg: 'bg-blue-100',   emoji: '📅' },
+    en_route:  { label: 'En route',   color: 'text-amber-700', bg: 'bg-amber-100',  emoji: '🚗' },
+    sur_place: { label: 'Sur place',  color: 'text-purple-700',bg: 'bg-purple-100', emoji: '🔧' },
+    termine:   { label: 'Terminé',    color: 'text-green-700', bg: 'bg-green-100',  emoji: '✅' },
+    annule:    { label: 'Annulé',     color: 'text-red-700',   bg: 'bg-red-100',    emoji: '❌' },
+  }
+
+  const filtered = filterStatut === 'all' ? interventions : interventions.filter(i => i.statut === filterStatut)
+  const enCours = interventions.filter(i => ['en_route', 'sur_place'].includes(i.statut))
+
+  return (
+    <div className="space-y-6">
+      {/* Alerte intervention en cours */}
+      {enCours.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
+            <span className="font-bold text-amber-800 text-sm">{enCours.length} intervention{enCours.length > 1 ? 's' : ''} en cours</span>
+          </div>
+          {enCours.map(i => (
+            <div key={i.id} onClick={() => setSelected(i)} className="mt-2 bg-white border border-amber-200 rounded-xl p-3 cursor-pointer hover:bg-amber-50 transition">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-sm text-gray-900">{i.type} — {i.artisan.split('—')[0].trim()}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{i.description}</div>
+                </div>
+                <div className="text-right">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${statutCfg[i.statut].bg} ${statutCfg[i.statut].color}`}>
+                    {statutCfg[i.statut].emoji} {statutCfg[i.statut].label}
+                  </span>
+                  {i.gpsEta && <div className="text-[10px] text-gray-400 mt-1">ETA : ~{i.gpsEta} min</div>}
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-3">
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                  <span>Progression</span>
+                  <span>{i.progression}%</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all"
+                    style={{ width: `${i.progression}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filtres */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {[['all', 'Toutes'], ['planifie', '📅 Planifiées'], ['en_route', '🚗 En route'], ['sur_place', '🔧 Sur place'], ['termine', '✅ Terminées']].map(([v, l]) => (
+          <button
+            key={v}
+            onClick={() => setFilterStatut(v)}
+            className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition ${
+              filterStatut === v ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+            }`}
+          >{l}</button>
+        ))}
+      </div>
+
+      {/* Liste interventions */}
+      <div className="space-y-3">
+        {filtered.length === 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+            <div className="text-4xl mb-2">🔧</div>
+            <div className="text-sm text-gray-400">Aucune intervention pour ce filtre</div>
+          </div>
+        )}
+        {filtered.map(i => {
+          const cfg = statutCfg[i.statut]
+          return (
+            <div
+              key={i.id}
+              onClick={() => setSelected(i)}
+              className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-purple-300 cursor-pointer transition"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.emoji} {cfg.label}</span>
+                    <span className="text-xs text-gray-400">{new Date(i.dateRdv).toLocaleDateString('fr-FR')} · {i.heureRdv}</span>
+                  </div>
+                  <div className="font-semibold text-gray-900">{i.type}</div>
+                  <div className="text-sm text-gray-500 truncate">{i.description}</div>
+                  <div className="text-xs text-gray-400 mt-1">👷 {i.artisan}</div>
+                </div>
+                <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                  {i.note && (
+                    <div className="text-sm font-bold text-amber-500">{'⭐'.repeat(i.note)}</div>
+                  )}
+                  {i.statut === 'termine' && !i.note && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setNoteModal(i); setNoteVal(5); setNoteComment('') }}
+                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-full font-semibold transition"
+                    >
+                      ✍️ Noter
+                    </button>
+                  )}
+                  {i.preuve && (
+                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                      ✅ Preuve {i.preuve.signee ? '+ signé' : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress bar pour interventions non terminées */}
+              {!['termine', 'annule', 'planifie'].includes(i.statut) && (
+                <div className="mt-3">
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${i.progression}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Modal détail intervention */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">{selected.type}</h3>
+                <p className="text-sm text-gray-500">{selected.description}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Statut */}
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-bold px-3 py-1.5 rounded-full ${statutCfg[selected.statut].bg} ${statutCfg[selected.statut].color}`}>
+                  {statutCfg[selected.statut].emoji} {statutCfg[selected.statut].label}
+                </span>
+                {selected.gpsEta && (
+                  <span className="text-sm text-amber-600 font-semibold">🛣️ ETA ~{selected.gpsEta} min</span>
+                )}
+              </div>
+
+              {/* Artisan */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="text-xs text-gray-400 mb-1 font-medium">ARTISAN</div>
+                <div className="font-semibold text-gray-900">{selected.artisan}</div>
+                <a href={`tel:${selected.artisanPhone.replace(/\s/g, '')}`} className="text-sm text-purple-600 hover:text-purple-800 font-medium mt-1 inline-block">
+                  📞 {selected.artisanPhone}
+                </a>
+              </div>
+
+              {/* RDV */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="text-xs text-gray-400 mb-1 font-medium">RDV</div>
+                <div className="font-semibold text-gray-900">
+                  {new Date(selected.dateRdv).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} à {selected.heureRdv}
+                </div>
+              </div>
+
+              {/* GPS live */}
+              {['en_route', 'sur_place'].includes(selected.statut) && selected.gpsLat && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="text-xs text-amber-700 font-bold mb-1">📍 POSITION EN TEMPS RÉEL</div>
+                  <div className="text-sm text-amber-800">Lat: {selected.gpsLat.toFixed(4)}, Lng: {selected.gpsLng?.toFixed(4)}</div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-xs text-green-700 font-medium">Signal GPS actif</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Progression */}
+              {selected.statut !== 'annule' && (
+                <div>
+                  <div className="flex justify-between text-sm text-gray-600 mb-2">
+                    <span className="font-medium">Progression</span>
+                    <span className="font-bold">{selected.progression}%</span>
+                  </div>
+                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${selected.progression}%`, backgroundColor: selected.progression === 100 ? '#10b981' : '#8b5cf6' }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>Démarrage</span>
+                    <span>En cours</span>
+                    <span>Terminé</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Preuve */}
+              {selected.preuve && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="text-xs text-green-700 font-bold mb-2">📸 PREUVE D&apos;INTERVENTION</div>
+                  <div className="flex gap-4 text-sm text-green-800">
+                    <span>📷 {selected.preuve.avantPhotos} photo{selected.preuve.avantPhotos > 1 ? 's' : ''} avant</span>
+                    <span>📷 {selected.preuve.apresPhotos} photo{selected.preuve.apresPhotos > 1 ? 's' : ''} après</span>
+                    {selected.preuve.signee && <span>✍️ Signé</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Note */}
+              {selected.note && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="text-xs text-amber-700 font-bold mb-1">VOTRE AVIS</div>
+                  <div className="text-xl">{'⭐'.repeat(selected.note)}</div>
+                  {selected.commentaire && <p className="text-sm text-gray-600 mt-1 italic">&ldquo;{selected.commentaire}&rdquo;</p>}
+                </div>
+              )}
+
+              {/* CTA noter */}
+              {selected.statut === 'termine' && !selected.note && (
+                <button
+                  onClick={() => { setNoteModal(selected); setSelected(null); setNoteVal(5); setNoteComment('') }}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition"
+                >
+                  ⭐ Donner mon avis sur cette intervention
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal notation */}
+      {noteModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setNoteModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">⭐ Évaluer l&apos;intervention</h3>
+              <p className="text-sm text-gray-500 mt-1">{noteModal.artisan.split('—')[0].trim()} — {noteModal.type}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Stars */}
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-2">Votre note</div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setNoteVal(n)}
+                      className={`text-3xl transition-transform hover:scale-110 ${n <= noteVal ? 'opacity-100' : 'opacity-30'}`}
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {noteVal === 1 ? 'Très insatisfait' : noteVal === 2 ? 'Insatisfait' : noteVal === 3 ? 'Correct' : noteVal === 4 ? 'Satisfait' : 'Très satisfait'}
+                </div>
+              </div>
+              {/* Commentaire */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Commentaire (optionnel)</label>
+                <textarea
+                  value={noteComment}
+                  onChange={e => setNoteComment(e.target.value)}
+                  rows={3}
+                  placeholder="Décrivez votre expérience..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 resize-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setNoteModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
+                  Annuler
+                </button>
+                <button onClick={submitNote} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-bold transition">
+                  Envoyer l&apos;avis
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Composant MesChargesSection ───────────────────────────────────────────────
+
+function MesChargesSection({ profile, paiements, charges }: { profile: CoproProfile; paiements: Paiement[]; charges: ChargesMensuelles[] }) {
+  const [anneeSelect, setAnneeSelect] = useState(2026)
+  const [onglet, setOnglet] = useState<'dashboard' | 'postes' | 'calendrier'>('dashboard')
+
+  const annees = [2026, 2025, 2024]
+  const chargesAnnee = paiements.filter(p => new Date(p.dateEcheance).getFullYear() === anneeSelect)
+  const totalPayeAnnee = chargesAnnee.filter(p => p.statut === 'payee').reduce((s, p) => s + Math.max(p.montant, 0), 0)
+  const totalEnAttenteAnnee = chargesAnnee.filter(p => p.statut !== 'payee').reduce((s, p) => s + Math.max(p.montant, 0), 0)
+  const totalBudgetAnnee = POSTES_CHARGES.reduce((s, p) => s + p.budget, 0)
+  const totalReelAnnee = POSTES_CHARGES.reduce((s, p) => s + p.montantAnnuel, 0)
+  const totalAnnee = totalPayeAnnee + totalEnAttenteAnnee
+
+  const moisLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+  const chargesParMois = moisLabels.map((m, idx) => {
+    const moisStr = `${anneeSelect}-${String(idx + 1).padStart(2, '0')}`
+    const c = charges.find(ch => ch.mois === moisStr)
+    return { mois: m, montant: c?.montant || 0, statut: c?.statut || null }
+  })
+  const maxMontant = Math.max(...chargesParMois.map(m => m.montant), 1)
+
+  return (
+    <div className="space-y-6">
+      {/* Header année */}
+      <div className="flex items-center gap-3">
+        <div className="text-sm font-medium text-gray-600">Année :</div>
+        <div className="flex gap-1">
+          {annees.map(a => (
+            <button
+              key={a}
+              onClick={() => setAnneeSelect(a)}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${anneeSelect === a ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >{a}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-xs text-gray-500 font-medium mb-1">Total payé {anneeSelect}</div>
+          <div className="text-2xl font-black text-green-600">{formatPrice(totalPayeAnnee)}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-xs text-gray-500 font-medium mb-1">Reste à payer</div>
+          <div className={`text-2xl font-black ${totalEnAttenteAnnee > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatPrice(totalEnAttenteAnnee)}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-xs text-gray-500 font-medium mb-1">Budget annuel</div>
+          <div className="text-2xl font-black text-gray-900">{formatPrice(totalBudgetAnnee)}</div>
+          <div className="text-xs text-gray-400 mt-1">Quote-part {profile.quotePart}%</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-xs text-gray-500 font-medium mb-1">Réalisé / Budget</div>
+          <div className={`text-2xl font-black ${totalReelAnnee > totalBudgetAnnee ? 'text-red-600' : 'text-green-600'}`}>
+            {Math.round((totalReelAnnee / totalBudgetAnnee) * 100)}%
+          </div>
+          <div className="text-xs text-gray-400 mt-1">{formatPrice(totalReelAnnee)} réel</div>
+        </div>
+      </div>
+
+      {/* Onglets */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {([['dashboard', '📊 Dashboard'], ['postes', '📋 Postes'], ['calendrier', '📅 Calendrier']] as [typeof onglet, string][]).map(([v, l]) => (
+          <button
+            key={v}
+            onClick={() => setOnglet(v)}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${onglet === v ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}
+          >{l}</button>
+        ))}
+      </div>
+
+      {/* Dashboard */}
+      {onglet === 'dashboard' && (
+        <div className="space-y-4">
+          {/* Graphe barres mensuel */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="text-sm font-bold text-gray-700 mb-4">📊 Charges mensuelles {anneeSelect}</div>
+            <div className="flex items-end gap-1 h-32">
+              {chargesParMois.map((m) => {
+                const h = m.montant > 0 ? Math.max((m.montant / maxMontant) * 100, 5) : 5
+                const color = m.statut === 'payee' ? '#10b981' : m.statut === 'en_attente' ? '#f59e0b' : m.statut === 'en_retard' ? '#ef4444' : '#e5e7eb'
+                return (
+                  <div key={m.mois} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t-md transition-all"
+                      style={{ height: `${h}%`, backgroundColor: color }}
+                      title={`${m.mois}: ${formatPrice(m.montant)}`}
+                    />
+                    <div className="text-[9px] text-gray-400 font-medium">{m.mois}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex gap-4 mt-3 text-xs">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Payée</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />En attente</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />En retard</span>
+            </div>
+          </div>
+
+          {/* Répartition */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="text-sm font-bold text-gray-700 mb-3">🥧 Répartition budget</div>
+            <div className="space-y-2">
+              {POSTES_CHARGES.sort((a, b) => b.montantAnnuel - a.montantAnnuel).map(p => (
+                <div key={p.label} className="flex items-center gap-3">
+                  <div className="flex-shrink-0 w-6 text-center">{p.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between text-xs text-gray-600 mb-0.5">
+                      <span className="truncate">{p.label}</span>
+                      <span className="font-semibold flex-shrink-0 ml-2">{formatPrice(p.montantAnnuel)}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(p.montantAnnuel / totalReelAnnee) * 100}%`, backgroundColor: p.couleur }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-gray-400 flex-shrink-0 w-8 text-right">
+                    {Math.round((p.montantAnnuel / totalReelAnnee) * 100)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Postes de charges */}
+      {onglet === 'postes' && (
+        <div className="space-y-3">
+          {POSTES_CHARGES.map(p => {
+            const over = p.montantAnnuel > p.budget
+            return (
+              <div key={p.label} className={`bg-white rounded-xl border p-4 shadow-sm ${over ? 'border-red-200' : 'border-gray-200'}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{p.emoji}</span>
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">{p.label}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">Budget : {formatPrice(p.budget)} · Réel : {formatPrice(p.montantAnnuel)}</div>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${over ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {over ? `+${formatPrice(p.montantAnnuel - p.budget)}` : `-${formatPrice(p.budget - p.montantAnnuel)}`}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min((p.montantAnnuel / p.budget) * 100, 100)}%`,
+                        backgroundColor: over ? '#ef4444' : p.couleur,
+                      }}
+                    />
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-1">{Math.round((p.montantAnnuel / p.budget) * 100)}% du budget consommé</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Calendrier paiements */}
+      {onglet === 'calendrier' && (
+        <div className="space-y-3">
+          <div className="text-xs text-gray-500 font-medium">Prochaines échéances</div>
+          {paiements
+            .filter(p => p.statut !== 'payee' && new Date(p.dateEcheance) >= new Date())
+            .sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime())
+            .map(p => {
+              const daysLeft = Math.ceil((new Date(p.dateEcheance).getTime() - Date.now()) / 86400000)
+              const urgent = daysLeft <= 14
+              return (
+                <div key={p.id} className={`bg-white rounded-xl border p-4 shadow-sm ${urgent ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">{p.description}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{p.reference} · Éch. {new Date(p.dateEcheance).toLocaleDateString('fr-FR')}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatPrice(Math.abs(p.montant))}</div>
+                      <div className={`text-[10px] font-bold mt-0.5 ${urgent ? 'text-red-600' : 'text-gray-400'}`}>
+                        {urgent ? `⚠️ J-${daysLeft}` : `J-${daysLeft}`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+          <div className="text-xs text-gray-500 font-medium mt-4">Paiements effectués</div>
+          {paiements
+            .filter(p => p.statut === 'payee')
+            .sort((a, b) => new Date(b.datePaiement!).getTime() - new Date(a.datePaiement!).getTime())
+            .map(p => (
+              <div key={p.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm opacity-70">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">{p.description}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Payé le {new Date(p.datePaiement!).toLocaleDateString('fr-FR')}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatPrice(Math.abs(p.montant))}</div>
+                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Payé</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Types Locataire ──────────────────────────────────────────────────────────
+
+interface Quittance {
+  id: string
+  mois: string          // '2026-02'
+  montant: number
+  statut: 'emise' | 'tele_chargee'
+  dateEmission: string
+  reference: string
+}
+
+interface Bail {
+  id: string
+  dateDebut: string
+  dateFin: string | null
+  duree: number           // mois
+  loyerBase: number
+  charges: number
+  depot: number
+  indexation: 'irl' | 'icc'
+  derniereRevision: string
+  prochaineRevision: string
+  indiceRef: number
+  indiceActuel: number
+  bailleur: string
+  bailleurAdresse: string
+  bailleurPhone: string
+  agence?: string
+  logement: string       // description
+  surface: number        // m²
+  numLot?: string
+  preavis: number       // mois
+}
+
+// ─── Données démo locataire ───────────────────────────────────────────────────
+
+const QUITTANCES_DEMO: Quittance[] = [
+  { id: 'q1', mois: '2026-02', montant: 1250, statut: 'emise',         dateEmission: '2026-02-01', reference: 'QUI-2026-02' },
+  { id: 'q2', mois: '2026-01', montant: 1250, statut: 'tele_chargee', dateEmission: '2026-01-01', reference: 'QUI-2026-01' },
+  { id: 'q3', mois: '2025-12', montant: 1250, statut: 'tele_chargee', dateEmission: '2025-12-01', reference: 'QUI-2025-12' },
+  { id: 'q4', mois: '2025-11', montant: 1250, statut: 'tele_chargee', dateEmission: '2025-11-01', reference: 'QUI-2025-11' },
+  { id: 'q5', mois: '2025-10', montant: 1210, statut: 'tele_chargee', dateEmission: '2025-10-01', reference: 'QUI-2025-10' },
+  { id: 'q6', mois: '2025-09', montant: 1210, statut: 'tele_chargee', dateEmission: '2025-09-01', reference: 'QUI-2025-09' },
+  { id: 'q7', mois: '2025-08', montant: 1210, statut: 'tele_chargee', dateEmission: '2025-08-01', reference: 'QUI-2025-08' },
+  { id: 'q8', mois: '2025-07', montant: 1210, statut: 'tele_chargee', dateEmission: '2025-07-01', reference: 'QUI-2025-07' },
+  { id: 'q9', mois: '2025-06', montant: 1180, statut: 'tele_chargee', dateEmission: '2025-06-01', reference: 'QUI-2025-06' },
+  { id: 'q10', mois: '2025-05', montant: 1180, statut: 'tele_chargee', dateEmission: '2025-05-01', reference: 'QUI-2025-05' },
+  { id: 'q11', mois: '2025-04', montant: 1180, statut: 'tele_chargee', dateEmission: '2025-04-01', reference: 'QUI-2025-04' },
+  { id: 'q12', mois: '2025-03', montant: 1180, statut: 'tele_chargee', dateEmission: '2025-03-01', reference: 'QUI-2025-03' },
+]
+
+const BAIL_DEMO: Bail = {
+  id: 'bail-1',
+  dateDebut: '2022-03-01',
+  dateFin: null,
+  duree: 36,
+  loyerBase: 1100,
+  charges: 150,
+  depot: 2200,
+  indexation: 'irl',
+  derniereRevision: '2025-03-01',
+  prochaineRevision: '2026-03-01',
+  indiceRef: 136.27,
+  indiceActuel: 140.38,
+  bailleur: 'SCI Les Acacias',
+  bailleurAdresse: '45 avenue Victor Hugo, 75016 Paris',
+  bailleurPhone: '01 45 67 89 00',
+  agence: 'Cabinet Dupont Immobilier',
+  logement: 'Appartement T3, 3ème étage, Bâtiment D',
+  surface: 68,
+  numLot: '12',
+  preavis: 3,
+}
+
+// ─── Composant QuittancesSection ──────────────────────────────────────────────
+
+function QuittancesSection({ profile }: { profile: CoproProfile }) {
+  const [quittances] = React.useState<Quittance[]>(QUITTANCES_DEMO)
+  const [downloaded, setDownloaded] = React.useState<Set<string>>(new Set())
+  const [anneeFilter, setAnneeFilter] = React.useState<string>('2026')
+
+  const annees = [...new Set(quittances.map(q => q.mois.split('-')[0]))].sort((a, b) => Number(b) - Number(a))
+  const filtered = quittances.filter(q => q.mois.startsWith(anneeFilter))
+
+  const moisLabel = (mois: string) => {
+    const [y, m] = mois.split('-')
+    const d = new Date(Number(y), Number(m) - 1, 1)
+    return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  }
+
+  const handleDownload = (q: Quittance) => {
+    // Génère une quittance texte et déclenche un téléchargement CSV/TXT fictif
+    const texte = `QUITTANCE DE LOYER — ${q.reference}
+══════════════════════════════════════════
+Bailleur : ${BAIL_DEMO.bailleur}
+Locataire : ${profile.prenom} ${profile.nom}
+Logement : ${BAIL_DEMO.logement}
+Période : ${moisLabel(q.mois)}
+══════════════════════════════════════════
+Loyer net           : ${formatPrice(BAIL_DEMO.loyerBase)}
+Charges             : ${formatPrice(BAIL_DEMO.charges)}
+─────────────────────────────────────────
+TOTAL               : ${formatPrice(q.montant)}
+══════════════════════════════════════════
+Date d'émission : ${new Date(q.dateEmission).toLocaleDateString('fr-FR')}
+Référence : ${q.reference}
+
+Cette quittance atteste que le loyer du mois de ${moisLabel(q.mois)}
+a bien été reçu.
+
+Fait à Paris, le ${new Date().toLocaleDateString('fr-FR')}
+Signature du bailleur : ${BAIL_DEMO.bailleur}`
+
+    const blob = new Blob([texte], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${q.reference}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    setDownloaded(prev => new Set([...prev, q.id]))
+  }
+
+  const totalAnnee = filtered.reduce((s, q) => s + q.montant, 0)
+
+  return (
+    <div className="space-y-6">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-xs text-gray-500 font-medium mb-1">Loyer mensuel</div>
+          <div className="text-2xl font-black text-gray-900">{formatPrice(BAIL_DEMO.loyerBase + BAIL_DEMO.charges)}</div>
+          <div className="text-xs text-gray-400 mt-1">{formatPrice(BAIL_DEMO.loyerBase)} + {formatPrice(BAIL_DEMO.charges)} charges</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-xs text-gray-500 font-medium mb-1">Total {anneeFilter}</div>
+          <div className="text-2xl font-black text-purple-600">{formatPrice(totalAnnee)}</div>
+          <div className="text-xs text-gray-400 mt-1">{filtered.length} quittance{filtered.length > 1 ? 's' : ''}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm col-span-2 md:col-span-1">
+          <div className="text-xs text-gray-500 font-medium mb-1">Prochaine révision</div>
+          <div className="text-xl font-black text-amber-600">
+            {new Date(BAIL_DEMO.prochaineRevision).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">Indice IRL</div>
+        </div>
+      </div>
+
+      {/* Filtre année */}
+      <div className="flex items-center gap-3">
+        <div className="text-sm font-medium text-gray-600">Année :</div>
+        <div className="flex gap-1">
+          {annees.map(a => (
+            <button key={a} onClick={() => setAnneeFilter(a)}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${anneeFilter === a ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >{a}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Liste quittances */}
+      <div className="space-y-3">
+        {filtered.map(q => (
+          <div key={q.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span className="text-lg">🧾</span>
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold text-gray-900">{moisLabel(q.mois)}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{q.reference} · Émise le {new Date(q.dateEmission).toLocaleDateString('fr-FR')}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="text-right">
+                <div className="font-black text-gray-900">{formatPrice(q.montant)}</div>
+                {downloaded.has(q.id) && (
+                  <div className="text-[10px] text-green-600 font-medium mt-0.5">✓ Téléchargée</div>
+                )}
+              </div>
+              <button
+                onClick={() => handleDownload(q)}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition ${
+                  downloaded.has(q.id)
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                }`}
+              >
+                {downloaded.has(q.id) ? '✓ OK' : '⬇ Télécharger'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Demande quittance */}
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+        <div className="text-sm text-gray-600 mb-2">Vous ne trouvez pas une quittance ?</div>
+        <a
+          href="mailto:cabinet@dupont-immobilier.fr?subject=Demande quittance de loyer"
+          className="text-sm text-purple-600 hover:text-purple-800 font-semibold"
+        >
+          📧 Contacter le gestionnaire
+        </a>
+      </div>
+    </div>
+  )
+}
+
+// ─── Composant MonBailSection ──────────────────────────────────────────────────
+
+function MonBailSection({ profile }: { profile: CoproProfile }) {
+  const bail = BAIL_DEMO
+
+  const dureeRestante = () => {
+    if (!bail.dateFin) return null
+    const months = Math.max(0, Math.ceil((new Date(bail.dateFin).getTime() - Date.now()) / (30.44 * 86400000)))
+    return months
+  }
+
+  const anciennete = () => {
+    const months = Math.floor((Date.now() - new Date(bail.dateDebut).getTime()) / (30.44 * 86400000))
+    const years = Math.floor(months / 12)
+    const rem = months % 12
+    if (years === 0) return `${months} mois`
+    return `${years} an${years > 1 ? 's' : ''}${rem > 0 ? ` ${rem} mois` : ''}`
+  }
+
+  const loyerRevise = () => {
+    // Calcul IRL: loyer * (indice actuel / indice référence)
+    const ratio = bail.indiceActuel / bail.indiceRef
+    return Math.round(bail.loyerBase * ratio * 100) / 100
+  }
+
+  const hausse = loyerRevise() - bail.loyerBase
+  const pctHausse = Math.round((hausse / bail.loyerBase) * 1000) / 10
+
+  const daysToRevision = Math.ceil((new Date(bail.prochaineRevision).getTime() - Date.now()) / 86400000)
+
+  return (
+    <div className="space-y-6">
+      {/* Alerte révision */}
+      {daysToRevision <= 90 && daysToRevision >= 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div>
+            <div className="font-bold text-amber-800">Révision de loyer dans {daysToRevision} jours</div>
+            <div className="text-sm text-amber-700 mt-0.5">
+              Révision prévue le {new Date(bail.prochaineRevision).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.
+              Nouveau loyer estimé : <span className="font-bold">{formatPrice(loyerRevise())}</span> (+{formatPrice(hausse)} / +{pctHausse}%)
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Infos bail */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Données clés */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+          <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">📜 Informations bail</div>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Date de début</span>
+              <span className="font-semibold">{new Date(bail.dateDebut).toLocaleDateString('fr-FR')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Durée / Type</span>
+              <span className="font-semibold">{bail.duree} mois · Bail résidentiel</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Ancienneté</span>
+              <span className="font-semibold text-purple-600">{anciennete()}</span>
+            </div>
+            {bail.dateFin && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Fin de bail</span>
+                <span className="font-semibold">{new Date(bail.dateFin).toLocaleDateString('fr-FR')}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Préavis</span>
+              <span className="font-semibold">{bail.preavis} mois</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Surface</span>
+              <span className="font-semibold">{bail.surface} m²</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Logement</span>
+              <span className="font-semibold text-right max-w-[55%]">{bail.logement}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Financier */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+          <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">💶 Financier</div>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Loyer hors charges</span>
+              <span className="font-semibold">{formatPrice(bail.loyerBase)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Charges forfaitaires</span>
+              <span className="font-semibold">{formatPrice(bail.charges)}</span>
+            </div>
+            <div className="flex justify-between border-t border-gray-100 pt-2">
+              <span className="font-bold text-gray-700">Total mensuel</span>
+              <span className="font-black text-gray-900">{formatPrice(bail.loyerBase + bail.charges)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Dépôt de garantie</span>
+              <span className="font-semibold">{formatPrice(bail.depot)}</span>
+            </div>
+          </div>
+
+          {/* Révision IRL */}
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mt-2">
+            <div className="text-xs font-bold text-purple-700 mb-2">📊 Révision {bail.indexation.toUpperCase()}</div>
+            <div className="space-y-1.5 text-xs text-purple-800">
+              <div className="flex justify-between">
+                <span>Indice de référence</span>
+                <span className="font-bold">{bail.indiceRef}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Indice actuel</span>
+                <span className="font-bold">{bail.indiceActuel}</span>
+              </div>
+              <div className="flex justify-between border-t border-purple-200 pt-1.5">
+                <span className="font-bold">Loyer révisé estimé</span>
+                <span className="font-black text-purple-900">{formatPrice(loyerRevise())} <span className="text-[10px]">(+{pctHausse}%)</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bailleur */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2 mb-4">🏢 Bailleur / Gestionnaire</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="space-y-2">
+            <div className="flex items-start gap-2">
+              <span className="text-gray-400 w-5 flex-shrink-0">🏢</span>
+              <div><div className="text-xs text-gray-400">Bailleur</div><div className="font-semibold">{bail.bailleur}</div></div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-gray-400 w-5 flex-shrink-0">📍</span>
+              <div><div className="text-xs text-gray-400">Adresse</div><div className="font-semibold">{bail.bailleurAdresse}</div></div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2">
+              <span className="text-gray-400 w-5 flex-shrink-0">📞</span>
+              <div>
+                <div className="text-xs text-gray-400">Téléphone</div>
+                <a href={`tel:${bail.bailleurPhone.replace(/\s/g, '')}`} className="font-semibold text-purple-600 hover:text-purple-800">{bail.bailleurPhone}</a>
+              </div>
+            </div>
+            {bail.agence && (
+              <div className="flex items-start gap-2">
+                <span className="text-gray-400 w-5 flex-shrink-0">🏪</span>
+                <div><div className="text-xs text-gray-400">Agence</div><div className="font-semibold">{bail.agence}</div></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Calendrier bail */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2 mb-4">📅 Échéances importantes</div>
+        <div className="space-y-3">
+          {[
+            { label: 'Dernière révision loyer', date: bail.derniereRevision, icon: '✅', color: 'text-green-600' },
+            { label: 'Prochaine révision IRL', date: bail.prochaineRevision, icon: daysToRevision <= 90 ? '⚠️' : '📅', color: daysToRevision <= 90 ? 'text-amber-600' : 'text-gray-600' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <span>{item.icon}</span>
+                <span className="text-gray-600">{item.label}</span>
+              </div>
+              <span className={`text-sm font-bold ${item.color}`}>
+                {new Date(item.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <span>📋</span>
+              <span className="text-gray-600">Date préavis (si départ)</span>
+            </div>
+            <span className="text-sm font-bold text-gray-600">
+              {bail.preavis} mois avant la fin
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Signalement locataire */}
+      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+        <div className="font-bold text-purple-900 mb-2">🔧 Signaler un problème au bailleur</div>
+        <p className="text-sm text-purple-700 mb-3">Fuite, panne, travaux urgents — contactez directement votre gestionnaire.</p>
+        <div className="flex gap-2">
+          <a href={`tel:${bail.bailleurPhone.replace(/\s/g, '')}`}
+            className="flex-1 text-center py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition">
+            📞 Appeler
+          </a>
+          <a href="mailto:cabinet@dupont-immobilier.fr?subject=Signalement - Problème logement"
+            className="flex-1 text-center py-2.5 bg-white border border-purple-300 text-purple-700 text-sm font-bold rounded-xl hover:bg-purple-50 transition">
+            📧 Email
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Modules configurables ─────────────────────────────────────────────────────
+
+const COPRO_MODULES = [
+  { key: 'documents', label: 'Documents', icon: '📁', description: 'Accès aux PV, comptes et documents copro', default: true },
+  { key: 'paiements', label: 'Paiements', icon: '💶', description: 'Suivi et historique de vos paiements', default: true },
+  { key: 'mes_charges', label: 'Mes Charges', icon: '💰', description: 'Détail mensuel de vos charges', default: true },
+  { key: 'quittances', label: 'Quittances loyer', icon: '🧾', description: 'Vos quittances de loyer mensuelles', default: false },
+  { key: 'mon_bail', label: 'Mon Bail', icon: '📜', description: 'Informations de votre bail et renouvellement', default: false },
+  { key: 'interventions_suivi', label: 'Mes Interventions', icon: '🔧', description: 'Suivi des travaux dans votre immeuble', default: true },
+  { key: 'annonces', label: 'Annonces', icon: '📢', description: 'Annonces du syndic et de la copro', default: true },
+  { key: 'signalement', label: 'Signalement', icon: '🔔', description: 'Signaler un problème dans l\'immeuble', default: true },
+  { key: 'assemblees', label: 'Assemblées & Votes', icon: '🏛️', description: 'AG, résolutions et votes en ligne', default: true },
+  { key: 'historique', label: 'Historique', icon: '📈', description: 'Historique de toutes vos actions', default: false },
+  { key: 'assistant', label: 'Assistant IA Sofia', icon: '🤖', description: 'Posez vos questions à Sofia', default: true },
+] as const
+type CoproModuleKey = typeof COPRO_MODULES[number]['key']
+
+// ─── Navigation ────────────────────────────────────────────────────────────────
+
 const NAV_ITEMS: { id: CoproPage; emoji: string; label: string }[] = [
   { id: 'accueil', emoji: '📊', label: 'Tableau de bord' },
   { id: 'documents', emoji: '📁', label: 'Documents' },
   { id: 'paiements', emoji: '💶', label: 'Paiements' },
+  { id: 'mes_charges', emoji: '💰', label: 'Mes Charges' },
+  { id: 'quittances', emoji: '🧾', label: 'Quittances loyer' },
+  { id: 'mon_bail', emoji: '📜', label: 'Mon Bail' },
+  { id: 'interventions_suivi', emoji: '🔧', label: 'Mes Interventions' },
   { id: 'annonces', emoji: '📢', label: 'Annonces' },
   { id: 'signalement', emoji: '🔔', label: 'Signalement' },
   { id: 'assemblees', emoji: '🏛️', label: 'Assemblées & Votes' },
   { id: 'historique', emoji: '📈', label: 'Historique' },
+  { id: 'modules', emoji: '🧩', label: 'Modules' },
   { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
   { id: 'assistant', emoji: '🤖', label: 'Assistant IA Sofia' },
 ]
@@ -369,6 +1438,9 @@ export default function CoproprietaireDashboard() {
   // Navigation
   const [page, setPage] = useState<CoproPage>('accueil')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // ── Modules personnalisables ──
+  const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>({})
 
   // Données
   const [profile, setProfile] = useState<CoproProfile>(PROFILE_DEMO)
@@ -441,10 +1513,24 @@ export default function CoproprietaireDashboard() {
           setNotifications(p('notifications', NOTIFICATIONS_DEMO))
           setHistorique(p('historique', HISTORIQUE_DEMO))
           setParams(p('params', PARAMS_DEMO))
+          // Load enabled modules
+          try {
+            const savedModules = localStorage.getItem(`fixit_modules_copro_${uid}`)
+            if (savedModules) {
+              setEnabledModules(JSON.parse(savedModules))
+            } else {
+              const defaults: Record<string, boolean> = {}
+              COPRO_MODULES.forEach(m => { defaults[m.key] = m.default })
+              setEnabledModules(defaults)
+            }
+          } catch {}
         } catch { /* silent */ }
       } else {
         // Mode démo sans auth
         setProfile(PROFILE_DEMO)
+        const defaults: Record<string, boolean> = {}
+        COPRO_MODULES.forEach(m => { defaults[m.key] = m.default })
+        setEnabledModules(defaults)
       }
       setDataLoaded(true)
       setLoading(false)
@@ -676,6 +1762,20 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
     }
   }
 
+  // ── Module helpers ──
+  const isModuleEnabled = (key: string): boolean => {
+    if (Object.keys(enabledModules).length === 0) {
+      return COPRO_MODULES.find(m => m.key === key)?.default ?? true
+    }
+    return enabledModules[key] ?? COPRO_MODULES.find(m => m.key === key)?.default ?? true
+  }
+
+  const toggleModule = (key: string) => {
+    const updated = { ...enabledModules, [key]: !isModuleEnabled(key) }
+    setEnabledModules(updated)
+    if (user) localStorage.setItem(`fixit_modules_copro_${user.id}`, JSON.stringify(updated))
+  }
+
   // ── Loading ──
   if (loading) {
     return (
@@ -731,7 +1831,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
 
         {/* Nav */}
         <nav className="flex-1 py-4 overflow-y-auto">
-          {NAV_ITEMS.map(item => {
+          {NAV_ITEMS.filter(item => ['accueil', 'parametres', 'modules'].includes(item.id) || isModuleEnabled(item.id)).map(item => {
             const badge = item.id === 'annonces' ? annoncesNonLues : item.id === 'accueil' ? notifNonLues : 0
             return (
               <button
@@ -1505,6 +2605,61 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                         })}
                       </div>
                     </div>
+                    {/* ── Contestation AG (délai 2 mois art. 42) ── */}
+                    {ag.statut === 'cloturee' && (() => {
+                      const agDate = new Date(ag.date)
+                      const deadline = new Date(agDate)
+                      deadline.setMonth(deadline.getMonth() + 2)
+                      const daysLeft = Math.ceil((deadline.getTime() - Date.now()) / 86400000)
+                      const canContest = daysLeft > 0
+                      return (
+                        <div className={`rounded-xl border p-5 shadow-sm ${canContest ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                          <div className="flex items-start gap-3 mb-3">
+                            <span className="text-2xl">{canContest ? '⚖️' : '🔒'}</span>
+                            <div>
+                              <h3 className="font-bold text-gray-900">Contestation de l&apos;AG</h3>
+                              {canContest ? (
+                                <p className="text-sm text-amber-700 mt-1">
+                                  ⏰ <strong>{daysLeft} jour(s) restant(s)</strong> pour contester (délai légal : 2 mois après l&apos;AG, art. 42 loi du 10/07/1965)
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-500 mt-1">Le délai de contestation de 2 mois est écoulé.</p>
+                              )}
+                            </div>
+                          </div>
+                          {canContest && (
+                            <>
+                              <div className="bg-white rounded-lg p-4 border border-amber-100 mb-3">
+                                <p className="text-xs text-gray-600 leading-relaxed">
+                                  <strong>Rappel juridique :</strong> Tout copropriétaire opposant ou défaillant peut contester une décision d&apos;AG
+                                  dans un délai de 2 mois à compter de la notification du PV (article 42 de la loi du 10 juillet 1965).
+                                  La contestation doit être faite par LRAR au syndic, puis si nécessaire devant le Tribunal judiciaire.
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const template = `[Votre nom et adresse]\n\n[Nom et adresse du syndic]\n\nObjet : Contestation de résolution(s) adoptée(s) lors de l'AG du ${new Date(ag.date).toLocaleDateString('fr-FR')}\n\nLettre recommandée avec accusé de réception\n\nMadame, Monsieur le Syndic,\n\nJe soussigné(e) [Votre nom], copropriétaire au sein de la copropriété [nom/adresse immeuble], lot n°${profile.numLot || '___'}, titulaire de ${profile.tantiemes} tantièmes,\n\nPar la présente, je conteste la/les résolution(s) suivante(s) adoptée(s) lors de l'assemblée générale ${ag.type} du ${new Date(ag.date).toLocaleDateString('fr-FR')} :\n\n- [Préciser la/les résolution(s) contestée(s)]\n\nMotif(s) de la contestation :\n- [Vice de forme / irrégularité de convocation / abus de majorité / autre]\n\nConformément à l'article 42 de la loi du 10 juillet 1965, je vous mets en demeure de prendre acte de cette contestation dans un délai de 15 jours.\n\nÀ défaut de réponse satisfaisante, je me réserve le droit de saisir le Tribunal judiciaire compétent.\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.\n\nFait à [Ville], le ${new Date().toLocaleDateString('fr-FR')}\n\n[Signature]`
+                                  navigator.clipboard.writeText(template).then(() => {
+                                    alert('Template de mise en demeure copié dans le presse-papier !')
+                                  }).catch(() => {
+                                    const el = document.createElement('textarea')
+                                    el.value = template; document.body.appendChild(el); el.select()
+                                    document.execCommand('copy'); document.body.removeChild(el)
+                                    alert('Template copié !')
+                                  })
+                                }}
+                                className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-bold text-sm transition"
+                              >
+                                📋 Copier le template de mise en demeure
+                              </button>
+                              <p className="text-[10px] text-gray-400 text-center mt-2">
+                                Deadline : {deadline.toLocaleDateString('fr-FR')} · Envoi par LRAR recommandé
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })()}
@@ -1617,6 +2772,58 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       )
                     })
                   })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════════
+              PAGE : MODULES
+          ════════════════════════════════════════════════════════════════════════ */}
+          {page === 'modules' && (
+            <div className="max-w-3xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">🧩 Mes modules</h2>
+                  <p className="text-sm text-gray-500 mt-1">Personnalisez votre espace en activant les fonctionnalités utiles</p>
+                </div>
+                <div className="bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full text-sm font-bold">
+                  {COPRO_MODULES.filter(m => isModuleEnabled(m.key)).length}/{COPRO_MODULES.length} actifs
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                {COPRO_MODULES.map(mod => {
+                  const enabled = isModuleEnabled(mod.key)
+                  return (
+                    <div key={mod.key} className={`bg-white rounded-2xl p-4 border-2 transition-all ${enabled ? 'border-amber-300 shadow-sm' : 'border-gray-200 opacity-75'}`}>
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${enabled ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                          {mod.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-gray-900">{mod.label}</div>
+                          <div className="text-sm text-gray-500 mt-0.5">{mod.description}</div>
+                        </div>
+                        <button
+                          onClick={() => toggleModule(mod.key)}
+                          className={`w-14 h-8 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-[#FFC107]' : 'bg-gray-200'}`}
+                        >
+                          <div className="w-6 h-6 bg-white rounded-full shadow absolute top-1 transition-all" style={{ left: enabled ? '28px' : '4px' }} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">💡</span>
+                  <div>
+                    <div className="font-semibold text-blue-800 text-sm">Astuce</div>
+                    <div className="text-xs text-blue-600 mt-0.5">Désactivez les modules que vous n'utilisez pas pour simplifier votre espace. Les données ne sont pas supprimées — vous pouvez les réactiver à tout moment.</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1964,6 +3171,34 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════════
+              PAGE : MES INTERVENTIONS — SUIVI TEMPS RÉEL
+          ════════════════════════════════════════════════════════════════════════ */}
+          {page === 'interventions_suivi' && (
+            <MesInterventionsSection profile={profile} />
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════════
+              PAGE : QUITTANCES DE LOYER
+          ════════════════════════════════════════════════════════════════════════ */}
+          {page === 'quittances' && (
+            <QuittancesSection profile={profile} />
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════════
+              PAGE : MON BAIL
+          ════════════════════════════════════════════════════════════════════════ */}
+          {page === 'mon_bail' && (
+            <MonBailSection profile={profile} />
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════════════
+              PAGE : MES CHARGES — BREAKDOWN ANNUEL
+          ════════════════════════════════════════════════════════════════════════ */}
+          {page === 'mes_charges' && (
+            <MesChargesSection profile={profile} paiements={paiements} charges={charges} />
           )}
 
         </div>

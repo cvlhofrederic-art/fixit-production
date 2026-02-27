@@ -49,6 +49,11 @@ interface Artisan {
   city?: string | null
   experience_years?: number | null
   services?: Service[]
+  // Catalogue fields
+  source?: 'registered' | 'catalogue'
+  telephone_pro?: string | null
+  adresse?: string | null
+  arrondissement?: string | null
 }
 
 interface Service {
@@ -172,6 +177,31 @@ function getCategoryLabel(cat: string): string {
     renovation: 'Artisan renovation',
   }
   return map[cat] || cat.charAt(0).toUpperCase() + cat.slice(1)
+}
+
+// Mapping catégorie slug → métiers catalogue
+const CATEGORY_TO_METIERS: Record<string, string[]> = {
+  plomberie:     ['Plomberie'],
+  electricite:   ['Électricité'],
+  serrurerie:    ['Serrurerie'],
+  chauffage:     ['Chauffage'],
+  climatisation: ['Climatisation'],
+  peinture:      ['Peinture'],
+  maconnerie:    ['Maçonnerie'],
+  menuiserie:    ['Menuiserie'],
+  carrelage:     ['Carrelage'],
+  toiture:       ['Toiture'],
+  jardinage:     ['Espaces verts', 'Paysagiste'],
+  nettoyage:     ['Nettoyage'],
+  demenagement:  ['Déménagement'],
+  renovation:    ['Rénovation', 'Petits travaux'],
+}
+
+function metierToCategory(metier: string): string {
+  for (const [cat, metiers] of Object.entries(CATEGORY_TO_METIERS)) {
+    if (metiers.includes(metier)) return cat
+  }
+  return metier.toLowerCase()
 }
 
 // ------------------------------------------------------------------
@@ -471,6 +501,31 @@ interface FilterState {
 // Artisan Card
 // ------------------------------------------------------------------
 
+function StarsRow({ rating, reviewCount }: { rating: number; reviewCount: number }) {
+  const fullStars = Math.floor(rating)
+  const hasHalf = rating - fullStars >= 0.5
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex items-center">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Star
+            key={i}
+            className={`w-3.5 h-3.5 ${
+              i < fullStars
+                ? 'fill-[#FFC107] text-[#FFC107]'
+                : i === fullStars && hasHalf
+                  ? 'fill-[#FFC107]/50 text-[#FFC107]'
+                  : 'fill-gray-200 text-gray-200'
+            }`}
+          />
+        ))}
+      </div>
+      <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
+      <span className="text-xs text-gray-400">({reviewCount} avis)</span>
+    </div>
+  )
+}
+
 function ArtisanCard({
   artisan,
   availability,
@@ -484,107 +539,69 @@ function ArtisanCard({
   const primaryCategory = artisan.categories?.[0]
   const rating = artisan.rating_avg || 5.0
   const reviewCount = artisan.rating_count || 0
+  const isCatalogue = artisan.source === 'catalogue'
 
-  // Determine badges
+  // Badges
   const badges: { icon: React.ReactNode; label: string; color: string }[] = []
   if (artisan.verified) {
     badges.push({
       icon: <Award className="w-3 h-3" />,
-      label: 'Artisan certifie',
+      label: isCatalogue ? 'Pappers vérifié' : 'Artisan certifie',
       color: 'bg-green-50 text-green-700 border-green-200',
     })
   }
-  // You could add more logic for "Intervention rapide" based on availability patterns
-  const hasWeekendOrWideHours = availability.some(
-    (a) => a.is_available && (a.day_of_week === 0 || a.day_of_week === 6)
-  )
-  if (hasWeekendOrWideHours) {
-    badges.push({
-      icon: <Zap className="w-3 h-3" />,
-      label: 'Intervention rapide',
-      color: 'bg-amber-50 text-amber-700 border-amber-200',
-    })
+  if (!isCatalogue) {
+    const hasWeekendOrWideHours = availability.some(
+      (a) => a.is_available && (a.day_of_week === 0 || a.day_of_week === 6)
+    )
+    if (hasWeekendOrWideHours) {
+      badges.push({
+        icon: <Zap className="w-3 h-3" />,
+        label: 'Intervention rapide',
+        color: 'bg-amber-50 text-amber-700 border-amber-200',
+      })
+    }
   }
-
-  // Stars rendering
-  const fullStars = Math.floor(rating)
-  const hasHalf = rating - fullStars >= 0.5
 
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
       <div className="p-5 lg:p-6">
-        {/* 3-column grid on large screens */}
         <div className="flex flex-col lg:flex-row lg:gap-6">
-          {/* Column 1: Avatar */}
+          {/* Avatar */}
           <div className="flex lg:flex-col items-center lg:items-center gap-4 lg:gap-2 mb-4 lg:mb-0 lg:w-20 flex-shrink-0">
             <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
               {initials}
             </div>
-            {/* Rating badge below avatar on large screens */}
             <div className="hidden lg:flex items-center gap-0.5 mt-1">
               <Star className="w-3.5 h-3.5 fill-[#FFC107] text-[#FFC107]" />
               <span className="text-xs font-semibold">{rating.toFixed(1)}</span>
             </div>
           </div>
 
-          {/* Column 2: Info */}
+          {/* Info */}
           <div className="flex-1 min-w-0 mb-4 lg:mb-0">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <Link
-                  href={`/artisan/${artisan.id}`}
-                  className="font-bold text-lg hover:text-[#FFC107] transition"
-                >
-                  {artisan.company_name || 'Artisan'}
-                </Link>
+                {isCatalogue ? (
+                  <span className="font-bold text-lg">{artisan.company_name || 'Artisan'}</span>
+                ) : (
+                  <Link href={`/artisan/${artisan.id}`} className="font-bold text-lg hover:text-[#FFC107] transition">
+                    {artisan.company_name || 'Artisan'}
+                  </Link>
+                )}
                 {primaryCategory && (
-                  <p className="text-sm text-gray-500">
-                    {getCategoryLabel(primaryCategory)}
-                  </p>
+                  <p className="text-sm text-gray-500">{getCategoryLabel(primaryCategory)}</p>
                 )}
               </div>
             </div>
 
-            {/* Rating row (visible on mobile, hidden on lg where it's under avatar) */}
-            <div className="flex items-center gap-1 mt-1 lg:hidden">
-              <div className="flex items-center">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-3.5 h-3.5 ${
-                      i < fullStars
-                        ? 'fill-[#FFC107] text-[#FFC107]'
-                        : i === fullStars && hasHalf
-                          ? 'fill-[#FFC107]/50 text-[#FFC107]'
-                          : 'fill-gray-200 text-gray-200'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
-              <span className="text-xs text-gray-400">({reviewCount} avis)</span>
+            <div className="mt-1 lg:hidden">
+              <StarsRow rating={rating} reviewCount={reviewCount} />
             </div>
-            {/* Stars on large screens (under category) */}
-            <div className="hidden lg:flex items-center gap-1 mt-1">
-              <div className="flex items-center">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`w-3.5 h-3.5 ${
-                      i < fullStars
-                        ? 'fill-[#FFC107] text-[#FFC107]'
-                        : i === fullStars && hasHalf
-                          ? 'fill-[#FFC107]/50 text-[#FFC107]'
-                          : 'fill-gray-200 text-gray-200'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
-              <span className="text-xs text-gray-400">({reviewCount} avis)</span>
+            <div className="hidden lg:block mt-1">
+              <StarsRow rating={rating} reviewCount={reviewCount} />
             </div>
 
-            {/* Experience / Address / Rate */}
             <div className="mt-2 space-y-1">
               {artisan.experience_years && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -592,10 +609,10 @@ function ArtisanCard({
                   <span>{artisan.experience_years} ans d&apos;experience</span>
                 </div>
               )}
-              {artisan.city && (
+              {(artisan.adresse || artisan.city) && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                   <MapPin className="w-3 h-3" />
-                  <span>{artisan.city}</span>
+                  <span>{artisan.adresse || artisan.city}</span>
                 </div>
               )}
               {artisan.hourly_rate && (
@@ -605,14 +622,10 @@ function ArtisanCard({
               )}
             </div>
 
-            {/* Badges */}
             {badges.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2.5">
                 {badges.map((badge, idx) => (
-                  <span
-                    key={idx}
-                    className={`inline-flex items-center gap-1 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full border ${badge.color}`}
-                  >
+                  <span key={idx} className={`inline-flex items-center gap-1 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full border ${badge.color}`}>
                     {badge.icon}
                     {badge.label}
                   </span>
@@ -621,13 +634,38 @@ function ArtisanCard({
             )}
           </div>
 
-          {/* Column 3: Mini Weekly Calendar */}
+          {/* Colonne 3 : Calendrier (inscrit) ou Contact (catalogue) */}
           <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-100 pt-4 lg:pt-0 lg:pl-5">
-            <MiniWeeklyCalendar
-              artisanId={artisan.id}
-              availability={availability}
-              bookings={bookings}
-            />
+            {isCatalogue ? (
+              <div className="flex flex-col gap-3 h-full justify-center">
+                <p className="text-xs text-gray-500 font-medium">Artisan référencé à Marseille</p>
+                {artisan.telephone_pro && artisan.verified && (
+                  <a
+                    href={`tel:${artisan.telephone_pro}`}
+                    className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 font-bold py-2.5 px-4 rounded-lg transition text-sm"
+                  >
+                    📞 {artisan.telephone_pro}
+                  </a>
+                )}
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' Marseille')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                >
+                  🔍 Voir sur Google
+                </a>
+                <p className="text-[10px] text-gray-400 text-center">
+                  {reviewCount} avis Google • {rating.toFixed(1)}/5
+                </p>
+              </div>
+            ) : (
+              <MiniWeeklyCalendar
+                artisanId={artisan.id}
+                availability={availability}
+                bookings={bookings}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -686,14 +724,10 @@ function RechercheContent() {
     async (category: string, location: string) => {
       setLoading(true)
 
+      // ── 1. Artisans inscrits (profiles_artisan) ─────────────────────
       let query = supabase
         .from('profiles_artisan')
-        .select(
-          `
-          *,
-          services(*)
-        `
-        )
+        .select('*, services(*)')
         .eq('active', true)
 
       if (category) {
@@ -704,20 +738,60 @@ function RechercheContent() {
 
       if (error) {
         console.error('Erreur fetch artisans:', error)
-        setArtisans([])
-        setAllAvailability([])
-        setAllBookings([])
-        setLoading(false)
-        return
       }
 
-      const artisanList: Artisan[] = artisanData || []
-      setArtisans(artisanList)
+      const registeredList: Artisan[] = (artisanData || []).map((a) => ({
+        ...a,
+        source: 'registered' as const,
+      }))
 
-      if (artisanList.length > 0) {
-        const ids = artisanList.map((a) => a.id)
+      // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
+      let catalogQuery = supabase
+        .from('artisans_catalogue')
+        .select('*')
+        .order('google_note', { ascending: false })
 
-        // Fetch availability for all artisans
+      if (category) {
+        const metiers = CATEGORY_TO_METIERS[category]
+        if (metiers && metiers.length > 0) {
+          catalogQuery = catalogQuery.in('metier', metiers)
+        }
+      }
+
+      // Filter by location / arrondissement if provided
+      if (location) {
+        catalogQuery = catalogQuery.ilike('adresse', `%${location}%`)
+      }
+
+      const { data: catalogData } = await catalogQuery
+
+      const catalogList: Artisan[] = (catalogData || []).map((c) => ({
+        id: `cat_${c.id}`,
+        company_name: c.nom_entreprise,
+        bio: c.specialite,
+        categories: [metierToCategory(c.metier)],
+        hourly_rate: null,
+        rating_avg: Number(c.google_note) || 0,
+        rating_count: c.google_avis || 0,
+        verified: c.pappers_verifie || false,
+        active: true,
+        zone_radius_km: 20,
+        city: c.arrondissement || c.ville || 'Marseille',
+        experience_years: null,
+        source: 'catalogue' as const,
+        telephone_pro: c.telephone_pro,
+        adresse: c.adresse,
+        arrondissement: c.arrondissement,
+      }))
+
+      // ── 3. Fusion : inscrits d'abord, puis catalogue ─────────────────
+      const allArtisans = [...registeredList, ...catalogList]
+      setArtisans(allArtisans)
+
+      // ── 4. Dispo & bookings pour les artisans inscrits uniquement ────
+      if (registeredList.length > 0) {
+        const ids = registeredList.map((a) => a.id)
+
         const { data: availData } = await supabase
           .from('availability')
           .select('*')
@@ -727,7 +801,6 @@ function RechercheContent() {
 
         setAllAvailability(availData || [])
 
-        // Fetch future bookings for all artisans
         const todayStr = format(new Date(), 'yyyy-MM-dd')
         const { data: bookingsData } = await supabase
           .from('bookings')
@@ -899,8 +972,9 @@ function RechercheContent() {
       })
     }
 
-    // Sort: verified first, then by rating
+    // Sort: inscrits d'abord, puis catalogue ; dans chaque groupe : vérifiés > note
     result.sort((a, b) => {
+      if (a.source !== b.source) return a.source === 'catalogue' ? 1 : -1
       if (a.verified !== b.verified) return a.verified ? -1 : 1
       return (b.rating_avg || 0) - (a.rating_avg || 0)
     })
@@ -1017,6 +1091,37 @@ function RechercheContent() {
               <SlidersHorizontal className="w-4 h-4" />
               Filtres
             </button>
+
+            {/* Chip Autour de moi */}
+            <button
+              onClick={() => {
+                if (userCoords) {
+                  setUserCoords(null)
+                  setLocationInput('')
+                } else {
+                  handleGeolocate()
+                }
+              }}
+              disabled={geoLoading}
+              title={userCoords ? 'Désactiver la localisation' : 'Rechercher autour de ma position'}
+              className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap disabled:opacity-60 ${
+                userCoords
+                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50 text-gray-700'
+              }`}
+            >
+              {geoLoading ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <MapPin className="w-4 h-4" />
+              )}
+              <span>{geoLoading ? 'Localisation...' : 'Autour de moi'}</span>
+              {userCoords && !geoLoading && <X className="w-3 h-3 ml-0.5 opacity-70" />}
+            </button>
+
             <button
               onClick={() =>
                 setFilters((prev) => ({

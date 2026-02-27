@@ -6,23 +6,47 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'canal' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions' | 'compta_copro' | 'ag_digitale' | 'impayés' | 'carnet_entretien' | 'sinistres' | 'extranet' | 'pointage' | 'echéances' | 'recouvrement' | 'preparateur_ag'
+type Page = 'accueil' | 'immeubles' | 'artisans' | 'missions' | 'canal' | 'planning' | 'documents' | 'facturation' | 'coproprios' | 'alertes' | 'emails' | 'reglementaire' | 'rapport' | 'ia' | 'parametres' | 'equipe' | 'comptabilite_tech' | 'analyse_devis' | 'docs_interventions' | 'compta_copro' | 'ag_digitale' | 'impayés' | 'carnet_entretien' | 'sinistres' | 'extranet' | 'pointage' | 'echéances' | 'recouvrement' | 'preparateur_ag' | 'modules'
 
 // Pages accessibles par rôle
 const ROLE_PAGES: Record<string, Page[]> = {
   // Directeur / Propriétaire du cabinet — accès total
-  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'pointage', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'reglementaire', 'rapport', 'documents', 'facturation', 'compta_copro', 'ag_digitale', 'impayés', 'carnet_entretien', 'sinistres', 'extranet', 'alertes', 'emails', 'ia', 'equipe', 'parametres', 'echéances', 'recouvrement', 'preparateur_ag'],
+  syndic: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'pointage', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'reglementaire', 'rapport', 'documents', 'facturation', 'compta_copro', 'ag_digitale', 'impayés', 'carnet_entretien', 'sinistres', 'extranet', 'alertes', 'emails', 'ia', 'equipe', 'parametres', 'echéances', 'recouvrement', 'preparateur_ag', 'modules'],
   // Administrateur cabinet — accès large sauf terrain
-  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'compta_copro', 'ag_digitale', 'impayés', 'analyse_devis', 'alertes', 'emails', 'ia', 'equipe', 'parametres', 'echéances', 'recouvrement', 'preparateur_ag'],
+  syndic_admin: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'rapport', 'documents', 'facturation', 'compta_copro', 'ag_digitale', 'impayés', 'analyse_devis', 'alertes', 'emails', 'ia', 'equipe', 'parametres', 'echéances', 'recouvrement', 'preparateur_ag', 'modules'],
   // Gestionnaire Technique — interventions, terrain, comptabilité tech
-  syndic_tech: ['accueil', 'missions', 'planning', 'pointage', 'canal', 'immeubles', 'artisans', 'coproprios', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'alertes', 'emails', 'ia', 'parametres'],
+  syndic_tech: ['accueil', 'missions', 'planning', 'pointage', 'canal', 'immeubles', 'artisans', 'coproprios', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'facturation', 'alertes', 'emails', 'ia', 'parametres', 'modules'],
   // Secrétaire — coordination, planning de toute l'équipe, communication
-  syndic_secretaire: ['accueil', 'coproprios', 'immeubles', 'artisans', 'missions', 'canal', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres'],
+  syndic_secretaire: ['accueil', 'coproprios', 'immeubles', 'artisans', 'missions', 'canal', 'planning', 'documents', 'alertes', 'emails', 'ia', 'parametres', 'modules'],
   // Gestionnaire Copropriété — déjà paramétré, ne pas modifier
-  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres', 'echéances', 'preparateur_ag'],
+  syndic_gestionnaire: ['accueil', 'immeubles', 'coproprios', 'artisans', 'missions', 'canal', 'planning', 'reglementaire', 'alertes', 'documents', 'facturation', 'emails', 'ia', 'parametres', 'echéances', 'preparateur_ag', 'modules'],
   // Comptable — finances, rapports, comptabilité copropriété
-  syndic_comptable: ['accueil', 'facturation', 'compta_copro', 'impayés', 'analyse_devis', 'rapport', 'documents', 'emails', 'ia', 'parametres', 'recouvrement'],
+  syndic_comptable: ['accueil', 'facturation', 'compta_copro', 'impayés', 'analyse_devis', 'rapport', 'documents', 'emails', 'ia', 'parametres', 'recouvrement', 'modules'],
 }
+
+const SYNDIC_MODULES = [
+  { key: 'missions', label: 'Ordres de mission', icon: '📋', description: 'Créer et suivre les interventions', default: true },
+  { key: 'pointage', label: 'Pointage Terrain', icon: '📍', description: 'Contrôle GPS des interventions', default: false },
+  { key: 'canal', label: 'Canal Communications', icon: '💬', description: 'Messagerie interne et avec artisans', default: true },
+  { key: 'planning', label: 'Planning', icon: '📅', description: 'Vue calendrier des interventions', default: true },
+  { key: 'docs_interventions', label: 'Documents Interventions', icon: '🗂️', description: 'Rapports et preuves d\'intervention', default: false },
+  { key: 'comptabilite_tech', label: 'Comptabilité Technique', icon: '📊', description: 'Suivi financier des interventions', default: false },
+  { key: 'analyse_devis', label: 'Analyse Devis/Factures', icon: '🔍', description: 'Comparaison et validation des devis', default: false },
+  { key: 'facturation', label: 'Facturation', icon: '💶', description: 'Gestion des factures', default: true },
+  { key: 'reglementaire', label: 'Calendrier réglementaire', icon: '⚖️', description: 'Obligations légales et échéances', default: false },
+  { key: 'rapport', label: 'Rapport mensuel', icon: '📄', description: 'Rapports d\'activité automatisés', default: false },
+  { key: 'compta_copro', label: 'Comptabilité Copro', icon: '💶', description: 'Comptabilité de la copropriété', default: false },
+  { key: 'ag_digitale', label: 'AG Digitales', icon: '🏛️', description: 'Assemblées générales en ligne', default: true },
+  { key: 'impayés', label: 'Impayés', icon: '⚠️', description: 'Suivi et relance des impayés', default: false },
+  { key: 'carnet_entretien', label: 'Carnet d\'Entretien', icon: '📖', description: 'Historique d\'entretien des immeubles', default: false },
+  { key: 'sinistres', label: 'Sinistres', icon: '🚨', description: 'Pipeline de gestion des sinistres', default: false },
+  { key: 'extranet', label: 'Extranet Copros', icon: '👥', description: 'Portail copropriétaires', default: false },
+  { key: 'echéances', label: 'Échéances légales', icon: '📅', description: 'Rappels des échéances réglementaires', default: false },
+  { key: 'recouvrement', label: 'Recouvrement auto', icon: '💸', description: 'Procédure automatisée de recouvrement', default: false },
+  { key: 'preparateur_ag', label: 'Préparateur AG', icon: '📝', description: 'Préparer les assemblées générales', default: false },
+  { key: 'emails', label: 'Emails Max IA', icon: '📧', description: 'Gestion des emails avec IA', default: true },
+  { key: 'ia', label: 'Assistant Max IA', icon: '🤖', description: 'Assistant IA pour le syndic', default: true },
+] as const
 
 interface Immeuble {
   id: string
@@ -174,81 +198,18 @@ interface PlanningEvent {
 
 // ─── Données démo ─────────────────────────────────────────────────────────────
 
-const IMMEUBLES_DEMO: Immeuble[] = [
-  { id: '1', nom: 'Résidence Les Acacias', adresse: '12 rue des Acacias', ville: 'Paris', codePostal: '75008', nbLots: 24, anneeConstruction: 1978, typeImmeuble: 'Copropriété', gestionnaire: 'Jean Dupont', prochainControle: '2026-03-15', nbInterventions: 8, budgetAnnuel: 45000, depensesAnnee: 28000, latitude: 48.8744, longitude: 2.3106, geolocActivee: true, rayonDetection: 150 },
-  { id: '2', nom: 'Le Clos Vendôme', adresse: '3 allée Vendôme', ville: 'Lyon', codePostal: '69002', nbLots: 36, anneeConstruction: 1965, typeImmeuble: 'Copropriété', gestionnaire: 'Marie Martin', prochainControle: '2026-02-28', nbInterventions: 12, budgetAnnuel: 68000, depensesAnnee: 51000, latitude: 45.7578, longitude: 4.8320, geolocActivee: true, rayonDetection: 200 },
-  { id: '3', nom: 'Tour Horizon', adresse: '88 boulevard Horizon', ville: 'Marseille', codePostal: '13008', nbLots: 60, anneeConstruction: 1990, typeImmeuble: 'Résidence', gestionnaire: 'Pierre Leroy', prochainControle: '2026-04-10', nbInterventions: 5, budgetAnnuel: 90000, depensesAnnee: 32000, geolocActivee: false, rayonDetection: 100 },
-]
+const IMMEUBLES_DEMO: Immeuble[] = []
 
-const ARTISANS_DEMO: Artisan[] = [
-  { id: '1', nom: 'Marc Fontaine', metier: 'Plomberie', telephone: '06 12 34 56 78', email: 'marc@plomberie.fr', siret: '12345678901234', rcProValide: true, rcProExpiration: '2026-12-31', note: 4.8, nbInterventions: 34, statut: 'actif', vitfixCertifie: true },
-  { id: '2', nom: 'Sophie Électrique', metier: 'Électricité', telephone: '06 98 76 54 32', email: 'sophie@elec.fr', siret: '98765432109876', rcProValide: true, rcProExpiration: '2026-08-15', note: 4.6, nbInterventions: 22, statut: 'actif', vitfixCertifie: true },
-  { id: '3', nom: 'Karim Peinture', metier: 'Peinture', telephone: '06 11 22 33 44', email: 'karim@peinture.fr', siret: '11122233344455', rcProValide: false, rcProExpiration: '2025-11-30', note: 4.2, nbInterventions: 15, statut: 'suspendu', vitfixCertifie: false },
-  { id: '4', nom: 'Lucas Menuiserie', metier: 'Menuiserie', telephone: '06 55 66 77 88', email: 'lucas@menuiserie.fr', siret: '55566677788899', rcProValide: true, rcProExpiration: '2027-03-01', note: 4.9, nbInterventions: 41, statut: 'actif', vitfixCertifie: true },
-]
+const ARTISANS_DEMO: Artisan[] = []
 
-const MISSIONS_DEMO: Mission[] = [
-  { id: '1', immeuble: 'Résidence Les Acacias', artisan: 'Marc Fontaine', type: 'Plomberie', description: 'Fuite colonne d\'eau chaude cave niveau -1', priorite: 'urgente', statut: 'en_cours', dateCreation: '2026-02-20', dateIntervention: '2026-02-23', montantDevis: 850 },
-  { id: '2', immeuble: 'Le Clos Vendôme', artisan: 'Sophie Électrique', type: 'Électricité', description: 'Remplacement tableau électrique parties communes', priorite: 'normale', statut: 'acceptee', dateCreation: '2026-02-18', dateIntervention: '2026-02-26', montantDevis: 3200 },
-  { id: '3', immeuble: 'Tour Horizon', artisan: 'Lucas Menuiserie', type: 'Menuiserie', description: 'Réparation porte entrée principale — gonds cassés', priorite: 'urgente', statut: 'terminee', dateCreation: '2026-02-15', dateIntervention: '2026-02-16', montantDevis: 420, montantFacture: 390 },
-  { id: '4', immeuble: 'Résidence Les Acacias', artisan: 'Karim Peinture', type: 'Peinture', description: 'Ravalement façade côté rue', priorite: 'planifiee', statut: 'en_attente', dateCreation: '2026-02-22', dateIntervention: '2026-04-01', montantDevis: 12000 },
-  // ── Mission avec demande locataire (démo canal) ──
-  {
-    id: '5',
-    immeuble: 'Le Clos Vendôme',
-    artisan: 'Marc Fontaine',
-    type: 'Plomberie',
-    description: 'Fuite robinet salle de bain — eau qui coule en permanence, compteur qui tourne',
-    priorite: 'urgente',
-    statut: 'en_cours',
-    dateCreation: '2026-02-24',
-    dateIntervention: '2026-02-26',
-    montantDevis: 280,
-    // Localisation
-    batiment: 'B',
-    etage: '3',
-    numLot: '47',
-    locataire: 'Mme Isabelle Renard',
-    telephoneLocataire: '06 12 34 56 78',
-    accesLogement: 'Code 1234 — Sonner puis attendre 2 minutes',
-    // Demandeur (locataire via portail)
-    demandeurNom: 'Isabelle Renard',
-    demandeurRole: 'locataire',
-    demandeurEmail: 'i.renard@email.fr',
-    zoneSignalee: 'Appartement lot 47',
-    estPartieCommune: false,
-    // Canal artisan
-    canalMessages: [
-      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Bonjour Marc, ordre de mission pour une fuite robinet salle de bain au lot 47, bât B, 3ème étage. Locataire disponible à partir de 14h. Code accès : 1234.', date: '2026-02-24T09:15:00.000Z' },
-      { auteur: 'Marc Fontaine', role: 'artisan', texte: '✅ Mission confirmée. Je serai présent le 26/02 à 14h30. Je passe d\'abord chercher les pièces chez mon fournisseur ce matin.', date: '2026-02-24T10:02:00.000Z' },
-      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Parfait, merci Marc. La locataire est prévenue. N\'hésitez pas à me tenir informé si problème supplémentaire constaté.', date: '2026-02-24T10:18:00.000Z' },
-    ],
-    // Canal demandeur (locataire → gestionnaire)
-    demandeurMessages: [
-      { auteur: 'Isabelle Renard', role: 'locataire', texte: '🚨 Bonjour, j\'ai une fuite au robinet de la salle de bain depuis hier soir. L\'eau coule en permanence même fermé et mon compteur tourne. C\'est urgent svp !', date: '2026-02-24T07:45:00.000Z' },
-      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Bonjour Mme Renard, nous avons bien reçu votre signalement. Un plombier interviendra le 26/02 entre 14h et 17h. Pouvez-vous être présente ou laisser accès ?', date: '2026-02-24T09:20:00.000Z' },
-      { auteur: 'Isabelle Renard', role: 'locataire', texte: 'Oui je serai là après 14h. Merci beaucoup pour la rapidité ! Est-ce que je dois couper l\'eau en attendant ?', date: '2026-02-24T09:35:00.000Z' },
-      { auteur: 'Gestionnaire', role: 'syndic', texte: 'Bonne idée de couper l\'arrivée d\'eau sous l\'évier ou au niveau du robinet de sectionnement pour limiter les dégâts. Le plombier s\'occupera de tout le 26/02. À bientôt !', date: '2026-02-24T09:45:00.000Z' },
-    ],
-  },
-]
+const MISSIONS_DEMO: Mission[] = []
 
-const ALERTES_DEMO: Alerte[] = [
-  { id: '1', type: 'rc_pro', message: 'RC Pro de Karim Peinture expirée depuis le 30/11/2025', urgence: 'haute', date: '2026-02-23' },
-  { id: '2', type: 'controle', message: 'Contrôle ascenseur Le Clos Vendôme — échéance 28/02/2026', urgence: 'haute', date: '2026-02-23' },
-  { id: '3', type: 'budget', message: 'Le Clos Vendôme : 75% du budget annuel consommé', urgence: 'moyenne', date: '2026-02-22' },
-  { id: '4', type: 'document', message: 'Diagnostic DPE manquant pour Tour Horizon', urgence: 'basse', date: '2026-02-20' },
-]
+const ALERTES_DEMO: Alerte[] = []
 
 // ─── Équipe démo (utilisée pour l'assignation planning) ──────────────────────
 
 const EQUIPE_NOMS_DEMO = [
   { nom: 'Toute l\'équipe', role: '' },
-  { nom: 'Jean-Pierre Martin', role: 'Gestionnaire Technique' },
-  { nom: 'Marie Dupont', role: 'Secrétaire' },
-  { nom: 'Sophie Leroy', role: 'Gestionnaire Copropriété' },
-  { nom: 'Bernard Petit', role: 'Comptable' },
-  { nom: 'Directeur Général', role: 'Administrateur' },
 ]
 
 const EVENT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -259,20 +220,7 @@ const EVENT_COLORS: Record<string, { bg: string; text: string; border: string }>
   autre:   { bg: 'bg-gray-100',   text: 'text-gray-700',   border: 'border-gray-300' },
 }
 
-const PLANNING_EVENTS_DEMO: PlanningEvent[] = (() => {
-  const today = new Date()
-  const d = (offset: number) => {
-    const dt = new Date(today)
-    dt.setDate(dt.getDate() + offset)
-    return dt.toISOString().slice(0, 10)
-  }
-  return [
-    { id: 'pe-1', titre: 'Visite Mme Lebrun — Résidence Les Acacias', date: d(0), heure: '14:30', dureeMin: 60, type: 'visite', assigneA: 'Jean-Pierre Martin', assigneRole: 'Gestionnaire Technique', description: 'Visite planifiée via canal interne', creePar: 'Marie Dupont', statut: 'planifie' },
-    { id: 'pe-2', titre: 'Réunion d\'équipe hebdomadaire', date: d(2), heure: '09:00', dureeMin: 90, type: 'reunion', assigneA: 'Toute l\'équipe', assigneRole: '', description: 'Point hebdomadaire équipe', creePar: 'Marie Dupont', statut: 'planifie' },
-    { id: 'pe-3', titre: 'RDV Expert toiture — Le Clos Vendôme', date: d(5), heure: '10:00', dureeMin: 120, type: 'rdv', assigneA: 'Jean-Pierre Martin', assigneRole: 'Gestionnaire Technique', description: 'Expertise suite infiltrations bât. D', creePar: 'Marie Dupont', statut: 'planifie' },
-    { id: 'pe-4', titre: 'Clôture comptes annuels 2025', date: d(7), heure: '14:00', dureeMin: 180, type: 'tache', assigneA: 'Bernard Petit', assigneRole: 'Comptable', description: 'Finaliser la clôture comptable et préparer l\'envoi aux copropriétaires', creePar: 'Marie Dupont', statut: 'planifie' },
-  ]
-})()
+const PLANNING_EVENTS_DEMO: PlanningEvent[] = []
 
 // ─── Composants UI ────────────────────────────────────────────────────────────
 
@@ -441,43 +389,7 @@ function GmailConnectButton({ syndicId, userEmail }: { syndicId?: string; userEm
 
 // ─── Canal Interne — données démo ─────────────────────────────────────────────
 
-const CANAL_INTERNE_DEMO: CanalInterneMsg[] = [
-  {
-    id: 'ci-1',
-    de: 'Marie Dupont',
-    deRole: 'Secrétaire',
-    type: 'planning',
-    contenu: '',
-    date: new Date(Date.now() - 1800000).toISOString(),
-    lu: false,
-    planningDate: new Date().toISOString().slice(0, 10),
-    planningHeure: '14:30',
-    planningResident: 'Mme Lebrun',
-    planningResidence: 'Résidence Les Acacias',
-    planningMissionCreee: false,
-  },
-  {
-    id: 'ci-2',
-    de: 'Marie Dupont',
-    deRole: 'Secrétaire',
-    type: 'tache',
-    contenu: 'Rappeler M. Fontaine concernant le devis toiture — en attente de validation',
-    date: new Date(Date.now() - 7200000).toISOString(),
-    lu: false,
-    tacheAssignee: 'Gestionnaire Technique',
-    tachePriorite: 'urgente',
-    tacheStatut: 'en_attente',
-  },
-  {
-    id: 'ci-3',
-    de: 'Marie Dupont',
-    deRole: 'Secrétaire',
-    type: 'message',
-    contenu: 'Bonjour ! Les comptes-rendus d\'intervention de la semaine sont à jour dans Documents Interventions. Bonne journée !',
-    date: new Date(Date.now() - 86400000).toISOString(),
-    lu: true,
-  },
-]
+const CANAL_INTERNE_DEMO: CanalInterneMsg[] = []
 
 // ─── Composant Équipe ─────────────────────────────────────────────────────────
 
@@ -3500,28 +3412,30 @@ const TYPE_DOC_CONFIG: Record<TypeDocument, { emoji: string; label: string; colo
   autre:      { emoji: '📄', label: 'Autre',                color: 'bg-gray-100 text-gray-600' },
 }
 
-const GED_DEMO: GEDDocument[] = [
-  { id: '1',  nom: 'Rapport plomberie cave — fuite colonne eau chaude', type: 'rapport',    immeuble: 'Résidence Les Acacias', artisan: 'Marc Fontaine',    locataire: 'Martin Jean',     dateDocument: '2026-02-23', dateAjout: '2026-02-23', taille: '1.2 MB', tags: ['plomberie', 'fuite', 'cave'] },
-  { id: '2',  nom: 'Facture remplacement tableau électrique parties communes', type: 'facture', immeuble: 'Le Clos Vendôme',    artisan: 'Sophie Électrique', locataire: '',                dateDocument: '2026-02-20', dateAjout: '2026-02-21', taille: '340 KB', tags: ['électricité', 'tableau', 'parties communes'] },
-  { id: '3',  nom: 'Devis ravalement façade côté rue', type: 'devis',   immeuble: 'Résidence Les Acacias', artisan: 'Karim Peinture',    locataire: '',                dateDocument: '2026-02-22', dateAjout: '2026-02-22', taille: '280 KB', tags: ['peinture', 'façade', 'ravalement'] },
-  { id: '4',  nom: 'DPE Tour Horizon 2024', type: 'diagnostic',         immeuble: 'Tour Horizon',          artisan: '',                  locataire: '',                dateDocument: '2024-01-15', dateAjout: '2024-01-16', taille: '2.1 MB', tags: ['DPE', 'énergie', 'diagnostic'] },
-  { id: '5',  nom: 'Attestation RC Pro Marc Fontaine 2026', type: 'assurance', immeuble: 'Tous',            artisan: 'Marc Fontaine',    locataire: '',                dateDocument: '2026-01-01', dateAjout: '2026-01-02', taille: '450 KB', tags: ['RC Pro', 'assurance', 'attestation'] },
-  { id: '6',  nom: 'PV AG annuelle 2025 — Le Clos Vendôme', type: 'ag',immeuble: 'Le Clos Vendôme',       artisan: '',                  locataire: '',                dateDocument: '2025-06-10', dateAjout: '2025-06-11', taille: '890 KB', tags: ['AG', 'assemblée', 'vote', '2025'] },
-  { id: '7',  nom: 'Rapport menuiserie porte entrée brisée', type: 'rapport', immeuble: 'Tour Horizon',    artisan: 'Lucas Menuiserie',  locataire: '',                dateDocument: '2026-02-16', dateAjout: '2026-02-16', taille: '780 KB', tags: ['menuiserie', 'porte', 'entrée'] },
-  { id: '8',  nom: 'Facture réparation porte d\'entrée', type: 'facture', immeuble: 'Tour Horizon',         artisan: 'Lucas Menuiserie',  locataire: '',                dateDocument: '2026-02-17', dateAjout: '2026-02-17', taille: '210 KB', tags: ['menuiserie', 'facture', 'porte'] },
-  { id: '9',  nom: 'Contrat entretien ascenseur 2026', type: 'contrat', immeuble: 'Le Clos Vendôme',       artisan: '',                  locataire: '',                dateDocument: '2026-01-05', dateAjout: '2026-01-06', taille: '1.5 MB', tags: ['ascenseur', 'contrat', 'entretien'] },
-  { id: '10', nom: 'Contrôle ascenseur — rapport technique', type: 'controle', immeuble: 'Le Clos Vendôme', artisan: '',               locataire: '',                dateDocument: '2026-02-15', dateAjout: '2026-02-15', taille: '660 KB', tags: ['ascenseur', 'contrôle', 'sécurité'] },
-  { id: '11', nom: 'Plan masse immeuble Les Acacias', type: 'plan',     immeuble: 'Résidence Les Acacias', artisan: '',                  locataire: '',                dateDocument: '2020-03-01', dateAjout: '2021-09-10', taille: '4.2 MB', tags: ['plan', 'masse', 'architecture'] },
-  { id: '12', nom: 'Signalement fuite lot 12 — Dupont Marie', type: 'rapport', immeuble: 'Résidence Les Acacias', artisan: 'Marc Fontaine', locataire: 'Dupont Marie', dateDocument: '2026-02-10', dateAjout: '2026-02-10', taille: '320 KB', tags: ['fuite', 'lot 12', 'urgent'] },
-  { id: '13', nom: 'Devis peinture cage escalier A', type: 'devis',     immeuble: 'Le Clos Vendôme',       artisan: 'Karim Peinture',    locataire: '',                dateDocument: '2026-02-08', dateAjout: '2026-02-09', taille: '195 KB', tags: ['peinture', 'cage', 'escalier'] },
-  { id: '14', nom: 'Attestation assurance immeuble 2026 — AXA', type: 'assurance', immeuble: 'Tour Horizon', artisan: '',              locataire: '',                dateDocument: '2026-01-01', dateAjout: '2026-01-02', taille: '820 KB', tags: ['assurance', 'immeuble', 'AXA'] },
-  { id: '15', nom: 'Rapport intervention interphone lot 28 — Bernard Paul', type: 'rapport', immeuble: 'Le Clos Vendôme', artisan: 'Sophie Électrique', locataire: 'Bernard Paul', dateDocument: '2026-02-21', dateAjout: '2026-02-21', taille: '540 KB', tags: ['interphone', 'électricité', 'lot 28'] },
-]
+const GED_DEMO: GEDDocument[] = []
 
 // ─── Composant GED ─────────────────────────────────────────────────────────────
 
-function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: Artisan[] }) {
-  const [docs, setDocs] = useState<GEDDocument[]>(GED_DEMO)
+function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; artisans: Artisan[]; userId?: string }) {
+  const gedKey = userId ? `fixit_ged_${userId}` : 'fixit_ged_local'
+  const FAKE_GED_IDS = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']
+  const [docs, setDocs] = useState<GEDDocument[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = localStorage.getItem(gedKey)
+      if (!raw) return []
+      const parsed: GEDDocument[] = JSON.parse(raw)
+      // Purge des faux documents demo (IDs courts numériques '1'-'15')
+      const hasFake = parsed.some(d => FAKE_GED_IDS.includes(String(d.id)))
+      if (hasFake) { localStorage.removeItem(gedKey); return [] }
+      return parsed
+    } catch { return [] }
+  })
+
+  // Persister docs dans localStorage à chaque changement
+  useEffect(() => {
+    try { localStorage.setItem(gedKey, JSON.stringify(docs)) } catch {}
+  }, [docs, gedKey])
   const [search, setSearch] = useState('')
   const [filterImmeuble, setFilterImmeuble] = useState('')
   const [filterArtisan, setFilterArtisan] = useState('')
@@ -3789,6 +3703,10 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
                         }}
                         title="Télécharger"
                         className="p-1.5 bg-gray-100 hover:bg-purple-100 text-gray-600 hover:text-purple-700 rounded-lg transition text-xs">⬇️</button>
+                      <button
+                        onClick={() => { if (window.confirm(`Supprimer "${doc.nom}" ?`)) setDocs(prev => prev.filter(d => d.id !== doc.id)) }}
+                        title="Supprimer"
+                        className="p-1.5 bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 rounded-lg transition text-xs">🗑️</button>
                     </div>
                   </div>
                 )
@@ -3900,6 +3818,17 @@ function GEDSection({ immeubles, artisans }: { immeubles: Immeuble[]; artisans: 
               </button>
               <button onClick={() => setSelectedDoc(null)} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">
                 Fermer
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Supprimer "${selectedDoc.nom}" ?`)) {
+                    setDocs(prev => prev.filter(d => d.id !== selectedDoc.id))
+                    setSelectedDoc(null)
+                  }
+                }}
+                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 py-2.5 px-4 rounded-lg font-semibold transition text-sm"
+              >
+                🗑️ Supprimer
               </button>
             </div>
           </div>
@@ -4034,24 +3963,44 @@ interface Coproprio {
   notes?: string
 }
 
-const COPROPRIOS_DEMO: Coproprio[] = [
-  { id: '1', immeuble: 'Résidence Les Acacias', batiment: 'Bât A', etage: 0, numeroPorte: '1', nomProprietaire: 'Dupont', prenomProprietaire: 'Marie', emailProprietaire: 'marie.dupont@email.fr', telephoneProprietaire: '06 12 34 56 78', nomLocataire: 'Martin', prenomLocataire: 'Jean', emailLocataire: 'jean.martin@email.fr', telephoneLocataire: '06 98 76 54 32', estOccupe: true },
-  { id: '2', immeuble: 'Résidence Les Acacias', batiment: 'Bât A', etage: 1, numeroPorte: '12', nomProprietaire: 'Bernard', prenomProprietaire: 'Paul', emailProprietaire: 'paul.bernard@email.fr', telephoneProprietaire: '06 11 22 33 44', estOccupe: false },
-  { id: '3', immeuble: 'Résidence Les Acacias', batiment: 'Bât B', etage: 2, numeroPorte: '24', nomProprietaire: 'Leroy', prenomProprietaire: 'Sophie', emailProprietaire: 'sophie.leroy@email.fr', telephoneProprietaire: '06 55 44 33 22', nomLocataire: 'Petit', prenomLocataire: 'Lucas', emailLocataire: 'lucas.petit@email.fr', telephoneLocataire: '06 77 88 99 00', estOccupe: true },
-  { id: '4', immeuble: 'Le Clos Vendôme', batiment: 'Principal', etage: 0, numeroPorte: '2', nomProprietaire: 'Moreau', prenomProprietaire: 'Claire', emailProprietaire: 'claire.moreau@email.fr', telephoneProprietaire: '06 23 45 67 89', estOccupe: true },
-  { id: '5', immeuble: 'Le Clos Vendôme', batiment: 'Principal', etage: 1, numeroPorte: '28', nomProprietaire: 'Simon', prenomProprietaire: 'Antoine', emailProprietaire: 'antoine.simon@email.fr', telephoneProprietaire: '06 34 56 78 90', nomLocataire: 'Roux', prenomLocataire: 'Isabelle', emailLocataire: 'isabelle.roux@email.fr', telephoneLocataire: '06 45 67 89 01', estOccupe: true },
-  { id: '6', immeuble: 'Tour Horizon', batiment: 'Tour', etage: 5, numeroPorte: '52', nomProprietaire: 'Blanc', prenomProprietaire: 'Thomas', emailProprietaire: 'thomas.blanc@email.fr', telephoneProprietaire: '06 56 78 90 12', estOccupe: true },
-]
+const COPROPRIOS_DEMO: Coproprio[] = []
 
 // ─── Composant Copropriétaires ────────────────────────────────────────────────
 
-function CopropriosSection({ immeubles }: { immeubles: Immeuble[] }) {
-  const [coproprios, setCoproprios] = useState<Coproprio[]>(COPROPRIOS_DEMO)
+// Clé localStorage copropriétaires — userId injecté via window si dispo
+function getCoproKey(): string {
+  if (typeof window === 'undefined') return 'fixit_copros_unknown'
+  // Chercher l'uid dans les clés syndic déjà utilisées
+  const candidate = Object.keys(localStorage).find(k => k.startsWith('fixit_syndic_immeubles_'))
+  const uid = candidate ? candidate.replace('fixit_syndic_immeubles_', '') : 'local'
+  return `fixit_copros_${uid}`
+}
+
+function CopropriosSection({ immeubles, userId }: { immeubles: Immeuble[]; userId?: string }) {
+  const storageKey = userId ? `fixit_copros_${userId}` : getCoproKey()
+  const FAKE_COPRO_IDS = ['1','2','3','4','5','6']
+  const [coproprios, setCoproprios] = useState<Coproprio[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (!raw) return []
+      const parsed: Coproprio[] = JSON.parse(raw)
+      // Purge des fausses données demo
+      const hasFake = parsed.some(c => FAKE_COPRO_IDS.includes(String(c.id)))
+      if (hasFake) { localStorage.removeItem(storageKey); return [] }
+      return parsed
+    } catch { return [] }
+  })
   const [filterImmeuble, setFilterImmeuble] = useState('')
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState<Coproprio | null>(null)
   const [form, setForm] = useState<Partial<Coproprio>>({ immeuble: '', batiment: '', etage: 0, numeroPorte: '', nomProprietaire: '', prenomProprietaire: '', emailProprietaire: '', telephoneProprietaire: '', estOccupe: false })
+
+  // Persister dans localStorage à chaque modification
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(coproprios)) } catch {}
+  }, [coproprios, storageKey])
 
   const filtered = coproprios.filter(c => {
     const q = search.toLowerCase()
@@ -4081,7 +4030,10 @@ function CopropriosSection({ immeubles }: { immeubles: Immeuble[] }) {
     }
     setShowModal(false)
   }
-  const handleDelete = (id: string) => setCoproprios(prev => prev.filter(c => c.id !== id))
+  const handleDelete = (id: string) => {
+    if (!window.confirm('Supprimer ce copropriétaire / lot ? Cette action est irréversible.')) return
+    setCoproprios(prev => prev.filter(c => c.id !== id))
+  }
 
   const exportCSV = () => {
     const rows = [['Immeuble', 'Bâtiment', 'Étage', 'Porte', 'Propriétaire', 'Email Proprio', 'Tel Proprio', 'Locataire', 'Email Locataire', 'Tel Locataire', 'Occupé']]
@@ -4293,16 +4245,7 @@ const ECHEANCE_CONFIG: Record<TypeEcheance, { emoji: string; label: string; colo
   autre:        { emoji: '📋', label: 'Autre',                    color: 'bg-gray-100 text-gray-500' },
 }
 
-const ECHEANCES_DEMO: EcheanceReglementaire[] = [
-  { id: '1', immeuble: 'Résidence Les Acacias', type: 'ascenseur', label: 'Contrôle ascenseur obligatoire', dateEcheance: '2026-03-15', periodicite: 1 },
-  { id: '2', immeuble: 'Le Clos Vendôme', type: 'ascenseur', label: 'Contrôle ascenseur obligatoire', dateEcheance: '2026-02-28', periodicite: 1 },
-  { id: '3', immeuble: 'Tour Horizon', type: 'dpe', label: 'Renouvellement DPE collectif', dateEcheance: '2026-04-10', periodicite: 10 },
-  { id: '4', immeuble: 'Résidence Les Acacias', type: 'ag', label: 'AG annuelle obligatoire', dateEcheance: '2026-06-30', periodicite: 1 },
-  { id: '5', immeuble: 'Le Clos Vendôme', type: 'assurance', label: 'Renouvellement assurance immeuble AXA', dateEcheance: '2027-01-01', periodicite: 1 },
-  { id: '6', immeuble: 'Tour Horizon', type: 'amiante', label: 'Diagnostic amiante parties communes', dateEcheance: '2025-12-01', periodicite: 3 },
-  { id: '7', immeuble: 'Résidence Les Acacias', type: 'electricite', label: 'Contrôle installation électrique', dateEcheance: '2026-05-20', periodicite: 5 },
-  { id: '8', immeuble: 'Le Clos Vendôme', type: 'ravalement', label: 'Ravalement façade (arrêté municipal)', dateEcheance: '2027-09-30', periodicite: 10 },
-]
+const ECHEANCES_DEMO: EcheanceReglementaire[] = []
 
 function getStatutEcheance(dateStr: string): 'expire' | 'urgent' | 'proche' | 'ok' {
   const date = new Date(dateStr)
@@ -4321,12 +4264,30 @@ const STATUT_ECHEANCE_CONFIG = {
   ok:     { label: 'OK',      color: 'bg-green-100 text-green-700 border-green-300',  dot: 'bg-green-500' },
 }
 
-function CalendrierReglementaireSection({ immeubles }: { immeubles: Immeuble[] }) {
-  const [echeances, setEcheances] = useState<EcheanceReglementaire[]>(ECHEANCES_DEMO)
+function CalendrierReglementaireSection({ immeubles, userId }: { immeubles: Immeuble[]; userId?: string }) {
+  const ecKey = userId ? `fixit_cal_regl_${userId}` : 'fixit_cal_regl_local'
+  const FAKE_ECH_IDS = ['1','2','3','4','5','6','7','8']
+  const [echeances, setEcheances] = useState<EcheanceReglementaire[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = localStorage.getItem(ecKey)
+      if (!raw) return []
+      const parsed: EcheanceReglementaire[] = JSON.parse(raw)
+      // Purge des fausses échéances demo (IDs '1'-'8')
+      const hasFake = parsed.some(e => FAKE_ECH_IDS.includes(String(e.id)))
+      if (hasFake) { localStorage.removeItem(ecKey); return [] }
+      return parsed
+    } catch { return [] }
+  })
   const [filterImmeuble, setFilterImmeuble] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<Partial<EcheanceReglementaire>>({ immeuble: '', type: 'autre', label: '', dateEcheance: '', periodicite: 1 })
+
+  // Persister dans localStorage à chaque changement
+  useEffect(() => {
+    try { localStorage.setItem(ecKey, JSON.stringify(echeances)) } catch {}
+  }, [echeances, ecKey])
 
   const filtered = echeances.filter(e => {
     const matchImm = !filterImmeuble || e.immeuble === filterImmeuble
@@ -4386,9 +4347,10 @@ function CalendrierReglementaireSection({ immeubles }: { immeubles: Immeuble[] }
         <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
           <div className="col-span-3">Immeuble</div>
           <div className="col-span-3">Type</div>
-          <div className="col-span-3">Libellé</div>
+          <div className="col-span-2">Libellé</div>
           <div className="col-span-2">Échéance</div>
           <div className="col-span-1">Statut</div>
+          <div className="col-span-1"></div>
         </div>
         {filtered.map(e => {
           const statut = getStatutEcheance(e.dateEcheance)
@@ -4396,16 +4358,23 @@ function CalendrierReglementaireSection({ immeubles }: { immeubles: Immeuble[] }
           const tConfig = ECHEANCE_CONFIG[e.type]
           const daysLeft = Math.ceil((new Date(e.dateEcheance).getTime() - Date.now()) / 86400000)
           return (
-            <div key={e.id} className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 items-center ${statut === 'expire' ? 'bg-red-50/40' : statut === 'urgent' ? 'bg-orange-50/30' : ''}`}>
+            <div key={e.id} className={`grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 group items-center ${statut === 'expire' ? 'bg-red-50/40' : statut === 'urgent' ? 'bg-orange-50/30' : ''}`}>
               <div className="col-span-3 text-sm font-medium text-gray-800 truncate">{e.immeuble}</div>
               <div className="col-span-3"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${tConfig.color}`}>{tConfig.emoji} {tConfig.label}</span></div>
-              <div className="col-span-3 text-sm text-gray-600 truncate">{e.label}</div>
+              <div className="col-span-2 text-sm text-gray-600 truncate">{e.label}</div>
               <div className="col-span-2">
                 <p className="text-sm font-semibold text-gray-900">{new Date(e.dateEcheance).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                 <p className="text-xs text-gray-400">{daysLeft < 0 ? `Il y a ${Math.abs(daysLeft)}j` : `Dans ${daysLeft}j`}</p>
               </div>
-              <div className="col-span-1">
-                <div className={`w-2.5 h-2.5 rounded-full ${sConfig.dot} mx-auto`} title={sConfig.label} />
+              <div className="col-span-1 flex justify-center">
+                <div className={`w-2.5 h-2.5 rounded-full ${sConfig.dot}`} title={sConfig.label} />
+              </div>
+              <div className="col-span-1 flex justify-center">
+                <button
+                  onClick={() => { if (window.confirm('Supprimer cette échéance ?')) setEcheances(prev => prev.filter(x => x.id !== e.id)) }}
+                  className="opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-red-500 text-sm p-1 rounded"
+                  title="Supprimer"
+                >🗑️</button>
               </div>
             </div>
           )
@@ -4890,10 +4859,13 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
 
 export default function SyndicDashboard() {
   const [page, setPage] = useState<Page>('accueil')
+  // ── Modules personnalisables ──
+  const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>({})
+  const [moduleOrder, setModuleOrder] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   // ── Données persistées en localStorage (clé par user.id, chargées après auth) ──
-  const [immeubles, setImmeubles] = useState<Immeuble[]>(IMMEUBLES_DEMO)
+  const [immeubles, setImmeubles] = useState<Immeuble[]>([])
   const [artisans, setArtisans] = useState<Artisan[]>(ARTISANS_DEMO)
   const [missions, setMissions] = useState<Mission[]>(MISSIONS_DEMO)
   const [alertes, setAlertes] = useState<Alerte[]>(ALERTES_DEMO)
@@ -4915,6 +4887,9 @@ export default function SyndicDashboard() {
   const [showPlanningModal, setShowPlanningModal] = useState(false)
   const [selectedPlanningDay, setSelectedPlanningDay] = useState<string | null>(null)
   const [planningViewFilter, setPlanningViewFilter] = useState('tous')
+  const [planningNeedsMigration, setPlanningNeedsMigration] = useState(false)
+  // ── Membres de l'équipe (chargés depuis Supabase) ────────────────────────────
+  const [teamMembers, setTeamMembers] = useState<{ id: string; full_name: string; role: string }[]>([])
   const [planningEventForm, setPlanningEventForm] = useState({
     titre: '',
     type: 'visite' as PlanningEvent['type'],
@@ -5069,26 +5044,128 @@ export default function SyndicDashboard() {
 
       // ── Charger données : localStorage d'abord (rapide), puis Supabase (sync) ──
       const uid = freshUser.id
+
+      // ── Noms des faux immeubles de démo — utilisés pour filtrer partout ──────
+      const FAKE_BUILDING_NAMES = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
+
+      // ── Purge one-shot v6 : efface TOUT l'ancien localStorage syndic ─────────
+      // Flag UID-spécifique → chaque utilisateur est purgé une seule fois indépendamment
+      // v6 : force re-purge pour éliminer toutes les fausses données persistantes
+      if (!localStorage.getItem(`fixit_clean_v6_${uid}`)) {
+        const keysToNuke = [
+          `fixit_syndic_missions_${uid}`,
+          `fixit_syndic_immeubles_${uid}`,
+          `fixit_syndic_batiments_${uid}`,
+          `fixit_canal_interne_${uid}`,
+          `fixit_planning_events_${uid}`,
+          `fixit_copros_${uid}`,
+          `fixit_ged_${uid}`,
+          `fixit_cal_regl_${uid}`,
+          // Anciens flags
+          `fixit_clean_v5_${uid}`,
+          'fixit_clean_v4',
+          'fixit_clean_v3',
+        ]
+        keysToNuke.forEach(k => localStorage.removeItem(k))
+        // Purger toutes les clés liées à cet uid (balayage complet)
+        Object.keys(localStorage)
+          .filter(k =>
+            k.startsWith('canal_missions_') ||
+            k.startsWith('fixit_copros_local') ||
+            k.startsWith('syndic_transferts_') ||
+            (k.includes(uid) && (
+              k.startsWith('fixit_') ||
+              k.startsWith('vitfix_') ||
+              k.startsWith('canal_')
+            ))
+          )
+          .forEach(k => localStorage.removeItem(k))
+        localStorage.setItem(`fixit_clean_v6_${uid}`, '1')
+      }
+
       try {
         const savedMissions = localStorage.getItem(`fixit_syndic_missions_${uid}`)
-        if (savedMissions) setMissions(JSON.parse(savedMissions))
+        if (savedMissions) {
+          try {
+            const parsed = JSON.parse(savedMissions)
+            // Filtre les missions référençant des faux immeubles OU IDs courts
+            const FAKE_IDS = ['1','2','3','4','5']
+            const real = parsed.filter((m: any) =>
+              !FAKE_IDS.includes(String(m.id)) &&
+              !FAKE_BUILDING_NAMES.includes(m.immeuble)
+            )
+            if (real.length < parsed.length) {
+              localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(real))
+            }
+            setMissions(real)
+          } catch { localStorage.removeItem(`fixit_syndic_missions_${uid}`) }
+        }
 
         const savedImmeubles = localStorage.getItem(`fixit_syndic_immeubles_${uid}`)
-        if (savedImmeubles) setImmeubles(JSON.parse(savedImmeubles))
+        if (savedImmeubles) {
+          try {
+            const parsed = JSON.parse(savedImmeubles)
+            const real = parsed.filter((i: any) =>
+              !['1','2','3'].includes(String(i.id)) &&
+              !FAKE_BUILDING_NAMES.includes(i.nom)
+            )
+            if (real.length < parsed.length) {
+              localStorage.setItem(`fixit_syndic_immeubles_${uid}`, JSON.stringify(real))
+            }
+            setImmeubles(real)
+          } catch { localStorage.removeItem(`fixit_syndic_immeubles_${uid}`) }
+        }
 
         const savedBatiments = localStorage.getItem(`fixit_syndic_batiments_${uid}`)
-        if (savedBatiments) setBatimentsConnus(JSON.parse(savedBatiments))
-        else {
-          const noms = IMMEUBLES_DEMO.map(i => i.nom)
-          setBatimentsConnus(noms)
-          localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(noms))
+        if (savedBatiments) {
+          try {
+            const parsed = JSON.parse(savedBatiments)
+            const real = parsed.filter((n: string) => !FAKE_BUILDING_NAMES.includes(n))
+            if (real.length < parsed.length) {
+              localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(real))
+            }
+            setBatimentsConnus(real)
+          } catch { setBatimentsConnus([]) }
         }
 
         const savedCanalInterne = localStorage.getItem(`fixit_canal_interne_${uid}`)
-        if (savedCanalInterne) setCanalInterneMessages(JSON.parse(savedCanalInterne))
+        if (savedCanalInterne) {
+          try {
+            const parsed = JSON.parse(savedCanalInterne)
+            // Purge si contient des IDs de démo ou des références à de faux immeubles
+            const hasFake = parsed.some((m: any) =>
+              /^(ci|pe)-\d+$/.test(String(m.id)) ||
+              ['ci-1','ci-2','ci-3'].includes(String(m.id)) ||
+              FAKE_BUILDING_NAMES.some(n => String(m.texte || '').includes(n) || String(m.sujet || '').includes(n))
+            )
+            if (hasFake) {
+              localStorage.removeItem(`fixit_canal_interne_${uid}`)
+            } else {
+              setCanalInterneMessages(parsed)
+            }
+          } catch { localStorage.removeItem(`fixit_canal_interne_${uid}`) }
+        }
 
         const savedPlanningEvents = localStorage.getItem(`fixit_planning_events_${uid}`)
-        if (savedPlanningEvents) setPlanningEvents(JSON.parse(savedPlanningEvents))
+        if (savedPlanningEvents) {
+          try {
+            const parsed = JSON.parse(savedPlanningEvents)
+            // Filtrer les events assignés à de faux membres (IDs courts)
+            const FAKE_PERSON_NAMES = ['Jean-Pierre Martin','Marie Dupont','Sophie Leroy','Bernard Petit','Directeur Général']
+            const real = parsed.filter((e: any) => !FAKE_PERSON_NAMES.includes(e.assigneA))
+            setPlanningEvents(real)
+            if (real.length < parsed.length) {
+              localStorage.setItem(`fixit_planning_events_${uid}`, JSON.stringify(real))
+            }
+          } catch { localStorage.removeItem(`fixit_planning_events_${uid}`) }
+        }
+
+        // Load enabled modules
+        const savedModules = localStorage.getItem(`fixit_modules_syndic_${uid}`)
+        if (savedModules) setEnabledModules(JSON.parse(savedModules))
+        // Load module order
+        const savedOrder = localStorage.getItem(`fixit_modules_order_syndic_${uid}`)
+        if (savedOrder) setModuleOrder(JSON.parse(savedOrder))
       } catch { /* silencieux */ }
       setDataLoaded(true)
 
@@ -5100,40 +5177,140 @@ export default function SyndicDashboard() {
 
         const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
 
-        // Charger missions depuis Supabase
-        const [mRes, iRes] = await Promise.all([
+        // Charger missions, immeubles, planning, canal interne, équipe depuis Supabase
+        const [mRes, iRes, peRes, ciRes, teamRes] = await Promise.all([
           fetch('/api/syndic/missions', { headers }),
           fetch('/api/syndic/immeubles', { headers }),
+          fetch('/api/syndic/planning-events', { headers }),
+          fetch('/api/syndic/canal-interne', { headers }),
+          fetch('/api/syndic/team', { headers }),
         ])
 
         if (mRes.ok) {
           const { missions: dbMissions } = await mRes.json()
-          if (dbMissions && dbMissions.length > 0) {
-            setMissions(dbMissions)
-            try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(dbMissions)) } catch {}
+          if (dbMissions) {
+            // Séparer vraies missions des fausses missions de démo
+            const FAKE_BUILDING_NAMES_DB = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
+            const fakeMissions = dbMissions.filter((m: any) => FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
+            const realMissions = dbMissions.filter((m: any) => !FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
+            // AUTO-CLEANUP DB : supprimer définitivement les fausses missions de Supabase
+            if (fakeMissions.length > 0) {
+              for (const fm of fakeMissions) {
+                try {
+                  await fetch(`/api/syndic/missions?id=${encodeURIComponent(fm.id)}`, { method: 'DELETE', headers })
+                } catch {}
+              }
+            }
+            setMissions(realMissions)
+            try { localStorage.setItem(`fixit_syndic_missions_${uid}`, JSON.stringify(realMissions)) } catch {}
           }
         }
 
         if (iRes.ok) {
           const { immeubles: dbImmeubles } = await iRes.json()
-          if (dbImmeubles && dbImmeubles.length > 0) {
-            setImmeubles(dbImmeubles)
-            // Mettre à jour les bâtiments connus depuis Supabase
-            const noms = dbImmeubles.map((i: any) => i.nom).filter(Boolean)
-            if (noms.length > 0) {
-              setBatimentsConnus((prev: string[]) => {
-                const merged = Array.from(new Set([...prev, ...noms])).sort()
-                try { localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(merged)) } catch {}
-                return merged
-              })
+          if (dbImmeubles) {
+            // Séparer vrais immeubles des faux immeubles de démo
+            const FAKE_BUILDING_NAMES = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
+            const fakeImmeubles = dbImmeubles.filter((i: any) => FAKE_BUILDING_NAMES.includes(i.nom))
+            const realImmeubles = dbImmeubles.filter((i: any) => !FAKE_BUILDING_NAMES.includes(i.nom))
+            // AUTO-CLEANUP DB : supprimer définitivement les faux immeubles de Supabase
+            if (fakeImmeubles.length > 0) {
+              for (const fi of fakeImmeubles) {
+                try {
+                  await fetch(`/api/syndic/immeubles?id=${encodeURIComponent(fi.id)}`, { method: 'DELETE', headers })
+                } catch {}
+              }
             }
-            try { localStorage.setItem(`fixit_syndic_immeubles_${uid}`, JSON.stringify(dbImmeubles)) } catch {}
+            if (realImmeubles.length > 0) {
+              setImmeubles(realImmeubles)
+              // Mettre à jour les bâtiments connus depuis Supabase (sans faux noms)
+              const noms = realImmeubles.map((i: any) => i.nom).filter(Boolean)
+              if (noms.length > 0) {
+                setBatimentsConnus((prev: string[]) => {
+                  const merged = Array.from(new Set([...prev, ...noms])).sort()
+                  try { localStorage.setItem(`fixit_syndic_batiments_${uid}`, JSON.stringify(merged)) } catch {}
+                  return merged
+                })
+              }
+              try { localStorage.setItem(`fixit_syndic_immeubles_${uid}`, JSON.stringify(realImmeubles)) } catch {}
+            }
           }
         }
+        // Charger planning events depuis Supabase (partagés entre tous les membres)
+        if (peRes.ok) {
+          const { events: dbEvents, needsMigration } = await peRes.json()
+          if (needsMigration) {
+            setPlanningNeedsMigration(true)
+          } else if (dbEvents) {
+            setPlanningEvents(dbEvents)
+            try { localStorage.setItem(`fixit_planning_events_${uid}`, JSON.stringify(dbEvents)) } catch {}
+          }
+        }
+
+        // Charger canal interne depuis Supabase (partagé entre tous les membres)
+        if (ciRes.ok) {
+          const { messages: dbMsgs } = await ciRes.json()
+          if (dbMsgs && dbMsgs.length > 0) {
+            const converted: CanalInterneMsg[] = dbMsgs.map((m: any) => {
+              // Le contenu est un JSON sérialisé du CanalInterneMsg complet
+              try {
+                const parsed = JSON.parse(m.texte)
+                if (parsed && parsed.contenu) return { ...parsed, id: m.id, lu: m.lu ?? true }
+              } catch {}
+              return { id: m.id, de: m.auteur, deRole: m.auteurRole || '', type: 'message' as const, contenu: m.texte, date: m.createdAt, lu: m.lu ?? true }
+            })
+            setCanalInterneMessages(converted)
+          }
+        }
+
+        // Charger membres de l'équipe depuis Supabase
+        if (teamRes.ok) {
+          const { members } = await teamRes.json()
+          if (members) setTeamMembers(members.filter((m: any) => m.is_active !== false))
+        }
+
       } catch { /* silencieux — Supabase optionnel */ }
     }
     getUser()
   }, [])
+
+  // ── Polling toutes les 15s — sync planning + canal interne entre membres équipe ─
+  useEffect(() => {
+    if (!dataLoaded || !user?.id) return
+    const poll = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (!token) return
+        const h = { 'Authorization': `Bearer ${token}` }
+
+        const [peRes, ciRes] = await Promise.all([
+          fetch('/api/syndic/planning-events', { headers: h }),
+          fetch('/api/syndic/canal-interne', { headers: h }),
+        ])
+
+        if (peRes.ok) {
+          const { events } = await peRes.json()
+          if (events) setPlanningEvents(events)
+        }
+        if (ciRes.ok) {
+          const { messages: dbMsgs } = await ciRes.json()
+          if (dbMsgs && dbMsgs.length > 0) {
+            const converted: CanalInterneMsg[] = dbMsgs.map((m: any) => {
+              try {
+                const p = JSON.parse(m.texte)
+                if (p?.contenu) return { ...p, id: m.id, lu: m.lu ?? true }
+              } catch {}
+              return { id: m.id, de: m.auteur, deRole: m.auteurRole || '', type: 'message' as const, contenu: m.texte, date: m.createdAt, lu: m.lu ?? true }
+            })
+            setCanalInterneMessages(converted)
+          }
+        }
+      } catch { /* silencieux */ }
+    }
+    const interval = setInterval(poll, 15000)
+    return () => clearInterval(interval)
+  }, [dataLoaded, user?.id])
 
   // ── Sauvegarder missions dans localStorage à chaque changement ───────────────
   useEffect(() => {
@@ -5303,6 +5480,26 @@ export default function SyndicDashboard() {
     setArtisanSubmitting(false)
   }
 
+  const handleDeleteArtisan = async (artisanId: string, artisanNom: string) => {
+    if (!window.confirm(`Supprimer ${artisanNom} de votre cabinet ? Cette action est irréversible.`)) return
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch(`/api/syndic/artisans?artisan_id=${artisanId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        setArtisans(prev => prev.filter(a => a.id !== artisanId))
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Erreur lors de la suppression')
+      }
+    } catch {
+      alert('Une erreur est survenue')
+    }
+  }
+
   useEffect(() => {
     iaEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [iaMessages])
@@ -5312,7 +5509,7 @@ export default function SyndicDashboard() {
     window.location.href = '/syndic/login'
   }
 
-  const sendCanalInterne = () => {
+  const sendCanalInterne = async () => {
     const contenuOk = canalInterneInput.trim() ||
       (canalInterneType === 'planning' && canalPlanResident.trim())
     if (!contenuOk) return
@@ -5376,12 +5573,31 @@ export default function SyndicDashboard() {
     }
     if (canalInterneType === 'tache') setCanalTacheAssignee('')
     setTimeout(() => canalInterneEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+    // Sauvegarder en DB pour partage entre membres équipe
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        await fetch('/api/syndic/canal-interne', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            auteur: msg.de,
+            auteurRole: msg.deRole,
+            // Stocker le JSON complet du message pour préserver les champs spéciaux
+            texte: JSON.stringify(msg),
+            sujet: '',
+          }),
+        })
+      }
+    } catch { /* silencieux — l'optimistic update est déjà en place */ }
   }
 
-  const addPlanningEvent = () => {
+  const addPlanningEvent = async () => {
     if (!planningEventForm.titre.trim() || !selectedPlanningDay) return
+    const assignedMember = teamMembers.find(m => m.full_name === planningEventForm.assigneA)
     const newEvent: PlanningEvent = {
-      id: Date.now().toString(),
+      id: `tmp-${Date.now()}`,
       titre: planningEventForm.titre.trim(),
       date: selectedPlanningDay,
       heure: planningEventForm.heure,
@@ -5389,15 +5605,37 @@ export default function SyndicDashboard() {
       type: planningEventForm.type,
       assigneA: planningEventForm.assigneA || userName,
       assigneRole: planningEventForm.assigneA
-        ? (EQUIPE_NOMS_DEMO.find(e => e.nom === planningEventForm.assigneA)?.role || '')
+        ? (assignedMember ? ROLE_LABELS_TEAM[assignedMember.role] || assignedMember.role : '')
         : (ROLE_LABELS_TEAM[userRole] || 'Gestionnaire'),
       description: planningEventForm.description,
       creePar: userName,
       statut: 'planifie',
     }
+    // Optimistic update local
     setPlanningEvents(prev => [...prev, newEvent])
     setShowPlanningModal(false)
     setPlanningEventForm({ titre: '', type: 'visite', heure: '09:00', dureeMin: 60, assigneA: '', description: '' })
+
+    // Sauvegarder en DB pour partage entre membres équipe
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        const res = await fetch('/api/syndic/planning-events', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(newEvent),
+        })
+        if (res.ok) {
+          const { event } = await res.json()
+          // Remplacer l'ID temporaire par l'UUID Supabase
+          if (event?.id) {
+            setPlanningEvents(prev => prev.map(e => e.id === newEvent.id ? { ...e, id: event.id } : e))
+          }
+        } else if ((await res.json().catch(() => ({}))).error === 'needsMigration') {
+          setPlanningNeedsMigration(true)
+        }
+      }
+    } catch { /* silencieux — optimistic update déjà en place */ }
   }
 
   // ── Gestion Immeubles ────────────────────────────────────────────────────────
@@ -5494,6 +5732,34 @@ export default function SyndicDashboard() {
     setMissions(prev => prev.map(m => m.id === id ? { ...m, statut: 'acceptee' as const } : m))
   }
 
+  const handleDeleteMission = async (id: string) => {
+    if (!confirm('Supprimer cette mission définitivement ? Cette action est irréversible.')) return
+    // Suppression immédiate de l'état local
+    setMissions(prev => prev.filter(m => m.id !== id))
+    // Suppression localStorage
+    try {
+      const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
+      localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(stored.filter((m: any) => m.id !== id)))
+    } catch {}
+    // Suppression Supabase
+    try { await fetch(`/api/syndic/missions?id=${encodeURIComponent(id)}`, { method: 'DELETE' }) } catch {}
+  }
+
+  const handleDeletePlanningEvent = async (id: string) => {
+    if (!confirm('Supprimer cet événement du planning ?')) return
+    setPlanningEvents(prev => prev.filter(e => e.id !== id))
+    // Supprimer en DB aussi
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        await fetch(`/api/syndic/planning-events?id=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${session.access_token}` },
+        })
+      }
+    } catch {}
+  }
+
   // ── Gestion Alertes ──────────────────────────────────────────────────────────
   const handleTraiterAlerte = (id: string) => {
     setAlertes(prev => prev.filter(a => a.id !== id))
@@ -5540,7 +5806,7 @@ export default function SyndicDashboard() {
     })),
     alertes: alertes.map(a => ({ type: a.type, message: a.message, urgence: a.urgence })),
     echeances: ECHEANCES_DEMO,
-    coproprios_count: COPROPRIOS_DEMO.length,
+    coproprios_count: (() => { try { const k = Object.keys(localStorage).find(k => k.startsWith('fixit_copros_')); return k ? JSON.parse(localStorage.getItem(k) || '[]').length : 0 } catch { return 0 } })(),
     stats: {
       totalBudget: immeubles.reduce((s, i) => s + i.budgetAnnuel, 0),
       totalDepenses: immeubles.reduce((s, i) => s + i.depensesAnnee, 0),
@@ -5794,6 +6060,61 @@ export default function SyndicDashboard() {
   const userRole = user?.user_metadata?.role || 'syndic'
   const allowedPages = ROLE_PAGES[userRole] || ROLE_PAGES['syndic']
 
+  const isModuleEnabled = (key: string): boolean => {
+    if (Object.keys(enabledModules).length === 0) {
+      return SYNDIC_MODULES.find(m => m.key === key)?.default ?? true
+    }
+    return enabledModules[key] ?? SYNDIC_MODULES.find(m => m.key === key)?.default ?? true
+  }
+
+  const toggleModule = (key: string) => {
+    const updated = { ...enabledModules, [key]: !isModuleEnabled(key) }
+    setEnabledModules(updated)
+    if (user) localStorage.setItem(`fixit_modules_syndic_${user.id}`, JSON.stringify(updated))
+  }
+
+  // ── Ordre personnalisé — couvre TOUS les items du menu ───────────────────
+  const getNavOrder = (): string[] => {
+    const allIds = allNavItems.map(n => n.id as string)
+    if (moduleOrder.length === 0) return allIds
+    const ordered = moduleOrder.filter(k => allIds.includes(k))
+    const missing = allIds.filter(k => !ordered.includes(k))
+    return [...ordered, ...missing]
+  }
+
+  const saveNavOrder = (newOrder: string[]) => {
+    setModuleOrder(newOrder)
+    if (user) localStorage.setItem(`fixit_modules_order_syndic_${user.id}`, JSON.stringify(newOrder))
+  }
+
+  const moveNavItemUp = (id: string, visibleIds: string[]) => {
+    const order = getNavOrder()
+    // On bouge uniquement parmi les items visibles : trouver le précédent visible
+    const visIdx = visibleIds.indexOf(id)
+    if (visIdx <= 0) return
+    const prevId = visibleIds[visIdx - 1]
+    // Échanger dans l'ordre global
+    const n = [...order]
+    const a = n.indexOf(id)
+    const b = n.indexOf(prevId)
+    if (a === -1 || b === -1) return
+    ;[n[a], n[b]] = [n[b], n[a]]
+    saveNavOrder(n)
+  }
+
+  const moveNavItemDown = (id: string, visibleIds: string[]) => {
+    const order = getNavOrder()
+    const visIdx = visibleIds.indexOf(id)
+    if (visIdx === -1 || visIdx === visibleIds.length - 1) return
+    const nextId = visibleIds[visIdx + 1]
+    const n = [...order]
+    const a = n.indexOf(id)
+    const b = n.indexOf(nextId)
+    if (a === -1 || b === -1) return
+    ;[n[a], n[b]] = [n[b], n[a]]
+    saveNavOrder(n)
+  }
+
   const allNavItems: { id: Page; emoji: string; label: string; badge?: number }[] = [
     { id: 'accueil', emoji: '📊', label: 'Tableau de bord' },
     { id: 'missions', emoji: '📋', label: 'Ordres de mission', badge: missions.filter(m => m.statut === 'en_cours').length },
@@ -5823,9 +6144,27 @@ export default function SyndicDashboard() {
     { id: 'equipe', emoji: '👤', label: 'Mon Équipe' },
     { id: 'emails', emoji: '📧', label: 'Emails Max IA' },
     { id: 'ia', emoji: '🤖', label: 'Assistant Max IA' },
+    { id: 'modules', emoji: '🧩', label: 'Mes Modules' },
     { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
   ]
-  const navItems = allNavItems.filter(item => allowedPages.includes(item.id))
+  const ALWAYS_VISIBLE = ['accueil', 'immeubles', 'artisans', 'coproprios', 'alertes', 'equipe', 'parametres', 'modules', 'documents']
+  const navOrder = getNavOrder()
+
+  const navItems = allNavItems
+    .filter(item => {
+      if (!allowedPages.includes(item.id)) return false
+      if (ALWAYS_VISIBLE.includes(item.id)) return true
+      return isModuleEnabled(item.id)
+    })
+    .sort((a, b) => {
+      // Ordre 100% personnalisé — s'applique à tous les items sans exception
+      const aIdx = navOrder.indexOf(a.id)
+      const bIdx = navOrder.indexOf(b.id)
+      if (aIdx === -1 && bIdx === -1) return 0
+      if (aIdx === -1) return 1
+      if (bIdx === -1) return -1
+      return aIdx - bIdx
+    })
 
   const totalBudget = immeubles.reduce((a, i) => a + i.budgetAnnuel, 0)
   const totalDepenses = immeubles.reduce((a, i) => a + i.depensesAnnee, 0)
@@ -6062,27 +6401,29 @@ export default function SyndicDashboard() {
                   </div>
                 </div>
 
-                {/* Missions récentes */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4">📋 Missions récentes</h2>
-                  <div className="space-y-3">
-                    {missions.slice(0, 4).map(m => (
-                      <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{m.immeuble}</p>
-                          <p className="text-xs text-gray-500 truncate">{m.type} · {m.artisan}</p>
+                {/* Missions récentes — affichées seulement si des missions existent */}
+                {missions.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-900 mb-4">📋 Missions récentes</h2>
+                    <div className="space-y-3">
+                      {missions.slice(0, 4).map(m => (
+                        <div key={m.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{m.immeuble}</p>
+                            <p className="text-xs text-gray-500 truncate">{m.type} · {m.artisan}</p>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                            <PrioriteBadge p={m.priorite} />
+                            <Badge statut={m.statut} />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                          <PrioriteBadge p={m.priorite} />
-                          <Badge statut={m.statut} />
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <button onClick={() => setPage('missions')} className="w-full mt-3 text-purple-600 hover:text-purple-700 text-sm font-semibold transition">
+                      Voir toutes les missions →
+                    </button>
                   </div>
-                  <button onClick={() => setPage('missions')} className="w-full mt-3 text-purple-600 hover:text-purple-700 text-sm font-semibold transition">
-                    Voir toutes les missions →
-                  </button>
-                </div>
+                )}
               </div>
 
               {/* Immeubles aperçu */}
@@ -6301,6 +6642,13 @@ export default function SyndicDashboard() {
                           </button>
                         )}
                         <button onClick={() => setShowModalMission(true)} className="flex-1 text-xs bg-purple-600 text-white py-1.5 rounded-lg hover:bg-purple-700 transition">Créer mission</button>
+                        <button
+                          onClick={() => handleDeleteArtisan(a.id, a.nom)}
+                          className="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 py-1.5 px-2 rounded-lg transition"
+                          title="Retirer cet artisan du cabinet"
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </div>
                   )
@@ -6445,6 +6793,7 @@ export default function SyndicDashboard() {
                           <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition font-medium">📄 Rapport</button>
                         )}
                         <button onClick={() => { setSelectedMission(m); setShowMissionDetails(true) }} className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-lg hover:bg-purple-200 transition font-medium">📋 Ouvrir</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteMission(m.id) }} className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-lg hover:bg-red-200 transition font-medium" title="Supprimer la mission">🗑️</button>
                       </div>
                     </div>
                   </div>
@@ -6465,9 +6814,19 @@ export default function SyndicDashboard() {
                   💬 Canal Artisans
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setCanalInternalTab('interne')
                     setCanalInterneMessages(prev => prev.map(m => ({ ...m, lu: true })))
+                    // Marquer comme lu en DB
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession()
+                      if (session?.access_token) {
+                        await fetch('/api/syndic/canal-interne', {
+                          method: 'PATCH',
+                          headers: { 'Authorization': `Bearer ${session.access_token}` },
+                        })
+                      }
+                    } catch {}
                   }}
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition relative ${canalInternalTab === 'interne' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
@@ -6750,6 +7109,33 @@ export default function SyndicDashboard() {
             })
             return (
               <div className="space-y-4">
+                {/* Banner migration DB si table pas encore créée */}
+                {planningNeedsMigration && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+                    <span className="text-xl">⚠️</span>
+                    <div>
+                      <p className="font-semibold text-amber-800 text-sm">Migration requise — Planning partagé</p>
+                      <p className="text-xs text-amber-700 mt-1">Pour activer la synchronisation du planning entre tous les membres, exécutez ce SQL dans votre <a href="https://supabase.com/dashboard" target="_blank" className="underline font-medium">Supabase SQL Editor</a> :</p>
+                      <pre className="mt-2 bg-amber-100 text-amber-900 text-xs rounded-lg p-2 overflow-x-auto whitespace-pre-wrap">{`CREATE TABLE IF NOT EXISTS syndic_planning_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  cabinet_id UUID NOT NULL,
+  titre TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'autre',
+  date DATE NOT NULL,
+  heure TEXT NOT NULL DEFAULT '09:00',
+  duree_min INTEGER DEFAULT 60,
+  assigne_a TEXT NOT NULL DEFAULT '',
+  assigne_role TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  cree_par TEXT NOT NULL DEFAULT '',
+  statut TEXT DEFAULT 'planifie',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events(cabinet_id);`}</pre>
+                    </div>
+                  </div>
+                )}
                 <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
                   {/* Header */}
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -6771,13 +7157,13 @@ export default function SyndicDashboard() {
                           className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-400 bg-white"
                         >
                           <option value="tous">👥 Toute l'équipe</option>
-                          {EQUIPE_NOMS_DEMO.filter(e => e.nom !== 'Toute l\'équipe').map(e => (
-                            <option key={e.nom} value={e.nom}>{e.nom}{e.role ? ` — ${e.role}` : ''}</option>
+                          {teamMembers.map(m => (
+                            <option key={m.id} value={m.full_name}>{m.full_name}{m.role ? ` — ${ROLE_LABELS_TEAM[m.role] || m.role}` : ''}</option>
                           ))}
                         </select>
                       )}
                       <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">←</button>
-                      <button onClick={() => setPlanningDate(new Date())} className="text-sm px-3 py-1.5 border border-purple-300 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition">Aujourd'hui</button>
+                      <button onClick={() => setPlanningDate(new Date())} className={`text-sm px-3 py-1.5 rounded-lg transition ${isCurrentMonth ? 'border border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100' : 'border border-gray-200 hover:bg-gray-50 text-gray-700'}`}>Aujourd'hui</button>
                       <button onClick={() => setPlanningDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition">→</button>
                     </div>
                   </div>
@@ -6818,8 +7204,9 @@ export default function SyndicDashboard() {
                           </div>
                           {/* Events */}
                           {dayEvents.slice(0, 2).map(e => (
-                            <div key={e.id} className={`text-xs px-1 py-0.5 rounded mb-0.5 truncate font-medium ${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`} title={`${e.heure} — ${e.titre} (${e.assigneA})`}>
-                              {e.heure} {e.titre}
+                            <div key={e.id} className={`text-xs px-1 py-0.5 rounded mb-0.5 flex items-center gap-0.5 font-medium ${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`} title={`${e.heure} — ${e.titre} (${e.assigneA})`}>
+                              <span className="truncate flex-1">{e.heure} {e.titre}</span>
+                              <button onClick={ev => { ev.stopPropagation(); handleDeletePlanningEvent(e.id) }} className="flex-shrink-0 opacity-60 hover:opacity-100 font-bold leading-none text-xs" title="Supprimer">×</button>
                             </div>
                           ))}
                           {/* Missions */}
@@ -6847,8 +7234,8 @@ export default function SyndicDashboard() {
                   )}
                   <div className="space-y-2">
                     {[
-                      ...monthEvents.map(e => ({ key: `e-${e.id}`, date: e.date, heure: e.heure, label: e.titre, sub: e.assigneA, color: `${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`, tag: e.type, statut: e.statut, onClick: () => {} })),
-                      ...monthMissions.map(m => ({ key: `m-${m.id}`, date: m.dateIntervention!, heure: '08:00', label: `${m.immeuble} — ${m.type}`, sub: m.artisan, color: m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700', tag: '🔧', statut: m.statut, onClick: () => { setSelectedMission(m); setShowMissionDetails(true) } })),
+                      ...monthEvents.map(e => ({ key: `e-${e.id}`, date: e.date, heure: e.heure, label: e.titre, sub: e.assigneA, color: `${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`, tag: e.type, statut: e.statut, onClick: () => {}, onDelete: () => handleDeletePlanningEvent(e.id) })),
+                      ...monthMissions.map(m => ({ key: `m-${m.id}`, date: m.dateIntervention!, heure: '08:00', label: `${m.immeuble} — ${m.type}`, sub: m.artisan, color: m.priorite === 'urgente' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700', tag: '🔧', statut: m.statut, onClick: () => { setSelectedMission(m); setShowMissionDetails(true) }, onDelete: () => handleDeleteMission(m.id) })),
                     ].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)).map(item => (
                       <div key={item.key} onClick={item.onClick} className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-purple-50 rounded-xl text-sm cursor-pointer transition">
                         <div className="text-center w-14 flex-shrink-0">
@@ -6858,6 +7245,7 @@ export default function SyndicDashboard() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${item.color}`}>{item.tag}</span>
                         <span className="flex-1 font-medium truncate text-gray-800">{item.label}</span>
                         <span className="text-gray-400 text-xs flex-shrink-0 hidden md:block">{item.sub}</span>
+                        <button onClick={ev => { ev.stopPropagation(); item.onDelete() }} className="flex-shrink-0 text-xs bg-red-100 text-red-500 hover:bg-red-200 px-2 py-0.5 rounded-lg transition font-medium" title="Supprimer">🗑️</button>
                       </div>
                     ))}
                   </div>
@@ -6867,7 +7255,7 @@ export default function SyndicDashboard() {
           })()}
 
           {/* ── DOCUMENTS GED ── */}
-          {page === 'documents' && <GEDSection immeubles={immeubles} artisans={artisans} />}
+          {page === 'documents' && <GEDSection immeubles={immeubles} artisans={artisans} userId={user?.id} />}
 
           {/* ── FACTURATION ── */}
           {page === 'facturation' && (
@@ -6875,10 +7263,10 @@ export default function SyndicDashboard() {
           )}
 
           {/* ── COPROPRIÉTAIRES ── */}
-          {page === 'coproprios' && <CopropriosSection immeubles={immeubles} />}
+          {page === 'coproprios' && <CopropriosSection immeubles={immeubles} userId={user?.id} />}
 
           {/* ── CALENDRIER RÉGLEMENTAIRE ── */}
-          {page === 'reglementaire' && <CalendrierReglementaireSection immeubles={immeubles} />}
+          {page === 'reglementaire' && <CalendrierReglementaireSection immeubles={immeubles} userId={user?.id} />}
 
           {/* ── RAPPORT MENSUEL ── */}
           {page === 'rapport' && user && (
@@ -6887,7 +7275,7 @@ export default function SyndicDashboard() {
               missions={missions}
               artisans={artisans}
               syndicId={user.id}
-              coproprios={COPROPRIOS_DEMO}
+              coproprios={(() => { try { const k = Object.keys(localStorage).find(k => k.startsWith('fixit_copros_')); return k ? JSON.parse(localStorage.getItem(k) || '[]') : [] } catch { return [] } })()}
             />
           )}
 
@@ -7135,7 +7523,7 @@ export default function SyndicDashboard() {
           {page === 'ag_digitale' && user && <AGDigitaleSection user={user} userRole={userRole} />}
           {page === 'impayés' && user && <ImpayésSection user={user} userRole={userRole} />}
           {page === 'carnet_entretien' && user && <CarnetEntretienSection user={user} userRole={userRole} />}
-          {page === 'sinistres' && user && <SinistresSection user={user} userRole={userRole} />}
+          {page === 'sinistres' && user && <SinistresSection user={user} userRole={userRole} artisans={artisans} />}
           {page === 'extranet' && user && <ExtranetSection user={user} userRole={userRole} />}
 
           {page === 'pointage' && user && <PointageSection immeubles={immeubles} user={user} onUpdateImmeuble={(updated) => setImmeubles(prev => prev.map(i => i.id === updated.id ? updated : i))} />}
@@ -7161,6 +7549,150 @@ export default function SyndicDashboard() {
           {/* ── DOCUMENTS INTERVENTIONS ── */}
           {page === 'docs_interventions' && (
             <DocsInterventionsSection artisans={artisans} setPage={setPage} />
+          )}
+
+          {/* ── MODULES ── */}
+          {page === 'modules' && (
+            <div className="max-w-4xl mx-auto">
+              {(() => {
+                // Modules autorisés pour ce rôle uniquement
+                const roleAllowedKeys = (ROLE_PAGES[userRole] || ROLE_PAGES['syndic']) as readonly string[]
+                const roleModules = SYNDIC_MODULES.filter(m => roleAllowedKeys.includes(m.key))
+
+                // Groupes avec filtrage par rôle
+                const GROUPS = [
+                  {
+                    title: '📋 Gestion courante',
+                    keys: ['missions', 'canal', 'planning', 'facturation', 'emails', 'ia'],
+                  },
+                  {
+                    title: '🔧 Terrain & Interventions',
+                    keys: ['pointage', 'docs_interventions', 'comptabilite_tech', 'analyse_devis', 'carnet_entretien', 'sinistres'],
+                  },
+                  {
+                    title: '🏛️ Copropriété & AG',
+                    keys: ['compta_copro', 'ag_digitale', 'impayés', 'extranet', 'recouvrement', 'preparateur_ag'],
+                  },
+                  {
+                    title: '⚖️ Réglementaire',
+                    keys: ['reglementaire', 'rapport', 'echéances'],
+                  },
+                ]
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">🧩 Mes modules</h2>
+                        <p className="text-sm text-gray-500 mt-1">Modules disponibles pour votre poste</p>
+                      </div>
+                      <div className="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-bold">
+                        {roleModules.filter(m => isModuleEnabled(m.key)).length}/{roleModules.length} actifs
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      {GROUPS.map(group => {
+                        const groupMods = roleModules.filter(m => group.keys.includes(m.key))
+                        if (groupMods.length === 0) return null
+                        return (
+                          <div key={group.title}>
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">{group.title}</h3>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              {groupMods.map(mod => {
+                                const enabled = isModuleEnabled(mod.key)
+                                return (
+                                  <div key={mod.key} className={`bg-white rounded-2xl p-4 border-2 transition-all ${enabled ? 'border-purple-300 shadow-sm' : 'border-gray-200 opacity-70'}`}>
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${enabled ? 'bg-purple-100' : 'bg-gray-100'}`}>{mod.icon}</div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-sm text-gray-900">{mod.label}</div>
+                                        <div className="text-xs text-gray-400 mt-0.5">{mod.description}</div>
+                                      </div>
+                                      <button onClick={() => toggleModule(mod.key)} className={`w-12 h-7 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-purple-500' : 'bg-gray-200'}`}>
+                                        <div className="w-5 h-5 bg-white rounded-full shadow absolute top-1 transition-all" style={{ left: enabled ? '24px' : '4px' }} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )
+              })()}
+
+              {/* ── Ordre complet du menu — tous les items visibles ── */}
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">↕️ Ordre du menu</h3>
+                    <p className="text-sm text-gray-500 mt-0.5">Glissez ou utilisez ▲▼ — la sidebar se met à jour en temps réel</p>
+                  </div>
+                  <button
+                    onClick={() => saveNavOrder(allNavItems.map(n => n.id as string))}
+                    className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition"
+                  >
+                    ↺ Réinitialiser
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {(() => {
+                    // Mêmes items que navItems, dans l'ordre personnalisé — sans la page "modules" elle-même
+                    const visibleItems = navItems.filter(item => item.id !== 'modules')
+                    const visibleIds = visibleItems.map(n => n.id as string)
+                    return visibleItems.map((item, idx) => {
+                      const isMod = SYNDIC_MODULES.some(m => m.key === item.id)
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex items-center gap-3 bg-white border-2 rounded-xl px-4 py-3 transition-all group ${isMod ? 'border-purple-200 hover:border-purple-400' : 'border-gray-200 hover:border-gray-400'}`}
+                        >
+                          {/* Poignée */}
+                          <span className="text-gray-300 group-hover:text-gray-500 select-none text-lg leading-none font-mono">⠿</span>
+                          {/* Emoji */}
+                          <span className="text-xl w-6 text-center">{item.emoji}</span>
+                          {/* Label */}
+                          <span className="flex-1 font-semibold text-sm text-gray-800">{item.label}</span>
+                          {/* Type badge */}
+                          {!isMod && (
+                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">fixe</span>
+                          )}
+                          {/* Position */}
+                          <span className="text-xs text-gray-400 font-mono w-5 text-center">{idx + 1}</span>
+                          {/* Flèches */}
+                          <div className="flex flex-col gap-0.5">
+                            <button
+                              onClick={() => moveNavItemUp(item.id as string, visibleIds)}
+                              disabled={idx === 0}
+                              className="w-6 h-5 flex items-center justify-center rounded text-gray-400 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
+                            >▲</button>
+                            <button
+                              onClick={() => moveNavItemDown(item.id as string, visibleIds)}
+                              disabled={idx === visibleItems.length - 1}
+                              className="w-6 h-5 flex items-center justify-center rounded text-gray-400 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
+                            >▼</button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  })()}
+                </div>
+              </div>
+
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">💡</span>
+                  <div>
+                    <div className="font-semibold text-blue-800 text-sm">Astuce</div>
+                    <div className="text-xs text-blue-600 mt-0.5">Les modules désactivés disparaissent de la barre latérale mais restent accessibles à tout moment. Vos données ne sont jamais supprimées.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ── PARAMÈTRES ── */}
@@ -7792,9 +8324,9 @@ export default function SyndicDashboard() {
                     onChange={e => setPlanningEventForm(f => ({ ...f, assigneA: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   >
-                    <option value="">Moi-même</option>
-                    {EQUIPE_NOMS_DEMO.filter(e => e.nom !== 'Toute l\'équipe').map(e => (
-                      <option key={e.nom} value={e.nom}>{e.nom}{e.role ? ` (${e.role})` : ''}</option>
+                    <option value="">Moi-même ({userName})</option>
+                    {teamMembers.filter(m => m.full_name !== userName).map(m => (
+                      <option key={m.id} value={m.full_name}>{m.full_name}{m.role ? ` (${ROLE_LABELS_TEAM[m.role] || m.role})` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -11035,7 +11567,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
 }
 
 /* ══════════ SINISTRES SECTION ══════════ */
-function SinistresSection({ user, userRole }: { user: any; userRole: string }) {
+function SinistresSection({ user, userRole, artisans = [] }: { user: any; userRole: string; artisans?: Artisan[] }) {
   const uid = user?.id || 'demo'
 
   // ── Types ──
@@ -11066,7 +11598,8 @@ function SinistresSection({ user, userRole }: { user: any; userRole: string }) {
   }
   const TYPES = ['Dégât des eaux', 'Incendie', 'Vol / Cambriolage', 'Vandalisme', 'Bris de glace', 'Catastrophe naturelle', 'Effondrement', 'Infiltration', 'Bris de canalisations', 'Autre']
 
-  const ARTISANS_DEMO = ['Marc Fontaine (Plomberie)', 'Sophie Laurent (Électricité)', 'Karim Bensaid (Maçonnerie)', 'Pierre Martin (Couverture)', 'Ali Hassan (Multi-technique)']
+  // Artisans réels du cabinet (passés en props)
+  const artisanNoms = artisans.map(a => a.nom).filter(Boolean)
 
   const emptyForm = { titre: '', immeuble: '', lot: '', type: 'Dégât des eaux', dateDeclaration: new Date().toISOString().split('T')[0], declarantNom: '', declarantRole: 'coproprio' as 'coproprio' | 'locataire' | 'technicien' | 'syndic', assureur: '', numDossier: '', emailAssureur: '', artisanAssigne: '', missionId: '', montantEstime: '', montantIndemnise: '', notes: '', urgence: 'normale' as 'haute' | 'normale' }
 
@@ -11337,7 +11870,10 @@ Le Gestionnaire — Cabinet de Syndic`
                       className="flex-1 border border-orange-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none"
                     >
                       <option value="">Choisir un artisan...</option>
-                      {ARTISANS_DEMO.map(a => <option key={a} value={a}>{a}</option>)}
+                      {artisanNoms.length === 0
+                        ? <option disabled>Aucun artisan dans le cabinet</option>
+                        : artisanNoms.map(a => <option key={a} value={a}>{a}</option>)
+                      }
                     </select>
                     <button
                       onClick={() => {

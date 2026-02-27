@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const [showMotifModal, setShowMotifModal] = useState(false)
   const [editingMotif, setEditingMotif] = useState<any>(null)
   const [motifForm, setMotifForm] = useState({
-    name: '', description: '', duration_minutes: 60, price_ht: 0, price_ttc: 0, pricing_unit: 'forfait'
+    name: '', description: '', duration_minutes: 60, price_min: 0, price_max: 0, pricing_unit: 'forfait'
   })
   const [savingMotif, setSavingMotif] = useState(false)
 
@@ -410,26 +410,46 @@ export default function DashboardPage() {
   }
 
   // ═══ MOTIFS CRUD ═══
+  // ─── Helpers fourchette de prix ───────────────────────────────────
+  const parseServiceRange = (service: any): { min: number; max: number; unit: string } => {
+    const desc = service.description || ''
+    const match = desc.match(/\[unit:([^|]+)\|min:([\d.]+)\|max:([\d.]+)\]/)
+    if (match) return { unit: match[1], min: parseFloat(match[2]), max: parseFloat(match[3]) }
+    // Fallback : ancien format
+    const unit = desc.includes('[m²]') ? 'm2' : desc.includes('[heure]') ? 'heure' : desc.includes('[unité]') ? 'unite' : 'forfait'
+    return { unit, min: service.price_ht || 0, max: service.price_ttc || 0 }
+  }
+
+  const getPriceRangeLabel = (service: any): string => {
+    const { min, max, unit } = parseServiceRange(service)
+    if (min === 0 && max === 0) return 'Sur devis'
+    const suffix: Record<string, string> = { m2: '€/m²', ml: '€/ml', arbre: '€/arbre', tonne: '€/t', heure: '€/h', forfait: '€', unite: '€/u' }
+    const s = suffix[unit] || '€'
+    if (min === max) return `${min}${s}`
+    return `${min} – ${max}${s}`
+  }
+  // ──────────────────────────────────────────────────────────────────
+
   const openNewMotif = () => {
     setEditingMotif(null)
-    setMotifForm({ name: '', description: '', duration_minutes: 60, price_ht: 0, price_ttc: 0, pricing_unit: 'forfait' })
+    setMotifForm({ name: '', description: '', duration_minutes: 60, price_min: 0, price_max: 0, pricing_unit: 'forfait' })
     setShowMotifModal(true)
   }
 
   const openEditMotif = (service: any) => {
+    const { min, max, unit } = parseServiceRange(service)
+    const cleanDesc = (service.description || '')
+      .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
+      .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+      .trim()
     setEditingMotif(service)
-    const pricingUnit = service.description?.includes('[m²]') ? 'm2'
-      : service.description?.includes('[heure]') ? 'heure'
-      : service.description?.includes('[unité]') ? 'unite'
-      : 'forfait'
-    const cleanDesc = (service.description || '').replace(/\s*\[(m²|heure|unité|forfait)\]\s*/g, '')
     setMotifForm({
       name: service.name || '',
       description: cleanDesc,
       duration_minutes: service.duration_minutes || 60,
-      price_ht: service.price_ht || 0,
-      price_ttc: service.price_ttc || 0,
-      pricing_unit: pricingUnit,
+      price_min: min,
+      price_max: max,
+      pricing_unit: unit,
     })
     setShowMotifModal(true)
   }
@@ -438,19 +458,16 @@ export default function DashboardPage() {
     if (!artisan || !motifForm.name) return
     setSavingMotif(true)
 
-    const unitLabel = motifForm.pricing_unit === 'm2' ? '[m²]'
-      : motifForm.pricing_unit === 'heure' ? '[heure]'
-      : motifForm.pricing_unit === 'unite' ? '[unité]'
-      : '[forfait]'
-    const description = `${motifForm.description || ''} ${unitLabel}`.trim()
+    const rangeTag = `[unit:${motifForm.pricing_unit}|min:${motifForm.price_min}|max:${motifForm.price_max}]`
+    const description = `${motifForm.description || ''} ${rangeTag}`.trim()
 
     const payload = {
       artisan_id: artisan.id,
       name: motifForm.name,
       description,
       duration_minutes: motifForm.duration_minutes,
-      price_ht: motifForm.price_ht,
-      price_ttc: motifForm.price_ttc || motifForm.price_ht * 1.2,
+      price_ht: motifForm.price_min,
+      price_ttc: motifForm.price_max,
       active: true,
     }
 
@@ -478,14 +495,16 @@ export default function DashboardPage() {
   }
 
   const getPricingUnit = (service: any) => {
-    if (service.description?.includes('[m²]')) return 'au m²'
-    if (service.description?.includes('[heure]')) return '/heure'
-    if (service.description?.includes('[unité]')) return '/unité'
-    return 'forfait'
+    const { unit } = parseServiceRange(service)
+    const labels: Record<string, string> = { m2: '/m²', ml: '/ml', arbre: '/arbre', tonne: '/t', heure: '/h', forfait: 'forfait', unite: '/unité' }
+    return labels[unit] || 'forfait'
   }
 
   const getCleanDescription = (service: any) => {
-    return (service.description || '').replace(/\s*\[(m²|heure|unité|forfait)\]\s*/g, '').trim()
+    return (service.description || '')
+      .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
+      .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
+      .trim()
   }
 
   // ═══ SETTINGS SAVE ═══
@@ -1365,7 +1384,7 @@ export default function DashboardPage() {
                       <tr className="bg-[#2C3E50] text-white">
                         <th className="text-left p-4 font-semibold text-sm">Motif</th>
                         <th className="text-left p-4 font-semibold text-sm">Durée</th>
-                        <th className="text-left p-4 font-semibold text-sm">Prix HT</th>
+                        <th className="text-left p-4 font-semibold text-sm">Fourchette tarifaire</th>
                         <th className="text-left p-4 font-semibold text-sm">Unité</th>
                         <th className="text-left p-4 font-semibold text-sm">Statut</th>
                         <th className="text-left p-4 font-semibold text-sm">Actions</th>
@@ -1381,7 +1400,7 @@ export default function DashboardPage() {
                             )}
                           </td>
                           <td className="p-4">{Math.floor(service.duration_minutes / 60)}h{service.duration_minutes % 60 > 0 ? String(service.duration_minutes % 60).padStart(2, '0') : ''}</td>
-                          <td className="p-4 font-bold">{formatPrice(service.price_ht)}</td>
+                          <td className="p-4 font-bold text-[#FFC107]">{getPriceRangeLabel(service)}</td>
                           <td className="p-4">
                             <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-semibold">{getPricingUnit(service)}</span>
                           </td>
@@ -1453,8 +1472,10 @@ export default function DashboardPage() {
                           {[
                             { value: 'forfait', label: '💰 Forfait', desc: 'Prix fixe par prestation' },
                             { value: 'm2', label: '📐 Au m²', desc: 'Prix au mètre carré' },
+                            { value: 'ml', label: '📏 Au ml', desc: 'Prix au mètre linéaire' },
                             { value: 'heure', label: '🕐 À l\'heure', desc: 'Prix horaire' },
-                            { value: 'unite', label: '📦 À l\'unité', desc: 'Prix par pièce/unité' },
+                            { value: 'arbre', label: '🌳 Par arbre', desc: 'Prix par arbre/palmier' },
+                            { value: 'tonne', label: '♻️ Par tonne', desc: 'Prix par tonne de déchets' },
                           ].map((opt) => (
                             <button key={opt.value}
                               onClick={() => setMotifForm({...motifForm, pricing_unit: opt.value})}
@@ -1465,30 +1486,27 @@ export default function DashboardPage() {
                           ))}
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-semibold mb-1">
-                            Prix HT (€) *
-                            <span className="text-gray-400 font-normal ml-1">
-                              {motifForm.pricing_unit === 'm2' ? '/m²' : motifForm.pricing_unit === 'heure' ? '/h' : motifForm.pricing_unit === 'unite' ? '/unité' : ''}
-                            </span>
-                          </label>
-                          <input type="number" value={motifForm.price_ht}
-                            onChange={(e) => {
-                              const ht = parseFloat(e.target.value) || 0
-                              setMotifForm({...motifForm, price_ht: ht, price_ttc: Math.round(ht * 1.2 * 100) / 100})
-                            }}
-                            step="0.01" min="0"
-                            className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">
+                          Fourchette de prix (€{motifForm.pricing_unit === 'm2' ? '/m²' : motifForm.pricing_unit === 'ml' ? '/ml' : motifForm.pricing_unit === 'heure' ? '/h' : motifForm.pricing_unit === 'arbre' ? '/arbre' : motifForm.pricing_unit === 'tonne' ? '/t' : ''})
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Prix minimum</label>
+                            <input type="number" value={motifForm.price_min}
+                              onChange={(e) => setMotifForm({...motifForm, price_min: parseFloat(e.target.value) || 0})}
+                              step="0.01" min="0" placeholder="0"
+                              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Prix maximum</label>
+                            <input type="number" value={motifForm.price_max}
+                              onChange={(e) => setMotifForm({...motifForm, price_max: parseFloat(e.target.value) || 0})}
+                              step="0.01" min="0" placeholder="0"
+                              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-semibold mb-1">Prix TTC (€)</label>
-                          <input type="number" value={motifForm.price_ttc}
-                            onChange={(e) => setMotifForm({...motifForm, price_ttc: parseFloat(e.target.value) || 0})}
-                            step="0.01" min="0"
-                            className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
-                          <p className="text-xs text-gray-400 mt-1">TVA 20% calculée auto</p>
-                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Laissez 0/0 pour "Sur devis"</p>
                       </div>
                       <div className="flex gap-3 pt-2">
                         <button onClick={saveMotif} disabled={!motifForm.name || savingMotif}

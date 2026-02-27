@@ -139,3 +139,24 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ mission: data })
 }
+
+// DELETE /api/syndic/missions?id=xxx — supprimer une mission
+export async function DELETE(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+
+  if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
+
+  const { error } = await supabaseAdmin
+    .from('syndic_missions')
+    .delete()
+    .eq('id', id)
+    .eq('cabinet_id', cabinetId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}

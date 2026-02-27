@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   if (!checkRateLimit(`syndic_artisans_get_${ip}`, 30, 60_000)) return rateLimitResponse()
 
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (!checkRateLimit(`syndic_artisans_post_${ip}`, 10, 60_000)) return rateLimitResponse()
 
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -166,7 +166,7 @@ export async function PATCH(request: NextRequest) {
   if (!checkRateLimit(`syndic_artisans_patch_${ip}`, 20, 60_000)) return rateLimitResponse()
 
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -200,7 +200,7 @@ export async function DELETE(request: NextRequest) {
   if (!checkRateLimit(`syndic_artisans_delete_${ip}`, 10, 60_000)) return rateLimitResponse()
 
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
