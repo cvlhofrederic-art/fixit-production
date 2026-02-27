@@ -732,11 +732,14 @@ function RechercheContent() {
       }
 
       const registeredList: Artisan[] = (artisanData || []).map((a) => {
-        // Extract city + postal code from bio (e.g. "basé à La Ciotat (13600)")
-        const cityMatch = (a.bio || '').match(/bas[ée]e?\s+[àa]\s+([^(.\n]+?)(?:\s*\((\d{5})\))?(?:\s*[.,]|\s*$)/i)
-        const extractedCity = cityMatch
-          ? cityMatch[2] ? `${cityMatch[1].trim()}, ${cityMatch[2]}` : cityMatch[1].trim()
-          : null
+        // Extract address from bio (e.g. "basé à La Ciotat — Bât B, Rés. l'Aurore, 13600 La Ciotat")
+        const addrMatch = (a.bio || '').match(/—\s*(.+?)(?:\.\s+[A-ZÀ-Ü]|<!--)/)
+        const simpleMatch = !addrMatch ? (a.bio || '').match(/bas[ée]e?\s+[àa]\s+([^(.\n]+?)(?:\s*\((\d{5})\))?(?:\s*[.,]|\s*$)/i) : null
+        const extractedCity = addrMatch
+          ? addrMatch[1].trim()
+          : simpleMatch
+            ? simpleMatch[2] ? `${simpleMatch[1].trim()}, ${simpleMatch[2]}` : simpleMatch[1].trim()
+            : null
         return {
           ...a,
           city: extractedCity,
