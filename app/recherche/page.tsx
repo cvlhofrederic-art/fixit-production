@@ -615,11 +615,6 @@ function ArtisanCard({
                   <span>{artisan.adresse || artisan.city}</span>
                 </div>
               )}
-              {artisan.hourly_rate && (
-                <div className="text-xs text-gray-500">
-                  A partir de {artisan.hourly_rate}&euro;/h
-                </div>
-              )}
             </div>
 
             {badges.length > 0 && (
@@ -638,7 +633,7 @@ function ArtisanCard({
           <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-100 pt-4 lg:pt-0 lg:pl-5">
             {isCatalogue ? (
               <div className="flex flex-col gap-3 h-full justify-center">
-                <p className="text-xs text-gray-500 font-medium">Artisan référencé à Marseille</p>
+                <p className="text-xs text-gray-500 font-medium">Artisan r&eacute;f&eacute;renc&eacute; &agrave; Marseille</p>
                 {artisan.telephone_pro && artisan.verified && (
                   <a
                     href={`tel:${artisan.telephone_pro}`}
@@ -647,24 +642,20 @@ function ArtisanCard({
                     📞 {artisan.telephone_pro}
                   </a>
                 )}
-                <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' Marseille')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
-                >
-                  🔍 Voir sur Google
-                </a>
                 <p className="text-[10px] text-gray-400 text-center">
                   {reviewCount} avis Google • {rating.toFixed(1)}/5
                 </p>
               </div>
             ) : (
-              <MiniWeeklyCalendar
-                artisanId={artisan.id}
-                availability={availability}
-                bookings={bookings}
-              />
+              <div className="flex flex-col gap-3 h-full justify-center">
+                <Link
+                  href={`/artisan/${artisan.id}`}
+                  className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 font-bold py-3 px-4 rounded-lg transition text-sm"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Prendre rendez-vous
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -740,10 +731,18 @@ function RechercheContent() {
         console.error('Erreur fetch artisans:', error)
       }
 
-      const registeredList: Artisan[] = (artisanData || []).map((a) => ({
-        ...a,
-        source: 'registered' as const,
-      }))
+      const registeredList: Artisan[] = (artisanData || []).map((a) => {
+        // Extract city + postal code from bio (e.g. "basé à La Ciotat (13600)")
+        const cityMatch = (a.bio || '').match(/bas[ée]e?\s+[àa]\s+([^(.\n]+?)(?:\s*\((\d{5})\))?(?:\s*[.,]|\s*$)/i)
+        const extractedCity = cityMatch
+          ? cityMatch[2] ? `${cityMatch[1].trim()}, ${cityMatch[2]}` : cityMatch[1].trim()
+          : null
+        return {
+          ...a,
+          city: extractedCity,
+          source: 'registered' as const,
+        }
+      })
 
       // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
       let catalogQuery = supabase
