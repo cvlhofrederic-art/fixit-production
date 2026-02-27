@@ -257,13 +257,13 @@ function getServiceEstimate(service: any, qty: string): { minVal: number; maxVal
 
 // Group services by detected category
 const SERVICE_CATEGORIES: { key: string; label: string; emoji: string; keywords: string[] }[] = [
+  { key: 'traitement', label: 'Traitements', emoji: '💊', keywords: ['traitement', 'phytosanitaire', 'charançon'] },
   { key: 'elagage', label: 'Élagage', emoji: '🌳', keywords: ['élagage', 'elagage', 'palmier'] },
   { key: 'abattage', label: 'Abattage & Dessouchage', emoji: '🪓', keywords: ['abattage', 'dessouchage', 'rognage', 'souche'] },
   { key: 'taille', label: 'Taille & Haies', emoji: '✂️', keywords: ['taille', 'haie', 'arbuste', 'rosier', 'fruitier'] },
   { key: 'pelouse', label: 'Pelouse & Gazon', emoji: '🌿', keywords: ['tonte', 'pelouse', 'gazon', 'scarification'] },
   { key: 'entretien', label: 'Entretien', emoji: '🧹', keywords: ['entretien', 'débroussaillage', 'debroussaillage', 'désherbage', 'desherbage', 'ramassage', 'feuille'] },
   { key: 'amenagement', label: 'Aménagement', emoji: '🏡', keywords: ['aménagement', 'amenagement', 'création', 'creation', 'plantation', 'massif', 'allée', 'allee', 'bordure', 'arrosage'] },
-  { key: 'traitement', label: 'Traitements', emoji: '💊', keywords: ['traitement', 'phytosanitaire', 'charançon'] },
   { key: 'evacuation', label: 'Évacuation & Nettoyage', emoji: '♻️', keywords: ['broyage', 'évacuation', 'evacuation', 'nettoyage de terrain', 'déchet'] },
 ]
 
