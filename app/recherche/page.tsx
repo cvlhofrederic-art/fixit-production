@@ -642,6 +642,14 @@ function ArtisanCard({
                     📞 {artisan.telephone_pro}
                   </a>
                 )}
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || 'Marseille'))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                >
+                  🔍 Voir sur Google
+                </a>
                 <p className="text-[10px] text-gray-400 text-center">
                   {reviewCount} avis Google • {rating.toFixed(1)}/5
                 </p>
@@ -655,6 +663,14 @@ function ArtisanCard({
                   <Calendar className="w-4 h-4" />
                   Prendre rendez-vous
                 </Link>
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.city || ''))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                >
+                  🔍 Voir sur Google
+                </a>
               </div>
             )}
           </div>
