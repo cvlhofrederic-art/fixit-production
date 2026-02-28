@@ -6194,9 +6194,39 @@ export default function SyndicDashboard() {
     }
   }, [])
 
+  // ── Helper : retrouver artisan local par nom (fuzzy match) ───────────────────
+  const findLocalArtisan = (name: string) => {
+    if (!name) return null
+    const n = name.toLowerCase().trim()
+    // Match exact
+    let found = artisans.find(a => a.nom?.toLowerCase() === n || `${a.prenom || ''} ${a.nom_famille || ''}`.toLowerCase().trim() === n)
+    // Match partiel (nom de famille ou prénom)
+    if (!found) {
+      const parts = n.split(/\s+/)
+      found = artisans.find(a => {
+        const full = `${a.prenom || ''} ${a.nom_famille || ''} ${a.nom || ''}`.toLowerCase()
+        return parts.every(p => full.includes(p))
+      })
+    }
+    // Match par inclusion
+    if (!found) found = artisans.find(a => a.nom?.toLowerCase().includes(n) || n.includes(a.nom?.toLowerCase() || ''))
+    return found || null
+  }
+
   // ── Exécution réelle des actions IA (écriture DB) ─────────────────────────────
   const executeIaAction = async (action: any, iaToken: string) => {
     try {
+      // Résolution artisan : enrichir l'action avec email + user_id depuis la liste locale
+      if (action.artisan && (action.type === 'create_mission' || action.type === 'assign_mission')) {
+        const localArtisan = findLocalArtisan(action.artisan)
+        if (localArtisan) {
+          if (!action.artisan_email) action.artisan_email = localArtisan.email
+          if (!action.artisan_user_id) action.artisan_user_id = localArtisan.artisan_user_id
+          // Utiliser le nom exact du système
+          action.artisan = localArtisan.nom || action.artisan
+        }
+      }
+
       if (action.type === 'create_mission') {
         // 1. Persister en base via POST /api/syndic/missions
         const res = await fetch('/api/syndic/missions', {
@@ -6216,13 +6246,14 @@ export default function SyndicDashboard() {
         if (!res.ok) throw new Error('Erreur création mission en base')
         const { mission } = await res.json()
 
-        // 2. Si artisan email + date → assigner sur son agenda
-        if (action.date_intervention && action.artisan_email) {
+        // 2. Si artisan + date → assigner sur son agenda
+        if (action.date_intervention && (action.artisan_email || action.artisan_user_id)) {
           const assignRes = await fetch('/api/syndic/assign-mission', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
             body: JSON.stringify({
-              artisan_email: action.artisan_email,
+              artisan_email: action.artisan_email || '',
+              artisan_user_id: action.artisan_user_id || null,
               artisan_name: action.artisan,
               description: action.description,
               type_travaux: action.type_travaux,
@@ -6233,7 +6264,7 @@ export default function SyndicDashboard() {
             }),
           })
           const d = await assignRes.json()
-          if (d.success) {
+          if (d.success && d.artisan_found) {
             setIaMessages(prev => [...prev, {
               role: 'assistant',
               content: `✅ **Mission envoyée sur l'agenda de ${action.artisan}** — Il a reçu une notification et la mission apparaît dans son planning.`,
@@ -6274,12 +6305,13 @@ export default function SyndicDashboard() {
         }
 
         // 2. Puis assigner sur l'agenda artisan (booking + notification)
-        if (action.artisan_email && action.date_intervention) {
+        if ((action.artisan_email || action.artisan_user_id) && action.date_intervention) {
           const assignRes = await fetch('/api/syndic/assign-mission', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
             body: JSON.stringify({
-              artisan_email: action.artisan_email,
+              artisan_email: action.artisan_email || '',
+              artisan_user_id: action.artisan_user_id || null,
               artisan_name: action.artisan,
               description: action.description,
               type_travaux: action.type_travaux,
@@ -6292,9 +6324,14 @@ export default function SyndicDashboard() {
           const d = await assignRes.json()
           const msg = d.artisan_found
             ? `✅ **Mission assignée !**\n\n📅 **${action.type_travaux || action.description}** — ${action.immeuble || action.lieu || ''}\n👤 **${action.artisan}** — ${new Date(action.date_intervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}\n\nNotification envoyée — la mission apparaît sur son agenda.`
-            : `⚠️ Mission créée en base mais **${action.artisan}** n'a pas de compte Vitfix. Ajoutez-le dans l'onglet Artisans pour la synchronisation agenda.`
+            : `⚠️ Mission créée en base. **${action.artisan}** n'a pas encore de compte Vitfix actif — la synchronisation agenda se fera automatiquement dès qu'il se connectera.`
           setIaMessages(prev => [...prev, { role: 'assistant', content: msg }])
-          speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}` : `Mission créée. L'artisan n'est pas encore sur Vitfix.`)
+          speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}` : `Mission créée et enregistrée.`)
+        } else if (!action.artisan_email && !action.artisan_user_id && action.artisan) {
+          setIaMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `✅ Mission créée en base. **${action.artisan}** n'est pas encore dans votre liste d'artisans — ajoutez-le dans l'onglet Artisans pour activer la synchronisation agenda.`,
+          }])
         }
 
         // 3. Refresh

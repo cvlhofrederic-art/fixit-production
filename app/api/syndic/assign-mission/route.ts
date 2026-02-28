@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const {
     artisan_email,
+    artisan_user_id: directUserId,
     artisan_name,
     description,
     type_travaux,
@@ -27,14 +28,25 @@ export async function POST(request: NextRequest) {
     notes = '',
   } = body
 
-  if (!artisan_email || !description || !date_intervention) {
-    return NextResponse.json({ error: 'artisan_email, description et date_intervention requis' }, { status: 400 })
+  if ((!artisan_email && !directUserId) || !description || !date_intervention) {
+    return NextResponse.json({ error: 'artisan_email ou artisan_user_id, description et date_intervention requis' }, { status: 400 })
   }
 
-  // 1. Trouver le compte artisan par email
-  const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
-  const artisanUser = users.find(u => u.email?.toLowerCase() === artisan_email.toLowerCase())
-  const artisanUserId: string | null = artisanUser?.id || null
+  // 1. Trouver le compte artisan — par user_id direct OU par email
+  let artisanUserId: string | null = null
+
+  if (directUserId) {
+    // Vérifier que le user_id existe
+    const { data: { user: directUser } } = await supabaseAdmin.auth.admin.getUserById(directUserId)
+    if (directUser) artisanUserId = directUser.id
+  }
+
+  if (!artisanUserId && artisan_email) {
+    // Fallback par email
+    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers()
+    const artisanUser = users.find(u => u.email?.toLowerCase() === artisan_email.toLowerCase())
+    artisanUserId = artisanUser?.id || null
+  }
 
   // 2. Trouver le profil artisan (pour artisan_id dans bookings)
   let artisanProfileId: string | null = null
