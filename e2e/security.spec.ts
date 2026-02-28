@@ -23,7 +23,7 @@ test.describe('Security Headers', () => {
 
     // Permissions policy
     expect(headers['permissions-policy']).toContain('camera=(self)')
-    expect(headers['permissions-policy']).toContain('microphone=()')
+    expect(headers['permissions-policy']).toContain('microphone=(self)')
 
     // CSP
     expect(headers['content-security-policy']).toContain("default-src 'self'")

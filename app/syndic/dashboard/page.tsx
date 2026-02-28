@@ -4980,6 +4980,15 @@ export default function SyndicDashboard() {
   const [iaSpeaking, setIaSpeaking] = useState(false)
   const iaRecognitionRef = useRef<any>(null)
   const iaSendTimerRef = useRef<any>(null)
+  // ── Voice V2 — états enrichis ──────────────────────────────────────────────
+  const [iaVoiceDuration, setIaVoiceDuration] = useState(0)
+  const [iaVoiceInterim, setIaVoiceInterim] = useState('')
+  const [iaVoiceHelp, setIaVoiceHelp] = useState(false)
+  const [iaVoiceSendTrigger, setIaVoiceSendTrigger] = useState<string | null>(null)
+  const [iaVoiceConfidence, setIaVoiceConfidence] = useState(0)
+  const [iaAvailableVoices, setIaAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
+  const iaVoiceDurationRef = useRef<any>(null)
+  const iaTranscriptRef = useRef('')
 
   useEffect(() => {
     // Vérifier support Web Speech API
@@ -4989,8 +4998,24 @@ export default function SyndicDashboard() {
         (window as any).webkitSpeechRecognition
       )
       setIaVoiceSupported(supported)
+
+      // Charger préférence TTS
+      try {
+        const savedPref = localStorage.getItem(`fixit_tts_enabled_${user?.id}`)
+        if (savedPref === 'true') setIaSpeechEnabled(true)
+      } catch {}
+
+      // Charger voix disponibles
+      if (window.speechSynthesis) {
+        const loadVoices = () => {
+          const voices = window.speechSynthesis.getVoices()
+          if (voices.length) setIaAvailableVoices(voices)
+        }
+        loadVoices()
+        window.speechSynthesis.onvoiceschanged = loadVoices
+      }
     }
-  }, [])
+  }, [user?.id])
 
   // ── Notifications in-app ──────────────────────────────────────────────────
   const [notifPanelOpen, setNotifPanelOpen] = useState(false)
@@ -5882,46 +5907,163 @@ export default function SyndicDashboard() {
     console.info(`[Max AI Audit] ${result.toUpperCase()}: ${actionType}`, actionData)
   }
 
-  // ── Synthèse vocale ───────────────────────────────────────────────────────────
+  // ── NLP Pré-traitement vocal — détection d'intention + normalisation ────────
+  const preprocessVoiceCommand = (transcript: string): { type: 'navigate' | 'ai_query'; text: string; page?: string } => {
+    const t = transcript.toLowerCase().trim()
+
+    // Navigation rapide (exécution instantanée, sans IA)
+    const navPatterns: [RegExp, string][] = [
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:missions?|interventions?)/, 'missions'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:alertes?|urgences?)/, 'alertes'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:artisans?|prestataires?)/, 'artisans'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:immeubles?|bâtiments?|résidences?)/, 'immeubles'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:budget|comptabilité|finances?|compta)/, 'facturation'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:documents?|courriers?)/, 'documents'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:accueil|tableau de bord|dashboard)/, 'accueil'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:échéances?|réglementaire|contrôles?)/, 'reglementaire'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:canal|messagerie|messages?)/, 'canal'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:planning|agenda|calendrier)/, 'planning'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:paramètres?|réglages?|settings?)/, 'parametres'],
+      [/(?:va|aller|montre|affiche|ouvre|accède)[^\n]*(?:équipe|collaborateurs?|personnel)/, 'equipe'],
+    ]
+
+    for (const [pattern, page] of navPatterns) {
+      if (pattern.test(t)) {
+        return { type: 'navigate', text: transcript, page }
+      }
+    }
+
+    // Normalisation des erreurs STT courantes en gestion immobilière
+    let normalized = transcript
+      // Noms propres fréquents déformés par le STT
+      .replace(/\ble?\s*port\b/gi, 'Lepore')
+      .replace(/\bpar\s*corot?\b/gi, 'Parc Corot')
+      .replace(/\bla\s*cacia[s]?\b/gi, 'Les Acacias')
+      // Termes métier
+      .replace(/\bpart[ie]?\s*commun[es]?\b/gi, 'partie commune')
+      .replace(/\bélagage?\b/gi, 'élagage')
+      .replace(/\bplombe?rie?\b/gi, 'plomberie')
+      .replace(/\bélectricit[ée]?\b/gi, 'électricité')
+      .replace(/\bserrur[ie]+r?\b/gi, 'serrurerie')
+      .replace(/\bdégâts?\s*des?\s*eaux?\b/gi, 'dégât des eaux')
+      .replace(/\bchauffe?\s*eau\b/gi, 'chauffe-eau')
+      .replace(/\bdigicode?\b/gi, 'digicode')
+      // Priorités parlées
+      .replace(/\b(?:très\s+)?urgent[e]?\b/gi, 'urgente')
+      .replace(/\bnormal[e]?\b/gi, 'normale')
+      // Dates parlées (le STT écrit souvent le mot au lieu du chiffre)
+      .replace(/\bpremier\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\b/gi, '1er $1')
+      .replace(/\bdemain\b/gi, new Date(Date.now() + 86400000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))
+      .replace(/\baprès[\s-]demain\b/gi, new Date(Date.now() + 172800000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))
+      .replace(/\blundi\s+prochain\b/gi, (() => {
+        const d = new Date(); d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7 || 7))
+        return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      })())
+
+    return { type: 'ai_query', text: normalized }
+  }
+
+  // ── Synthèse vocale V2 — voix HD + chunked speech ─────────────────────────────
   const speakResponse = (text: string) => {
     if (!iaSpeechEnabled || typeof window === 'undefined' || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
+
     // Nettoyer le markdown pour la parole
     const cleanText = text
       .replace(/##ACTION##[\s\S]*?##/g, '')
       .replace(/\*\*(.*?)\*\*/g, '$1')
       .replace(/\*(.*?)\*/g, '$1')
       .replace(/#+\s/g, '')
-      .replace(/\|[^\n]+\|/g, '') // enlever tableaux
+      .replace(/\|[^\n]+\|/g, '')
       .replace(/[-•]\s/g, '')
+      .replace(/✅|❌|🔔|⚡|📋|📍|👤|🔧|📅|🚫|🔴/g, '')
       .replace(/\n{2,}/g, '. ')
+      .replace(/\s{2,}/g, ' ')
       .trim()
-      .substring(0, 500) // limiter pour ne pas lire trop longtemps
-    const utterance = new SpeechSynthesisUtterance(cleanText)
-    utterance.lang = 'fr-FR'
-    utterance.rate = 1.05
-    utterance.pitch = 1.0
-    // Chercher une voix française
-    const voices = window.speechSynthesis.getVoices()
-    const frVoice = voices.find(v => v.lang.startsWith('fr')) || null
-    if (frVoice) utterance.voice = frVoice
-    utterance.onstart = () => setIaSpeaking(true)
-    utterance.onend = () => setIaSpeaking(false)
-    utterance.onerror = () => setIaSpeaking(false)
-    window.speechSynthesis.speak(utterance)
+
+    if (!cleanText) return
+
+    // Sélection de voix optimale (préférer les voix HD/Natural)
+    const selectBestVoice = (): SpeechSynthesisVoice | null => {
+      const voices = iaAvailableVoices.length ? iaAvailableVoices : window.speechSynthesis.getVoices()
+      const frVoices = voices.filter(v => v.lang.startsWith('fr'))
+      if (!frVoices.length) return null
+
+      // Priorité : Google HD > Google > Premium > Enhanced > Default
+      const priorities = ['Google', 'Premium', 'Enhanced', 'Natural', 'Amelie', 'Thomas']
+      for (const prio of priorities) {
+        const match = frVoices.find(v => v.name.includes(prio))
+        if (match) return match
+      }
+      // Préférer les voix locales (moins de latence)
+      return frVoices.find(v => v.localService) || frVoices[0]
+    }
+
+    // Chunked speech : découper en phrases pour les longs textes
+    const chunks = cleanText.length > 300
+      ? cleanText.match(/[^.!?]+[.!?]+\s*/g) || [cleanText]
+      : [cleanText]
+
+    // Limiter à 800 caractères max total
+    let totalChars = 0
+    const limitedChunks: string[] = []
+    for (const chunk of chunks) {
+      if (totalChars + chunk.length > 800) break
+      limitedChunks.push(chunk.trim())
+      totalChars += chunk.length
+    }
+    if (!limitedChunks.length) limitedChunks.push(cleanText.substring(0, 800))
+
+    const selectedVoice = selectBestVoice()
+
+    limitedChunks.forEach((chunk, idx) => {
+      const utterance = new SpeechSynthesisUtterance(chunk)
+      utterance.lang = 'fr-FR'
+      utterance.rate = 1.05
+      utterance.pitch = 1.0
+      if (selectedVoice) utterance.voice = selectedVoice
+
+      if (idx === 0) utterance.onstart = () => setIaSpeaking(true)
+      if (idx === limitedChunks.length - 1) {
+        utterance.onend = () => setIaSpeaking(false)
+        utterance.onerror = () => setIaSpeaking(false)
+      }
+
+      window.speechSynthesis.speak(utterance)
+    })
   }
 
-  // ── Reconnaissance vocale Web Speech API ─────────────────────────────────────
+  // Sauvegarder préférence TTS
+  const toggleSpeechEnabled = () => {
+    setIaSpeechEnabled(prev => {
+      const next = !prev
+      try { localStorage.setItem(`fixit_tts_enabled_${user?.id}`, String(next)) } catch {}
+      if (!next && iaSpeaking) window.speechSynthesis?.cancel()
+      return next
+    })
+  }
+
+  // ── Reconnaissance vocale V2 — latence optimisée + NLP + auto-restart ────────
   const startVoiceRecognition = () => {
     if (typeof window === 'undefined') return
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
 
-    // Stop si déjà actif
+    // Toggle off si déjà actif
     if (iaVoiceActive && iaRecognitionRef.current) {
       iaRecognitionRef.current.stop()
       setIaVoiceActive(false)
+      clearInterval(iaVoiceDurationRef.current)
+      setIaVoiceDuration(0)
+      setIaVoiceInterim('')
+      setIaVoiceConfidence(0)
       return
+    }
+
+    // Couper la synthèse vocale en cours (écouter > parler)
+    if (iaSpeaking && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+      setIaSpeaking(false)
     }
 
     const recognition = new SpeechRecognition()
@@ -5930,45 +6072,127 @@ export default function SyndicDashboard() {
     recognition.interimResults = true
     recognition.maxAlternatives = 3
 
-    recognition.onstart = () => setIaVoiceActive(true)
+    let finalTranscript = ''
+    let restartCount = 0
+    const MAX_RESTARTS = 3
+
+    recognition.onstart = () => {
+      setIaVoiceActive(true)
+      setIaVoiceDuration(0)
+      setIaVoiceInterim('')
+      setIaVoiceConfidence(0)
+      iaTranscriptRef.current = ''
+      // Timer durée d'enregistrement
+      clearInterval(iaVoiceDurationRef.current)
+      iaVoiceDurationRef.current = setInterval(() => {
+        setIaVoiceDuration(prev => prev + 1)
+      }, 1000)
+    }
 
     recognition.onresult = (event: any) => {
-      const results = Array.from(event.results as any[])
-      const transcript = results.map((r: any) => r[0].transcript).join('')
-      setIaInput(transcript)
+      let interim = ''
+      finalTranscript = ''
 
-      // Si résultat final → envoyer automatiquement après 600ms
-      if ((event.results[event.results.length - 1] as any).isFinal) {
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript
+        } else {
+          interim += event.results[i][0].transcript
+        }
+      }
+
+      const displayText = (finalTranscript + (interim ? ' ' + interim : '')).trim()
+      setIaInput(displayText)
+      setIaVoiceInterim(interim)
+      iaTranscriptRef.current = displayText
+
+      // Confidence (0-1)
+      const lastResult = event.results[event.results.length - 1]
+      if (lastResult?.[0]?.confidence) {
+        setIaVoiceConfidence(Math.round(lastResult[0].confidence * 100))
+      }
+
+      // Résultat final → auto-send après 800ms de silence
+      if (lastResult?.isFinal && finalTranscript.trim()) {
         clearTimeout(iaSendTimerRef.current)
         iaSendTimerRef.current = setTimeout(() => {
+          const text = iaTranscriptRef.current.trim()
+          if (!text) return
+
+          // Stop recognition
+          try { recognition.stop() } catch {}
+          clearInterval(iaVoiceDurationRef.current)
           setIaVoiceActive(false)
-          // Déclencher via ref pour avoir la dernière valeur de iaInput
-          setIaInput(prev => {
-            if (prev.trim()) {
-              // Envoyer le message avec la transcription
-              setTimeout(() => {
-                const btn = document.getElementById('ia-send-btn')
-                if (btn) btn.click()
-              }, 50)
-            }
-            return prev
-          })
-        }, 1500)
+          setIaVoiceDuration(0)
+          setIaVoiceInterim('')
+          setIaVoiceConfidence(0)
+
+          // NLP pré-traitement
+          const processed = preprocessVoiceCommand(text)
+
+          if (processed.type === 'navigate' && processed.page) {
+            // Navigation instantanée — pas besoin de l'IA
+            setPage(processed.page as Page)
+            setIaInput('')
+            setIaMessages(prev => [...prev,
+              { role: 'user', content: `🎙️ ${text}` },
+              { role: 'assistant', content: `✅ Navigation vers **${processed.page}**`, action: { type: 'navigate', page: processed.page } },
+            ])
+          } else {
+            // Envoyer à Max via le trigger (évite les problèmes de closure)
+            setIaVoiceSendTrigger(processed.text)
+          }
+        }, 800)
       }
     }
 
     recognition.onerror = (event: any) => {
       console.warn('Speech recognition error:', event.error)
+
+      // Auto-restart sur timeout "no-speech" (micro ouvert mais pas de voix)
+      if (event.error === 'no-speech' && restartCount < MAX_RESTARTS) {
+        restartCount++
+        try { recognition.start() } catch {}
+        return
+      }
+
+      // Micro refusé → désactiver la feature
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setIaVoiceSupported(false)
+      }
+
       setIaVoiceActive(false)
+      clearInterval(iaVoiceDurationRef.current)
+      setIaVoiceDuration(0)
+      setIaVoiceInterim('')
+      setIaVoiceConfidence(0)
     }
 
     recognition.onend = () => {
       setIaVoiceActive(false)
+      clearInterval(iaVoiceDurationRef.current)
+      setIaVoiceDuration(0)
     }
 
     iaRecognitionRef.current = recognition
-    recognition.start()
+    try {
+      recognition.start()
+    } catch (err) {
+      console.error('Failed to start voice recognition:', err)
+      setIaVoiceActive(false)
+    }
   }
+
+  // Cleanup : arrêter la reconnaissance si le composant démonte
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    return () => {
+      if (iaRecognitionRef.current) try { iaRecognitionRef.current.stop() } catch {}
+      clearInterval(iaVoiceDurationRef.current)
+      clearTimeout(iaSendTimerRef.current)
+      if (window.speechSynthesis) window.speechSynthesis.cancel()
+    }
+  }, [])
 
   // ── Exécution réelle des actions IA (écriture DB) ─────────────────────────────
   const executeIaAction = async (action: any, iaToken: string) => {
@@ -6233,6 +6457,16 @@ export default function SyndicDashboard() {
     }
     setIaLoading(false)
   }
+
+  // ── Voice send trigger — évite les closures stales dans recognition.onresult ─
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (iaVoiceSendTrigger) {
+      setIaVoiceSendTrigger(null)
+      setIaInput('')
+      sendIaMessage(iaVoiceSendTrigger)
+    }
+  }, [iaVoiceSendTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Confirmation / Annulation action IA ──────────────────────────────────────
   const handleConfirmIaAction = async () => {
@@ -7542,10 +7776,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {/* Toggle synthèse vocale */}
                     <button
-                      onClick={() => {
-                        setIaSpeechEnabled(p => !p)
-                        if (iaSpeaking) window.speechSynthesis?.cancel()
-                      }}
+                      onClick={toggleSpeechEnabled}
                       title={iaSpeechEnabled ? 'Désactiver voix Max' : 'Activer voix Max'}
                       className={`p-2 rounded-lg transition text-lg ${iaSpeechEnabled ? 'bg-white/20 text-white' : 'text-purple-400 hover:text-purple-200'}`}
                     >
@@ -7566,17 +7797,65 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   </div>
                 </div>
 
-                {/* ── Bandeau vocal actif ── */}
+                {/* ── Bandeau vocal actif V2 ── */}
                 {iaVoiceActive && (
-                  <div className="bg-red-50 border-b border-red-100 px-4 py-2.5 flex items-center gap-3">
-                    <div className="flex gap-1 items-center">
-                      {[0, 1, 2, 3, 4].map(i => (
-                        <div key={i} className="w-1 bg-red-500 rounded-full animate-pulse" style={{ height: `${8 + (i % 3) * 6}px`, animationDelay: `${i * 0.1}s` }} />
-                      ))}
+                  <div className="bg-gradient-to-r from-red-50 to-orange-50 border-b border-red-200 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {/* Waveform animée */}
+                      <div className="flex gap-0.5 items-center flex-shrink-0">
+                        {[0, 1, 2, 3, 4, 5, 6].map(i => (
+                          <div
+                            key={i}
+                            className="w-1 bg-red-500 rounded-full"
+                            style={{
+                              height: `${6 + Math.sin((Date.now() / 200) + i) * 8 + (i % 3) * 4}px`,
+                              animation: `pulse 0.${4 + (i % 3)}s ease-in-out infinite alternate`,
+                              animationDelay: `${i * 0.08}s`,
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-red-700 text-sm font-semibold">🎙️ Max vous écoute</span>
+                          <span className="text-red-400 text-xs font-mono bg-red-100 px-1.5 py-0.5 rounded">
+                            {String(Math.floor(iaVoiceDuration / 60)).padStart(2, '0')}:{String(iaVoiceDuration % 60).padStart(2, '0')}
+                          </span>
+                          {iaVoiceConfidence > 0 && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${iaVoiceConfidence > 80 ? 'bg-green-100 text-green-700' : iaVoiceConfidence > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600'}`}>
+                              {iaVoiceConfidence}%
+                            </span>
+                          )}
+                        </div>
+                        {/* Transcription live */}
+                        <div className="mt-1 text-sm truncate">
+                          {iaInput ? (
+                            <>
+                              <span className="text-gray-800">{iaInput.replace(iaVoiceInterim, '')}</span>
+                              {iaVoiceInterim && <span className="text-gray-400 italic">{iaVoiceInterim}</span>}
+                            </>
+                          ) : (
+                            <span className="text-red-400 italic text-xs">Parlez maintenant...</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bouton stop */}
+                      <button
+                        onClick={() => {
+                          iaRecognitionRef.current?.stop()
+                          setIaVoiceActive(false)
+                          clearInterval(iaVoiceDurationRef.current)
+                          setIaVoiceDuration(0)
+                          setIaVoiceInterim('')
+                          setIaVoiceConfidence(0)
+                        }}
+                        className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1"
+                      >
+                        ⏹ Arrêter
+                      </button>
                     </div>
-                    <span className="text-red-700 text-sm font-medium">🎙️ Max vous écoute...</span>
-                    <span className="text-red-500 text-xs">{iaInput || 'Parlez maintenant'}</span>
-                    <button onClick={() => { iaRecognitionRef.current?.stop(); setIaVoiceActive(false) }} className="ml-auto text-red-500 hover:text-red-700 text-xs">Annuler</button>
                   </div>
                 )}
 
@@ -7706,21 +7985,65 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   ))}
                 </div>
 
-                {/* ── Input + Micro ── */}
+                {/* ── Voice Help Overlay ── */}
+                {iaVoiceHelp && (
+                  <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-20 rounded-2xl p-6 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-gray-800 text-base">🎙️ Commandes vocales Fixy</h3>
+                      <button onClick={() => setIaVoiceHelp(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                    </div>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <h4 className="font-semibold text-purple-700 mb-1">📋 Créer une mission</h4>
+                        <p className="text-gray-600 italic">&quot;Crée une mission plomberie pour Dupont, Résidence Les Acacias, urgente&quot;</p>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-purple-700 mb-1">👷 Assigner un artisan</h4>
+                        <p className="text-gray-600 italic">&quot;Assigne Lepore Sébastien, élagage, 10 mars, Parc Corot&quot;</p>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-purple-700 mb-1">✏️ Mettre à jour</h4>
+                        <p className="text-gray-600 italic">&quot;Passe la mission de Lepore en terminée&quot;</p>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-purple-700 mb-1">🔔 Créer une alerte</h4>
+                        <p className="text-gray-600 italic">&quot;Crée une alerte haute pour fuite dans le parking&quot;</p>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-purple-700 mb-1">🧭 Navigation rapide</h4>
+                        <p className="text-gray-600 italic">&quot;Va aux missions&quot; · &quot;Montre les alertes&quot; · &quot;Ouvre le budget&quot;</p>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-purple-700 mb-1">📄 Générer un document</h4>
+                        <p className="text-gray-600 italic">&quot;Rédige un courrier de convocation AG&quot;</p>
+                      </div>
+                      <div className="pt-2 border-t border-gray-200">
+                        <p className="text-gray-500 text-xs">💡 Les commandes de navigation sont exécutées instantanément. Les missions et alertes demandent confirmation avant exécution.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Input + Micro V2 ── */}
                 <div className="p-4 border-t border-gray-100 bg-white">
                   <div className="flex gap-2">
-                    {/* Bouton micro */}
+                    {/* Bouton micro avec état enrichi */}
                     {iaVoiceSupported && (
                       <button
                         onClick={startVoiceRecognition}
                         title={iaVoiceActive ? 'Arrêter l\'écoute' : 'Parler à Max'}
-                        className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition text-lg ${
+                        className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all text-lg relative ${
                           iaVoiceActive
-                            ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-200'
-                            : 'bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-purple-600'
+                            ? 'bg-red-500 text-white shadow-lg shadow-red-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-purple-600 hover:shadow-md'
                         }`}
                       >
-                        🎙️
+                        {iaVoiceActive ? (
+                          <>
+                            <span className="absolute inset-0 rounded-xl bg-red-400 animate-ping opacity-30" />
+                            <span className="relative">⏹</span>
+                          </>
+                        ) : '🎙️'}
                       </button>
                     )}
                     <div className="flex-1 relative">
@@ -7729,19 +8052,25 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         type="text"
                         value={iaInput}
                         onChange={e => setIaInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !iaLoading && sendIaMessage()}
-                        placeholder={iaVoiceActive ? '🎙️ Parlez maintenant...' : 'Posez une question à Max ou dites une action...'}
-                        className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-purple-400 focus:outline-none text-sm pr-10"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey && !iaLoading && !iaPendingAction) sendIaMessage()
+                        }}
+                        placeholder={iaVoiceActive ? '🎙️ Parlez maintenant — envoi auto après silence...' : 'Posez une question à Max ou dites une action...'}
+                        className={`w-full px-4 py-2.5 border-2 rounded-xl focus:outline-none text-sm pr-10 transition ${
+                          iaVoiceActive
+                            ? 'border-red-300 bg-red-50 text-red-800 focus:border-red-400'
+                            : 'border-gray-200 focus:border-purple-400'
+                        }`}
                         disabled={iaLoading || !!iaPendingAction}
                       />
-                      {iaInput && (
+                      {iaInput && !iaVoiceActive && (
                         <button onClick={() => setIaInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 text-sm">×</button>
                       )}
                     </div>
                     <button
                       id="ia-send-btn"
                       onClick={() => sendIaMessage()}
-                      disabled={iaLoading || !iaInput.trim() || !!iaPendingAction}
+                      disabled={iaLoading || !iaInput.trim() || !!iaPendingAction || iaVoiceActive}
                       className="flex-shrink-0 w-11 h-11 bg-purple-600 hover:bg-purple-700 text-white rounded-xl flex items-center justify-center font-bold text-lg transition disabled:opacity-40"
                     >
                       {iaLoading ? (
@@ -7749,9 +8078,24 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                       ) : '↑'}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1.5 text-center">
-                    {iaVoiceSupported ? '🎙️ Commande vocale disponible · ' : ''}Max a accès à toutes vos données · Les actions sont exécutées en temps réel
-                  </p>
+                  <div className="flex items-center justify-between mt-1.5">
+                    <p className="text-xs text-gray-500">
+                      {iaVoiceActive
+                        ? '🔴 Enregistrement en cours — envoi automatique après 0.8s de silence'
+                        : iaVoiceSupported
+                          ? '🎙️ Commande vocale disponible · Max exécute les actions en temps réel'
+                          : 'Max a accès à toutes vos données · Les actions sont exécutées en temps réel'}
+                    </p>
+                    {iaVoiceSupported && !iaVoiceActive && (
+                      <button
+                        onClick={() => setIaVoiceHelp(p => !p)}
+                        className="text-xs text-purple-500 hover:text-purple-700 transition flex-shrink-0 ml-2"
+                        title="Aide commandes vocales"
+                      >
+                        ❓ Aide
+                      </button>
+                    )}
+                  </div>
                 </div>
 
               </div>
