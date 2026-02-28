@@ -154,10 +154,24 @@ function getWeekDays(weekStart: Date): Date[] {
   return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
 }
 
-function formatWeekRange(weekStart: Date): string {
-  const end = addDays(weekStart, 4)
-  const startStr = format(weekStart, 'd MMM', { locale: fr })
-  const endStr = format(end, 'd MMM', { locale: fr })
+// Retourne les N prochains jours ouvrés (lun-ven) à partir d'une date
+function getNextWorkingDays(startDate: Date, count: number): Date[] {
+  const days: Date[] = []
+  let current = startDate
+  while (days.length < count) {
+    const dow = current.getDay()
+    if (dow >= 1 && dow <= 5) { // Lun-Ven
+      days.push(current)
+    }
+    current = addDays(current, 1)
+  }
+  return days
+}
+
+function formatWeekRange(days: Date[]): string {
+  if (days.length === 0) return ''
+  const startStr = format(days[0], 'd MMM', { locale: fr })
+  const endStr = format(days[days.length - 1], 'd MMM', { locale: fr })
   return `${startStr} - ${endStr}`
 }
 
@@ -363,19 +377,48 @@ function MiniWeeklyCalendar({
   bookings: Booking[]
 }) {
   const today = startOfDay(new Date())
-  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 })
-  const [weekStart, setWeekStart] = useState<Date>(currentWeekStart)
+  // Calendrier démarre à aujourd'hui (style Doctolib/Calendly), pas au lundi de la semaine
+  const [weekStart, setWeekStart] = useState<Date>(today)
 
-  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart])
+  // Fetch absences pour bloquer les jours sur le calendrier client
+  const [absences, setAbsences] = useState<{ start_date: string; end_date: string }[]>([])
+  useEffect(() => {
+    fetch(`/api/artisan-absences?artisan_id=${artisanId}`)
+      .then(r => r.json())
+      .then(res => setAbsences(res.data || []))
+      .catch(() => {})
+  }, [artisanId])
 
-  const canGoPrev = !isBefore(weekStart, addDays(currentWeekStart, 1))
+  // Helper : est-ce qu'une date tombe dans une absence ?
+  const isAbsent = useCallback((dateStr: string) => {
+    return absences.some(a => dateStr >= a.start_date && dateStr <= a.end_date)
+  }, [absences])
 
-  const goNextWeek = () => setWeekStart(addWeeks(weekStart, 1))
+  // Affiche 5 jours ouvrés à partir de weekStart
+  const weekDays = useMemo(() => getNextWorkingDays(weekStart, 5), [weekStart])
+
+  // Impossible de reculer avant aujourd'hui
+  const canGoPrev = isBefore(today, weekStart)
+
+  // Avancer/reculer de 5 jours ouvrés
+  const goNextWeek = () => {
+    const lastDay = weekDays[weekDays.length - 1]
+    setWeekStart(addDays(lastDay, 1))
+  }
   const goPrevWeek = () => {
-    if (canGoPrev) setWeekStart(subWeeks(weekStart, 1))
+    if (!canGoPrev) return
+    // Reculer de 5 jours ouvrés, mais pas avant today
+    let candidate = addDays(weekStart, -1)
+    const prevDays: Date[] = []
+    while (prevDays.length < 5 && !isBefore(candidate, today)) {
+      const dow = candidate.getDay()
+      if (dow >= 1 && dow <= 5) prevDays.unshift(candidate)
+      candidate = addDays(candidate, -1)
+    }
+    setWeekStart(prevDays.length > 0 ? prevDays[0] : today)
   }
 
-  // Build slots for each day
+  // Build slots for each day — bloque les jours passés ET les jours d'absence
   const daySlotsMap = useMemo(() => {
     const map: Record<string, string[]> = {}
     for (const day of weekDays) {
@@ -385,6 +428,9 @@ function MiniWeeklyCalendar({
 
       if (isBefore(day, today) && !isSameDay(day, today)) {
         map[dateStr] = []
+      } else if (isAbsent(dateStr)) {
+        // Jour d'absence → aucun créneau disponible
+        map[dateStr] = []
       } else if (avail) {
         map[dateStr] = generateTimeSlots(avail, dateStr, bookings)
       } else {
@@ -392,7 +438,7 @@ function MiniWeeklyCalendar({
       }
     }
     return map
-  }, [weekDays, availability, bookings, today])
+  }, [weekDays, availability, bookings, today, isAbsent])
 
   const MAX_VISIBLE_SLOTS = 3
 
@@ -409,7 +455,7 @@ function MiniWeeklyCalendar({
           <ChevronLeft className="w-4 h-4" />
         </button>
         <span className="text-xs font-semibold text-gray-600">
-          {formatWeekRange(weekStart)}
+          {formatWeekRange(weekDays)}
         </span>
         <button
           onClick={goNextWeek}

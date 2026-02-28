@@ -163,6 +163,9 @@ export default function DevisFactureForm({
   const [docValidity, setDocValidity] = useState(initialData?.docValidity || 30)
   const [prestationDate, setPrestationDate] = useState(initialData?.prestationDate || '')
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
+  const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
+  const [executionDelayType, setExecutionDelayType] = useState<'ouvres' | 'calendaires'>(initialData?.executionDelayType || 'ouvres')
+  const [blockingAgenda, setBlockingAgenda] = useState(false)
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || 'Virement bancaire')
   const [paymentDue, setPaymentDue] = useState(dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
@@ -1021,6 +1024,66 @@ export default function DevisFactureForm({
     }
   }
 
+  // ─── Valider le devis ET bloquer automatiquement l'agenda ───
+  const handleValidateAndBlock = async () => {
+    if (!artisan) return
+    if (!prestationDate) {
+      alert('⚠️ Veuillez renseigner une date de prestation pour bloquer l\'agenda.')
+      return
+    }
+    setBlockingAgenda(true)
+    try {
+      // Calculer la date de fin en fonction du délai
+      let endDate = prestationDate
+      if (executionDelayDays > 0) {
+        const start = new Date(prestationDate)
+        if (executionDelayType === 'calendaires') {
+          const end = new Date(start)
+          end.setDate(end.getDate() + executionDelayDays - 1)
+          endDate = end.toISOString().split('T')[0]
+        } else {
+          // Jours ouvrés : avancer en sautant weekends
+          let count = 0
+          const current = new Date(start)
+          while (count < executionDelayDays - 1) {
+            current.setDate(current.getDate() + 1)
+            const dow = current.getDay()
+            if (dow >= 1 && dow <= 5) count++
+          }
+          endDate = current.toISOString().split('T')[0]
+        }
+      }
+      // Créer l'absence via l'API
+      const label = `${clientName || 'Client'}${docTitle ? ' - ' + docTitle : ''}`
+      const res = await fetch('/api/artisan-absences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artisan_id: artisan.id,
+          start_date: prestationDate,
+          end_date: endDate,
+          reason: 'Intervention devis',
+          label,
+          source: 'devis',
+        }),
+      })
+      if (!res.ok) throw new Error('Erreur création absence')
+      // Sauvegarder le devis comme validé
+      const data = buildData()
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
+      docs.push({ ...data, savedAt: new Date().toISOString(), status: 'valide' })
+      localStorage.setItem(`fixit_documents_${artisan?.id || 'default'}`, JSON.stringify(docs))
+      onSave?.(data)
+      alert(`✅ Devis validé ! L'agenda est bloqué du ${prestationDate} au ${endDate}.\n📅 ${label}`)
+      onBack()
+    } catch (err) {
+      console.error('Erreur blocage agenda:', err)
+      alert('❌ Erreur lors du blocage de l\'agenda. Le devis a été sauvegardé mais l\'agenda n\'a pas été mis à jour.')
+    } finally {
+      setBlockingAgenda(false)
+    }
+  }
+
   const handleValidateAndSend = () => {
     if (!allCompliant) {
       const missing: string[] = []
@@ -1603,10 +1666,28 @@ export default function DevisFactureForm({
               </div>
               {docType === 'devis' && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Délai d&apos;exécution <span className="text-red-500">*</span></label>
-                  <input type="text" value={executionDelay} onChange={(e) => setExecutionDelay(e.target.value)}
-                    placeholder="Ex: 5 jours ouvrés après acceptation"
-                    className={normalFieldClass} />
+                  <label className="block text-sm font-medium text-gray-600 mb-2">Délai d&apos;exécution <span className="text-red-500">*</span></label>
+                  <div className="flex gap-3 items-center">
+                    <input type="number" min="0" value={executionDelayDays || ''} onChange={(e) => {
+                      const v = parseInt(e.target.value) || 0
+                      setExecutionDelayDays(v)
+                      setExecutionDelay(`${v} jour${v > 1 ? 's' : ''} ${executionDelayType === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
+                    }}
+                      placeholder="Nb"
+                      className="w-20 p-3 border border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20 text-center" />
+                    <select value={executionDelayType} onChange={(e) => {
+                      const t = e.target.value as 'ouvres' | 'calendaires'
+                      setExecutionDelayType(t)
+                      if (executionDelayDays > 0) setExecutionDelay(`${executionDelayDays} jour${executionDelayDays > 1 ? 's' : ''} ${t === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
+                    }}
+                      className="flex-1 p-3 border border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20">
+                      <option value="ouvres">jours ouvrés</option>
+                      <option value="calendaires">jours calendaires</option>
+                    </select>
+                  </div>
+                  {executionDelayDays > 0 && (
+                    <p className="text-xs text-gray-500 mt-1.5">→ {executionDelay} après acceptation du devis</p>
+                  )}
                 </div>
               )}
 
@@ -2020,6 +2101,19 @@ export default function DevisFactureForm({
                     <><span>📄</span> Télécharger PDF</>
                   )}
                 </button>
+                {docType === 'devis' && prestationDate && (
+                  <button
+                    onClick={handleValidateAndBlock}
+                    disabled={blockingAgenda}
+                    className="w-full p-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    {blockingAgenda ? (
+                      <><span className="inline-block animate-spin">⏳</span> Blocage en cours...</>
+                    ) : (
+                      <><span>📅</span> Valider et bloquer agenda</>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={handleValidateAndSend}
                   disabled={!allCompliant}

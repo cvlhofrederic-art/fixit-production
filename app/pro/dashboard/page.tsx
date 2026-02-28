@@ -361,16 +361,29 @@ export default function DashboardPage() {
   const createRdvManual = async () => {
     if (!artisan || !newRdv.date || !newRdv.time || !newRdv.service_id) return
     const service = services.find((s) => s.id === newRdv.service_id)
-    const status = autoAccept ? 'confirmed' : 'pending'
+    // RDV manuels = auto-confirmés (l'artisan crée son propre RDV)
+    const status = 'confirmed'
+    // Durée : priorité au dropdown manuel, sinon durée du service, sinon 60min
+    const durationMap: Record<string, number> = {
+      '30': 30, '45': 45, '60': 60, '90': 90, '120': 120, '180': 180, '240': 240, '480': 480
+    }
+    const manualDuration = newRdv.duration ? durationMap[newRdv.duration] : null
+    const durationMinutes = manualDuration || service?.duration_minutes || 60
+    // Notes enrichies avec téléphone si renseigné
+    let notesStr = ''
+    if (newRdv.client_name) notesStr += `Client: ${newRdv.client_name}`
+    if (newRdv.phone) notesStr += ` | Tél: ${newRdv.phone}`
+    if (newRdv.notes) notesStr += notesStr ? ` | ${newRdv.notes}` : newRdv.notes
     const { data, error } = await supabase.from('bookings').insert({
       artisan_id: artisan.id,
       service_id: newRdv.service_id,
       status,
+      confirmed_at: new Date().toISOString(),
       booking_date: newRdv.date,
       booking_time: newRdv.time,
-      duration_minutes: service?.duration_minutes || 60,
+      duration_minutes: durationMinutes,
       address: newRdv.address || 'A definir',
-      notes: newRdv.client_name ? `Client: ${newRdv.client_name}. ${newRdv.notes || ''}` : newRdv.notes,
+      notes: notesStr,
       price_ht: service?.price_ht,
       price_ttc: service?.price_ttc,
     }).select('*, services(name)').single()
@@ -1378,49 +1391,138 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Modal Nouveau RDV */}
+                {/* ═══ Modal Nouveau RDV — style Jobber/Calendly ═══ */}
                 {showNewRdv && (
                   <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowNewRdv(false)}>
-                    <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
-                      <h2 className="text-xl font-bold mb-6">📅 Nouveau rendez-vous</h2>
-                      <div className="space-y-4">
+                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                      <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
+                        <h2 className="text-lg font-bold flex items-center gap-2">📅 Nouveau rendez-vous</h2>
+                        <button onClick={() => setShowNewRdv(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                      </div>
+                      <div className="p-6 space-y-4">
+                        {/* Client */}
                         <div>
-                          <label className="block text-sm font-semibold mb-1">Nom du client</label>
-                          <input type="text" value={newRdv.client_name} onChange={(e) => setNewRdv({...newRdv, client_name: e.target.value})} placeholder="Ex: Marie Dupont" className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                          <label className="block text-sm font-semibold mb-1 text-gray-700">👤 Client</label>
+                          <input type="text" value={newRdv.client_name} onChange={(e) => setNewRdv({...newRdv, client_name: e.target.value})} placeholder="Nom du client" className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none transition" />
                         </div>
+                        {/* Service */}
                         <div>
-                          <label className="block text-sm font-semibold mb-1">Motif *</label>
-                          <select value={newRdv.service_id} onChange={(e) => setNewRdv({...newRdv, service_id: e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none bg-white">
-                            <option value="">Choisir un motif</option>
-                            {services.filter(s => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} - {formatPrice(s.price_ttc)}</option>)}
+                          <label className="block text-sm font-semibold mb-1 text-gray-700">🔧 Prestation *</label>
+                          <select value={newRdv.service_id} onChange={(e) => setNewRdv({...newRdv, service_id: e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none bg-white transition">
+                            <option value="">Choisir une prestation...</option>
+                            {services.filter(s => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} — {formatPrice(s.price_ttc)}</option>)}
                           </select>
                         </div>
+                        {/* Date + Heure + Durée — 3 colonnes */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">📅 Date *</label>
+                            <input type="date" value={newRdv.date} onChange={(e) => setNewRdv({...newRdv, date: e.target.value})} min={new Date().toISOString().split('T')[0]} className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none transition" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">🕐 Heure *</label>
+                            <input type="time" value={newRdv.time} onChange={(e) => setNewRdv({...newRdv, time: e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none transition" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">⏱️ Durée</label>
+                            <select value={newRdv.duration} onChange={(e) => setNewRdv({...newRdv, duration: e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none bg-white transition">
+                              <option value="">Auto</option>
+                              <option value="30">30 min</option>
+                              <option value="45">45 min</option>
+                              <option value="60">1h</option>
+                              <option value="90">1h30</option>
+                              <option value="120">2h</option>
+                              <option value="180">3h</option>
+                              <option value="240">Demi-journée</option>
+                              <option value="480">Journée</option>
+                            </select>
+                          </div>
+                        </div>
+                        {/* Téléphone + Adresse */}
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-sm font-semibold mb-1">Date *</label>
-                            <input type="date" value={newRdv.date} onChange={(e) => setNewRdv({...newRdv, date: e.target.value})} min={new Date().toISOString().split('T')[0]} className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">📞 Téléphone</label>
+                            <input type="tel" value={newRdv.phone} onChange={(e) => setNewRdv({...newRdv, phone: e.target.value})} placeholder="06 12 34 56 78" className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none transition" />
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold mb-1">Heure *</label>
-                            <input type="time" value={newRdv.time} onChange={(e) => setNewRdv({...newRdv, time: e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">📍 Adresse</label>
+                            <input type="text" value={newRdv.address} onChange={(e) => setNewRdv({...newRdv, address: e.target.value})} placeholder="Adresse intervention" className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none transition" />
                           </div>
                         </div>
+                        {/* Notes */}
                         <div>
-                          <label className="block text-sm font-semibold mb-1">Adresse</label>
-                          <input type="text" value={newRdv.address} onChange={(e) => setNewRdv({...newRdv, address: e.target.value})} placeholder="Adresse d'intervention" className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                          <label className="block text-sm font-semibold mb-1 text-gray-700">📝 Notes</label>
+                          <textarea value={newRdv.notes} onChange={(e) => setNewRdv({...newRdv, notes: e.target.value})} rows={2} placeholder="Détails, accès, infos utiles..." className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-[#FFC107] focus:outline-none resize-none transition" />
                         </div>
+                      </div>
+                      {/* Actions sticky bottom */}
+                      <div className="p-6 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white rounded-b-2xl">
+                        <button onClick={createRdvManual} disabled={!newRdv.service_id || !newRdv.date || !newRdv.time} className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-bold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">
+                          ✓ Créer le rendez-vous
+                        </button>
+                        <button onClick={() => setShowNewRdv(false)} className="px-5 py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition text-sm">
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ═══ Modal Absence — style Calendly/Cal.com ═══ */}
+                {showAbsenceModal && (
+                  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAbsenceModal(false)}>
+                    <div className="bg-white rounded-2xl shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                      <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                        <h2 className="text-lg font-bold flex items-center gap-2">🚫 Ajouter une absence</h2>
+                        <button onClick={() => setShowAbsenceModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                      </div>
+                      <div className="p-6 space-y-4">
+                        {/* Type d'absence — boutons radio visuels */}
                         <div>
-                          <label className="block text-sm font-semibold mb-1">Notes</label>
-                          <textarea value={newRdv.notes} onChange={(e) => setNewRdv({...newRdv, notes: e.target.value})} rows={2} placeholder="Détails supplémentaires..." className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none resize-none" />
+                          <label className="block text-sm font-semibold mb-2 text-gray-700">Motif</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {['Congé', 'Maladie', 'Formation', 'Personnel', 'Férié', 'Autre'].map(reason => (
+                              <button key={reason} onClick={() => setNewAbsence({...newAbsence, reason})}
+                                className={`p-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${newAbsence.reason === reason ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}>
+                                {reason === 'Congé' ? '🏖️' : reason === 'Maladie' ? '🤒' : reason === 'Formation' ? '📚' : reason === 'Personnel' ? '🏠' : reason === 'Férié' ? '🎉' : '📌'} {reason}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex gap-3 pt-2">
-                          <button onClick={createRdvManual} disabled={!newRdv.service_id || !newRdv.date || !newRdv.time} className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-lg font-semibold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                            Créer le RDV
-                          </button>
-                          <button onClick={() => setShowNewRdv(false)} className="px-6 py-3 bg-white text-gray-600 border-2 border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition">
-                            Annuler
-                          </button>
+                        {/* Dates */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">Du *</label>
+                            <input type="date" value={newAbsence.start_date} onChange={(e) => setNewAbsence({...newAbsence, start_date: e.target.value, end_date: newAbsence.end_date || e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-red-400 focus:outline-none transition" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1 text-gray-700">Au *</label>
+                            <input type="date" value={newAbsence.end_date} onChange={(e) => setNewAbsence({...newAbsence, end_date: e.target.value})} min={newAbsence.start_date} className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-red-400 focus:outline-none transition" />
+                          </div>
                         </div>
+                        {newAbsence.start_date && newAbsence.end_date && (
+                          <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded-xl text-center">
+                            {(() => {
+                              const start = new Date(newAbsence.start_date)
+                              const end = new Date(newAbsence.end_date)
+                              const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+                              return `📅 ${days} jour${days > 1 ? 's' : ''} d'absence`
+                            })()}
+                          </div>
+                        )}
+                        {/* Libellé optionnel */}
+                        <div>
+                          <label className="block text-sm font-semibold mb-1 text-gray-700">Libellé <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                          <input type="text" value={newAbsence.label} onChange={(e) => setNewAbsence({...newAbsence, label: e.target.value})} placeholder="Ex: Vacances d'été, RDV médical..." className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-red-400 focus:outline-none transition" />
+                        </div>
+                      </div>
+                      <div className="p-6 border-t border-gray-100 flex gap-3">
+                        <button onClick={createAbsence} disabled={!newAbsence.start_date || !newAbsence.end_date} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">
+                          🚫 Bloquer ces dates
+                        </button>
+                        <button onClick={() => setShowAbsenceModal(false)} className="px-5 py-3 bg-gray-100 text-gray-600 rounded-xl font-semibold hover:bg-gray-200 transition text-sm">
+                          Annuler
+                        </button>
                       </div>
                     </div>
                   </div>
