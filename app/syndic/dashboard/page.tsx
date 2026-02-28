@@ -3057,9 +3057,24 @@ function ModalNouveilleMission({
   const [showCoproSearch, setShowCoproSearch] = useState(false)
   const [coproSearch, setCoproSearch] = useState('')
 
-  const suggestions = batimentsConnus.filter(b =>
-    immeubleInput.length > 0 && b.toLowerCase().includes(immeubleInput.toLowerCase())
-  )
+  // Autocomplete intelligent : pour les saisies courtes (<3 chars),
+  // exiger une correspondance en début de mot pour éviter les faux positifs ("LA" matchant tout)
+  const suggestions = (() => {
+    if (immeubleInput.length === 0) return []
+    const q = immeubleInput.toLowerCase().trim()
+    if (q.length < 3) {
+      // Court : match début de mot uniquement (word boundary)
+      const wordBoundaryRegex = new RegExp(`(^|\\s|[-'/])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i')
+      return batimentsConnus.filter(b => wordBoundaryRegex.test(b))
+    }
+    // 3+ chars : substring match classique, trié par pertinence (commence par > contient)
+    const matches = batimentsConnus.filter(b => b.toLowerCase().includes(q))
+    return matches.sort((a, b) => {
+      const aStarts = a.toLowerCase().startsWith(q) ? 0 : 1
+      const bStarts = b.toLowerCase().startsWith(q) ? 0 : 1
+      return aStarts - bStarts
+    })
+  })()
 
   // Auto-remplissage depuis copropriétaire existant
   const filteredCopros = coproprios.filter((c: any) => {
@@ -3209,7 +3224,21 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                 <label className="block text-sm font-medium text-gray-700 mb-1">👷 Artisan / Prestataire</label>
                 <select
                   value={form.artisan}
-                  onChange={e => setForm({ ...form, artisan: e.target.value })}
+                  onChange={e => {
+                    const selected = artisans.find(a => a.nom === e.target.value)
+                    const metierToType: Record<string, string> = {
+                      'Chauffage / Climatisation': 'Chauffage / Clim',
+                      'Jardinage / Espaces verts': 'Espaces verts',
+                      'Multi-services': 'Autre',
+                    }
+                    const TYPES = ['Plomberie', 'Électricité', 'Serrurerie', 'Peinture', 'Menuiserie', 'Maçonnerie', 'Nettoyage', 'Ascenseur', 'Chauffage / Clim', 'Toiture', 'Vitrerie', 'Espaces verts', 'Autre']
+                    let autoType = form.type
+                    if (selected?.metier) {
+                      const mapped = metierToType[selected.metier] || selected.metier
+                      if (TYPES.includes(mapped)) autoType = mapped
+                    }
+                    setForm({ ...form, artisan: e.target.value, type: autoType })
+                  }}
                   className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm"
                 >
                   <option value="">— Non assigné —</option>
@@ -12283,7 +12312,8 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
                     {/* Alerte si aucun immeuble géolocalisé */}
                     {immeublesGeoActifs.length === 0 && (
                       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
-                        Aucune copropriété n'a la géolocalisation activée. Activez-la dans la fiche de chaque immeuble (onglet Immeubles &gt; Modifier &gt; Géolocalisation).
+                        <p className="font-semibold mb-1">📍 Aucune copropriété géolocalisée</p>
+                        <p>Pour activer le pointage GPS, ouvrez la fiche d&apos;un immeuble, cliquez sur <strong>Modifier</strong>, puis activez l&apos;option <strong>Géolocalisation</strong> en renseignant les coordonnées GPS.</p>
                       </div>
                     )}
 
@@ -13563,7 +13593,7 @@ function CanalCommunicationsPage({
       id: Date.now().toString(),
       immeuble: selectedMission.immeuble || '',
       artisan: artisan.nom || `${artisan.prenom || ''} ${artisan.nom || ''}`.trim(),
-      type: selectedMission.type || 'Intervention',
+      type: selectedMission.type || artisan.metier || 'Intervention',
       description: transfertDescription,
       priorite: transfertPriorite,
       statut: 'en_attente',

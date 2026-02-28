@@ -27,7 +27,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ artisans: data || [] })
+  // Auto-vérification RC Pro depuis Supabase Storage pour les artisans liés
+  // (rattrapage si la sync push n'a pas encore eu lieu)
+  const artisans = data || []
+  for (const artisan of artisans) {
+    if (artisan.artisan_user_id && !artisan.rc_pro_valide) {
+      try {
+        const { data: files } = await supabaseAdmin.storage
+          .from('artisan-documents')
+          .list(`wallet/${artisan.artisan_user_id}/rc_pro`, { limit: 1 })
+        if (files && files.length > 0) {
+          // RC Pro trouvé dans le storage — mettre à jour la fiche
+          await supabaseAdmin
+            .from('syndic_artisans')
+            .update({ rc_pro_valide: true, updated_at: new Date().toISOString() })
+            .eq('id', artisan.id)
+          artisan.rc_pro_valide = true
+        }
+      } catch { /* silencieux — best effort */ }
+    }
+  }
+
+  return NextResponse.json({ artisans })
 }
 
 // ── POST /api/syndic/artisans — Ajouter un artisan (existant ou nouveau) ──────

@@ -3309,6 +3309,22 @@ function WalletConformiteSection({ artisan }: { artisan: any }) {
     localStorage.setItem(storageKey, JSON.stringify(updated))
   }
 
+  // Synchroniser un document wallet avec les fiches syndic (RC Pro, etc.)
+  const syncToSyndic = async (docKey: string, hasDocument: boolean, expiryDate?: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      await fetch('/api/wallet-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ docKey, hasDocument, expiryDate: expiryDate || null }),
+      })
+    } catch { /* silencieux — la sync est best-effort */ }
+  }
+
   const handleUpload = async (docKey: string, file: File) => {
     if (!artisan?.id) return
     setUploading(prev => ({ ...prev, [docKey]: true }))
@@ -3335,6 +3351,8 @@ function WalletConformiteSection({ artisan }: { artisan: any }) {
           }
         }
         saveToStorage(updated)
+        // Sync RC Pro et autres docs vers les fiches syndic
+        syncToSyndic(docKey, true, docs[docKey]?.expiryDate)
       }
     } catch (e) {
       console.error('Upload wallet doc error:', e)
@@ -3347,12 +3365,16 @@ function WalletConformiteSection({ artisan }: { artisan: any }) {
     const updated = { ...docs, [docKey]: { ...docs[docKey], expiryDate: date } }
     saveToStorage(updated)
     setEditExpiry(null)
+    // Sync la date d'expiration vers les fiches syndic
+    if (updated[docKey]?.url) syncToSyndic(docKey, true, date)
   }
 
   const removeDoc = (docKey: string) => {
     const updated = { ...docs }
     delete updated[docKey]
     saveToStorage(updated)
+    // Sync la suppression vers les fiches syndic
+    syncToSyndic(docKey, false)
   }
 
   const getStatus = (doc: WalletDoc | undefined): 'missing' | 'valid' | 'expiring' | 'expired' => {
