@@ -1,11 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 // ── Applique une action sur un email analysé ──────────────────────────────────
 // Actions : 'archiver' | 'marquer_traite' | 'creer_mission' | 'ajouter_note'

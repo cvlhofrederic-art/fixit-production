@@ -1,10 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
 // Stocke dans syndic_emails_analysed + syndic_notifications + Supabase Storage

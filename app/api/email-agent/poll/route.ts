@@ -1,15 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { callGroqWithRetry } from '@/lib/groq'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import type { EmailClassification } from '../classify/route'
 
 export const maxDuration = 60
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
 
