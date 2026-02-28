@@ -2,6 +2,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function GlobalError({
   error,
@@ -32,12 +33,12 @@ export default function GlobalError({
             >
               Réessayer
             </button>
-            <a
+            <Link
               href="/"
               className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold transition"
             >
               Retour à l&apos;accueil
-            </a>
+            </Link>
           </div>
         </div>
       </body>
