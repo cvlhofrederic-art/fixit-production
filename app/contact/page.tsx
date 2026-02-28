@@ -10,7 +10,7 @@ export default function ContactPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Ouvre le client mail avec les données pré-remplies
-    const mailto = `mailto:contact@vitfix.fr?subject=${encodeURIComponent(form.sujet || 'Contact VitFix')}&body=${encodeURIComponent(`Nom : ${form.nom}\nEmail : ${form.email}\n\n${form.message}`)}`
+    const mailto = `mailto:contact@vitfix.fr?subject=${encodeURIComponent(form.sujet || 'Contact Vitfix')}&body=${encodeURIComponent(`Nom : ${form.nom}\nEmail : ${form.email}\n\n${form.message}`)}`
     window.location.href = mailto
     setSent(true)
   }
@@ -103,7 +103,7 @@ export default function ContactPage() {
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-lg font-semibold transition"
+                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-semibold transition"
                 >
                   Envoyer le message
                 </button>

@@ -1,32 +1,75 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getAuthUser, isArtisanRole } from '@/lib/auth-helpers'
+import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
-// API pour récupérer tous les clients d'un artisan
-// Sources : bookings (notes parsing + client_id) + auth.users metadata
+// GET /api/artisan-clients?client_id=xxx
+//   → Returns user info (name, phone, email) for a single client — used by artisan to pre-fill devis
+//
+// GET /api/artisan-clients?artisan_id=xxx
+//   → Returns all clients for an artisan (unique client_ids from bookings)
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user || !isArtisanRole(user)) {
-    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  }
+  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_clients_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!checkRateLimit(`artisan_clients_${ip}`, 60, 60_000)) return rateLimitResponse()
 
-  const artisanId = request.nextUrl.searchParams.get('artisan_id')
-
-  if (!artisanId) {
-    return NextResponse.json({ error: 'artisan_id requis' }, { status: 400 })
-  }
-
-  // IDOR check : verify the artisanId belongs to the connected user
-  const supabase = createClient(
+  const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { db: { schema: 'public' } }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: artisanRow } = await supabase
+  // ── Mode 1: single client lookup for devis pre-fill ──
+  // SÉCURITÉ : vérifier que le client a un booking avec l'artisan connecté (anti-IDOR)
+  const clientId = request.nextUrl.searchParams.get('client_id')
+  if (clientId) {
+    try {
+      // Récupérer l'artisan_id de l'utilisateur connecté
+      const { data: artisanProfile } = await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+      if (!artisanProfile) {
+        return NextResponse.json({ error: 'Profil artisan introuvable' }, { status: 403 })
+      }
+
+      // Vérifier que ce client a au moins un booking avec cet artisan
+      const { data: booking } = await supabaseAdmin
+        .from('bookings')
+        .select('id')
+        .eq('artisan_id', artisanProfile.id)
+        .eq('client_id', clientId)
+        .limit(1)
+        .single()
+      if (!booking) {
+        return NextResponse.json({ error: 'Accès refusé : ce client n\'est pas dans vos bookings' }, { status: 403 })
+      }
+
+      const { data: { user: clientUser }, error } = await supabaseAdmin.auth.admin.getUserById(clientId)
+      if (error || !clientUser) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
+
+      const meta = clientUser.user_metadata || {}
+      return NextResponse.json({
+        id: clientUser.id,
+        email: clientUser.email || '',
+        name: meta.full_name || meta.name || '',
+        phone: meta.phone || '',
+        address: meta.address || '',
+      })
+    } catch {
+      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    }
+  }
+
+  // ── Mode 2: all clients for an artisan (from bookings) ──
+  const artisanId = request.nextUrl.searchParams.get('artisan_id')
+  if (!artisanId) {
+    return NextResponse.json({ error: 'client_id ou artisan_id requis' }, { status: 400 })
+  }
+
+  // IDOR check: the connected user must be the artisan
+  const { data: artisanRow } = await supabaseAdmin
     .from('profiles_artisan')
     .select('user_id')
     .eq('id', artisanId)
@@ -36,171 +79,60 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 1. Récupérer tous les bookings de l'artisan avec notes (contient info client)
-    const { data: bookings, error: bookingsError } = await supabase
+    // Fetch all bookings for this artisan that have a client_id
+    const { data: bookings, error: bookingsError } = await supabaseAdmin
       .from('bookings')
-      .select('id, client_id, notes, address, booking_date, status, services(name)')
+      .select('id, client_id, booking_date, booking_time, status, address, notes, services(name), price_ttc')
       .eq('artisan_id', artisanId)
+      .not('client_id', 'is', null)
       .order('booking_date', { ascending: false })
 
     if (bookingsError) {
-      return NextResponse.json({ error: bookingsError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erreur bookings' }, { status: 500 })
     }
 
-    // 2. Extraire les client_ids uniques
-    const clientIds = [...new Set((bookings || []).filter(b => b.client_id).map(b => b.client_id!))]
+    // Group bookings by client_id
+    const byClient = new Map<string, any[]>()
+    for (const b of bookings || []) {
+      if (!b.client_id) continue
+      if (!byClient.has(b.client_id)) byClient.set(b.client_id, [])
+      byClient.get(b.client_id)!.push(b)
+    }
 
-    // 3. Récupérer les métadonnées des clients authentifiés
-    const clientsMap = new Map<string, any>()
-
-    // Fetch auth users metadata for each client_id
-    for (const clientId of clientIds) {
+    // Fetch user info for each unique client_id (batch)
+    const clients: any[] = []
+    for (const [cId, cBookings] of byClient.entries()) {
       try {
-        const { data: { user }, error } = await supabase.auth.admin.getUserById(clientId)
-        if (user && !error) {
-          const meta = user.user_metadata || {}
-          clientsMap.set(clientId, {
-            id: clientId,
-            source: 'auth',
-            name: meta.full_name || meta.name || '',
-            email: user.email || '',
-            phone: meta.phone || '',
-            address: meta.address || '',
-            city: meta.city || '',
-            postalCode: meta.postal_code || '',
-            siret: meta.siret || '',
-          })
-        }
-      } catch {
-        // Skip if user fetch fails
-      }
-    }
-
-    // 4. Parser les infos clients depuis les notes des bookings (pour les clients non-authentifiés)
-    const noteClientsMap = new Map<string, any>()
-
-    for (const booking of (bookings || [])) {
-      if (!booking.notes) continue
-
-      // Parse "Client: NOM | Tel: PHONE | Email: EMAIL"
-      const noteParts = booking.notes.split(' | ')
-      let clientName = ''
-      let clientPhone = ''
-      let clientEmail = ''
-
-      for (const part of noteParts) {
-        const trimmed = part.trim()
-        if (trimmed.startsWith('Client:')) {
-          clientName = trimmed.replace('Client:', '').replace(/\.\s*$/, '').trim()
-        } else if (trimmed.startsWith('Tel:')) {
-          clientPhone = trimmed.replace('Tel:', '').trim()
-        } else if (trimmed.startsWith('Email:')) {
-          clientEmail = trimmed.replace('Email:', '').trim()
-        }
-      }
-
-      // Also handle simpler format "Client: NOM. notes..."
-      if (!clientName) {
-        const simpleMatch = booking.notes.match(/Client:\s*([^.|]+)/)
-        if (simpleMatch) clientName = simpleMatch[1].trim()
-      }
-
-      if (!clientName) continue
-
-      // Si le client est déjà dans la map auth, enrichir ses données
-      if (booking.client_id && clientsMap.has(booking.client_id)) {
-        const existing = clientsMap.get(booking.client_id)!
-        // Update with any missing info
-        if (!existing.phone && clientPhone) existing.phone = clientPhone
-        if (!existing.email && clientEmail) existing.email = clientEmail
-        if (!existing.address && booking.address && booking.address !== 'A definir') {
-          existing.address = booking.address
-        }
-        // Add booking history
-        if (!existing.bookings) existing.bookings = []
-        existing.bookings.push({
-          id: booking.id,
-          date: booking.booking_date,
-          service: (booking as any).services?.name || '',
-          status: booking.status,
-        })
-        continue
-      }
-
-      // Client non-authentifié — trouver par nom (normalisation)
-      const nameKey = clientName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-
-      if (noteClientsMap.has(nameKey)) {
-        const existing = noteClientsMap.get(nameKey)!
-        // Enrichir
-        if (!existing.phone && clientPhone) existing.phone = clientPhone
-        if (!existing.email && clientEmail) existing.email = clientEmail
-        if (booking.address && booking.address !== 'A definir' && !existing.address) {
-          existing.address = booking.address
-        }
-        if (!existing.bookings) existing.bookings = []
-        existing.bookings.push({
-          id: booking.id,
-          date: booking.booking_date,
-          service: (booking as any).services?.name || '',
-          status: booking.status,
-        })
-      } else {
-        noteClientsMap.set(nameKey, {
-          id: `note_${nameKey}`,
-          source: 'booking_notes',
-          name: clientName,
-          email: clientEmail,
-          phone: clientPhone,
-          address: (booking.address && booking.address !== 'A definir') ? booking.address : '',
-          city: '',
-          postalCode: '',
+        const { data: { user: clientUser } } = await supabaseAdmin.auth.admin.getUserById(cId)
+        if (!clientUser) continue
+        const meta = clientUser.user_metadata || {}
+        const clientBookings = cBookings.map(b => ({
+          id: b.id,
+          date: b.booking_date,
+          service: (b.services as any)?.name || 'Intervention',
+          status: b.status,
+          address: b.address,
+          price: b.price_ttc,
+        }))
+        clients.push({
+          id: cId,
+          source: 'auth',
+          name: meta.full_name || meta.name || clientUser.email?.split('@')[0] || 'Client',
+          email: clientUser.email || '',
+          phone: meta.phone || '',
+          address: meta.address || '',
           siret: '',
-          bookings: [{
-            id: booking.id,
-            date: booking.booking_date,
-            service: (booking as any).services?.name || '',
-            status: booking.status,
-          }],
+          type: 'particulier',
+          bookings: clientBookings,
         })
+      } catch {
+        // Skip unresolvable client
       }
     }
 
-    // 5. Fusionner les deux sources
-    // Si un client note correspond à un client auth par nom, fusionner
-    const authClients = Array.from(clientsMap.values())
-    const noteClients = Array.from(noteClientsMap.values())
-
-    // Try to match note clients with auth clients by name
-    const mergedNoteClients = noteClients.filter(nc => {
-      const ncNameLower = nc.name.toLowerCase().trim()
-      const matchingAuth = authClients.find(ac =>
-        ac.name.toLowerCase().trim() === ncNameLower
-      )
-      if (matchingAuth) {
-        // Merge note data into auth client
-        if (!matchingAuth.phone && nc.phone) matchingAuth.phone = nc.phone
-        if (!matchingAuth.email && nc.email) matchingAuth.email = nc.email
-        if (!matchingAuth.address && nc.address) matchingAuth.address = nc.address
-        if (nc.bookings) {
-          matchingAuth.bookings = [...(matchingAuth.bookings || []), ...nc.bookings]
-        }
-        return false // Remove from note clients (merged into auth)
-      }
-      return true // Keep as separate note client
-    })
-
-    const allClients = [...authClients, ...mergedNoteClients]
-      .filter(c => c.name) // Only keep clients with a name
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-
-    return NextResponse.json({
-      clients: allClients,
-      total: allClients.length,
-    })
-
-  } catch (error: any) {
-    console.error('Error fetching artisan clients:', error)
+    return NextResponse.json({ clients })
+  } catch (err: any) {
+    console.error('[artisan-clients] Erreur:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { callGroqWithRetry } from '@/lib/groq'
+
+export const maxDuration = 30
 
 // Agent Comptable Léa — Powered by Groq (Llama 3.3-70B)
 // Expert-comptable senior BTP & artisanat — tous statuts juridiques — législation française 2026
@@ -217,21 +220,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ reply: '⚠️ Clé API Groq non configurée. Contactez l\'administrateur.' })
       }
 
-      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, temperature: 0.15, max_tokens: 2500 }),
-      })
-
-      if (!groqResponse.ok) {
-        const errText = await groqResponse.text()
-        console.error('Groq API error:', groqResponse.status, errText)
+      try {
+        const groqData = await callGroqWithRetry({ messages, temperature: 0.15, max_tokens: 3500 })
+        const reply = groqData.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer de réponse.'
+        return NextResponse.json({ reply })
+      } catch (err) {
+        console.error('Groq API error (direct mode):', err)
         return NextResponse.json({ reply: 'Erreur IA temporaire. Réessayez dans quelques instants.' }, { status: 500 })
       }
-
-      const groqData = await groqResponse.json()
-      const reply = groqData.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer de réponse.'
-      return NextResponse.json({ reply })
     }
 
     // ── Mode legacy (agent artisan) : message + financialContext ──
@@ -256,33 +252,17 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.2,
-        max_tokens: 1800,
-      }),
-    })
-
-    if (!groqResponse.ok) {
-      console.error('Groq API error:', groqResponse.status, await groqResponse.text())
+    try {
+      const groqData = await callGroqWithRetry({ messages, temperature: 0.2, max_tokens: 3000 })
+      const response = groqData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer une réponse. Réessayez.'
+      return NextResponse.json({ success: true, response })
+    } catch {
       return NextResponse.json({
         success: true,
         response: generateFallbackResponse(message, ctx),
         fallback: true,
       })
     }
-
-    const groqData = await groqResponse.json()
-    const response = groqData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer une réponse. Réessayez.'
-
-    return NextResponse.json({ success: true, response })
 
   } catch (error: any) {
     console.error('Comptable AI error:', error)

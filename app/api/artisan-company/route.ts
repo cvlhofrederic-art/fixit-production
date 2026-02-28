@@ -71,12 +71,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Artisan introuvable' }, { status: 404 })
   }
 
-  // Récupérer les user_metadata pour les infos d'assurance
+  // SÉCURITÉ : vérifier que l'utilisateur connecté est le propriétaire du profil artisan
+  if (artisan.user_id !== user.id) {
+    return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
+  }
+
+  // Récupérer les user_metadata pour les infos d'assurance + email auth
   let userMeta: any = {}
+  let authEmail = ''
   if (artisan.user_id) {
     try {
       const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(artisan.user_id)
       userMeta = user?.user_metadata || {}
+      authEmail = user?.email || ''
     } catch {
       // Ignore
     }
@@ -97,8 +104,8 @@ export async function GET(request: NextRequest) {
         address: artisan.company_address,
         city: artisan.company_city || '',
         postalCode: artisan.company_postal_code || '',
-        phone: artisan.phone || '',
-        email: artisan.email || '',
+        phone: userMeta.phone || artisan.phone || '',
+        email: authEmail || artisan.email || '',
         insuranceNumber: userMeta.insurance_number || '',
         insuranceName: userMeta.insurance_name || '',
       }
@@ -197,8 +204,8 @@ export async function GET(request: NextRequest) {
       })() : '',
       city: entreprise.siege?.libelle_commune || '',
       postalCode: entreprise.siege?.code_postal || '',
-      phone: artisan.phone || '',
-      email: artisan.email || '',
+      phone: userMeta.phone || artisan.phone || '',
+      email: userMeta.email || artisan.email || '',
     }
 
     // Try to update the artisan profile with verified data (best effort)

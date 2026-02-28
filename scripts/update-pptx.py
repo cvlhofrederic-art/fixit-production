@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-VitFix Investor Deck — PowerPoint Update Script
-Transforms Fixit-Deck-Partenariats-B2B-v2.pptx into VitFix branded deck
+Vitfix Investor Deck — PowerPoint Update Script
+Transforms Fixit-Deck-Partenariats-B2B-v2.pptx into Vitfix branded deck
 with real market data, Google Trends volumes, and verified statistics.
 """
 
@@ -17,9 +17,9 @@ import os
 # CONSTANTS
 # ═══════════════════════════════════════════════════
 INPUT_FILE = "/Users/elgato_fofo/Documents/Fixit-Deck-Partenariats-B2B-v2.pptx"
-OUTPUT_FILE = "/Users/elgato_fofo/Desktop/VitFix-Deck-Investisseurs-2026.pptx"
+OUTPUT_FILE = "/Users/elgato_fofo/Desktop/Vitfix-Deck-Investisseurs-2026.pptx"
 
-# Colors (VitFix brand)
+# Colors (Vitfix brand)
 DARK_BLUE = RGBColor(0x1a, 0x1a, 0x2e)
 ORANGE = RGBColor(0xFF, 0xC1, 0x07)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
@@ -189,10 +189,10 @@ def add_dark_banner(slide, top, text, font_size=16, color=WHITE, bg=DARK_BLUE):
 # ═══════════════════════════════════════════════════
 
 def replace_text_in_presentation(prs):
-    """Replace all occurrences of Fixit/FIXIT/fixit with VitFix/VITFIX/vitfix."""
+    """Replace all occurrences of Fixit/FIXIT/fixit with Vitfix/VITFIX/vitfix."""
     replacements = {
         'FIXIT': 'VITFIX',
-        'Fixit': 'VitFix',
+        'Fixit': 'Vitfix',
         'fixit': 'vitfix',
         'SOLUTION FIXIT': 'SOLUTION VITFIX',
         'LA SOLUTION FIXIT': 'LA SOLUTION VITFIX',
@@ -444,7 +444,7 @@ def create_slide_penurie(prs):
                 '\u26A0\uFE0F LA CRISE DE L\'ARTISANAT', 36, True, DARK_TEXT, PP_ALIGN.CENTER, 'Arial Black')
 
     add_textbox(slide, MARGIN, Emu(822960), CONTENT_W, Emu(274320),
-                'Le secteur du batiment traverse une crise structurelle majeure — VitFix est la reponse',
+                'Le secteur du batiment traverse une crise structurelle majeure — Vitfix est la reponse',
                 12, False, GRAY, PP_ALIGN.CENTER)
 
     # Left: La crise
@@ -473,7 +473,7 @@ def create_slide_penurie(prs):
     ]
     add_multi_text(slide, left_x, Emu(1600200), left_w, Emu(2926080), crisis_lines)
 
-    # Right: VitFix solution
+    # Right: Vitfix solution
     right_x = Emu(4754880)
     right_w = Emu(3931920)
 
@@ -493,14 +493,14 @@ def create_slide_penurie(prs):
         ('\u2705 Dashboard syndic centralise', 12, False, DARK_TEXT),
         ('\u2705 IA comptable integree (Agent Lea)', 12, False, DARK_TEXT),
         ('', 4, False, DARK_TEXT),
-        ('\U0001F680 VitFix optimise chaque artisan existant', 12, True, GREEN),
+        ('\U0001F680 Vitfix optimise chaque artisan existant', 12, True, GREEN),
         ('plutot que d\'en creer de nouveaux', 11, False, DARK_TEXT),
     ]
     add_multi_text(slide, right_x, Emu(1600200), right_w, Emu(2926080), solution_lines)
 
     # Bottom banner
     add_dark_banner(slide, Emu(4663440),
-                    '\U0001F4A1 Chaque artisan connecte via VitFix = + de clients servis, moins de temps perdu, plus de revenus',
+                    '\U0001F4A1 Chaque artisan connecte via Vitfix = + de clients servis, moins de temps perdu, plus de revenus',
                     13, ORANGE, DARK_BLUE)
 
     return slide
@@ -567,7 +567,7 @@ def create_slide_opportunite(prs):
 
     # Bottom tagline
     add_textbox(slide, MARGIN, Emu(4754880), CONTENT_W, Emu(365760),
-                '\U0001F680 VitFix : le Doctolib de l\'artisanat — Un marche de 208 Md\u20AC, une digitalisation a <15%, une demande qui explose',
+                '\U0001F680 Vitfix : le Doctolib de l\'artisanat — Un marche de 208 Md\u20AC, une digitalisation a <15%, une demande qui explose',
                 12, True, GOLD, PP_ALIGN.CENTER)
 
     return slide
@@ -715,14 +715,14 @@ def main():
         14,  # 3. Le Marche en Chiffres (NEW)
         15,  # 4. La Crise (NEW)
         16,  # 5. La Demande Digitale (NEW)
-        2,   # 6. La Solution VitFix
+        2,   # 6. La Solution Vitfix
         3,   # 7. Nos 7 Segments
         4,   # 8. Coproprietes & Syndics
         5,   # 9. Bailleurs Sociaux
         6,   # 10. Nos Offres Artisans
         7,   # 11. Offres Partenaires B2B
         8,   # 12. Cas Client
-        9,   # 13. Pourquoi VitFix
+        9,   # 13. Pourquoi Vitfix
         10,  # 14. Demarrage 4 semaines
         11,  # 15. Nos Engagements
         12,  # 16. Temoignages

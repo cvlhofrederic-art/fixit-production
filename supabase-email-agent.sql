@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════
--- VitFix Pro — Agent Email Max : tables Supabase
+-- Vitfix Pro — Agent Email Max : tables Supabase
 -- À exécuter dans l'éditeur SQL de Supabase (dashboard.supabase.com)
 -- ══════════════════════════════════════════════════════════════════════
 

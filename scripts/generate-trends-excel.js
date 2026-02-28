@@ -89,7 +89,7 @@ const CATEGORIES = [
   },
   {
     name: '\u{1F3E0} SYNDIC & COPROPRIÉTÉ',
-    description: 'Mots-clés B2B côté syndics — Marché cible VitFix',
+    description: 'Mots-clés B2B côté syndics — Marché cible Vitfix',
     keywords: [
       { keyword: 'syndic copropriété', data: [67, 71, 74, 77, 76], trend: '\u{1F4C8} +15% Croissance régulière', monthlyVol: 25000 },
       { keyword: 'travaux copropriété', data: [27, 29, 31, 32, 31], trend: '\u{1F4C8} +15% En hausse', monthlyVol: 8000 },
@@ -149,7 +149,7 @@ function formatNumber(n) {
 
 async function generateExcel() {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'VitFix — Analyse SEO';
+  workbook.creator = 'Vitfix — Analyse SEO';
   workbook.created = new Date();
 
   // Styles communs
@@ -169,7 +169,7 @@ async function generateExcel() {
   // Title
   ws1.mergeCells('A1:J1');
   const titleCell = ws1.getCell('A1');
-  titleCell.value = 'VitFix — Analyse Google Trends SEO (France, 2021-2025)';
+  titleCell.value = 'Vitfix — Analyse Google Trends SEO (France, 2021-2025)';
   titleCell.font = { size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1a1a2e' } };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -305,7 +305,7 @@ async function generateExcel() {
 
   // Title
   ws2.mergeCells('A1:I1');
-  ws2.getCell('A1').value = 'VitFix — Volumes de Recherche Estimés par Année (France)';
+  ws2.getCell('A1').value = 'Vitfix — Volumes de Recherche Estimés par Année (France)';
   ws2.getCell('A1').font = { size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
   ws2.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF5722' } };
   ws2.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
@@ -454,7 +454,7 @@ async function generateExcel() {
 
   // Key stats summary
   ws2.mergeCells(`A${volRow}:I${volRow}`);
-  ws2.getCell(`A${volRow}`).value = `\u{1F4A1} En 2025, ces ${CATEGORIES.reduce((s, c) => s + c.keywords.length, 0)} mots-clés représentent environ ${formatNumber(totalPerYear[4])} recherches/an en France — soit ~${formatNumber(Math.round(totalPerYear[4]/12))}/mois. Chaque recherche = un besoin réel d'artisan = un client potentiel VitFix.`;
+  ws2.getCell(`A${volRow}`).value = `\u{1F4A1} En 2025, ces ${CATEGORIES.reduce((s, c) => s + c.keywords.length, 0)} mots-clés représentent environ ${formatNumber(totalPerYear[4])} recherches/an en France — soit ~${formatNumber(Math.round(totalPerYear[4]/12))}/mois. Chaque recherche = un besoin réel d'artisan = un client potentiel Vitfix.`;
   ws2.getCell(`A${volRow}`).font = { size: 12, bold: true, color: { argb: 'FF1B5E20' } };
   ws2.getCell(`A${volRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
   ws2.getCell(`A${volRow}`).alignment = { horizontal: 'center', wrapText: true };
@@ -479,14 +479,14 @@ async function generateExcel() {
   });
 
   ws3.mergeCells('A1:H1');
-  ws3.getCell('A1').value = 'VitFix — Top 15 Mots-Clés Prioritaires pour le SEO';
+  ws3.getCell('A1').value = 'Vitfix — Top 15 Mots-Clés Prioritaires pour le SEO';
   ws3.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
   ws3.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4CAF50' } };
   ws3.getCell('A1').alignment = { horizontal: 'center' };
   ws3.getRow(1).height = 35;
 
   ws3.mergeCells('A2:H2');
-  ws3.getCell('A2').value = 'Classement basé sur le volume réel, la croissance et la pertinence pour VitFix';
+  ws3.getCell('A2').value = 'Classement basé sur le volume réel, la croissance et la pertinence pour Vitfix';
   ws3.getCell('A2').font = { size: 10, italic: true };
   ws3.getCell('A2').alignment = { horizontal: 'center' };
 
@@ -570,7 +570,7 @@ async function generateExcel() {
   });
 
   ws4.mergeCells('A1:D1');
-  ws4.getCell('A1').value = 'VitFix — Données Marché pour Investisseurs';
+  ws4.getCell('A1').value = 'Vitfix — Données Marché pour Investisseurs';
   ws4.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
   ws4.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF9800' } };
   ws4.getCell('A1').alignment = { horizontal: 'center' };
@@ -584,7 +584,7 @@ async function generateExcel() {
     ['\u{1F4A1} Blue ocean', '"Artisan de confiance", "artisan fiable" sont des niches quasi-vierges à créer'],
     ['\u{1F534} Volumes massifs', '"Serrurier" = 53 000/mois, "Plombier" = 35 000/mois, "Fuite d\'eau" = 33 000/mois = marché prouvé'],
     ['\u{1F4CA} Saisonnalité', '"Chauffagiste" et "panne chauffage" = pics hivernaux, "paysagiste" = pics printemps/été'],
-    ['\u{1F680} Positionnement VitFix', 'VitFix capte les 3 tendances clés : proximité (géoloc), confiance (avis vérifiés), urgence (réactivité)'],
+    ['\u{1F680} Positionnement Vitfix', 'Vitfix capte les 3 tendances clés : proximité (géoloc), confiance (avis vérifiés), urgence (réactivité)'],
   ];
 
   insights.forEach((row, idx) => {
@@ -638,19 +638,19 @@ async function generateExcel() {
     [1, 2, 3].forEach(c => { ws4.getCell(r, c).border = borders; });
   });
 
-  // VitFix opportunity calculation
+  // Vitfix opportunity calculation
   const oppRow = msRow + marketData.length + 2;
   ws4.mergeCells(`A${oppRow}:D${oppRow}`);
-  ws4.getCell(`A${oppRow}`).value = '\u{1F4B0} CALCUL D\'OPPORTUNITÉ VitFix';
+  ws4.getCell(`A${oppRow}`).value = '\u{1F4B0} CALCUL D\'OPPORTUNITÉ Vitfix';
   ws4.getCell(`A${oppRow}`).font = { size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
   ws4.getCell(`A${oppRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF9800' } };
   ws4.getCell(`A${oppRow}`).alignment = { horizontal: 'center' };
   ws4.getRow(oppRow).height = 30;
 
   const oppData = [
-    ['Recherches annuelles couvertes par VitFix', `${formatNumber(totalVolAn)}+`, 'Top 53 mots-clés analysés'],
-    ['Si VitFix capte 1% du trafic', `${formatNumber(Math.round(totalVolAn * 0.01))} visites/an`, 'Objectif réaliste année 1'],
-    ['Si VitFix capte 5% du trafic', `${formatNumber(Math.round(totalVolAn * 0.05))} visites/an`, 'Objectif année 2-3'],
+    ['Recherches annuelles couvertes par Vitfix', `${formatNumber(totalVolAn)}+`, 'Top 53 mots-clés analysés'],
+    ['Si Vitfix capte 1% du trafic', `${formatNumber(Math.round(totalVolAn * 0.01))} visites/an`, 'Objectif réaliste année 1'],
+    ['Si Vitfix capte 5% du trafic', `${formatNumber(Math.round(totalVolAn * 0.05))} visites/an`, 'Objectif année 2-3'],
     ['Taux conversion moyen marketplace', '3-8%', 'Source: études marché 2024'],
     ['Panier moyen intervention', '250 \u20AC', 'Moyenne pondérée plomberie/serrurerie/électricité'],
     ['GMV potentiel (5% trafic \u00D7 5% conv. \u00D7 250\u20AC)', `${formatNumber(Math.round(totalVolAn * 0.05 * 0.05 * 250))} \u20AC/an`, '\u{1F680} Projection conservatrice'],
@@ -734,7 +734,7 @@ async function generateExcel() {
   ws5.getColumn(3).width = 50;
 
   // Save file
-  const outputPath = path.join('/Users/elgato_fofo/Desktop', 'VitFix_Google_Trends_SEO_2021-2025.xlsx');
+  const outputPath = path.join('/Users/elgato_fofo/Desktop', 'Vitfix_Google_Trends_SEO_2021-2025.xlsx');
   await workbook.xlsx.writeFile(outputPath);
 
   console.log(`\u2705 Fichier Excel créé : ${outputPath}`);

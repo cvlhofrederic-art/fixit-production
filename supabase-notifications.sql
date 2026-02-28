@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════
--- VitFix Pro — Notifications in-app + Storage mission-reports
+-- Vitfix Pro — Notifications in-app + Storage mission-reports
 -- À exécuter dans l'éditeur SQL de Supabase
 -- ══════════════════════════════════════════════════════════════════════
 

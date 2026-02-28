@@ -37,6 +37,7 @@ import { fr } from 'date-fns/locale'
 
 interface Artisan {
   id: string
+  slug?: string | null
   company_name: string | null
   bio: string | null
   categories: string[]
@@ -159,42 +160,52 @@ function formatWeekRange(weekStart: Date): string {
   return `${startStr} - ${endStr}`
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  plomberie: 'Plombier',
+  electricite: 'Électricien',
+  peinture: 'Peintre',
+  maconnerie: 'Maçon',
+  menuiserie: 'Menuisier',
+  chauffage: 'Chauffagiste',
+  climatisation: 'Climaticien',
+  serrurerie: 'Serrurier',
+  carrelage: 'Carreleur',
+  toiture: 'Couvreur',
+  'espaces-verts': 'Paysagiste',
+  demenagement: 'Déménageur',
+  nettoyage: 'Agent de nettoyage',
+  renovation: 'Artisan rénovation',
+  vitrerie: 'Vitrier',
+  'traitement-nuisibles': 'Traitement nuisibles',
+  'petits-travaux': 'Petits travaux',
+}
+
 function getCategoryLabel(cat: string): string {
-  const map: Record<string, string> = {
-    plomberie: 'Plombier',
-    electricite: 'Electricien',
-    peinture: 'Peintre',
-    maconnerie: 'Mason',
-    menuiserie: 'Menuisier',
-    chauffage: 'Chauffagiste',
-    climatisation: 'Climaticien',
-    serrurerie: 'Serrurier',
-    carrelage: 'Carreleur',
-    toiture: 'Couvreur',
-    jardinage: 'Jardinier',
-    demenagement: 'Demenageur',
-    nettoyage: 'Agent de nettoyage',
-    renovation: 'Artisan renovation',
-  }
-  return map[cat] || cat.charAt(0).toUpperCase() + cat.slice(1)
+  // Try direct match first, then fuzzy resolve
+  const resolved = CATEGORY_LABELS[cat] ? cat : fuzzyMatchCategory(cat)
+  if (resolved && CATEGORY_LABELS[resolved]) return CATEGORY_LABELS[resolved]
+  return cat.charAt(0).toUpperCase() + cat.slice(1)
 }
 
 // Mapping catégorie slug → métiers catalogue
 const CATEGORY_TO_METIERS: Record<string, string[]> = {
-  plomberie:     ['Plomberie'],
-  electricite:   ['Électricité'],
-  serrurerie:    ['Serrurerie'],
-  chauffage:     ['Chauffage'],
+  plomberie:     ['Plombier', 'Plomberie'],
+  electricite:   ['Électricien', 'Électricité'],
+  serrurerie:    ['Serrurier', 'Serrurerie'],
+  chauffage:     ['Chauffagiste', 'Chauffage'],
   climatisation: ['Climatisation'],
-  peinture:      ['Peinture'],
-  maconnerie:    ['Maçonnerie'],
-  menuiserie:    ['Menuiserie'],
-  carrelage:     ['Carrelage'],
-  toiture:       ['Toiture'],
-  jardinage:     ['Espaces verts', 'Paysagiste'],
+  peinture:      ['Peintre', 'Peinture'],
+  maconnerie:    ['Maçon', 'Maçonnerie'],
+  menuiserie:    ['Menuisier', 'Menuiserie'],
+  carrelage:     ['Carreleur', 'Carrelage'],
+  toiture:       ['Couvreur', 'Toiture'],
+  'espaces-verts': ['Espaces verts', 'Paysagiste', 'Jardinage', 'Jardinier'],
   nettoyage:     ['Nettoyage'],
-  demenagement:  ['Déménagement'],
+  demenagement:  ['Déménageur', 'Déménagement'],
   renovation:    ['Rénovation', 'Petits travaux'],
+  vitrerie:      ['Vitrier', 'Vitrerie'],
+  'traitement-nuisibles': ['Traitement nuisibles', 'Dératisation', 'Désinsectisation', '3D'],
+  'petits-travaux': ['Petits travaux', 'Bricolage'],
 }
 
 function metierToCategory(metier: string): string {
@@ -202,6 +213,139 @@ function metierToCategory(metier: string): string {
     if (metiers.includes(metier)) return cat
   }
   return metier.toLowerCase()
+}
+
+// ------------------------------------------------------------------
+// Fuzzy search utilities
+// ------------------------------------------------------------------
+
+function normalizeForSearch(str: string): string {
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
+const KEYWORD_TO_CATEGORY: Record<string, string> = {
+  // Plomberie
+  plombier: 'plomberie', plombiers: 'plomberie', fuite: 'plomberie',
+  robinet: 'plomberie', chauffe: 'plomberie', wc: 'plomberie', toilette: 'plomberie',
+  canalisation: 'plomberie', debouchage: 'plomberie', ballon: 'plomberie',
+  douche: 'plomberie', baignoire: 'plomberie', lavabo: 'plomberie', evier: 'plomberie',
+  siphon: 'plomberie', tuyau: 'plomberie',
+  // Electricité
+  electricien: 'electricite', electriciens: 'electricite', electrique: 'electricite',
+  prise: 'electricite', tableau: 'electricite', disjoncteur: 'electricite',
+  eclairage: 'electricite', lumiere: 'electricite', interrupteur: 'electricite',
+  // Serrurerie
+  serrurier: 'serrurerie', serruriers: 'serrurerie', serrure: 'serrurerie',
+  porte: 'serrurerie', cle: 'serrurerie', blindage: 'serrurerie', verrou: 'serrurerie',
+  // Chauffage
+  chauffagiste: 'chauffage', chauffagistes: 'chauffage', chaudiere: 'chauffage',
+  radiateur: 'chauffage',
+  // Climatisation
+  climatiseur: 'climatisation', clim: 'climatisation',
+  // Peinture
+  peintre: 'peinture', peintres: 'peinture', ravalement: 'peinture', facade: 'peinture',
+  // Maçonnerie
+  macon: 'maconnerie', macons: 'maconnerie', beton: 'maconnerie', mur: 'maconnerie',
+  cloture: 'maconnerie', dalle: 'maconnerie',
+  // Menuiserie
+  menuisier: 'menuiserie', menuisiers: 'menuiserie', fenetre: 'menuiserie',
+  volet: 'menuiserie', parquet: 'menuiserie', bois: 'menuiserie', dressing: 'menuiserie',
+  // Carrelage
+  carreleur: 'carrelage', carreleurs: 'carrelage', faience: 'carrelage',
+  // Toiture
+  couvreur: 'toiture', couvreurs: 'toiture', toit: 'toiture', gouttiere: 'toiture',
+  tuile: 'toiture', zinguerie: 'toiture',
+  // Espaces verts
+  jardinier: 'espaces-verts', jardiniers: 'espaces-verts', paysagiste: 'espaces-verts',
+  paysagistes: 'espaces-verts', elagage: 'espaces-verts', elagueur: 'espaces-verts',
+  elagueurs: 'espaces-verts', tonte: 'espaces-verts',
+  haie: 'espaces-verts', pelouse: 'espaces-verts', arbre: 'espaces-verts', taille: 'espaces-verts',
+  gazon: 'espaces-verts', debroussaillage: 'espaces-verts', abattage: 'espaces-verts',
+  dessouchage: 'espaces-verts', rognage: 'espaces-verts', espaces: 'espaces-verts',
+  jardinage: 'espaces-verts', jardin: 'espaces-verts',
+  // Nettoyage
+  nettoyeur: 'nettoyage', menage: 'nettoyage',
+  // Déménagement
+  demenageur: 'demenagement', demenageurs: 'demenagement',
+  // Rénovation
+  renovateur: 'renovation', travaux: 'renovation',
+  // Vitrerie
+  vitrier: 'vitrerie', vitriers: 'vitrerie', vitre: 'vitrerie', vitrage: 'vitrerie', miroir: 'vitrerie',
+  // Traitement nuisibles
+  nuisible: 'traitement-nuisibles', nuisibles: 'traitement-nuisibles',
+  deratisation: 'traitement-nuisibles', desinsectisation: 'traitement-nuisibles',
+  punaise: 'traitement-nuisibles', punaises: 'traitement-nuisibles',
+  termite: 'traitement-nuisibles', termites: 'traitement-nuisibles',
+  cafard: 'traitement-nuisibles', cafards: 'traitement-nuisibles',
+  guepe: 'traitement-nuisibles', guepes: 'traitement-nuisibles',
+  frelon: 'traitement-nuisibles', frelons: 'traitement-nuisibles',
+  rat: 'traitement-nuisibles', rats: 'traitement-nuisibles',
+  souris: 'traitement-nuisibles',
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a.length === 0) return b.length
+  if (b.length === 0) return a.length
+  // Quick bail: if length diff > 2, skip full computation
+  if (Math.abs(a.length - b.length) > 2) return 3
+  const matrix: number[][] = []
+  for (let i = 0; i <= a.length; i++) matrix[i] = [i]
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      )
+    }
+  }
+  return matrix[a.length][b.length]
+}
+
+function fuzzyMatchCategory(input: string): string | null {
+  const norm = normalizeForSearch(input)
+  if (!norm) return null
+
+  // 1. Exact slug match
+  if (CATEGORY_TO_METIERS[norm]) return norm
+
+  // 2. Keyword exact match (each word of input)
+  const words = norm.split(/\s+/).filter(w => w.length >= 2)
+  for (const word of words) {
+    if (KEYWORD_TO_CATEGORY[word]) return KEYWORD_TO_CATEGORY[word]
+    if (CATEGORY_TO_METIERS[word]) return word
+  }
+
+  // 3. Prefix match on slugs and keywords (e.g. "plomb" → plomberie)
+  for (const word of words) {
+    if (word.length < 3) continue
+    for (const slug of Object.keys(CATEGORY_TO_METIERS)) {
+      if (slug.startsWith(word) || word.startsWith(slug)) return slug
+    }
+    for (const [kw, slug] of Object.entries(KEYWORD_TO_CATEGORY)) {
+      if (kw.startsWith(word) || word.startsWith(kw)) return slug
+    }
+  }
+
+  // 4. Levenshtein ≤ 2 on keywords and slugs
+  for (const word of words) {
+    if (word.length < 3) continue
+    let bestDist = 3
+    let bestSlug: string | null = null
+    for (const [kw, slug] of Object.entries(KEYWORD_TO_CATEGORY)) {
+      const d = levenshtein(word, kw)
+      if (d < bestDist) { bestDist = d; bestSlug = slug }
+    }
+    for (const slug of Object.keys(CATEGORY_TO_METIERS)) {
+      const d = levenshtein(word, slug)
+      if (d < bestDist) { bestDist = d; bestSlug = slug }
+    }
+    if (bestSlug && bestDist <= 2) return bestSlug
+  }
+
+  return null
 }
 
 // ------------------------------------------------------------------
@@ -298,7 +442,7 @@ function MiniWeeklyCalendar({
                 <div
                   className={`text-xs leading-tight ${
                     isToday
-                      ? 'bg-[#FFC107] text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto'
+                      ? 'bg-[#D4A017] text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto'
                       : ''
                   }`}
                 >
@@ -316,13 +460,13 @@ function MiniWeeklyCalendar({
                       <Link
                         key={slot}
                         href={`/artisan/${artisanId}`}
-                        className="text-[10px] sm:text-xs bg-amber-50 hover:bg-[#FFC107] hover:text-gray-900 text-amber-700 font-semibold py-1 px-0.5 rounded text-center transition truncate"
+                        className="text-[10px] sm:text-xs bg-amber-50 hover:bg-[#D4A017] hover:text-gray-900 text-amber-700 font-semibold py-1 px-0.5 rounded text-center transition truncate"
                       >
                         {slot}
                       </Link>
                     ))}
                     {slots.length > MAX_VISIBLE_SLOTS && (
-                      <span className="text-[9px] text-gray-400 text-center">
+                      <span className="text-[9px] text-gray-500 text-center">
                         +{slots.length - MAX_VISIBLE_SLOTS}
                       </span>
                     )}
@@ -337,7 +481,7 @@ function MiniWeeklyCalendar({
       {/* See more link */}
       <Link
         href={`/artisan/${artisanId}`}
-        className="mt-2 text-xs text-[#FFC107] hover:text-amber-600 font-semibold text-center transition"
+        className="mt-2 text-xs text-[#D4A017] hover:text-amber-600 font-semibold text-center transition"
       >
         Voir plus de creneaux &rarr;
       </Link>
@@ -369,7 +513,7 @@ function FilterModal({
   if (!isOpen) return null
 
   const dispoOptions = [
-    { value: 'all', label: 'Toutes les disponibilites' },
+    { value: 'all', label: 'Toutes les disponibilités' },
     { value: 'today', label: "Aujourd'hui" },
     { value: '3days', label: 'Sous 3 jours' },
     { value: '7days', label: 'Sous 7 jours' },
@@ -379,7 +523,7 @@ function FilterModal({
   const interventionOptions = [
     { value: 'all', label: 'Tous types' },
     { value: 'urgence', label: 'Intervention urgente' },
-    { value: 'planifie', label: 'Intervention planifiee' },
+    { value: 'planifie', label: 'Intervention planifiée' },
   ]
 
   return (
@@ -413,7 +557,7 @@ function FilterModal({
                   name="dispo"
                   checked={local.disponibilite === opt.value}
                   onChange={() => setLocal({ ...local, disponibilite: opt.value })}
-                  className="w-4 h-4 accent-[#FFC107]"
+                  className="w-4 h-4 accent-[#D4A017]"
                 />
                 <span className="text-sm">{opt.label}</span>
               </label>
@@ -437,7 +581,7 @@ function FilterModal({
                   name="intervention"
                   checked={local.typeIntervention === opt.value}
                   onChange={() => setLocal({ ...local, typeIntervention: opt.value })}
-                  className="w-4 h-4 accent-[#FFC107]"
+                  className="w-4 h-4 accent-[#D4A017]"
                 />
                 <span className="text-sm">{opt.label}</span>
               </label>
@@ -452,7 +596,7 @@ function FilterModal({
               type="checkbox"
               checked={local.verifiedOnly}
               onChange={() => setLocal({ ...local, verifiedOnly: !local.verifiedOnly })}
-              className="w-4 h-4 accent-[#FFC107] rounded"
+              className="w-4 h-4 accent-[#D4A017] rounded"
             />
             <span className="text-sm font-medium">Artisans certifies uniquement</span>
           </label>
@@ -477,7 +621,7 @@ function FilterModal({
               setFilters(local)
               onClose()
             }}
-            className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-2.5 rounded-lg font-semibold transition"
+            className="flex-1 bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 py-2.5 rounded-lg font-semibold transition"
           >
             Appliquer les filtres
           </button>
@@ -512,16 +656,16 @@ function StarsRow({ rating, reviewCount }: { rating: number; reviewCount: number
             key={i}
             className={`w-3.5 h-3.5 ${
               i < fullStars
-                ? 'fill-[#FFC107] text-[#FFC107]'
+                ? 'fill-[#D4A017] text-[#D4A017]'
                 : i === fullStars && hasHalf
-                  ? 'fill-[#FFC107]/50 text-[#FFC107]'
+                  ? 'fill-[#D4A017]/50 text-[#D4A017]'
                   : 'fill-gray-200 text-gray-200'
             }`}
           />
         ))}
       </div>
       <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
-      <span className="text-xs text-gray-400">({reviewCount} avis)</span>
+      <span className="text-xs text-gray-500">({reviewCount} avis)</span>
     </div>
   )
 }
@@ -569,11 +713,11 @@ function ArtisanCard({
         <div className="flex flex-col lg:flex-row lg:gap-6">
           {/* Avatar */}
           <div className="flex lg:flex-col items-center lg:items-center gap-4 lg:gap-2 mb-4 lg:mb-0 lg:w-20 flex-shrink-0">
-            <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
+            <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-[#D4A017] to-[#C4950F] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
               {initials}
             </div>
             <div className="hidden lg:flex items-center gap-0.5 mt-1">
-              <Star className="w-3.5 h-3.5 fill-[#FFC107] text-[#FFC107]" />
+              <Star className="w-3.5 h-3.5 fill-[#D4A017] text-[#D4A017]" />
               <span className="text-xs font-semibold">{rating.toFixed(1)}</span>
             </div>
           </div>
@@ -585,7 +729,7 @@ function ArtisanCard({
                 {isCatalogue ? (
                   <span className="font-bold text-lg">{artisan.company_name || 'Artisan'}</span>
                 ) : (
-                  <Link href={`/artisan/${artisan.id}`} className="font-bold text-lg hover:text-[#FFC107] transition">
+                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-bold text-lg hover:text-[#D4A017] transition">
                     {artisan.company_name || 'Artisan'}
                   </Link>
                 )}
@@ -637,7 +781,7 @@ function ArtisanCard({
                 {artisan.telephone_pro && artisan.verified && (
                   <a
                     href={`tel:${artisan.telephone_pro}`}
-                    className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 font-bold py-2.5 px-4 rounded-lg transition text-sm"
+                    className="flex items-center justify-center gap-2 bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 font-bold py-2.5 px-4 rounded-lg transition text-sm"
                   >
                     📞 {artisan.telephone_pro}
                   </a>
@@ -646,19 +790,19 @@ function ArtisanCard({
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || 'Marseille'))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#D4A017] text-gray-700 hover:text-[#D4A017] font-semibold py-2 px-4 rounded-lg transition text-sm"
                 >
                   🔍 Voir sur Google
                 </a>
-                <p className="text-[10px] text-gray-400 text-center">
+                <p className="text-[10px] text-gray-500 text-center">
                   {reviewCount} avis Google • {rating.toFixed(1)}/5
                 </p>
               </div>
             ) : (
               <div className="flex flex-col gap-3 h-full justify-center">
                 <Link
-                  href={`/artisan/${artisan.id}`}
-                  className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 font-bold py-3 px-4 rounded-lg transition text-sm"
+                  href={`/artisan/${artisan.slug || artisan.id}`}
+                  className="flex items-center justify-center gap-2 bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 font-bold py-3 px-4 rounded-lg transition text-sm"
                 >
                   <Calendar className="w-4 h-4" />
                   Prendre rendez-vous
@@ -667,7 +811,7 @@ function ArtisanCard({
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.city || ''))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#D4A017] text-gray-700 hover:text-[#D4A017] font-semibold py-2 px-4 rounded-lg transition text-sm"
                 >
                   🔍 Voir sur Google
                 </a>
@@ -730,6 +874,9 @@ function RechercheContent() {
   const fetchData = useCallback(
     async (category: string, location: string) => {
       setLoading(true)
+      const resolvedCategory = category ? fuzzyMatchCategory(category) : null
+      const catNorm = normalizeForSearch(category)
+      const locNorm = normalizeForSearch(location)
 
       // ── 1. Artisans inscrits (profiles_artisan) ─────────────────────
       let query = supabase
@@ -737,25 +884,24 @@ function RechercheContent() {
         .select('*, services(*)')
         .eq('active', true)
 
-      if (category) {
-        query = query.contains('categories', [category])
-      }
-
+      // Don't filter registered artisans at DB level — do it client-side for better fuzzy matching
       const { data: artisanData, error } = await query
 
       if (error) {
         console.error('Erreur fetch artisans:', error)
       }
 
-      const registeredList: Artisan[] = (artisanData || []).map((a) => {
-        // Extract address from bio (e.g. "basé à La Ciotat — Bât B, Rés. l'Aurore, 13600 La Ciotat")
-        const addrMatch = (a.bio || '').match(/—\s*(.+?)(?:\.\s+[A-ZÀ-Ü]|<!--)/)
-        const simpleMatch = !addrMatch ? (a.bio || '').match(/bas[ée]e?\s+[àa]\s+([^(.\n]+?)(?:\s*\((\d{5})\))?(?:\s*[.,]|\s*$)/i) : null
-        const extractedCity = addrMatch
-          ? addrMatch[1].trim()
-          : simpleMatch
-            ? simpleMatch[2] ? `${simpleMatch[1].trim()}, ${simpleMatch[2]}` : simpleMatch[1].trim()
-            : null
+      let registeredList: Artisan[] = (artisanData || []).map((a) => {
+        // Extract city from bio or use company_city
+        const extractedCity = a.company_city || (() => {
+          const addrMatch = (a.bio || '').match(/—\s*(.+?)(?:\.\s+[A-ZÀ-Ü]|<!--)/)
+          const simpleMatch = !addrMatch ? (a.bio || '').match(/bas[ée]e?\s+[àa]\s+([^(.\n]+?)(?:\s*\((\d{5})\))?(?:\s*[.,]|\s*$)/i) : null
+          return addrMatch
+            ? addrMatch[1].trim()
+            : simpleMatch
+              ? simpleMatch[2] ? `${simpleMatch[1].trim()}, ${simpleMatch[2]}` : simpleMatch[1].trim()
+              : null
+        })()
         return {
           ...a,
           city: extractedCity,
@@ -763,22 +909,79 @@ function RechercheContent() {
         }
       })
 
+      // Client-side category filter for registered artisans
+      if (catNorm) {
+        // Build a set of all related slugs/keywords for the resolved category
+        const relatedTerms = new Set<string>()
+        if (resolvedCategory) {
+          relatedTerms.add(resolvedCategory)
+          // Add all keywords that map to this category
+          for (const [kw, slug] of Object.entries(KEYWORD_TO_CATEGORY)) {
+            if (slug === resolvedCategory) relatedTerms.add(kw)
+          }
+          // Add metier names
+          const metiers = CATEGORY_TO_METIERS[resolvedCategory] || []
+          for (const m of metiers) relatedTerms.add(normalizeForSearch(m))
+        }
+
+        registeredList = registeredList.filter((a) => {
+          const artisanText = normalizeForSearch(
+            [
+              (a.categories || []).join(' '),
+              a.company_name || '',
+              a.bio || '',
+              (a.services || []).map((s: any) => s.name || '').join(' '),
+            ].join(' ')
+          )
+          // Check if any artisan category matches any related term
+          if (resolvedCategory) {
+            const artisanCats = (a.categories || []).map((c: string) => normalizeForSearch(c))
+            const hasMatch = artisanCats.some((ac: string) =>
+              relatedTerms.has(ac) || [...relatedTerms].some(rt => ac.includes(rt) || rt.includes(ac))
+            )
+            if (hasMatch) return true
+            // Also check bio and services for related terms
+            return [...relatedTerms].some(rt => rt.length >= 3 && artisanText.includes(rt))
+          }
+          // No resolved category — free text search
+          return catNorm.split(/\s+/).some(w => w.length >= 2 && artisanText.includes(w))
+        })
+      }
+
+      // Client-side location filter for registered artisans
+      if (locNorm) {
+        registeredList = registeredList.filter((a) => {
+          const haystack = normalizeForSearch(
+            [
+              a.city || '',
+              (a as any).company_city || '',
+              (a as any).company_postal_code || '',
+              a.bio || '',
+            ].join(' ')
+          )
+          return locNorm.split(/\s+/).some(w => w.length >= 2 && haystack.includes(w))
+        })
+      }
+
       // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
       let catalogQuery = supabase
         .from('artisans_catalogue')
         .select('*')
         .order('google_note', { ascending: false })
 
-      if (category) {
-        const metiers = CATEGORY_TO_METIERS[category]
+      if (resolvedCategory) {
+        const metiers = CATEGORY_TO_METIERS[resolvedCategory]
         if (metiers && metiers.length > 0) {
           catalogQuery = catalogQuery.in('metier', metiers)
         }
+      } else if (catNorm) {
+        // Free-text fallback: search in metier, specialite, nom_entreprise
+        catalogQuery = catalogQuery.or(`metier.ilike.%${catNorm}%,specialite.ilike.%${catNorm}%,nom_entreprise.ilike.%${catNorm}%`)
       }
 
       // Filter by location / arrondissement if provided
       if (location) {
-        catalogQuery = catalogQuery.ilike('adresse', `%${location}%`)
+        catalogQuery = catalogQuery.or(`adresse.ilike.%${location}%,ville.ilike.%${location}%,arrondissement.ilike.%${location}%`)
       }
 
       const { data: catalogData } = await catalogQuery
@@ -802,9 +1005,29 @@ function RechercheContent() {
         arrondissement: c.arrondissement,
       }))
 
-      // ── 3. Fusion : inscrits d'abord, puis catalogue ─────────────────
-      const allArtisans = [...registeredList, ...catalogList]
-      setArtisans(allArtisans)
+      // ── 3. Fusion avec dédoublonnage : inscrits prioritaires ─────────
+      // Un artisan inscrit (profiles_artisan) prime sur le catalogue
+      // Dédup par nom d'entreprise normalisé pour éviter les doublons
+      const seen = new Set<string>()
+      const deduped: Artisan[] = []
+
+      // D'abord les inscrits (priorité)
+      for (const a of registeredList) {
+        const key = normalizeForSearch(a.company_name || '')
+        if (key && seen.has(key)) continue
+        if (key) seen.add(key)
+        deduped.push(a)
+      }
+
+      // Puis le catalogue, sauf si déjà vu
+      for (const a of catalogList) {
+        const key = normalizeForSearch(a.company_name || '')
+        if (key && seen.has(key)) continue
+        if (key) seen.add(key)
+        deduped.push(a)
+      }
+
+      setArtisans(deduped)
 
       // ── 4. Dispo & bookings pour les artisans inscrits uniquement ────
       if (registeredList.length > 0) {
@@ -1009,12 +1232,12 @@ function RechercheContent() {
     if (activeCategory) {
       parts.push(`${getCategoryLabel(activeCategory)}s verifies`)
     } else {
-      parts.push('Artisans verifies')
+      parts.push('Artisans vérifiés')
     }
     if (activeLocation) {
       parts.push(`a ${activeLocation}`)
     }
-    parts.push('avec disponibilites en temps reel')
+    parts.push('avec disponibilités en temps réel')
     return parts.join(' ')
   }, [activeCategory, activeLocation])
 
@@ -1024,31 +1247,45 @@ function RechercheContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <h1 className="sr-only">Rechercher un artisan près de chez vous</h1>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.fr/' },
+              { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.fr/recherche/' },
+            ],
+          }),
+        }}
+      />
       {/* Search Bar (in-page) */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
                 type="text"
                 value={categoryInput}
                 onChange={(e) => setCategoryInput(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Plomberie, Electricite..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-[#FFC107] focus:ring-1 focus:ring-[#FFC107] transition text-sm"
+                placeholder="Sp&eacute;cialit&eacute; ou motif (ex: plombier, fuite, taille haie...)"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-[#D4A017] focus:ring-1 focus:ring-[#D4A017] transition text-sm"
               />
             </div>
             <div className="relative flex-1 sm:max-w-xs">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
                 type="text"
                 value={locationInput}
                 onChange={(e) => { setLocationInput(e.target.value); setUserCoords(null) }}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Ville ou code postal"
-                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:border-[#FFC107] focus:ring-1 focus:ring-[#FFC107] transition text-sm ${
-                  userCoords ? 'border-[#FFC107] bg-amber-50' : 'border-gray-200'
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:border-[#D4A017] focus:ring-1 focus:ring-[#D4A017] transition text-sm ${
+                  userCoords ? 'border-[#D4A017] bg-amber-50' : 'border-gray-200'
                 }`}
               />
             </div>
@@ -1057,7 +1294,7 @@ function RechercheContent() {
               onClick={handleGeolocate}
               disabled={geoLoading}
               title="Rechercher les artisans autour de moi"
-              className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-[#FFC107] text-[#FFC107] hover:bg-amber-50 rounded-lg font-semibold transition disabled:opacity-60 whitespace-nowrap"
+              className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-[#D4A017] text-[#D4A017] hover:bg-amber-50 rounded-lg font-semibold transition disabled:opacity-60 whitespace-nowrap"
             >
               {geoLoading ? (
                 <span className="animate-spin text-base">⏳</span>
@@ -1068,7 +1305,7 @@ function RechercheContent() {
             </button>
             <button
               onClick={handleSearch}
-              className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+              className="bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
             >
               <Search className="w-4 h-4" />
               Rechercher
@@ -1104,7 +1341,7 @@ function RechercheContent() {
           <div className="flex items-center gap-2 overflow-x-auto">
             <button
               onClick={() => setFilterModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:border-[#FFC107] hover:bg-amber-50 transition whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:border-[#D4A017] hover:bg-amber-50 transition whitespace-nowrap"
             >
               <SlidersHorizontal className="w-4 h-4" />
               Filtres
@@ -1124,8 +1361,8 @@ function RechercheContent() {
               title={userCoords ? 'Désactiver la localisation' : 'Rechercher autour de ma position'}
               className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap disabled:opacity-60 ${
                 userCoords
-                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50 text-gray-700'
+                  ? 'border-[#D4A017] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#D4A017] hover:bg-amber-50 text-gray-700'
               }`}
             >
               {geoLoading ? (
@@ -1149,8 +1386,8 @@ function RechercheContent() {
               }
               className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filters.disponibilite === '3days'
-                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50'
+                  ? 'border-[#D4A017] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#D4A017] hover:bg-amber-50'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -1165,8 +1402,8 @@ function RechercheContent() {
               }
               className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filters.disponibilite === 'today'
-                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50'
+                  ? 'border-[#D4A017] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#D4A017] hover:bg-amber-50'
               }`}
             >
               <Zap className="w-4 h-4" />
@@ -1206,7 +1443,7 @@ function RechercheContent() {
         {/* Results */}
         {loading ? (
           <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#D4A017] border-t-transparent"></div>
             <p className="mt-4 text-gray-500">Recherche en cours...</p>
           </div>
         ) : filteredArtisans.length === 0 ? (
@@ -1232,7 +1469,7 @@ function RechercheContent() {
                 fetchData('', '')
                 router.push('/recherche')
               }}
-              className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
+              className="bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >
               Reinitialiser la recherche
             </button>
@@ -1275,7 +1512,7 @@ export default function RecherchePage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#D4A017] border-t-transparent"></div>
         </div>
       }
     >

@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 
 // GET /api/syndic/signalements — récupérer les signalements du cabinet
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const cabinetId = user.user_metadata?.cabinet_id || user.id
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/syndic/signalements — mettre à jour un signalement
 export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const cabinetId = user.user_metadata?.cabinet_id || user.id
   const body = await request.json()
@@ -86,7 +86,7 @@ export async function PATCH(request: NextRequest) {
 // POST /api/syndic/signalements/message — ajouter un message (via query param action=message)
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const body = await request.json()
   const { signalementId, auteur, role, texte } = body

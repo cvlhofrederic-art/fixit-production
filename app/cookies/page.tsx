@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Gestion des cookies - VitFix',
-  description: 'Politique de gestion des cookies de VitFix, conformément au RGPD et aux recommandations de la CNIL.',
+  title: 'Gestion des cookies - Vitfix',
+  description: 'Politique de gestion des cookies de Vitfix, conformément au RGPD et aux recommandations de la CNIL.',
 }
 
 export default function CookiesPage() {
@@ -23,7 +23,7 @@ export default function CookiesPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Les cookies utilisés par VitFix</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Les cookies utilisés par Vitfix</h2>
 
             <div className="space-y-4">
               <div className="border border-green-200 bg-green-50 rounded-xl p-5">
@@ -54,7 +54,7 @@ export default function CookiesPage() {
                 </div>
                 <p className="text-gray-600 text-sm leading-relaxed">
                   Ces cookies nous permettent de mesurer l&apos;audience du site et d&apos;améliorer ses performances.
-                  Toutes les données sont anonymisées. VitFix n&apos;utilise pas de solution de tracking tiers à ce jour.
+                  Toutes les données sont anonymisées. Vitfix n&apos;utilise pas de solution de tracking tiers à ce jour.
                 </p>
               </div>
 
@@ -77,7 +77,7 @@ export default function CookiesPage() {
                   <span className="ml-auto text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">Non utilisés</span>
                 </div>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  VitFix n&apos;utilise aucun cookie publicitaire ou de tracking à des fins marketing tiers.
+                  Vitfix n&apos;utilise aucun cookie publicitaire ou de tracking à des fins marketing tiers.
                   Aucune donnée vous concernant n&apos;est transmise à des régies publicitaires.
                 </p>
               </div>

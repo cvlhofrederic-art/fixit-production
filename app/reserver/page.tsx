@@ -91,15 +91,15 @@ function ReserverContent() {
         <div className="max-w-md w-full text-center">
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-6xl mb-4">✅</div>
-            <h2 className="text-2xl font-bold mb-2">Reservation envoyee !</h2>
+            <h2 className="text-2xl font-bold mb-2">Réservation envoyée !</h2>
             <p className="text-gray-600 mb-6">
-              L&apos;artisan va confirmer votre reservation. Vous recevrez une notification.
+              L&apos;artisan va confirmer votre réservation. Vous recevrez une notification.
             </p>
             <button
               onClick={() => router.push('/')}
-              className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition"
+              className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
             >
-              Retour a l&apos;accueil
+              Retour à l&apos;accueil
             </button>
           </div>
         </div>
@@ -118,7 +118,7 @@ function ReserverContent() {
           Retour
         </button>
 
-        <h1 className="text-3xl font-bold mb-8">Reserver un service</h1>
+        <h1 className="text-3xl font-bold mb-8">Réserver un service</h1>
 
         <div className="grid md:grid-cols-3 gap-8">
           {/* Form */}
@@ -134,7 +134,7 @@ function ReserverContent() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Calendar className="w-4 h-4 inline mr-1" />
-                    Date souhaitee
+                    Date souhaitée
                   </label>
                   <input
                     type="date"
@@ -149,7 +149,7 @@ function ReserverContent() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Clock className="w-4 h-4 inline mr-1" />
-                    Heure souhaitee
+                    Heure souhaitée
                   </label>
                   <select
                     value={formData.time}
@@ -188,16 +188,16 @@ function ReserverContent() {
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none resize-none"
-                    placeholder="Details supplementaires..."
+                    placeholder="Détails supplémentaires..."
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-lg font-semibold transition disabled:opacity-50"
+                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-semibold transition disabled:opacity-60"
                 >
-                  {submitting ? 'Envoi...' : 'Confirmer la reservation'}
+                  {submitting ? 'Envoi...' : 'Confirmer la réservation'}
                 </button>
               </form>
             </div>
@@ -206,7 +206,7 @@ function ReserverContent() {
           {/* Summary */}
           <div>
             <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-24">
-              <h3 className="font-bold text-lg mb-4">Recapitulatif</h3>
+              <h3 className="font-bold text-lg mb-4">Récapitulatif</h3>
 
               {artisan && (
                 <div className="mb-4 pb-4 border-b border-gray-100">

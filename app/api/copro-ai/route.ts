@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { callGroqWithRetry } from '@/lib/groq'
+
+export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -25,30 +28,18 @@ export async function POST(request: NextRequest) {
       ...messages.slice(-20).map((m: any) => ({ role: m.role, content: m.content })),
     ]
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+    try {
+      const groqData = await callGroqWithRetry({
         messages: groqMessages,
         temperature: 0.2,
-        max_tokens: 2000,
-      }),
-    })
-
-    if (!groqResponse.ok) {
-      const errText = await groqResponse.text()
-      console.error('Groq API error:', groqResponse.status, errText)
+        max_tokens: 3000,
+      })
+      const reply = groqData.choices?.[0]?.message?.content || 'Désolée, je n\'ai pas pu générer une réponse.'
+      return NextResponse.json({ reply })
+    } catch (err) {
+      console.error('Groq API error:', err)
       return NextResponse.json({ reply: 'Je rencontre un problème technique. Réessayez dans quelques instants.' }, { status: 500 })
     }
-
-    const groqData = await groqResponse.json()
-    const reply = groqData.choices?.[0]?.message?.content || 'Désolée, je n\'ai pas pu générer une réponse.'
-
-    return NextResponse.json({ reply })
 
   } catch (error: any) {
     console.error('Copro AI error:', error)

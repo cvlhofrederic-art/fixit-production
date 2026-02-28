@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fixit-production.vercel.app'
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
 
   if (!GOOGLE_CLIENT_ID) {
     return NextResponse.json({ error: 'Google OAuth non configuré' }, { status: 500 })

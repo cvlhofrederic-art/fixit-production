@@ -111,6 +111,11 @@ export default function RegisterPage() {
       return
     }
 
+    if (!formData.address || !formData.postalCode || !formData.city) {
+      setError('Veuillez renseigner votre adresse complète (adresse, code postal, ville)')
+      return
+    }
+
     if (clientType === 'entreprise' && !formData.companyName.trim()) {
       setError('Veuillez renseigner le nom de votre entreprise')
       return
@@ -187,7 +192,7 @@ export default function RegisterPage() {
             </p>
             <Link
               href="/auth/login"
-              className="inline-block bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition"
+              className="inline-block bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
             >
               Se connecter
             </Link>
@@ -201,13 +206,13 @@ export default function RegisterPage() {
   if (!clientType) {
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Créer mon compte</h1>
-            <p className="text-gray-600 mt-2">Quel type de client êtes-vous ?</p>
+            <p className="text-gray-600 mt-2">Quel type de compte souhaitez-vous créer ?</p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {/* Particulier Card */}
             <button
               onClick={() => setClientType('particulier')}
@@ -225,32 +230,43 @@ export default function RegisterPage() {
               </div>
             </button>
 
+            {/* Artisan Card */}
+            <Link
+              href="/pro/register"
+              className="bg-white rounded-2xl shadow-lg p-8 text-left hover:shadow-xl hover:border-[#FFC107] border-2 border-transparent transition-all group"
+            >
+              <div className="text-5xl mb-4">🔧</div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#FFC107] transition">
+                Artisan
+              </h2>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Je suis artisan et je souhaite proposer mes services sur Fixit (plombier, électricien, peintre, maçon...)
+              </p>
+              <div className="mt-4 flex items-center text-[#FFC107] font-semibold text-sm opacity-0 group-hover:opacity-100 transition">
+                S'inscrire →
+              </div>
+            </Link>
+
             {/* Entreprise Card */}
-            <button
-              onClick={() => setClientType('entreprise')}
-              className="bg-white rounded-2xl shadow-lg p-8 text-left hover:shadow-xl hover:border-[#FFC107] border-2 border-transparent transition-all group cursor-pointer"
+            <Link
+              href="/pro/register"
+              className="bg-white rounded-2xl shadow-lg p-8 text-left hover:shadow-xl hover:border-[#FFC107] border-2 border-transparent transition-all group"
             >
               <div className="text-5xl mb-4">🏢</div>
               <h2 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#FFC107] transition">
                 Entreprise
               </h2>
               <p className="text-gray-500 text-sm leading-relaxed">
-                Je représente une entreprise et je cherche un artisan sous-traitant pour une mission ou un chantier spécifique
+                Syndic, gestionnaire d'immeubles, conciergerie, société BTP... Accédez à notre espace professionnel
               </p>
               <div className="mt-4 flex items-center text-[#FFC107] font-semibold text-sm opacity-0 group-hover:opacity-100 transition">
-                Commencer →
+                Espace pro →
               </div>
-            </button>
+            </Link>
           </div>
 
           <div className="text-center">
             <p className="text-gray-500 text-sm">
-              Vous êtes artisan ?{' '}
-              <Link href="/pro/register" className="text-[#FFC107] hover:underline font-semibold">
-                Inscrivez-vous ici
-              </Link>
-            </p>
-            <p className="text-gray-500 text-sm mt-2">
               Déjà un compte ?{' '}
               <Link href="/auth/login" className="text-[#FFC107] hover:underline font-semibold">
                 Se connecter
@@ -323,7 +339,7 @@ export default function RegisterPage() {
                   {/* SIRET field with verification */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SIRET de l'entreprise <span className="text-gray-400 text-xs">(optionnel mais recommandé)</span>
+                      SIRET de l'entreprise <span className="text-gray-500 text-xs">(optionnel mais recommandé)</span>
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -338,7 +354,7 @@ export default function RegisterPage() {
                         type="button"
                         onClick={verifySiret}
                         disabled={siretVerifying || formData.siret.replace(/\s/g, '').length !== 14}
-                        className="px-4 py-3 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-lg font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                        className="px-4 py-3 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed text-sm whitespace-nowrap"
                       >
                         {siretVerifying ? (
                           <span className="flex items-center gap-2">
@@ -495,33 +511,36 @@ export default function RegisterPage() {
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Adresse</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Adresse <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    required
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
                     placeholder="123 rue de la Paix"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Code postal</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Code postal <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={formData.postalCode}
                       onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                      required
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
                       placeholder="75001"
                       maxLength={5}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Ville</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Ville <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      required
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
                       placeholder="Paris"
                     />
@@ -567,7 +586,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3.5 rounded-lg font-semibold transition disabled:opacity-50 text-lg"
+              className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3.5 rounded-xl font-semibold transition disabled:opacity-60 text-lg"
             >
               {loading ? 'Inscription...' : clientType === 'entreprise' ? 'Inscrire mon entreprise' : 'Créer mon compte'}
             </button>

@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 
 // GET /api/syndic/missions — récupérer les missions du cabinet
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const cabinetId = user.user_metadata?.cabinet_id || user.id
 
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 // POST /api/syndic/missions — créer une mission
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const cabinetId = user.user_metadata?.cabinet_id || user.id
   const body = await request.json()
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/syndic/missions — mettre à jour une mission
 export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const cabinetId = user.user_metadata?.cabinet_id || user.id
   const body = await request.json()
@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE /api/syndic/missions?id=xxx — supprimer une mission
 export async function DELETE(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const cabinetId = user.user_metadata?.cabinet_id || user.id
   const { searchParams } = new URL(request.url)

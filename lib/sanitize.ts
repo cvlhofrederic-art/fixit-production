@@ -22,12 +22,16 @@ export function escapeHTML(str: string): string {
 export function safeMarkdownToHTML(content: string): string {
   if (!content) return ''
 
+  // Guard anti-ReDoS : limiter la taille du contenu
+  if (content.length > 50000) return '<p>Contenu trop long</p>'
+
   // 1. Échapper TOUT le HTML d'abord (XSS prevention)
   let html = escapeHTML(content)
 
   // 2. Tableaux markdown (après échappement, | et - sont safe)
+  // Note : .+? (lazy) pour éviter les ReDoS sur des inputs crafted
   html = html.replace(
-    /\|(.+)\|\n\|[-|: ]+\|\n((?:\|.+\|\n?)*)/g,
+    /\|(.+?)\|\n\|[-|: ]+\|\n((?:\|.+?\|\n?)*)/g,
     (_match: string, header: string, rows: string) => {
       const ths = header.split('|').filter((c: string) => c.trim())
         .map((c: string) => `<th class="px-2 py-1.5 border border-gray-200 bg-gray-100 font-semibold text-xs text-left">${c.trim()}</th>`)

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
-// GET: Fetch availability for an artisan
+// GET: Fetch availability for an artisan (public — nécessaire pour la réservation)
 export async function GET(request: NextRequest) {
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`availability_get_${ip}`, 30, 60_000)) return rateLimitResponse()
+
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
 
@@ -25,13 +30,31 @@ export async function GET(request: NextRequest) {
 }
 
 // POST: Toggle day availability (create or toggle is_available)
+// ⚠️ SÉCURISÉ : auth obligatoire + vérification ownership artisan
 export async function POST(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`availability_post_${ip}`, 30, 60_000)) return rateLimitResponse()
+
   try {
     const body = await request.json()
     const { artisan_id, day_of_week } = body
 
     if (!artisan_id || day_of_week === undefined) {
       return NextResponse.json({ error: 'artisan_id and day_of_week are required' }, { status: 400 })
+    }
+
+    // SÉCURITÉ : vérifier que l'utilisateur est propriétaire de cet artisan
+    const { data: artisanProfile } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('user_id')
+      .eq('id', artisan_id)
+      .single()
+    if (!artisanProfile || artisanProfile.user_id !== user.id) {
+      return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
     }
 
     // Validate day_of_week is 0-6
@@ -89,7 +112,15 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT: Update availability time for a specific day
+// ⚠️ SÉCURISÉ : auth obligatoire + vérification ownership via availability row
 export async function PUT(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`availability_put_${ip}`, 30, 60_000)) return rateLimitResponse()
+
   try {
     const body = await request.json()
     const { availability_id, field, value } = body
@@ -105,6 +136,24 @@ export async function PUT(request: NextRequest) {
     // Validate time format HH:MM
     if (!/^\d{2}:\d{2}$/.test(value)) {
       return NextResponse.json({ error: 'value must be a valid time format (HH:MM)' }, { status: 400 })
+    }
+
+    // SÉCURITÉ : vérifier ownership — récupérer la row availability → artisan → user_id
+    const { data: availRow } = await supabaseAdmin
+      .from('availability')
+      .select('artisan_id')
+      .eq('id', availability_id)
+      .single()
+    if (!availRow) {
+      return NextResponse.json({ error: 'Créneau introuvable' }, { status: 404 })
+    }
+    const { data: artisanProfile } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('user_id')
+      .eq('id', availRow.artisan_id)
+      .single()
+    if (!artisanProfile || artisanProfile.user_id !== user.id) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
     // Use explicit update instead of dynamic field

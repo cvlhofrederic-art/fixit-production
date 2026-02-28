@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'À propos - VitFix',
-  description: 'Découvrez VitFix, la plateforme qui connecte particuliers et artisans vérifiés en France.',
+  title: 'À propos - Vitfix',
+  description: 'Découvrez Vitfix, la plateforme qui connecte particuliers et artisans vérifiés en France.',
 }
 
 export default function AProposPage() {
@@ -14,13 +14,13 @@ export default function AProposPage() {
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-2 mb-4">
             <span className="text-4xl">⚡</span>
-            <span className="text-4xl font-bold text-[#FFC107]">VitFix</span>
+            <span className="text-4xl font-bold text-[#FFC107]">Vitfix</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
             La plateforme qui simplifie le quotidien
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            VitFix connecte les particuliers avec des artisans vérifiés et certifiés, partout en France.
+            Vitfix connecte les particuliers avec des artisans vérifiés et certifiés, partout en France.
             Notre mission : rendre l&apos;accès aux professionnels du bâtiment simple, rapide et fiable.
           </p>
         </div>
@@ -29,12 +29,12 @@ export default function AProposPage() {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Notre histoire</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
-            VitFix est née d&apos;un constat simple : trouver un artisan de confiance est souvent un parcours du combattant.
+            Vitfix est née d&apos;un constat simple : trouver un artisan de confiance est souvent un parcours du combattant.
             Délais interminables, manque de transparence sur les tarifs, difficulté à vérifier les qualifications —
             nous avons voulu changer tout cela.
           </p>
           <p className="text-gray-600 leading-relaxed">
-            Fondée en France, VitFix s&apos;appuie sur des technologies modernes pour mettre en relation
+            Fondée en France, Vitfix s&apos;appuie sur des technologies modernes pour mettre en relation
             des professionnels certifiés avec des clients qui ont besoin d&apos;une intervention rapide et de qualité.
             Chaque artisan référencé sur notre plateforme est vérifié : SIRET validé, assurance RC Pro obligatoire,
             avis clients contrôlés.
@@ -71,7 +71,7 @@ export default function AProposPage() {
 
         {/* Chiffres */}
         <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] rounded-2xl p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">VitFix en chiffres</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Vitfix en chiffres</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
               <div className="text-3xl font-bold text-gray-900">500+</div>

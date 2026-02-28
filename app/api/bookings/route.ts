@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { createBookingSchema, validateBody } from '@/lib/validation'
 
-// GET: Fetch future bookings for an artisan
+// GET: Fetch future bookings for an artisan (public — only slot data, no personal info)
 export async function GET(request: NextRequest) {
-  const user = await getAuthUser(request)
-  if (!user) {
-    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  }
   const ip = getClientIP(request)
   if (!checkRateLimit(`bookings_get_${ip}`, 60, 60_000)) return rateLimitResponse()
 
@@ -23,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('*')
+    .select('id, booking_date, booking_time, duration_minutes, status')
     .eq('artisan_id', artisanId)
     .gte('booking_date', today)
     .in('status', ['confirmed', 'pending'])
@@ -47,36 +44,23 @@ export async function POST(request: NextRequest) {
     if (!checkRateLimit(`bookings_post_${ip}`, 20, 60_000)) return rateLimitResponse()
 
     const body = await request.json()
-    const { artisan_id, service_id, booking_date, booking_time, duration_minutes, address, notes, price_ht, price_ttc, status } = body
-
-    if (!artisan_id || !booking_date || !booking_time) {
-      return NextResponse.json({ error: 'artisan_id, booking_date, and booking_time are required' }, { status: 400 })
+    const validation = validateBody(createBookingSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
+    const { artisan_id, service_id, booking_date, booking_time, duration_minutes, address, notes, price_ht, price_ttc, status } = validation.data
+    const dur = duration_minutes
 
-    // Validate date format
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(booking_date)) {
-      return NextResponse.json({ error: 'Invalid booking_date format (YYYY-MM-DD)' }, { status: 400 })
-    }
+    // ── Fetch artisan profile for notifications ────────────────────────
+    const { data: artisanProfile } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('user_id, company_name')
+      .eq('id', artisan_id)
+      .single()
 
-    // Validate time format
-    if (!/^\d{2}:\d{2}(:\d{2})?$/.test(booking_time)) {
-      return NextResponse.json({ error: 'Invalid booking_time format (HH:MM)' }, { status: 400 })
-    }
+    const isAutoAccept = false
 
-    // Validate duration
-    const dur = duration_minutes || 60
-    if (dur < 15 || dur > 480) {
-      return NextResponse.json({ error: 'duration_minutes must be between 15 and 480' }, { status: 400 })
-    }
-
-    // Validate prices
-    if (price_ht !== undefined && price_ht < 0) {
-      return NextResponse.json({ error: 'price_ht cannot be negative' }, { status: 400 })
-    }
-    if (price_ttc !== undefined && price_ttc < 0) {
-      return NextResponse.json({ error: 'price_ttc cannot be negative' }, { status: 400 })
-    }
-
+    // ── Build insert data ──────────────────────────────────────────────
     const insertData: Record<string, unknown> = {
       artisan_id,
       booking_date,
@@ -86,7 +70,11 @@ export async function POST(request: NextRequest) {
       notes: notes ? String(notes).substring(0, 1000) : '',
       price_ht: price_ht || 0,
       price_ttc: price_ttc || 0,
-      status: status || 'pending',
+      status: isAutoAccept ? 'confirmed' : (status || 'pending'),
+    }
+
+    if (isAutoAccept) {
+      insertData.confirmed_at = new Date().toISOString()
     }
 
     if (service_id) {
@@ -95,6 +83,24 @@ export async function POST(request: NextRequest) {
 
     // Attach client_id from authenticated user
     insertData.client_id = user.id
+
+    // ── Ensure profiles_client exists (FK constraint) ────────────────
+    const { data: existingProfile } = await supabaseAdmin
+      .from('profiles_client')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (!existingProfile) {
+      const meta = user.user_metadata || {}
+      await supabaseAdmin.from('profiles_client').insert({
+        id: user.id,
+        first_name: meta.full_name?.split(' ')[0] || null,
+        last_name: meta.full_name?.split(' ').slice(1).join(' ') || null,
+        phone: meta.phone || null,
+        address: meta.address || null,
+      })
+    }
 
     const { data, error } = await supabaseAdmin
       .from('bookings')
@@ -105,6 +111,61 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating booking:', error)
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 })
+    }
+
+    // ── Notify artisan of new booking ─────────────────────────────────
+    try {
+      if (artisanProfile?.user_id) {
+        // Get service name for notification
+        let serviceName = 'Intervention'
+        if (service_id) {
+          const { data: svc } = await supabaseAdmin
+            .from('services')
+            .select('name')
+            .eq('id', service_id)
+            .single()
+          if (svc?.name) serviceName = svc.name
+        }
+
+        // Extract client name from notes
+        const clientMatch = (notes || '').match(/Client:\s*([^|]+)/)
+        const clientName = clientMatch ? clientMatch[1].trim() : 'Un client'
+
+        // Format date for notification
+        const dateObj = new Date(booking_date + 'T00:00:00')
+        const dateFormatted = dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+        const timeFormatted = booking_time.substring(0, 5)
+
+        const notifTitle = isAutoAccept
+          ? '✅ RDV auto-confirmé'
+          : '📅 Nouveau rendez-vous !'
+        const notifBody = isAutoAccept
+          ? `${clientName} a réservé "${serviceName}" le ${dateFormatted} à ${timeFormatted}. RDV confirmé automatiquement.`
+          : `${clientName} souhaite réserver "${serviceName}" le ${dateFormatted} à ${timeFormatted}. Confirmez ou refusez dans les 48h.`
+
+        await supabaseAdmin
+          .from('artisan_notifications')
+          .insert({
+            artisan_id: artisanProfile.user_id,
+            type: 'new_booking',
+            title: notifTitle,
+            body: notifBody,
+            read: false,
+            data_json: {
+              booking_id: data.id,
+              client_name: clientName,
+              service_name: serviceName,
+              booking_date,
+              booking_time: timeFormatted,
+              action_required: !isAutoAccept,
+              auto_accepted: isAutoAccept,
+            },
+            created_at: new Date().toISOString(),
+          })
+      }
+    } catch (notifErr) {
+      // Don't fail booking creation if notification fails
+      console.error('Error sending artisan notification:', notifErr)
     }
 
     return NextResponse.json({ data })

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // Codes NAF typiques pour les artisans du bâtiment et services
 const ARTISAN_NAF_PREFIXES = [
@@ -47,6 +48,10 @@ function validateSiretFormat(siret: string): { valid: boolean; message?: string 
 }
 
 export async function GET(request: NextRequest) {
+  // Rate limit anti-énumération SIRET : 10 req/min par IP
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`verify_siret_${ip}`, 10, 60_000)) return rateLimitResponse()
+
   const siret = request.nextUrl.searchParams.get('siret')
 
   if (!siret) {
@@ -67,15 +72,26 @@ export async function GET(request: NextRequest) {
 
   try {
     // 2. Appel à l'API Annuaire des Entreprises (gratuit, sans clé)
-    const response = await fetch(
-      `https://recherche-entreprises.api.gouv.fr/search?q=${cleanSiret}&mtm_campaign=fixit`,
-      {
-        headers: { 'Accept': 'application/json' },
-        next: { revalidate: 3600 } // cache 1h
+    // Retry with backoff for transient errors
+    let response: Response | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await fetch(
+          `https://recherche-entreprises.api.gouv.fr/search?q=${cleanSiret}&mtm_campaign=fixit`,
+          {
+            headers: { 'Accept': 'application/json' },
+            next: { revalidate: 3600 },
+            signal: AbortSignal.timeout(10000), // 10s timeout
+          }
+        )
+        if (response.ok || response.status < 500) break
+      } catch (err: any) {
+        if (attempt === 2) throw err
+        await new Promise(r => setTimeout(r, (attempt + 1) * 1000))
       }
-    )
+    }
 
-    if (!response.ok) {
+    if (!response || !response.ok) {
       return NextResponse.json({
         verified: false,
         error: 'Service de vérification temporairement indisponible. Réessayez dans quelques instants.',

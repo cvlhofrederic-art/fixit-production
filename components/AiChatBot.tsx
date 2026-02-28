@@ -50,6 +50,8 @@ type Message = {
     data?: any
     confirmed?: boolean
   }
+  actionsExecuted?: Array<{ tool: string; result: string; detail: string }>
+  pendingConfirmation?: { tool: string; params: any; description: string; confirm_token: string }
 }
 
 type ClientData = {
@@ -69,9 +71,12 @@ type AiChatBotProps = {
   artisan: any
   bookings: any[]
   services: any[]
+  availability?: any[]
+  dayServices?: Record<string, string[]>
   onCreateRdv: (data: { client_name: string; date: string; time: string; service_id?: string; address?: string; notes?: string }) => void
   onCreateDevis: (data: any) => void
   onNavigate: (page: string) => void
+  onDataRefresh?: () => void
 }
 
 // ══════════════ PARSER INTELLIGENT ══════════════
@@ -357,7 +362,7 @@ function findClientByName(name: string, clients: ClientData[]): ClientData | nul
   return null
 }
 
-export default function AiChatBot({ artisan, bookings, services, onCreateRdv, onCreateDevis, onNavigate }: AiChatBotProps) {
+export default function AiChatBot({ artisan, bookings, services, availability, dayServices, onCreateRdv, onCreateDevis, onNavigate, onDataRefresh }: AiChatBotProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -521,7 +526,7 @@ export default function AiChatBot({ artisan, bookings, services, onCreateRdv, on
       setMessages([{
         id: 'welcome',
         role: 'assistant',
-        content: `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe suis là pour vous faire gagner du temps :\n\n• **Créer un RDV** : "RDV mardi 14h Mme Dupont"\n• **Faire un devis** : "Devis élagage 150€ pour Frédéric Neiva"\n• **Faire une facture** : "Facture intervention Mme Legrand 180€"\n• **Voir votre planning** : "Mes prochains RDV"\n\n💡 Je connais vos clients ! Si le client existe dans votre base, je pré-remplis automatiquement toutes ses infos.\n\nDites-moi, qu'est-ce qu'on fait ?`
+        content: `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?`
       }])
       setTimeout(() => inputRef.current?.focus(), 300)
     }
@@ -533,146 +538,126 @@ export default function AiChatBot({ artisan, bookings, services, onCreateRdv, on
     return msg
   }
 
-  // ─── AI-powered message processing ───
+  // ─── Conversation history for AI context (persisted in localStorage) ───
+  const conversationHistoryRef = useRef<Array<{ role: string; content: string }>>([])
+
+  // Load conversation history from localStorage on mount
+  useEffect(() => {
+    if (artisan?.id) {
+      try {
+        const saved = localStorage.getItem(`fixy_conv_${artisan.id}`)
+        if (saved) conversationHistoryRef.current = JSON.parse(saved)
+      } catch { /* ignore */ }
+    }
+  }, [artisan?.id])
+
+  const saveConversationHistory = () => {
+    if (artisan?.id) {
+      try {
+        // Keep last 20 messages max in storage
+        const toSave = conversationHistoryRef.current.slice(-20)
+        localStorage.setItem(`fixy_conv_${artisan.id}`, JSON.stringify(toSave))
+      } catch { /* ignore */ }
+    }
+  }
+
+  // ─── AI-powered message processing (Fixy v2) ───
   const processMessageWithAI = async (text: string): Promise<boolean> => {
     try {
+      // Build full context for server-side execution
+      const context = {
+        artisan_name: artisan?.company_name || 'Artisan',
+        services: services.map((s: any) => ({
+          id: s.id, name: s.name, active: s.active !== false,
+          price_ht: s.price_ht, price_ttc: s.price_ttc, duration_minutes: s.duration_minutes,
+        })),
+        availability: (availability || []).map((a: any) => ({
+          id: a.id, day_of_week: a.day_of_week, is_available: a.is_available,
+          start_time: a.start_time, end_time: a.end_time,
+        })),
+        dayServices: dayServices || {},
+        bookings: bookings.slice(0, 15).map((b: any) => ({
+          id: b.id, booking_date: b.booking_date, booking_time: b.booking_time,
+          status: b.status, service_name: b.services?.name || 'Intervention',
+          client_name: (b.notes || '').match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client',
+        })),
+        clients: clients.map(c => ({ name: c.name, email: c.email, phone: c.phone, address: c.address })),
+      }
+
+      // Add to conversation history
+      conversationHistoryRef.current.push({ role: 'user', content: text })
+
+      // Fetch with 30s timeout
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000)
+
       const res = await fetch('/api/fixy-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           message: text,
-          clients: clients.map(c => ({ name: c.name, email: c.email, phone: c.phone, address: c.address, siret: c.siret })),
-          services: services.map(s => ({ id: s.id, name: s.name, price_ht: s.price_ht, price_ttc: s.price_ttc, duration_minutes: s.duration_minutes })),
-          bookings: bookings.slice(0, 15),
-          artisanName: artisan?.company_name || 'Artisan',
+          artisan_id: artisan?.id,
+          context,
+          conversation_history: conversationHistoryRef.current.slice(-12),
         }),
       })
+      clearTimeout(timeout)
 
       const data = await res.json()
 
       // If API not configured or error, fallback to regex
-      if (data.fallback || data.error) return false
+      if (!data.success && !data.response) return false
 
-      const { intent, data: aiData, response, needsConfirmation } = data
+      const { response, actions_executed, pending_confirmation, client_actions } = data
 
-      if (!intent) return false
+      // Save assistant response in conversation history
+      if (response) {
+        conversationHistoryRef.current.push({ role: 'assistant', content: response })
+        saveConversationHistory()
+      }
 
-      switch (intent) {
-        case 'create_rdv': {
-          if (!needsConfirmation || !aiData?.date || !aiData?.time || !aiData?.clientName) {
-            addMessage('assistant', response || "Il me manque des informations pour créer le RDV. Précisez la date, l'heure et le nom du client.")
-            return true
-          }
-
-          const rdvData = {
-            client_name: aiData.clientName,
-            date: aiData.date,
-            time: aiData.time,
-            service_id: aiData.service ? services.find((s: any) => s.name.toLowerCase().includes(aiData.service.toLowerCase()))?.id || '' : '',
-            address: aiData.address || '',
-            notes: '',
-          }
-
-          const msg = addMessage('assistant', response || `Je vais créer ce RDV, **confirmez ?**`, { type: 'create_rdv', data: rdvData })
-          setPendingAction(msg)
-          return true
+      // Handle pending_confirmation (destructive action needing user approval)
+      if (pending_confirmation) {
+        const msg: Message = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: response || `⚠️ ${pending_confirmation.description}`,
+          actionsExecuted: actions_executed?.length ? actions_executed : undefined,
+          pendingConfirmation: pending_confirmation,
         }
+        setMessages(prev => [...prev, msg])
+        setPendingAction(msg)
+        return true
+      }
 
-        case 'create_devis':
-        case 'create_facture': {
-          const isFacture = intent === 'create_facture'
-          const docType = isFacture ? 'facture' : 'devis'
-
-          // Enrichir avec les données client de la base
-          let matchedClient: ClientData | null = null
-          if (aiData?.clientName) {
-            matchedClient = findClientByName(aiData.clientName, clients)
+      // Handle client_actions (open forms, navigate, refresh)
+      if (client_actions && Array.isArray(client_actions)) {
+        for (const ca of client_actions) {
+          if (ca.type === 'open_devis_form' || ca.type === 'open_facture_form') {
+            onCreateDevis({ ...ca.data, docType: ca.type === 'open_facture_form' ? 'facture' : 'devis' })
+          } else if (ca.type === 'navigate' && ca.page) {
+            onNavigate(ca.page)
+          } else if (ca.type === 'refresh_data' && onDataRefresh) {
+            onDataRefresh()
           }
-
-          const devisData: any = {
-            docType,
-            clientName: matchedClient?.name || aiData?.clientName || '',
-            clientEmail: matchedClient?.email || aiData?.clientEmail || '',
-            clientPhone: matchedClient?.phone || aiData?.clientPhone || '',
-            clientAddress: matchedClient?.address || aiData?.clientAddress || aiData?.address || '',
-            clientSiret: matchedClient?.siret || aiData?.clientSiret || '',
-            service: aiData?.service || '',
-            amount: aiData?.amount || 0,
-            address: matchedClient?.address || aiData?.address || '',
-            clientFound: !!matchedClient || !!aiData?.clientMatch,
-          }
-
-          // Build line items
-          if (aiData?.amount || aiData?.service) {
-            const desc = aiData.service || aiData.description || 'Prestation'
-            const priceHT = aiData.amount ? (aiData.amount / 1.2) : 0
-            devisData.lines = [{
-              id: Date.now(),
-              description: desc,
-              qty: 1,
-              priceHT: Math.round(priceHT * 100) / 100,
-              tvaRate: 20,
-              totalHT: Math.round(priceHT * 100) / 100,
-            }]
-          }
-
-          // Construire un résumé enrichi avec les infos client
-          let enrichedResponse = response || `Je prépare le ${docType}.`
-
-          // Si l'IA n'a pas inclus les détails client, les ajouter
-          if (matchedClient && !enrichedResponse.includes(matchedClient.phone || '___none___')) {
-            enrichedResponse = `Je vais préparer ${isFacture ? 'une facture' : 'un devis'} :\n\n`
-            enrichedResponse += `👤 **Client** : ${matchedClient.name} ✅ (trouvé dans votre base)\n`
-            if (matchedClient.phone) enrichedResponse += `📞 **Tél** : ${matchedClient.phone}\n`
-            if (matchedClient.email) enrichedResponse += `📧 **Email** : ${matchedClient.email}\n`
-            if (matchedClient.address) enrichedResponse += `📍 **Adresse** : ${matchedClient.address}\n`
-            if (aiData?.service) enrichedResponse += `🔧 **Service** : ${aiData.service}\n`
-            if (aiData?.amount) enrichedResponse += `💰 **Montant TTC** : ${aiData.amount.toFixed(2)}€\n`
-            enrichedResponse += `\n**Ouvrir le formulaire pré-rempli ?** (oui/non)`
-          } else if (!enrichedResponse.includes('oui/non') && !enrichedResponse.includes('Confirmer')) {
-            enrichedResponse += `\n\n**Ouvrir le formulaire pré-rempli ?** (oui/non)`
-          }
-
-          const msg = addMessage('assistant', enrichedResponse, { type: intent, data: devisData })
-          setPendingAction(msg)
-          return true
-        }
-
-        case 'list_rdv': {
-          const upcoming = bookings
-            .filter(b => b.booking_date >= new Date().toISOString().split('T')[0] && b.status !== 'cancelled')
-            .sort((a, b) => a.booking_date.localeCompare(b.booking_date) || (a.booking_time || '').localeCompare(b.booking_time || ''))
-            .slice(0, 5)
-
-          if (upcoming.length === 0) {
-            addMessage('assistant', response || "Vous n'avez aucun rendez-vous à venir. Voulez-vous en créer un ?")
-          } else {
-            let list = response ? response + '\n\n' : '📋 **Vos prochains RDV** :\n\n'
-            if (!response) {
-              upcoming.forEach((b, i) => {
-                const notes = b.notes || ''
-                const clientMatch = notes.match(/Client:\s*([^|]+)/)
-                const clientName = clientMatch ? clientMatch[1].trim() : 'Client'
-                list += `${i + 1}. **${formatDateFr(b.booking_date)}** à ${b.booking_time?.substring(0, 5) || '?'}\n   ${b.services?.name || 'Intervention'} — ${clientName}\n\n`
-              })
-            }
-            addMessage('assistant', list)
-          }
-          return true
-        }
-
-        case 'help': {
-          addMessage('assistant', response || `C'est Fixy ! Je peux créer des RDV, des devis et des factures. Parlez-moi naturellement !`)
-          return true
-        }
-
-        case 'chat':
-        default: {
-          addMessage('assistant', response || "Je suis là pour vous aider ! Dites-moi ce que vous voulez faire.")
-          return true
         }
       }
-    } catch (err) {
+
+      // Display response with action badges
+      const msg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: response || 'Action effectuée.',
+        actionsExecuted: actions_executed?.length ? actions_executed : undefined,
+      }
+      setMessages(prev => [...prev, msg])
+      return true
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        addMessage('assistant', "⏱️ Fixy met trop de temps à répondre. Réessayez avec une demande plus simple.")
+        return true
+      }
       console.error('AI processing error:', err)
       return false
     }
@@ -839,7 +824,45 @@ export default function AiChatBot({ artisan, bookings, services, onCreateRdv, on
   }
 
   const handleConfirmation = async (confirmed: boolean) => {
-    if (!pendingAction?.action) return
+    if (!pendingAction) return
+
+    // Server-side confirmation (new Fixy v2 flow)
+    if (pendingAction.pendingConfirmation) {
+      const pc = pendingAction.pendingConfirmation
+      if (!confirmed) {
+        addMessage('assistant', "Pas de problème, c'est annulé ! Que puis-je faire d'autre ?")
+        setPendingAction(null)
+        return
+      }
+
+      setProcessing(true)
+      try {
+        const res = await fetch('/api/fixy-ai', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            artisan_id: artisan?.id,
+            confirm_token: pc.confirm_token,
+            confirmed: true,
+          }),
+        })
+        const result = await res.json()
+        if (result.success) {
+          addMessage('assistant', `✅ **${pc.description}** — ${result.detail || 'Fait !'}`)
+          onDataRefresh?.()
+        } else {
+          addMessage('assistant', `❌ ${result.detail || 'Erreur lors de l\'exécution.'}`)
+        }
+      } catch {
+        addMessage('assistant', "❌ Erreur de connexion. Réessayez.")
+      }
+      setProcessing(false)
+      setPendingAction(null)
+      return
+    }
+
+    // Legacy client-side confirmation (create_rdv, create_devis from fallback)
+    if (!pendingAction.action) return
 
     if (!confirmed) {
       addMessage('assistant', "Pas de problème, c'est annulé ! Que puis-je faire d'autre ?")
@@ -901,6 +924,7 @@ export default function AiChatBot({ artisan, bookings, services, onCreateRdv, on
   // Quick action buttons
   const quickActions = [
     { label: 'Nouveau RDV', icon: '📅', prompt: 'Je veux créer un rendez-vous' },
+    { label: 'Mes dispos', icon: '⏰', prompt: 'C\'est quoi mes disponibilités ?' },
     { label: 'Faire un devis', icon: '📄', prompt: 'Je veux faire un devis' },
     { label: 'Mon planning', icon: '📋', prompt: 'Mes prochains RDV' },
   ]
@@ -956,19 +980,39 @@ export default function AiChatBot({ artisan, bookings, services, onCreateRdv, on
                     <FixyAvatar size={28} />
                   </div>
                 )}
-                <div
-                  className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'user'
-                      ? 'bg-[#FFC107] text-gray-900 rounded-br-md'
-                      : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-md'
-                  }`}
-                >
-                  {msg.content.split(/(\*\*.*?\*\*)/).map((part, i) => {
-                    if (part.startsWith('**') && part.endsWith('**')) {
-                      return <strong key={i}>{part.slice(2, -2)}</strong>
-                    }
-                    return <span key={i}>{part}</span>
-                  })}
+                <div className="max-w-[80%]">
+                  <div
+                    className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                      msg.role === 'user'
+                        ? 'bg-[#FFC107] text-gray-900 rounded-br-md'
+                        : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-md'
+                    }`}
+                  >
+                    {msg.content.split(/(\*\*.*?\*\*)/).map((part, i) => {
+                      if (part.startsWith('**') && part.endsWith('**')) {
+                        return <strong key={i}>{part.slice(2, -2)}</strong>
+                      }
+                      return <span key={i}>{part}</span>
+                    })}
+                  </div>
+                  {/* Action result badges */}
+                  {msg.actionsExecuted && msg.actionsExecuted.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {msg.actionsExecuted.map((a, i) => (
+                        <span
+                          key={i}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            a.result === 'success'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                          title={a.detail}
+                        >
+                          {a.result === 'success' ? '✓' : '✗'} {a.tool.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1095,7 +1139,7 @@ export default function AiChatBot({ artisan, bookings, services, onCreateRdv, on
               </button>
             </div>
             {voiceSupported && !isRecording && (
-              <p className="text-[10px] text-gray-400 mt-1 text-center">
+              <p className="text-[10px] text-gray-500 mt-1 text-center">
                 {'🎤'} Cliquez sur le micro pour dicter votre message
               </p>
             )}

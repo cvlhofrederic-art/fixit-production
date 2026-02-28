@@ -356,7 +356,7 @@ function GmailConnectButton({ syndicId, userEmail }: { syndicId?: string; userEm
         </div>
         <button
           onClick={handleConnect}
-          className="w-full text-xs text-gray-400 hover:text-red-500 transition py-1"
+          className="w-full text-xs text-gray-500 hover:text-red-500 transition py-1"
         >
           Reconnecter / Changer de compte
         </button>
@@ -368,7 +368,7 @@ function GmailConnectButton({ syndicId, userEmail }: { syndicId?: string; userEm
     <button
       onClick={handleConnect}
       disabled={loading}
-      className="w-full flex items-center justify-center gap-3 border-2 border-gray-200 hover:border-purple-400 text-gray-700 hover:text-purple-700 py-3 rounded-xl font-semibold transition disabled:opacity-50"
+      className="w-full flex items-center justify-center gap-3 border-2 border-gray-200 hover:border-purple-400 text-gray-700 hover:text-purple-700 py-3 rounded-xl font-semibold transition disabled:opacity-60"
     >
       {loading ? (
         <span className="text-sm">Redirection vers Google...</span>
@@ -534,7 +534,7 @@ function EquipeSection({ cabinetId, currentUserRole }: { cabinetId: string; curr
               Copier
             </button>
           </div>
-          <button onClick={() => setInviteUrl(null)} className="text-xs text-gray-400 mt-2 hover:text-gray-600">Fermer</button>
+          <button onClick={() => setInviteUrl(null)} className="text-xs text-gray-500 mt-2 hover:text-gray-600">Fermer</button>
         </div>
       )}
 
@@ -584,7 +584,7 @@ function EquipeSection({ cabinetId, currentUserRole }: { cabinetId: string; curr
               <button
                 type="submit"
                 disabled={submitting}
-                className="bg-purple-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-50"
+                className="bg-purple-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-purple-700 transition disabled:opacity-60"
               >
                 {submitting ? 'Envoi...' : 'Créer l\'invitation'}
               </button>
@@ -602,7 +602,7 @@ function EquipeSection({ cabinetId, currentUserRole }: { cabinetId: string; curr
           <div className="text-center py-16">
             <div className="text-4xl mb-4">👥</div>
             <p className="text-gray-500 font-medium">Aucun membre pour l'instant</p>
-            <p className="text-sm text-gray-400 mt-1">Invitez votre équipe pour collaborer</p>
+            <p className="text-sm text-gray-500 mt-1">Invitez votre équipe pour collaborer</p>
           </div>
         ) : (
           <table className="w-full">
@@ -624,7 +624,7 @@ function EquipeSection({ cabinetId, currentUserRole }: { cabinetId: string; curr
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900 text-sm">{m.full_name}</p>
-                        <p className="text-xs text-gray-400">{m.email}</p>
+                        <p className="text-xs text-gray-500">{m.email}</p>
                       </div>
                     </div>
                   </td>
@@ -1211,7 +1211,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                             <div className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm">
                               📂 Choisir un PDF
                             </div>
-                            <p className="text-xs text-gray-400">Devis, facture, bon de commande — max 20 Mo</p>
+                            <p className="text-xs text-gray-500">Devis, facture, bon de commande — max 20 Mo</p>
                           </div>
                         )}
                       </div>
@@ -1228,7 +1228,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                           </div>
                           <button
                             onClick={handleReset}
-                            className="text-sm text-gray-400 hover:text-red-500 transition"
+                            className="text-sm text-gray-500 hover:text-red-500 transition"
                           >
                             Changer ✕
                           </button>
@@ -1243,7 +1243,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
-                        Nom du document <span className="font-normal text-gray-400">(optionnel)</span>
+                        Nom du document <span className="font-normal text-gray-500">(optionnel)</span>
                       </label>
                       <input
                         type="text"
@@ -1264,7 +1264,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                         rows={10}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-mono resize-y"
                       />
-                      <p className="text-xs text-gray-400 mt-1">{docText.length} caractères</p>
+                      <p className="text-xs text-gray-500 mt-1">{docText.length} caractères</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3 border border-gray-100 text-xs text-gray-500 flex gap-2 items-start">
                       <span>💡</span>
@@ -1320,40 +1320,40 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                         {extracted.artisan_nom && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">🔧</span>
+                            <span className="text-gray-500">🔧</span>
                             <span className="text-gray-700"><strong>{extracted.artisan_nom}</strong>{extracted.artisan_metier ? ` — ${extracted.artisan_metier}` : ''}</span>
                           </div>
                         )}
                         {extracted.description_travaux && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">📋</span>
+                            <span className="text-gray-500">📋</span>
                             <span className="text-gray-700 truncate">{extracted.description_travaux}</span>
                           </div>
                         )}
                         {extracted.immeuble && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">🏢</span>
+                            <span className="text-gray-500">🏢</span>
                             <span className="text-gray-700">{extracted.immeuble}</span>
                           </div>
                         )}
                         {(extracted.montant_ht || 0) > 0 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">💰</span>
+                            <span className="text-gray-500">💰</span>
                             <span className="text-gray-700">
                               <strong>{extracted.montant_ht?.toLocaleString('fr-FR')}€ HT</strong>
-                              {(extracted.montant_ttc || 0) > 0 && <span className="text-gray-400"> / {extracted.montant_ttc?.toLocaleString('fr-FR')}€ TTC</span>}
+                              {(extracted.montant_ttc || 0) > 0 && <span className="text-gray-500"> / {extracted.montant_ttc?.toLocaleString('fr-FR')}€ TTC</span>}
                             </span>
                           </div>
                         )}
                         {extracted.date_intervention && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">📅</span>
+                            <span className="text-gray-500">📅</span>
                             <span className="text-gray-700">{new Date(extracted.date_intervention).toLocaleDateString('fr-FR')}</span>
                           </div>
                         )}
                         {extracted.priorite && (
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-400">🚦</span>
+                            <span className="text-gray-500">🚦</span>
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                               extracted.priorite === 'urgente' ? 'bg-red-100 text-red-700' :
                               extracted.priorite === 'normale' ? 'bg-blue-100 text-blue-700' :
@@ -1427,7 +1427,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
               <div className="text-4xl mb-3">📂</div>
               <p className="font-semibold text-gray-700">Aucune analyse enregistrée</p>
-              <p className="text-sm text-gray-400 mt-1">Lancez votre première analyse pour la retrouver ici</p>
+              <p className="text-sm text-gray-500 mt-1">Lancez votre première analyse pour la retrouver ici</p>
             </div>
           ) : selectedHistory ? (
             <div className="space-y-4">
@@ -1488,7 +1488,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                   <h3 className="text-lg font-bold text-gray-900">📋 Nouvel ordre de mission</h3>
                   <p className="text-sm text-gray-500 mt-0.5">Un message automatique sera envoyé à l'artisan dans le canal de la mission</p>
                 </div>
-                <button onClick={() => setShowMissionModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                <button onClick={() => setShowMissionModal(false)} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">&times;</button>
               </div>
             </div>
             <div className="p-6 space-y-5 overflow-y-auto flex-1">
@@ -1961,7 +1961,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
         <div className="flex gap-3 flex-wrap items-center">
           {/* Recherche */}
           <div className="flex-1 min-w-64 relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">🔍</span>
             <input
               type="text"
               value={search}
@@ -2002,7 +2002,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
             </button>
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-2">{filtered.length} document{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</p>
+        <p className="text-xs text-gray-500 mt-2">{filtered.length} document{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</p>
       </div>
 
       {/* Liste documents */}
@@ -2010,7 +2010,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
           <div className="text-4xl mb-3">🗂️</div>
           <p className="font-semibold text-gray-700">{docs.length === 0 ? 'Aucun document' : 'Aucun résultat'}</p>
-          <p className="text-sm text-gray-400 mt-1">{docs.length === 0 ? 'Ajoutez des factures, devis et rapports d\'intervention' : 'Modifiez vos filtres de recherche'}</p>
+          <p className="text-sm text-gray-500 mt-1">{docs.length === 0 ? 'Ajoutez des factures, devis et rapports d\'intervention' : 'Modifiez vos filtres de recherche'}</p>
           {docs.length === 0 && (
             <button onClick={() => setShowUploadModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition">
               + Ajouter un document
@@ -2073,7 +2073,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                     )}
                   </div>
                   {doc.notes && (
-                    <p className="text-xs text-gray-400 mt-1 italic truncate">💬 {doc.notes}</p>
+                    <p className="text-xs text-gray-500 mt-1 italic truncate">💬 {doc.notes}</p>
                   )}
                 </div>
 
@@ -2084,7 +2084,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                     href={doc.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                     title="Ouvrir"
                   >
                     👁️
@@ -2094,7 +2094,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                   {(doc.type === 'facture' || doc.type === 'devis') && (
                     <button
                       onClick={() => setPage('analyse_devis')}
-                      className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                      className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
                       title="Analyser avec IA"
                     >
                       🔍
@@ -2106,7 +2106,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                     <button
                       onClick={() => handleEnvoyerCompta(doc)}
                       disabled={sendingCompta === doc.id}
-                      className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-50"
+                      className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-60"
                       title="Envoyer à la comptabilité"
                     >
                       {sendingCompta === doc.id ? (
@@ -2148,7 +2148,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                 <h3 className="text-lg font-bold text-gray-900">📎 Ajouter un document</h3>
                 <p className="text-sm text-gray-500 mt-0.5">Facture, devis, rapport ou photo d&apos;intervention</p>
               </div>
-              <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              <button onClick={() => setShowUploadModal(false)} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">&times;</button>
             </div>
             <div className="p-6 space-y-4">
               {/* Fichier */}
@@ -2175,7 +2175,7 @@ function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; 
                     <div className="space-y-1">
                       <div className="text-3xl">📎</div>
                       <p className="text-sm text-gray-600">Glissez ou cliquez pour choisir</p>
-                      <p className="text-xs text-gray-400">PDF, JPG, PNG — max 10 Mo</p>
+                      <p className="text-xs text-gray-500">PDF, JPG, PNG — max 10 Mo</p>
                     </div>
                   )}
                 </div>
@@ -2433,7 +2433,7 @@ function ComptabiliteTechSection({
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h3 className="font-bold text-gray-900 mb-4">Par artisan</h3>
         {Object.keys(byArtisan).length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">Aucune intervention pour les filtres sélectionnés</p>
+          <p className="text-sm text-gray-500 text-center py-8">Aucune intervention pour les filtres sélectionnés</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -2472,7 +2472,7 @@ function ComptabiliteTechSection({
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h3 className="font-bold text-gray-900 mb-4">Par immeuble / copropriété</h3>
         {Object.keys(byImmeuble).length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">Aucune données</p>
+          <p className="text-sm text-gray-500 text-center py-8">Aucune données</p>
         ) : (
           <div className="space-y-3">
             {Object.entries(byImmeuble).sort((a, b) => b[1].montant - a[1].montant).map(([imm, stats]) => {
@@ -2481,7 +2481,7 @@ function ComptabiliteTechSection({
                 <div key={imm} className="flex items-center gap-4">
                   <div className="w-40 flex-shrink-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{imm}</p>
-                    <p className="text-xs text-gray-400">{stats.count} mission{stats.count > 1 ? 's' : ''}</p>
+                    <p className="text-xs text-gray-500">{stats.count} mission{stats.count > 1 ? 's' : ''}</p>
                   </div>
                   <div className="flex-1 bg-gray-100 rounded-full h-2">
                     <div
@@ -2492,7 +2492,7 @@ function ComptabiliteTechSection({
                   <div className="text-sm font-semibold text-gray-900 w-28 text-right">
                     {stats.montant.toLocaleString('fr-FR')} €
                   </div>
-                  <div className="text-xs text-gray-400 w-10 text-right">{pct}%</div>
+                  <div className="text-xs text-gray-500 w-10 text-right">{pct}%</div>
                 </div>
               )
             })}
@@ -2504,7 +2504,7 @@ function ComptabiliteTechSection({
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <h3 className="font-bold text-gray-900 mb-4">Détail des interventions ({filteredMissions.length})</h3>
         {filteredMissions.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">Aucune intervention</p>
+          <p className="text-sm text-gray-500 text-center py-8">Aucune intervention</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -2662,7 +2662,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
             </button>
           </div>
           <button onClick={handlePoll} disabled={polling}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50">
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60">
             {polling ? <span className="animate-spin">⟳</span> : '⟳'} Analyser maintenant
           </button>
         </div>
@@ -2712,7 +2712,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
               <div className="flex flex-wrap gap-3">
                 {/* Recherche */}
                 <div className="relative flex-1 min-w-48">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
                   <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Rechercher dans les emails..."
                     className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
@@ -2782,7 +2782,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
                           </div>
                           <p className={`text-sm font-semibold text-gray-900 truncate ${isNew ? '' : 'opacity-70'}`}>{email.subject}</p>
                           <p className="text-xs text-purple-700 font-medium mt-0.5 truncate">💡 {email.resume_ia || 'Analyse en cours...'}</p>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                             <span>✉️ {email.from_name || email.from_email}</span>
                             {email.immeuble_detecte && <span>🏢 {email.immeuble_detecte}</span>}
                             {email.locataire_detecte && <span>👤 {email.locataire_detecte}</span>}
@@ -2790,7 +2790,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
                         </div>
                       </div>
                       {/* Date */}
-                      <div className="text-xs text-gray-400 flex-shrink-0 mt-1 text-right">
+                      <div className="text-xs text-gray-500 flex-shrink-0 mt-1 text-right">
                         <p>{new Date(email.received_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
                         <p>{new Date(email.received_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
@@ -2819,7 +2819,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
               })}
             </div>
           ) : emails.length > 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-500">
               <div className="text-4xl mb-3">🔍</div>
               <p>Aucun email ne correspond aux filtres</p>
             </div>
@@ -2830,7 +2830,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
       {activeTab === 'rapport' && (
         <div className="space-y-4">
           {emails.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-400">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-500">
               <div className="text-4xl mb-3">📊</div>
               <p>Aucune donnée — connectez Gmail pour générer des rapports</p>
             </div>
@@ -2866,7 +2866,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
                           style={{ width: `${stats.total > 0 ? (t.count / stats.total) * 100 : 0}%` }} />
                       </div>
                       <span className="text-sm font-bold text-gray-700 w-8 text-right">{t.count}</span>
-                      <span className="text-xs text-gray-400 w-10">({stats.total > 0 ? Math.round((t.count / stats.total) * 100) : 0}%)</span>
+                      <span className="text-xs text-gray-500 w-10">({stats.total > 0 ? Math.round((t.count / stats.total) * 100) : 0}%)</span>
                     </div>
                   ))}
                 </div>
@@ -2883,7 +2883,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
                         <div className="flex-1 min-w-0 cursor-pointer">
                           <p className="text-sm font-semibold text-gray-900 truncate">{email.subject}</p>
                           <p className="text-xs text-red-600">💡 {email.resume_ia}</p>
-                          <p className="text-xs text-gray-400">{email.from_name || email.from_email} · {new Date(email.received_at).toLocaleDateString('fr-FR')}</p>
+                          <p className="text-xs text-gray-500">{email.from_name || email.from_email} · {new Date(email.received_at).toLocaleDateString('fr-FR')}</p>
                         </div>
                         <div className="flex gap-2 ml-3">
                           <button onClick={e => { e.stopPropagation(); handleAction(email.id, 'marquer_traite') }}
@@ -2929,7 +2929,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedEmail(null)} className="text-gray-400 hover:text-gray-600 text-xl ml-3">✕</button>
+                <button onClick={() => setSelectedEmail(null)} className="text-gray-500 hover:text-gray-600 text-xl ml-3">✕</button>
               </div>
             </div>
 
@@ -3004,7 +3004,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
                   </>
                 )}
                 {selectedEmail.statut !== 'nouveau' && (
-                  <div className="w-full text-center py-2 text-sm text-gray-400">
+                  <div className="w-full text-center py-2 text-sm text-gray-500">
                     Email {STATUT_CONFIG[selectedEmail.statut]?.label.toLowerCase() || 'traité'}
                   </div>
                 )}
@@ -3140,7 +3140,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
         <div className="p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-xl font-bold text-gray-900">📋 Nouvel ordre de mission</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
           </div>
 
           <div className="space-y-4">
@@ -3172,7 +3172,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                     />
                     <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-blue-100 shadow-sm">
                       {filteredCopros.length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-3">Aucun résultat</p>
+                        <p className="text-xs text-gray-500 text-center py-3">Aucun résultat</p>
                       ) : filteredCopros.map((c: any, i: number) => (
                         <button
                           key={c.id || i}
@@ -3290,7 +3290,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
 
             {/* Description + date + priorité */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">📝 Description / Motif <span className="text-gray-400 font-normal text-xs">(optionnel)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">📝 Description / Motif <span className="text-gray-500 font-normal text-xs">(optionnel)</span></label>
               <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none resize-none text-sm" placeholder="Décrivez l'intervention nécessaire…" />
             </div>
 
@@ -3321,7 +3321,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
 
             {/* Email locataire pour notification retour */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">📧 Email locataire / demandeur <span className="text-gray-400 font-normal">(pour la notification de confirmation)</span></label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">📧 Email locataire / demandeur <span className="text-gray-500 font-normal">(pour la notification de confirmation)</span></label>
               <input type="email" value={form.emailLocataire} onChange={e => setForm({ ...form, emailLocataire: e.target.value })} placeholder="locataire@email.fr" className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
             </div>
 
@@ -3559,7 +3559,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
         <div className="flex flex-col gap-3">
           {/* Recherche plein texte */}
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">🔍</span>
             <input
               type="text"
               value={search}
@@ -3621,7 +3621,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
               <span className="font-semibold text-purple-700">{filtered.length}</span> document{filtered.length !== 1 ? 's' : ''} trouvé{filtered.length !== 1 ? 's' : ''}
-              {hasFilters && <span className="text-gray-400"> sur {docs.length} au total</span>}
+              {hasFilters && <span className="text-gray-500"> sur {docs.length} au total</span>}
             </p>
             {hasFilters && (
               <button onClick={clearFilters} className="text-xs text-red-500 hover:text-red-700 font-semibold transition flex items-center gap-1">
@@ -3636,7 +3636,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
       {viewMode === 'list' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {filtered.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
+            <div className="text-center py-16 text-gray-500">
               <div className="text-5xl mb-3">🔍</div>
               <p className="font-semibold">Aucun document trouvé</p>
               <p className="text-sm mt-1">Modifiez vos critères de recherche</p>
@@ -3685,7 +3685,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
                     {/* Artisan */}
                     <div className="col-span-2 text-sm text-gray-600 truncate">{doc.artisan || <span className="text-gray-300">—</span>}</div>
                     {/* Date */}
-                    <div className="col-span-1 text-xs text-gray-400">
+                    <div className="col-span-1 text-xs text-gray-500">
                       {new Date(doc.dateDocument).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}
                     </div>
                     {/* Actions */}
@@ -3718,7 +3718,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
         /* Vue grille */
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.length === 0 ? (
-            <div className="col-span-4 text-center py-16 text-gray-400">
+            <div className="col-span-4 text-center py-16 text-gray-500">
               <div className="text-5xl mb-3">🔍</div>
               <p className="font-semibold">Aucun document trouvé</p>
             </div>
@@ -3730,10 +3730,10 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
                 <div className="text-3xl mb-2">{cfg.emoji}</div>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.color}`}>{cfg.label}</span>
                 <p className="text-sm font-medium text-gray-900 mt-2 leading-snug line-clamp-2">{doc.nom}</p>
-                <p className="text-xs text-gray-400 mt-2">{doc.immeuble}</p>
+                <p className="text-xs text-gray-500 mt-2">{doc.immeuble}</p>
                 {doc.artisan && <p className="text-xs text-gray-500">🔧 {doc.artisan}</p>}
                 {doc.locataire && <p className="text-xs text-purple-600">👤 {doc.locataire}</p>}
-                <p className="text-xs text-gray-400 mt-2">{new Date(doc.dateDocument).toLocaleDateString('fr-FR')} · {doc.taille}</p>
+                <p className="text-xs text-gray-500 mt-2">{new Date(doc.dateDocument).toLocaleDateString('fr-FR')} · {doc.taille}</p>
               </div>
             )
           })}
@@ -3754,21 +3754,21 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
                   <h3 className="font-bold text-gray-900 mt-1 leading-snug">{selectedDoc.nom}</h3>
                 </div>
               </div>
-              <button onClick={() => setSelectedDoc(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+              <button onClick={() => setSelectedDoc(null)} className="text-gray-500 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 mb-0.5">🏢 Bâtiment</p>
+                  <p className="text-xs text-gray-500 mb-0.5">🏢 Bâtiment</p>
                   <p className="font-semibold text-gray-800">{selectedDoc.immeuble}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 mb-0.5">📅 Date document</p>
+                  <p className="text-xs text-gray-500 mb-0.5">📅 Date document</p>
                   <p className="font-semibold text-gray-800">{new Date(selectedDoc.dateDocument).toLocaleDateString('fr-FR')}</p>
                 </div>
                 {selectedDoc.artisan && (
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-400 mb-0.5">🔧 Artisan / Technicien</p>
+                    <p className="text-xs text-gray-500 mb-0.5">🔧 Artisan / Technicien</p>
                     <p className="font-semibold text-gray-800">{selectedDoc.artisan}</p>
                   </div>
                 )}
@@ -3779,17 +3779,17 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
                   </div>
                 )}
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 mb-0.5">📦 Taille</p>
+                  <p className="text-xs text-gray-500 mb-0.5">📦 Taille</p>
                   <p className="font-semibold text-gray-800">{selectedDoc.taille}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 mb-0.5">📥 Ajouté le</p>
+                  <p className="text-xs text-gray-500 mb-0.5">📥 Ajouté le</p>
                   <p className="font-semibold text-gray-800">{new Date(selectedDoc.dateAjout).toLocaleDateString('fr-FR')}</p>
                 </div>
               </div>
               {selectedDoc.tags.length > 0 && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-1.5">Tags</p>
+                  <p className="text-xs text-gray-500 mb-1.5">Tags</p>
                   <div className="flex flex-wrap gap-1.5">
                     {selectedDoc.tags.map(tag => (
                       <button key={tag} onClick={() => { setSelectedDoc(null); setSearch(tag) }}
@@ -3874,7 +3874,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
                   <>
                     <div className="text-3xl mb-2">📎</div>
                     <p className="text-sm font-medium text-gray-700">Glissez un fichier ou cliquez pour sélectionner</p>
-                    <p className="text-xs text-gray-400 mt-1">PDF, Word, Excel, Images — Max 50 MB</p>
+                    <p className="text-xs text-gray-500 mt-1">PDF, Word, Excel, Images — Max 50 MB</p>
                   </>
                 )}
               </div>
@@ -3932,7 +3932,7 @@ function GEDSection({ immeubles, artisans, userId }: { immeubles: Immeuble[]; ar
                 Annuler
               </button>
               <button onClick={handleUpload} disabled={!uploadForm.nom || gedUploading}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50 flex items-center justify-center gap-2">
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-60 flex items-center justify-center gap-2">
                 {gedUploading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Upload...</> : '📎 Ajouter le document'}
               </button>
             </div>
@@ -4049,7 +4049,7 @@ function CopropriosSection({ immeubles, userId }: { immeubles: Immeuble[]; userI
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex gap-3 flex-1 flex-wrap">
           <div className="relative flex-1 min-w-48">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher par nom, porte..." className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none text-sm" />
           </div>
           <select value={filterImmeuble} onChange={e => setFilterImmeuble(e.target.value)} className="px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-400 focus:outline-none bg-white text-sm">
@@ -4090,7 +4090,7 @@ function CopropriosSection({ immeubles, userId }: { immeubles: Immeuble[]; userI
             <div key={batEtage}>
               <div className="px-5 py-2 bg-gray-50 border-y border-gray-100 flex items-center gap-2">
                 <span className="text-sm font-semibold text-gray-700">📍 {batEtage}</span>
-                <span className="text-xs text-gray-400">({lots.length} lot{lots.length > 1 ? 's' : ''})</span>
+                <span className="text-xs text-gray-500">({lots.length} lot{lots.length > 1 ? 's' : ''})</span>
               </div>
               <div className="divide-y divide-gray-50">
                 {lots.map(c => (
@@ -4121,8 +4121,8 @@ function CopropriosSection({ immeubles, userId }: { immeubles: Immeuble[]; userI
                         </div>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
-                        <button onClick={() => openEdit(c)} className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition text-xs">✏️</button>
-                        <button onClick={() => handleDelete(c.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs">🗑</button>
+                        <button onClick={() => openEdit(c)} className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition text-xs">✏️</button>
+                        <button onClick={() => handleDelete(c.id)} className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs">🗑</button>
                       </div>
                     </div>
                   </div>
@@ -4133,7 +4133,7 @@ function CopropriosSection({ immeubles, userId }: { immeubles: Immeuble[]; userI
         </div>
       ))}
 
-      {filtered.length === 0 && <div className="bg-white rounded-2xl p-12 text-center text-gray-400"><div className="text-4xl mb-3">👥</div><p>Aucun copropriétaire trouvé</p></div>}
+      {filtered.length === 0 && <div className="bg-white rounded-2xl p-12 text-center text-gray-500"><div className="text-4xl mb-3">👥</div><p>Aucun copropriétaire trouvé</p></div>}
 
       {/* Modal Ajout/Édition */}
       {showModal && (
@@ -4207,7 +4207,7 @@ function CopropriosSection({ immeubles, userId }: { immeubles: Immeuble[]; userI
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowModal(false)} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">Annuler</button>
-              <button onClick={handleSave} disabled={!form.nomProprietaire || !form.immeuble || !form.numeroPorte} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm">
+              <button onClick={handleSave} disabled={!form.nomProprietaire || !form.immeuble || !form.numeroPorte} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-60 text-sm">
                 {editItem ? 'Enregistrer' : 'Ajouter'}
               </button>
             </div>
@@ -4364,7 +4364,7 @@ function CalendrierReglementaireSection({ immeubles, userId }: { immeubles: Imme
               <div className="col-span-2 text-sm text-gray-600 truncate">{e.label}</div>
               <div className="col-span-2">
                 <p className="text-sm font-semibold text-gray-900">{new Date(e.dateEcheance).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
-                <p className="text-xs text-gray-400">{daysLeft < 0 ? `Il y a ${Math.abs(daysLeft)}j` : `Dans ${daysLeft}j`}</p>
+                <p className="text-xs text-gray-500">{daysLeft < 0 ? `Il y a ${Math.abs(daysLeft)}j` : `Dans ${daysLeft}j`}</p>
               </div>
               <div className="col-span-1 flex justify-center">
                 <div className={`w-2.5 h-2.5 rounded-full ${sConfig.dot}`} title={sConfig.label} />
@@ -4372,14 +4372,14 @@ function CalendrierReglementaireSection({ immeubles, userId }: { immeubles: Imme
               <div className="col-span-1 flex justify-center">
                 <button
                   onClick={() => { if (window.confirm('Supprimer cette échéance ?')) setEcheances(prev => prev.filter(x => x.id !== e.id)) }}
-                  className="opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-red-500 text-sm p-1 rounded"
+                  className="opacity-0 group-hover:opacity-100 transition text-gray-500 hover:text-red-500 text-sm p-1 rounded"
                   title="Supprimer"
                 >🗑️</button>
               </div>
             </div>
           )
         })}
-        {filtered.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">Aucune échéance trouvée</div>}
+        {filtered.length === 0 && <div className="text-center py-10 text-gray-500 text-sm">Aucune échéance trouvée</div>}
       </div>
 
       {/* Modal ajout */}
@@ -4418,7 +4418,7 @@ function CalendrierReglementaireSection({ immeubles, userId }: { immeubles: Imme
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowModal(false)} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">Annuler</button>
-              <button onClick={handleAdd} disabled={!form.label || !form.immeuble || !form.dateEcheance} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm">Ajouter</button>
+              <button onClick={handleAdd} disabled={!form.label || !form.immeuble || !form.dateEcheance} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-60 text-sm">Ajouter</button>
             </div>
           </div>
         </div>
@@ -4532,7 +4532,7 @@ function SignatureModal({ documentRef, signataire, onClose, onSign }: {
             <h3 className="text-lg font-bold text-gray-900">✍️ Signature électronique</h3>
             <p className="text-xs text-gray-500">Conforme art. 1367 Code Civil · SHA-256</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
@@ -4555,7 +4555,7 @@ function SignatureModal({ documentRef, signataire, onClose, onSign }: {
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
           />
-          {isEmpty && <p className="text-xs text-gray-400 text-center mt-1">Signez ici avec votre souris ou votre doigt</p>}
+          {isEmpty && <p className="text-xs text-gray-500 text-center mt-1">Signez ici avec votre souris ou votre doigt</p>}
         </div>
 
         <div className="bg-gray-50 rounded-xl p-3 mb-4 text-xs text-gray-500">
@@ -4565,7 +4565,7 @@ function SignatureModal({ documentRef, signataire, onClose, onSign }: {
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">Annuler</button>
           <button onClick={handleSign} disabled={isEmpty || !nom.trim() || signing}
-            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm">
+            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-60 text-sm">
             {signing ? '⏳ Signature...' : '✅ Valider la signature'}
           </button>
         </div>
@@ -4635,7 +4635,7 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
   const handleSend = () => {
     if (selectedRecipients.length === 0) return
     const subject = encodeURIComponent(`Rapport mensuel de gestion — ${monthLabel}`)
-    const body = encodeURIComponent(`Madame, Monsieur,\n\nVeuillez trouver ci-joint le rapport mensuel de gestion pour le mois de ${monthLabel}.\n\nCe rapport comprend :\n- Le bilan des interventions réalisées\n- L'état du budget\n- Les alertes réglementaires\n\nCordialement,\nVotre gestionnaire VitFix Pro`)
+    const body = encodeURIComponent(`Madame, Monsieur,\n\nVeuillez trouver ci-joint le rapport mensuel de gestion pour le mois de ${monthLabel}.\n\nCe rapport comprend :\n- Le bilan des interventions réalisées\n- L'état du budget\n- Les alertes réglementaires\n\nCordialement,\nVotre gestionnaire Vitfix Pro`)
     const to = selectedRecipients.join(',')
     window.open(`mailto:${to}?subject=${subject}&body=${body}`)
     setShowSendModal(false)
@@ -4663,7 +4663,7 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
           <button onClick={() => setShowSendModal(true)} className="flex items-center gap-2 border-2 border-purple-300 text-purple-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-50 transition">
             📨 Envoyer aux copropriétaires
           </button>
-          <button onClick={generatePDF} disabled={generating} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50">
+          <button onClick={generatePDF} disabled={generating} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60">
             {generating ? '⏳' : '📄'} {generating ? 'Génération...' : 'Télécharger PDF'}
           </button>
         </div>
@@ -4671,14 +4671,14 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
 
       {/* Aperçu rapport */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <p className="text-xs text-gray-400 mb-4 text-center">Aperçu du rapport — ce contenu sera généré en PDF</p>
+        <p className="text-xs text-gray-500 mb-4 text-center">Aperçu du rapport — ce contenu sera généré en PDF</p>
         {/* Template caché pour jsPDF */}
         <div ref={rapportRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '794px', backgroundColor: '#fff', fontFamily: 'Arial, sans-serif' }}>
           {/* En-tête */}
           <div style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', padding: '32px 40px', color: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '4px' }}>⚡ VitFix Pro</div>
+                <div style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '4px' }}>⚡ Vitfix Pro</div>
                 <div style={{ fontSize: '14px', opacity: 0.85 }}>Rapport Mensuel de Gestion</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -4756,7 +4756,7 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
             </div>
             {/* Pied de page */}
             <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9ca3af' }}>
-              <span>⚡ VitFix Pro — Gestion de copropriété</span>
+              <span>⚡ Vitfix Pro — Gestion de copropriété</span>
               <span>Document généré automatiquement — {new Date().toLocaleString('fr-FR')}</span>
             </div>
           </div>
@@ -4767,7 +4767,7 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
           <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white">
             <div className="flex justify-between items-start">
               <div>
-                <div className="text-xl font-bold">⚡ VitFix Pro</div>
+                <div className="text-xl font-bold">⚡ Vitfix Pro</div>
                 <div className="text-purple-200 text-sm">Rapport Mensuel de Gestion</div>
               </div>
               <div className="text-right">
@@ -4805,7 +4805,7 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+            <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-xl">
               Aucune intervention enregistrée pour {monthLabel}
             </div>
           )}
@@ -4834,17 +4834,17 @@ function RapportMensuelSection({ immeubles, missions, artisans, syndicId, coprop
                     <label key={r.email} className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg cursor-pointer">
                       <input type="checkbox" checked={selectedRecipients.includes(r.email)} onChange={() => toggleRecipient(r.email)} className="accent-purple-600" />
                       <span className="text-sm text-gray-800 flex-1">{r.nom}</span>
-                      <span className="text-xs text-gray-400">{r.email}</span>
+                      <span className="text-xs text-gray-500">{r.email}</span>
                     </label>
                   ))}
                 </div>
               ))}
-              {allEmails.length === 0 && <p className="text-center text-gray-400 text-sm py-6">Aucun email copropriétaire renseigné</p>}
+              {allEmails.length === 0 && <p className="text-center text-gray-500 text-sm py-6">Aucun email copropriétaire renseigné</p>}
             </div>
 
             <div className="flex gap-3 mt-4">
               <button onClick={() => setShowSendModal(false)} className="flex-1 border-2 border-gray-200 text-gray-600 py-2.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">Annuler</button>
-              <button onClick={handleSend} disabled={selectedRecipients.length === 0} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm">
+              <button onClick={handleSend} disabled={selectedRecipients.length === 0} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold transition disabled:opacity-60 text-sm">
                 📨 Ouvrir messagerie ({selectedRecipients.length})
               </button>
             </div>
@@ -4937,7 +4937,7 @@ export default function SyndicDashboard() {
   const [msgLoading, setMsgLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [iaMessages, setIaMessages] = useState<{ role: 'user' | 'assistant'; content: string; action?: any }[]>([
-    { role: 'assistant', content: 'Bonjour ! Je suis **Max**, votre assistant IA expert VitFix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** : immeubles, artisans, missions, alertes, échéances réglementaires.\n\nJe peux aussi **agir directement** : créer une mission, naviguer vers une page, générer un courrier...\n\n🎙️ Vous pouvez me parler à voix haute en cliquant sur le micro !\n\nComment puis-je vous aider ?' }
+    { role: 'assistant', content: 'Bonjour ! Je suis **Max**, votre assistant IA expert Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** : immeubles, artisans, missions, alertes, échéances réglementaires.\n\nJe peux aussi **agir directement** : créer une mission, naviguer vers une page, générer un courrier...\n\n🎙️ Vous pouvez me parler à voix haute en cliquant sur le micro !\n\nComment puis-je vous aider ?' }
   ])
   const [iaInput, setIaInput] = useState('')
   const [iaLoading, setIaLoading] = useState(false)
@@ -5993,9 +5993,9 @@ export default function SyndicDashboard() {
             }).then(r => r.json()).then(d => {
               const msg = d.artisan_found
                 ? `✅ **Mission assignée !**\n\n📅 **${action.type_travaux || action.description}** — ${action.immeuble || action.lieu || ''}\n👤 **${action.artisan}** — ${new Date(action.date_intervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}\n\nNotification envoyée — la mission apparaît sur son agenda.`
-                : `⚠️ Mission créée mais **${action.artisan}** n'a pas de compte VitFix. Ajoutez-le dans l'onglet Artisans pour la synchronisation agenda.`
+                : `⚠️ Mission créée mais **${action.artisan}** n'a pas de compte Vitfix. Ajoutez-le dans l'onglet Artisans pour la synchronisation agenda.`
               setIaMessages(prev => [...prev, { role: 'assistant', content: msg }])
-              speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}. Il a reçu la notification.` : `Mission créée. L'artisan n'est pas encore sur VitFix.`)
+              speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}. Il a reçu la notification.` : `Mission créée. L'artisan n'est pas encore sur Vitfix.`)
               // Ajouter à l'état local missions
               setMissions(prev => [{
                 id: Date.now().toString(),
@@ -6194,7 +6194,7 @@ export default function SyndicDashboard() {
       <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gray-900 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
         {/* Logo */}
         <div className="p-4 border-b border-gray-800 flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white transition flex-shrink-0">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-white transition flex-shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -6203,7 +6203,7 @@ export default function SyndicDashboard() {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-lg">⚡</span>
-                <span className="font-bold text-[#FFC107] text-sm">VitFix</span>
+                <span className="font-bold text-[#FFC107] text-sm">Vitfix</span>
                 <span className="text-purple-400 font-bold text-sm">Pro</span>
               </div>
               <p className="text-xs text-gray-500 truncate">{companyName}</p>
@@ -6220,7 +6220,7 @@ export default function SyndicDashboard() {
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
                 page === item.id
                   ? 'bg-purple-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  : 'text-gray-500 hover:bg-gray-800 hover:text-white'
               }`}
             >
               <span className="text-lg flex-shrink-0">{item.emoji}</span>
@@ -6276,7 +6276,7 @@ export default function SyndicDashboard() {
           <div className="flex items-center gap-3">
             {/* Badge alertes urgentes */}
             {alertes.filter(a => a.urgence === 'haute').length > 0 && (
-              <button onClick={() => setPage('alertes')} className="relative p-2 text-gray-400 hover:text-red-500 transition" title="Alertes urgentes">
+              <button onClick={() => setPage('alertes')} className="relative p-2 text-gray-500 hover:text-red-500 transition" title="Alertes urgentes">
                 <span className="text-xl">⚠️</span>
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
                   {alertes.filter(a => a.urgence === 'haute').length}
@@ -6287,7 +6287,7 @@ export default function SyndicDashboard() {
             <div className="relative">
               <button
                 onClick={() => { setNotifPanelOpen(!notifPanelOpen); if (!notifPanelOpen && notifUnread > 0) markAllNotifsRead() }}
-                className="relative p-2 text-gray-400 hover:text-purple-600 transition"
+                className="relative p-2 text-gray-500 hover:text-purple-600 transition"
                 title="Notifications"
               >
                 <span className="text-xl">🔔</span>
@@ -6306,7 +6306,7 @@ export default function SyndicDashboard() {
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
                     {notifs.length === 0 ? (
-                      <div className="p-6 text-center text-gray-400 text-sm">Aucune notification</div>
+                      <div className="p-6 text-center text-gray-500 text-sm">Aucune notification</div>
                     ) : notifs.slice(0, 15).map(n => (
                       <div key={n.id} className={`px-4 py-3 ${!n.read ? 'bg-purple-50' : ''}`}>
                         <div className="flex items-start gap-2">
@@ -6316,7 +6316,7 @@ export default function SyndicDashboard() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{n.title}</p>
                             {n.body && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>}
-                            <p className="text-xs text-gray-400 mt-1">{new Date(n.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-xs text-gray-500 mt-1">{new Date(n.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                           {!n.read && <div className="w-2 h-2 bg-purple-600 rounded-full flex-shrink-0 mt-1.5" />}
                         </div>
@@ -6350,7 +6350,7 @@ export default function SyndicDashboard() {
               {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard emoji="🏢" label="Immeubles gérés" value={immeubles.length} sub={`${immeubles.reduce((a, i) => a + i.nbLots, 0)} lots au total`} color="purple" />
-                <StatCard emoji="🔧" label="Artisans actifs" value={artisans.filter(a => a.statut === 'actif').length} sub={`${artisans.filter(a => a.vitfixCertifie).length} certifiés VitFix`} color="yellow" />
+                <StatCard emoji="🔧" label="Artisans actifs" value={artisans.filter(a => a.statut === 'actif').length} sub={`${artisans.filter(a => a.vitfixCertifie).length} certifiés Vitfix`} color="yellow" />
                 <StatCard emoji="📋" label="Missions en cours" value={missions.filter(m => m.statut === 'en_cours' || m.statut === 'acceptee').length} sub={`${missions.filter(m => m.priorite === 'urgente' && m.statut !== 'terminee').length} urgentes`} color="blue" />
                 <StatCard emoji="🔔" label="Alertes actives" value={alertes.length} sub={`${alertes.filter(a => a.urgence === 'haute').length} urgentes`} color={alertes.filter(a => a.urgence === 'haute').length > 0 ? 'red' : 'green'} />
               </div>
@@ -6378,7 +6378,7 @@ export default function SyndicDashboard() {
                     style={{ width: `${Math.min((totalDepenses / totalBudget) * 100, 100)}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{Math.round((totalDepenses / totalBudget) * 100)}% consommé</p>
+                <p className="text-xs text-gray-500 mt-1">{Math.round((totalDepenses / totalBudget) * 100)}% consommé</p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -6391,12 +6391,12 @@ export default function SyndicDashboard() {
                         <span className="text-red-500 text-lg mt-0.5">⚠️</span>
                         <div>
                           <p className="text-sm text-gray-800 font-medium">{a.message}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{a.date}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{a.date}</p>
                         </div>
                       </div>
                     ))}
                     {alertes.filter(a => a.urgence === 'haute').length === 0 && (
-                      <p className="text-gray-400 text-sm text-center py-4">Aucune alerte urgente ✅</p>
+                      <p className="text-gray-500 text-sm text-center py-4">Aucune alerte urgente ✅</p>
                     )}
                   </div>
                 </div>
@@ -6441,7 +6441,7 @@ export default function SyndicDashboard() {
                       <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
                         <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${Math.min((i.depensesAnnee / i.budgetAnnuel) * 100, 100)}%` }} />
                       </div>
-                      <p className="text-xs text-gray-400 mt-1">Budget : {Math.round((i.depensesAnnee / i.budgetAnnuel) * 100)}% consommé</p>
+                      <p className="text-xs text-gray-500 mt-1">Budget : {Math.round((i.depensesAnnee / i.budgetAnnuel) * 100)}% consommé</p>
                     </div>
                   ))}
                 </div>
@@ -6474,7 +6474,7 @@ export default function SyndicDashboard() {
                             📍 Géoloc — coords manquantes
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-gray-50 text-gray-400 border border-gray-200 px-2 py-0.5 rounded-full font-medium">
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-gray-50 text-gray-500 border border-gray-200 px-2 py-0.5 rounded-full font-medium">
                             📍 Géoloc désactivée
                           </span>
                         )}
@@ -6525,32 +6525,32 @@ export default function SyndicDashboard() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-semibold text-purple-700 flex items-center gap-1">📜 Règlement de copropriété</span>
                         <div className="flex items-center gap-2">
-                          {i.reglementDateMaj && <span className="text-xs text-gray-400">Mis à jour le {new Date(i.reglementDateMaj).toLocaleDateString('fr-FR')}</span>}
+                          {i.reglementDateMaj && <span className="text-xs text-gray-500">Mis à jour le {new Date(i.reglementDateMaj).toLocaleDateString('fr-FR')}</span>}
                           <button onClick={() => openEditImmeuble(i)} className="text-xs text-purple-600 hover:underline">Modifier</button>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
                         {i.reglementChargesRepartition && (
                           <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
-                            <p className="text-gray-400 text-[10px]">Répartition</p>
+                            <p className="text-gray-500 text-[10px]">Répartition</p>
                             <p className="font-medium text-purple-700">{i.reglementChargesRepartition}</p>
                           </div>
                         )}
                         {i.reglementMajoriteAG && (
                           <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
-                            <p className="text-gray-400 text-[10px]">Majorités AG</p>
+                            <p className="text-gray-500 text-[10px]">Majorités AG</p>
                             <p className="font-medium text-purple-700">{i.reglementMajoriteAG}</p>
                           </div>
                         )}
                         {i.reglementFondsTravaux !== undefined && (
                           <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
-                            <p className="text-gray-400 text-[10px]">Fonds travaux art.14-2</p>
+                            <p className="text-gray-500 text-[10px]">Fonds travaux art.14-2</p>
                             <p className={`font-medium ${i.reglementFondsTravaux ? 'text-green-600' : 'text-gray-500'}`}>{i.reglementFondsTravaux ? '✅ Oui' : '—'}</p>
                           </div>
                         )}
                         {i.reglementFondsRoulementPct !== undefined && i.reglementFondsRoulementPct > 0 && (
                           <div className="bg-purple-50 rounded-lg px-2 py-1.5 text-xs">
-                            <p className="text-gray-400 text-[10px]">Fonds roulement</p>
+                            <p className="text-gray-500 text-[10px]">Fonds roulement</p>
                             <p className="font-medium text-purple-700">{i.reglementFondsRoulementPct}%</p>
                           </div>
                         )}
@@ -6585,7 +6585,7 @@ export default function SyndicDashboard() {
           {page === 'artisans' && !selectedArtisanChat && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-gray-500 text-sm">{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés VitFix</p>
+                <p className="text-gray-500 text-sm">{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix</p>
                 <button onClick={() => { setShowModalArtisan(true); setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }); setArtisanSearchResult(null); setArtisanError(''); setArtisanSuccess(''); }} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
                   + Ajouter un artisan
                 </button>
@@ -6637,7 +6637,7 @@ export default function SyndicDashboard() {
                             💬 Canal dédié
                           </button>
                         ) : (
-                          <button className="flex-1 text-xs border border-gray-200 text-gray-400 py-1.5 rounded-lg cursor-not-allowed" title="Compte VitFix non lié">
+                          <button className="flex-1 text-xs border border-gray-200 text-gray-500 py-1.5 rounded-lg cursor-not-allowed" title="Compte Vitfix non lié">
                             💬 Pas de compte lié
                           </button>
                         )}
@@ -6662,7 +6662,7 @@ export default function SyndicDashboard() {
             <div className="flex flex-col h-[calc(100vh-200px)]">
               {/* Header canal */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4 flex items-center gap-3">
-                <button onClick={() => { setSelectedArtisanChat(null); setMessages([]) }} className="text-gray-400 hover:text-gray-600 transition">
+                <button onClick={() => { setSelectedArtisanChat(null); setMessages([]) }} className="text-gray-500 hover:text-gray-600 transition">
                   ← Retour
                 </button>
                 <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-lg font-bold text-purple-700">
@@ -6687,7 +6687,7 @@ export default function SyndicDashboard() {
                   </div>
                 )}
                 {!msgLoading && messages.length === 0 && (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-gray-500">
                     <div className="text-4xl mb-2">💬</div>
                     <p className="font-medium">Canal de communication dédié</p>
                     <p className="text-sm mt-1">Envoyez votre premier message à {selectedArtisanChat.nom}</p>
@@ -6704,7 +6704,7 @@ export default function SyndicDashboard() {
                         {msg.message_type === 'rapport' && <p className="text-xs font-bold mb-1">📋 Rapport d'intervention</p>}
                         {msg.message_type === 'devis' && <p className="text-xs font-bold mb-1">💶 Devis</p>}
                         <p className="text-sm">{msg.content}</p>
-                        <p className={`text-xs mt-1 ${isMine ? 'text-purple-200' : 'text-gray-400'}`}>
+                        <p className={`text-xs mt-1 ${isMine ? 'text-purple-200' : 'text-gray-500'}`}>
                           {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                           {isMine && msg.read_at && ' · Lu'}
                         </p>
@@ -6754,7 +6754,7 @@ export default function SyndicDashboard() {
                 </button>
               </div>
               {getFilteredMissions().length === 0 && (
-                <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-2xl">
                   Aucune mission pour ce filtre
                 </div>
               )}
@@ -6766,13 +6766,13 @@ export default function SyndicDashboard() {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <PrioriteBadge p={m.priorite} />
                           <Badge statut={m.statut} />
-                          <span className="text-xs text-gray-400">#{m.id}</span>
+                          <span className="text-xs text-gray-500">#{m.id}</span>
                           {m.locataire && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">👤 {m.locataire}</span>}
                           {m.etage && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">🏢 {m.batiment ? `Bât. ${m.batiment} · ` : ''}Ét. {m.etage}</span>}
                         </div>
                         <h3 className="font-bold text-gray-900">{m.immeuble}</h3>
                         <p className="text-sm text-gray-600">{m.type} · {m.description}</p>
-                        {m.numLot && <p className="text-xs text-gray-400 mt-0.5">Lot {m.numLot}</p>}
+                        {m.numLot && <p className="text-xs text-gray-500 mt-0.5">Lot {m.numLot}</p>}
                       </div>
                       <div className="text-right ml-4 flex-shrink-0">
                         {m.montantDevis && <p className="text-sm font-semibold text-gray-900">{m.montantDevis.toLocaleString('fr-FR')} €</p>}
@@ -6883,7 +6883,7 @@ export default function SyndicDashboard() {
                   {/* Messages */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     {canalInterneMessages.length === 0 && (
-                      <div className="text-center py-16 text-gray-400">
+                      <div className="text-center py-16 text-gray-500">
                         <p className="text-4xl mb-3">🏢</p>
                         <p className="font-medium text-gray-600">Canal interne vide</p>
                         <p className="text-sm">Envoyez un message à votre équipe ci-dessous</p>
@@ -6914,7 +6914,7 @@ export default function SyndicDashboard() {
                                   <p className="font-bold text-gray-900">{msg.planningResident}</p>
                                   <p className="text-blue-700 font-semibold text-sm">{msg.planningHeure} · {msg.planningResidence}</p>
                                   {msg.contenu && <p className="text-gray-600 text-xs mt-1 italic">{msg.contenu}</p>}
-                                  <p className="text-xs text-gray-400 mt-1">
+                                  <p className="text-xs text-gray-500 mt-1">
                                     {msg.planningDate && new Date(msg.planningDate + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
                                   </p>
                                   {msg.planningMissionCreee ? (
@@ -6985,7 +6985,7 @@ export default function SyndicDashboard() {
                               </div>
                             )}
 
-                            <p className={`text-xs text-gray-400 mt-1 ${isMine ? 'text-right' : ''}`}>
+                            <p className={`text-xs text-gray-500 mt-1 ${isMine ? 'text-right' : ''}`}>
                               {new Date(msg.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
@@ -7200,7 +7200,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className={`font-semibold text-xs ${isToday ? 'text-purple-700' : 'text-gray-700'}`}>{day}</span>
-                            {total > 0 && <span className="text-gray-400 text-xs">{total}</span>}
+                            {total > 0 && <span className="text-gray-500 text-xs">{total}</span>}
                           </div>
                           {/* Events */}
                           {dayEvents.slice(0, 2).map(e => (
@@ -7215,7 +7215,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                               🔧 {m.type}
                             </div>
                           ))}
-                          {total > 2 && <div className="text-gray-400 text-xs">+{total - 2}</div>}
+                          {total > 2 && <div className="text-gray-500 text-xs">+{total - 2}</div>}
                           {/* "+" hint on hover */}
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition pointer-events-none">
                             <span className="text-purple-400 text-lg font-light">+</span>
@@ -7230,7 +7230,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                 <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
                   <h3 className="font-bold text-gray-900 mb-3">📋 Agenda du mois — {planningMonthLabel}</h3>
                   {monthEvents.length === 0 && monthMissions.length === 0 && (
-                    <p className="text-sm text-gray-400 py-6 text-center border-2 border-dashed border-gray-200 rounded-xl">Aucun événement ce mois</p>
+                    <p className="text-sm text-gray-500 py-6 text-center border-2 border-dashed border-gray-200 rounded-xl">Aucun événement ce mois</p>
                   )}
                   <div className="space-y-2">
                     {[
@@ -7244,7 +7244,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         </div>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${item.color}`}>{item.tag}</span>
                         <span className="flex-1 font-medium truncate text-gray-800">{item.label}</span>
-                        <span className="text-gray-400 text-xs flex-shrink-0 hidden md:block">{item.sub}</span>
+                        <span className="text-gray-500 text-xs flex-shrink-0 hidden md:block">{item.sub}</span>
                         <button onClick={ev => { ev.stopPropagation(); item.onDelete() }} className="flex-shrink-0 text-xs bg-red-100 text-red-500 hover:bg-red-200 px-2 py-0.5 rounded-lg transition font-medium" title="Supprimer">🗑️</button>
                       </div>
                     ))}
@@ -7283,7 +7283,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           {page === 'alertes' && (
             <div className="space-y-3">
               {alertes.length === 0 && (
-                <div className="text-center py-16 text-gray-400">
+                <div className="text-center py-16 text-gray-500">
                   <div className="text-5xl mb-3">✅</div>
                   <p className="font-semibold text-gray-600">Toutes les alertes ont été traitées !</p>
                 </div>
@@ -7306,7 +7306,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                           {a.urgence === 'haute' ? '🔴 Urgente' : a.urgence === 'moyenne' ? '🟡 Moyenne' : '🟢 Basse'}
                         </span>
                         <p className="text-gray-900 font-medium mt-2">{a.message}</p>
-                        <p className="text-xs text-gray-400 mt-1">{a.date}</p>
+                        <p className="text-xs text-gray-500 mt-1">{a.date}</p>
                       </div>
                     </div>
                     <button onClick={() => handleTraiterAlerte(a.id)} className="text-xs bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition font-medium ml-4 flex-shrink-0">
@@ -7334,7 +7334,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-white font-bold text-base">Max — Expert VitFix Pro</h2>
+                      <h2 className="text-white font-bold text-base">Max — Expert Vitfix Pro</h2>
                       {iaSpeaking && (
                         <span className="bg-green-400/20 text-green-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                           <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" /> Parle...
@@ -7417,7 +7417,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         {msg.role === 'assistant' && !iaSpeaking && (
                           <button
                             onClick={() => speakResponse(msg.content)}
-                            className="self-start text-xs text-gray-400 hover:text-purple-600 transition flex items-center gap-1 px-1"
+                            className="self-start text-xs text-gray-500 hover:text-purple-600 transition flex items-center gap-1 px-1"
                           >
                             🔊 <span>Lire</span>
                           </button>
@@ -7435,7 +7435,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                           <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                           <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                           <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                          <span className="text-xs text-gray-400 ml-2">Max réfléchit...</span>
+                          <span className="text-xs text-gray-500 ml-2">Max réfléchit...</span>
                         </div>
                       </div>
                     </div>
@@ -7494,7 +7494,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         disabled={iaLoading}
                       />
                       {iaInput && (
-                        <button onClick={() => setIaInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">×</button>
+                        <button onClick={() => setIaInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 text-sm">×</button>
                       )}
                     </div>
                     <button
@@ -7508,7 +7508,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                       ) : '↑'}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1.5 text-center">
+                  <p className="text-xs text-gray-500 mt-1.5 text-center">
                     {iaVoiceSupported ? '🎙️ Commande vocale disponible · ' : ''}Max a accès à toutes vos données · Les actions sont exécutées en temps réel
                   </p>
                 </div>
@@ -7607,7 +7607,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${enabled ? 'bg-purple-100' : 'bg-gray-100'}`}>{mod.icon}</div>
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm text-gray-900">{mod.label}</div>
-                                        <div className="text-xs text-gray-400 mt-0.5">{mod.description}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5">{mod.description}</div>
                                       </div>
                                       <button onClick={() => toggleModule(mod.key)} className={`w-12 h-7 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-purple-500' : 'bg-gray-200'}`}>
                                         <div className="w-5 h-5 bg-white rounded-full shadow absolute top-1 transition-all" style={{ left: enabled ? '24px' : '4px' }} />
@@ -7634,7 +7634,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   </div>
                   <button
                     onClick={() => saveNavOrder(allNavItems.map(n => n.id as string))}
-                    className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition"
+                    className="text-xs text-gray-500 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition"
                   >
                     ↺ Réinitialiser
                   </button>
@@ -7662,18 +7662,18 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                             <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">fixe</span>
                           )}
                           {/* Position */}
-                          <span className="text-xs text-gray-400 font-mono w-5 text-center">{idx + 1}</span>
+                          <span className="text-xs text-gray-500 font-mono w-5 text-center">{idx + 1}</span>
                           {/* Flèches */}
                           <div className="flex flex-col gap-0.5">
                             <button
                               onClick={() => moveNavItemUp(item.id as string, visibleIds)}
                               disabled={idx === 0}
-                              className="w-6 h-5 flex items-center justify-center rounded text-gray-400 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
+                              className="w-6 h-5 flex items-center justify-center rounded text-gray-500 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
                             >▲</button>
                             <button
                               onClick={() => moveNavItemDown(item.id as string, visibleIds)}
                               disabled={idx === visibleItems.length - 1}
-                              className="w-6 h-5 flex items-center justify-center rounded text-gray-400 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
+                              className="w-6 h-5 flex items-center justify-center rounded text-gray-500 hover:text-purple-600 hover:bg-purple-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
                             >▼</button>
                           </div>
                         </div>
@@ -7854,7 +7854,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900">🔧 Ajouter un artisan</h2>
-                <button onClick={() => setShowModalArtisan(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+                <button onClick={() => setShowModalArtisan(false)} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
               </div>
 
               {artisanSuccess ? (
@@ -7886,8 +7886,8 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                     {artisanSearchResult && (
                       <div className={`mt-2 p-3 rounded-lg text-sm ${artisanSearchResult.found ? 'bg-blue-50 border border-blue-200 text-blue-800' : 'bg-yellow-50 border border-yellow-200 text-yellow-800'}`}>
                         {artisanSearchResult.found
-                          ? <>✅ Compte VitFix trouvé — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? 'artisan certifié' : artisanSearchResult.role})<br/><span className="text-xs">Il sera synchronisé avec votre cabinet.</span></>
-                          : <>⚠️ Aucun compte VitFix. Vous pouvez créer un compte artisan ou l'ajouter sans compte.</>
+                          ? <>✅ Compte Vitfix trouvé — <strong>{artisanSearchResult.name}</strong> ({artisanSearchResult.role === 'artisan' ? 'artisan certifié' : artisanSearchResult.role})<br/><span className="text-xs">Il sera synchronisé avec votre cabinet.</span></>
+                          : <>⚠️ Aucun compte Vitfix. Vous pouvez créer un compte artisan ou l'ajouter sans compte.</>
                         }
                       </div>
                     )}
@@ -7964,7 +7964,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                           disabled={artisanSubmitting || !artisanForm.email || !artisanForm.nom}
                           className="w-full px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition disabled:opacity-40"
                         >
-                          Ajouter sans compte VitFix
+                          Ajouter sans compte Vitfix
                         </button>
                       </div>
                     ) : (
@@ -7993,7 +7993,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                 <h2 className="text-xl font-bold text-gray-900">
                   {editingImmeuble ? '✏️ Modifier l\'immeuble' : '🏢 Ajouter un immeuble'}
                 </h2>
-                <button onClick={() => setShowModalImmeuble(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+                <button onClick={() => setShowModalImmeuble(false)} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
               </div>
               <div className="space-y-4">
                 <div>
@@ -8142,7 +8142,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                     </div>
                     {/* Texte libre */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Texte du règlement <span className="text-gray-400">(coller ou saisir)</span></label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Texte du règlement <span className="text-gray-500">(coller ou saisir)</span></label>
                       <textarea
                         rows={5}
                         value={immeubleForm.reglementTexte || ''}
@@ -8198,7 +8198,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                       </div>
                     </div>
                     {immeubleForm.reglementDateMaj && (
-                      <p className="text-xs text-gray-400">Dernière mise à jour : {new Date(immeubleForm.reglementDateMaj).toLocaleDateString('fr-FR')}</p>
+                      <p className="text-xs text-gray-500">Dernière mise à jour : {new Date(immeubleForm.reglementDateMaj).toLocaleDateString('fr-FR')}</p>
                     )}
                   </div>
                 </div>
@@ -8254,7 +8254,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   </p>
                 )}
               </div>
-              <button onClick={() => setShowPlanningModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+              <button onClick={() => setShowPlanningModal(false)} className="text-gray-500 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
 
             {/* Body */}
@@ -8334,7 +8334,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Description <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Description <span className="text-gray-500 font-normal">(optionnel)</span></label>
                 <textarea
                   value={planningEventForm.description}
                   onChange={e => setPlanningEventForm(f => ({ ...f, description: e.target.value }))}
@@ -8508,7 +8508,7 @@ function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: 
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
           <div className="text-5xl mb-3">📅</div>
           <h3 className="font-bold text-gray-700 mb-1">Aucune échéance</h3>
-          <p className="text-sm text-gray-400 mb-4">Utilisez "Auto-init" pour générer automatiquement toutes les obligations légales de vos immeubles</p>
+          <p className="text-sm text-gray-500 mb-4">Utilisez "Auto-init" pour générer automatiquement toutes les obligations légales de vos immeubles</p>
           {immeubles.length > 0 && <button onClick={autoInit} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold">⚡ Générer automatiquement</button>}
         </div>
       ) : (
@@ -8538,7 +8538,7 @@ function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: 
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800 text-lg">Nouvelle échéance</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="space-y-3">
               <div>
@@ -8570,7 +8570,7 @@ function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: 
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Annuler</button>
-              <button onClick={addEcheance} disabled={!formData.immeuble_id || !formData.date_echeance} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">Ajouter</button>
+              <button onClick={addEcheance} disabled={!formData.immeuble_id || !formData.date_echeance} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-60">Ajouter</button>
             </div>
           </div>
         </div>
@@ -8581,13 +8581,13 @@ function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: 
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6" onClick={ev => ev.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800 text-lg">{TYPES.find(t => t.key === selectedE.type)?.icon} {selectedE.label}</h3>
-              <button onClick={() => setSelectedE(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setSelectedE(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Immeuble</p><p className="font-semibold">{selectedE.immeuble_nom}</p></div>
-                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Échéance</p><p className="font-semibold">{new Date(selectedE.date_echeance).toLocaleDateString('fr-FR')}</p></div>
-                {selectedE.prestataire && <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Prestataire</p><p className="font-semibold">{selectedE.prestataire}</p></div>}
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-500 mb-1">Immeuble</p><p className="font-semibold">{selectedE.immeuble_nom}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-500 mb-1">Échéance</p><p className="font-semibold">{new Date(selectedE.date_echeance).toLocaleDateString('fr-FR')}</p></div>
+                {selectedE.prestataire && <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-500 mb-1">Prestataire</p><p className="font-semibold">{selectedE.prestataire}</p></div>}
                 {selectedE.date_realisation && <div className="bg-green-50 rounded-xl p-3"><p className="text-xs text-green-600 mb-1">Réalisée le</p><p className="font-semibold text-green-700">{new Date(selectedE.date_realisation).toLocaleDateString('fr-FR')}</p></div>}
               </div>
               <div className="bg-blue-50 rounded-xl p-3">
@@ -8595,7 +8595,7 @@ function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: 
                 <p className="text-blue-800">{TYPES.find(t => t.key === selectedE.type)?.refs}</p>
                 <p className="text-blue-600 mt-1 text-xs">{selectedE.description}</p>
               </div>
-              {selectedE.notes && <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400 mb-1">Notes</p><p className="text-gray-700">{selectedE.notes}</p></div>}
+              {selectedE.notes && <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-500 mb-1">Notes</p><p className="text-gray-700">{selectedE.notes}</p></div>}
             </div>
             <div className="flex gap-2 mt-4">
               {selectedE.statut !== 'fait' && <button onClick={() => { markDone(selectedE.id); setSelectedE(null) }} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700">✓ Marquer comme réalisée</button>}
@@ -8716,7 +8716,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
                 <div key={stage.key} className={`flex-1 min-w-24 rounded-xl border p-3 text-center transition ${cnt > 0 ? stageCls[stage.color] : 'bg-gray-50 border-gray-200'}`}>
                   <div className="text-lg mb-1">{stage.icon}</div>
                   <p className="text-xs font-bold">{stage.label}</p>
-                  <p className={`text-xl font-bold mt-1 ${cnt > 0 ? '' : 'text-gray-400'}`}>{cnt}</p>
+                  <p className={`text-xl font-bold mt-1 ${cnt > 0 ? '' : 'text-gray-500'}`}>{cnt}</p>
                 </div>
               )
             })}
@@ -8728,7 +8728,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
           <div className="text-5xl mb-3">💸</div>
           <h3 className="font-bold text-gray-700 mb-1">Aucun dossier</h3>
-          <p className="text-sm text-gray-400">Ajoutez un dossier d'impayé pour suivre son escalade automatiquement</p>
+          <p className="text-sm text-gray-500">Ajoutez un dossier d'impayé pour suivre son escalade automatiquement</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -8754,7 +8754,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
           })}
           {regles.length > 0 && (
             <details className="mt-2">
-              <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-600 font-medium">✅ {regles.length} dossier(s) réglé(s) — {totalRegle.toFixed(0)} € récupérés</summary>
+              <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-600 font-medium">✅ {regles.length} dossier(s) réglé(s) — {totalRegle.toFixed(0)} € récupérés</summary>
               <div className="mt-2 space-y-2">
                 {regles.map(d => (
                   <div key={d.id} className="bg-green-50 rounded-xl border border-green-100 p-3 flex items-center gap-3">
@@ -8774,7 +8774,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800 text-lg">Nouveau dossier impayé</h3>
-              <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowAdd(false)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -8790,7 +8790,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowAdd(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Annuler</button>
-              <button onClick={addDossier} disabled={!form.coproprio_nom || !form.montant_initial} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">Créer le dossier</button>
+              <button onClick={addDossier} disabled={!form.coproprio_nom || !form.montant_initial} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-60">Créer le dossier</button>
             </div>
           </div>
         </div>
@@ -8801,11 +8801,11 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={ev => ev.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800 text-lg">Dossier — {selected.coproprio_nom}</h3>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setSelected(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
               {STAGES.filter(s => s.key !== 'regle').map(s => (
-                <div key={s.key} className={`flex-1 min-w-14 text-center p-2 rounded-lg text-xs font-bold border transition ${selected.stage === s.key ? stageCls[s.color] : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                <div key={s.key} className={`flex-1 min-w-14 text-center p-2 rounded-lg text-xs font-bold border transition ${selected.stage === s.key ? stageCls[s.color] : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
                   <div className="text-base mb-0.5">{s.icon}</div>{s.label}
                 </div>
               ))}
@@ -8821,7 +8821,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
                 {[...selected.historique].reverse().map((h, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div className="w-2 h-2 bg-purple-400 rounded-full mt-1.5 flex-shrink-0" />
-                    <div><p className="text-sm text-gray-700 font-medium">{h.action}</p><p className="text-xs text-gray-400">{new Date(h.date).toLocaleDateString('fr-FR')} · {h.auteur}</p></div>
+                    <div><p className="text-sm text-gray-700 font-medium">{h.action}</p><p className="text-xs text-gray-500">{new Date(h.date).toLocaleDateString('fr-FR')} · {h.auteur}</p></div>
                   </div>
                 ))}
               </div>
@@ -8843,7 +8843,7 @@ function RecouvrementSection({ user, userRole }: { user: any; userRole: string }
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6" onClick={ev => ev.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-800">📝 Courrier généré</h3>
-              <button onClick={() => setLetter(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setLetter(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <textarea readOnly value={letter} rows={14} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono resize-none focus:outline-none" />
             <div className="flex gap-2 mt-4">
@@ -8959,7 +8959,7 @@ function PreparateurAGSection({ user, userRole, immeubles }: { user: any; userRo
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
             <div className="text-5xl mb-3">🏛️</div>
             <h3 className="font-bold text-gray-700 mb-1">Aucune AG préparée</h3>
-            <p className="text-sm text-gray-400 mb-4">Préparez votre prochaine assemblée générale avec convocation, ordre du jour et checklist documents</p>
+            <p className="text-sm text-gray-500 mb-4">Préparez votre prochaine assemblée générale avec convocation, ordre du jour et checklist documents</p>
             <button onClick={createNew} className="px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 transition">Commencer la préparation</button>
           </div>
         ) : (
@@ -9301,7 +9301,7 @@ INSTRUCTIONS IMPÉRATIVES :
           <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${hasReglement ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
             {hasReglement ? (
               <>✅ Règlement chargé — {imm.reglementPdfNom || 'Texte saisi'}
-                {imm.reglementDateMaj && <span className="text-gray-400 font-normal ml-1">· MàJ {new Date(imm.reglementDateMaj).toLocaleDateString('fr-FR')}</span>}
+                {imm.reglementDateMaj && <span className="text-gray-500 font-normal ml-1">· MàJ {new Date(imm.reglementDateMaj).toLocaleDateString('fr-FR')}</span>}
               </>
             ) : (
               <>⚠️ Aucun règlement de copropriété pour <strong>{imm.nom}</strong> — Ajoutez-le dans la fiche immeuble pour des réponses précises</>
@@ -9380,7 +9380,7 @@ INSTRUCTIONS IMPÉRATIVES :
               Envoyer
             </button>
             {messages.length > 0 && (
-              <button onClick={() => setMessages([])} className="text-xs text-gray-400 hover:text-gray-600 text-center">Effacer</button>
+              <button onClick={() => setMessages([])} className="text-xs text-gray-500 hover:text-gray-600 text-center">Effacer</button>
             )}
           </div>
         </div>
@@ -9559,22 +9559,22 @@ function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole
               <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-orange-400">
                 <div className="text-sm text-gray-500 mb-1">Lots gérés</div>
                 <div className="text-3xl font-bold text-orange-600">{lots.length}</div>
-                <div className="text-xs text-gray-400 mt-1">{totalTantiemes.toFixed(0)} tantièmes</div>
+                <div className="text-xs text-gray-500 mt-1">{totalTantiemes.toFixed(0)} tantièmes</div>
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-400">
                 <div className="text-sm text-gray-500 mb-1">Appels de charges</div>
                 <div className="text-3xl font-bold text-blue-600">{appels.length}</div>
-                <div className="text-xs text-gray-400 mt-1">{appelsEnvoyes} envoyés · {appelsSoldes} soldés</div>
+                <div className="text-xs text-gray-500 mt-1">{appelsEnvoyes} envoyés · {appelsSoldes} soldés</div>
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-400">
                 <div className="text-sm text-gray-500 mb-1">Total crédits</div>
                 <div className="text-3xl font-bold text-green-600">{totalCredit.toLocaleString('fr-FR')} €</div>
-                <div className="text-xs text-gray-400 mt-1">encaissements</div>
+                <div className="text-xs text-gray-500 mt-1">encaissements</div>
               </div>
               <div className={`bg-white p-6 rounded-2xl shadow-sm border-l-4 ${solde >= 0 ? 'border-green-400' : 'border-red-400'}`}>
                 <div className="text-sm text-gray-500 mb-1">Solde trésorerie</div>
                 <div className={`text-3xl font-bold ${solde >= 0 ? 'text-green-600' : 'text-red-600'}`}>{solde.toLocaleString('fr-FR')} €</div>
-                <div className="text-xs text-gray-400 mt-1">{totalDebit.toLocaleString('fr-FR')} € débits</div>
+                <div className="text-xs text-gray-500 mt-1">{totalDebit.toLocaleString('fr-FR')} € débits</div>
               </div>
             </div>
 
@@ -9590,7 +9590,7 @@ function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${a.statut === 'Soldé' ? 'bg-green-100 text-green-700' : a.statut === 'Envoyé' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{a.statut}</span>
                   </div>
                 ))}
-                {appels.length === 0 && <p className="text-gray-400 text-sm text-center py-4">Aucun appel de charges</p>}
+                {appels.length === 0 && <p className="text-gray-500 text-sm text-center py-4">Aucun appel de charges</p>}
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -9607,7 +9607,7 @@ function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole
                     </div>
                   </div>
                 ))}
-                {ecritures.length === 0 && <p className="text-gray-400 text-sm text-center py-4">Aucune écriture comptable</p>}
+                {ecritures.length === 0 && <p className="text-gray-500 text-sm text-center py-4">Aucune écriture comptable</p>}
               </div>
             </div>
 
@@ -9743,7 +9743,7 @@ function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole
                                       <td className="border border-gray-200 px-2 py-1 text-right font-bold text-orange-700">{((l.tantieme / totalTantiemesLocal) * a.totalBudget).toFixed(2)} €</td>
                                     </tr>
                                   ))}
-                                  {lots.length > 4 && <tr><td colSpan={4} className="border border-gray-200 px-2 py-1 text-center text-gray-400">... et {lots.length - 4} autres lots</td></tr>}
+                                  {lots.length > 4 && <tr><td colSpan={4} className="border border-gray-200 px-2 py-1 text-center text-gray-500">... et {lots.length - 4} autres lots</td></tr>}
                                 </tbody>
                               </table>
                             </div>
@@ -10041,7 +10041,7 @@ function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole
                 <div>
                   <label className="block text-sm font-semibold mb-1">Tantièmes</label>
                   <input type="number" value={lotForm.tantieme} onChange={e => setLotForm({...lotForm, tantieme: e.target.value})} placeholder="Ex: 250" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" />
-                  <p className="text-xs text-gray-400 mt-1">Sur 10 000 total</p>
+                  <p className="text-xs text-gray-500 mt-1">Sur 10 000 total</p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">Surface (m²)</label>
@@ -10167,7 +10167,7 @@ function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole
                     placeholder="Budget €"
                     className="w-28 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-orange-400 outline-none text-right"
                   />
-                  <span className="text-xs text-gray-400">€</span>
+                  <span className="text-xs text-gray-500">€</span>
                 </div>
               ))}
               <div className="bg-orange-50 rounded-xl p-3 flex justify-between">
@@ -10416,7 +10416,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
       doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150)
       const pages = doc.getNumberOfPages()
       for (let p = 1; p <= pages; p++) {
-        doc.setPage(p); doc.text(`VitFix Pro — Généré le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
+        doc.setPage(p); doc.text(`Vitfix Pro — Généré le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
       }
 
       doc.save(`PV_AG_${ag.titre.replace(/\s+/g,'_')}_${ag.date.split('T')[0]}.pdf`)
@@ -10473,7 +10473,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
             {activeAG.statut === 'convoquée' && <button onClick={() => handleDemarrer(activeAG.id)} className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-orange-600">▶️ Démarrer l'AG</button>}
             {activeAG.statut === 'en_cours' && <button onClick={() => handleCloture(activeAG.id)} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-green-700">✅ Clôturer l'AG</button>}
             {activeAG.statut === 'clôturée' && !activeAG.signataireNom && <button onClick={() => setShowSignature(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700">✍️ Signer le PV</button>}
-            {activeAG.statut === 'clôturée' && <button onClick={() => exportPVPdf(activeAG)} disabled={pvPdfLoading} className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50">{pvPdfLoading ? '⏳ Génération…' : '📄 Exporter PV PDF'}</button>}
+            {activeAG.statut === 'clôturée' && <button onClick={() => exportPVPdf(activeAG)} disabled={pvPdfLoading} className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-60">{pvPdfLoading ? '⏳ Génération…' : '📄 Exporter PV PDF'}</button>}
           </div>
 
           <div className="flex gap-1 mb-6 border-b overflow-x-auto">
@@ -10501,7 +10501,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
                 <div className="mb-4">
                   <div className="flex justify-between text-sm mb-1"><span>Taux de présence</span><span className={`font-bold ${activeAG.presents / activeAG.totalTantiemes * 100 >= activeAG.quorum ? 'text-green-600' : 'text-orange-500'}`}>{activeAG.totalTantiemes > 0 ? ((activeAG.presents / activeAG.totalTantiemes) * 100).toFixed(1) : 0}% {activeAG.presents / activeAG.totalTantiemes * 100 >= activeAG.quorum ? '✅ Atteint' : '⚠️ Insuffisant'}</span></div>
                   <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden"><div className={`h-4 rounded-full transition-all ${activeAG.presents / activeAG.totalTantiemes * 100 >= activeAG.quorum ? 'bg-green-500' : 'bg-orange-400'}`} style={{ width: `${Math.min((activeAG.presents / activeAG.totalTantiemes) * 100, 100)}%` }} /></div>
-                  <div className="text-xs text-gray-400 mt-1">Seuil quorum : {(activeAG.totalTantiemes * activeAG.quorum / 100).toFixed(0)} tantièmes</div>
+                  <div className="text-xs text-gray-500 mt-1">Seuil quorum : {(activeAG.totalTantiemes * activeAG.quorum / 100).toFixed(0)} tantièmes</div>
                 </div>
                 {activeAG.statut === 'en_cours' && (
                   <div className="flex gap-2 mt-3">
@@ -10512,7 +10512,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
               </div>
               <div className="bg-white rounded-2xl shadow-sm p-6 xl:col-span-2">
                 <h3 className="font-bold text-lg mb-4">📝 Ordre du jour</h3>
-                {activeAG.ordre_du_jour.length === 0 ? <p className="text-gray-400 text-sm">Aucun point défini</p> : <ol className="list-decimal pl-5 space-y-2 text-sm">{activeAG.ordre_du_jour.map((item, i) => <li key={i} className="py-1 border-b border-gray-100 last:border-0">{item}</li>)}</ol>}
+                {activeAG.ordre_du_jour.length === 0 ? <p className="text-gray-500 text-sm">Aucun point défini</p> : <ol className="list-decimal pl-5 space-y-2 text-sm">{activeAG.ordre_du_jour.map((item, i) => <li key={i} className="py-1 border-b border-gray-100 last:border-0">{item}</li>)}</ol>}
               </div>
             </div>
           )}
@@ -10533,7 +10533,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
                 </div>
               )}
               {activeAG.resolutions.length === 0 ? (
-                <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">Aucune résolution. {activeAG.statut === 'en_cours' ? 'Ajoutez des résolutions à mettre aux votes.' : ''}</div>
+                <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-500">Aucune résolution. {activeAG.statut === 'en_cours' ? 'Ajoutez des résolutions à mettre aux votes.' : ''}</div>
               ) : (
                 <div className="space-y-4">
                   {activeAG.resolutions.map((res, i) => {
@@ -10587,7 +10587,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
                 <p className="text-sm text-blue-800"><strong>📮 Vote par correspondance</strong> — Conformément à l'article 17-1A de la loi du 10/07/1965, les copropriétaires peuvent voter par correspondance avant l'AG. Ces votes sont automatiquement intégrés dans le calcul des majorités.</p>
               </div>
               {activeAG.resolutions.length === 0 ? (
-                <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">Aucune résolution. Créez d'abord des résolutions dans l'onglet "Votes en séance".</div>
+                <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-500">Aucune résolution. Créez d'abord des résolutions dans l'onglet "Votes en séance".</div>
               ) : (
                 <div className="space-y-4">
                   {activeAG.resolutions.map((res, i) => (
@@ -10602,7 +10602,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
                         )}
                       </div>
                       {res.votesCorrespondance.length === 0 ? (
-                        <div className="text-sm text-gray-400 py-2">Aucun vote par correspondance</div>
+                        <div className="text-sm text-gray-500 py-2">Aucun vote par correspondance</div>
                       ) : (
                         <div className="space-y-1">
                           {res.votesCorrespondance.map((vc, j) => (
@@ -10610,7 +10610,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
                               <span className="font-semibold flex-1">{vc.copropriétaire}</span>
                               <span className="text-gray-500">{vc.tantiemes} tantièmes</span>
                               <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${vc.vote === 'pour' ? 'bg-green-100 text-green-700' : vc.vote === 'contre' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{vc.vote.toUpperCase()}</span>
-                              <span className="text-gray-400 text-xs">reçu le {new Date(vc.recu).toLocaleDateString('fr-FR')}</span>
+                              <span className="text-gray-500 text-xs">reçu le {new Date(vc.recu).toLocaleDateString('fr-FR')}</span>
                             </div>
                           ))}
                         </div>
@@ -10628,7 +10628,7 @@ function AGDigitaleSection({ user, userRole }: { user: any; userRole: string }) 
                 <h3 className="font-bold text-lg">📄 Procès-Verbal</h3>
                 <div className="flex gap-2 flex-wrap">
                   {activeAG.statut === 'clôturée' && !activeAG.signataireNom && <button onClick={() => setShowSignature(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-700">✍️ Signer</button>}
-                  <button onClick={() => exportPVPdf(activeAG)} disabled={pvPdfLoading} className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-50">{pvPdfLoading ? '⏳…' : '📥 PDF'}</button>
+                  <button onClick={() => exportPVPdf(activeAG)} disabled={pvPdfLoading} className="bg-gray-800 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-900 disabled:opacity-60">{pvPdfLoading ? '⏳…' : '📥 PDF'}</button>
                 </div>
               </div>
               <div className="font-mono text-xs bg-gray-50 rounded-xl p-5 whitespace-pre-wrap leading-relaxed border">
@@ -10733,7 +10733,7 @@ Hash : ${typeof btoa !== 'undefined' ? btoa(activeAG.id + activeAG.signataireNom
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm text-purple-800">La signature électronique horodate le document et génère une empreinte unique. Elle constitue la preuve de validation du PV.</div>
               <div><label className="block text-sm font-semibold mb-1">Nom du signataire *</label><input value={sigForm.nom} onChange={e => setSigForm({...sigForm, nom: e.target.value})} placeholder="Prénom NOM" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none" /></div>
               <div><label className="block text-sm font-semibold mb-1">Qualité / Rôle</label><select value={sigForm.role} onChange={e => setSigForm({...sigForm, role: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-purple-400 outline-none"><option>Président de séance</option><option>Syndic</option><option>Secrétaire de séance</option><option>Scrutateur</option></select></div>
-              <div className="text-xs text-gray-400">Horodatage : {new Date().toLocaleString('fr-FR')}</div>
+              <div className="text-xs text-gray-500">Horodatage : {new Date().toLocaleString('fr-FR')}</div>
             </div>
             <div className="p-6 border-t flex gap-3">
               <button onClick={() => setShowSignature(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Annuler</button>
@@ -10873,7 +10873,7 @@ function ImpayésSection({ user, userRole }: { user: any; userRole: string }) {
       const pages = doc.getNumberOfPages()
       for (let p = 1; p <= pages; p++) {
         doc.setPage(p); doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(150,150,150)
-        doc.text(`VitFix Pro — Appel de fonds généré le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
+        doc.text(`Vitfix Pro — Appel de fonds généré le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
       }
       doc.save(`AppelFonds_${af.immeuble.replace(/\s+/g,'_')}_${af.periode.replace(/\s+/g,'_')}.pdf`)
     } catch(e) { alert('Erreur PDF : ' + e) }
@@ -10956,7 +10956,7 @@ Le montant restant dû s'élève à :`
       doc.text('Le Syndic de copropriété', margin, y); y += 5
       doc.text('_________________________________', margin, y); y += 4
       doc.setFontSize(8); doc.setTextColor(120,120,120)
-      doc.text(`Généré par VitFix Pro — ${new Date().toLocaleString('fr-FR')}`, margin, y)
+      doc.text(`Généré par Vitfix Pro — ${new Date().toLocaleString('fr-FR')}`, margin, y)
 
       doc.save(`Relance${relanceNum}_${i.copropriétaire.replace(/\s+/g,'_')}_${i.lot || 'lot'}.pdf`)
     } catch(e) { alert('Erreur PDF : ' + e) }
@@ -11026,7 +11026,7 @@ Le montant restant dû s'élève à :`
                         <div className="flex gap-1 justify-center flex-wrap">
                           {i.statut !== 'soldé' && i.statut !== 'contentieux' && <button onClick={() => handleRelance(i.id)} className="text-xs bg-orange-100 text-orange-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-orange-200 whitespace-nowrap">📨 Relancer</button>}
                           {(i.statut === 'relance_1' || i.statut === 'relance_2' || i.statut === 'contentieux') && (
-                            <button onClick={() => exportRelatancePdf(i)} disabled={pdfLoading === `relance_${i.id}`} className="text-xs bg-purple-100 text-purple-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-purple-200 whitespace-nowrap disabled:opacity-50">{pdfLoading === `relance_${i.id}` ? '⏳' : '📄 Lettre PDF'}</button>
+                            <button onClick={() => exportRelatancePdf(i)} disabled={pdfLoading === `relance_${i.id}`} className="text-xs bg-purple-100 text-purple-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-purple-200 whitespace-nowrap disabled:opacity-60">{pdfLoading === `relance_${i.id}` ? '⏳' : '📄 Lettre PDF'}</button>
                           )}
                           {i.statut !== 'soldé' && <button onClick={() => handleSolder(i.id)} className="text-xs bg-green-100 text-green-700 px-2 py-1.5 rounded-lg font-semibold hover:bg-green-200">✅ Solder</button>}
                         </div>
@@ -11064,12 +11064,12 @@ Le montant restant dû s'élève à :`
                         {af.dateEcheance && <span>⚠️ Échéance : {new Date(af.dateEcheance).toLocaleDateString('fr-FR')}</span>}
                       </div>
                     </div>
-                    <button onClick={() => exportAppelPdf(af)} disabled={pdfLoading === `appel_${af.id}`} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap">{pdfLoading === `appel_${af.id}` ? '⏳ Génération…' : '📄 Exporter PDF'}</button>
+                    <button onClick={() => exportAppelPdf(af)} disabled={pdfLoading === `appel_${af.id}`} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 whitespace-nowrap">{pdfLoading === `appel_${af.id}` ? '⏳ Génération…' : '📄 Exporter PDF'}</button>
                   </div>
                   {af.lots.length > 0 && (
                     <div className="mt-3 overflow-x-auto">
                       <table className="text-xs w-full">
-                        <thead><tr className="text-gray-400 border-b"><th className="text-left py-1 pr-4">Lot</th><th className="text-left py-1 pr-4">Copropriétaire</th><th className="text-right py-1 pr-4">Tantièmes</th><th className="text-right py-1">Montant appelé</th></tr></thead>
+                        <thead><tr className="text-gray-500 border-b"><th className="text-left py-1 pr-4">Lot</th><th className="text-left py-1 pr-4">Copropriétaire</th><th className="text-right py-1 pr-4">Tantièmes</th><th className="text-right py-1">Montant appelé</th></tr></thead>
                         <tbody>{af.lots.map((l, j) => <tr key={j} className="border-b border-gray-50"><td className="py-1 pr-4 font-medium">{l.lot}</td><td className="py-1 pr-4 text-gray-600">{l.copropriétaire}</td><td className="py-1 pr-4 text-right">{l.tantiemes}</td><td className="py-1 text-right font-semibold text-blue-600">{l.montant.toLocaleString('fr-FR')} €</td></tr>)}</tbody>
                       </table>
                     </div>
@@ -11120,7 +11120,7 @@ Le montant restant dû s'élève à :`
               <div>
                 <label className="block text-sm font-semibold mb-1">Lots (un par ligne : lot;copropriétaire;tantièmes;montant)</label>
                 <textarea value={appelForm.lotsText} onChange={e => setAppelForm({...appelForm, lotsText: e.target.value})} rows={6} placeholder={"A101;Dupont Jean;450;1125.00\nB203;Martin Sophie;380;950.00\nC305;Garcia Pedro;170;425.00"} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none resize-none font-mono text-sm" />
-                <p className="text-xs text-gray-400 mt-1">Format : Numéro lot ; Nom copropriétaire ; Tantièmes ; Montant appelé</p>
+                <p className="text-xs text-gray-500 mt-1">Format : Numéro lot ; Nom copropriétaire ; Tantièmes ; Montant appelé</p>
               </div>
             </div>
             <div className="p-6 border-t flex gap-3">
@@ -11263,7 +11263,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
       const pages = doc.getNumberOfPages()
       for (let p = 1; p <= pages; p++) {
         doc.setPage(p)
-        doc.text(`État daté — ${e.immeuble}  |  Généré par VitFix Pro le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 292, { align: 'center' })
+        doc.text(`État daté — ${e.immeuble}  |  Généré par Vitfix Pro le ${new Date().toLocaleString('fr-FR')}  |  Page ${p}/${pages}`, W/2, 292, { align: 'center' })
       }
       doc.save(`EtatDate_${e.immeuble.replace(/\s+/g,'_')}_${new Date(e.dateGeneration).toISOString().split('T')[0]}.pdf`)
     } catch(err) { alert('Erreur PDF : ' + err) }
@@ -11314,7 +11314,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
       })
 
       const pages = doc.getNumberOfPages()
-      for (let p=1; p<=pages; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text(`VitFix Pro — Carnet d'entretien — Page ${p}/${pages}`, W/2, 292, { align: 'center' }) }
+      for (let p=1; p<=pages; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text(`Vitfix Pro — Carnet d'entretien — Page ${p}/${pages}`, W/2, 292, { align: 'center' }) }
       doc.save(`CarnetEntretien_${new Date().toISOString().split('T')[0]}.pdf`)
     } catch(err) { alert('Erreur PDF : ' + err) }
     setPdfLoading(null)
@@ -11332,7 +11332,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
       <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-teal-500 shadow-sm flex justify-between items-center">
         <div><h1 className="text-2xl font-semibold">📖 Carnet d'Entretien & État Daté</h1><p className="text-sm text-gray-500">Traçabilité travaux · État daté PDF mutation · Suivi DPE collectif</p></div>
         <div className="flex gap-2">
-          {activeTab === 'carnet' && <><button onClick={exportCarnetPdf} disabled={pdfLoading === 'carnet' || interventions.length === 0} className="bg-gray-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-50">{pdfLoading === 'carnet' ? '⏳' : '📄 Export PDF'}</button><button onClick={() => setShowModal(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-teal-700">+ Intervention</button></>}
+          {activeTab === 'carnet' && <><button onClick={exportCarnetPdf} disabled={pdfLoading === 'carnet' || interventions.length === 0} className="bg-gray-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-60">{pdfLoading === 'carnet' ? '⏳' : '📄 Export PDF'}</button><button onClick={() => setShowModal(true)} className="bg-teal-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-teal-700">+ Intervention</button></>}
           {activeTab === 'etat_date' && <button onClick={() => setShowEtatModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-700">+ Nouvel état daté</button>}
         </div>
       </div>
@@ -11368,7 +11368,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
               {filtered.map(i => (
                 <div key={i.id} className="bg-white rounded-2xl shadow-sm p-5 flex flex-col md:flex-row gap-4">
                   <div className="w-20 text-center flex-shrink-0 bg-gray-50 rounded-xl py-3">
-                    <div className="text-xs text-gray-400">{new Date(i.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</div>
+                    <div className="text-xs text-gray-500">{new Date(i.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</div>
                     <div className="text-lg font-bold text-gray-700">{new Date(i.date).getFullYear()}</div>
                   </div>
                   <div className="flex-1">
@@ -11380,7 +11380,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
                       {i.cout > 0 && <span className="font-semibold text-gray-700">💰 {i.cout.toLocaleString('fr-FR')} €</span>}
                       {i.garantie && <span>🛡️ {i.garantie}</span>}
                     </div>
-                    {i.notes && <p className="text-xs text-gray-400 mt-1">{i.notes}</p>}
+                    {i.notes && <p className="text-xs text-gray-500 mt-1">{i.notes}</p>}
                   </div>
                 </div>
               ))}
@@ -11416,7 +11416,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
                         {e.impayesCopro > 0 && <span className="text-red-600 font-semibold">⚠️ Impayés : {e.impayesCopro.toLocaleString('fr-FR')} €</span>}
                       </div>
                     </div>
-                    <button onClick={() => exportEtatDatePdf(e)} disabled={pdfLoading === `etat_${e.id}`} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">{pdfLoading === `etat_${e.id}` ? '⏳ Génération…' : '📄 Exporter État Daté PDF'}</button>
+                    <button onClick={() => exportEtatDatePdf(e)} disabled={pdfLoading === `etat_${e.id}`} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 whitespace-nowrap">{pdfLoading === `etat_${e.id}` ? '⏳ Génération…' : '📄 Exporter État Daté PDF'}</button>
                   </div>
                 </div>
               ))}
@@ -11444,7 +11444,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
                 <div key={cl} className="bg-white rounded-2xl shadow-sm p-3 text-center">
                   <div className={`w-10 h-10 rounded-xl ${DPE_COLORS[cl]} flex items-center justify-center text-lg font-black mx-auto mb-2`}>{cl}</div>
                   <div className="text-2xl font-bold">{count}</div>
-                  <div className="text-xs text-gray-400">{count === 1 ? 'immeuble' : 'immeubles'}</div>
+                  <div className="text-xs text-gray-500">{count === 1 ? 'immeuble' : 'immeubles'}</div>
                 </div>
               )
             })}
@@ -11460,7 +11460,7 @@ function CarnetEntretienSection({ user, userRole }: { user: any; userRole: strin
                   <div className="flex-1">
                     <div className="font-bold">{i.immeuble || 'Immeuble non précisé'}</div>
                     <div className="text-sm text-gray-500">{new Date(i.date).toLocaleDateString('fr-FR')} · {i.prestataire || 'Prestataire non précisé'}</div>
-                    {i.garantie && <div className="text-xs text-gray-400">Validité : {i.garantie}</div>}
+                    {i.garantie && <div className="text-xs text-gray-500">Validité : {i.garantie}</div>}
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[i.statut]}`}>{i.statut}</span>
                 </div>
@@ -11787,7 +11787,7 @@ Le Gestionnaire — Cabinet de Syndic`
                     {/* Mini-pipeline */}
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {PIPELINE.slice(0, 5).map((stage, i) => (
-                        <div key={stage.key} className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${i <= pipelineIdx ? stage.color + ' text-white' : 'bg-gray-100 text-gray-400'}`}>
+                        <div key={stage.key} className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${i <= pipelineIdx ? stage.color + ' text-white' : 'bg-gray-100 text-gray-500'}`}>
                           {i < pipelineIdx ? '✓' : stage.icon}
                         </div>
                       ))}
@@ -11813,7 +11813,7 @@ Le Gestionnaire — Cabinet de Syndic`
                 </div>
                 <p className="text-sm text-gray-500">{selectedSinistre.type} · {selectedSinistre.immeuble}</p>
               </div>
-              <button onClick={() => setSelectedSinistre(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              <button onClick={() => setSelectedSinistre(null)} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
 
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -11841,21 +11841,21 @@ Le Gestionnaire — Cabinet de Syndic`
               {/* Infos */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Déclarant</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Déclarant</p>
                   <p className="font-semibold text-gray-800">{selectedSinistre.declarantNom || '—'}</p>
                   <p className="text-xs text-gray-500 capitalize">{selectedSinistre.declarantRole}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Assureur</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Assureur</p>
                   <p className="font-semibold text-gray-800">{selectedSinistre.assureur || '—'}</p>
                   {selectedSinistre.numDossier && <p className="text-xs text-gray-500">N° {selectedSinistre.numDossier}</p>}
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Montant estimé</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Montant estimé</p>
                   <p className="font-bold text-blue-600 text-lg">{selectedSinistre.montantEstime > 0 ? `${selectedSinistre.montantEstime.toLocaleString('fr-FR')} €` : '—'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Indemnisation</p>
+                  <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">Indemnisation</p>
                   <p className="font-bold text-green-600 text-lg">{selectedSinistre.montantIndemnise > 0 ? `${selectedSinistre.montantIndemnise.toLocaleString('fr-FR')} €` : '—'}</p>
                 </div>
               </div>
@@ -11940,7 +11940,7 @@ Le Gestionnaire — Cabinet de Syndic`
                       </div>
                       <div className="pb-2 flex-1">
                         <p className="text-gray-700 font-medium leading-snug">{ev.contenu}</p>
-                        <p className="text-xs text-gray-400">{ev.auteur} · {new Date(ev.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-xs text-gray-500">{ev.auteur} · {new Date(ev.date).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   ))}
@@ -11994,7 +11994,7 @@ Le Gestionnaire — Cabinet de Syndic`
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-xl font-bold">🚨 Déclarer un sinistre</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 text-2xl">×</button>
+              <button onClick={() => setShowModal(false)} className="text-gray-500 text-2xl">×</button>
             </div>
             <div className="p-6 space-y-4">
               <div><label className="block text-sm font-semibold mb-1">Titre *</label><input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder="Ex: Dégât des eaux appartement 12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-orange-400 outline-none" /></div>
@@ -12303,16 +12303,16 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
 
                     {/* Immeubles proches */}
                     {geoStatus === 'ok' && proches.length === 0 && (
-                      <div className="text-center py-6 text-sm text-gray-400">
+                      <div className="text-center py-6 text-sm text-gray-500">
                         Aucune copropriété détectée à proximité.
-                        <p className="text-xs mt-1 text-gray-400">{immeublesGeoActifs.length} copropriété(s) avec géoloc activée.</p>
+                        <p className="text-xs mt-1 text-gray-500">{immeublesGeoActifs.length} copropriété(s) avec géoloc activée.</p>
                       </div>
                     )}
                     {proches.map(({ immeuble: imm, distance, rayon }) => (
                       <div key={imm.id} className="border border-green-200 bg-green-50 rounded-xl p-4 flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-sm text-gray-900">{imm.nom}</p>
-                          <p className="text-xs text-gray-500">{imm.adresse} • <span className="text-green-600 font-medium">{distance}m</span> <span className="text-gray-400">(rayon {rayon}m)</span></p>
+                          <p className="text-xs text-gray-500">{imm.adresse} • <span className="text-green-600 font-medium">{distance}m</span> <span className="text-gray-500">(rayon {rayon}m)</span></p>
                         </div>
                         <button
                           onClick={() => demarrerDepuis(imm, 'geo')}
@@ -12326,7 +12326,7 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
                     {/* Résumé immeubles géolocalisés */}
                     {immeublesGeoActifs.length > 0 && (
                       <div className="border-t border-gray-100 pt-3">
-                        <p className="text-xs text-gray-400 mb-2">{immeublesGeoActifs.length} copropriété(s) avec géolocalisation active :</p>
+                        <p className="text-xs text-gray-500 mb-2">{immeublesGeoActifs.length} copropriété(s) avec géolocalisation active :</p>
                         <div className="space-y-1.5 max-h-40 overflow-y-auto">
                           {immeublesGeoActifs.map(imm => (
                             <div key={imm.id} className="text-xs flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-1.5">
@@ -12382,11 +12382,11 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
                     <div className="mt-3 flex items-end justify-between">
                       <div>
                         <p className="text-2xl font-bold text-yellow-500">{s.passages}</p>
-                        <p className="text-xs text-gray-400">passage{s.passages > 1 ? 's' : ''}</p>
+                        <p className="text-xs text-gray-500">passage{s.passages > 1 ? 's' : ''}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-blue-600">⏱ {fmtDuree(s.totalSecondes)}</p>
-                        <p className="text-xs text-gray-400">total</p>
+                        <p className="text-xs text-gray-500">total</p>
                       </div>
                     </div>
                   </div>
@@ -12470,7 +12470,7 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
                             onChange={e => onUpdateImmeuble({ ...imm, rayonDetection: parseInt(e.target.value) })}
                             className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
                           />
-                          <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                          <div className="flex justify-between text-[10px] text-gray-500 mt-0.5">
                             <span>50m</span>
                             <span>150m</span>
                             <span>300m</span>
@@ -12525,15 +12525,15 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
               <input type="date" value={filtreDate} onChange={e => setFiltreDate(e.target.value)}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
               {(filtreImmeuble || filtreDate) && (
-                <button onClick={() => { setFiltreImmeuble(''); setFiltreDate('') }} className="text-sm text-gray-400 hover:text-gray-600">Effacer filtres</button>
+                <button onClick={() => { setFiltreImmeuble(''); setFiltreDate('') }} className="text-sm text-gray-500 hover:text-gray-600">Effacer filtres</button>
               )}
             </div>
 
             {sessionsFiltrees.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-4xl mb-3">📋</p>
-                <p className="text-sm text-gray-400">Aucune session enregistrée.</p>
-                <p className="text-xs text-gray-400 mt-1">Démarrez votre premier pointage dans l'onglet "Pointer"</p>
+                <p className="text-sm text-gray-500">Aucune session enregistrée.</p>
+                <p className="text-xs text-gray-500 mt-1">Démarrez votre premier pointage dans l'onglet "Pointer"</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -12544,7 +12544,7 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-sm text-gray-900">{s.immeubleNom}</p>
-                          <span className="text-xs text-gray-400">{s.mode === 'geo' ? '📡' : '✋'}</span>
+                          <span className="text-xs text-gray-500">{s.mode === 'geo' ? '📡' : '✋'}</span>
                         </div>
                         <p className="text-xs text-gray-500">{s.immeubleAdresse}</p>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -12556,7 +12556,7 @@ function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Imm
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <div className="text-right">
                         <p className="text-xl font-bold text-blue-600 font-mono">{fmtDuree(s.dureeSecondes)}</p>
-                        <p className="text-xs text-gray-400">durée</p>
+                        <p className="text-xs text-gray-500">durée</p>
                       </div>
                       <button onClick={() => deleteSession(s.id)} className="text-gray-300 hover:text-red-400 transition text-sm ml-1">✕</button>
                     </div>
@@ -12617,7 +12617,7 @@ function ExtranetSection({ user, userRole }: { user: any; userRole: string }) {
               <tbody>
                 {copros.map(c => (
                   <tr key={c.id} className="border-t hover:bg-gray-50">
-                    <td className="px-5 py-4"><div className="font-semibold">{c.nom}</div><div className="text-xs text-gray-400">{c.email}</div></td>
+                    <td className="px-5 py-4"><div className="font-semibold">{c.nom}</div><div className="text-xs text-gray-500">{c.email}</div></td>
                     <td className="px-5 py-4 text-gray-600">{c.lot || '—'}</td>
                     <td className="px-5 py-4 text-right">{c.tantieme}</td>
                     <td className={`px-5 py-4 text-right font-bold ${c.solde < 0 ? 'text-red-600' : 'text-green-600'}`}>{c.solde.toLocaleString('fr-FR')} €</td>
@@ -12636,7 +12636,7 @@ function ExtranetSection({ user, userRole }: { user: any; userRole: string }) {
           <h3 className="font-bold text-indigo-800 mb-2">🌐 Portail Copropriétaires</h3>
           <p className="text-sm text-indigo-700 mb-3">Chaque copropriétaire peut accéder à son espace personnel pour consulter ses charges, PV d'AG et documents.</p>
           <div className="flex gap-2">
-            <input readOnly value={`${typeof window !== 'undefined' ? window.location.origin : 'https://fixit-production.vercel.app'}/coproprietaire/portail`} className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-2 text-sm font-mono" />
+            <input readOnly value={`${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail`} className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-2 text-sm font-mono" />
             <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/coproprietaire/portail`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${copied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{copied ? '✅ Copié' : '📋 Copier'}</button>
           </div>
         </div>
@@ -12673,9 +12673,9 @@ function ExtranetSection({ user, userRole }: { user: any; userRole: string }) {
             <div className="p-6">
               <p className="text-sm text-gray-600 mb-4">Envoyez ce message à votre copropriétaire pour lui donner accès au portail :</p>
               <div className="bg-gray-50 rounded-xl p-4 text-sm font-mono whitespace-pre-line border border-gray-200">
-                {`Bonjour ${showInvite.nom},\n\nVotre syndic vous invite à accéder à votre espace copropriétaire en ligne sur VitFix Pro.\n\nVotre lien d'accès :\n${typeof window !== 'undefined' ? window.location.origin : 'https://fixit-production.vercel.app'}/coproprietaire/portail\n\nLot : ${showInvite.lot || 'N/A'}\nEmail : ${showInvite.email || 'À compléter'}\n\nCordialement,\nVotre Syndic`}
+                {`Bonjour ${showInvite.nom},\n\nVotre syndic vous invite à accéder à votre espace copropriétaire en ligne sur Vitfix Pro.\n\nVotre lien d'accès :\n${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail\n\nLot : ${showInvite.lot || 'N/A'}\nEmail : ${showInvite.email || 'À compléter'}\n\nCordialement,\nVotre Syndic`}
               </div>
-              <button onClick={() => { navigator.clipboard.writeText(`Bonjour ${showInvite!.nom},\n\nVotre syndic vous invite à accéder à votre espace copropriétaire VitFix Pro.\n${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail\n\nLot : ${showInvite!.lot}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`w-full mt-4 py-2.5 rounded-xl font-semibold text-sm transition ${copied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{copied ? '✅ Copié !' : '📋 Copier le message'}</button>
+              <button onClick={() => { navigator.clipboard.writeText(`Bonjour ${showInvite!.nom},\n\nVotre syndic vous invite à accéder à votre espace copropriétaire Vitfix Pro.\n${typeof window !== 'undefined' ? window.location.origin : ''}/coproprietaire/portail\n\nLot : ${showInvite!.lot}`); setCopied(true); setTimeout(() => setCopied(false), 2000) }} className={`w-full mt-4 py-2.5 rounded-xl font-semibold text-sm transition ${copied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{copied ? '✅ Copié !' : '📋 Copier le message'}</button>
             </div>
             <div className="p-6 border-t"><button onClick={() => setShowInvite(null)} className="w-full py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50">Fermer</button></div>
           </div>
@@ -12897,12 +12897,12 @@ function MissionDetailsModal({
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <PrioriteBadge p={localData.priorite} />
               <Badge statut={localData.statut} />
-              <span className="text-xs text-gray-400">#{localData.id}</span>
+              <span className="text-xs text-gray-500">#{localData.id}</span>
             </div>
             <h2 className="text-xl font-bold text-gray-900">{localData.immeuble}</h2>
             <p className="text-sm text-gray-500">{localData.type} · {localData.artisan}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none ml-4">×</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-600 text-2xl leading-none ml-4">×</button>
         </div>
 
         {/* Tabs */}
@@ -12943,12 +12943,12 @@ function MissionDetailsModal({
                   <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                     <p className="text-sm font-semibold text-gray-700 mb-2">📋 Contenu du dossier à transférer</p>
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className={`flex items-center gap-2 ${localData.locataire ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.locataire ? '✅' : '⚠️'}</span><span>Locataire : {localData.locataire || 'Non renseigné'}</span></div>
-                      <div className={`flex items-center gap-2 ${localData.etage ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.etage ? '✅' : '⚠️'}</span><span>Étage : {localData.etage || 'Non renseigné'}</span></div>
-                      <div className={`flex items-center gap-2 ${localData.travailEffectue ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.travailEffectue ? '✅' : '⚠️'}</span><span>Rapport : {localData.travailEffectue ? 'Rempli' : 'Manquant'}</span></div>
-                      <div className={`flex items-center gap-2 ${localData.montantDevis ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.montantDevis ? '✅' : '⚠️'}</span><span>Devis : {localData.montantDevis ? `${localData.montantDevis.toLocaleString('fr-FR')} €` : 'Manquant'}</span></div>
-                      <div className={`flex items-center gap-2 ${localData.montantFacture ? 'text-green-700' : 'text-gray-400'}`}><span>{localData.montantFacture ? '✅' : '—'}</span><span>Facture : {localData.montantFacture ? `${localData.montantFacture.toLocaleString('fr-FR')} €` : 'En attente'}</span></div>
-                      <div className={`flex items-center gap-2 ${localData.artisan ? 'text-green-700' : 'text-gray-400'}`}><span>✅</span><span>Artisan : {localData.artisan}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.locataire ? 'text-green-700' : 'text-gray-500'}`}><span>{localData.locataire ? '✅' : '⚠️'}</span><span>Locataire : {localData.locataire || 'Non renseigné'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.etage ? 'text-green-700' : 'text-gray-500'}`}><span>{localData.etage ? '✅' : '⚠️'}</span><span>Étage : {localData.etage || 'Non renseigné'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.travailEffectue ? 'text-green-700' : 'text-gray-500'}`}><span>{localData.travailEffectue ? '✅' : '⚠️'}</span><span>Rapport : {localData.travailEffectue ? 'Rempli' : 'Manquant'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.montantDevis ? 'text-green-700' : 'text-gray-500'}`}><span>{localData.montantDevis ? '✅' : '⚠️'}</span><span>Devis : {localData.montantDevis ? `${localData.montantDevis.toLocaleString('fr-FR')} €` : 'Manquant'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.montantFacture ? 'text-green-700' : 'text-gray-500'}`}><span>{localData.montantFacture ? '✅' : '—'}</span><span>Facture : {localData.montantFacture ? `${localData.montantFacture.toLocaleString('fr-FR')} €` : 'En attente'}</span></div>
+                      <div className={`flex items-center gap-2 ${localData.artisan ? 'text-green-700' : 'text-gray-500'}`}><span>✅</span><span>Artisan : {localData.artisan}</span></div>
                     </div>
                   </div>
 
@@ -12990,7 +12990,7 @@ function MissionDetailsModal({
                     <span className="text-2xl">📤</span>
                     <span>Transférer à {destLabels[destinataire]}</span>
                   </button>
-                  <p className="text-xs text-gray-400 text-center">Le dossier complet sera immédiatement disponible dans la section comptabilité / validation. Un message de confirmation sera ajouté au canal.</p>
+                  <p className="text-xs text-gray-500 text-center">Le dossier complet sera immédiatement disponible dans la section comptabilité / validation. Un message de confirmation sera ajouté au canal.</p>
                 </>
               )}
             </div>
@@ -13052,7 +13052,7 @@ function MissionDetailsModal({
                 </div>
               )}
 
-              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-400">
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
                 Mission #{localData.id} · Créée le {new Date(localData.dateCreation).toLocaleDateString('fr-FR')}
               </div>
             </div>
@@ -13161,7 +13161,7 @@ function MissionDetailsModal({
               </div>
               <div className="flex-1 space-y-3 mb-4 max-h-64 overflow-y-auto">
                 {(!localData.canalMessages || localData.canalMessages.length === 0) ? (
-                  <div className="text-center py-8 text-gray-400">
+                  <div className="text-center py-8 text-gray-500">
                     <div className="text-4xl mb-2">💬</div>
                     <p className="text-sm">Aucun message — Ouvrez le dialogue avec l'artisan</p>
                   </div>
@@ -13174,7 +13174,7 @@ function MissionDetailsModal({
                       <div className={`rounded-2xl px-4 py-2.5 text-sm ${msg.role === userRole ? 'bg-purple-600 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-900 rounded-tl-sm'}`}>
                         {msg.texte}
                       </div>
-                      <div className="text-xs text-gray-400 mt-1 px-1">{msg.auteur} · {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                      <div className="text-xs text-gray-500 mt-1 px-1">{msg.auteur} · {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
                     </div>
                   </div>
                 ))}
@@ -13226,7 +13226,7 @@ function MissionDetailsModal({
                   onChange={e => setNewMsg(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendCanal())}
                 />
-                <button onClick={sendCanal} disabled={!newMsg.trim()} className="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-purple-700 transition disabled:opacity-50">Envoyer</button>
+                <button onClick={sendCanal} disabled={!newMsg.trim()} className="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-purple-700 transition disabled:opacity-60">Envoyer</button>
               </div>
             </div>
           )}
@@ -13390,13 +13390,13 @@ function FacturationPageWithTransferts({ missions, user, userRole, onOpenMission
           <h3 className="font-bold text-gray-900 mb-4">Factures & devis des missions</h3>
           <div className="space-y-2">
             {missions.filter(m => m.montantFacture || m.montantDevis).length === 0 ? (
-              <div className="text-center py-8 text-gray-400">Aucune facture ni devis sur les missions</div>
+              <div className="text-center py-8 text-gray-500">Aucune facture ni devis sur les missions</div>
             ) : missions.filter(m => m.montantFacture || m.montantDevis).map(m => (
               <div key={m.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition cursor-pointer" onClick={() => onOpenMission(m)}>
                 <div>
                   <p className="font-semibold text-gray-900 text-sm">{m.immeuble} — {m.type}</p>
                   <p className="text-xs text-gray-500">{m.artisan} · {m.locataire ? `👤 ${m.locataire}` : ''} {m.etage ? `· Ét. ${m.etage}` : ''}</p>
-                  <p className="text-xs text-gray-400">{m.dateIntervention ? new Date(m.dateIntervention).toLocaleDateString('fr-FR') : m.dateCreation}</p>
+                  <p className="text-xs text-gray-500">{m.dateIntervention ? new Date(m.dateIntervention).toLocaleDateString('fr-FR') : m.dateCreation}</p>
                 </div>
                 <div className="text-right flex flex-col items-end gap-1">
                   <p className="font-bold text-gray-900">{(m.montantFacture || m.montantDevis)?.toLocaleString('fr-FR')} €</p>
@@ -13420,7 +13420,7 @@ function FacturationPageWithTransferts({ missions, user, userRole, onOpenMission
           </div>
 
           {filtered.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
+            <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-2xl">
               <div className="text-4xl mb-2">📤</div>
               <p>Aucun dossier transféré pour l'instant</p>
               <p className="text-sm mt-1">Les gestionnaires techniques peuvent transférer des dossiers depuis les ordres de mission</p>
@@ -13432,7 +13432,7 @@ function FacturationPageWithTransferts({ missions, user, userRole, onOpenMission
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statutColors[t.statut] || 'bg-gray-100 text-gray-700'}`}>{t.statut.replace('_', ' ')}</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${destColors[t.destinataire] || 'bg-gray-100 text-gray-700'}`}>{destLabels[t.destinataire] || t.destinataire}</span>
-                    <span className="text-xs text-gray-400">Mission #{t.missionId}</span>
+                    <span className="text-xs text-gray-500">Mission #{t.missionId}</span>
                   </div>
                   <h3 className="font-bold text-gray-900">{t.immeuble} — {t.type}</h3>
                   <div className="flex flex-wrap gap-3 mt-1 text-sm text-gray-600">
@@ -13448,8 +13448,8 @@ function FacturationPageWithTransferts({ missions, user, userRole, onOpenMission
                 <div className="text-right ml-4 flex-shrink-0">
                   {t.montantFacture && <p className="font-bold text-lg text-gray-900">{t.montantFacture.toLocaleString('fr-FR')} €</p>}
                   {t.montantDevis && !t.montantFacture && <p className="font-bold text-lg text-amber-700">Devis {t.montantDevis.toLocaleString('fr-FR')} €</p>}
-                  <p className="text-xs text-gray-400 mt-1">{new Date(t.dateTransfert).toLocaleDateString('fr-FR')} {new Date(t.dateTransfert).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
-                  <p className="text-xs text-gray-400">Par : {t.transferePar}</p>
+                  <p className="text-xs text-gray-500 mt-1">{new Date(t.dateTransfert).toLocaleDateString('fr-FR')} {new Date(t.dateTransfert).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-xs text-gray-500">Par : {t.transferePar}</p>
                 </div>
               </div>
 
@@ -13744,7 +13744,7 @@ function CanalCommunicationsPage({
             </button>
           </div>
           {/* Sous-titre */}
-          <p className="text-xs text-gray-400 text-center mt-1.5">
+          <p className="text-xs text-gray-500 text-center mt-1.5">
             {listeVue === 'artisans'
               ? `${missionsArtisan.length} ordre${missionsArtisan.length > 1 ? 's' : ''} de mission`
               : `${missionsDemandeur.length} demande${missionsDemandeur.length > 1 ? 's' : ''} de résidents`}
@@ -13819,14 +13819,14 @@ function CanalCommunicationsPage({
                           </div>
                         </div>
                         {/* Résidence */}
-                        <p className="text-xs text-gray-400 mt-1 ml-11 truncate">
+                        <p className="text-xs text-gray-500 mt-1 ml-11 truncate">
                           🏢 {m.immeuble}
                           {m.batiment && ` · Bât. ${m.batiment}`}
                           {m.etage && ` · Ét. ${m.etage}`}
                         </p>
                         {/* Dernier message */}
                         {lastMsg ? (
-                          <p className="text-xs text-gray-400 mt-0.5 ml-11 truncate italic">
+                          <p className="text-xs text-gray-500 mt-0.5 ml-11 truncate italic">
                             {lastMsg.role === 'artisan' ? '← ' : '→ '}{lastMsg.texte.substring(0, 45)}{lastMsg.texte.length > 45 ? '…' : ''}
                           </p>
                         ) : (
@@ -13863,7 +13863,7 @@ function CanalCommunicationsPage({
                 <div className="text-center py-12 px-4">
                   <div className="text-3xl mb-2">👤</div>
                   <p className="text-xs text-gray-500">Aucune demande de résident</p>
-                  <p className="text-xs text-gray-400 mt-1">Les demandes arrivent depuis le portail copropriétaire</p>
+                  <p className="text-xs text-gray-500 mt-1">Les demandes arrivent depuis le portail copropriétaire</p>
                 </div>
               ) : missionsDemandeur.map(m => {
                 const lastMsg = m.demandeurMessages && m.demandeurMessages.length > 0 ? m.demandeurMessages[m.demandeurMessages.length - 1] : null
@@ -13895,7 +13895,7 @@ function CanalCommunicationsPage({
                           </div>
                         </div>
                         {/* Localisation */}
-                        <p className="text-xs text-gray-400 mt-1 ml-11 truncate">
+                        <p className="text-xs text-gray-500 mt-1 ml-11 truncate">
                           {m.estPartieCommune
                             ? `🔶 ${m.zoneSignalee || 'Partie commune'} · ${m.immeuble}`
                             : `🏢 ${m.immeuble}${m.batiment ? ` · Bât. ${m.batiment}` : ''}${m.etage ? ` · Ét. ${m.etage}` : ''}${m.numLot ? ` · Lot ${m.numLot}` : ''}`}
@@ -13940,7 +13940,7 @@ function CanalCommunicationsPage({
             <div className="text-center">
               <div className="text-6xl mb-4">💬</div>
               <h3 className="text-lg font-bold text-gray-700">Sélectionnez une mission</h3>
-              <p className="text-sm text-gray-400 mt-2">Choisissez une mission dans la liste pour voir le canal de communication</p>
+              <p className="text-sm text-gray-500 mt-2">Choisissez une mission dans la liste pour voir le canal de communication</p>
               <button onClick={onCreateMission} className="mt-6 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition">
                 + Créer un ordre de mission
               </button>
@@ -14024,7 +14024,7 @@ function CanalCommunicationsPage({
                     <div className="text-center py-16">
                       <div className="text-5xl mb-3">🔨</div>
                       <p className="text-gray-500 font-medium">Canal artisan ouvert</p>
-                      <p className="text-sm text-gray-400 mt-1">L&apos;ordre de mission a été envoyé à {selectedMission.artisan}.<br/>Attendez sa confirmation ou envoyez un message.</p>
+                      <p className="text-sm text-gray-500 mt-1">L&apos;ordre de mission a été envoyé à {selectedMission.artisan}.<br/>Attendez sa confirmation ou envoyez un message.</p>
                     </div>
                   ) : selectedMission.canalMessages.map((msg, i) => {
                     const isMe = msg.role === userRole
@@ -14048,7 +14048,7 @@ function CanalCommunicationsPage({
                           {msg.auteur.charAt(0).toUpperCase()}
                         </div>
                         <div className={`max-w-sm ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                          <p className="text-xs text-gray-400 px-1">{msg.auteur} {isArtisan ? '· Artisan' : '· Gestionnaire'}</p>
+                          <p className="text-xs text-gray-500 px-1">{msg.auteur} {isArtisan ? '· Artisan' : '· Gestionnaire'}</p>
                           <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${isMe ? 'bg-purple-600 text-white rounded-tr-sm' : isArtisan ? 'bg-amber-50 text-gray-900 border border-amber-100 rounded-tl-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
                             {msg.texte}
                           </div>
@@ -14090,7 +14090,7 @@ function CanalCommunicationsPage({
                     <button
                       onClick={sendMsg}
                       disabled={!newMsg.trim()}
-                      className="bg-amber-500 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-amber-600 transition disabled:opacity-50 self-end"
+                      className="bg-amber-500 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-amber-600 transition disabled:opacity-60 self-end"
                     >
                       Envoyer
                     </button>
@@ -14158,12 +14158,12 @@ function CanalCommunicationsPage({
                       <div className="text-5xl mb-3">👤</div>
                       <p className="text-gray-500 font-medium">Canal demandeur</p>
                       {selectedMission.demandeurNom || selectedMission.locataire ? (
-                        <p className="text-sm text-gray-400 mt-1">
+                        <p className="text-sm text-gray-500 mt-1">
                           {selectedMission.demandeurNom || selectedMission.locataire} peut vous contacter via le portail copropriétaire.<br/>
                           Vous pouvez aussi leur envoyer une notification directement.
                         </p>
                       ) : (
-                        <p className="text-sm text-gray-400 mt-1">
+                        <p className="text-sm text-gray-500 mt-1">
                           Aucun demandeur associé à cette mission.<br/>
                           Créez la mission depuis une demande reçue pour lier automatiquement le demandeur.
                         </p>
@@ -14191,7 +14191,7 @@ function CanalCommunicationsPage({
                           {msg.auteur.charAt(0).toUpperCase()}
                         </div>
                         <div className={`max-w-sm ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-                          <p className="text-xs text-gray-400 px-1">{msg.auteur} {isDemandeur ? `· ${demandeurRoleLabel}` : '· Gestionnaire'}</p>
+                          <p className="text-xs text-gray-500 px-1">{msg.auteur} {isDemandeur ? `· ${demandeurRoleLabel}` : '· Gestionnaire'}</p>
                           <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${isMe ? 'bg-purple-600 text-white rounded-tr-sm' : isDemandeur ? 'bg-blue-50 text-gray-900 border border-blue-100 rounded-tl-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
                             {msg.texte}
                           </div>
@@ -14239,7 +14239,7 @@ function CanalCommunicationsPage({
                     <button
                       onClick={sendMsgDemandeur}
                       disabled={!newMsgDemandeur.trim()}
-                      className="bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-blue-700 transition disabled:opacity-50 self-end"
+                      className="bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-blue-700 transition disabled:opacity-60 self-end"
                     >
                       Envoyer
                     </button>
@@ -14263,7 +14263,7 @@ function CanalCommunicationsPage({
                 <h2 className="text-lg font-bold text-gray-900">🔨 Transférer à un artisan</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Crée un ordre de mission depuis ce signalement</p>
               </div>
-              <button onClick={() => setShowTransfert(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              <button onClick={() => setShowTransfert(false)} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
 
             <div className="p-5 space-y-4">
@@ -14279,7 +14279,7 @@ function CanalCommunicationsPage({
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Artisan *</label>
                 {artisans.filter(a => a.statut === 'actif').length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">Aucun artisan actif disponible</p>
+                  <p className="text-xs text-gray-500 italic">Aucun artisan actif disponible</p>
                 ) : (
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {artisans.filter(a => a.statut === 'actif').map(a => (
@@ -14301,7 +14301,7 @@ function CanalCommunicationsPage({
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className="text-xs font-bold text-amber-600">⭐ {a.note}</p>
-                          <p className="text-xs text-gray-400">{a.nbInterventions || a.nb_interventions} missions</p>
+                          <p className="text-xs text-gray-500">{a.nbInterventions || a.nb_interventions} missions</p>
                         </div>
                       </label>
                     ))}

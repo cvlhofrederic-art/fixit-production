@@ -1,10 +1,44 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Vercel serverless timeout (2 Tavily + 1 Groq = peut dépasser 10s)
+export const maxDuration = 30
+
 // Agent Matériaux — Powered by Groq (Llama 3.3-70B) + Tavily AI Search
 // Expert BTP : normes DTU/NF/RE2020, prix magasin réels, conformité réglementaire
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY || ''
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
+
+// ─── Cache en mémoire (survit tant que la fonction serverless est chaude) ────
+// Clé = hash de la query normalisée, valeur = { data, timestamp }
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000 // 4h (prix changent souvent)
+const responseCache = new Map<string, { data: any; ts: number }>()
+
+function getCacheKey(query: string, mode: string, city?: string): string {
+  return `${mode}:${(query || '').trim().toLowerCase()}:${(city || '').trim().toLowerCase()}`
+}
+
+function getFromCache(key: string): any | null {
+  const entry = responseCache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    responseCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function setCache(key: string, data: any) {
+  // Nettoyer les entrées expirées si le cache grossit
+  if (responseCache.size > 100) {
+    const now = Date.now()
+    for (const [k, v] of responseCache) {
+      if (now - v.ts > CACHE_TTL_MS) responseCache.delete(k)
+    }
+  }
+  responseCache.set(key, { data, ts: Date.now() })
+}
 
 interface MaterialItem {
   name: string
@@ -16,6 +50,16 @@ interface MaterialItem {
   prices: Array<{ store: string; price: number; url: string | null }>
   bestPrice: { store: string; price: number } | null
   avgPrice: number
+}
+
+interface ProductItem {
+  name: string
+  description: string
+  price: number
+  store: string
+  url: string
+  image: string | null
+  condition: 'new' | 'refurbished'
 }
 
 // ─── Base de connaissances normes BTP ────────────────────────────────────────
@@ -145,39 +189,133 @@ Maçonnerie:
 - Sac enduit 30kg: LM 8-14€, BD 7-12€, Casto 7.5-13€
 `
 
-// ─── Groq API call helper ─────────────────────────────────────────────────────
-async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 1200) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.15,
-      max_tokens: maxTokens,
-    }),
-  })
-  if (!res.ok) throw new Error(`Groq error ${res.status}: ${await res.text()}`)
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content || ''
+// ─── LLM Multi-provider (Groq → OpenRouter fallback) ─────────────────────────
+interface LLMProvider {
+  name: string
+  url: string
+  apiKey: string
+  models: string[]
 }
 
+function getProviders(preferredModel: string): LLMProvider[] {
+  const providers: LLMProvider[] = []
+  if (GROQ_API_KEY) {
+    providers.push({
+      name: 'Groq',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      apiKey: GROQ_API_KEY,
+      models: preferredModel === 'llama-3.1-8b-instant'
+        ? ['llama-3.1-8b-instant']
+        : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+    })
+  }
+  if (OPENROUTER_API_KEY) {
+    providers.push({
+      name: 'OpenRouter',
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      apiKey: OPENROUTER_API_KEY,
+      models: ['meta-llama/llama-3.1-8b-instruct:free'],
+    })
+  }
+  return providers
+}
+
+async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 1200, preferredModel = 'llama-3.3-70b-versatile') {
+  const providers = getProviders(preferredModel)
+  if (!providers.length) throw new Error('No LLM provider configured')
+
+  for (const provider of providers) {
+    for (const model of provider.models) {
+      const maxRetries = 2
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const headers: Record<string, string> = {
+            Authorization: `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json',
+          }
+          // OpenRouter requiert HTTP-Referer
+          if (provider.name === 'OpenRouter') {
+            headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.fr'
+            headers['X-Title'] = 'Fixit Materiaux AI'
+          }
+
+          const res = await fetch(provider.url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              model,
+              messages,
+              temperature: 0.15,
+              max_tokens: maxTokens,
+            }),
+          })
+
+          if (res.status === 429) {
+            const body = await res.text()
+            if (attempt < maxRetries - 1) {
+              const waitMatch = body.match(/try again in (\d+\.?\d*)s/i)
+              const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 1 : (attempt + 1) * 5
+              console.log(`${provider.name} 429 (${model}) — waiting ${waitSec}s`)
+              await new Promise(resolve => setTimeout(resolve, waitSec * 1000))
+              continue
+            }
+            console.log(`${provider.name} 429 (${model}) — trying next model/provider`)
+            break
+          }
+          if (!res.ok) {
+            console.error(`${provider.name} error ${res.status} (${model})`)
+            break // Try next model/provider
+          }
+          const data = await res.json()
+          const content = data.choices?.[0]?.message?.content || ''
+          if (content) return content
+        } catch (e) {
+          console.error(`${provider.name} fetch error (${model}):`, e)
+          break
+        }
+      }
+    }
+  }
+  throw new Error('All LLM providers failed — rate limited or unavailable')
+}
+
+// ─── Domaines e-commerce BTP de confiance ─────────────────────────────────────
+const BTP_STORE_DOMAINS = [
+  'amazon.fr', 'manomano.fr', 'leroymerlin.fr', 'bricodepot.fr',
+  'castorama.fr', 'cdiscount.com', 'toolstation.fr', 'pointp.fr',
+  'cedeo.fr', 'bfrenchmaker.com', 'prolians.fr',
+]
+const REFURB_STORE_DOMAINS = [
+  'backmarket.fr', 'drakare.fr', 'stockpro.fr', 'destockage-habitat.com',
+]
+
 // ─── Tavily search helper ─────────────────────────────────────────────────────
-async function searchTavily(query: string): Promise<Array<{ title: string; url: string; content: string }>> {
+interface TavilyOptions {
+  maxResults?: number
+  includeDomains?: string[]
+  excludeDomains?: string[]
+}
+
+async function searchTavily(
+  query: string,
+  options: TavilyOptions = {}
+): Promise<Array<{ title: string; url: string; content: string }>> {
   if (!TAVILY_API_KEY) return []
+  const { maxResults = 5, includeDomains, excludeDomains } = options
   try {
+    const payload: Record<string, any> = {
+      api_key: TAVILY_API_KEY,
+      query,
+      search_depth: 'basic',
+      max_results: maxResults,
+    }
+    if (includeDomains?.length) payload.include_domains = includeDomains
+    if (excludeDomains?.length) payload.exclude_domains = excludeDomains
+
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: TAVILY_API_KEY,
-        query,
-        search_depth: 'basic',
-        max_results: 5,
-      }),
+      body: JSON.stringify(payload),
     })
     if (!res.ok) {
       console.error('Tavily error:', res.status, await res.text())
@@ -189,6 +327,62 @@ async function searchTavily(query: string): Promise<Array<{ title: string; url: 
     console.error('Tavily fetch error:', e)
     return []
   }
+}
+
+// ─── Pré-filtrage pertinence Tavily ───────────────────────────────────────────
+// Rejette les résultats dont le titre/contenu n'a rien à voir avec la query
+function filterRelevantResults(
+  results: Array<{ title: string; url: string; content: string }>,
+  queryTerms: string[]
+): Array<{ title: string; url: string; content: string }> {
+  if (!queryTerms.length) return results
+  // Au moins 1 mot-clé de la requête doit apparaître dans title OU content
+  const keywords = queryTerms
+    .map(t => t.toLowerCase())
+    .filter(t => t.length > 2) // ignorer mots courts ("de", "le", etc.)
+  if (!keywords.length) return results
+  return results.filter(r => {
+    const haystack = `${r.title} ${r.content}`.toLowerCase()
+    return keywords.some(kw => haystack.includes(kw))
+  })
+}
+
+// ─── Normalisation URL (déduplique les variantes utm, tracking, etc.) ─────────
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    // Supprimer les paramètres de tracking
+    const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid', 'ref', 'tag']
+    trackingParams.forEach(p => u.searchParams.delete(p))
+    return u.origin + u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '')
+  } catch {
+    return url
+  }
+}
+
+// ─── Validation prix aberrants ────────────────────────────────────────────────
+function validateProductPrices(products: any[]): any[] {
+  if (!products.length) return products
+  // Calculer la moyenne des prix > 0
+  const pricesWithValue = products.filter(p => typeof p.price === 'number' && p.price > 0)
+  if (!pricesWithValue.length) return products
+
+  const avgPrice = pricesWithValue.reduce((sum, p) => sum + p.price, 0) / pricesWithValue.length
+
+  return products.filter(p => {
+    if (typeof p.price !== 'number' || p.price === 0) return true // garder les produits sans prix
+    // Rejeter si prix < 0.50€ (probablement une erreur de parsing)
+    if (p.price < 0.5) {
+      console.log(`Prix aberrant rejeté (trop bas): ${p.name} = ${p.price}€`)
+      return false
+    }
+    // Rejeter si prix > 10x la moyenne (probablement un lot/pack ou erreur)
+    if (avgPrice > 0 && p.price > avgPrice * 10) {
+      console.log(`Prix aberrant rejeté (>10x moyenne ${avgPrice.toFixed(0)}€): ${p.name} = ${p.price}€`)
+      return false
+    }
+    return true
+  })
 }
 
 // ─── Parse JSON from Groq response (with regex fallback) ─────────────────────
@@ -207,7 +401,8 @@ function parseJsonFromText<T>(text: string, fallback: T): T {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { query, city } = body
+    const { query, city, mode } = body
+    const searchMode: 'project' | 'product' = mode === 'product' ? 'product' : 'project'
 
     if (!query?.trim()) {
       return NextResponse.json({ error: 'Query requise' }, { status: 400 })
@@ -216,8 +411,259 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'GROQ_API_KEY non configurée', fallback: true })
     }
 
+    // ── Vérifier le cache ──
+    const cacheKey = getCacheKey(query, searchMode, city)
+    const cached = getFromCache(cacheKey)
+    if (cached) {
+      console.log(`Cache hit: ${cacheKey}`)
+      return NextResponse.json({ ...cached, cached: true })
+    }
+
+    // Helper: cache + return
+    const cachedResponse = (data: any) => {
+      if (data.success && data.materials?.length || data.products?.length) {
+        setCache(cacheKey, data)
+      }
+      return NextResponse.json(data)
+    }
+
     const cityContext = city ? ` à ${city}` : ' en France'
     const usingTavily = Boolean(TAVILY_API_KEY)
+
+    // ══ MODE PRODUIT : Recherche directe de produit avec liens d'achat ══════
+    if (searchMode === 'product') {
+      if (!usingTavily) {
+        // Fallback sans Tavily : Groq génère des recommandations produit depuis sa base de connaissances
+        const fallbackPrompt = `Tu es un assistant achat professionnel pour artisans BTP en France.
+L'artisan recherche : "${query.trim()}"${cityContext}.
+
+${BTP_NORMS_KNOWLEDGE}
+
+Génère une liste de 3-6 produits recommandés avec prix estimés (prix magasin France 2024-2025).
+Pour chaque produit, indique le magasin principal (Leroy Merlin, Brico Dépôt, Castorama, ManoMano, Point P).
+
+Réponds UNIQUEMENT avec un JSON valide, sans markdown :
+{
+  "products": [
+    {
+      "name": "Nom du produit avec marque/modèle si pertinent",
+      "description": "Caractéristiques clés (puissance, dimensions, normes)",
+      "price": 59.90,
+      "store": "Leroy Merlin",
+      "url": null,
+      "image": null,
+      "condition": "new"
+    }
+  ],
+  "response": "Synthèse des produits recommandés pour cette recherche",
+  "recommendations": "Conseil pro: quel modèle choisir et pourquoi, normes à respecter"
+}`
+        try {
+          const fallbackText = await callGroq([
+            { role: 'system', content: fallbackPrompt },
+            { role: 'user', content: `Recherche produit : "${query.trim()}"` },
+          ], 2000, 'llama-3.1-8b-instant')
+
+          const fallbackParsed = parseJsonFromText<any>(fallbackText, null)
+          if (fallbackParsed?.products?.length) {
+            return cachedResponse({
+              success: true,
+              mode: 'product',
+              products: fallbackParsed.products.map((p: any) => ({
+                name: p.name || 'Produit',
+                description: p.description || '',
+                price: typeof p.price === 'number' ? p.price : 0,
+                store: p.store || '',
+                url: null,
+                image: null,
+                condition: 'new',
+              })),
+              response: (fallbackParsed.response || `Résultats estimés pour "${query}"`) + '\n\n💡 *Prix indicatifs basés sur les tarifs magasin 2024-2025. Pour des prix en temps réel, visitez directement les sites des enseignes.*',
+              recommendations: fallbackParsed.recommendations || '',
+              source: 'groq-only',
+              fallback: true,
+              fetchedAt: new Date().toISOString(),
+            })
+          }
+        } catch (e) {
+          console.error('Product fallback error:', e)
+        }
+
+        return NextResponse.json({
+          success: true,
+          mode: 'product',
+          products: [],
+          response: `Aucun résultat trouvé pour "${query}". Essayez un terme plus précis (ex: "Bosch GWS 7-125" au lieu de "disqueuse").`,
+          recommendations: '',
+          fallback: true,
+        })
+      }
+
+      // 3 recherches Tavily en parallèle : neuf ciblées (2) + reconditionné (1)
+      const allNewResults: Array<{ title: string; url: string; content: string }> = []
+      const allRefurbResults: Array<{ title: string; url: string; content: string }> = []
+      const q = query.trim()
+      const queryWords = q.split(/\s+/).filter((w: string) => w.length > 2)
+
+      const settled = await Promise.allSettled([
+        // Query 1 : produit exact + prix sur sites BTP de confiance
+        searchTavily(`${q} prix`, { maxResults: 8, includeDomains: BTP_STORE_DOMAINS }),
+        // Query 2 : recherche plus large pour compléter (sans restriction domaine)
+        searchTavily(`"${q}" acheter prix €`, { maxResults: 6 }),
+        // Query 3 : reconditionné/déstockage sur sites spécialisés
+        searchTavily(`${q} reconditionné déstockage occasion`, { maxResults: 6, includeDomains: REFURB_STORE_DOMAINS }),
+      ])
+      if (settled[0].status === 'fulfilled') allNewResults.push(...settled[0].value)
+      if (settled[1].status === 'fulfilled') allNewResults.push(...filterRelevantResults(settled[1].value, queryWords))
+      if (settled[2].status === 'fulfilled') allRefurbResults.push(...settled[2].value)
+
+      // Déduplier par URL normalisée (supprime tracking params)
+      const seenUrls = new Set<string>()
+      const uniqueNew = allNewResults.filter(r => {
+        const norm = normalizeUrl(r.url)
+        if (seenUrls.has(norm)) return false
+        seenUrls.add(norm)
+        return true
+      })
+      const uniqueRefurb = allRefurbResults.filter(r => {
+        const norm = normalizeUrl(r.url)
+        if (seenUrls.has(norm)) return false
+        seenUrls.add(norm)
+        return true
+      })
+
+      const allUnique = [...uniqueNew, ...uniqueRefurb]
+      if (allUnique.length === 0) {
+        return NextResponse.json({
+          success: true,
+          mode: 'product',
+          products: [],
+          response: `Aucun résultat trouvé pour "${query}". Essayez un terme plus précis (ex: "Bosch GWS 7-125" au lieu de "disqueuse").`,
+          recommendations: '',
+          fetchedAt: new Date().toISOString(),
+        })
+      }
+
+      // Formater : marquer la source (neuf/reconditionné) pour Groq
+      const newContext = uniqueNew
+        .map((r, i) => `[N${i + 1}] "${r.title}" — ${r.content.substring(0, 300)} — URL: ${r.url}`)
+        .join('\n\n')
+      const refurbContext = uniqueRefurb
+        .map((r, i) => `[R${i + 1}] "${r.title}" — ${r.content.substring(0, 300)} — URL: ${r.url}`)
+        .join('\n\n')
+
+      const productPrompt = `Tu es un assistant achat professionnel pour artisans BTP en France.
+
+À partir des résultats de recherche ci-dessous, extrais les VRAIS produits avec leurs VRAIS prix et VRAIES URLs.
+
+RÈGLES CRITIQUES DE PRÉCISION DES PRIX:
+- N'invente JAMAIS un prix. Extrais le prix EXACT tel qu'il apparaît dans le texte du résultat.
+- Si le texte contient "à partir de 59,90 €" → price: 59.90
+- Si le texte contient "59,90 €" ou "59.90€" → price: 59.90
+- Si un résultat montre une fourchette "de 45 à 89€", prends le prix le PLUS BAS → price: 45
+- Si aucun prix n'est clairement visible dans le texte → price: 0 (NE PAS INVENTER)
+- Utilise le point comme séparateur décimal (59.90 pas 59,90)
+
+RÈGLES URLs:
+- N'invente JAMAIS une URL. Utilise UNIQUEMENT les URLs des résultats fournis.
+- Chaque produit DOIT avoir une URL réelle (commence par http)
+
+CLASSIFICATION NEUF / RECONDITIONNÉ-DÉSTOCKAGE:
+- Les résultats marqués [N...] sont des produits NEUFS → condition: "new"
+- Les résultats marqués [R...] sont des produits RECONDITIONNÉS ou DÉSTOCKÉS → condition: "refurbished"
+- Sites reconditionnés/déstockage connus : drakare.fr, backmarket.fr, stockpro.fr, destockage-habitat.com → TOUJOURS condition: "refurbished"
+- Si un résultat [N...] contient "reconditionné", "occasion", "remis à neuf", "déstockage", "destockage", "used", "renewed" → condition: "refurbished"
+- Si un résultat [R...] semble être un produit neuf sur un site classique (Amazon, LM, etc.) → condition: "new"
+- En cas de doute → condition: "new"
+
+AUTRES RÈGLES:
+- Retourne entre 3 et 10 produits maximum
+- Le champ "store" = nom du site marchand extrait du domaine de l'URL
+- amazon.fr → Amazon, manomano.fr → ManoMano, leroymerlin.fr → Leroy Merlin, backmarket.fr → Back Market, drakare.fr → Drakare, stockpro.fr → StockPro, destockage-habitat.com → Destockage Habitat, etc.
+
+Réponds UNIQUEMENT avec un JSON valide, sans markdown, sans backtick:
+{
+  "products": [
+    {
+      "name": "Nom exact du produit tel qu'affiché sur le site",
+      "description": "Courte description (puissance, dimensions, caractéristiques clés)",
+      "price": 59.90,
+      "store": "Amazon",
+      "url": "https://www.amazon.fr/...",
+      "image": null,
+      "condition": "new"
+    }
+  ],
+  "response": "Synthèse des résultats trouvés",
+  "recommendations": "Conseil pro: quel modèle choisir et pourquoi"
+}`
+
+      const searchContext = [
+        newContext && `=== PRODUITS NEUFS ===\n${newContext}`,
+        refurbContext && `=== PRODUITS RECONDITIONNÉS ===\n${refurbContext}`,
+      ].filter(Boolean).join('\n\n')
+
+      const productText = await callGroq([
+        { role: 'system', content: productPrompt },
+        { role: 'user', content: `Recherche produit: "${q}"${cityContext}\n\nRésultats web:\n${searchContext}` },
+      ], 2500)
+
+      const productParsed = parseJsonFromText<any>(productText, null)
+      const fetchedAt = new Date().toISOString()
+
+      if (productParsed?.products?.length) {
+        // Filtrer les produits avec URLs invalides (hallucinations)
+        const rawProducts = productParsed.products
+          .filter((p: any) => p.url && typeof p.url === 'string' && p.url.startsWith('http'))
+          .map((p: any) => ({
+            name: p.name || 'Produit',
+            description: p.description || '',
+            price: typeof p.price === 'number' ? p.price : 0,
+            store: p.store || '',
+            url: normalizeUrl(p.url),
+            image: p.image || null,
+            condition: p.condition === 'refurbished' ? 'refurbished' : 'new',
+          }))
+        // Rejeter les prix aberrants (< 0.50€ ou > 10x la moyenne)
+        const validProducts = validateProductPrices(rawProducts)
+        return cachedResponse({
+          success: true,
+          mode: 'product',
+          products: validProducts,
+          response: productParsed.response || `Résultats pour "${query}"`,
+          recommendations: productParsed.recommendations || '',
+          source: 'tavily+groq',
+          fetchedAt,
+        })
+      }
+
+      // Fallback: résultats Tavily bruts
+      const refurbDomains = ['backmarket', 'drakare', 'stockpro', 'destockage', 'occasion', 'reconditionn', 'rebuy', 'refurb', 'destock']
+      return NextResponse.json({
+        success: true,
+        mode: 'product',
+        products: allUnique.slice(0, 10).map(r => {
+          let storeName = r.url
+          try { storeName = new URL(r.url).hostname.replace('www.', '').replace('.fr', '').replace('.com', '') } catch {}
+          const isRefurb = refurbDomains.some(d => r.url.toLowerCase().includes(d) || r.title.toLowerCase().includes('reconditionn') || r.title.toLowerCase().includes('occasion'))
+          return {
+            name: r.title,
+            description: r.content.substring(0, 150),
+            price: 0,
+            store: storeName,
+            url: r.url,
+            image: null,
+            condition: isRefurb ? 'refurbished' : 'new',
+          }
+        }),
+        response: `Résultats pour "${query}" — les prix n'ont pas pu être extraits automatiquement.`,
+        recommendations: 'Cliquez sur les liens pour vérifier les prix directement sur les sites.',
+        source: 'tavily-raw',
+        fetchedAt,
+      })
+    }
+
+    // ══ MODE PROJET : Analyse chantier + matériaux (existant) ═══════════════
 
     // ── STAGE 1 : Extraction matériaux + normes applicables ───────────────────
     const stage1System = `Tu es un expert BTP français certifié. Tu connais parfaitement toutes les normes (DTU, NF, RE2020, arrêtés) applicables à chaque type de travaux.
@@ -225,8 +671,18 @@ export async function POST(request: NextRequest) {
 ${BTP_NORMS_KNOWLEDGE}
 
 Pour le chantier décrit, génère la liste des matériaux ESSENTIELS avec leurs normes obligatoires.
+
+RÈGLES CRITIQUES :
+- Liste UNIQUEMENT les matériaux CONSOMMABLES que l'artisan doit ACHETER pour ce chantier précis
+- NE PAS extrapoler ni inventer des matériaux non mentionnés ou non directement nécessaires
+- NE PAS inclure d'outillage (perceuse, niveau, etc.) sauf si explicitement demandé
+- NE PAS inclure de main d'œuvre ou de services
+- Maximum 5 matériaux (les plus importants/coûteux uniquement)
+- Si le chantier décrit un SEUL produit (ex: "chauffe-eau 200L"), retourne UNIQUEMENT ce produit + ses consommables directs (raccords, fixations)
+- Sois PRÉCIS sur les dimensions/capacités/modèles mentionnés dans la requête
+
 Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après, sans markdown, sans backtick.
-Maximum 7 matériaux. Format strict (respecte exactement les noms de champs) :
+Format strict (respecte exactement les noms de champs) :
 [
   {
     "name": "Chauffe-eau thermodynamique 200L classe A+",
@@ -242,7 +698,7 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
     const stage1Text = await callGroq([
       { role: 'system', content: stage1System },
       { role: 'user', content: `Chantier : ${query.trim()}${cityContext}` },
-    ], 1000)
+    ], 1000, 'llama-3.1-8b-instant')
 
     const rawMaterials: Array<{ name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string }> =
       parseJsonFromText(stage1Text, [])
@@ -263,8 +719,11 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
     if (usingTavily) {
       const searchResults = await Promise.allSettled(
         rawMaterials.map(async (m) => {
-          const searchQ = `${m.name} prix magasin France 2025 Leroy Merlin Brico Depot Castorama`
-          const results = await searchTavily(searchQ)
+          const searchQ = `${m.name} prix magasin France 2025`
+          const results = await searchTavily(searchQ, {
+            maxResults: 5,
+            includeDomains: BTP_STORE_DOMAINS,
+          })
           return { material: m, results }
         })
       )
@@ -300,9 +759,9 @@ Structure OBLIGATOIRE:
       "norms": ["DTU XX.X", "NF EN XXXXX"],
       "normDetails": "Points de vigilance pour la pose et conformité réglementaire",
       "prices": [
-        {"store": "Leroy Merlin", "price": 699, "url": null},
-        {"store": "Brico Dépôt", "price": 549, "url": null},
-        {"store": "Castorama", "price": 629, "url": null}
+        {"store": "Leroy Merlin", "price": 699, "url": "https://www.leroymerlin.fr/produit-exemple"},
+        {"store": "Brico Dépôt", "price": 549, "url": "https://www.bricodepot.fr/produit-exemple"},
+        {"store": "Castorama", "price": 629, "url": "https://www.castorama.fr/produit-exemple"}
       ],
       "bestPrice": {"store": "Brico Dépôt", "price": 549},
       "avgPrice": 625
@@ -318,7 +777,8 @@ RÈGLES ABSOLUES:
 - bestPrice = enseigne avec le prix le plus bas dans prices
 - avgPrice = moyenne arrondie des prices
 - les prix doivent être cohérents avec les fourchettes de la base de connaissances ci-dessus
-- normDetails = contraintes concrètes de pose (distances, sections, pentes, épaisseurs)`
+- normDetails = contraintes concrètes de pose (distances, sections, pentes, épaisseurs)
+- Si des URLs de produits sont disponibles dans les résultats de recherche web, inclus-les dans le champ "url". Sinon mets null.`
 
     const priceUserContent = usingTavily
       ? `Chantier: "${query}"${cityContext}\nMatériaux identifiés: ${JSON.stringify(rawMaterials)}\n\nRésultats recherche web:\n${searchBundle}`
@@ -332,7 +792,7 @@ RÈGLES ABSOLUES:
     const parsed = parseJsonFromText<any>(priceText, null)
 
     if (parsed?.materials?.length) {
-      return NextResponse.json({
+      return cachedResponse({
         success: true,
         materials: parsed.materials,
         totalEstimate: parsed.totalEstimate || null,

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Politique de confidentialité - VitFix',
-  description: 'Politique de confidentialité et protection des données personnelles de VitFix',
+  title: 'Politique de confidentialité - Vitfix',
+  description: 'Politique de confidentialité et protection des données personnelles de Vitfix',
 }
 
 export default function ConfidentialitePage() {
@@ -15,7 +15,7 @@ export default function ConfidentialitePage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Collecte des donn&eacute;es</h2>
             <p className="text-gray-600 leading-relaxed">
-              VitFix collecte les donn&eacute;es personnelles n&eacute;cessaires au fonctionnement du service :
+              Vitfix collecte les donn&eacute;es personnelles n&eacute;cessaires au fonctionnement du service :
               nom, pr&eacute;nom, adresse email, num&eacute;ro de t&eacute;l&eacute;phone et adresse d&apos;intervention.
               Ces donn&eacute;es sont collect&eacute;es lors de l&apos;inscription et de la r&eacute;servation.
             </p>
@@ -37,7 +37,7 @@ export default function ConfidentialitePage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Protection des donn&eacute;es</h2>
             <p className="text-gray-600 leading-relaxed">
-              VitFix met en oeuvre des mesures techniques et organisationnelles pour prot&eacute;ger
+              Vitfix met en oeuvre des mesures techniques et organisationnelles pour prot&eacute;ger
               vos donn&eacute;es personnelles contre tout acc&egrave;s non autoris&eacute;, toute modification,
               divulgation ou destruction.
             </p>
@@ -63,7 +63,7 @@ export default function ConfidentialitePage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Cookies</h2>
             <p className="text-gray-600 leading-relaxed">
-              VitFix utilise des cookies strictement n&eacute;cessaires au fonctionnement du site.
+              Vitfix utilise des cookies strictement n&eacute;cessaires au fonctionnement du site.
               Aucun cookie publicitaire n&apos;est utilis&eacute; sans votre consentement explicite.
             </p>
           </section>

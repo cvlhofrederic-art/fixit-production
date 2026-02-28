@@ -43,3 +43,32 @@ export function isSyndicRole(user: any): boolean {
 export function isArtisanRole(user: any): boolean {
   return user?.user_metadata?.role === 'artisan'
 }
+
+// ── Vérifie qu'un utilisateur est propriétaire d'un profil artisan ───────────
+// Retourne l'artisan_id si ownership confirmé, null sinon
+export async function verifyArtisanOwnership(
+  userId: string,
+  artisanId: string,
+  supabaseAdmin: any
+): Promise<string | null> {
+  const { data: artisan } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('id, user_id')
+    .eq('id', artisanId)
+    .single()
+  if (!artisan || artisan.user_id !== userId) return null
+  return artisan.id
+}
+
+// ── Récupère l'artisan_id d'un utilisateur connecté ─────────────────────────
+export async function getArtisanIdForUser(
+  userId: string,
+  supabaseAdmin: any
+): Promise<string | null> {
+  const { data: artisan } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+  return artisan?.id || null
+}

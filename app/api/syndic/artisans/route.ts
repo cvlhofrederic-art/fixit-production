@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email et nom requis' }, { status: 400 })
   }
 
-  // 1. Chercher si l'artisan a déjà un compte VitFix
+  // 1. Chercher si l'artisan a déjà un compte Vitfix
   const { data: { users: allUsers } } = await supabaseAdmin.auth.admin.listUsers()
   const existingUser = allUsers.find(u => u.email?.toLowerCase() === email.toLowerCase())
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     isExistingAccount = true
 
     if (existingRole === 'artisan') {
-      // Artisan VitFix existant — synchroniser avec le cabinet
+      // Artisan Vitfix existant — synchroniser avec le cabinet
       await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
         user_metadata: {
           ...existingUser.user_metadata,

@@ -1,8 +1,22 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // One-time migration: add columns and update profiles_artisan with verified company fields
-// Uses direct PostgreSQL query via Supabase's pg endpoint
-export async function GET() {
+// ⚠️ SÉCURISÉ : nécessite authentification admin
+export async function GET(request: NextRequest) {
+  // ── SÉCURITÉ : auth obligatoire + vérification admin ──────────────────────
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL].filter(Boolean) as string[]
+  if (!user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    return NextResponse.json({ error: 'Accès réservé aux administrateurs' }, { status: 403 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`migrate_artisan_${ip}`, 3, 60_000)) return rateLimitResponse()
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 

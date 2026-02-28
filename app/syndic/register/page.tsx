@@ -114,7 +114,7 @@ export default function SyndicRegisterPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
             <span className="text-3xl">⚡</span>
-            <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
+            <span className="text-2xl font-bold text-[#FFC107]">Vitfix</span>
             <span className="text-purple-600 font-bold text-xl ml-1">Pro Syndic</span>
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Créer votre espace gestionnaire</h1>
@@ -126,7 +126,7 @@ export default function SyndicRegisterPage() {
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
-                step >= s ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-400'
+                step >= s ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500'
               }`}>{s}</div>
               {s < 3 && <div className={`w-12 h-1 rounded ${step > s ? 'bg-purple-600' : 'bg-gray-200'}`} />}
             </div>
@@ -312,10 +312,10 @@ export default function SyndicRegisterPage() {
                 <p className="text-green-600 font-semibold mt-2">✅ 14 jours d'essai gratuit</p>
               </div>
 
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 En créant un compte vous acceptez les{' '}
                 <Link href="/cgu" className="text-purple-600 hover:underline">CGU</Link> et la{' '}
-                <Link href="/confidentialite" className="text-purple-600 hover:underline">politique de confidentialité</Link> de VitFix.
+                <Link href="/confidentialite" className="text-purple-600 hover:underline">politique de confidentialité</Link> de Vitfix.
               </p>
 
               <div className="flex gap-3">

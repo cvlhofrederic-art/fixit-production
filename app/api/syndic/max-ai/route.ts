@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { callGroqWithRetry } from '@/lib/groq'
+
+export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
-// ── Max IA — Assistant Expert Syndic VitFix Pro ────────────────────────────────
+// ── Max IA — Assistant Expert Syndic Vitfix Pro ────────────────────────────────
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Capacités : contexte complet cabinet + actions directes + mémoire + multi-rôles
 
@@ -67,7 +70,7 @@ function buildSystemPrompt(ctx: any, userRole: string): string {
   ).join('\n')
 
   const artisansStr = (ctx.artisans || []).map((a: any) =>
-    `  • ${a.nom} [${a.metier}] — Statut: ${a.statut} — RC Pro: ${a.rcProValide ? `✅ valide jusqu'au ${a.rcProExpiration}` : '❌ EXPIRÉE'} — Note: ${a.note}/5${a.vitfixCertifie ? ' — ⭐ VitFix Certifié' : ''}`
+    `  • ${a.nom} [${a.metier}] — Statut: ${a.statut} — RC Pro: ${a.rcProValide ? `✅ valide jusqu'au ${a.rcProExpiration}` : '❌ EXPIRÉE'} — Note: ${a.note}/5${a.vitfixCertifie ? ' — ⭐ Vitfix Certifié' : ''}`
   ).join('\n')
 
   const missionsStr = (ctx.missions || []).map((m: any) =>
@@ -112,7 +115,7 @@ IMPORTANT pour les dictées vocales — si l'utilisateur dit par exemple :
 - Cherche l'email de l'artisan dans la liste des artisans du cabinet ci-dessous
 
 Liste des artisans avec emails disponibles dans le cabinet :
-${(ctx.artisans || []).map((a: any) => `  • ${a.nom} [${a.metier}] — email: ${a.email || 'non renseigné'}${a.artisan_user_id ? ' ✅ compte VitFix lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'}
+${(ctx.artisans || []).map((a: any) => `  • ${a.nom} [${a.metier}] — email: ${a.email || 'non renseigné'}${a.artisan_user_id ? ' ✅ compte Vitfix lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'}
 ` : ''}
 ${roleConfig.actions.includes('navigate') ? `**Naviguer vers une page** :
 ##ACTION##{"type":"navigate","page":"nom_page"}##
@@ -131,7 +134,7 @@ ${roleConfig.actions.includes('create_document') ? `**Créer un document** :
 ##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
 ` : ''}`
 
-  return `Tu es **Max ${roleConfig.emoji}**, l'assistant IA VitFix Pro pour ${roleConfig.name}.
+  return `Tu es **Max ${roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${roleConfig.name}.
 
 📅 Aujourd'hui : ${today}
 👤 Rôle actif : **${roleConfig.name}** — Cabinet "${ctx.cabinet?.nom || 'Cabinet'}"
@@ -219,7 +222,7 @@ function generateFallback(message: string, ctx: any, userRole: string): string {
       : `✅ Tous les artisans ont une **RC Pro valide**.`
   }
 
-  return `🤖 **Max ${roleConfig.emoji} — ${roleConfig.name}**\n\nJe suis votre assistant IA VitFix Pro. Configurez la clé GROQ_API_KEY pour activer l'IA complète.\n\nJe peux vous aider sur :\n- Vos missions et artisans\n- Vos budgets et alertes\n- La rédaction de courriers\n- La réglementation copropriété`
+  return `🤖 **Max ${roleConfig.emoji} — ${roleConfig.name}**\n\nJe suis votre assistant IA Vitfix Pro. Configurez la clé GROQ_API_KEY pour activer l'IA complète.\n\nJe peux vous aider sur :\n- Vos missions et artisans\n- Vos budgets et alertes\n- La rédaction de courriers\n- La réglementation copropriété`
 }
 
 // ── Route principale ──────────────────────────────────────────────────────────
@@ -270,30 +273,20 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+    let groqData: any
+    try {
+      groqData = await callGroqWithRetry({
         messages,
-        temperature: 0.25,   // Plus précis pour les données réelles
-        max_tokens: 3000,    // Plus de tokens pour les documents longs
-      }),
-    })
-
-    if (!groqRes.ok) {
-      const errText = await groqRes.text()
-      console.error('Groq Max error:', groqRes.status, errText)
+        temperature: 0.25,
+        max_tokens: 4000,
+      })
+    } catch (err) {
+      console.error('Groq Max error:', err)
       return NextResponse.json({
         response: generateFallback(message, syndic_context, userRole),
         fallback: true,
       })
     }
-
-    const groqData = await groqRes.json()
     let response: string = groqData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer une réponse. Réessayez.'
 
     // Extraire l'action si présente

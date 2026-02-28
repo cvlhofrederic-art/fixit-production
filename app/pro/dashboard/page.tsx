@@ -1,11 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import AiChatBot from '@/components/AiChatBot'
+import { DashboardSkeleton } from '@/components/dashboard'
+import ComptabiliteSection from '@/components/dashboard/ComptabiliteSection'
+import ClientsSection from '@/components/dashboard/ClientsSection'
+import MateriauxSection from '@/components/dashboard/MateriauxSection'
+import RapportsSection from '@/components/dashboard/RapportsSection'
+import CanalProSection from '@/components/dashboard/CanalProSection'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -28,6 +35,11 @@ export default function DashboardPage() {
   const [showBookingDetail, setShowBookingDetail] = useState(false)
   const [convertingDevis, setConvertingDevis] = useState<any>(null)
   const [savingAvail, setSavingAvail] = useState(false)
+  // ── Messagerie artisan dashboard ──
+  const [dashMsgModal, setDashMsgModal] = useState<any>(null)
+  const [dashMsgList, setDashMsgList] = useState<any[]>([])
+  const [dashMsgText, setDashMsgText] = useState('')
+  const [dashMsgSending, setDashMsgSending] = useState(false)
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('week')
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
@@ -45,14 +57,92 @@ export default function DashboardPage() {
   // Motifs state
   const [showMotifModal, setShowMotifModal] = useState(false)
   const [editingMotif, setEditingMotif] = useState<any>(null)
-  const [motifForm, setMotifForm] = useState({
-    name: '', description: '', duration_minutes: 60, price_min: 0, price_max: 0, pricing_unit: 'forfait'
+  const [motifForm, setMotifForm] = useState<{
+    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string
+  }>({
+    name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait'
   })
   const [savingMotif, setSavingMotif] = useState(false)
 
   // Settings state
-  const [settingsForm, setSettingsForm] = useState({ company_name: '', email: '', phone: '', bio: '' })
+  const [settingsForm, setSettingsForm] = useState({ company_name: '', email: '', phone: '', bio: '', auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30 })
   const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'profil' | 'modules'>('profil')
+
+  // ── Modules config (toggle + order) ──
+  const ALL_MODULES = [
+    { id: 'home', icon: '🏠', label: 'Accueil', category: 'Principal', locked: true },
+    { id: 'calendar', icon: '📅', label: 'Agenda', category: 'Principal' },
+    { id: 'motifs', icon: '🔧', label: 'Motifs', category: 'Principal' },
+    { id: 'horaires', icon: '🕐', label: 'Horaires', category: 'Principal' },
+    { id: 'messages', icon: '💬', label: 'Messages Clients', category: 'Communication' },
+    { id: 'ordres_mission', icon: '📋', label: 'Ordres de mission', category: 'Communication' },
+    { id: 'canal', icon: '📡', label: 'Canal Pro', category: 'Communication' },
+    { id: 'clients', icon: '👥', label: 'Clients', category: 'Communication' },
+    { id: 'devis', icon: '📄', label: 'Devis', category: 'Facturation' },
+    { id: 'factures', icon: '🧾', label: 'Factures', category: 'Facturation' },
+    { id: 'rapports', icon: '📋', label: 'Rapports', category: 'Facturation' },
+    { id: 'contrats', icon: '📑', label: 'Contrats', category: 'Facturation' },
+    { id: 'stats', icon: '📊', label: 'Statistiques', category: 'Analyse' },
+    { id: 'revenus', icon: '💰', label: 'Revenus', category: 'Analyse' },
+    { id: 'comptabilite', icon: '🧮', label: 'Comptabilité', category: 'Analyse' },
+    { id: 'materiaux', icon: '🛒', label: 'Matériaux', category: 'Analyse' },
+    { id: 'wallet', icon: '🗂️', label: 'Wallet Conformité', category: 'Profil Pro' },
+    { id: 'portfolio', icon: '📸', label: 'Carnet de Visite', category: 'Profil Pro' },
+    { id: 'settings', icon: '⚙️', label: 'Paramètres', category: 'Compte', locked: true },
+  ]
+
+  const MODULES_STORAGE_KEY = `fixit_modules_config_${artisan?.id || 'default'}`
+
+  const [modulesConfig, setModulesConfig] = useState<{ id: string; enabled: boolean; order: number }[]>([])
+
+  // Load modules config from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = JSON.parse(localStorage.getItem(MODULES_STORAGE_KEY) || '[]')
+      if (saved.length > 0) {
+        // Merge saved config with ALL_MODULES (in case new modules were added)
+        const merged = ALL_MODULES.map(m => {
+          const s = saved.find((x: any) => x.id === m.id)
+          return s ? { id: m.id, enabled: m.locked ? true : s.enabled, order: s.order } : { id: m.id, enabled: true, order: 999 }
+        }).sort((a, b) => a.order - b.order)
+        setModulesConfig(merged)
+      } else {
+        setModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))
+      }
+    } catch {
+      setModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artisan?.id])
+
+  const saveModulesConfig = (config: { id: string; enabled: boolean; order: number }[]) => {
+    setModulesConfig(config)
+    try { localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify(config)) } catch {}
+  }
+
+  const isModuleEnabled = (moduleId: string): boolean => {
+    if (modulesConfig.length === 0) return true // Default: all enabled
+    const m = modulesConfig.find(x => x.id === moduleId)
+    return m ? m.enabled : true
+  }
+
+  const moveModule = (moduleId: string, direction: 'up' | 'down') => {
+    const sorted = [...modulesConfig].sort((a, b) => a.order - b.order)
+    const idx = sorted.findIndex(x => x.id === moduleId)
+    if (idx < 0) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+    // Swap orders
+    const temp = sorted[idx].order
+    sorted[idx] = { ...sorted[idx], order: sorted[swapIdx].order }
+    sorted[swapIdx] = { ...sorted[swapIdx], order: temp }
+    saveModulesConfig(sorted)
+  }
+
+  // ── Communication tabs ──
+  const [commTab, setCommTab] = useState<'particuliers' | 'pro'>('particuliers')
 
   // Upload documents / photo de profil
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null)
@@ -118,7 +208,7 @@ export default function DashboardPage() {
     if (!artisanData && !user.user_metadata?._admin_override) { router.push('/pro/login'); return }
     if (!artisanData) {
       // Données factices pour la navigation admin
-      setArtisan({ id: user.id, company_name: 'Admin VitFix', email: user.email, phone: '', bio: '', user_id: user.id })
+      setArtisan({ id: user.id, company_name: 'Admin Vitfix', email: user.email, phone: '', bio: '', user_id: user.id })
       setLoading(false)
       return
     }
@@ -130,7 +220,11 @@ export default function DashboardPage() {
       email: user.email || '',
       phone: artisanData.phone || '06 51 46 66 98',
       bio: cleanBioForDisplay,
+      auto_reply_message: artisanData.auto_reply_message || '',
+      auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
+      zone_radius_km: artisanData.zone_radius_km || 30,
     })
+    if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const { data: bookingsData } = await supabase
       .from('bookings').select('*, services(name)')
@@ -151,8 +245,7 @@ export default function DashboardPage() {
       setAvailability([])
     }
 
-    const savedAutoAccept = localStorage.getItem(`fixit_auto_accept_${artisanData.id}`)
-    if (savedAutoAccept !== null) setAutoAccept(savedAutoAccept === 'true')
+    // auto_accept is loaded from DB above
 
     // Load dayServices from API (stored in bio marker, shared with client)
     try {
@@ -165,8 +258,8 @@ export default function DashboardPage() {
       if (savedDayServices) setDayServices(JSON.parse(savedDayServices))
     }
 
-    const docs = JSON.parse(localStorage.getItem('fixit_documents') || '[]')
-    const drafts = JSON.parse(localStorage.getItem('fixit_drafts') || '[]')
+    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
     setSavedDocuments([...docs, ...drafts])
 
     setLoading(false)
@@ -175,10 +268,12 @@ export default function DashboardPage() {
   const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
   const DAY_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
-  const toggleAutoAccept = () => {
+  const toggleAutoAccept = async () => {
     const newVal = !autoAccept
     setAutoAccept(newVal)
-    if (artisan) localStorage.setItem(`fixit_auto_accept_${artisan.id}`, String(newVal))
+    if (artisan) {
+      await supabase.from('profiles_artisan').update({ auto_accept: newVal }).eq('id', artisan.id)
+    }
   }
 
   // ═══ AVAILABILITY - Toggle via API route (bypasses RLS) ═══
@@ -301,6 +396,38 @@ export default function DashboardPage() {
     setShowBookingDetail(true)
   }
 
+  // Convertir un booking en devis pré-rempli
+  const transformBookingToDevis = (booking: any) => {
+    const serviceName = booking.services?.name || 'Prestation'
+    const priceHT = booking.price_ht || 0
+    // Extract client name from notes if stored as "Client: X."
+    let clientName = ''
+    const notesStr = booking.notes || ''
+    const clientMatch = notesStr.match(/Client:\s*([^.]+)/i)
+    if (clientMatch) clientName = clientMatch[1].trim()
+
+    const lines = priceHT > 0
+      ? [{ id: 1, description: serviceName, qty: 1, priceHT, tvaRate: 10, totalHT: priceHT }]
+      : [{ id: 1, description: serviceName, qty: 1, priceHT: 0, tvaRate: 10, totalHT: 0 }]
+
+    const devisData = {
+      docType: 'devis' as const,
+      docTitle: serviceName,
+      clientName,
+      clientAddress: booking.address || '',
+      prestationDate: booking.booking_date || '',
+      lines,
+      notes: [
+        `Demande du ${booking.booking_date || ''}${booking.booking_time ? ' à ' + booking.booking_time.substring(0, 5) : ''}`,
+        notesStr && !notesStr.match(/Client:/i) ? notesStr : '',
+      ].filter(Boolean).join(' — '),
+    }
+    setConvertingDevis(devisData)
+    setShowDevisForm(true)
+    navigateTo('devis')
+    setSidebarOpen(false)
+  }
+
   // Convertir un devis en facture
   const convertDevisToFacture = (devis: any) => {
     setConvertingDevis(devis)
@@ -309,19 +436,19 @@ export default function DashboardPage() {
     setSidebarOpen(false)
   }
 
-  const getWeekDates = () => {
+  const getWeekDates = useCallback(() => {
     const start = new Date(selectedWeekStart)
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start)
       d.setDate(start.getDate() + i)
       return d
     })
-  }
+  }, [selectedWeekStart])
 
-  const getBookingsForDate = (date: Date) => {
+  const getBookingsForDate = useCallback((date: Date) => {
     const dateStr = date.toISOString().split('T')[0]
     return bookings.filter((b) => b.booking_date === dateStr)
-  }
+  }, [bookings])
 
   const changeWeek = (direction: number) => {
     const d = new Date(selectedWeekStart)
@@ -423,7 +550,7 @@ export default function DashboardPage() {
   const getPriceRangeLabel = (service: any): string => {
     const { min, max, unit } = parseServiceRange(service)
     if (min === 0 && max === 0) return 'Sur devis'
-    const suffix: Record<string, string> = { m2: '€/m²', ml: '€/ml', arbre: '€/arbre', tonne: '€/t', heure: '€/h', forfait: '€', unite: '€/u' }
+    const suffix: Record<string, string> = { m2: '€/m²', ml: '€/ml', m3: '€/m³', arbre: '€/arbre', tonne: '€/t', heure: '€/h', forfait: '€', unite: '€/u' }
     const s = suffix[unit] || '€'
     if (min === max) return `${min}${s}`
     return `${min} – ${max}${s}`
@@ -432,7 +559,7 @@ export default function DashboardPage() {
 
   const openNewMotif = () => {
     setEditingMotif(null)
-    setMotifForm({ name: '', description: '', duration_minutes: 60, price_min: 0, price_max: 0, pricing_unit: 'forfait' })
+    setMotifForm({ name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait' })
     setShowMotifModal(true)
   }
 
@@ -446,9 +573,9 @@ export default function DashboardPage() {
     setMotifForm({
       name: service.name || '',
       description: cleanDesc,
-      duration_minutes: service.duration_minutes || 60,
-      price_min: min,
-      price_max: max,
+      duration_minutes: service.duration_minutes || '',
+      price_min: min || '',
+      price_max: max || '',
       pricing_unit: unit,
     })
     setShowMotifModal(true)
@@ -458,16 +585,19 @@ export default function DashboardPage() {
     if (!artisan || !motifForm.name) return
     setSavingMotif(true)
 
-    const rangeTag = `[unit:${motifForm.pricing_unit}|min:${motifForm.price_min}|max:${motifForm.price_max}]`
+    const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
+    const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
+    const durationMins = motifForm.duration_minutes === '' ? null : Number(motifForm.duration_minutes)
+    const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
     const description = `${motifForm.description || ''} ${rangeTag}`.trim()
 
     const payload = {
       artisan_id: artisan.id,
       name: motifForm.name,
       description,
-      duration_minutes: motifForm.duration_minutes,
-      price_ht: motifForm.price_min,
-      price_ttc: motifForm.price_max,
+      duration_minutes: durationMins,
+      price_ht: priceMin,
+      price_ttc: priceMax,
       active: true,
     }
 
@@ -496,7 +626,7 @@ export default function DashboardPage() {
 
   const getPricingUnit = (service: any) => {
     const { unit } = parseServiceRange(service)
-    const labels: Record<string, string> = { m2: '/m²', ml: '/ml', arbre: '/arbre', tonne: '/t', heure: '/h', forfait: 'forfait', unite: '/unité' }
+    const labels: Record<string, string> = { m2: '/m²', ml: '/ml', m3: '/m³', arbre: '/arbre', tonne: '/t', heure: '/h', forfait: 'forfait', unite: '/unité' }
     return labels[unit] || 'forfait'
   }
 
@@ -511,23 +641,93 @@ export default function DashboardPage() {
   const saveSettings = async () => {
     if (!artisan) return
     setSavingSettings(true)
-    await supabase.from('profiles_artisan').update({
-      company_name: settingsForm.company_name,
-      bio: settingsForm.bio,
-    }).eq('id', artisan.id)
-    setArtisan({ ...artisan, company_name: settingsForm.company_name, bio: settingsForm.bio })
-    // Re-save dayServices marker after bio update
-    if (Object.values(dayServices).some(arr => arr.length > 0)) {
-      try {
-        await fetch('/api/availability-services', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ artisan_id: artisan.id, dayServices })
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { alert('❌ Session expirée, veuillez vous reconnecter.'); setSavingSettings(false); return }
+
+      const res = await fetch('/api/artisan-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          company_name: settingsForm.company_name,
+          bio: settingsForm.bio,
+          phone: settingsForm.phone,
+          email: settingsForm.email,
+          auto_reply_message: settingsForm.auto_reply_message,
+          auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
+          zone_radius_km: settingsForm.zone_radius_km,
         })
-      } catch {}
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(`❌ Erreur : ${json.error || 'Impossible de sauvegarder'}`); setSavingSettings(false); return }
+
+      setArtisan({
+        ...artisan,
+        company_name: settingsForm.company_name,
+        bio: settingsForm.bio,
+        phone: settingsForm.phone,
+        email: settingsForm.email,
+        auto_reply_message: settingsForm.auto_reply_message,
+        auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
+        zone_radius_km: settingsForm.zone_radius_km,
+        ...(json.slug ? { slug: json.slug } : {}),
+      })
+      // Re-save dayServices marker after bio update
+      if (Object.values(dayServices).some(arr => arr.length > 0)) {
+        try {
+          await fetch('/api/availability-services', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ artisan_id: artisan.id, dayServices })
+          })
+        } catch {}
+      }
+      if (json.partial && json.warning) {
+        alert(`⚠️ Sauvegarde partielle : ${json.warning}`)
+      } else {
+        alert('✅ Profil mis à jour avec succès !')
+      }
+    } catch {
+      alert('❌ Erreur réseau, veuillez réessayer.')
+    } finally {
+      setSavingSettings(false)
     }
-    setSavingSettings(false)
-    alert('✅ Profil mis à jour avec succès !')
+  }
+
+  // ═══ MESSAGERIE ARTISAN DASHBOARD ═══
+  const openDashMessages = async (booking: any) => {
+    setDashMsgModal(booking)
+    setDashMsgList([])
+    setDashMsgText('')
+    try {
+      const res = await fetch(`/api/booking-messages?booking_id=${booking.id}`, {
+        headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+      })
+      const json = await res.json()
+      if (json.data) setDashMsgList(json.data)
+    } catch (e) { console.error('Error fetching messages:', e) }
+  }
+
+  const sendDashMessage = async () => {
+    if (!dashMsgModal || !dashMsgText.trim() || dashMsgSending) return
+    setDashMsgSending(true)
+    try {
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({ booking_id: dashMsgModal.id, content: dashMsgText.trim() }),
+      })
+      const json = await res.json()
+      if (json.data) {
+        setDashMsgList(prev => [...prev, json.data])
+        setDashMsgText('')
+      }
+    } catch (e) { console.error('Error sending message:', e) }
+    setDashMsgSending(false)
   }
 
   // ═══ UPLOAD DOCUMENT (photo profil, kbis, assurance) ═══
@@ -565,30 +765,27 @@ export default function DashboardPage() {
   }
 
   // ═══ NAVIGATION - reset form states ═══
-  const navigateTo = (page: string) => {
+  const navigateTo = useCallback((page: string) => {
     setActivePage(page)
     setSidebarOpen(false)
     // Reset form views when navigating via sidebar
     if (page === 'devis') setShowDevisForm(false)
     if (page === 'factures') setShowFactureForm(false)
-  }
+  }, [])
 
   const firstName = artisan?.company_name?.split(' ')[0] || 'Pro'
   const initials = artisan?.company_name
     ? artisan.company_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'PR'
 
-  const completedBookings = bookings.filter((b) => b.status === 'completed')
-  const pendingBookings = bookings.filter((b) => b.status === 'pending')
-  const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0)
+  const completedBookings = useMemo(() => bookings.filter((b) => b.status === 'completed'), [bookings])
+  const pendingBookings = useMemo(() => bookings.filter((b) => b.status === 'pending'), [bookings])
+  const totalRevenue = useMemo(() => completedBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0), [completedBookings])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-14 w-14 border-4 border-[#FFC107] border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Chargement du dashboard...</p>
-        </div>
+      <div className="min-h-screen bg-[#F8F9FA]">
+        <DashboardSkeleton />
       </div>
     )
   }
@@ -633,7 +830,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <button className="lg:hidden text-2xl" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
           <div className="text-2xl font-bold text-[#FFC107] cursor-pointer hover:scale-105 transition-transform" onClick={() => navigateTo('home')}>
-            FIXIT
+            VITFIX
           </div>
         </div>
         <div className="flex items-center gap-4 lg:gap-6">
@@ -700,31 +897,38 @@ export default function DashboardPage() {
           </div>
           <div className="mb-6">
             <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">Communication</div>
-            <SidebarItem icon="💬" label="Messages" active={activePage === 'messages'} badge={pendingBookings.length || undefined} onClick={() => navigateTo('messages')} />
-            <SidebarItem icon="📋" label="Ordres de mission" active={activePage === 'ordres_mission'} onClick={() => navigateTo('ordres_mission')} />
-            <SidebarItem icon="📡" label="Canal Pro" active={activePage === 'canal'} onClick={() => navigateTo('canal')} />
-            <SidebarItem icon="👥" label={orgRole === 'pro_gestionnaire' ? 'Locataires' : orgRole === 'pro_conciergerie' ? 'Clients' : 'Clients'} active={activePage === 'clients'} onClick={() => navigateTo('clients')} />
+            {(isModuleEnabled('messages') || isModuleEnabled('canal')) && <SidebarItem icon="💬" label="Messagerie" active={activePage === 'messages' || activePage === 'comm_pro'} badge={pendingBookings.length || undefined} onClick={() => navigateTo('messages')} />}
+            {isModuleEnabled('clients') && <SidebarItem icon="👥" label="Base clients" active={activePage === 'clients'} onClick={() => navigateTo('clients')} />}
           </div>
           <div className="mb-6">
             <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">Facturation</div>
-            <SidebarItem icon="📄" label="Devis" active={activePage === 'devis'} onClick={() => navigateTo('devis')} />
-            <SidebarItem icon="🧾" label="Factures" active={activePage === 'factures'} onClick={() => navigateTo('factures')} />
-            {(orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
+            {isModuleEnabled('devis') && <SidebarItem icon="📄" label="Devis" active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
+            {isModuleEnabled('factures') && <SidebarItem icon="🧾" label="Factures" active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
+            {isModuleEnabled('rapports') && <SidebarItem icon="📋" label="Rapports" active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
+            {isModuleEnabled('contrats') && (orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
               <SidebarItem icon="📑" label="Contrats" active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
             )}
           </div>
           <div className="mb-6">
             <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">Analyse</div>
-            <SidebarItem icon="📊" label="Statistiques" active={activePage === 'stats'} onClick={() => navigateTo('stats')} />
-            <SidebarItem icon="💰" label="Revenus" active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />
-            <SidebarItem icon="🧮" label="Comptabilité" active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />
-            {orgRole === 'artisan' && (
+            {isModuleEnabled('stats') && <SidebarItem icon="📊" label="Statistiques" active={activePage === 'stats'} onClick={() => navigateTo('stats')} />}
+            {isModuleEnabled('revenus') && <SidebarItem icon="💰" label="Revenus" active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />}
+            {isModuleEnabled('comptabilite') && <SidebarItem icon="🧮" label="Comptabilité" active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />}
+            {isModuleEnabled('materiaux') && orgRole === 'artisan' && (
               <SidebarItem icon="🛒" label="Matériaux" active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} />
             )}
           </div>
+          {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio')) && (
+            <div className="mb-6">
+              <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">Profil Pro</div>
+              {isModuleEnabled('wallet') && <SidebarItem icon="🗂️" label="Wallet Conformité" active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
+              {isModuleEnabled('portfolio') && <SidebarItem icon="📸" label="Carnet de Visite" active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
+            </div>
+          )}
           <div className="mb-6">
             <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">Compte</div>
-            <SidebarItem icon="⚙️" label="Parametres" active={activePage === 'settings'} onClick={() => navigateTo('settings')} />
+            <SidebarItem icon="⚙️" label="Paramètres" active={activePage === 'settings' && settingsTab !== 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
+            <SidebarItem icon="🧩" label="Modules" active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
             <SidebarItem icon="❓" label="Aide" active={activePage === 'help'} onClick={() => navigateTo('help')} />
             <div onClick={handleLogout} className="flex items-center gap-3 px-6 py-4 cursor-pointer text-red-400 hover:bg-red-500/10 hover:pl-8 transition-all text-[0.95rem]">
               <span>🚪</span><span>Déconnexion</span>
@@ -744,31 +948,31 @@ export default function DashboardPage() {
             <div className="p-6 lg:p-8 animate-fadeIn">
               {/* ── Bannière adaptative ── */}
               {orgRole === 'artisan' && (
-                <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-8 lg:p-10 rounded-2xl text-gray-900 mb-8 shadow-lg">
+                <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-6 lg:p-8 rounded-2xl text-gray-900 mb-8 shadow-lg">
                   <h1 className="text-3xl lg:text-4xl font-bold mb-2">👋 Bonjour {firstName} !</h1>
                   <p className="text-lg opacity-95">Vous avez {pendingBookings.length} intervention(s) en attente</p>
                 </div>
               )}
               {orgRole === 'pro_societe' && (
-                <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-8 lg:p-10 rounded-2xl text-white mb-8 shadow-lg">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-6 lg:p-8 rounded-2xl text-white mb-8 shadow-lg">
                   <h1 className="text-3xl lg:text-4xl font-bold mb-2">🏗️ Bonjour {firstName} !</h1>
                   <p className="text-lg opacity-95">Tableau de bord Société BTP — {pendingBookings.length} chantier(s) en attente</p>
                 </div>
               )}
               {orgRole === 'pro_conciergerie' && (
-                <div className="bg-gradient-to-r from-purple-600 to-purple-400 p-8 lg:p-10 rounded-2xl text-white mb-8 shadow-lg">
+                <div className="bg-gradient-to-r from-purple-600 to-purple-400 p-6 lg:p-8 rounded-2xl text-white mb-8 shadow-lg">
                   <h1 className="text-3xl lg:text-4xl font-bold mb-2">🗝️ Bonjour {firstName} !</h1>
                   <p className="text-lg opacity-95">Conciergerie — {pendingBookings.length} demande(s) en attente</p>
                 </div>
               )}
               {orgRole === 'pro_gestionnaire' && (
-                <div className="bg-gradient-to-r from-green-600 to-green-400 p-8 lg:p-10 rounded-2xl text-white mb-8 shadow-lg">
+                <div className="bg-gradient-to-r from-green-600 to-green-400 p-6 lg:p-8 rounded-2xl text-white mb-8 shadow-lg">
                   <h1 className="text-3xl lg:text-4xl font-bold mb-2">🏢 Bonjour {firstName} !</h1>
                   <p className="text-lg opacity-95">Gestionnaire d'immeubles — {pendingBookings.length} ordre(s) de mission en attente</p>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
                 <StatCard icon="📅" iconBg="bg-blue-50" iconColor="text-blue-500" value={bookings.length.toString()} label={orgRole === 'pro_societe' ? 'Chantiers ce mois' : orgRole === 'pro_gestionnaire' ? 'Ordres de mission' : 'Interventions ce mois'} change={`${pendingBookings.length} en attente`} positive onClick={() => navigateTo('calendar')} />
                 <StatCard icon="💰" iconBg="bg-green-50" iconColor="text-green-500" value={formatPrice(totalRevenue)} label="Chiffre d'affaires" change={`${completedBookings.length} terminées`} positive onClick={() => navigateTo('revenus')} />
                 <StatCard icon="🔧" iconBg="bg-amber-50" iconColor="text-orange-500" value={services.filter(s => s.active).length.toString()} label={orgRole === 'pro_societe' ? 'Équipes actives' : orgRole === 'pro_gestionnaire' ? 'Immeubles gérés' : 'Motifs actifs'} change={`${services.length} au total`} onClick={() => navigateTo(orgRole === 'pro_societe' ? 'equipes' : orgRole === 'pro_gestionnaire' ? 'immeubles' : 'motifs')} />
@@ -803,10 +1007,10 @@ export default function DashboardPage() {
                 </>}
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm">
-                <h2 className="text-xl font-bold mb-5">Activité récente</h2>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900 mb-5">Activité récente</h2>
                 {bookings.length === 0 ? (
-                  <p className="text-gray-400 text-center py-6">Aucune activité récente</p>
+                  <p className="text-gray-500 text-center py-6">Aucune activité récente</p>
                 ) : (
                   bookings.slice(0, 5).map((b) => (
                     <ActivityItem
@@ -831,25 +1035,25 @@ export default function DashboardPage() {
 
                 {/* Stats cards row */}
                 <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white p-5 rounded-2xl shadow-sm">
-                    <div className="text-sm text-gray-500 mb-1">RDV aujourd&apos;hui</div>
-                    <div className="text-2xl font-bold">{getBookingsForDate(new Date()).length}</div>
-                    <div className="text-xs text-green-500 font-semibold mt-1">{getBookingsForDate(new Date()).filter(b => b.status === 'confirmed').length} confirm&eacute;(s)</div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-400">
+                    <div className="text-sm text-gray-600 mb-1">RDV aujourd&apos;hui</div>
+                    <div className="text-2xl font-bold text-gray-900">{getBookingsForDate(new Date()).length}</div>
+                    <div className="text-xs text-green-600 font-semibold mt-1">{getBookingsForDate(new Date()).filter(b => b.status === 'confirmed').length} confirm&eacute;(s)</div>
                   </div>
-                  <div className="bg-white p-5 rounded-2xl shadow-sm">
-                    <div className="text-sm text-gray-500 mb-1">Taux de remplissage</div>
-                    <div className="text-2xl font-bold">{bookings.length > 0 ? Math.round((bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').length / bookings.length) * 100) : 0}%</div>
-                    <div className="text-xs text-blue-500 font-semibold mt-1">cette semaine</div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-[#FFC107]">
+                    <div className="text-sm text-gray-600 mb-1">Taux de remplissage</div>
+                    <div className="text-2xl font-bold text-gray-900">{bookings.length > 0 ? Math.round((bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').length / bookings.length) * 100) : 0}%</div>
+                    <div className="text-xs text-blue-600 font-semibold mt-1">cette semaine</div>
                   </div>
-                  <div className="bg-white p-5 rounded-2xl shadow-sm">
-                    <div className="text-sm text-gray-500 mb-1">Revenus du mois</div>
-                    <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
-                    <div className="text-xs text-green-500 font-semibold mt-1">{completedBookings.length} termin&eacute;e(s)</div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-400">
+                    <div className="text-sm text-gray-600 mb-1">Revenus du mois</div>
+                    <div className="text-2xl font-bold text-gray-900">{formatPrice(totalRevenue)}</div>
+                    <div className="text-xs text-green-600 font-semibold mt-1">{completedBookings.length} termin&eacute;e(s)</div>
                   </div>
-                  <div className="bg-white p-5 rounded-2xl shadow-sm">
-                    <div className="text-sm text-gray-500 mb-1">Note moyenne</div>
-                    <div className="text-2xl font-bold">{artisan?.rating_avg || '5.0'}/5</div>
-                    <div className="text-xs text-amber-500 font-semibold mt-1">{artisan?.rating_count || 0} avis</div>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-amber-400">
+                    <div className="text-sm text-gray-600 mb-1">Note moyenne</div>
+                    <div className="text-2xl font-bold text-gray-900">{artisan?.rating_avg || '5.0'}/5</div>
+                    <div className="text-xs text-amber-600 font-semibold mt-1">{artisan?.rating_count || 0} avis</div>
                   </div>
                 </div>
 
@@ -895,7 +1099,7 @@ export default function DashboardPage() {
                           const isEmpty = hourBookings.length === 0
                           return (
                             <div key={hour} className="grid grid-cols-[70px_1fr] border-b border-gray-100 last:border-b-0">
-                              <div className="p-2 text-right pr-3 text-xs text-gray-400 font-medium border-r border-gray-100 flex items-start justify-end pt-1">
+                              <div className="p-2 text-right pr-3 text-xs text-gray-500 font-medium border-r border-gray-100 flex items-start justify-end pt-1">
                                 {hour}
                               </div>
                               <div
@@ -940,7 +1144,7 @@ export default function DashboardPage() {
                       <div className="min-w-[800px]">
                         {/* Day headers */}
                         <div className="grid grid-cols-[70px_repeat(7,1fr)] border-b border-gray-200">
-                          <div className="p-2 text-center text-xs text-gray-400 border-r border-gray-100"></div>
+                          <div className="p-2 text-center text-xs text-gray-500 border-r border-gray-100"></div>
                           {getWeekDates().map((date, i) => {
                             const isToday = date.toDateString() === new Date().toDateString()
                             const isWeekend = date.getDay() === 0 || date.getDay() === 6
@@ -961,7 +1165,7 @@ export default function DashboardPage() {
                         {/* Time grid rows */}
                         {getCalendarHours().map((hour) => (
                           <div key={hour} className="grid grid-cols-[70px_repeat(7,1fr)] border-b border-gray-100 last:border-b-0">
-                            <div className="p-2 text-right pr-3 text-xs text-gray-400 font-medium border-r border-gray-100 flex items-start justify-end pt-1">
+                            <div className="p-2 text-right pr-3 text-xs text-gray-500 font-medium border-r border-gray-100 flex items-start justify-end pt-1">
                               {hour}
                             </div>
                             {getWeekDates().map((date, i) => {
@@ -1035,7 +1239,7 @@ export default function DashboardPage() {
                                       {date.getDate()}
                                     </span>
                                     {dayBookings.length > 0 && isCurrentMonth && (
-                                      <span className="text-xs text-gray-400 font-semibold">{dayBookings.length}</span>
+                                      <span className="text-xs text-gray-500 font-semibold">{dayBookings.length}</span>
                                     )}
                                   </div>
                                   <div className="space-y-0.5">
@@ -1052,7 +1256,7 @@ export default function DashboardPage() {
                                       )
                                     })}
                                     {dayBookings.length > 3 && (
-                                      <div className="text-[10px] text-gray-400 font-semibold pl-2.5">+{dayBookings.length - 3} de plus</div>
+                                      <div className="text-[10px] text-gray-500 font-semibold pl-2.5">+{dayBookings.length - 3} de plus</div>
                                     )}
                                   </div>
                                 </div>
@@ -1076,9 +1280,10 @@ export default function DashboardPage() {
                             <div className="font-semibold">{b.services?.name || 'Service'}</div>
                             <div className="text-sm text-gray-600">{b.booking_date} à {b.booking_time?.substring(0, 5)}</div>
                             <div className="text-sm text-gray-500">{b.address}</div>
-                            {b.notes && <div className="text-xs text-gray-400 mt-1">{b.notes}</div>}
+                            {b.notes && <div className="text-xs text-gray-500 mt-1">{b.notes}</div>}
                           </div>
                           <div className="flex gap-2">
+                            <button onClick={() => openDashMessages(b)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg font-semibold text-sm transition">💬 Messages</button>
                             <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">✓ Accepter</button>
                             <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-semibold text-sm transition">✕ Refuser</button>
                           </div>
@@ -1155,7 +1360,7 @@ export default function DashboardPage() {
                              selectedBooking.status === 'completed' ? '✓ Terminé' : '✕ Annulé'}
                           </span>
                         </div>
-                        <button onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                        <button onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }} className="text-gray-500 hover:text-gray-600 text-2xl leading-none">&times;</button>
                       </div>
 
                       {/* Infos */}
@@ -1223,6 +1428,10 @@ export default function DashboardPage() {
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
                         {selectedBooking.status === 'pending' && (
                           <>
+                            <button onClick={() => { setShowBookingDetail(false); transformBookingToDevis(selectedBooking) }}
+                              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                              📄 Transformer en devis
+                            </button>
                             <button onClick={() => updateBookingStatus(selectedBooking.id, 'confirmed')}
                               className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition">
                               ✓ Confirmer
@@ -1235,6 +1444,10 @@ export default function DashboardPage() {
                         )}
                         {selectedBooking.status === 'confirmed' && (
                           <>
+                            <button onClick={() => { setShowBookingDetail(false); transformBookingToDevis(selectedBooking) }}
+                              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                              📄 Transformer en devis
+                            </button>
                             <button onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
                               className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition">
                               ✓ Marquer terminé
@@ -1246,7 +1459,7 @@ export default function DashboardPage() {
                           </>
                         )}
                         {selectedBooking.status === 'completed' && (
-                          <div className="w-full text-center text-gray-400 py-2 text-sm">Ce RDV est terminé</div>
+                          <div className="w-full text-center text-gray-500 py-2 text-sm">Ce RDV est terminé</div>
                         )}
                         {selectedBooking.status === 'cancelled' && (
                           <button onClick={() => updateBookingStatus(selectedBooking.id, 'pending')}
@@ -1309,16 +1522,16 @@ export default function DashboardPage() {
                                   <input type="time" value={avail.start_time?.substring(0, 5) || '08:00'}
                                     onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value)}
                                     className="px-2 py-1 border-2 border-gray-200 rounded-lg text-sm focus:border-[#FFC107] focus:outline-none" />
-                                  <span className="text-gray-400">à</span>
+                                  <span className="text-gray-500">à</span>
                                   <input type="time" value={avail.end_time?.substring(0, 5) || '17:00'}
                                     onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value)}
                                     className="px-2 py-1 border-2 border-gray-200 rounded-lg text-sm focus:border-[#FFC107] focus:outline-none" />
-                                  <span className="text-xs text-gray-400 ml-2">
+                                  <span className="text-xs text-gray-500 ml-2">
                                     {dayServiceIds.length > 0 ? `${dayServiceIds.length} motif(s)` : 'Tous les motifs'}
                                   </span>
                                 </div>
                               ) : (
-                                <span className="text-gray-400 text-sm">Fermé</span>
+                                <span className="text-gray-500 text-sm">Fermé</span>
                               )}
                             </div>
                           </div>
@@ -1396,10 +1609,10 @@ export default function DashboardPage() {
                           <td className="p-4">
                             <div className="font-bold">🌿 {service.name}</div>
                             {getCleanDescription(service) && (
-                              <div className="text-xs text-gray-400 mt-1">{getCleanDescription(service)}</div>
+                              <div className="text-xs text-gray-500 mt-1">{getCleanDescription(service)}</div>
                             )}
                           </td>
-                          <td className="p-4">{Math.floor(service.duration_minutes / 60)}h{service.duration_minutes % 60 > 0 ? String(service.duration_minutes % 60).padStart(2, '0') : ''}</td>
+                          <td className="p-4">{service.duration_minutes ? `${Math.floor(service.duration_minutes / 60)}h${service.duration_minutes % 60 > 0 ? String(service.duration_minutes % 60).padStart(2, '0') : '00'}` : <span className="text-gray-500 text-xs">—</span>}</td>
                           <td className="p-4 font-bold text-[#FFC107]">{getPriceRangeLabel(service)}</td>
                           <td className="p-4">
                             <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-semibold">{getPricingUnit(service)}</span>
@@ -1424,7 +1637,7 @@ export default function DashboardPage() {
                       ))}
                       {services.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="p-12 text-center text-gray-400">
+                          <td colSpan={6} className="p-12 text-center text-gray-500">
                             <div className="text-4xl mb-3">🔧</div>
                             <p className="font-semibold text-lg mb-2">Aucun motif configuré</p>
                             <p className="text-sm mb-4">Créez votre premier motif pour que vos clients puissent réserver</p>
@@ -1458,12 +1671,21 @@ export default function DashboardPage() {
                           className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none resize-none" />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold mb-1">Durée estimée (minutes) *</label>
+                        <label className="block text-sm font-semibold mb-1">Durée estimée <span className="text-gray-500 font-normal">(optionnel, en minutes)</span></label>
                         <div className="flex items-center gap-3">
-                          <input type="number" value={motifForm.duration_minutes} onChange={(e) => setMotifForm({...motifForm, duration_minutes: parseInt(e.target.value) || 60})}
-                            min={15} step={15}
-                            className="w-32 p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
-                          <span className="text-gray-500 text-sm">= {Math.floor(motifForm.duration_minutes / 60)}h{motifForm.duration_minutes % 60 > 0 ? String(motifForm.duration_minutes % 60).padStart(2, '0') : '00'}</span>
+                          <input
+                            type="number"
+                            value={motifForm.duration_minutes}
+                            onChange={(e) => setMotifForm({...motifForm, duration_minutes: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                            min={5} step={5}
+                            placeholder="Ex: 60"
+                            className="w-32 p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none"
+                          />
+                          {motifForm.duration_minutes !== '' && Number(motifForm.duration_minutes) > 0 && (
+                            <span className="text-gray-500 text-sm">
+                              = {Math.floor(Number(motifForm.duration_minutes) / 60)}h{Number(motifForm.duration_minutes) % 60 > 0 ? String(Number(motifForm.duration_minutes) % 60).padStart(2, '0') : '00'}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div>
@@ -1473,6 +1695,7 @@ export default function DashboardPage() {
                             { value: 'forfait', label: '💰 Forfait', desc: 'Prix fixe par prestation' },
                             { value: 'm2', label: '📐 Au m²', desc: 'Prix au mètre carré' },
                             { value: 'ml', label: '📏 Au ml', desc: 'Prix au mètre linéaire' },
+                            { value: 'm3', label: '🧊 Au m³', desc: 'Prix au mètre cube' },
                             { value: 'heure', label: '🕐 À l\'heure', desc: 'Prix horaire' },
                             { value: 'arbre', label: '🌳 Par arbre', desc: 'Prix par arbre/palmier' },
                             { value: 'tonne', label: '♻️ Par tonne', desc: 'Prix par tonne de déchets' },
@@ -1488,25 +1711,31 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1">
-                          Fourchette de prix (€{motifForm.pricing_unit === 'm2' ? '/m²' : motifForm.pricing_unit === 'ml' ? '/ml' : motifForm.pricing_unit === 'heure' ? '/h' : motifForm.pricing_unit === 'arbre' ? '/arbre' : motifForm.pricing_unit === 'tonne' ? '/t' : ''})
+                          Fourchette de prix{motifForm.pricing_unit !== 'forfait' ? ` (€${motifForm.pricing_unit === 'm2' ? '/m²' : motifForm.pricing_unit === 'ml' ? '/ml' : motifForm.pricing_unit === 'm3' ? '/m³' : motifForm.pricing_unit === 'heure' ? '/h' : motifForm.pricing_unit === 'arbre' ? '/arbre' : motifForm.pricing_unit === 'tonne' ? '/t' : ''})` : ' (€)'}
                         </label>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Prix minimum</label>
-                            <input type="number" value={motifForm.price_min}
-                              onChange={(e) => setMotifForm({...motifForm, price_min: parseFloat(e.target.value) || 0})}
-                              step="0.01" min="0" placeholder="0"
-                              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                            <input
+                              type="number"
+                              value={motifForm.price_min}
+                              onChange={(e) => setMotifForm({...motifForm, price_min: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                              step="0.01" min="0" placeholder="Laisser vide = sur devis"
+                              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none"
+                            />
                           </div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Prix maximum</label>
-                            <input type="number" value={motifForm.price_max}
-                              onChange={(e) => setMotifForm({...motifForm, price_max: parseFloat(e.target.value) || 0})}
-                              step="0.01" min="0" placeholder="0"
-                              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none" />
+                            <input
+                              type="number"
+                              value={motifForm.price_max}
+                              onChange={(e) => setMotifForm({...motifForm, price_max: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                              step="0.01" min="0" placeholder="Laisser vide = sur devis"
+                              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none"
+                            />
                           </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">Laissez 0/0 pour "Sur devis"</p>
+                        <p className="text-xs text-gray-500 mt-1">Laissez vide pour afficher "Sur devis"</p>
                       </div>
                       <div className="flex gap-3 pt-2">
                         <button onClick={saveMotif} disabled={!motifForm.name || savingMotif}
@@ -1524,43 +1753,137 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ────── MESSAGES ────── */}
-          {activePage === 'messages' && (
+          {/* ────── COMMUNICATION (Particuliers) ────── */}
+          {(activePage === 'messages' || activePage === 'comm_pro') && (
             <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] flex justify-between items-center shadow-sm">
-                <h1 className="text-2xl font-semibold">💬 Messages</h1>
-                {pendingBookings.length > 0 && (
-                  <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold">{pendingBookings.length} demande(s) en attente</span>
-                )}
+              <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h1 className="text-2xl font-semibold">💬 Messagerie</h1>
+                  </div>
+                  {commTab === 'particuliers' && pendingBookings.length > 0 && (
+                    <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold">{pendingBookings.length} en attente</span>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => setCommTab('particuliers')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${commTab === 'particuliers' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    🏠 Particuliers
+                  </button>
+                  <button
+                    onClick={() => setCommTab('pro')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${commTab === 'pro' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    🏢 Pro
+                  </button>
+                </div>
               </div>
-              <div className="p-6 lg:p-8">
-                {pendingBookings.length > 0 ? (
-                  <div className="space-y-4">
-                    {pendingBookings.map((b) => (
-                      <div key={b.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#FFC107]">
-                        <div className="flex flex-col sm:flex-row justify-between gap-3">
-                          <div>
-                            <div className="font-bold text-lg">{b.services?.name || 'Demande de RDV'}</div>
-                            <div className="text-sm text-gray-600 mt-1">📅 {b.booking_date} à {b.booking_time?.substring(0, 5)}</div>
-                            <div className="text-sm text-gray-500">📍 {b.address}</div>
-                            {b.notes && <div className="text-sm text-gray-400 mt-2 bg-gray-50 p-2 rounded">{b.notes}</div>}
-                          </div>
-                          <div className="flex gap-2 self-start">
-                            <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">✓ Accepter</button>
-                            <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-semibold text-sm transition">✕ Refuser</button>
+
+              {/* ── Onglet Particuliers ── */}
+              {commTab === 'particuliers' && (
+                <div className="p-6 lg:p-8">
+                  {pendingBookings.length > 0 ? (
+                    <div className="space-y-4">
+                      {pendingBookings.map((b) => (
+                        <div key={b.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#FFC107]">
+                          <div className="flex flex-col sm:flex-row justify-between gap-3">
+                            <div>
+                              <div className="font-bold text-lg">{b.services?.name || 'Demande de RDV'}</div>
+                              <div className="text-sm text-gray-600 mt-1">📅 {b.booking_date} à {b.booking_time?.substring(0, 5)}</div>
+                              <div className="text-sm text-gray-500">📍 {b.address}</div>
+                              {b.notes && <div className="text-sm text-gray-500 mt-2 bg-gray-50 p-2 rounded">{b.notes}</div>}
+                            </div>
+                            <div className="flex flex-wrap gap-2 self-start">
+                              <button onClick={() => openDashMessages(b)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg font-semibold text-sm transition">💬</button>
+                              <button onClick={() => transformBookingToDevis(b)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1">📄 Devis</button>
+                              <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">✓ Accepter</button>
+                              <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-semibold text-sm transition">✕ Refuser</button>
+                            </div>
                           </div>
                         </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white p-12 rounded-2xl text-center shadow-sm">
+                      <div className="text-6xl mb-4">✅</div>
+                      <h3 className="text-2xl font-bold mb-3">Aucune demande en attente</h3>
+                      <p className="text-gray-500 text-lg">Toutes les demandes clients ont été traitées</p>
+                    </div>
+                  )}
+
+                  {/* Historique conversations clients */}
+                  {bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').length > 0 && (
+                    <div className="mt-8">
+                      <h3 className="font-bold text-gray-700 mb-3">📨 Conversations clients actives</h3>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').slice(0, 12).map(b => {
+                          const rawNotes = b.notes || ''
+                          const hasPipes = rawNotes.includes('|')
+                          const clientNameMatch = hasPipes ? rawNotes.match(/Client:\s*([^|\n]+)/i) : rawNotes.match(/Client:\s*([^.\n]+)/i)
+                          const clientLabel = clientNameMatch ? clientNameMatch[1].trim() : 'Client'
+                          return (
+                            <button key={b.id} onClick={() => openDashMessages(b)}
+                              className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-[#FFC107] hover:shadow-md transition text-left">
+                              <div className="font-semibold text-sm text-gray-900 truncate">{clientLabel}</div>
+                              <div className="text-xs text-gray-500 mt-1">{b.services?.name || 'Intervention'} — {b.booking_date}</div>
+                              <div className="text-xs text-gray-300 mt-1">💬 Ouvrir la conversation</div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Onglet Pro ── */}
+              {commTab === 'pro' && (
+                <div className="p-6 lg:p-8">
+                  {/* Canal Pro */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-blue-900 text-lg mb-1">📡 Canal Pro</h3>
+                        <p className="text-sm text-blue-600">Messagerie directe avec vos contacts professionnels</p>
+                      </div>
+                      <button onClick={() => navigateTo('canal')} className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
+                        Ouvrir le canal →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Ordres de mission */}
+                  <div className="bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-2xl p-6 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-purple-900 text-lg mb-1">📋 Ordres de mission</h3>
+                        <p className="text-sm text-purple-600">Missions reçues des syndics et gestionnaires</p>
+                      </div>
+                      <button onClick={() => navigateTo('ordres_mission')} className="bg-purple-500 hover:bg-purple-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
+                        Voir les ordres →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Types de contacts pro */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      { icon: '🏛️', label: 'Syndics', desc: 'Copropriétés' },
+                      { icon: '🏗️', label: 'Entreprises BTP', desc: 'Sous-traitance' },
+                      { icon: '🏠', label: 'Bailleurs sociaux', desc: 'Logements sociaux' },
+                      { icon: '🔑', label: 'Conciergeries', desc: 'Locations courtes' },
+                    ].map((t) => (
+                      <div key={t.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+                        <div className="text-2xl mb-2">{t.icon}</div>
+                        <div className="font-semibold text-sm text-gray-900">{t.label}</div>
+                        <div className="text-xs text-gray-500">{t.desc}</div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="bg-white p-12 rounded-2xl text-center shadow-sm">
-                    <div className="text-6xl mb-4">✅</div>
-                    <h3 className="text-2xl font-bold mb-3">Aucune demande en attente</h3>
-                    <p className="text-gray-500 text-lg">Toutes les demandes ont été traitées</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1574,59 +1897,93 @@ export default function DashboardPage() {
             showDevisForm ? (
               <DevisFactureForm artisan={artisan} services={services} bookings={bookings} initialDocType="devis"
                 initialData={convertingDevis}
-                onBack={() => { setShowDevisForm(false); setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem('fixit_documents') || '[]'); const drafts = JSON.parse(localStorage.getItem('fixit_drafts') || '[]'); setSavedDocuments([...docs, ...drafts]) }}
-                onSave={() => { setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem('fixit_documents') || '[]'); const drafts = JSON.parse(localStorage.getItem('fixit_drafts') || '[]'); setSavedDocuments([...docs, ...drafts]) }}
+                onBack={() => { setShowDevisForm(false); setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]'); const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]'); setSavedDocuments([...docs, ...drafts]) }}
+                onSave={() => { setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]'); const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]'); setSavedDocuments([...docs, ...drafts]) }}
               />
             ) : (
               <div className="animate-fadeIn">
                 <PageHeader title="📄 Devis" actionLabel="+ Nouveau devis" onAction={() => setShowDevisForm(true)} />
                 <div className="p-6 lg:p-8">
-                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-[#2C3E50] text-white">
-                          <th className="text-left p-4 font-semibold text-sm">Numéro</th>
-                          <th className="text-left p-4 font-semibold text-sm">Client</th>
-                          <th className="text-left p-4 font-semibold text-sm">Date</th>
-                          <th className="text-left p-4 font-semibold text-sm">Montant</th>
-                          <th className="text-left p-4 font-semibold text-sm">Statut</th>
-                          <th className="text-left p-4 font-semibold text-sm">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {savedDocuments.filter(d => d.docType === 'devis').map((doc, i) => (
-                          <tr key={`saved-dev-${i}`} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                            <td className="p-4 font-bold">{doc.docNumber}</td>
-                            <td className="p-4">{doc.clientName || '-'}</td>
-                            <td className="p-4">{doc.docDate ? new Date(doc.docDate).toLocaleDateString('fr-FR') : '-'}</td>
-                            <td className="p-4 font-bold">{doc.lines?.reduce((s: number, l: any) => s + (l.totalHT || 0), 0).toFixed(2)} €</td>
-                            <td className="p-4">
-                              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${doc.status === 'envoye' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-orange-700'}`}>
-                                {doc.status === 'envoye' ? 'Envoyé' : 'Brouillon'}
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex gap-2">
-                                <button className="bg-white text-gray-600 border-2 border-gray-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">👁️ Voir</button>
-                                <button onClick={() => convertDevisToFacture(doc)} className="bg-[#FFC107] text-gray-900 px-3 py-1.5 rounded-lg font-semibold hover:bg-[#FFD54F] shadow-sm transition text-sm">🧾 Convertir en facture</button>
+                  {/* Compteurs */}
+                  {savedDocuments.filter(d => d.docType === 'devis').length > 0 && (
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                      <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <div className="text-2xl font-black text-[#2C3E50]">{savedDocuments.filter(d => d.docType === 'devis').length}</div>
+                        <div className="text-xs text-gray-500">Total devis</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <div className="text-2xl font-black text-blue-600">{savedDocuments.filter(d => d.docType === 'devis' && d.status === 'envoye').length}</div>
+                        <div className="text-xs text-gray-500">Envoyés</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <div className="text-2xl font-black text-amber-600">{savedDocuments.filter(d => d.docType === 'devis' && d.status === 'brouillon').length}</div>
+                        <div className="text-xs text-gray-500">Brouillons</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liste des devis */}
+                  <div className="space-y-3">
+                    {savedDocuments.filter(d => d.docType === 'devis').sort((a, b) => new Date(b.savedAt || b.docDate).getTime() - new Date(a.savedAt || a.docDate).getTime()).map((doc, i) => {
+                      const totalHT = doc.lines?.reduce((s: number, l: any) => s + (l.totalHT || 0), 0) || 0
+                      return (
+                        <div key={`saved-dev-${i}`} className="bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition border border-gray-100">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="bg-[#FFC107] text-gray-900 text-xs font-bold px-2.5 py-1 rounded-lg">{doc.docNumber}</span>
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${doc.status === 'envoye' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-orange-700'}`}>
+                                  {doc.status === 'envoye' ? '✓ Envoyé' : '✏️ Brouillon'}
+                                </span>
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {savedDocuments.filter(d => d.docType === 'devis').length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="p-12 text-center text-gray-400">
-                              <div className="text-4xl mb-3">📄</div>
-                              <p className="font-semibold text-lg mb-2">Aucun devis</p>
-                              <p className="text-sm mb-4">Créez votre premier devis conforme aux normes françaises</p>
-                              <button onClick={() => setShowDevisForm(true)} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2 rounded-lg font-semibold text-sm transition">
-                                + Créer un devis
-                              </button>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                              {doc.docTitle && <p className="font-semibold text-[#2C3E50] mb-1">{doc.docTitle}</p>}
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                                <span>👤 {doc.clientName || 'Client non renseigné'}</span>
+                                <span>📅 {doc.docDate ? new Date(doc.docDate).toLocaleDateString('fr-FR') : '-'}</span>
+                                {doc.docValidity && <span>⏱️ Validité : {doc.docValidity}j</span>}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xl font-black text-[#2C3E50]">{totalHT.toFixed(2)} €</div>
+                              <div className="text-xs text-gray-500">HT</div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100">
+                            <button onClick={() => { setConvertingDevis(doc); setShowDevisForm(true) }}
+                              className="bg-white text-gray-600 border-2 border-gray-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">
+                              ✏️ Modifier
+                            </button>
+                            <button onClick={() => convertDevisToFacture(doc)}
+                              className="bg-[#FFC107] text-gray-900 px-3 py-1.5 rounded-lg font-semibold hover:bg-[#FFD54F] shadow-sm transition text-sm">
+                              🧾 Convertir en facture
+                            </button>
+                            <button onClick={() => {
+                              if (!confirm(`Supprimer le devis ${doc.docNumber} ?`)) return
+                              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                              const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                              const updDocs = docs.filter((d: any) => d.docNumber !== doc.docNumber)
+                              const updDrafts = drafts.filter((d: any) => d.docNumber !== doc.docNumber)
+                              localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
+                              localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
+                              setSavedDocuments([...updDocs, ...updDrafts])
+                            }}
+                              className="bg-white text-red-500 border-2 border-red-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-red-50 transition text-sm ml-auto">
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {savedDocuments.filter(d => d.docType === 'devis').length === 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                        <div className="text-5xl mb-4">📄</div>
+                        <p className="font-semibold text-lg text-gray-700 mb-2">Aucun devis</p>
+                        <p className="text-sm text-gray-500 mb-5">Créez votre premier devis conforme aux normes françaises</p>
+                        <button onClick={() => setShowDevisForm(true)} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
+                          + Créer un devis
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1638,58 +1995,94 @@ export default function DashboardPage() {
             showFactureForm ? (
               <DevisFactureForm artisan={artisan} services={services} bookings={bookings} initialDocType="facture"
                 initialData={convertingDevis}
-                onBack={() => { setShowFactureForm(false); setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem('fixit_documents') || '[]'); const drafts = JSON.parse(localStorage.getItem('fixit_drafts') || '[]'); setSavedDocuments([...docs, ...drafts]) }}
-                onSave={() => { setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem('fixit_documents') || '[]'); const drafts = JSON.parse(localStorage.getItem('fixit_drafts') || '[]'); setSavedDocuments([...docs, ...drafts]) }}
+                onBack={() => { setShowFactureForm(false); setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]'); const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]'); setSavedDocuments([...docs, ...drafts]) }}
+                onSave={() => { setConvertingDevis(null); const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]'); const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]'); setSavedDocuments([...docs, ...drafts]) }}
               />
             ) : (
               <div className="animate-fadeIn">
                 <PageHeader title="🧾 Factures" actionLabel="+ Nouvelle facture" onAction={() => setShowFactureForm(true)} />
                 <div className="p-6 lg:p-8">
-                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-[#2C3E50] text-white">
-                          <th className="text-left p-4 font-semibold text-sm">Numéro</th>
-                          <th className="text-left p-4 font-semibold text-sm">Client</th>
-                          <th className="text-left p-4 font-semibold text-sm">Date émission</th>
-                          <th className="text-left p-4 font-semibold text-sm">Échéance</th>
-                          <th className="text-left p-4 font-semibold text-sm">Montant</th>
-                          <th className="text-left p-4 font-semibold text-sm">Statut</th>
-                          <th className="text-left p-4 font-semibold text-sm">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {savedDocuments.filter(d => d.docType === 'facture').map((doc, i) => (
-                          <tr key={`saved-fact-${i}`} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                            <td className="p-4 font-bold">{doc.docNumber}</td>
-                            <td className="p-4">{doc.clientName || '-'}</td>
-                            <td className="p-4">{doc.docDate ? new Date(doc.docDate).toLocaleDateString('fr-FR') : '-'}</td>
-                            <td className="p-4">{doc.paymentDue ? new Date(doc.paymentDue).toLocaleDateString('fr-FR') : '-'}</td>
-                            <td className="p-4 font-bold">{doc.lines?.reduce((s: number, l: any) => s + (l.totalHT || 0), 0).toFixed(2)} €</td>
-                            <td className="p-4">
-                              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${doc.status === 'envoye' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-orange-700'}`}>
-                                {doc.status === 'envoye' ? 'Envoyée' : 'Brouillon'}
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              <button className="bg-white text-gray-600 border-2 border-gray-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">📥 PDF</button>
-                            </td>
-                          </tr>
-                        ))}
-                        {savedDocuments.filter(d => d.docType === 'facture').length === 0 && (
-                          <tr>
-                            <td colSpan={7} className="p-12 text-center text-gray-400">
-                              <div className="text-4xl mb-3">🧾</div>
-                              <p className="font-semibold text-lg mb-2">Aucune facture</p>
-                              <p className="text-sm mb-4">Créez votre première facture conforme</p>
-                              <button onClick={() => setShowFactureForm(true)} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2 rounded-lg font-semibold text-sm transition">
-                                + Créer une facture
-                              </button>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                  {/* Compteurs */}
+                  {savedDocuments.filter(d => d.docType === 'facture').length > 0 && (
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                      <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <div className="text-2xl font-black text-[#2C3E50]">{savedDocuments.filter(d => d.docType === 'facture').length}</div>
+                        <div className="text-xs text-gray-500">Total factures</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <div className="text-2xl font-black text-green-600">
+                          {savedDocuments.filter(d => d.docType === 'facture').reduce((s, d) => s + (d.lines?.reduce((t: number, l: any) => t + (l.totalHT || 0), 0) || 0), 0).toFixed(2)} €
+                        </div>
+                        <div className="text-xs text-gray-500">CA HT total</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+                        <div className="text-2xl font-black text-blue-600">{savedDocuments.filter(d => d.docType === 'facture' && d.status === 'envoye').length}</div>
+                        <div className="text-xs text-gray-500">Envoyées</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liste des factures */}
+                  <div className="space-y-3">
+                    {savedDocuments.filter(d => d.docType === 'facture').sort((a, b) => new Date(b.savedAt || b.docDate).getTime() - new Date(a.savedAt || a.docDate).getTime()).map((doc, i) => {
+                      const totalHT = doc.lines?.reduce((s: number, l: any) => s + (l.totalHT || 0), 0) || 0
+                      const isOverdue = doc.paymentDue && new Date(doc.paymentDue) < new Date()
+                      return (
+                        <div key={`saved-fact-${i}`} className={`bg-white rounded-2xl shadow-sm p-5 hover:shadow-md transition border ${isOverdue ? 'border-red-200' : 'border-gray-100'}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="bg-[#2C3E50] text-white text-xs font-bold px-2.5 py-1 rounded-lg">{doc.docNumber}</span>
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${doc.status === 'envoye' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-orange-700'}`}>
+                                  {doc.status === 'envoye' ? '✓ Envoyée' : '✏️ Brouillon'}
+                                </span>
+                                {isOverdue && <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-600">⚠️ Échue</span>}
+                              </div>
+                              {doc.docTitle && <p className="font-semibold text-[#2C3E50] mb-1">{doc.docTitle}</p>}
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                                <span>👤 {doc.clientName || 'Client non renseigné'}</span>
+                                <span>📅 {doc.docDate ? new Date(doc.docDate).toLocaleDateString('fr-FR') : '-'}</span>
+                                {doc.paymentDue && <span>⏰ Échéance : {new Date(doc.paymentDue).toLocaleDateString('fr-FR')}</span>}
+                                {doc.paymentMode && <span>💳 {doc.paymentMode}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xl font-black text-[#2C3E50]">{totalHT.toFixed(2)} €</div>
+                              <div className="text-xs text-gray-500">HT</div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100">
+                            <button onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}
+                              className="bg-white text-gray-600 border-2 border-gray-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-gray-50 transition text-sm">
+                              ✏️ Modifier
+                            </button>
+                            <button onClick={() => {
+                              if (!confirm(`Supprimer la facture ${doc.docNumber} ?`)) return
+                              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                              const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                              const updDocs = docs.filter((d: any) => d.docNumber !== doc.docNumber)
+                              const updDrafts = drafts.filter((d: any) => d.docNumber !== doc.docNumber)
+                              localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
+                              localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
+                              setSavedDocuments([...updDocs, ...updDrafts])
+                            }}
+                              className="bg-white text-red-500 border-2 border-red-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-red-50 transition text-sm ml-auto">
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {savedDocuments.filter(d => d.docType === 'facture').length === 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                        <div className="text-5xl mb-4">🧾</div>
+                        <p className="font-semibold text-lg text-gray-700 mb-2">Aucune facture</p>
+                        <p className="text-sm text-gray-500 mb-5">Créez votre première facture conforme</p>
+                        <button onClick={() => setShowFactureForm(true)} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
+                          + Créer une facture
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1767,7 +2160,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="bg-white p-12 rounded-2xl text-center shadow-sm">
-                    <p className="text-gray-400">Aucun revenu enregistré</p>
+                    <p className="text-gray-500">Aucun revenu enregistré</p>
                   </div>
                 )}
               </div>
@@ -1780,6 +2173,9 @@ export default function DashboardPage() {
               <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
                 <h1 className="text-2xl font-semibold">⚙️ Paramètres</h1>
               </div>
+
+              {/* ─── Profil ─── */}
+              {(
               <div className="p-6 lg:p-8">
                 <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-2xl">
                   <h3 className="text-xl font-bold mb-6">Profil professionnel</h3>
@@ -1790,7 +2186,7 @@ export default function DashboardPage() {
                       uploadMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
                     }`}>
                       {uploadMsg.text}
-                      <button onClick={() => setUploadMsg(null)} className="ml-auto text-gray-400 hover:text-gray-600">✕</button>
+                      <button onClick={() => setUploadMsg(null)} className="ml-auto text-gray-500 hover:text-gray-600">✕</button>
                     </div>
                   )}
 
@@ -1805,7 +2201,7 @@ export default function DashboardPage() {
                           ) : (artisan as any)?.profile_photo_url ? (
                             <img src={(artisan as any).profile_photo_url} alt="Photo profil" className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-3xl font-bold text-gray-400">{initials}</span>
+                            <span className="text-3xl font-bold text-gray-500">{initials}</span>
                           )}
                         </div>
                         <div className="flex-1">
@@ -1833,7 +2229,7 @@ export default function DashboardPage() {
                               {profilePhotoUploading ? '⏳ Upload...' : '⬆️ Envoyer'}
                             </button>
                           )}
-                          <p className="text-xs text-gray-400 mt-1">JPG, PNG ou WEBP — max 10 Mo</p>
+                          <p className="text-xs text-gray-500 mt-1">JPG, PNG ou WEBP — max 10 Mo</p>
                         </div>
                       </div>
                     </div>
@@ -1862,9 +2258,9 @@ export default function DashboardPage() {
                     <div>
                       <label className="block mb-2 font-semibold text-sm">Lien de réservation clients</label>
                       <div className="flex items-center gap-2">
-                        <input type="text" readOnly value={`https://fixit-production.vercel.app/artisan/${artisan?.id || ''}`}
+                        <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://fixit-production.vercel.app'}/artisan/${artisan?.slug || artisan?.id || ''}`}
                           className="w-full p-3 border-2 border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600" />
-                        <button onClick={() => { navigator.clipboard.writeText(`https://fixit-production.vercel.app/artisan/${artisan?.id || ''}`); alert('Lien copié !') }}
+                        <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://fixit-production.vercel.app'}/artisan/${artisan?.slug || artisan?.id || ''}`); alert('Lien copié !') }}
                           className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-3 rounded-lg font-semibold text-sm transition whitespace-nowrap">
                           📋 Copier
                         </button>
@@ -1875,76 +2271,6 @@ export default function DashboardPage() {
                         className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50">
                         {savingSettings ? '⏳ Sauvegarde...' : '💾 Enregistrer'}
                       </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Documents professionnels */}
-                <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-2xl mt-6">
-                  <h3 className="text-xl font-bold mb-2">📁 Documents professionnels</h3>
-                  <p className="text-sm text-gray-500 mb-6">Mettez à jour votre Kbis et votre attestation d&apos;assurance.</p>
-
-                  <div className="space-y-6">
-                    {/* Upload Kbis */}
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="font-semibold text-sm">Extrait Kbis</div>
-                          <p className="text-xs text-gray-500 mt-0.5">À mettre à jour si vous changez de statut juridique</p>
-                        </div>
-                        {(artisan as any)?.kbis_url && (
-                          <a href={(artisan as any).kbis_url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                            👁️ Voir actuel
-                          </a>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="cursor-pointer flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition flex-1">
-                          📄 {kbisFile ? kbisFile.name : 'Choisir un fichier'}
-                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => setKbisFile(e.target.files?.[0] || null)} />
-                        </label>
-                        {kbisFile && (
-                          <button
-                            onClick={() => { uploadDocument(kbisFile, 'kbis', 'kbis_url', setKbisUploading); setKbisFile(null) }}
-                            disabled={kbisUploading}
-                            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {kbisUploading ? '⏳...' : '⬆️ Envoyer'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Upload Assurance */}
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="font-semibold text-sm">Attestation d&apos;assurance</div>
-                          <p className="text-xs text-gray-500 mt-0.5">RC Pro, décennale — à renouveler chaque année</p>
-                        </div>
-                        {(artisan as any)?.insurance_url && (
-                          <a href={(artisan as any).insurance_url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                            👁️ Voir actuel
-                          </a>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="cursor-pointer flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition flex-1">
-                          📄 {insuranceFile ? insuranceFile.name : 'Choisir un fichier'}
-                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => setInsuranceFile(e.target.files?.[0] || null)} />
-                        </label>
-                        {insuranceFile && (
-                          <button
-                            onClick={() => { uploadDocument(insuranceFile, 'insurance', 'insurance_url', setInsuranceUploading); setInsuranceFile(null) }}
-                            disabled={insuranceUploading}
-                            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {insuranceUploading ? '⏳...' : '⬆️ Envoyer'}
-                          </button>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1964,23 +2290,65 @@ export default function DashboardPage() {
                         <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${autoAccept ? 'translate-x-7' : 'translate-x-0.5'}`} />
                       </button>
                     </div>
+                    {autoAccept && (
+                      <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div className="font-semibold mb-2">⚙️ Options d'acceptation auto</div>
+                        <label className="text-sm text-gray-600 block mb-1">Durée de blocage par RDV</label>
+                        <select
+                          value={settingsForm.auto_block_duration_minutes}
+                          onChange={e => setSettingsForm({...settingsForm, auto_block_duration_minutes: parseInt(e.target.value)})}
+                          className="w-full border border-green-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-green-400"
+                        >
+                          <option value={60}>1 heure</option>
+                          <option value={120}>2 heures</option>
+                          <option value={180}>3 heures</option>
+                          <option value={240}>4 heures (défaut)</option>
+                          <option value={360}>6 heures</option>
+                          <option value={480}>8 heures (journée)</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Chaque RDV confirmé bloquera ce créneau dans votre agenda</p>
+                      </div>
+                    )}
+
                     <div className="p-4 bg-gray-50 rounded-xl">
-                      <div className="font-semibold mb-3">Plages d&apos;ouverture</div>
-                      <p className="text-sm text-gray-500 mb-3">Gérez vos horaires dans l&apos;onglet Horaires</p>
-                      <button onClick={() => navigateTo('horaires')} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-all">
-                        🕐 Ouvrir les horaires
-                      </button>
+                      <div className="font-semibold mb-2">💬 Réponse automatique</div>
+                      <p className="text-sm text-gray-500 mb-2">Envoyée au client dès la prise de RDV</p>
+                      <textarea
+                        value={settingsForm.auto_reply_message}
+                        onChange={e => setSettingsForm({...settingsForm, auto_reply_message: e.target.value})}
+                        rows={3}
+                        placeholder="Ex: Bonjour, merci pour votre réservation ! Pouvez-vous m'envoyer des photos du lieu et les infos d'accès ?"
+                        className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
+                      />
                     </div>
+
                     <div className="p-4 bg-gray-50 rounded-xl">
-                      <div className="font-semibold mb-3">Motifs de consultation</div>
-                      <p className="text-sm text-gray-500 mb-3">{services.filter(s => s.active).length} motifs actifs sur {services.length}</p>
-                      <button onClick={() => navigateTo('motifs')} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-all">
-                        🔧 Gérer les motifs
+                      <div className="font-semibold mb-2">📍 Périmètre d'intervention</div>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="range"
+                          min={5}
+                          max={100}
+                          step={5}
+                          value={settingsForm.zone_radius_km}
+                          onChange={e => setSettingsForm({...settingsForm, zone_radius_km: parseInt(e.target.value)})}
+                          className="flex-1 accent-[#FFC107]"
+                        />
+                        <span className="text-lg font-bold text-gray-900 min-w-[60px] text-right">{settingsForm.zone_radius_km} km</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Rayon autour de votre adresse</p>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={saveSettings} disabled={savingSettings}
+                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50">
+                        {savingSettings ? '⏳ Sauvegarde...' : '💾 Enregistrer les paramètres'}
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
 
@@ -2004,6 +2372,18 @@ export default function DashboardPage() {
                 setSidebarOpen(false)
               }}
             />
+          )}
+
+
+
+          {/* ────── WALLET CONFORMITÉ ────── */}
+          {activePage === 'wallet' && (
+            <WalletConformiteSection artisan={artisan} />
+          )}
+
+          {/* ────── CARNET DE VISITE / PORTFOLIO ────── */}
+          {activePage === 'portfolio' && (
+            <CarnetDeVisiteSection artisan={artisan} />
           )}
 
           {/* ────── BASE CLIENTS ────── */}
@@ -2145,6 +2525,11 @@ export default function DashboardPage() {
             <ContratsSection artisan={artisan} />
           )}
 
+          {/* ────── RAPPORTS D'INTERVENTION ────── */}
+          {activePage === 'rapports' && (
+            <RapportsSection artisan={artisan} bookings={bookings} services={services} />
+          )}
+
           {/* ────── CANAL PRO ────── */}
           {activePage === 'canal' && (
             <CanalProSection artisan={artisan} orgRole={orgRole} />
@@ -2159,7 +2544,7 @@ export default function DashboardPage() {
               <div className="p-6 lg:p-8 max-w-3xl mx-auto">
                 <div className="bg-white p-8 rounded-2xl shadow-sm mb-6">
                   <h2 className="text-xl font-bold mb-4">🚀 Démarrage rapide</h2>
-                  <p className="text-gray-500 mb-4 text-lg">Bienvenue sur VitFix Pro ! Voici comment commencer :</p>
+                  <p className="text-gray-500 mb-4 text-lg">Bienvenue sur Vitfix Pro ! Voici comment commencer :</p>
                   <ol className="list-decimal pl-6 text-gray-600 space-y-3 text-lg leading-relaxed">
                     <li>Configurez vos motifs de consultation dans l&apos;onglet &quot;Motifs&quot;</li>
                     <li>Activez votre disponibilité dans le calendrier</li>
@@ -2215,6 +2600,8 @@ export default function DashboardPage() {
           artisan={artisan}
           bookings={bookings}
           services={services}
+          availability={availability}
+          dayServices={dayServices}
           onCreateRdv={async (data) => {
             const service = data.service_id ? services.find((s: any) => s.id === data.service_id) : services[0]
             const status = autoAccept ? 'confirmed' : 'pending'
@@ -2235,7 +2622,6 @@ export default function DashboardPage() {
             }
           }}
           onCreateDevis={(data) => {
-            // Passer les données du chatbot au formulaire via convertingDevis
             setConvertingDevis(data)
             if (data.docType === 'facture') {
               setShowFactureForm(true)
@@ -2246,1966 +2632,602 @@ export default function DashboardPage() {
             }
           }}
           onNavigate={(page) => setActivePage(page)}
+          onDataRefresh={async () => {
+            // Refresh all data after Fixy executes server-side actions
+            const [availRes, svcRes, bkRes, dsRes] = await Promise.all([
+              fetch(`/api/availability?artisan_id=${artisan.id}`),
+              supabase.from('services').select('*').eq('artisan_id', artisan.id).order('created_at'),
+              supabase.from('bookings').select('*, services(name)').eq('artisan_id', artisan.id).order('booking_date', { ascending: false }).limit(50),
+              fetch(`/api/availability-services?artisan_id=${artisan.id}`),
+            ])
+            const availJson = await availRes.json()
+            setAvailability(availJson.data || [])
+            if (svcRes.data) setServices(svcRes.data)
+            if (bkRes.data) setBookings(bkRes.data)
+            try {
+              const dsJson = await dsRes.json()
+              if (dsJson.dayServices) setDayServices(dsJson.dayServices)
+            } catch {}
+          }}
         />
       )}
-    </div>
-  )
-}
 
-/* ══════════ COMPTABILITÉ SECTION ══════════ */
-
-function ComptabiliteSection({ bookings, artisan, services }: { bookings: any[]; artisan: any; services: any[] }) {
-  const currentYear = new Date().getFullYear()
-  const currentMonth = new Date().getMonth()
-  const [selectedYear, setSelectedYear] = useState(currentYear)
-  const [selectedPeriod, setSelectedPeriod] = useState<'mois' | 'trimestre' | 'annee'>('mois')
-  const [selectedMonth, setSelectedMonthC] = useState(currentMonth)
-  const [expenses, setExpenses] = useState<any[]>(() => {
-    try { return JSON.parse(localStorage.getItem(`fixit_expenses_${artisan?.id}`) || '[]') } catch { return [] }
-  })
-  const [showAddExpense, setShowAddExpense] = useState(false)
-  const [expenseForm, setExpenseForm] = useState({ label: '', amount: '', category: 'materiel', date: new Date().toISOString().split('T')[0], notes: '' })
-  const [activeComptaTab, setActiveComptaTab] = useState<'dashboard' | 'revenus' | 'depenses' | 'declaration' | 'assistant'>('dashboard')
-
-  const MONTH_NAMES = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc']
-  const MONTH_FULL = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
-  const EXPENSE_CATEGORIES = [
-    { key: 'materiel', label: 'Matériaux & fournitures chantier', icon: '🔧' },
-    { key: 'mainoeuvre', label: 'Main d\'œuvre & sous-traitance', icon: '👷' },
-    { key: 'transport', label: 'Transport & carburant', icon: '🚗' },
-    { key: 'outillage', label: 'Outillage & machines', icon: '🛠️' },
-    { key: 'assurance', label: 'Assurance (RC Pro, décennale…)', icon: '🛡️' },
-    { key: 'formation', label: 'Formation & certifications', icon: '📚' },
-    { key: 'logiciel', label: 'Logiciels & abonnements', icon: '💻' },
-    { key: 'telephone', label: 'Téléphone & internet', icon: '📱' },
-    { key: 'comptable', label: 'Expert-comptable & juridique', icon: '🧮' },
-    { key: 'publicite', label: 'Publicité & marketing', icon: '📣' },
-    { key: 'bureau', label: 'Frais de bureau', icon: '🏢' },
-    { key: 'autre', label: 'Autres charges', icon: '📦' },
-  ]
-
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-  const getBookingsForPeriod = (year: number, month?: number, quarter?: number) => {
-    return bookings.filter(b => {
-      if (!b.booking_date) return false
-      const d = new Date(b.booking_date)
-      if (d.getFullYear() !== year) return false
-      if (selectedPeriod === 'mois' && month !== undefined) return d.getMonth() === month
-      if (selectedPeriod === 'trimestre' && quarter !== undefined) return Math.floor(d.getMonth() / 3) === quarter
-      return true
-    })
-  }
-
-  const getQuarter = () => Math.floor(selectedMonth / 3)
-
-  const filteredBookings = selectedPeriod === 'mois'
-    ? getBookingsForPeriod(selectedYear, selectedMonth)
-    : selectedPeriod === 'trimestre'
-    ? getBookingsForPeriod(selectedYear, undefined, getQuarter())
-    : getBookingsForPeriod(selectedYear)
-
-  const completedFiltered = filteredBookings.filter(b => b.status === 'completed')
-  const chiffreAffaires = completedFiltered.reduce((s, b) => s + (b.price_ttc || 0), 0)
-  const chiffreAffairesHT = completedFiltered.reduce((s, b) => s + (b.price_ht || (b.price_ttc || 0) / 1.2), 0)
-  const tvaCollectee = chiffreAffaires - chiffreAffairesHT
-
-  const filteredExpenses = expenses.filter(e => {
-    const d = new Date(e.date)
-    if (d.getFullYear() !== selectedYear) return false
-    if (selectedPeriod === 'mois') return d.getMonth() === selectedMonth
-    if (selectedPeriod === 'trimestre') return Math.floor(d.getMonth() / 3) === getQuarter()
-    return true
-  })
-
-  const totalExpenses = filteredExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0)
-  const resultatNet = chiffreAffairesHT - totalExpenses
-
-  // Monthly revenue for chart
-  const monthlyRevenue = Array.from({ length: 12 }, (_, m) => {
-    const mb = bookings.filter(b => {
-      if (!b.booking_date || b.status !== 'completed') return false
-      const d = new Date(b.booking_date)
-      return d.getFullYear() === selectedYear && d.getMonth() === m
-    })
-    return { month: MONTH_NAMES[m], ca: mb.reduce((s, b) => s + (b.price_ttc || 0), 0) }
-  })
-
-  const maxCA = Math.max(...monthlyRevenue.map(m => m.ca), 1)
-
-  // Expense breakdown by category
-  const expenseByCategory = EXPENSE_CATEGORIES.map(cat => ({
-    ...cat,
-    total: expenses.filter(e => e.category === cat.key && new Date(e.date).getFullYear() === selectedYear)
-      .reduce((s, e) => s + parseFloat(e.amount || 0), 0)
-  })).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
-
-  const saveExpense = () => {
-    if (!expenseForm.label || !expenseForm.amount) return
-    const newExpense = { ...expenseForm, id: Date.now().toString(), amount: parseFloat(expenseForm.amount) }
-    const updated = [...expenses, newExpense]
-    setExpenses(updated)
-    localStorage.setItem(`fixit_expenses_${artisan?.id}`, JSON.stringify(updated))
-    setShowAddExpense(false)
-    setExpenseForm({ label: '', amount: '', category: 'materiel', date: new Date().toISOString().split('T')[0], notes: '' })
-  }
-
-  const deleteExpense = (id: string) => {
-    const updated = expenses.filter(e => e.id !== id)
-    setExpenses(updated)
-    localStorage.setItem(`fixit_expenses_${artisan?.id}`, JSON.stringify(updated))
-  }
-
-  // Declaration data
-  const quarterLabels = ['T1 (Jan-Mars)', 'T2 (Avr-Juin)', 'T3 (Juil-Sept)', 'T4 (Oct-Déc)']
-  const quarterData = [0, 1, 2, 3].map(q => {
-    const qb = bookings.filter(b => {
-      if (!b.booking_date || b.status !== 'completed') return false
-      const d = new Date(b.booking_date)
-      return d.getFullYear() === selectedYear && Math.floor(d.getMonth() / 3) === q
-    })
-    return qb.reduce((s, b) => s + (b.price_ht || (b.price_ttc || 0) / 1.2), 0)
-  })
-
-  const annualHT = quarterData.reduce((s, v) => s + v, 0)
-  const isAutoEntrepreneur = annualHT < 77700 // plafond micro-entreprise artisans 2024
-  const tauxCotisation = 0.217 // 21.7% pour artisans
-  const cotisationsSociales = annualHT * tauxCotisation
-  const impotRevenu = annualHT * 0.011 // 1.1% prélèvement libératoire optionnel artisans
-  const resultatApresCharges = annualHT - cotisationsSociales
-
-  const formatEur = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v)
-
-  return (
-    <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] flex justify-between items-center shadow-sm">
-        <h1 className="text-2xl font-semibold">🧮 Comptabilité & Fiscalité</h1>
-        <div className="flex items-center gap-3">
-          <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:border-[#FFC107]">
-            {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <div className="flex bg-gray-100 rounded-lg overflow-hidden">
-            {(['mois', 'trimestre', 'annee'] as const).map(p => (
-              <button key={p} onClick={() => setSelectedPeriod(p)}
-                className={`px-3 py-1.5 text-xs font-semibold transition ${selectedPeriod === p ? 'bg-[#FFC107] text-gray-900' : 'text-gray-500 hover:bg-gray-200'}`}>
-                {p === 'mois' ? 'Mois' : p === 'trimestre' ? 'Trimestre' : 'Année'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 lg:p-8">
-
-        {/* Period selector */}
-        {selectedPeriod === 'mois' && (
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-            {MONTH_NAMES.map((m, i) => (
-              <button key={i} onClick={() => setSelectedMonthC(i)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${selectedMonth === i ? 'bg-[#FFC107] text-gray-900' : 'bg-white border border-gray-200 text-gray-500 hover:border-[#FFC107]'}`}>
-                {m}
-              </button>
-            ))}
-          </div>
-        )}
-        {selectedPeriod === 'trimestre' && (
-          <div className="flex gap-2 mb-6">
-            {[0, 1, 2, 3].map(q => (
-              <button key={q} onClick={() => setSelectedMonthC(q * 3)}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${getQuarter() === q ? 'bg-[#FFC107] text-gray-900' : 'bg-white border border-gray-200 text-gray-500 hover:border-[#FFC107]'}`}>
-                {quarterLabels[q]}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Sub-tabs */}
-        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-          {([
-            { key: 'dashboard', label: '📊 Tableau de bord' },
-            { key: 'revenus', label: '💰 Revenus' },
-            { key: 'depenses', label: '🧾 Dépenses' },
-            { key: 'declaration', label: '🏛️ Déclaration' },
-            { key: 'assistant', label: '🤖 Assistant IA' },
-          ] as const).map(t => (
-            <button key={t.key} onClick={() => setActiveComptaTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${activeComptaTab === t.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── DASHBOARD TAB ── */}
-        {activeComptaTab === 'dashboard' && (
-          <div>
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-400">
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Chiffre d&apos;affaires TTC</div>
-                <div className="text-3xl font-black text-green-600">{formatEur(chiffreAffaires)}</div>
-                <div className="text-xs text-gray-400 mt-1">{completedFiltered.length} intervention(s)</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-400">
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">CA Hors Taxes</div>
-                <div className="text-3xl font-black text-blue-600">{formatEur(chiffreAffairesHT)}</div>
-                <div className="text-xs text-gray-400 mt-1">TVA : {formatEur(tvaCollectee)}</div>
-              </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-red-400">
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Charges déductibles</div>
-                <div className="text-3xl font-black text-red-500">{formatEur(totalExpenses)}</div>
-                <div className="text-xs text-gray-400 mt-1">{filteredExpenses.length} dépense(s)</div>
-              </div>
-              <div className={`bg-white p-6 rounded-2xl shadow-sm border-l-4 ${resultatNet >= 0 ? 'border-[#FFC107]' : 'border-red-500'}`}>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Résultat net</div>
-                <div className={`text-3xl font-black ${resultatNet >= 0 ? 'text-gray-900' : 'text-red-500'}`}>{formatEur(resultatNet)}</div>
-                <div className="text-xs text-gray-400 mt-1">avant impôts</div>
-              </div>
-            </div>
-
-            {/* Revenue chart */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm mb-6">
-              <h3 className="font-bold text-lg mb-5">📈 Évolution du CA mensuel {selectedYear}</h3>
-              <div className="flex items-end gap-2 h-40">
-                {monthlyRevenue.map((m, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="text-[9px] text-gray-400 font-semibold">
-                      {m.ca > 0 ? formatEur(m.ca).replace('€', '') + '€' : ''}
-                    </div>
-                    <div
-                      className={`w-full rounded-t-lg transition-all ${i === currentMonth && selectedYear === currentYear ? 'bg-[#FFC107]' : 'bg-blue-100'}`}
-                      style={{ height: `${Math.max(4, (m.ca / maxCA) * 100)}%` }}
-                    />
-                    <div className="text-[9px] text-gray-400">{m.month}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Health indicator */}
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div className="bg-green-50 border border-green-200 p-5 rounded-2xl">
-                <div className="font-bold text-green-800 mb-2">✅ Statut fiscal</div>
-                <div className="text-sm text-green-700">
-                  {isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !'}
-                </div>
-                <div className="text-xs text-green-600 mt-1">
-                  CA annuel : {formatEur(bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
-                  {' / '}77 700 €
-                </div>
-              </div>
-              <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
-                <div className="font-bold text-blue-800 mb-2">💳 Cotisations estimées</div>
-                <div className="text-2xl font-black text-blue-700">{formatEur(cotisationsSociales)}</div>
-                <div className="text-xs text-blue-600 mt-1">21,7% du CA HT annuel</div>
-              </div>
-              <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
-                <div className="font-bold text-amber-800 mb-2">📋 Prochaine déclaration</div>
-                <div className="text-sm text-amber-700 font-semibold">
-                  {(() => {
-                    const q = Math.floor(currentMonth / 3)
-                    const dates = ['30 Avril', '31 Juillet', '31 Oct', '31 Jan']
-                    return dates[q] || 'Voir calendrier'
-                  })()}
-                </div>
-                <div className="text-xs text-amber-600 mt-1">Déclaration URSSAF trimestrielle</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── REVENUS TAB ── */}
-        {activeComptaTab === 'revenus' && (
-          <div>
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6">
-              <div className="p-5 border-b border-gray-100">
-                <h3 className="font-bold text-lg">
-                  💰 Revenus — {selectedPeriod === 'mois' ? MONTH_FULL[selectedMonth] : selectedPeriod === 'trimestre' ? quarterLabels[getQuarter()] : selectedYear}
-                </h3>
-                <div className="flex gap-6 mt-3">
-                  <div><span className="text-2xl font-black text-green-600">{formatEur(chiffreAffaires)}</span><span className="text-xs text-gray-400 ml-1">TTC</span></div>
-                  <div><span className="text-2xl font-black text-blue-500">{formatEur(chiffreAffairesHT)}</span><span className="text-xs text-gray-400 ml-1">HT</span></div>
-                  <div><span className="text-2xl font-black text-gray-500">{formatEur(tvaCollectee)}</span><span className="text-xs text-gray-400 ml-1">TVA 20%</span></div>
-                </div>
-              </div>
-              {completedFiltered.length === 0 ? (
-                <div className="p-10 text-center text-gray-400">Aucune intervention terminée sur cette période</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left px-5 py-3 text-xs text-gray-500 font-semibold">Date</th>
-                      <th className="text-left px-5 py-3 text-xs text-gray-500 font-semibold">Client / Service</th>
-                      <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold">HT</th>
-                      <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold">TVA</th>
-                      <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold">TTC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {completedFiltered.sort((a, b) => b.booking_date.localeCompare(a.booking_date)).map(b => {
-                      const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
-                      const ht = b.price_ht || (b.price_ttc || 0) / 1.2
-                      const tva = (b.price_ttc || 0) - ht
-                      return (
-                        <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
-                          <td className="px-5 py-3 text-gray-500">{new Date(b.booking_date).toLocaleDateString('fr-FR')}</td>
-                          <td className="px-5 py-3">
-                            <div className="font-medium">{clientName}</div>
-                            <div className="text-xs text-gray-400">{b.services?.name}</div>
-                          </td>
-                          <td className="px-5 py-3 text-right font-semibold">{formatEur(ht)}</td>
-                          <td className="px-5 py-3 text-right text-gray-400">{formatEur(tva)}</td>
-                          <td className="px-5 py-3 text-right font-bold text-green-600">{formatEur(b.price_ttc || 0)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot className="bg-gray-50 border-t-2 border-gray-200">
-                    <tr>
-                      <td colSpan={2} className="px-5 py-3 font-bold">TOTAL</td>
-                      <td className="px-5 py-3 text-right font-bold">{formatEur(chiffreAffairesHT)}</td>
-                      <td className="px-5 py-3 text-right font-bold text-gray-500">{formatEur(tvaCollectee)}</td>
-                      <td className="px-5 py-3 text-right font-bold text-green-600">{formatEur(chiffreAffaires)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              )}
-            </div>
-
-            {/* Revenue by service */}
-            {services.length > 0 && (
-              <div className="bg-white p-6 rounded-2xl shadow-sm">
-                <h3 className="font-bold mb-4">🔧 CA par motif ({selectedYear})</h3>
-                <div className="space-y-3">
-                  {services.map(s => {
-                    const sBookings = bookings.filter(b => b.service_id === s.id && b.status === 'completed' && new Date(b.booking_date).getFullYear() === selectedYear)
-                    const sCA = sBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0)
-                    const pct = maxCA > 0 ? (sCA / (chiffreAffaires || 1)) * 100 : 0
-                    return (
-                      <div key={s.id}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="font-medium">{s.name}</span>
-                          <span className="font-bold text-green-600">{formatEur(sCA)} ({sBookings.length} RDV)</span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-[#FFC107] to-[#FFD54F] rounded-full transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── DÉPENSES TAB ── */}
-        {activeComptaTab === 'depenses' && (
-          <div>
-            <div className="flex justify-between items-center mb-5">
+      {/* ── Modal Messagerie Artisan Dashboard ── */}
+      {dashMsgModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDashMsgModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
               <div>
-                <h3 className="font-bold text-lg">🧾 Charges déductibles</h3>
-                <p className="text-sm text-gray-500">Total : <span className="font-bold text-red-500">{formatEur(totalExpenses)}</span></p>
+                <h3 className="text-lg font-bold text-gray-900">💬 Messages</h3>
+                <p className="text-sm text-gray-500 mt-0.5">{dashMsgModal.services?.name || 'Service'} &bull; {dashMsgModal.booking_date} à {dashMsgModal.booking_time?.substring(0, 5)}</p>
               </div>
-              <button onClick={() => setShowAddExpense(true)}
-                className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-xl font-semibold shadow-sm text-sm transition-all">
-                + Ajouter une charge
-              </button>
+              <button onClick={() => setDashMsgModal(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
-
-            {showAddExpense && (
-              <div className="bg-white border-2 border-[#FFC107] p-6 rounded-2xl mb-5">
-                <h4 className="font-bold mb-4">Nouvelle charge déductible</h4>
-                <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Libellé *</label>
-                    <input value={expenseForm.label} onChange={e => setExpenseForm(p => ({ ...p, label: e.target.value }))}
-                      placeholder="Ex: Achat vis et boulons" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Montant TTC (€) *</label>
-                    <input type="number" value={expenseForm.amount} onChange={e => setExpenseForm(p => ({ ...p, amount: e.target.value }))}
-                      placeholder="0.00" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Catégorie</label>
-                    <select value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]">
-                      {EXPENSE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Date</label>
-                    <input type="date" value={expenseForm.date} onChange={e => setExpenseForm(p => ({ ...p, date: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Notes (optionnel)</label>
-                    <input value={expenseForm.notes} onChange={e => setExpenseForm(p => ({ ...p, notes: e.target.value }))}
-                      placeholder="Numéro de facture, fournisseur..." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setShowAddExpense(false)} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-xl text-sm font-semibold">Annuler</button>
-                  <button onClick={saveExpense} disabled={!expenseForm.label || !expenseForm.amount}
-                    className="flex-1 bg-[#FFC107] text-gray-900 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50">Enregistrer</button>
-                </div>
-              </div>
-            )}
-
-            {/* Breakdown by category */}
-            {expenseByCategory.length > 0 && (
-              <div className="bg-white p-5 rounded-2xl shadow-sm mb-5">
-                <h4 className="font-semibold mb-4">Répartition par catégorie</h4>
-                <div className="space-y-3">
-                  {expenseByCategory.map(c => (
-                    <div key={c.key}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>{c.icon} {c.label}</span>
-                        <span className="font-bold text-red-500">{formatEur(c.total)}</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-red-400 rounded-full" style={{ width: `${(c.total / (totalExpenses || 1)) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Expenses list */}
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 font-semibold text-sm text-gray-700">
-                Liste des charges ({filteredExpenses.length})
-              </div>
-              {filteredExpenses.length === 0 ? (
-                <div className="p-10 text-center text-gray-400">
-                  <div className="text-4xl mb-3">🧾</div>
-                  <div>Aucune charge enregistrée sur cette période</div>
-                  <button onClick={() => setShowAddExpense(true)} className="mt-3 text-[#FFC107] font-semibold text-sm">+ Ajouter une charge</button>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+              {dashMsgList.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  Aucun message pour ce RDV. Envoyez un message au client.
                 </div>
               ) : (
-                <div>
-                  {filteredExpenses.sort((a, b) => b.date.localeCompare(a.date)).map(e => {
-                    const cat = EXPENSE_CATEGORIES.find(c => c.key === e.category)
-                    return (
-                      <div key={e.id} className="flex items-center gap-4 px-5 py-4 border-t border-gray-100 hover:bg-gray-50 group">
-                        <div className="text-2xl">{cat?.icon || '📦'}</div>
-                        <div className="flex-1">
-                          <div className="font-semibold text-sm">{e.label}</div>
-                          <div className="text-xs text-gray-400">{cat?.label} · {new Date(e.date).toLocaleDateString('fr-FR')}</div>
-                          {e.notes && <div className="text-xs text-gray-400 italic">{e.notes}</div>}
-                        </div>
-                        <div className="font-bold text-red-500">{formatEur(parseFloat(e.amount))}</div>
-                        <button onClick={() => deleteExpense(e.id)}
-                          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition ml-2 text-lg">🗑</button>
-                      </div>
-                    )
-                  })}
-                </div>
+                dashMsgList.map((msg: any) => (
+                  <div key={msg.id} className={`flex ${msg.sender_role === 'artisan' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                      msg.sender_role === 'artisan'
+                        ? 'bg-[#FFC107] text-gray-900'
+                        : msg.type === 'auto_reply'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {msg.type === 'auto_reply' && <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>}
+                      {msg.sender_role === 'client' && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
+                      <p className="text-sm">{msg.content}</p>
+                      <p className={`text-[10px] mt-1 ${msg.sender_role === 'artisan' ? 'text-gray-700' : 'text-gray-500'}`}>
+                        {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
-          </div>
-        )}
-
-        {/* ── DÉCLARATION TAB ── */}
-        {activeComptaTab === 'declaration' && (
-          <div className="space-y-6">
-            {/* Status badge */}
-            <div className={`p-5 rounded-2xl border-2 flex items-start gap-4 ${isAutoEntrepreneur ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
-              <div className="text-3xl">{isAutoEntrepreneur ? '✅' : '⚠️'}</div>
-              <div>
-                <div className={`font-bold text-lg ${isAutoEntrepreneur ? 'text-green-800' : 'text-red-700'}`}>
-                  {isAutoEntrepreneur ? 'Régime Micro-Entrepreneur (Auto-entrepreneur)' : '⚠️ Attention : Dépassement de plafond possible'}
-                </div>
-                <div className={`text-sm mt-1 ${isAutoEntrepreneur ? 'text-green-700' : 'text-red-600'}`}>
-                  {isAutoEntrepreneur
-                    ? `CA HT annuel estimé : ${formatEur(annualHT)} sur ${formatEur(77700)} de plafond autorisé`
-                    : `Votre CA dépasse le seuil de 77 700 €. Consultez un expert-comptable pour le passage en régime réel.`}
-                </div>
-              </div>
-            </div>
-
-            {/* Quarterly declaration */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm">
-              <h3 className="font-bold text-lg mb-5">📋 Déclarations URSSAF trimestrielles {selectedYear}</h3>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {quarterData.map((ca, q) => {
-                  const deadline = ['30 avril', '31 juillet', '31 octobre', '31 janvier'][q]
-                  const cotis = ca * tauxCotisation
-                  const isPast = (q < Math.floor(currentMonth / 3)) && selectedYear <= currentYear
-                  return (
-                    <div key={q} className={`p-5 rounded-xl border-2 ${isPast ? 'border-gray-200 bg-gray-50' : 'border-[#FFC107] bg-amber-50'}`}>
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="font-bold text-gray-900">{quarterLabels[q]}</div>
-                        {isPast && <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Passé</span>}
-                        {!isPast && <span className="text-xs bg-[#FFC107] text-gray-900 px-2 py-0.5 rounded-full font-semibold">À déclarer</span>}
-                      </div>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">CA HT réalisé</span>
-                          <span className="font-bold">{formatEur(ca)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Cotisations (21,7%)</span>
-                          <span className="font-bold text-red-500">{formatEur(cotis)}</span>
-                        </div>
-                        <div className="border-t pt-2 flex justify-between font-bold">
-                          <span>À payer</span>
-                          <span className="text-red-600">{formatEur(cotis)}</span>
-                        </div>
-                      </div>
-                      <div className="mt-3 text-xs text-gray-400">⏰ Délai : {deadline}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Annual summary */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm">
-              <h3 className="font-bold text-lg mb-5">📊 Récapitulatif annuel {selectedYear}</h3>
-              <div className="space-y-3">
-                {[
-                  { label: 'Chiffre d\'affaires TTC', value: chiffreAffaires + (bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === selectedYear && filteredBookings.indexOf(b) === -1).reduce((s, b) => s + (b.price_ttc || 0), 0)), color: 'text-green-600', bg: 'bg-green-50' },
-                  { label: 'CA Hors Taxes (déclarable)', value: annualHT, color: 'text-blue-600', bg: 'bg-blue-50' },
-                  { label: 'Cotisations sociales URSSAF (21,7%)', value: -cotisationsSociales, color: 'text-red-600', bg: 'bg-red-50' },
-                  { label: 'Prélèvement libératoire IR (1,1%)', value: -impotRevenu, color: 'text-orange-600', bg: 'bg-orange-50' },
-                  { label: 'Résultat net estimé', value: resultatApresCharges - impotRevenu, color: 'text-gray-900', bg: 'bg-gray-50', bold: true },
-                ].map((row, i) => (
-                  <div key={i} className={`flex justify-between items-center px-4 py-3 rounded-xl ${row.bg}`}>
-                    <span className={`text-sm ${row.bold ? 'font-bold' : 'font-medium'} text-gray-700`}>{row.label}</span>
-                    <span className={`font-bold ${row.color} ${row.bold ? 'text-lg' : ''}`}>
-                      {row.value < 0 ? `- ${formatEur(Math.abs(row.value))}` : formatEur(row.value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Action links */}
-            <div className="grid sm:grid-cols-3 gap-4">
-              <a href="https://www.autoentrepreneur.urssaf.fr" target="_blank" rel="noopener noreferrer"
-                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:-translate-y-1 transition-transform cursor-pointer text-center">
-                <div className="text-3xl mb-2">🏛️</div>
-                <div className="font-semibold text-sm">URSSAF</div>
-                <div className="text-xs text-gray-400">Déclarer votre CA</div>
-              </a>
-              <a href="https://www.impots.gouv.fr" target="_blank" rel="noopener noreferrer"
-                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:-translate-y-1 transition-transform cursor-pointer text-center">
-                <div className="text-3xl mb-2">📋</div>
-                <div className="font-semibold text-sm">impots.gouv.fr</div>
-                <div className="text-xs text-gray-400">Déclaration de revenus</div>
-              </a>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:-translate-y-1 transition-transform cursor-pointer text-center">
-                <div className="text-3xl mb-2">📥</div>
-                <div className="font-semibold text-sm">Exporter données</div>
-                <div className="text-xs text-gray-400">CSV pour votre comptable</div>
-                <button onClick={() => {
-                  const rows = [
-                    ['Date', 'Client', 'Service', 'HT', 'TVA', 'TTC', 'Statut'],
-                    ...bookings.filter(b => new Date(b.booking_date).getFullYear() === selectedYear && b.status === 'completed').map(b => {
-                      const client = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
-                      const ht = (b.price_ht || (b.price_ttc || 0) / 1.2).toFixed(2)
-                      const tva = ((b.price_ttc || 0) - parseFloat(ht)).toFixed(2)
-                      return [b.booking_date, client, b.services?.name || '', ht, tva, (b.price_ttc || 0).toFixed(2), b.status]
-                    })
-                  ]
-                  const csv = rows.map(r => r.join(';')).join('\n')
-                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a'); a.href = url; a.download = `fixit-revenus-${selectedYear}.csv`; a.click()
-                  URL.revokeObjectURL(url)
-                }} className="mt-2 text-xs text-[#FFC107] font-semibold block">Télécharger CSV →</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── AGENT COMPTABLE LÉAU ── */}
-        {activeComptaTab === 'assistant' && (
-          <AgentComptable
-            bookings={bookings}
-            artisan={artisan}
-            services={services}
-            expenses={expenses}
-            annualHT={annualHT}
-            annualCA={bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
-            totalExpenses={expenses.filter(e => new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(e.amount || 0), 0)}
-            quarterData={quarterData}
-            currentMonth={currentMonth}
-            currentYear={currentYear}
-            formatEur={formatEur}
-          />
-        )}
-
-      </div>
-    </div>
-  )
-}
-
-/* ══════════ AGENT COMPTABLE LÉA ══════════ */
-
-function AgentComptable({ bookings, artisan, services, expenses, annualHT, annualCA, totalExpenses, quarterData, currentMonth, currentYear, formatEur }: {
-  bookings: any[]; artisan: any; services: any[]; expenses: any[]; annualHT: number; annualCA: number; totalExpenses: number; quarterData: number[]; currentMonth: number; currentYear: number; formatEur: (v: number) => string
-}) {
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
-  const [inputValue, setInputValue] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [chatStarted, setChatStarted] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const expenseCategories = expenses.reduce((acc: any, e: any) => {
-    acc[e.category] = (acc[e.category] || 0) + parseFloat(e.amount || 0)
-    return acc
-  }, {})
-
-  // ── Enrichir chaque booking avec clientName et serviceName déjà résolus
-  const allBookingsEnriched = bookings.map((b: any) => ({
-    ...b,
-    clientName: b.notes?.match(/Client:\s*([^|.\n]+)/)?.[1]?.trim() || 'Client',
-    serviceName: b.services?.name || services.find((s: any) => s.id === b.service_id)?.name || 'Intervention',
-  }))
-
-  const financialContext = {
-    // Agrégats (référence rapide)
-    annualCA,
-    annualCAHT: annualHT,
-    completedCount: bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === currentYear).length,
-    tvaCollectee: annualCA - annualHT,
-    avgMonthlyCA: annualCA / (currentMonth + 1),
-    totalExpenses,
-    expenseCategories,
-    quarterData,
-    // ── DONNÉES BRUTES COMPLÈTES (pour calculs sur période)
-    allBookings: allBookingsEnriched,   // Toutes les interventions avec client + service résolus
-    allExpenses: expenses,              // Toutes les dépenses avec date, catégorie, montant, notes
-  }
-
-  const QUICK_QUESTIONS = [
-    { label: '🔧 Matériaux vs main d\'œuvre', q: 'Donne-moi le total dépensé en matériaux et en main d\'œuvre séparément depuis le début de l\'année, avec le détail ligne par ligne.' },
-    { label: '💳 Cotisations URSSAF', q: 'Combien vais-je payer à l\'URSSAF ce trimestre et sur l\'année entière ? Détaille par trimestre.' },
-    { label: '📊 Bénéfice net réel', q: 'Quel est mon bénéfice net réel après toutes les charges, cotisations URSSAF et impôt ? Fais le calcul complet.' },
-    { label: '📅 Analyse du mois', q: `Analyse mes revenus et dépenses du mois dernier : combien j'ai encaissé, dépensé, et quel est mon résultat net ?` },
-    { label: '⚠️ Plafond micro', q: 'Suis-je proche du plafond micro-entrepreneur ? À quel rythme je l\'atteindrai ?' },
-    { label: '🚗 Frais de déplacement', q: 'Combien j\'ai dépensé en transport et déplacements ? Y a-t-il des frais kilométriques à optimiser ?' },
-    { label: '🏗️ Charges déductibles BTP', q: 'Quelles sont toutes les charges déductibles spécifiques au BTP que je peux enregistrer ?' },
-    { label: '📋 Préparer ma déclaration', q: 'Prépare un récapitulatif complet de mes données pour ma prochaine déclaration URSSAF.' },
-  ]
-
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return
-    setChatStarted(true)
-    const userMsg = { role: 'user' as const, content: text.trim() }
-    setMessages(prev => [...prev, userMsg])
-    setInputValue('')
-    setIsLoading(true)
-
-    try {
-      const res = await fetch('/api/comptable-ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text.trim(),
-          financialContext,
-          conversationHistory: messages.slice(-8).map(m => ({ role: m.role, content: m.content })),
-        }),
-      })
-      const data = await res.json()
-      const responseText = data.response || 'Je n\'ai pas pu générer une réponse. Veuillez réessayer.'
-      setMessages(prev => [...prev, { role: 'assistant', content: responseText }])
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Erreur de connexion. Vérifiez votre connexion internet et réessayez.' }])
-    }
-    setIsLoading(false)
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }
-
-  const formatMessage = (text: string) => {
-    // 1. Escape HTML first (XSS prevention)
-    const escaped = text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
-    // 2. Apply markdown transforms on escaped content
-    return escaped
-      // gras
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // code inline
-      .replace(/`([^`]+)`/g, '<code class="bg-gray-200 rounded px-1 text-xs font-mono">$1</code>')
-      // lignes tiret → liste
-      .replace(/(^|\n)(- .+)/g, (_, pre, item) =>
-        `${pre}<span class="flex gap-1.5 mt-0.5"><span class="text-[#FFC107] font-bold mt-px">›</span><span>${item.slice(2)}</span></span>`
-      )
-      // saut de ligne
-      .replace(/\n/g, '<br/>')
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Header Léa */}
-      <div className="bg-gradient-to-r from-[#1a1a2e] to-[#16213e] p-6 rounded-2xl text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-40 h-40 bg-[#FFC107]/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="flex items-center gap-4 mb-3 relative">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-2xl shadow-lg">
-            🧮
-          </div>
-          <div>
-            <div className="text-xl font-black">Léa — Votre Agent Comptable IA</div>
-            <div className="text-sm text-gray-300">Spécialisée micro-entreprise · Toujours disponible</div>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-green-300 font-medium">En ligne</span>
-          </div>
-        </div>
-        <p className="text-sm text-gray-300 relative">
-          Posez-moi toutes vos questions de comptabilité, fiscalité et gestion. J&apos;analyse vos données financières réelles pour vous donner des réponses précises et personnalisées.
-        </p>
-      </div>
-
-      {/* Financial snapshot */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'CA TTC annuel', value: formatEur(annualCA), icon: '💰', color: 'text-green-600', bg: 'bg-green-50' },
-          { label: 'Charges déduites', value: formatEur(totalExpenses), icon: '🧾', color: 'text-red-500', bg: 'bg-red-50' },
-          { label: 'URSSAF estimé', value: formatEur(annualHT * 0.217), icon: '🏛️', color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Net estimé', value: formatEur(annualHT * 0.772 - totalExpenses), icon: '📈', color: 'text-gray-900', bg: 'bg-amber-50' },
-        ].map((stat, i) => (
-          <div key={i} className={`${stat.bg} rounded-2xl p-4 border border-white`}>
-            <div className="text-xl mb-1">{stat.icon}</div>
-            <div className={`font-black text-lg ${stat.color}`}>{stat.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{stat.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Chat area */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col" style={{ minHeight: '500px' }}>
-
-        {/* Chat header */}
-        <div className="border-b border-gray-100 px-5 py-3 flex items-center gap-3 bg-gray-50">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-sm flex-shrink-0">🧮</div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-sm text-gray-900">Léa — Agent Comptable IA</div>
-            <div className="text-xs text-gray-400 truncate">
-              Accès à <strong className="text-gray-600">{bookings.filter(b => b.status === 'completed').length} interventions</strong> · <strong className="text-gray-600">{expenses.length} dépenses</strong> · calculs sur toute période
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs text-green-600 font-medium">En ligne</span>
-            </div>
-            {messages.length > 0 && (
-              <button onClick={() => { setMessages([]); setChatStarted(false) }}
-                className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-2 py-1 transition">
-                ↺ Nouveau
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ maxHeight: '420px', minHeight: '320px' }}>
-          {!chatStarted ? (
-            <div className="py-4">
-              {/* Welcome */}
-              <div className="flex gap-3 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-base flex-shrink-0 shadow-sm">🧮</div>
-                <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[82%]">
-                  <p className="text-sm text-gray-800 leading-relaxed">
-                    Bonjour ! Je suis <strong>Léa</strong>, votre agent comptable IA spécialisée BTP.<br /><br />
-                    J&apos;ai accès en temps réel à <strong>toutes vos données</strong> : chaque intervention, chaque dépense avec leur date et catégorie exactes.<br /><br />
-                    Vous pouvez me demander n&apos;importe quel calcul sur n&apos;importe quelle période — par exemple <em>&ldquo;combien j&apos;ai dépensé en matériaux du 1er janvier au 15 mars&rdquo;</em> et je ferai le calcul ligne par ligne.
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick question grid */}
-              <div className="grid grid-cols-2 gap-2">
-                {QUICK_QUESTIONS.map((q, i) => (
-                  <button key={i} onClick={() => sendMessage(q.q)}
-                    className="text-left text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-3 py-2.5 hover:bg-amber-100 transition font-medium leading-snug">
-                    {q.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm flex-shrink-0 shadow-sm ${
-                    msg.role === 'assistant'
-                      ? 'bg-gradient-to-br from-[#FFC107] to-[#FFD54F]'
-                      : 'bg-[#2C3E50] text-white'
-                  }`}>
-                    {msg.role === 'assistant' ? '🧮' : '👤'}
-                  </div>
-                  <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-[#FFC107] text-gray-900 rounded-tr-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-tl-sm'
-                  }`}>
-                    <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
-                  </div>
-                </div>
-              ))}
-
-              {isLoading && (
-                <div className="flex gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-sm flex-shrink-0">🧮</div>
-                  <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1">
-                    <span className="text-xs text-gray-400 mr-1">Léa analyse vos données</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
-
-        {/* Suggestions rapides pendant le chat */}
-        {chatStarted && (
-          <div className="px-4 pb-2 flex gap-2 overflow-x-auto border-t border-gray-50 pt-2">
-            {[
-              { label: '🔧 Matériaux', q: 'Total dépensé en matériaux cette année, détail ligne par ligne ?' },
-              { label: '👷 Main d\'œuvre', q: 'Total dépensé en main d\'œuvre et sous-traitance cette année ?' },
-              { label: '📆 Ce mois', q: 'Résultat net du mois en cours : revenus moins charges moins cotisations ?' },
-              { label: '💳 URSSAF T en cours', q: 'Combien je dois payer à l\'URSSAF pour le trimestre en cours ?' },
-              { label: '📊 Par service', q: 'Quel est mon chiffre d\'affaires par type d\'intervention cette année ?' },
-              { label: '🧾 Top dépenses', q: 'Quelles sont mes 5 plus grosses dépenses de l\'année ?' },
-            ].map((s, i) => (
-              <button key={i} onClick={() => sendMessage(s.q)}
-                className="flex-shrink-0 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-1.5 hover:bg-amber-100 transition font-medium whitespace-nowrap">
-                {s.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Input */}
-        <div className="border-t border-gray-100 p-4 flex gap-3 items-end">
-          <textarea
-            ref={inputRef as any}
-            value={inputValue}
-            onChange={e => setInputValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                sendMessage(inputValue)
-              }
-            }}
-            placeholder={'Posez votre question à Léa...\nEx: "Combien j\'ai dépensé en matériaux de janvier à mars ?"\nEx: "Quel est mon bénéfice net sur le 2e trimestre ?"'}
-            rows={3}
-            className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] bg-gray-50 resize-none"
-            disabled={isLoading}
-          />
-          <button
-            onClick={() => sendMessage(inputValue)}
-            disabled={!inputValue.trim() || isLoading}
-            className="bg-[#FFC107] hover:bg-[#FFD54F] disabled:opacity-40 text-gray-900 px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-sm flex-shrink-0 self-end"
-          >
-            {isLoading ? '⏳' : '↑ Envoyer'}
-          </button>
-        </div>
-        <div className="px-4 pb-3 text-[10px] text-gray-300 text-center">
-          Entrée = envoyer · Maj+Entrée = saut de ligne
-        </div>
-      </div>
-
-      {/* Disclaimer */}
-      <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl text-xs text-gray-400 text-center">
-        ℹ️ Léa fournit des informations indicatives basées sur vos données VitFix. Pour des conseils fiscaux engageant votre responsabilité, consultez un expert-comptable agréé.
-      </div>
-    </div>
-  )
-}
-
-/* ══════════ BASE CLIENTS SECTION ══════════ */
-
-function ClientsSection({ artisan, bookings, services, onNewRdv, onNewDevis }: {
-  artisan: any
-  bookings: any[]
-  services: any[]
-  onNewRdv: (clientName: string) => void
-  onNewDevis: (clientName: string) => void
-}) {
-  const [clients, setClients] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'tous' | 'particuliers' | 'entreprises'>('tous')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!artisan?.id) return
-    setLoading(true)
-    fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-      .then(r => r.json())
-      .then(data => {
-        setClients(data.clients || [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [artisan?.id])
-
-  const isEntreprise = (c: any) => Boolean(c.siret && c.siret.trim())
-
-  const filtered = clients.filter(c => {
-    const matchSearch = !search || [c.name, c.email, c.phone, c.address, c.siret]
-      .filter(Boolean).some((v: string) => v.toLowerCase().includes(search.toLowerCase()))
-    const matchTab =
-      activeTab === 'tous' ||
-      (activeTab === 'entreprises' && isEntreprise(c)) ||
-      (activeTab === 'particuliers' && !isEntreprise(c))
-    return matchSearch && matchTab
-  })
-
-  const totalCA = (c: any) => {
-    const clientBookings = bookings.filter(b => {
-      const notesMatch = b.notes && b.notes.includes(c.name)
-      const idMatch = b.client_id === c.id
-      return (notesMatch || idMatch) && b.status === 'completed'
-    })
-    return clientBookings.reduce((sum: number, b: any) => sum + (b.price_ttc || 0), 0)
-  }
-
-  const lastBookingDate = (c: any) => {
-    const bks = c.bookings || []
-    if (bks.length === 0) return null
-    const sorted = [...bks].sort((a: any, b: any) => b.date.localeCompare(a.date))
-    return sorted[0].date
-  }
-
-  const particuliersCount = clients.filter(c => !isEntreprise(c)).length
-  const entreprisesCount = clients.filter(c => isEntreprise(c)).length
-
-  return (
-    <div className="animate-fadeIn">
-      {/* Header */}
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <h1 className="text-2xl font-semibold">👥 Base Clients</h1>
-          <div className="flex items-center gap-3 text-sm text-gray-500">
-            <span className="bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-full font-semibold">
-              {clients.length} client{clients.length > 1 ? 's' : ''}
-            </span>
-            <span className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full font-semibold">
-              {particuliersCount} particulier{particuliersCount > 1 ? 's' : ''}
-            </span>
-            <span className="bg-purple-50 border border-purple-200 text-purple-700 px-3 py-1 rounded-full font-semibold">
-              {entreprisesCount} entreprise{entreprisesCount > 1 ? 's' : ''}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 lg:p-8">
-        {/* Search + Tabs */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
-            <input
-              type="text"
-              placeholder="Rechercher par nom, email, téléphone..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#FFC107] transition bg-white"
-            />
-          </div>
-          <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-            {(['tous', 'particuliers', 'entreprises'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
-                  activeTab === tab
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab === 'tous' ? `Tous (${clients.length})`
-                  : tab === 'particuliers' ? `👤 Particuliers (${particuliersCount})`
-                  : `🏢 Entreprises (${entreprisesCount})`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Loading */}
-        {loading && (
-          <div className="text-center py-20 text-gray-400">
-            <div className="text-4xl mb-4 animate-pulse">👥</div>
-            <p>Chargement des clients...</p>
-          </div>
-        )}
-
-        {/* Empty */}
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">👥</div>
-            <h3 className="text-xl font-bold text-gray-700 mb-2">
-              {search ? 'Aucun résultat' : 'Pas encore de clients'}
-            </h3>
-            <p className="text-gray-400 text-sm">
-              {search
-                ? 'Essayez un autre terme de recherche'
-                : 'Vos clients apparaîtront ici dès qu\'ils auront pris un rendez-vous.'}
-            </p>
-          </div>
-        )}
-
-        {/* Client cards */}
-        {!loading && filtered.length > 0 && (
-          <div className="space-y-3">
-            {filtered.map(c => {
-              const isExp = isEntreprise(c)
-              const ca = totalCA(c)
-              const lastDate = lastBookingDate(c)
-              const bks = c.bookings || []
-              const isExpanded = expandedId === c.id
-
-              return (
-                <div
-                  key={c.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  {/* Card header */}
-                  <div
-                    className="p-5 cursor-pointer"
-                    onClick={() => setExpandedId(isExpanded ? null : c.id)}
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* Avatar */}
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold flex-shrink-0 ${
-                        isExp ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {isExp ? '🏢' : c.name.charAt(0).toUpperCase()}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-gray-900 text-base">{c.name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                            isExp
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {isExp ? 'Entreprise' : 'Particulier'}
-                          </span>
-                          {c.source === 'auth' && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Compte VitFix</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-1 flex-wrap">
-                          {c.phone && <span className="text-sm text-gray-500">📞 {c.phone}</span>}
-                          {c.email && <span className="text-sm text-gray-500 truncate">✉️ {c.email}</span>}
-                          {!c.phone && !c.email && <span className="text-sm text-gray-400 italic">Coordonnées non renseignées</span>}
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="hidden sm:flex flex-col items-end gap-1 flex-shrink-0">
-                        <div className="text-lg font-bold text-green-600">
-                          {ca > 0 ? `${ca.toFixed(0)} €` : '—'}
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {bks.length} intervention{bks.length > 1 ? 's' : ''}
-                        </div>
-                        {lastDate && (
-                          <div className="text-xs text-gray-400">
-                            Dernier: {new Date(lastDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Expand arrow */}
-                      <div className={`text-gray-400 text-lg transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}>
-                        ▾
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Expanded detail */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-100 p-5 bg-gray-50">
-                      <div className="grid sm:grid-cols-2 gap-6">
-                        {/* Contact details */}
-                        <div>
-                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">📋 Coordonnées</h4>
-                          <div className="space-y-2 text-sm">
-                            {c.phone && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-400 w-20 flex-shrink-0">Téléphone</span>
-                                <a href={`tel:${c.phone}`} className="text-blue-600 hover:underline font-medium">{c.phone}</a>
-                              </div>
-                            )}
-                            {c.email && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-400 w-20 flex-shrink-0">Email</span>
-                                <a href={`mailto:${c.email}`} className="text-blue-600 hover:underline font-medium truncate">{c.email}</a>
-                              </div>
-                            )}
-                            {c.address && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-400 w-20 flex-shrink-0">Adresse</span>
-                                <span className="text-gray-700">{c.address}{c.postalCode ? `, ${c.postalCode}` : ''}{c.city ? ` ${c.city}` : ''}</span>
-                              </div>
-                            )}
-                            {c.siret && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-400 w-20 flex-shrink-0">SIRET</span>
-                                <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">{c.siret}</span>
-                              </div>
-                            )}
-                            {!c.phone && !c.email && !c.address && !c.siret && (
-                              <p className="text-gray-400 italic text-xs">Aucune coordonnée disponible</p>
-                            )}
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex gap-2 mt-4">
-                            <button
-                              onClick={() => onNewRdv(c.name)}
-                              className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm"
-                            >
-                              📅 Nouveau RDV
-                            </button>
-                            <button
-                              onClick={() => onNewDevis(c.name)}
-                              className="flex-1 bg-white border-2 border-gray-200 hover:border-[#FFC107] text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold transition-all"
-                            >
-                              📄 Créer devis
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Booking history */}
-                        <div>
-                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">🗂 Historique ({bks.length})</h4>
-                          {bks.length === 0 ? (
-                            <p className="text-gray-400 text-sm italic">Aucune intervention enregistrée</p>
-                          ) : (
-                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                              {[...bks].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((bk: any) => (
-                                <div key={bk.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-lg px-3 py-2">
-                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                    bk.status === 'completed' ? 'bg-green-500'
-                                      : bk.status === 'confirmed' ? 'bg-blue-500'
-                                      : bk.status === 'cancelled' ? 'bg-red-400'
-                                      : 'bg-amber-400'
-                                  }`} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-gray-800 truncate">{bk.service || 'Intervention'}</div>
-                                    <div className="text-xs text-gray-400">
-                                      {new Date(bk.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </div>
-                                  </div>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
-                                    bk.status === 'completed' ? 'bg-green-100 text-green-700'
-                                      : bk.status === 'confirmed' ? 'bg-blue-100 text-blue-700'
-                                      : bk.status === 'cancelled' ? 'bg-red-100 text-red-600'
-                                      : 'bg-amber-100 text-amber-700'
-                                  }`}>
-                                    {bk.status === 'completed' ? 'Terminé'
-                                      : bk.status === 'confirmed' ? 'Confirmé'
-                                      : bk.status === 'cancelled' ? 'Annulé'
-                                      : 'En attente'}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Mobile stats */}
-                          <div className="mt-4 pt-3 border-t border-gray-200 flex gap-4 sm:hidden text-sm">
-                            <div>
-                              <div className="font-bold text-green-600 text-lg">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
-                              <div className="text-gray-400 text-xs">CA total TTC</div>
-                            </div>
-                            <div>
-                              <div className="font-bold text-gray-700 text-lg">{bks.length}</div>
-                              <div className="text-gray-400 text-xs">Intervention{bks.length > 1 ? 's' : ''}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ══════════ MATÉRIAUX & PRIX SECTION ══════════ */
-
-interface MatPrice { store: string; price: number; url: string | null }
-interface MatItem { name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string; prices: MatPrice[]; bestPrice: { store: string; price: number } | null; avgPrice: number }
-interface MatSearch { id: string; date: string; query: string; city: string | null; materials: MatItem[]; totalEstimate: { min: number; max: number } | null }
-
-const JOB_PRESETS = [
-  { label: '🚿 Chauffe-eau', q: 'Remplacement chauffe-eau thermodynamique 200L' },
-  { label: '🪟 Carrelage 20m²', q: 'Pose carrelage sol 20m² format 60x60' },
-  { label: '⚡ Tableau électrique', q: 'Remplacement tableau électrique 8 circuits' },
-  { label: '🚪 Salle de bain', q: 'Rénovation salle de bain complète 6m²' },
-  { label: '🔩 Robinetterie', q: 'Remplacement robinetterie cuisine et salle de bain' },
-  { label: '🧱 Isolation combles', q: 'Isolation combles perdus 50m² laine de verre' },
-]
-
-const STORE_COLORS: Record<string, string> = {
-  'Leroy Merlin': 'text-green-700 bg-green-50',
-  'Brico Dépôt': 'text-orange-700 bg-orange-50',
-  'Castorama': 'text-blue-700 bg-blue-50',
-  'Point P': 'text-red-700 bg-red-50',
-  'Cédéo': 'text-purple-700 bg-purple-50',
-  'Mr.Bricolage': 'text-yellow-700 bg-yellow-50',
-  'Brico Leclerc': 'text-teal-700 bg-teal-50',
-}
-
-function MateriauxSection({ artisan, onExportDevis }: { artisan: any; onExportDevis: (lines: any[]) => void }) {
-  const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')
-  const [userCity, setUserCity] = useState<string | null>(null)
-  const [geoLoading, setGeoLoading] = useState(false)
-  const [geoError, setGeoError] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
-  const [inputValue, setInputValue] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [chatStarted, setChatStarted] = useState(false)
-  const [currentResults, setCurrentResults] = useState<MatItem[] | null>(null)
-  const [currentEstimate, setCurrentEstimate] = useState<{ min: number; max: number } | null>(null)
-  const [isFallback, setIsFallback] = useState(false)
-  const [savedSearches, setSavedSearches] = useState<MatSearch[]>(() => {
-    try { return JSON.parse(localStorage.getItem(`fixit_materiaux_${artisan?.id}`) || '[]') } catch { return [] }
-  })
-  const [globalMarkup, setGlobalMarkup] = useState(15)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, currentResults])
-
-  const handleGeolocation = () => {
-    if (!navigator.geolocation) { setGeoError('Géolocalisation non supportée'); return }
-    setGeoLoading(true)
-    setGeoError(null)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
-            { headers: { 'User-Agent': 'VitFix-Pro/1.0' } }
-          )
-          const data = await res.json()
-          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || null
-          setUserCity(city)
-        } catch { setGeoError('Impossible de déterminer la ville') }
-        setGeoLoading(false)
-      },
-      (err) => {
-        setGeoError(err.code === 1 ? 'Accès à la position refusé' : 'Erreur de géolocalisation')
-        setGeoLoading(false)
-      },
-      { timeout: 8000, maximumAge: 300000 }
-    )
-  }
-
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return
-    setChatStarted(true)
-    setCurrentResults(null)
-    setCurrentEstimate(null)
-    const userMsg = { role: 'user' as const, content: text.trim() }
-    setMessages(prev => [...prev, userMsg])
-    setInputValue('')
-    setIsLoading(true)
-
-    try {
-      const res = await fetch('/api/materiaux-ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: text.trim(),
-          city: userCity,
-          conversationHistory: messages.slice(-6),
-        }),
-      })
-      const data = await res.json()
-
-      setIsFallback(data.fallback || false)
-
-      if (data.materials?.length > 0) {
-        setCurrentResults(data.materials)
-        setCurrentEstimate(data.totalEstimate || null)
-        // Save to history
-        const search: MatSearch = {
-          id: Date.now().toString(),
-          date: new Date().toISOString().split('T')[0],
-          query: text.trim(),
-          city: userCity,
-          materials: data.materials,
-          totalEstimate: data.totalEstimate || null,
-        }
-        const updated = [search, ...savedSearches].slice(0, 20)
-        setSavedSearches(updated)
-        localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
-      }
-
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.response || 'Voici les matériaux identifiés pour votre chantier.',
-      }])
-    } catch {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '❌ Erreur de connexion. Veuillez réessayer.',
-      }])
-    }
-    setIsLoading(false)
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }
-
-  // ─── Logique fiscale selon statut artisan ────────────────────────────────
-  // Détermine si l'artisan est en franchise en base de TVA (auto-entrepreneur, ou EI sous seuil)
-  // Seuils 2024-2025 : 37 500€ CA pour services / 85 000€ pour ventes de marchandises
-  // Pour BTP (mixte prestation+fourniture) : seuil 37 500€ applicable
-  const artisanLegalForm = (artisan?.legal_form || '').toLowerCase()
-  const isAutoEntrepreneur = artisanLegalForm.includes('auto') || artisanLegalForm.includes('micro') || artisanLegalForm.includes('individuel')
-  // TVA applicable si l'artisan est en société (SARL/SAS/EURL) ou a explicitement activé la TVA
-  const isAssujetti = artisanLegalForm.includes('sarl') || artisanLegalForm.includes('sas') || artisanLegalForm.includes('eurl') || artisanLegalForm.includes('sa ')
-
-  // Taux de TVA applicable sur la revente de matériaux BTP :
-  // - Travaux de rénovation logement > 2 ans : 10% (art. 279-0 bis CGI)
-  // - Travaux éco-rénovation éligibles (isolation, PAC) : 5.5% (art. 278-0 bis CGI)
-  // - Travaux en logement neuf ou local professionnel : 20%
-  // On utilise 10% par défaut (rénovation résidentielle = cas le plus courant)
-  const TVA_REVENTE = 10   // % TVA sur prestations+fournitures facturées au client
-  const TVA_ACHAT = 10     // % TVA incluse dans les prix TTC magasin (rénovation BTP)
-
-  // Prix de revente HT à facturer au client selon statut fiscal :
-  // AE/franchise : Prix achat TTC × (1 + marge%) → pas de TVA récupérée à l'achat
-  //               → le devis est en HT = TTC (TVA non applicable art. 293B CGI)
-  // Assujetti TVA : Prix achat TTC / (1 + TVA_ACHAT/100) = Prix achat HT artisan
-  //               → Prix revente HT = Prix achat HT × (1 + marge%)
-  //               → Le client paie HT + TVA 10% sur la prestation complète
-
-  const getPrixAchatHT = (prixTTC: number) => {
-    if (isAssujetti) return prixTTC / (1 + TVA_ACHAT / 100)  // récupère la TVA achat
-    return prixTTC  // AE : supporte la TVA achat (non récupérable) → intégrer dans le coût
-  }
-
-  const getPrixRevente = (prixTTC: number, markup: number) => {
-    const prixBase = getPrixAchatHT(prixTTC)
-    return prixBase * (1 + markup / 100)
-  }
-
-  // Marge minimum recommandée : 25-35% (standard national artisans BTP, source CAPEB/FFB)
-  // Pour AE : marge doit couvrir TVA achat non récupérable (10%) + bénéfice réel ≥ 15%
-  // → recommandation min AE = 30%, min assujetti TVA = 25%
-  const margeMinRecommandee = isAutoEntrepreneur ? 30 : 25
-  const margeIsRentable = globalMarkup >= margeMinRecommandee
-
-  const handleExportDevis = () => {
-    if (!currentResults) return
-    const exportLines = currentResults.map((m, i) => {
-      const prixTTC = m.bestPrice?.price || m.avgPrice || 0
-      const priceHT = Math.round(getPrixRevente(prixTTC, globalMarkup) * 100) / 100
-      return {
-        id: i + 1,
-        description: `${m.name} — ${m.category}${m.norms?.length ? ` (${m.norms[0]})` : ''}`,
-        qty: m.qty,
-        priceHT,
-        // AE : TVA non applicable → tvaRate = 0 et tvaEnabled = false dans le devis
-        // Assujetti : TVA 10% rénovation BTP (art. 279-0 bis CGI)
-        tvaRate: isAssujetti ? TVA_REVENTE : 0,
-        totalHT: Math.round(priceHT * m.qty * 100) / 100,
-      }
-    })
-    onExportDevis(exportLines)
-  }
-
-  const formatMsg = (text: string) => {
-    // 1. Escape HTML first (XSS prevention)
-    const escaped = text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
-    // 2. Apply markdown on escaped content
-    return escaped
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br/>')
-  }
-
-  // Totaux avec logique fiscale correcte
-  const totalBestPrice = currentResults?.reduce((sum, m) => sum + (m.bestPrice?.price || m.avgPrice || 0), 0) || 0
-  const totalCoutAchatHT = currentResults?.reduce((sum, m) => sum + getPrixAchatHT(m.bestPrice?.price || m.avgPrice || 0), 0) || 0
-  const totalRevente = currentResults?.reduce((sum, m) => sum + getPrixRevente(m.bestPrice?.price || m.avgPrice || 0, globalMarkup), 0) || 0
-  const totalReventeTTC = isAssujetti ? totalRevente * (1 + TVA_REVENTE / 100) : totalRevente
-  const margeBrute = totalRevente - totalCoutAchatHT
-  const markupAmount = Math.round(margeBrute)
-  const totalWithMarkup = Math.round(totalRevente)
-
-  const allStores = currentResults
-    ? [...new Set(currentResults.flatMap(m => m.prices.map(p => p.store)))].sort()
-    : []
-
-  return (
-    <div className="animate-fadeIn">
-      {/* Header */}
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">🛒 Matériaux & Prix</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Recherche IA autonome · Comparatif par enseigne</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {userCity && (
-              <span className="text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-3 py-1.5 font-semibold">
-                📍 {userCity}
-              </span>
-            )}
-            <button
-              onClick={handleGeolocation}
-              disabled={geoLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${
-                userCity
-                  ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                  : 'border-[#FFC107] bg-[#FFC107]/10 text-gray-800 hover:bg-[#FFC107]/20'
-              }`}
-            >
-              {geoLoading ? '⏳' : '📍'} {userCity ? 'Mettre à jour' : 'Localisation GPS'}
-            </button>
-          </div>
-        </div>
-        {geoError && <p className="text-xs text-red-500 mt-2">⚠️ {geoError}</p>}
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white border-b border-gray-100 px-6 lg:px-10 pt-4 pb-0">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-0">
-          {([
-            { key: 'recherche', label: '🔍 Recherche' },
-            { key: 'historique', label: `📋 Historique (${savedSearches.length})` },
-            { key: 'aide', label: '💡 Aide' },
-          ] as const).map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-                activeTab === t.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── RECHERCHE TAB ── */}
-      {activeTab === 'recherche' && (
-        <div className="p-6 lg:p-8">
-          {/* Welcome screen */}
-          {!chatStarted && (
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-[#FFC107]/40 rounded-2xl p-8 mb-6 text-center">
-                <div className="text-6xl mb-4">🛒</div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Agent Matériaux IA</h2>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux
-                  avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong>
-                </p>
-                {!userCity && (
-                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
-                    💡 Activez la localisation GPS pour des résultats adaptés à votre région
-                  </div>
-                )}
-              </div>
-
-              {/* Quick presets */}
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Interventions courantes</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {JOB_PRESETS.map((p, i) => (
-                    <button key={i} onClick={() => sendMessage(p.q)}
-                      className="bg-white border-2 border-gray-200 hover:border-[#FFC107] hover:-translate-y-0.5 text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm">
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Chat messages */}
-          {chatStarted && (
-            <div className="max-w-3xl mx-auto">
-              <div className="space-y-4 mb-6">
-                {messages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {msg.role === 'assistant' && (
-                      <div className="w-8 h-8 bg-[#FFC107] rounded-xl flex items-center justify-center text-lg mr-2 flex-shrink-0 mt-1">🛒</div>
-                    )}
-                    <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-[#FFC107] text-gray-900 font-medium rounded-tr-sm'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
-                    }`}
-                      dangerouslySetInnerHTML={{ __html: formatMsg(msg.content) }}
-                    />
-                  </div>
-                ))}
-
-                {/* Loading */}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="w-8 h-8 bg-[#FFC107] rounded-xl flex items-center justify-center text-lg mr-2 flex-shrink-0">🛒</div>
-                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-5 py-3 shadow-sm">
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span className="flex gap-1">
-                          <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </span>
-                        <span>Recherche des matériaux et prix en cours...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Résultats matériaux */}
-                {currentResults && currentResults.length > 0 && !isLoading && (
-                  <div className="space-y-4">
-                    {isFallback && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 flex gap-2">
-                        <span>⚠️</span>
-                        <span>Prix estimés (sans recherche web en temps réel). Activez Tavily pour des prix actualisés.</span>
-                      </div>
-                    )}
-
-                    {/* Cards matériaux */}
-                    <div className="grid gap-3">
-                      {currentResults.map((m, i) => (
-                        <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                          {/* Header matériau */}
-                          <div className="flex items-center gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100">
-                            <span className="text-2xl">{
-                              m.category === 'Sanitaire' || m.category === 'Plomberie' ? '🔧'
-                              : m.category === 'Électricité' ? '⚡'
-                              : m.category === 'Chauffage' ? '🌡️'
-                              : m.category === 'Carrelage' ? '🪟'
-                              : m.category === 'Isolation' ? '🧱'
-                              : m.category === 'Menuiserie' ? '🚪'
-                              : m.category === 'Peinture' ? '🎨'
-                              : m.category === 'Maçonnerie' ? '🧱'
-                              : m.category === 'Toiture' ? '🏠'
-                              : m.category === 'Ventilation' ? '💨'
-                              : '📦'
-                            }</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-bold text-gray-900">{m.name}</div>
-                              <div className="text-xs text-gray-400">{m.qty} {m.unit} · {m.category}</div>
-                            </div>
-                            {m.bestPrice && (
-                              <div className="text-right flex-shrink-0">
-                                <div className="text-lg font-black text-green-600">{m.bestPrice.price} €</div>
-                                <div className="text-xs text-gray-400">Meilleur prix</div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Prix par enseigne */}
-                          {m.prices.length > 0 ? (
-                            <div className="divide-y divide-gray-50">
-                              {[...m.prices].sort((a, b) => a.price - b.price).map((p, j) => (
-                                <div key={j} className={`flex items-center gap-3 px-5 py-2.5 ${
-                                  m.bestPrice?.store === p.store ? 'bg-green-50' : ''
-                                }`}>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
-                                    {p.store}
-                                  </span>
-                                  <div className="flex-1" />
-                                  <span className={`font-bold text-base ${m.bestPrice?.store === p.store ? 'text-green-700' : 'text-gray-700'}`}>
-                                    {p.price} €
-                                  </span>
-                                  {m.bestPrice?.store === p.store && (
-                                    <span className="text-green-600 text-xs font-bold">✅ Meilleur</span>
-                                  )}
-                                  {p.url && (
-                                    <a href={p.url} target="_blank" rel="noopener noreferrer"
-                                      className="text-blue-500 hover:text-blue-700 text-xs underline ml-1">↗</a>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="px-5 py-3 text-sm text-gray-400 italic">Prix non trouvés — vérifiez manuellement</div>
-                          )}
-
-                          {/* Normes applicables */}
-                          {(m.norms?.length > 0 || m.normDetails) && (
-                            <div className="px-5 py-3 bg-amber-50 border-t border-amber-100">
-                              {m.norms?.length > 0 && (
-                                <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                                  <span className="text-xs font-bold text-amber-700">📋 Normes :</span>
-                                  {m.norms.map((n: string, ni: number) => (
-                                    <span key={ni} className="text-xs bg-amber-100 border border-amber-300 text-amber-800 px-2 py-0.5 rounded-full font-mono font-semibold">
-                                      {n}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {m.normDetails && (
-                                <p className="text-xs text-amber-700 leading-relaxed">
-                                  ⚠️ {m.normDetails}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Tableau comparatif si plusieurs enseignes */}
-                    {allStores.length > 1 && (
-                      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                        <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 font-bold text-sm text-gray-700">
-                          📊 Tableau comparatif des prix
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-gray-100">
-                                <th className="text-left px-4 py-2 text-gray-500 font-semibold">Matériau</th>
-                                {allStores.map(s => (
-                                  <th key={s} className="text-right px-4 py-2 text-gray-500 font-semibold whitespace-nowrap">{s}</th>
-                                ))}
-                                <th className="text-right px-4 py-2 text-green-600 font-semibold">Meilleur</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {currentResults.map((m, i) => (
-                                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                                  <td className="px-4 py-2 text-gray-800 font-medium max-w-[200px] truncate">{m.name}</td>
-                                  {allStores.map(s => {
-                                    const p = m.prices.find(pr => pr.store === s)
-                                    const isBest = m.bestPrice?.store === s
-                                    return (
-                                      <td key={s} className={`text-right px-4 py-2 font-semibold ${
-                                        isBest ? 'text-green-700 bg-green-50' : p ? 'text-gray-700' : 'text-gray-300'
-                                      }`}>
-                                        {p ? `${p.price} €` : '—'}
-                                      </td>
-                                    )
-                                  })}
-                                  <td className="text-right px-4 py-2 text-green-700 font-bold">
-                                    {m.bestPrice ? `${m.bestPrice.price} €` : '—'}
-                                  </td>
-                                </tr>
-                              ))}
-                              <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
-                                <td className="px-4 py-2 text-gray-700">TOTAL (meilleurs prix)</td>
-                                {allStores.map(s => <td key={s} className="px-4 py-2" />)}
-                                <td className="text-right px-4 py-2 text-green-700 text-base">
-                                  {totalBestPrice > 0 ? `${totalBestPrice} €` : '—'}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Marge + Export devis */}
-                    {totalBestPrice > 0 && (
-                      <div className="bg-white border-2 border-[#FFC107]/40 rounded-2xl p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="font-bold text-gray-800 text-lg">💰 Intégrer au devis</h3>
-                          {/* Badge statut fiscal détecté */}
-                          <span className={`text-xs px-3 py-1 rounded-full font-semibold border ${
-                            isAssujetti
-                              ? 'bg-blue-50 border-blue-200 text-blue-700'
-                              : 'bg-amber-50 border-amber-200 text-amber-700'
-                          }`}>
-                            {isAssujetti
-                              ? `📋 ${artisan?.legal_form || 'Société'} — TVA ${TVA_REVENTE}% applicable`
-                              : `📋 ${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise en base TVA (art. 293B CGI)`
-                            }
-                          </span>
-                        </div>
-
-                        {/* Marge slider */}
-                        <div className="flex items-center gap-4 mb-2">
-                          <label className="text-sm font-semibold text-gray-600 flex-shrink-0">Marge de revente</label>
-                          <input
-                            type="range" min={0} max={60} value={globalMarkup}
-                            onChange={e => setGlobalMarkup(Number(e.target.value))}
-                            className="flex-1 accent-[#FFC107]"
-                          />
-                          <span className={`text-xl font-black w-14 text-right ${margeIsRentable ? 'text-green-600' : 'text-red-500'}`}>
-                            {globalMarkup}%
-                          </span>
-                        </div>
-
-                        {/* Alerte si marge insuffisante */}
-                        {!margeIsRentable && totalBestPrice > 0 && (
-                          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-red-700">
-                            ⚠️ <strong>Marge insuffisante.</strong> Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>
-                            {isAutoEntrepreneur ? ` en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)` : ` en société assujettie TVA`}.
-                          </div>
-                        )}
-                        {margeIsRentable && totalBestPrice > 0 && (
-                          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2 mb-4 text-xs text-green-700">
-                            ✅ Marge conforme aux standards nationaux BTP ({margeMinRecommandee}% min)
-                          </div>
-                        )}
-
-                        {/* Tableau de calcul fiscal */}
-                        <div className="bg-gray-50 rounded-2xl p-4 mb-5 space-y-2 text-sm">
-                          <div className="flex justify-between text-gray-600">
-                            <span>Coût achat matériaux (prix magasin TTC)</span>
-                            <span className="font-semibold">{Math.round(totalBestPrice)} €</span>
-                          </div>
-                          {isAssujetti && (
-                            <div className="flex justify-between text-gray-500 text-xs pl-3">
-                              <span>→ TVA achat récupérée ({TVA_ACHAT}%) — crédit de TVA</span>
-                              <span className="text-blue-600 font-semibold">−{Math.round(totalBestPrice - totalCoutAchatHT)} €</span>
-                            </div>
-                          )}
-                          {isAutoEntrepreneur && (
-                            <div className="flex justify-between text-gray-500 text-xs pl-3">
-                              <span>→ TVA achat non récupérable (incluse dans votre coût réel)</span>
-                              <span className="text-amber-600 font-semibold">{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between text-gray-600 border-t border-gray-200 pt-2">
-                            <span>Coût réel HT artisan</span>
-                            <span className="font-semibold">{Math.round(totalCoutAchatHT)} €</span>
-                          </div>
-                          <div className="flex justify-between text-amber-700">
-                            <span>Marge revente {globalMarkup}%</span>
-                            <span className="font-bold">+{markupAmount} €</span>
-                          </div>
-                          <div className="flex justify-between text-gray-800 font-bold border-t border-gray-200 pt-2">
-                            <span>Montant HT à facturer</span>
-                            <span>{totalWithMarkup} €</span>
-                          </div>
-                          {isAssujetti && (
-                            <div className="flex justify-between text-gray-600 text-xs pl-3">
-                              <span>+ TVA {TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)</span>
-                              <span>{Math.round(totalRevente * TVA_REVENTE / 100)} €</span>
-                            </div>
-                          )}
-                          <div className={`flex justify-between font-black text-base pt-2 border-t-2 border-gray-300 ${isAssujetti ? 'text-blue-700' : 'text-green-700'}`}>
-                            <span>Total TTC client</span>
-                            <span>{Math.round(totalReventeTTC)} €</span>
-                          </div>
-                        </div>
-
-                        {/* Info légale selon statut */}
-                        <div className={`rounded-xl px-4 py-3 mb-4 text-xs leading-relaxed ${
-                          isAssujetti ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {isAssujetti ? (
-                            <>
-                              <strong>📋 Régime TVA réel :</strong> Vous récupérez la TVA sur vos achats et collectez la TVA sur vos ventes.
-                              Taux applicable : <strong>10% rénovation logement &gt;2 ans</strong> (art. 279-0 bis CGI).
-                              Pour éco-rénovation (isolation, PAC, fenêtres) : 5.5% (art. 278-0 bis CGI).
-                              Pour local professionnel ou construction neuve : 20%.
-                            </>
-                          ) : (
-                            <>
-                              <strong>📋 Franchise en base de TVA :</strong> Vous n&apos;êtes pas assujetti à la TVA.
-                              Vos achats sont à votre charge TTC (non récupérable).
-                              Vos factures doivent mentionner <em>&quot;TVA non applicable — art. 293 B du CGI&quot;</em>.
-                              Seuils 2025 : 37 500 €/an prestation · 85 000 €/an marchandises.
-                            </>
-                          )}
-                        </div>
-
-                        <button onClick={handleExportDevis}
-                          className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3.5 rounded-xl font-bold text-base shadow-md hover:-translate-y-0.5 transition-all">
-                          📄 Exporter vers un devis ({totalWithMarkup} € HT
-                          {isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})
-                        </button>
-                        <p className="text-xs text-gray-400 text-center mt-2">
-                          {isAssujetti
-                            ? `TVA ${TVA_REVENTE}% collectée sur revente · Prix HT client calculés avec marge ${globalMarkup}%`
-                            : `Franchise TVA art. 293B CGI · Marge ${globalMarkup}% sur coût TTC artisan`
-                          }
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Suggestions rapides */}
-              {chatStarted && !isLoading && (
-                <div className="flex gap-2 flex-wrap mb-4">
-                  {JOB_PRESETS.slice(0, 3).map((p, i) => (
-                    <button key={i} onClick={() => sendMessage(p.q)}
-                      className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-1.5 hover:bg-amber-100 transition font-medium whitespace-nowrap">
-                      {p.label}
-                    </button>
-                  ))}
-                  <button onClick={() => { setMessages([]); setChatStarted(false); setCurrentResults(null); setCurrentEstimate(null) }}
-                    className="text-xs bg-gray-100 border border-gray-200 text-gray-500 rounded-xl px-3 py-1.5 hover:bg-gray-200 transition font-medium">
-                    🔄 Nouvelle recherche
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Input */}
-          <div className="max-w-3xl mx-auto">
-            <div className="bg-white border-2 border-gray-200 rounded-2xl shadow-sm focus-within:border-[#FFC107] transition-colors">
-              <textarea
-                ref={inputRef}
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputValue) }
-                }}
-                placeholder={userCity
-                  ? `Décrivez votre intervention à ${userCity}...\nEx: "Remplacement chauffe-eau 150L" ou "Pose parquet flottant 30m²"`
-                  : `Décrivez votre intervention...\nEx: "Remplacement chauffe-eau 150L" ou "Installation VMC double flux"`
-                }
-                rows={3}
-                className="w-full px-5 pt-4 pb-2 text-sm focus:outline-none bg-transparent resize-none rounded-2xl"
-                disabled={isLoading}
-              />
-              <div className="flex items-center justify-between px-4 pb-3">
-                <span className="text-xs text-gray-300">Entrée = rechercher · Maj+Entrée = saut de ligne</span>
+            <div className="px-4 pb-4 pt-2 border-t border-gray-100 flex-shrink-0">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={dashMsgText}
+                  onChange={e => setDashMsgText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDashMessage()}
+                  placeholder="Votre message..."
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                />
                 <button
-                  onClick={() => sendMessage(inputValue)}
-                  disabled={!inputValue.trim() || isLoading}
-                  className="bg-[#FFC107] hover:bg-[#FFD54F] disabled:opacity-40 text-gray-900 px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-sm"
+                  onClick={sendDashMessage}
+                  disabled={dashMsgSending || !dashMsgText.trim()}
+                  className="bg-[#FFC107] hover:bg-amber-500 text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
                 >
-                  {isLoading ? '⏳' : '🔍 Rechercher'}
+                  Envoyer
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+/* ══════════ WALLET CONFORMITÉ ══════════ */
 
-      {/* ── HISTORIQUE TAB ── */}
-      {activeTab === 'historique' && (
-        <div className="p-6 lg:p-8">
-          {savedSearches.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-6xl mb-4">📋</div>
-              <h3 className="text-xl font-bold text-gray-700 mb-2">Aucune recherche sauvegardée</h3>
-              <p className="text-gray-400 text-sm">Vos recherches de matériaux apparaîtront ici automatiquement.</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-w-3xl mx-auto">
-              {savedSearches.map(s => (
-                <div key={s.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-4 p-5">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900 truncate">{s.query}</div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-gray-400">
-                          📅 {new Date(s.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </span>
-                        {s.city && <span className="text-xs text-blue-600">📍 {s.city}</span>}
-                        <span className="text-xs text-gray-500">{s.materials.length} matériaux</span>
-                        {s.totalEstimate && (
-                          <span className="text-xs font-bold text-green-600">
-                            ~{s.totalEstimate.min}–{s.totalEstimate.max} €
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setCurrentResults(s.materials)
-                          setCurrentEstimate(s.totalEstimate)
-                          setMessages([
-                            { role: 'user', content: s.query },
-                            { role: 'assistant', content: `Résultats chargés depuis l'historique du **${new Date(s.date).toLocaleDateString('fr-FR')}**${s.city ? ` (${s.city})` : ''}.` },
-                          ])
-                          setChatStarted(true)
-                          setActiveTab('recherche')
-                        }}
-                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                      >
-                        📂 Recharger
-                      </button>
-                      <button
-                        onClick={() => {
-                          const updated = savedSearches.filter(x => x.id !== s.id)
-                          setSavedSearches(updated)
-                          localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
-                        }}
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-sm transition-all border border-gray-200"
-                      >
-                        🗑
-                      </button>
-                    </div>
+const WALLET_DOCS = [
+  { key: 'assurance_decennale', label: 'Assurance Décennale', icon: '🛡️', desc: 'Obligatoire pour les travaux de construction' },
+  { key: 'kbis', label: 'Extrait KBIS', icon: '🏢', desc: "Preuve d'existence de l'entreprise" },
+  { key: 'urssaf', label: 'Attestation URSSAF', icon: '📋', desc: 'Déclaration de conformité sociale' },
+  { key: 'rc_pro', label: 'RC Professionnelle', icon: '⚖️', desc: 'Responsabilité civile professionnelle' },
+  { key: 'rge', label: 'Certification RGE', icon: '🌿', desc: 'Reconnu Garant de l\'Environnement' },
+  { key: 'carte_pro_btp', label: 'Carte Pro BTP', icon: '🪪', desc: 'Carte professionnelle du bâtiment' },
+  { key: 'passeport_prevention', label: 'Passeport Prévention', icon: '🦺', desc: 'Suivi de formation sécurité' },
+  { key: 'qualibat', label: 'Qualification Qualibat', icon: '🏅', desc: 'Certification qualité artisan' },
+]
+
+interface WalletDoc {
+  url?: string
+  expiryDate?: string
+  uploadedAt?: string
+  name?: string
+}
+
+function WalletConformiteSection({ artisan }: { artisan: any }) {
+  const storageKey = `fixit_wallet_${artisan?.id}`
+
+  const [docs, setDocs] = useState<Record<string, WalletDoc>>(() => {
+    if (typeof window === 'undefined') return {}
+    try { return JSON.parse(localStorage.getItem(storageKey) || '{}') } catch { return {} }
+  })
+  const [uploading, setUploading] = useState<Record<string, boolean>>({})
+  const [editExpiry, setEditExpiry] = useState<string | null>(null)
+  const [sendEmail, setSendEmail] = useState('')
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const saveToStorage = (updated: Record<string, WalletDoc>) => {
+    setDocs(updated)
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }
+
+  const handleUpload = async (docKey: string, file: File) => {
+    if (!artisan?.id) return
+    setUploading(prev => ({ ...prev, [docKey]: true }))
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('bucket', 'artisan-documents')
+      fd.append('folder', `wallet/${artisan.id}/${docKey}`)
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {},
+        body: fd,
+      })
+      const data = await res.json()
+      if (data.url) {
+        const updated = {
+          ...docs,
+          [docKey]: {
+            ...docs[docKey],
+            url: data.url,
+            uploadedAt: new Date().toISOString(),
+            name: file.name,
+          }
+        }
+        saveToStorage(updated)
+      }
+    } catch (e) {
+      console.error('Upload wallet doc error:', e)
+    } finally {
+      setUploading(prev => ({ ...prev, [docKey]: false }))
+    }
+  }
+
+  const setExpiry = (docKey: string, date: string) => {
+    const updated = { ...docs, [docKey]: { ...docs[docKey], expiryDate: date } }
+    saveToStorage(updated)
+    setEditExpiry(null)
+  }
+
+  const removeDoc = (docKey: string) => {
+    const updated = { ...docs }
+    delete updated[docKey]
+    saveToStorage(updated)
+  }
+
+  const getStatus = (doc: WalletDoc | undefined): 'missing' | 'valid' | 'expiring' | 'expired' => {
+    if (!doc?.url) return 'missing'
+    if (!doc.expiryDate) return 'valid'
+    const exp = new Date(doc.expiryDate)
+    const now = new Date()
+    const diff = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    if (diff < 0) return 'expired'
+    if (diff < 60) return 'expiring'
+    return 'valid'
+  }
+
+  const statusBadge = (status: 'missing' | 'valid' | 'expiring' | 'expired') => {
+    const map = {
+      missing: { label: 'Manquant', bg: 'bg-gray-100', text: 'text-gray-500' },
+      valid: { label: 'Valide', bg: 'bg-green-100', text: 'text-green-700' },
+      expiring: { label: 'Expire bientôt', bg: 'bg-amber-100', text: 'text-amber-700' },
+      expired: { label: 'Expiré', bg: 'bg-red-100', text: 'text-red-600' },
+    }
+    const s = map[status]
+    return <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${s.bg} ${s.text}`}>{s.label}</span>
+  }
+
+  const validCount = WALLET_DOCS.filter(d => getStatus(docs[d.key]) === 'valid').length
+
+  const handleSendDossier = () => {
+    const lines = WALLET_DOCS
+      .filter(d => docs[d.key]?.url)
+      .map(d => `${d.label} : ${docs[d.key].url}`)
+      .join('\n')
+    const subject = encodeURIComponent(`Dossier de conformité — ${artisan?.company_name || 'Artisan'}`)
+    const body = encodeURIComponent(
+      `Bonjour,\n\nVeuillez trouver ci-dessous les documents de conformité de ${artisan?.company_name || 'mon entreprise'} :\n\n${lines}\n\nCordialement,\n${artisan?.company_name || ''}`
+    )
+    const recipient = encodeURIComponent(sendEmail || '')
+    window.open(`mailto:${recipient}?subject=${subject}&body=${body}`)
+  }
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">🗂️ Wallet Conformité</h1>
+          <p className="text-gray-500 text-sm mt-1">Centralisez vos documents légaux et envoyez votre dossier aux syndics et clients</p>
+        </div>
+        <div className="text-right">
+          <div className="text-3xl font-black text-gray-900">{validCount}/{WALLET_DOCS.length}</div>
+          <div className="text-xs text-gray-500">documents valides</div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="w-full bg-gray-100 rounded-full h-2 mb-8">
+        <div
+          className="h-2 rounded-full transition-all"
+          style={{
+            width: `${(validCount / WALLET_DOCS.length) * 100}%`,
+            background: validCount === WALLET_DOCS.length ? '#22c55e' : validCount >= 4 ? '#FFC107' : '#f87171',
+          }}
+        />
+      </div>
+
+      {/* Document cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {WALLET_DOCS.map(docDef => {
+          const doc = docs[docDef.key]
+          const status = getStatus(doc)
+          return (
+            <div key={docDef.key} className={`bg-white border-2 rounded-2xl p-4 transition-all ${status === 'expired' ? 'border-red-200' : status === 'expiring' ? 'border-amber-200' : status === 'valid' ? 'border-green-200' : 'border-gray-100'}`}>
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{docDef.icon}</span>
+                  <div>
+                    <div className="font-bold text-gray-900 text-sm">{docDef.label}</div>
+                    <div className="text-xs text-gray-500">{docDef.desc}</div>
                   </div>
                 </div>
-              ))}
+                {statusBadge(status)}
+              </div>
+
+              {doc?.url && (
+                <div className="mt-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs text-gray-600 font-medium truncate">{doc.name || 'Document uploadé'}</div>
+                    {doc.expiryDate && (
+                      <div className="text-xs text-gray-500">Expire : {new Date(doc.expiryDate).toLocaleDateString('fr-FR')}</div>
+                    )}
+                    {doc.uploadedAt && (
+                      <div className="text-xs text-gray-300">Ajouté le {new Date(doc.uploadedAt).toLocaleDateString('fr-FR')}</div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <a href={doc.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 text-xs p-1 rounded hover:bg-blue-50">👁️</a>
+                    <button onClick={() => removeDoc(docDef.key)} className="text-red-400 hover:text-red-600 text-xs p-1 rounded hover:bg-red-50">🗑️</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-3 flex gap-2 flex-wrap">
+                {/* Upload button */}
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  ref={el => { fileInputRefs.current[docDef.key] = el }}
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) handleUpload(docDef.key, f)
+                    e.target.value = ''
+                  }}
+                />
+                <button
+                  onClick={() => fileInputRefs.current[docDef.key]?.click()}
+                  disabled={uploading[docDef.key]}
+                  className="flex items-center gap-1 text-xs bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-1.5 rounded-lg font-semibold transition disabled:opacity-50"
+                >
+                  {uploading[docDef.key] ? '⏳ Upload...' : doc?.url ? '🔄 Remplacer' : '📎 Ajouter'}
+                </button>
+
+                {/* Expiry date */}
+                {editExpiry === docDef.key ? (
+                  <div className="flex gap-1 items-center">
+                    <input
+                      type="date"
+                      className="text-xs border border-gray-200 rounded px-2 py-1"
+                      defaultValue={doc?.expiryDate || ''}
+                      onBlur={e => setExpiry(docDef.key, e.target.value)}
+                      autoFocus
+                    />
+                    <button onClick={() => setEditExpiry(null)} className="text-xs text-gray-500">✕</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setEditExpiry(docDef.key)}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 transition"
+                  >
+                    📅 {doc?.expiryDate ? 'Échéance' : 'Ajouter échéance'}
+                  </button>
+                )}
+              </div>
             </div>
-          )}
+          )
+        })}
+      </div>
+
+      {/* Send dossier */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5">
+        <div className="font-bold text-gray-900 mb-1">📤 Envoyer mon dossier de conformité</div>
+        <p className="text-sm text-gray-500 mb-4">Envoyez tous vos documents valides par email à un syndic, client ou gestionnaire</p>
+        <div className="flex gap-3">
+          <input
+            type="email"
+            placeholder="Email du destinataire..."
+            value={sendEmail}
+            onChange={e => setSendEmail(e.target.value)}
+            className="flex-1 border border-blue-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 bg-white"
+          />
+          <button
+            onClick={handleSendDossier}
+            disabled={WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50 whitespace-nowrap"
+          >
+            📧 Envoyer le dossier
+          </button>
+        </div>
+        {WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0 && (
+          <p className="text-xs text-gray-500 mt-2">⚠️ Uploadez au moins un document pour pouvoir envoyer le dossier</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ══════════ CARNET DE VISITE / PORTFOLIO ══════════ */
+
+const PORTFOLIO_CATEGORIES = ['Plomberie', 'Électricité', 'Peinture', 'Maçonnerie', 'Menuiserie', 'Carrelage', 'Chauffage', 'Toiture', 'Autre']
+
+interface PortfolioPhoto {
+  id: string
+  url: string
+  title: string
+  category: string
+  uploadedAt: string
+}
+
+function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
+  const storageKey = `fixit_portfolio_${artisan?.id}`
+
+  const [photos, setPhotos] = useState<PortfolioPhoto[]>(() => {
+    if (typeof window === 'undefined') return []
+    try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
+  })
+  const [uploading, setUploading] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newCategory, setNewCategory] = useState('Autre')
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<PortfolioPhoto | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const saveToStorage = (updated: PortfolioPhoto[]) => {
+    setPhotos(updated)
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }
+
+  const handleFileSelect = (file: File) => {
+    setPendingFile(file)
+    setNewTitle(file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '))
+    setShowForm(true)
+  }
+
+  const handleUpload = async () => {
+    if (!pendingFile || !artisan?.id) return
+    setUploading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeaders: Record<string, string> = session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}
+      const fd = new FormData()
+      fd.append('file', pendingFile)
+      fd.append('bucket', 'artisan-documents')
+      fd.append('folder', `portfolio/${artisan.id}`)
+      const res = await fetch('/api/upload', { method: 'POST', headers: authHeaders, body: fd })
+      const data = await res.json()
+      if (data.url) {
+        const newPhoto: PortfolioPhoto = {
+          id: Date.now().toString(),
+          url: data.url,
+          title: newTitle || 'Réalisation',
+          category: newCategory,
+          uploadedAt: new Date().toISOString(),
+        }
+        const updated = [newPhoto, ...photos]
+        saveToStorage(updated)
+
+        // Also save to profiles_artisan.portfolio_photos if possible
+        try {
+          await fetch('/api/upload', {
+            method: 'POST',
+            headers: authHeaders,
+            body: (() => {
+              const fd2 = new FormData()
+              fd2.append('artisan_id', artisan.id)
+              fd2.append('field', 'portfolio_photo')
+              fd2.append('photo_url', data.url)
+              fd2.append('photo_meta', JSON.stringify({ title: newTitle, category: newCategory }))
+              return fd2
+            })(),
+          })
+        } catch { /* best effort */ }
+      }
+      setShowForm(false)
+      setPendingFile(null)
+      setNewTitle('')
+      setNewCategory('Autre')
+    } catch (e) {
+      console.error('Portfolio upload error:', e)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removePhoto = (id: string) => {
+    saveToStorage(photos.filter(p => p.id !== id))
+  }
+
+  const categories = ['Toutes', ...PORTFOLIO_CATEGORIES.filter(c => photos.some(p => p.category === c))]
+  const [activeCategory, setActiveCategory] = useState('Toutes')
+  const filtered = activeCategory === 'Toutes' ? photos : photos.filter(p => p.category === activeCategory)
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">📸 Carnet de Visite</h1>
+          <p className="text-gray-500 text-sm mt-1">Vos réalisations visibles sur votre profil public — montrez votre savoir-faire</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-3xl font-black text-gray-900">{photos.length}</div>
+            <div className="text-xs text-gray-500">réalisations</div>
+          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+          >
+            ➕ Ajouter une photo
+          </button>
+        </div>
+      </div>
+
+      {/* Hidden file input */}
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (f) handleFileSelect(f)
+          e.target.value = ''
+        }}
+      />
+
+      {/* Upload form modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="font-bold text-lg text-gray-900 mb-4">📸 Nouvelle réalisation</h3>
+            {pendingFile && (
+              <div className="mb-4 rounded-xl overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
+                <img
+                  src={URL.createObjectURL(pendingFile)}
+                  alt="preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Titre de la réalisation</label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  placeholder="Ex: Remplacement chauffe-eau 300L, Pose carrelage salle de bain..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Catégorie</label>
+                <select
+                  value={newCategory}
+                  onChange={e => setNewCategory(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                >
+                  {PORTFOLIO_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => { setShowForm(false); setPendingFile(null) }}
+                className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-2.5 font-semibold text-sm hover:bg-gray-50 transition"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleUpload}
+                disabled={uploading || !newTitle.trim()}
+                className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl py-2.5 font-bold text-sm transition disabled:opacity-50"
+              >
+                {uploading ? '⏳ Upload en cours...' : '✅ Publier la réalisation'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── AIDE TAB ── */}
-      {activeTab === 'aide' && (
-        <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-          <div className="space-y-4">
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">🤖 Comment fonctionne l&apos;agent ?</h3>
-              <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-600 leading-relaxed">
-                <li><strong>Analyse :</strong> L&apos;IA identifie les matériaux nécessaires à partir de votre description</li>
-                <li><strong>Recherche :</strong> Chaque matériau est recherché sur internet (Leroy Merlin, Brico Dépôt, Castorama…)</li>
-                <li><strong>Comparaison :</strong> Les prix sont extraits et comparés par enseigne</li>
-                <li><strong>Export :</strong> La liste peut être exportée directement vers un devis avec marge configurable</li>
-              </ol>
+      {/* Photo lightbox */}
+      {preview && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+            <img src={preview.url} alt={preview.title} className="w-full rounded-2xl" />
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 rounded-b-2xl p-4">
+              <div className="font-bold text-white">{preview.title}</div>
+              <div className="text-sm text-gray-300">{preview.category} · {new Date(preview.uploadedAt).toLocaleDateString('fr-FR')}</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">🏪 Enseignes couvertes</h3>
-              <div className="flex flex-wrap gap-2">
-                {['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage', 'Brico Leclerc'].map(s => (
-                  <span key={s} className={`px-3 py-1.5 rounded-full text-sm font-semibold ${STORE_COLORS[s] || 'bg-gray-100 text-gray-700'}`}>{s}</span>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">💡 Conseils d&apos;utilisation</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>📍 <strong>Activez le GPS</strong> pour des résultats orientés vers votre région</li>
-                <li>🎯 <strong>Soyez précis</strong> : &quot;chauffe-eau 150L électrique&quot; plutôt que &quot;chauffe-eau&quot;</li>
-                <li>📐 <strong>Donnez les surfaces</strong> : &quot;carrelage 20m²&quot; permet d&apos;estimer les quantités</li>
-                <li>💰 <strong>Ajustez la marge</strong> selon votre contrat et la complexité de la pose</li>
-                <li>📄 <strong>Exportez vers devis</strong> pour facturer les matériaux avec TVA 10% (rénovation BTP)</li>
-              </ul>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-700">
-              <strong>⚠️ Disclaimer :</strong> Les prix affichés sont des estimations à titre indicatif.
-              Ils peuvent varier selon les promotions, stocks et localisation. Vérifiez toujours les prix
-              définitifs directement sur les sites ou en magasin avant d&apos;établir un devis définitif.
-            </div>
+            <button onClick={() => setPreview(null)} className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/70">✕</button>
           </div>
+        </div>
+      )}
+
+      {/* Category filter tabs */}
+      {photos.length > 0 && (
+        <div className="flex gap-2 flex-wrap mb-6">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${activeCategory === cat ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Photo grid */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-20">
+          <div className="text-6xl mb-4">📷</div>
+          <div className="text-xl font-bold text-gray-700 mb-2">Aucune réalisation</div>
+          <p className="text-gray-500 mb-6">Ajoutez vos photos de chantier pour convaincre vos futurs clients</p>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition-all"
+          >
+            📸 Ajouter ma première réalisation
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filtered.map(photo => (
+            <div key={photo.id} className="group relative bg-gray-100 rounded-2xl overflow-hidden aspect-square cursor-pointer" onClick={() => setPreview(photo)}>
+              <img src={photo.url} alt={photo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform">
+                <div className="text-white font-semibold text-sm truncate">{photo.title}</div>
+                <div className="text-gray-300 text-xs">{photo.category}</div>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); removePhoto(photo.id) }}
+                className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 items-center justify-center text-xs hidden group-hover:flex hover:bg-red-600"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {photos.length > 0 && (
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <p className="text-sm text-blue-700">
+            💡 Ces photos sont visibles par les clients sur votre{' '}
+            <a href={`/artisan/${artisan?.id}`} target="_blank" rel="noreferrer" className="font-bold underline">profil public →</a>
+          </p>
         </div>
       )}
     </div>
@@ -4242,7 +3264,7 @@ function StatCard({ icon, iconBg, iconColor, value, label, change, positive, onC
       </div>
       <div className="text-3xl font-bold mb-1">{value}</div>
       <div className="text-gray-500">{label}</div>
-      <div className={`text-sm mt-2 font-semibold ${positive ? 'text-green-500' : 'text-gray-400'}`}>{change}</div>
+      <div className={`text-sm mt-2 font-semibold ${positive ? 'text-green-500' : 'text-gray-500'}`}>{change}</div>
     </div>
   )
 }
@@ -4267,7 +3289,7 @@ function ActivityItem({ icon, iconBg, iconColor, title, time }: {
       </div>
       <div className="flex-1">
         <div className="font-semibold">{title}</div>
-        <div className="text-sm text-gray-400">{time}</div>
+        <div className="text-sm text-gray-500">{time}</div>
       </div>
     </div>
   )
@@ -4481,7 +3503,7 @@ function ChantiersBTPSection({ artisan, bookings }: { artisan: any; bookings: an
                   {c.adresse && <p className="text-sm text-gray-600 mb-1">📍 {c.adresse}</p>}
                   {(c.dateDebut || c.dateFin) && <p className="text-sm text-gray-600 mb-1">📅 {c.dateDebut || '?'} → {c.dateFin || '?'}</p>}
                   {c.budget && <p className="text-sm text-gray-600 mb-1">💰 Budget : {c.budget} €</p>}
-                  {c.description && <p className="text-sm text-gray-400 mt-2">{c.description}</p>}
+                  {c.description && <p className="text-sm text-gray-500 mt-2">{c.description}</p>}
                 </div>
                 <div className="flex flex-col gap-2 min-w-[160px]">
                   <select value={c.statut} onChange={e => changeStatut(c.id, e.target.value)} className="border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:border-blue-500 outline-none">
@@ -5005,7 +4027,7 @@ function MissionsGestionnaireSection({ artisan, bookings }: { artisan: any; book
                     <p className="text-sm text-gray-600 mb-1">🔧 {m.type}</p>
                     {m.artisan && <p className="text-sm text-gray-600 mb-1">👷 {m.artisan}</p>}
                     {m.dateIntervention && <p className="text-sm text-gray-600 mb-1">📅 {m.dateIntervention}</p>}
-                    {m.description && <p className="text-sm text-gray-400 mt-2">{m.description}</p>}
+                    {m.description && <p className="text-sm text-gray-500 mt-2">{m.description}</p>}
                   </div>
                   <div className="min-w-[160px]">
                     <select value={m.statut} onChange={e => changeStatut(m.id, e.target.value)} className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:border-green-500 outline-none">
@@ -5161,7 +4183,7 @@ function ContratsSection({ artisan }: { artisan: any }) {
                   {c.client && c.titre && <p className="text-sm text-gray-600 mb-1">👤 {c.client}</p>}
                   {c.montant && <p className="text-sm text-gray-600 mb-1">💰 {c.montant} € / {c.periodicite}</p>}
                   {(c.dateDebut || c.dateFin) && <p className="text-sm text-gray-600 mb-1">📅 {c.dateDebut || '?'} → {c.dateFin || 'Sans limite'}</p>}
-                  {c.description && <p className="text-sm text-gray-400 mt-1">{c.description}</p>}
+                  {c.description && <p className="text-sm text-gray-500 mt-1">{c.description}</p>}
                 </div>
               </div>
             ))}
@@ -5227,445 +4249,6 @@ function ContratsSection({ artisan }: { artisan: any }) {
     </div>
   )
 }
-
-
-/* ══════════ CANAL PRO SECTION ══════════ */
-function CanalProSection({ artisan, orgRole }: { artisan: any; orgRole: string }) {
-  type CanalContact = { id: string; nom: string; role: string; lastSeen?: string }
-  type CanalMsg = {
-    id: string
-    sender_id: string
-    sender_name: string
-    sender_role: string
-    content: string
-    type: string
-    metadata?: string
-    created_at: string
-    read_at?: string
-  }
-
-  const STORAGE_KEY = `fixit_canal_contacts_${artisan?.id}`
-  const [contacts, setContacts] = useState<CanalContact[]>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-  })
-  const [selectedContact, setSelectedContact] = useState<CanalContact | null>(null)
-  const [messages, setMessages] = useState<CanalMsg[]>([])
-  const [msgLoading, setMsgLoading] = useState(false)
-  const [newMsg, setNewMsg] = useState('')
-  const [sending, setSending] = useState(false)
-  const [showAddContact, setShowAddContact] = useState(false)
-  const [contactForm, setContactForm] = useState({ nom: '', role: 'Artisan', identifiant: '' })
-  const [isRecording, setIsRecording] = useState(false)
-  const [voiceSupported, setVoiceSupported] = useState(false)
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'recording' | 'processing'>('idle')
-  const [attachFile, setAttachFile] = useState<File | null>(null)
-  const chatEndRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<any>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const pollRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Vérifier support vocal
-  useEffect(() => {
-    const hasVoice = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
-    setVoiceSupported(hasVoice)
-  }, [])
-
-  // Sauvegarder contacts
-  const saveContacts = (updated: CanalContact[]) => {
-    setContacts(updated)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  }
-
-  // Charger messages
-  const loadMessages = async (contact: CanalContact) => {
-    setMsgLoading(true)
-    try {
-      const res = await fetch(`/api/pro/channel?contact_id=${contact.id}`)
-      const data = await res.json()
-      if (data.messages) {
-        setMessages(data.messages)
-        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-      }
-    } catch {
-      // Fallback localStorage
-      const local = localStorage.getItem(`fixit_canal_msgs_${artisan?.id}_${contact.id}`)
-      if (local) setMessages(JSON.parse(local))
-    }
-    setMsgLoading(false)
-  }
-
-  // Polling messages toutes les 5s
-  useEffect(() => {
-    if (!selectedContact) return
-    loadMessages(selectedContact)
-    pollRef.current = setInterval(() => loadMessages(selectedContact), 5000)
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [selectedContact?.id])
-
-  // Envoyer message texte
-  const sendMessage = async (content?: string, type = 'text', metadata?: any) => {
-    const msgContent = content || newMsg.trim()
-    if (!msgContent && type === 'text') return
-    if (!selectedContact) return
-    setSending(true)
-
-    const optimistic: CanalMsg = {
-      id: Date.now().toString(),
-      sender_id: artisan?.user_id || 'me',
-      sender_name: artisan?.company_name || 'Moi',
-      sender_role: orgRole,
-      content: msgContent,
-      type,
-      metadata: metadata ? JSON.stringify(metadata) : undefined,
-      created_at: new Date().toISOString(),
-    }
-    setMessages(prev => [...prev, optimistic])
-    setNewMsg('')
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-
-    try {
-      await fetch('/api/pro/channel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: msgContent, contact_id: selectedContact.id, type, metadata }),
-      })
-    } catch {
-      // Sauvegarder en local si offline
-      const key = `fixit_canal_msgs_${artisan?.id}_${selectedContact.id}`
-      const existing = JSON.parse(localStorage.getItem(key) || '[]')
-      localStorage.setItem(key, JSON.stringify([...existing, optimistic]))
-    }
-    setSending(false)
-  }
-
-  // Commande vocale
-  const startVoice = () => {
-    if (!voiceSupported) return
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'fr-FR'
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognitionRef.current = recognition
-
-    recognition.onstart = () => { setIsRecording(true); setVoiceStatus('recording') }
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript
-      setVoiceStatus('processing')
-
-      // Détecter commandes vocales métier
-      const lower = transcript.toLowerCase()
-      let processedContent = transcript
-      let type = 'voice'
-      let metadata: any = { original: transcript }
-
-      if (lower.includes('bâtiment') || lower.includes('batiment') || lower.includes('résidence') || lower.includes('immeuble')) {
-        type = 'voice_location'
-        const batMatch = transcript.match(/bâtiment\s+([A-Za-z0-9]+)/i) || transcript.match(/batiment\s+([A-Za-z0-9]+)/i)
-        const numMatch = transcript.match(/numéro\s+([0-9]+)/i) || transcript.match(/numero\s+([0-9]+)/i)
-        const aptMatch = transcript.match(/appartement\s+([A-Za-z0-9]+)/i) || transcript.match(/apt\.?\s+([A-Za-z0-9]+)/i)
-        metadata = {
-          original: transcript,
-          batiment: batMatch?.[1],
-          numero: numMatch?.[1],
-          appartement: aptMatch?.[1],
-          isLocation: true,
-        }
-        processedContent = `📍 Position : ${transcript}`
-      } else if (lower.includes('terminé') || lower.includes('termine') || lower.includes('fini') || lower.includes('intervention terminée')) {
-        type = 'voice_status'
-        metadata = { original: transcript, status: 'completed' }
-        processedContent = `✅ Intervention terminée : ${transcript}`
-      } else if (lower.includes('problème') || lower.includes('urgence') || lower.includes('alerte')) {
-        type = 'voice_alert'
-        metadata = { original: transcript, priority: 'high' }
-        processedContent = `🚨 Alerte : ${transcript}`
-      } else if (lower.includes('devis') || lower.includes('montant') || lower.includes('euros') || lower.includes('€')) {
-        type = 'voice_devis'
-        metadata = { original: transcript }
-        processedContent = `💰 Devis vocal : ${transcript}`
-      }
-
-      setNewMsg(processedContent)
-      setIsRecording(false)
-      setVoiceStatus('idle')
-
-      if (type !== 'text' && type !== 'voice') {
-        setTimeout(() => sendMessage(processedContent, type, metadata), 500)
-      }
-    }
-    recognition.onerror = () => { setIsRecording(false); setVoiceStatus('idle') }
-    recognition.onend = () => { setIsRecording(false); setVoiceStatus('idle') }
-    recognition.start()
-  }
-
-  const stopVoice = () => {
-    recognitionRef.current?.stop()
-    setIsRecording(false)
-    setVoiceStatus('idle')
-  }
-
-  // Ajouter contact
-  const handleAddContact = () => {
-    if (!contactForm.nom.trim()) return
-    const c: CanalContact = {
-      id: contactForm.identifiant || Date.now().toString(),
-      nom: contactForm.nom,
-      role: contactForm.role,
-      lastSeen: new Date().toISOString(),
-    }
-    saveContacts([...contacts, c])
-    setShowAddContact(false)
-    setContactForm({ nom: '', role: 'Artisan', identifiant: '' })
-    setSelectedContact(c)
-  }
-
-  const MSG_TYPE_ICONS: Record<string, string> = {
-    text: '', voice: '🎤 ', voice_location: '📍 ', voice_status: '✅ ', voice_alert: '🚨 ', voice_devis: '💰 ', file: '📎 ', photo: '🖼️ ', rapport: '📋 ', devis: '📄 ',
-  }
-
-  const ROLE_COLORS: Record<string, string> = {
-    artisan: 'bg-amber-100 text-amber-800', pro_societe: 'bg-blue-100 text-blue-800', pro_conciergerie: 'bg-purple-100 text-purple-800', pro_gestionnaire: 'bg-green-100 text-green-800',
-  }
-
-  return (
-    <div className="animate-fadeIn h-full flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
-      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-[#FFC107] shadow-sm flex justify-between items-center flex-shrink-0">
-        <div>
-          <h1 className="text-2xl font-semibold">📡 Canal Pro</h1>
-          <p className="text-sm text-gray-500">Communication directe gestionnaire ↔ artisan</p>
-        </div>
-        <button onClick={() => setShowAddContact(true)} className="bg-[#FFC107] text-gray-900 px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#FFD54F] transition">+ Contact</button>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* ── Liste contacts ── */}
-        <div className="w-[240px] lg:w-[280px] bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-          <div className="p-3 border-b">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Contacts</div>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {contacts.length === 0 ? (
-              <div className="p-6 text-center">
-                <div className="text-4xl mb-3">📡</div>
-                <p className="text-sm text-gray-400 mb-3">Aucun contact</p>
-                <button onClick={() => setShowAddContact(true)} className="text-xs text-[#FFC107] font-semibold hover:underline">+ Ajouter un contact</button>
-              </div>
-            ) : (
-              contacts.map(c => (
-                <div
-                  key={c.id}
-                  onClick={() => setSelectedContact(c)}
-                  className={`flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition border-b border-gray-100 ${selectedContact?.id === c.id ? 'bg-amber-50 border-l-4 border-l-[#FFC107]' : ''}`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    {c.nom.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate">{c.nom}</div>
-                    <div className="text-xs text-gray-400">{c.role}</div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* ── Zone chat ── */}
-        <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
-          {!selectedContact ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-6xl mb-4">💬</div>
-                <h3 className="text-xl font-bold mb-2 text-gray-700">Sélectionnez un contact</h3>
-                <p className="text-gray-400 mb-4">Choisissez un artisan ou technicien pour démarrer la conversation</p>
-                {voiceSupported && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-xs mx-auto">
-                    <p className="text-sm text-amber-700 font-semibold">🎤 Commandes vocales disponibles</p>
-                    <p className="text-xs text-amber-600 mt-1">Dites &quot;Bâtiment A, numéro 6&quot; pour envoyer votre position, &quot;Intervention terminée&quot; pour le statut, etc.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Header contact */}
-              <div className="bg-white border-b border-gray-200 px-5 py-4 flex items-center gap-3 flex-shrink-0 shadow-sm">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-white font-bold">
-                  {selectedContact.nom.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <div className="font-bold">{selectedContact.nom}</div>
-                  <div className="text-xs text-gray-400">{selectedContact.role} · Canal direct</div>
-                </div>
-                <div className="ml-auto flex gap-2">
-                  {voiceSupported && !isRecording && (
-                    <button onClick={startVoice} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-green-200 transition">🎤 Vocal</button>
-                  )}
-                  {isRecording && (
-                    <button onClick={stopVoice} className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-semibold animate-pulse hover:bg-red-200 transition">⏹ Stop</button>
-                  )}
-                </div>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {msgLoading ? (
-                  <div className="text-center py-10 text-gray-400">Chargement...</div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center py-10">
-                    <div className="text-4xl mb-3">💬</div>
-                    <p className="text-gray-400 text-sm">Démarrez la conversation</p>
-                    {voiceSupported && (
-                      <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-sm mx-auto text-left">
-                        <p className="text-sm font-bold text-amber-800 mb-2">🎤 Exemples de commandes vocales :</p>
-                        <ul className="text-xs text-amber-700 space-y-1">
-                          <li>• <em>&quot;Bâtiment B, numéro 12, Madame Dupont&quot;</em> → localisation automatique</li>
-                          <li>• <em>&quot;Intervention terminée, fuite réparée&quot;</em> → statut terminé</li>
-                          <li>• <em>&quot;Urgence, dégât des eaux au 3ème&quot;</em> → alerte priorité haute</li>
-                          <li>• <em>&quot;Devis 450 euros pour remplacement robinet&quot;</em> → message devis</li>
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  messages.map(msg => {
-                    const isMe = msg.sender_id === (artisan?.user_id || artisan?.id)
-                    const icon = MSG_TYPE_ICONS[msg.type] || ''
-                    return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${isMe ? 'bg-[#FFC107] text-gray-900 rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm border border-gray-200'}`}>
-                          {!isMe && (
-                            <div className="text-xs font-bold text-gray-500 mb-1">{msg.sender_name}
-                              {msg.sender_role && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${ROLE_COLORS[msg.sender_role] || 'bg-gray-100 text-gray-600'}`}>{msg.sender_role}</span>}
-                            </div>
-                          )}
-                          <p className="text-sm leading-relaxed">{icon}{msg.content}</p>
-                          {msg.metadata && msg.type === 'voice_location' && (() => {
-                            try {
-                              const meta = JSON.parse(msg.metadata)
-                              if (meta.isLocation && (meta.batiment || meta.numero)) {
-                                return (
-                                  <div className="mt-2 bg-white/30 rounded-lg p-2 text-xs">
-                                    {meta.batiment && <span className="mr-2">🏢 Bât {meta.batiment}</span>}
-                                    {meta.numero && <span className="mr-2">🚪 N°{meta.numero}</span>}
-                                    {meta.appartement && <span>🏠 Apt {meta.appartement}</span>}
-                                  </div>
-                                )
-                              }
-                            } catch { return null }
-                            return null
-                          })()}
-                          <div className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-400'}`}>
-                            {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                            {msg.read_at && isMe && ' · Lu'}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Statut vocal */}
-              {voiceStatus === 'recording' && (
-                <div className="mx-4 mb-2 bg-red-50 border border-red-200 rounded-xl p-3 text-center text-sm text-red-700 animate-pulse">
-                  🔴 Enregistrement en cours... Parlez maintenant
-                </div>
-              )}
-              {voiceStatus === 'processing' && (
-                <div className="mx-4 mb-2 bg-blue-50 border border-blue-200 rounded-xl p-3 text-center text-sm text-blue-700">
-                  ⚙️ Traitement de la commande vocale...
-                </div>
-              )}
-
-              {/* Zone saisie */}
-              <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0">
-                <div className="flex gap-2 items-end">
-                  <div className="flex gap-2">
-                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={e => setAttachFile(e.target.files?.[0] || null)} />
-                    <button onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition" title="Joindre un fichier">📎</button>
-                    {voiceSupported && (
-                      <button
-                        onMouseDown={startVoice}
-                        onTouchStart={startVoice}
-                        className={`p-2 rounded-lg transition ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                        title="Commande vocale"
-                      >🎤</button>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    {attachFile && (
-                      <div className="mb-2 bg-blue-50 rounded-lg px-3 py-1.5 text-xs text-blue-700 flex justify-between items-center">
-                        <span>📎 {attachFile.name}</span>
-                        <button onClick={() => setAttachFile(null)} className="text-blue-400 hover:text-blue-600">✕</button>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newMsg}
-                        onChange={e => setNewMsg(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-                        placeholder={isRecording ? '🔴 Enregistrement vocal...' : 'Tapez un message...'}
-                        disabled={isRecording}
-                        className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none text-sm"
-                      />
-                      <button
-                        onClick={() => sendMessage()}
-                        disabled={sending || (!newMsg.trim() && !attachFile)}
-                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50"
-                      >Envoyer</button>
-                    </div>
-                  </div>
-                </div>
-                {/* Actions rapides vocales */}
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full font-medium transition">🚗 En route</button>
-                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full font-medium transition">📍 Arrivé</button>
-                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full font-medium transition">✅ Terminé</button>
-                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-full font-medium transition">🚨 Alerte</button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Modal ajout contact */}
-      {showAddContact && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b"><h2 className="text-xl font-bold">📡 Ajouter un contact</h2></div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-1">Nom / Société *</label>
-                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder="Jean Dupont Plomberie" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold mb-1">Rôle</label>
-                <select value={contactForm.role} onChange={e => setContactForm({...contactForm, role: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none">
-                  {['Artisan', 'Technicien', 'Sous-traitant', 'Fournisseur', 'Gestionnaire', 'Syndic', 'Autre'].map(r => <option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold mb-1">Identifiant utilisateur (optionnel)</label>
-                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none" />
-                <p className="text-xs text-gray-400 mt-1">Si l&apos;artisan est inscrit sur VitFix, renseignez son ID pour la messagerie temps réel</p>
-              </div>
-            </div>
-            <div className="p-6 border-t flex gap-3">
-              <button onClick={() => setShowAddContact(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50 transition">Annuler</button>
-              <button onClick={handleAddContact} className="flex-1 py-2.5 bg-[#FFC107] text-gray-900 rounded-xl font-semibold hover:bg-[#FFD54F] transition">Ajouter</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ══════════════════════════════════════════════
 // BTP — PLANNING GANTT
 // ══════════════════════════════════════════════
@@ -5722,7 +4305,7 @@ function GanttSection({ userId }: { userId: string }) {
         </div>
       )}
       {taches.length === 0 ? (
-        <div className="text-center py-16 text-gray-400"><div className="text-5xl mb-3">📅</div><p className="font-medium">Aucune tâche planifiée</p></div>
+        <div className="text-center py-16 text-gray-500"><div className="text-5xl mb-3">📅</div><p className="font-medium">Aucune tâche planifiée</p></div>
       ) : (
         <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -5744,7 +4327,7 @@ function GanttSection({ userId }: { userId: string }) {
                         <div className="relative h-6 bg-gray-100 rounded">
                           <div className="absolute top-1 h-4 rounded opacity-80" style={{ left: bar.left, width: bar.width, backgroundColor: t.couleur }} />
                         </div>
-                        <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                        <div className="flex justify-between text-xs text-gray-500 mt-0.5">
                           <span>{t.debut ? new Date(t.debut).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}</span>
                           <span>{t.fin ? new Date(t.fin).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}</span>
                         </div>
@@ -5834,7 +4417,7 @@ function SituationsTravaux({ userId }: { userId: string }) {
       )}
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-1 space-y-3">
-          {situations.length === 0 ? <div className="text-center py-8 text-gray-400 text-sm">Aucune situation</div> : situations.map(s => (
+          {situations.length === 0 ? <div className="text-center py-8 text-gray-500 text-sm">Aucune situation</div> : situations.map(s => (
             <div key={s.id} onClick={() => setSelected(s)} className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 ${selected?.id === s.id ? 'border-blue-500 ring-1 ring-blue-200' : ''}`}>
               <div className="flex justify-between mb-1"><span className="font-semibold text-sm">Sit. n°{s.numero}</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statColors[s.statut]}`}>{s.statut}</span></div>
               <div className="text-sm text-gray-600">{s.chantier}</div>
@@ -5876,7 +4459,7 @@ function SituationsTravaux({ userId }: { userId: string }) {
                 </div>
               </div>
             </div>
-          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-400"><div className="text-center"><div className="text-4xl mb-2">📊</div><p>Sélectionnez une situation</p></div></div>}
+          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-500"><div className="text-center"><div className="text-4xl mb-2">📊</div><p>Sélectionnez une situation</p></div></div>}
         </div>
       </div>
     </div>
@@ -5942,7 +4525,7 @@ function RetenuesGarantieSection({ userId }: { userId: string }) {
         <table className="w-full">
           <thead className="bg-gray-50 border-b"><tr>{['Chantier', 'Client', 'Marché HT', 'Retenu', 'Fin travaux', 'Statut', 'Actions'].map(h => <th key={h} className="text-left text-xs font-semibold text-gray-600 px-4 py-3">{h}</th>)}</tr></thead>
           <tbody className="divide-y">
-            {retenues.length === 0 ? <tr><td colSpan={7} className="text-center py-10 text-gray-400 text-sm">Aucune retenue</td></tr> : retenues.map(r => (
+            {retenues.length === 0 ? <tr><td colSpan={7} className="text-center py-10 text-gray-500 text-sm">Aucune retenue</td></tr> : retenues.map(r => (
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-sm">{r.chantier}</td>
                 <td className="px-4 py-3 text-sm">{r.client}</td>
@@ -6030,7 +4613,7 @@ function PointageEquipesSection({ userId }: { userId: string }) {
           <table className="w-full text-sm">
             <thead className="border-b"><tr>{['Employé', 'Poste', 'Chantier', 'Date', 'Arrivée', 'Départ', 'Heures', ''].map(h => <th key={h} className="text-left text-xs font-semibold text-gray-600 pb-2">{h}</th>)}</tr></thead>
             <tbody className="divide-y">
-              {filtered.length === 0 ? <tr><td colSpan={8} className="py-8 text-center text-gray-400 text-sm">Aucun pointage</td></tr> : filtered.map(p => (
+              {filtered.length === 0 ? <tr><td colSpan={8} className="py-8 text-center text-gray-500 text-sm">Aucun pointage</td></tr> : filtered.map(p => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="py-2 font-medium">{p.employe}</td><td className="py-2 text-gray-600">{p.poste}</td><td className="py-2 text-gray-600">{p.chantier}</td>
                   <td className="py-2">{new Date(p.date).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' })}</td>
@@ -6044,7 +4627,7 @@ function PointageEquipesSection({ userId }: { userId: string }) {
         </div>
         <div className="bg-white rounded-xl border p-4">
           <h4 className="text-sm font-semibold text-gray-700 mb-3">Récap employés</h4>
-          {heuresByEmp.length === 0 ? <p className="text-xs text-gray-400">Aucune donnée</p> : heuresByEmp.map(e => (
+          {heuresByEmp.length === 0 ? <p className="text-xs text-gray-500">Aucune donnée</p> : heuresByEmp.map(e => (
             <div key={e.employe} className="flex items-center justify-between py-2 border-b last:border-0">
               <div><div className="text-sm font-medium">{e.employe}</div><div className="text-xs text-gray-500">{e.jours} jour(s)</div></div>
               <div className="text-sm font-bold text-blue-700">{e.heures.toFixed(1)}h</div>
@@ -6117,7 +4700,7 @@ function SousTraitanceDC4Section({ userId }: { userId: string }) {
         <table className="w-full">
           <thead className="bg-gray-50 border-b"><tr>{['Entreprise', 'Chantier/Lot', 'Montant HT', 'Statut', 'DC4', 'Actions'].map(h => <th key={h} className="text-left text-xs font-semibold text-gray-600 px-4 py-3">{h}</th>)}</tr></thead>
           <tbody className="divide-y">
-            {soustraitants.length === 0 ? <tr><td colSpan={6} className="text-center py-10 text-gray-400 text-sm">Aucun sous-traitant</td></tr> : soustraitants.map(s => (
+            {soustraitants.length === 0 ? <tr><td colSpan={6} className="text-center py-10 text-gray-500 text-sm">Aucun sous-traitant</td></tr> : soustraitants.map(s => (
               <tr key={s.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3"><div className="font-medium text-sm">{s.entreprise}</div><div className="text-xs text-gray-500">{s.siret}</div></td>
                 <td className="px-4 py-3 text-sm"><div>{s.chantier}</div><div className="text-xs text-gray-500">{s.lot}</div></td>
@@ -6208,7 +4791,7 @@ function DPGFSection({ userId }: { userId: string }) {
       )}
       <div className="grid grid-cols-3 gap-6">
         <div className="space-y-3">
-          {appels.length === 0 ? <div className="text-center py-8 text-gray-400 text-sm">Aucun appel d&apos;offres</div> : appels.map(a => (
+          {appels.length === 0 ? <div className="text-center py-8 text-gray-500 text-sm">Aucun appel d&apos;offres</div> : appels.map(a => (
             <div key={a.id} onClick={() => setSelected(a)} className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 ${selected?.id === a.id ? 'border-blue-500 ring-1 ring-blue-200' : ''}`}>
               <div className="flex items-center justify-between mb-1"><span className="font-semibold text-sm truncate">{a.titre}</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ml-2 ${statColors[a.statut]}`}>{a.statut}</span></div>
               <div className="text-xs text-gray-500">{a.client}</div>
@@ -6245,7 +4828,7 @@ function DPGFSection({ userId }: { userId: string }) {
                 </div>
               </div>
             </div>
-          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-400"><div className="text-center"><div className="text-4xl mb-2">📋</div><p>Sélectionnez un appel d&apos;offres</p></div></div>}
+          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-500"><div className="text-center"><div className="text-4xl mb-2">📋</div><p>Sélectionnez un appel d&apos;offres</p></div></div>}
         </div>
       </div>
     </div>
@@ -6319,7 +4902,7 @@ function ChannelManagerSection({ userId }: { userId: string }) {
         <table className="w-full">
           <thead className="bg-gray-50 border-b"><tr>{['Plateforme', 'Logement', 'Client', 'Arrivée', 'Départ', 'Montant', 'Commission', 'Statut', ''].map(h => <th key={h} className="text-left text-xs font-semibold text-gray-600 px-4 py-3">{h}</th>)}</tr></thead>
           <tbody className="divide-y">
-            {filtered.length === 0 ? <tr><td colSpan={9} className="text-center py-10 text-gray-400 text-sm">Aucune réservation</td></tr> : filtered.map(r => (
+            {filtered.length === 0 ? <tr><td colSpan={9} className="text-center py-10 text-gray-500 text-sm">Aucune réservation</td></tr> : filtered.map(r => (
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${platColors[r.plateforme]}`}>{r.plateforme}</span></td>
                 <td className="px-4 py-3 text-sm font-medium">{r.logement}</td>
@@ -6393,7 +4976,7 @@ function TarificationSection({ userId }: { userId: string }) {
       )}
       <div className="grid grid-cols-3 gap-6">
         <div className="space-y-3">
-          {tarifs.length === 0 ? <div className="text-center py-8 text-gray-400 text-sm">Aucun logement configuré</div> : tarifs.map(t => (
+          {tarifs.length === 0 ? <div className="text-center py-8 text-gray-500 text-sm">Aucun logement configuré</div> : tarifs.map(t => (
             <div key={t.id} onClick={() => setSelected(t)} className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 ${selected?.id === t.id ? 'border-blue-500 ring-1 ring-blue-200' : ''}`}>
               <div className="font-semibold text-sm">{t.logement}</div>
               <div className="flex gap-3 mt-1 text-sm text-gray-600"><span>🌙 {t.prixBase}€/nuit</span><span>🎉 {t.prixWeekend}€ WE</span></div>
@@ -6430,7 +5013,7 @@ function TarificationSection({ userId }: { userId: string }) {
                 </div>
               </div>
             </div>
-          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-400"><div className="text-center"><div className="text-4xl mb-2">💰</div><p>Sélectionnez un logement</p></div></div>}
+          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-500"><div className="text-center"><div className="text-4xl mb-2">💰</div><p>Sélectionnez un logement</p></div></div>}
         </div>
       </div>
     </div>
@@ -6496,7 +5079,7 @@ function CheckinOutSection({ userId }: { userId: string }) {
         <button onClick={() => setFilterDate('')} className="text-sm text-blue-600">Tout voir</button>
       </div>
       <div className="space-y-3">
-        {filtered.length === 0 ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2">🔑</div><p>Aucun passage prévu</p></div> : filtered.sort((a, b) => a.heure.localeCompare(b.heure)).map(p => (
+        {filtered.length === 0 ? <div className="text-center py-12 text-gray-500"><div className="text-4xl mb-2">🔑</div><p>Aucun passage prévu</p></div> : filtered.sort((a, b) => a.heure.localeCompare(b.heure)).map(p => (
           <div key={p.id} className={`bg-white rounded-xl border p-4 shadow-sm ${p.statut === 'effectué' ? 'opacity-70' : ''}`}>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -6582,7 +5165,7 @@ function LivretAccueilSection({ userId }: { userId: string }) {
       )}
       <div className="grid grid-cols-3 gap-6">
         <div className="space-y-3">
-          {livrets.length === 0 ? <div className="text-center py-8 text-gray-400 text-sm">Aucun livret créé</div> : livrets.map(l => (
+          {livrets.length === 0 ? <div className="text-center py-8 text-gray-500 text-sm">Aucun livret créé</div> : livrets.map(l => (
             <div key={l.id} onClick={() => setSelected(l)} className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 ${selected?.id === l.id ? 'border-blue-500 ring-1 ring-blue-200' : ''}`}>
               <div className="font-semibold text-sm">{l.logement}</div>
               <div className="text-xs text-gray-500 mt-1">📶 {l.wifi || 'WiFi non renseigné'}</div>
@@ -6604,7 +5187,7 @@ function LivretAccueilSection({ userId }: { userId: string }) {
               ))}
               <button onClick={() => copyLivret(selected)} className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700">📋 Copier le livret complet (WhatsApp / email)</button>
             </div>
-          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-400"><div className="text-center"><div className="text-4xl mb-2">📖</div><p>Sélectionnez un livret à éditer</p></div></div>}
+          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-500"><div className="text-center"><div className="text-4xl mb-2">📖</div><p>Sélectionnez un livret à éditer</p></div></div>}
         </div>
       </div>
     </div>
@@ -6666,7 +5249,7 @@ function PlanningMenageSection({ userId }: { userId: string }) {
         <span className="text-sm text-gray-500">{filtered.length} tâche(s)</span>
       </div>
       <div className="space-y-3">
-        {filtered.length === 0 ? <div className="text-center py-12 text-gray-400"><div className="text-4xl mb-2">🧹</div><p>Aucune tâche planifiée</p></div> : filtered.sort((a, b) => a.heure.localeCompare(b.heure)).map(t => (
+        {filtered.length === 0 ? <div className="text-center py-12 text-gray-500"><div className="text-4xl mb-2">🧹</div><p>Aucune tâche planifiée</p></div> : filtered.sort((a, b) => a.heure.localeCompare(b.heure)).map(t => (
           <div key={t.id} className={`bg-white rounded-xl border p-4 shadow-sm ${t.statut === 'vérifié' ? 'opacity-60' : ''}`}>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -6691,7 +5274,7 @@ function PlanningMenageSection({ userId }: { userId: string }) {
                 </label>
               ))}
             </div>
-            <div className="mt-1 text-xs text-gray-400">{t.checklist.length}/{checklistItems.length} validés · {Math.round(t.checklist.length / checklistItems.length * 100)}%</div>
+            <div className="mt-1 text-xs text-gray-500">{t.checklist.length}/{checklistItems.length} validés · {Math.round(t.checklist.length / checklistItems.length * 100)}%</div>
           </div>
         ))}
       </div>
@@ -6771,7 +5354,7 @@ function RevPARSection({ userId }: { userId: string }) {
                   <div className="flex-1 bg-gray-100 rounded-full h-2.5"><div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${pct}%` }}></div></div>
                   <div className="w-20 text-right text-sm font-semibold">{p.ca.toLocaleString('fr-FR')} €</div>
                   <div className="w-12 text-right text-xs text-gray-500">{p.nuits} nuits</div>
-                  <div className="w-8 text-right text-xs text-gray-400">{pct}%</div>
+                  <div className="w-8 text-right text-xs text-gray-500">{pct}%</div>
                 </div>
               )
             })}
@@ -6897,7 +5480,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-20">
             <div className="text-6xl mb-4">📋</div>
             <h3 className="text-xl font-bold text-gray-700">Aucun ordre de mission</h3>
-            <p className="text-gray-400 mt-2 text-sm">Les ordres de mission envoyés par les syndics apparaîtront ici</p>
+            <p className="text-gray-500 mt-2 text-sm">Les ordres de mission envoyés par les syndics apparaîtront ici</p>
           </div>
         </div>
       </div>
@@ -6926,7 +5509,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
         {/* ─ Liste missions ─ */}
         <div className="w-72 flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50">
           {filteredMissions.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-gray-500">
               <p className="text-sm">Aucune mission dans cette catégorie</p>
             </div>
           ) : filteredMissions.map(m => {
@@ -6953,7 +5536,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
                     </div>
                     <p className="text-xs text-gray-600 truncate">🏢 {m.immeuble || '—'}</p>
                     {(m.batiment || m.etage || m.numLot) && (
-                      <p className="text-xs text-gray-400 truncate">
+                      <p className="text-xs text-gray-500 truncate">
                         {[m.batiment && `Bât. ${m.batiment}`, m.etage && `Ét. ${m.etage}`, m.numLot && `Lot ${m.numLot}`].filter(Boolean).join(' · ')}
                       </p>
                     )}
@@ -6963,7 +5546,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
                       </p>
                     )}
                     {lastMsg && lastMsg.role !== 'system' && (
-                      <p className="text-xs text-gray-400 mt-1 truncate italic">{lastMsg.texte.substring(0, 45)}…</p>
+                      <p className="text-xs text-gray-500 mt-1 truncate italic">{lastMsg.texte.substring(0, 45)}…</p>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -6984,7 +5567,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
         <div className="flex-1 flex flex-col min-w-0 bg-white">
           {!selectedMission ? (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-gray-400">
+              <div className="text-center text-gray-500">
                 <div className="text-5xl mb-3">📋</div>
                 <p className="font-medium">Sélectionnez un ordre de mission</p>
                 <p className="text-sm mt-1">pour voir les détails et le canal de communication</p>
@@ -7039,7 +5622,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
               {/* Fil de messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
                 {(!selectedMission.canalMessages || selectedMission.canalMessages.length === 0) ? (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-gray-500">
                     <div className="text-4xl mb-2">💬</div>
                     <p className="text-sm">Pas encore de messages — confirmez la mission ou posez une question</p>
                   </div>
@@ -7063,7 +5646,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
                         {msg.auteur.charAt(0).toUpperCase()}
                       </div>
                       <div className={`max-w-sm flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                        <p className="text-xs text-gray-400 px-1">{msg.auteur} · {isMe ? 'Vous' : 'Gestionnaire'}</p>
+                        <p className="text-xs text-gray-500 px-1">{msg.auteur} · {isMe ? 'Vous' : 'Gestionnaire'}</p>
                         <div className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line shadow-sm ${isMe ? 'bg-[#FFC107] text-white rounded-tr-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
                           {msg.texte}
                         </div>
@@ -7107,6 +5690,7 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
           )}
         </div>
       </div>
+
     </div>
   )
 }

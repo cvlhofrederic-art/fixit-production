@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Conditions Générales d\'Utilisation - VitFix',
-  description: 'CGU de la plateforme VitFix, conformes au droit français et au RGPD.',
+  title: 'Conditions Générales d\'Utilisation - Vitfix',
+  description: 'CGU de la plateforme Vitfix, conformes au droit français et au RGPD.',
 }
 
 export default function CGUPage() {
@@ -22,7 +22,7 @@ export default function CGUPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Pr&eacute;ambule</h2>
             <p>
-              La soci&eacute;t&eacute; VitFix SAS (ci-apr&egrave;s &laquo;&nbsp;VitFix&nbsp;&raquo; ou &laquo;&nbsp;la Soci&eacute;t&eacute;&nbsp;&raquo;)
+              La soci&eacute;t&eacute; Vitfix SAS (ci-apr&egrave;s &laquo;&nbsp;Vitfix&nbsp;&raquo; ou &laquo;&nbsp;la Soci&eacute;t&eacute;&nbsp;&raquo;)
               exploite une plateforme num&eacute;rique accessible &agrave; l&apos;adresse{' '}
               <span className="font-medium">vitfix.fr</span> (ci-apr&egrave;s &laquo;&nbsp;la Plateforme&nbsp;&raquo;),
               permettant la mise en relation entre des particuliers et des artisans professionnels
@@ -47,7 +47,7 @@ export default function CGUPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Article 1 — D&eacute;finitions</h2>
             <ul className="space-y-2 text-sm">
-              <li><strong>&laquo;&nbsp;Plateforme&nbsp;&raquo;</strong> : le site internet vitfix.fr et l&apos;application mobile VitFix Pro.</li>
+              <li><strong>&laquo;&nbsp;Plateforme&nbsp;&raquo;</strong> : le site internet vitfix.fr et l&apos;application mobile Vitfix Pro.</li>
               <li><strong>&laquo;&nbsp;Utilisateur&nbsp;&raquo;</strong> : toute personne physique ou morale acc&eacute;dant &agrave; la Plateforme.</li>
               <li><strong>&laquo;&nbsp;Client&nbsp;&raquo;</strong> : tout Utilisateur particulier ou professionnel recherchant les services d&apos;un Artisan.</li>
               <li><strong>&laquo;&nbsp;Artisan&nbsp;&raquo;</strong> : tout professionnel du b&acirc;timent ou des services &agrave; domicile inscrit sur la Plateforme.</li>
@@ -65,7 +65,7 @@ export default function CGUPage() {
               L&apos;Utilisateur qui n&apos;accepte pas les CGU doit cesser imm&eacute;diatement toute utilisation de la Plateforme.
             </p>
             <p className="mt-3">
-              VitFix se r&eacute;serve le droit de modifier les pr&eacute;sentes CGU &agrave; tout moment.
+              Vitfix se r&eacute;serve le droit de modifier les pr&eacute;sentes CGU &agrave; tout moment.
               Les modifications entrent en vigueur d&egrave;s leur publication sur la Plateforme.
               L&apos;Utilisateur sera inform&eacute; par email de toute modification substantielle.
               L&apos;utilisation continue de la Plateforme apr&egrave;s notification vaut acceptation des nouvelles CGU.
@@ -86,7 +86,7 @@ export default function CGUPage() {
               Lors de l&apos;inscription, l&apos;Utilisateur s&apos;engage &agrave; fournir des informations exactes, compl&egrave;tes
               et &agrave; jour. Il est responsable de la confidentialit&eacute; de ses identifiants de connexion.
               Toute utilisation du Compte sous sa responsabilit&eacute; lui est imputable.
-              VitFix se r&eacute;serve le droit de suspendre ou supprimer tout Compte en cas d&apos;informations
+              Vitfix se r&eacute;serve le droit de suspendre ou supprimer tout Compte en cas d&apos;informations
               inexactes ou de violation des pr&eacute;sentes CGU.
             </p>
             <h3 className="font-semibold text-gray-900 mb-2 mt-4">3.3 Inscription des Artisans</h3>
@@ -99,22 +99,22 @@ export default function CGUPage() {
               <li>Toute qualification ou certification requise pour l&apos;exercice de leur activit&eacute;</li>
             </ul>
             <p className="mt-3">
-              VitFix proc&egrave;de &agrave; la v&eacute;rification de ces documents avant activation du profil de l&apos;Artisan.
+              Vitfix proc&egrave;de &agrave; la v&eacute;rification de ces documents avant activation du profil de l&apos;Artisan.
               Un Artisan dont les documents seraient p&eacute;rim&eacute;s ou invalides verra son profil suspendu.
             </p>
           </section>
 
           {/* Article 4 */}
           <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-3">Article 4 — R&ocirc;le de VitFix</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-3">Article 4 — R&ocirc;le de Vitfix</h2>
             <p>
-              VitFix agit exclusivement en qualit&eacute; d&apos;<strong>interm&eacute;diaire technique de mise en relation</strong>
+              Vitfix agit exclusivement en qualit&eacute; d&apos;<strong>interm&eacute;diaire technique de mise en relation</strong>
               entre les Clients et les Artisans, au sens de la loi n&deg;&nbsp;2004-575 du 21&nbsp;juin&nbsp;2004
               (LCEN) et de l&apos;article 5 du R&egrave;glement (UE) 2022/2065 (DSA).
             </p>
             <p className="mt-3">
-              VitFix n&apos;est pas partie aux contrats conclus entre les Clients et les Artisans.
-              En cons&eacute;quence, VitFix ne garantit pas et ne saurait &ecirc;tre tenu responsable de&nbsp;:
+              Vitfix n&apos;est pas partie aux contrats conclus entre les Clients et les Artisans.
+              En cons&eacute;quence, Vitfix ne garantit pas et ne saurait &ecirc;tre tenu responsable de&nbsp;:
             </p>
             <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
               <li>La qualit&eacute;, la conformit&eacute; ou le r&eacute;sultat des Prestations r&eacute;alis&eacute;es</li>
@@ -141,7 +141,7 @@ export default function CGUPage() {
             </p>
             <h3 className="font-semibold text-gray-900 mb-2 mt-4">5.3 Annulation par l&apos;Artisan</h3>
             <p>
-              L&apos;Artisan s&apos;engage &agrave; informer le Client et VitFix de toute impossibilit&eacute; d&apos;intervenir
+              L&apos;Artisan s&apos;engage &agrave; informer le Client et Vitfix de toute impossibilit&eacute; d&apos;intervenir
               dans les meilleurs d&eacute;lais. Des annulations r&eacute;p&eacute;t&eacute;es peuvent entra&icirc;ner la suspension du
               profil de l&apos;Artisan.
             </p>
@@ -157,7 +157,7 @@ export default function CGUPage() {
           {/* Article 6 */}
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Article 6 — Obligations des Artisans</h2>
-            <p>En s&apos;inscrivant sur VitFix, l&apos;Artisan s&apos;engage &agrave;&nbsp;:</p>
+            <p>En s&apos;inscrivant sur Vitfix, l&apos;Artisan s&apos;engage &agrave;&nbsp;:</p>
             <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
               <li>Exercer son activit&eacute; conform&eacute;ment &agrave; la r&eacute;glementation en vigueur</li>
               <li>Maintenir son assurance RC Pro valide et en fournir un justificatif annuel</li>
@@ -165,7 +165,7 @@ export default function CGUPage() {
               <li>Fournir une Prestation de qualit&eacute; conforme au devis &eacute;tabli</li>
               <li>Remettre une facture conform&eacute;ment aux articles L.&nbsp;441-9 et suivants du Code de commerce</li>
               <li>Respecter les r&egrave;gles relatives au d&eacute;marchage &agrave; domicile (articles L.&nbsp;221-1 et suivants du Code de la consommation)</li>
-              <li>Ne pas solliciter des Clients en dehors de la Plateforme pour des prestations similaires &agrave; celles r&eacute;alis&eacute;es via VitFix</li>
+              <li>Ne pas solliciter des Clients en dehors de la Plateforme pour des prestations similaires &agrave; celles r&eacute;alis&eacute;es via Vitfix</li>
               <li>Maintenir leur profil &agrave; jour (disponibilit&eacute;s, tarifs, qualifications)</li>
             </ul>
           </section>
@@ -187,18 +187,18 @@ export default function CGUPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Article 8 — Propri&eacute;t&eacute; intellectuelle</h2>
             <p>
-              L&apos;ensemble des &eacute;l&eacute;ments constituant la Plateforme VitFix (marques, logos, textes, graphismes,
-              logiciels, bases de donn&eacute;es, code source) sont la propri&eacute;t&eacute; exclusive de VitFix SAS
+              L&apos;ensemble des &eacute;l&eacute;ments constituant la Plateforme Vitfix (marques, logos, textes, graphismes,
+              logiciels, bases de donn&eacute;es, code source) sont la propri&eacute;t&eacute; exclusive de Vitfix SAS
               et sont prot&eacute;g&eacute;s par le droit de la propri&eacute;t&eacute; intellectuelle.
             </p>
             <p className="mt-3">
               Toute reproduction, repr&eacute;sentation, modification, publication, adaptation,
               extraction ou exploitation, totale ou partielle, par quelque proc&eacute;d&eacute; que ce soit
               et sur quelque support que ce soit, est strictement interdite sans autorisation
-              &eacute;crite pr&eacute;alable de VitFix SAS, sous peine de poursuites judiciaires.
+              &eacute;crite pr&eacute;alable de Vitfix SAS, sous peine de poursuites judiciaires.
             </p>
             <p className="mt-3">
-              Les Artisans c&egrave;dent &agrave; VitFix, &agrave; titre non exclusif et gratuit,
+              Les Artisans c&egrave;dent &agrave; Vitfix, &agrave; titre non exclusif et gratuit,
               le droit d&apos;utiliser les &eacute;l&eacute;ments (photos, descriptions) qu&apos;ils publient sur la Plateforme
               aux fins de promotion du service.
             </p>
@@ -218,7 +218,7 @@ export default function CGUPage() {
               <li>Publi&eacute;s en contrepartie d&apos;une r&eacute;mun&eacute;ration non d&eacute;clar&eacute;e</li>
             </ul>
             <p className="mt-3">
-              VitFix se r&eacute;serve le droit de supprimer tout avis non conforme,
+              Vitfix se r&eacute;serve le droit de supprimer tout avis non conforme,
               conform&eacute;ment aux articles L.&nbsp;111-7-2 et suivants du Code de la consommation.
             </p>
           </section>
@@ -227,7 +227,7 @@ export default function CGUPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Article 10 — Protection des donn&eacute;es personnelles</h2>
             <p>
-              VitFix traite les donn&eacute;es personnelles des Utilisateurs en qualit&eacute; de responsable de traitement,
+              Vitfix traite les donn&eacute;es personnelles des Utilisateurs en qualit&eacute; de responsable de traitement,
               conform&eacute;ment au RGPD et &agrave; la loi Informatique et Libert&eacute;s.
             </p>
             <p className="mt-3">Conform&eacute;ment au RGPD, vous disposez des droits suivants&nbsp;:</p>
@@ -255,13 +255,13 @@ export default function CGUPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-3">Article 11 — Responsabilit&eacute; et limitation</h2>
             <p>
-              VitFix met en œuvre tous les moyens raisonnables pour assurer la disponibilit&eacute; de la Plateforme
+              Vitfix met en œuvre tous les moyens raisonnables pour assurer la disponibilit&eacute; de la Plateforme
               mais ne saurait &ecirc;tre tenu responsable des interruptions dues &agrave; des op&eacute;rations de maintenance,
               &agrave; des d&eacute;faillances techniques ou &agrave; des causes ext&eacute;rieures (force majeure, actes malveillants).
             </p>
             <p className="mt-3">
-              En tout &eacute;tat de cause, la responsabilit&eacute; de VitFix ne pourra exc&eacute;der le montant des sommes
-              effectivement per&ccedil;ues par VitFix au titre de l&apos;abonnement de l&apos;Utilisateur au cours
+              En tout &eacute;tat de cause, la responsabilit&eacute; de Vitfix ne pourra exc&eacute;der le montant des sommes
+              effectivement per&ccedil;ues par Vitfix au titre de l&apos;abonnement de l&apos;Utilisateur au cours
               des 12 derniers mois pr&eacute;c&eacute;dant le fait g&eacute;n&eacute;rateur du dommage.
             </p>
           </section>
@@ -272,7 +272,7 @@ export default function CGUPage() {
             <p>
               Conform&eacute;ment aux articles L.&nbsp;611-1 et suivants du Code de la consommation,
               tout Client consommateur peut avoir recours gratuitement &agrave; un m&eacute;diateur de la consommation
-              en vue de la r&eacute;solution amiable du litige l&apos;opposant &agrave; VitFix.
+              en vue de la r&eacute;solution amiable du litige l&apos;opposant &agrave; Vitfix.
             </p>
             <p className="mt-3">
               La Commission europ&eacute;enne met &eacute;galement &agrave; disposition une plateforme de R&egrave;glement en Ligne
@@ -307,7 +307,7 @@ export default function CGUPage() {
               par une d&eacute;cision de justice, les autres dispositions resteraient en vigueur.
             </p>
             <p className="mt-3">
-              Le fait pour VitFix de ne pas se pr&eacute;valoir &agrave; un moment donn&eacute; de l&apos;une des clauses
+              Le fait pour Vitfix de ne pas se pr&eacute;valoir &agrave; un moment donn&eacute; de l&apos;une des clauses
               des pr&eacute;sentes CGU ne peut &ecirc;tre interpr&eacute;t&eacute; comme une renonciation &agrave; se pr&eacute;valoir
               ult&eacute;rieurement de ladite clause.
             </p>
@@ -320,7 +320,7 @@ export default function CGUPage() {
               Pour toute question relative aux pr&eacute;sentes CGU&nbsp;:
             </p>
             <ul className="mt-2 space-y-1 text-sm">
-              <li><strong>VitFix SAS</strong></li>
+              <li><strong>Vitfix SAS</strong></li>
               <li>Email&nbsp;: <a href="mailto:contact@vitfix.fr" className="text-[#FFC107] hover:underline">contact@vitfix.fr</a></li>
               <li>DPO&nbsp;: <a href="mailto:dpo@vitfix.fr" className="text-[#FFC107] hover:underline">dpo@vitfix.fr</a></li>
             </ul>

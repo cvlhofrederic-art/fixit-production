@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 
 /**
- * Protection technique du contenu VitFix :
+ * Protection technique du contenu Vitfix :
  * - Désactive clic droit sur les éléments sensibles
  * - Désactive la sélection de texte sur les sections non-formulaires
  * - Bloque le raccourci F12 / DevTools basique (dissuasif)
@@ -32,7 +32,7 @@ export default function SiteProtection() {
         e.preventDefault()
         e.clipboardData?.setData(
           'text/plain',
-          '© VitFix - Contenu protégé. Toute reproduction est interdite.'
+          '© Vitfix - Contenu protégé. Toute reproduction est interdite.'
         )
       }
     }

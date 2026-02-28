@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 
 // ═══════════════════════════════════════════════
@@ -38,6 +39,7 @@ interface DevisFactureData {
   clientName: string
   clientEmail: string
   clientAddress: string
+  interventionAddress: string
   clientPhone: string
   clientSiret: string
   // Document
@@ -118,6 +120,7 @@ export default function DevisFactureForm({
 
   // ─── PDF ───
   const pdfTemplateRef = useRef<HTMLDivElement>(null)
+  const pdfRetractRef = useRef<HTMLDivElement>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
 
   // ─── Verified Company Data ───
@@ -130,13 +133,19 @@ export default function DevisFactureForm({
   const [companyStatus, setCompanyStatus] = useState(initialData?.companyStatus || 'ei')
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
-  const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.address || '')
+  const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
   const [companyRCS, setCompanyRCS] = useState(initialData?.companyRCS || '')
   const [companyCapital, setCompanyCapital] = useState(initialData?.companyCapital || '')
   const [companyPhone, setCompanyPhone] = useState(initialData?.companyPhone || artisan?.phone || '')
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
   const [insuranceNumber, setInsuranceNumber] = useState(initialData?.insuranceNumber || '')
   const [insuranceName, setInsuranceName] = useState(initialData?.insuranceName || '')
+  const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || 'France métropolitaine')
+  // Médiateur de la consommation (obligatoire depuis 01/01/2016)
+  const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
+  const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
+  // Droit de rétractation (contrat hors établissement)
+  const [isHorsEtablissement, setIsHorsEtablissement] = useState(initialData?.isHorsEtablissement ?? true)
   const [companySiren, setCompanySiren] = useState('')
   const [companyNafLabel, setCompanyNafLabel] = useState('')
   const [officialLegalForm, setOfficialLegalForm] = useState('')
@@ -147,6 +156,7 @@ export default function DevisFactureForm({
   const [clientName, setClientName] = useState(initialData?.clientName || '')
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '')
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '')
+  const [interventionAddress, setInterventionAddress] = useState(initialData?.interventionAddress || '')
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
   const [clientSiret, setClientSiret] = useState(initialData?.clientSiret || '')
 
@@ -163,12 +173,44 @@ export default function DevisFactureForm({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
   const [saving, setSaving] = useState(false)
 
+  // ─── Linked booking for Vitfix channel ───
+  const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
+  const [linkedClientId, setLinkedClientId] = useState<string | null>(null)
+  const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
+  const [sendingVitfix, setSendingVitfix] = useState(false)
+
+  // ─── Attached Rapport ───
+  const [attachedRapportId, setAttachedRapportId] = useState<string | null>(null)
+  const [availableRapports, setAvailableRapports] = useState<any[]>([])
+
+  // Load available rapports from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id) return
+    try {
+      const rapports = JSON.parse(localStorage.getItem(`fixit_rapports_${artisan.id}`) || '[]')
+      setAvailableRapports(rapports)
+    } catch { setAvailableRapports([]) }
+  }, [artisan?.id])
+
+  const attachedRapport = availableRapports.find(r => r.id === attachedRapportId) || null
+
   // Generate document number
   const [devisCount] = useState(4)
   const [factureCount] = useState(16)
   const docNumber = docType === 'devis'
     ? `DEV-${new Date().getFullYear()}-${String(devisCount).padStart(3, '0')}`
     : `FACT-${new Date().getFullYear()}-${String(factureCount).padStart(3, '0')}`
+
+  // ─── Auth helper for API calls ───
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        return { 'Authorization': `Bearer ${session.access_token}` }
+      }
+    } catch {}
+    return {}
+  }
 
   // ─── Fetch verified company data on mount ───
   useEffect(() => {
@@ -182,7 +224,8 @@ export default function DevisFactureForm({
 
   const fetchVerifiedCompanyData = async () => {
     try {
-      const res = await fetch(`/api/artisan-company?artisan_id=${artisan.id}`)
+      const headers = await getAuthHeaders()
+      const res = await fetch(`/api/artisan-company?artisan_id=${artisan.id}`, { headers })
       const json = await res.json()
 
       if (json.company) {
@@ -190,13 +233,19 @@ export default function DevisFactureForm({
         setVerifiedCompany(c)
         setCompanyVerified(json.verified === true)
 
-        // Auto-fill fields with verified data
+        // Auto-fill fields with verified data (API > artisan prop fallback)
         if (c.name) setCompanyName(c.name)
         if (c.siret) setCompanySiret(c.siret)
         if (c.siren) setCompanySiren(c.siren)
-        if (c.address) setCompanyAddress(c.address)
-        if (c.phone) setCompanyPhone(c.phone)
-        if (c.email) setCompanyEmail(c.email)
+        // Address: API data > company_address column > address column
+        const resolvedAddress = c.address || artisan?.company_address || artisan?.address || ''
+        if (resolvedAddress) setCompanyAddress(resolvedAddress)
+        // Phone: API > profiles_artisan.phone
+        const resolvedPhone = c.phone || artisan?.phone || ''
+        if (resolvedPhone) setCompanyPhone(resolvedPhone)
+        // Email: API > profiles_artisan.email
+        const resolvedEmail = c.email || artisan?.email || ''
+        if (resolvedEmail) setCompanyEmail(resolvedEmail)
         if (c.nafLabel) setCompanyNafLabel(c.nafLabel)
 
         // Auto-fill RCS/RM from SIREN + city/department
@@ -230,6 +279,15 @@ export default function DevisFactureForm({
           setOfficialLegalForm(c.legalForm)
           const code = mapLegalFormToCode(c.legalForm)
           setCompanyStatus(code)
+
+          // Auto-entrepreneurs et EI : TVA désactivée par défaut
+          // (franchise en base, art. 293 B du CGI)
+          // Sauf si initialData force explicitement tvaEnabled=true (seuil dépassé)
+          if ((code === 'ae' || code === 'ei') && !initialData?.tvaEnabled) {
+            setTvaEnabled(false)
+            // Mettre les taux TVA des lignes existantes à 0%
+            setLines(prev => prev.map(l => ({ ...l, tvaRate: 0 })))
+          }
         }
 
         // Auto-fill assurance depuis les metadata
@@ -254,13 +312,15 @@ export default function DevisFactureForm({
   }, [])
 
   // ─── Product Lines ───
+  const defaultTvaRate = tvaEnabled ? 20 : 0
+
   const addLine = () => {
     setLines(prev => [...prev, {
       id: Date.now(),
       description: '',
       qty: 1,
       priceHT: 0,
-      tvaRate: 20,
+      tvaRate: defaultTvaRate,
       totalHT: 0,
     }])
   }
@@ -296,46 +356,108 @@ export default function DevisFactureForm({
     }
     const service = services.find(s => s.id === serviceId)
     if (service) {
+      // Pour un AE/EI sans TVA → price_ttc = prix réel (pas de TVA)
+      // Pour une entreprise avec TVA → price_ttc inclut la TVA, price_ht = HT
+      const price = tvaEnabled ? (service.price_ht || 0) : (service.price_ttc || service.price_ht || 0)
       setLines(prev => prev.map(line => {
         if (line.id !== lineId) return line
         return {
           ...line,
           description: service.name,
-          priceHT: service.price_ht || 0,
-          totalHT: 1 * (service.price_ht || 0),
+          priceHT: price,
+          tvaRate: defaultTvaRate,
+          totalHT: 1 * price,
         }
       }))
     }
   }
 
   // ─── Import from intervention ───
-  const importFromBooking = (bookingId: string) => {
+  const [importingBooking, setImportingBooking] = useState(false)
+
+  const importFromBooking = async (bookingId: string) => {
     if (!bookingId) return
     const booking = bookings.find(b => b.id === bookingId)
     if (!booking) return
 
-    // Parse client info from notes
-    const noteParts = booking.notes?.split(' | ') || []
-    const clientNameFromNote = noteParts.find((p: string) => p.startsWith('Client:'))?.replace('Client: ', '') || ''
-    const clientPhoneFromNote = noteParts.find((p: string) => p.startsWith('Tel:'))?.replace('Tel: ', '') || ''
-    const clientEmailFromNote = noteParts.find((p: string) => p.startsWith('Email:'))?.replace('Email: ', '') || ''
+    // Track linked booking for Vitfix channel sending
+    setLinkedBookingId(bookingId)
+    setLinkedClientId(booking.client_id || null)
 
-    setClientName(clientNameFromNote)
-    setClientPhone(clientPhoneFromNote)
-    setClientEmail(clientEmailFromNote !== '-' ? clientEmailFromNote : '')
-    setClientAddress(booking.address || '')
-    setPrestationDate(booking.booking_date || '')
+    setImportingBooking(true)
+    try {
+      // ── Step 1: pre-fill immediately from booking fields ──
+      setClientAddress(booking.address || '')
+      setPrestationDate(booking.booking_date || '')
 
-    // Add service line
-    const serviceName = booking.services?.name || 'Prestation'
-    setLines([{
-      id: Date.now(),
-      description: serviceName,
-      qty: 1,
-      priceHT: booking.price_ht || 0,
-      tvaRate: 20,
-      totalHT: booking.price_ht || 0,
-    }])
+      // Service line — utiliser price_ttc (prix affiché au client) comme base
+      // Pour un auto-entrepreneur sans TVA, price_ttc = prix réel facturé (pas de TVA)
+      // Pour un artisan avec TVA, price_ttc est le montant TTC → on calcule le HT
+      const serviceName = booking.services?.name || 'Prestation'
+      const bookingPrice = booking.price_ttc || booking.price_ht || 0
+      const linePrice = tvaEnabled ? Math.round((bookingPrice / 1.2) * 100) / 100 : bookingPrice
+      const lineTva = tvaEnabled ? 20 : 0
+      setLines([{
+        id: Date.now(),
+        description: serviceName,
+        qty: 1,
+        priceHT: linePrice,
+        tvaRate: lineTva,
+        totalHT: linePrice,
+      }])
+
+      // ── Step 2: parse client info from notes ──
+      // Two formats exist:
+      //   Client booking: "Client: Jean | Tel: 06… | Email: jean@… | notes…"
+      //   Artisan RDV:    "Client: Jean Dupont. description…"
+      const rawNotes = booking.notes || ''
+      const hasPipes = rawNotes.includes('|')
+      const parseField = (label: string): string => {
+        if (hasPipes) {
+          // Pipe-delimited format
+          const m = rawNotes.match(new RegExp(`${label}:\\s*([^|\\n]+)`, 'i'))
+          return m ? m[1].trim() : ''
+        } else {
+          // Period-delimited format (artisan-created RDVs)
+          const m = rawNotes.match(new RegExp(`${label}:\\s*([^.\\n]+)`, 'i'))
+          return m ? m[1].trim() : ''
+        }
+      }
+      const nameFromNotes = parseField('Client')
+      const phoneFromNotes = parseField('Tel')
+      const emailFromNotes = parseField('Email')
+
+      // Set from notes immediately (instant, no network)
+      if (nameFromNotes) setClientName(nameFromNotes)
+      if (phoneFromNotes) setClientPhone(phoneFromNotes)
+      if (emailFromNotes && emailFromNotes !== '-') setClientEmail(emailFromNotes)
+
+      // Notes field stays empty — booking notes are operational, not for devis/facture
+      setNotes('')
+
+      // Set docTitle from service name
+      if (serviceName && serviceName !== 'Prestation') setDocTitle(serviceName)
+
+      // ── Step 3: if client has a Fixit account → enrich via API ──
+      if (booking.client_id) {
+        try {
+          const headers = await getAuthHeaders()
+          const res = await fetch(`/api/artisan-clients?client_id=${booking.client_id}`, { headers })
+          if (res.ok) {
+            const clientData = await res.json()
+            // Overwrite with richer account data if available
+            if (clientData.name) setClientName(clientData.name)
+            if (clientData.phone) setClientPhone(clientData.phone)
+            if (clientData.email) setClientEmail(clientData.email)
+            if (!booking.address && clientData.address) setClientAddress(clientData.address)
+          }
+        } catch { /* ignore — we already have notes data */ }
+      }
+    } catch (e) {
+      console.error('importFromBooking error:', e)
+    } finally {
+      setImportingBooking(false)
+    }
   }
 
   // ─── Calculations ───
@@ -346,31 +468,115 @@ export default function DevisFactureForm({
   const totalTTC = subtotalHT + totalTVA
 
   // ─── Compliance Check ───
+  // Adapté au statut : AE/EI n'ont pas besoin de capital social
+  // Sociétés (SARL, EURL, SAS) doivent avoir RCS + capital
+  const isSociete = ['sarl', 'eurl', 'sas'].includes(companyStatus)
   const compliance = {
     siret: companySiret.trim().length > 0,
     rcs: companyRCS.trim().length > 0,
     insurance: insuranceNumber.trim().length > 0,
     client: clientName.trim().length > 0,
     lines: lines.some(l => l.description.trim().length > 0 && l.totalHT > 0),
+    ...(isSociete ? { capital: companyCapital.trim().length > 0 } : {}),
+    ...(tvaEnabled ? { tvaNumber: tvaNumber.trim().length > 0 } : {}),
   }
   const allCompliant = Object.values(compliance).every(Boolean)
 
   // ─── Legal Mentions ───
+  // Adaptées dynamiquement selon le statut juridique (AE, EI, EURL, SARL, SAS)
   const getLegalMentions = () => {
     const mentions: string[] = []
-    if (docType === 'devis') {
-      mentions.push("Devis gratuit - Conformément à l'article L111-1 du Code de la consommation")
-    }
-    if (!tvaEnabled) {
-      mentions.push('TVA non applicable, article 293 B du CGI (franchise en base)')
-    }
+    const isSociete = ['sarl', 'eurl', 'sas'].includes(companyStatus)
+    const isClientPro = clientSiret.trim().length > 0
+
+    // ══════════════════════════════════════════════
+    // 1. IDENTIFICATION — obligatoire sur tout document commercial
+    // ══════════════════════════════════════════════
+
+    // ── Statut juridique spécifique ──
     if (companyStatus === 'ae') {
-      mentions.push("Dispensé d'immatriculation en application de l'article L. 123-1-1 du Code de commerce")
+      mentions.push("Auto-entrepreneur — Dispensé d'immatriculation au RCS (art. L. 123-1-1 C. com.)")
+    } else if (companyStatus === 'ei') {
+      mentions.push('Entrepreneur individuel (EI) — Loi n°2022-172 du 14 février 2022 relative au statut de l\'entrepreneur individuel')
+    } else if (companyStatus === 'eurl') {
+      mentions.push(`EURL au capital de ${companyCapital || '—'} € — ${companyRCS || 'RCS non renseigné'}`)
+    } else if (companyStatus === 'sarl') {
+      mentions.push(`SARL au capital de ${companyCapital || '—'} € — ${companyRCS || 'RCS non renseigné'}`)
+    } else if (companyStatus === 'sas') {
+      mentions.push(`SAS au capital de ${companyCapital || '—'} € — ${companyRCS || 'RCS non renseigné'}`)
     }
+
+    // ══════════════════════════════════════════════
+    // 2. TVA
+    // ══════════════════════════════════════════════
+    if (!tvaEnabled) {
+      mentions.push('TVA non applicable, article 293 B du CGI (franchise en base de TVA)')
+    } else if (tvaNumber) {
+      mentions.push(`N° TVA intracommunautaire : ${tvaNumber}`)
+    }
+
+    // ══════════════════════════════════════════════
+    // 3. ASSURANCE — obligatoire BTP (Loi Pinel 2014, art. L. 241-1 C. assurances)
+    // ══════════════════════════════════════════════
+    if (insuranceNumber && insuranceName) {
+      mentions.push(`Assurance responsabilité civile décennale : ${insuranceName} — Contrat n° ${insuranceNumber} — Couverture : ${insuranceCoverage}`)
+    }
+
+    // ══════════════════════════════════════════════
+    // 4. CONDITIONS DE PAIEMENT (facture)
+    // ══════════════════════════════════════════════
     if (docType === 'facture') {
-      mentions.push('Pénalités de retard : 3,15% (taux BCE + 10 points)')
-      mentions.push('Indemnité forfaitaire pour frais de recouvrement : 40€ (article D. 441-5 du Code de commerce)')
+      mentions.push('Pénalités de retard exigibles sans rappel : 3 fois le taux d\'intérêt légal en vigueur (art. L. 441-10 C. com.)')
+      mentions.push('Indemnité forfaitaire pour frais de recouvrement : 40 € (art. D. 441-5 C. com.)')
+      mentions.push('Pas d\'escompte pour paiement anticipé, sauf accord préalable')
+      // Garantie — seulement pour clients particuliers (B2C)
+      if (!isClientPro) {
+        mentions.push('Garantie légale de conformité : 2 ans minimum (art. L. 217-3 C. conso.)')
+      }
     }
+
+    // ══════════════════════════════════════════════
+    // 5. DEVIS SPÉCIFIQUE
+    // ══════════════════════════════════════════════
+    if (docType === 'devis') {
+      mentions.push("Devis gratuit — Conformément à l'article L. 111-1 du Code de la consommation")
+      if (executionDelay) {
+        mentions.push(`Délai d'exécution prévu : ${executionDelay}`)
+      }
+      // Validité du devis
+      if (docValidity) {
+        mentions.push(`Ce devis est valable ${docValidity} jours à compter de sa date d'émission`)
+      }
+    }
+
+    // ══════════════════════════════════════════════
+    // 6. DROIT DE RÉTRACTATION (contrat hors établissement — B2C uniquement)
+    // ══════════════════════════════════════════════
+    if (docType === 'devis' && isHorsEtablissement && !isClientPro) {
+      mentions.push('DROIT DE RÉTRACTATION : Conformément à l\'article L. 221-18 du Code de la consommation, le client dispose d\'un délai de 14 jours à compter de la signature pour exercer son droit de rétractation, sans motif ni pénalité.')
+      mentions.push('Aucun paiement ne peut être exigé avant l\'expiration d\'un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents demandés expressément par le client.')
+    }
+
+    // ══════════════════════════════════════════════
+    // 7. MÉDIATEUR DE LA CONSOMMATION (obligatoire depuis 01/01/2016 — B2C)
+    // ══════════════════════════════════════════════
+    if (!isClientPro) {
+      if (mediatorName) {
+        mentions.push(`Médiation de la consommation (art. L. 612-1 C. conso.) : ${mediatorName}${mediatorUrl ? ' — ' + mediatorUrl : ''}`)
+      } else {
+        mentions.push('Médiation de la consommation (art. L. 612-1 C. conso.) : en cas de litige, le client peut recourir gratuitement à un médiateur de la consommation.')
+      }
+    }
+
+    // ══════════════════════════════════════════════
+    // 8. MENTIONS SPÉCIFIQUES SOCIÉTÉS (SARL, EURL, SAS)
+    // ══════════════════════════════════════════════
+    if (isSociete) {
+      if (companyRCS) {
+        mentions.push(`Siège social : ${companyAddress || '—'} — ${companyRCS}`)
+      }
+    }
+
     return mentions
   }
 
@@ -378,9 +584,9 @@ export default function DevisFactureForm({
   const handleSaveDraft = () => {
     const data = buildData()
     // Save to localStorage as draft
-    const drafts = JSON.parse(localStorage.getItem('fixit_drafts') || '[]')
+    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id || 'default'}`) || '[]')
     drafts.push({ ...data, savedAt: new Date().toISOString(), status: 'brouillon' })
-    localStorage.setItem('fixit_drafts', JSON.stringify(drafts))
+    localStorage.setItem(`fixit_drafts_${artisan?.id || 'default'}`, JSON.stringify(drafts))
     alert('💾 Brouillon enregistré !')
   }
 
@@ -413,22 +619,105 @@ export default function DevisFactureForm({
         pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
       }
 
+      // ── Page 2 : Rétractation (rendu séparé pour saut de page propre) ──
+      if (pdfRetractRef.current) {
+        const canvas2 = await html2canvas(pdfRetractRef.current, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          windowWidth: 794,
+        })
+        const img2 = canvas2.toDataURL('image/jpeg', 0.92)
+        const img2Height = (canvas2.height / canvas2.width) * pdfWidth
+        pdf.addPage()
+        pdf.addImage(img2, 'JPEG', 0, 0, pdfWidth, img2Height)
+      }
+
+      // ── Calque texte invisible pour extraction PDF ──
+      // Permet à unpdf/pdf.js d'extraire le texte structuré du devis
+      // Le texte est blanc sur fond blanc, taille 0.5pt = invisible à l'œil
+      const totalVal = tvaEnabled ? totalTTC : subtotalHT
+      const linesText = lines
+        .filter(l => l.description.trim() && l.totalHT > 0)
+        .map(l => `${l.description} | Qté: ${l.qty} | PU HT: ${l.priceHT.toFixed(2)} € | ${tvaEnabled ? `TVA: ${l.tvaRate}% | ` : ''}Total HT: ${l.totalHT.toFixed(2)} €`)
+        .join('\n')
+
+      const extractableText = [
+        `[VITFIX-DEVIS-METADATA]`,
+        `Type: ${docType === 'devis' ? 'Devis' : 'Facture'}`,
+        `Numéro: ${docNumber}`,
+        `Date: ${docDate}`,
+        docType === 'devis' ? `Validité: ${docValidity} jours` : '',
+        prestationDate ? `Date prestation: ${prestationDate}` : '',
+        ``,
+        `ÉMETTEUR:`,
+        `Entreprise: ${companyName}`,
+        `Statut: ${getStatusLabel(companyStatus)}`,
+        `SIRET: ${companySiret}`,
+        companyRCS ? `RCS: ${companyRCS}` : '',
+        `Adresse: ${companyAddress}`,
+        companyPhone ? `Tél: ${companyPhone}` : '',
+        companyEmail ? `Email: ${companyEmail}` : '',
+        tvaEnabled && tvaNumber ? `TVA: ${tvaNumber}` : 'TVA non applicable, art. 293 B du CGI',
+        insuranceNumber ? `RC Pro: ${insuranceNumber} (${insuranceName})` : '',
+        ``,
+        `DESTINATAIRE:`,
+        `Client: ${clientName}`,
+        clientAddress ? `Adresse: ${clientAddress}` : '',
+        interventionAddress ? `Lieu d'intervention: ${interventionAddress}` : '',
+        clientEmail ? `Email: ${clientEmail}` : '',
+        clientPhone ? `Tél: ${clientPhone}` : '',
+        clientSiret ? `SIRET client: ${clientSiret}` : '',
+        ``,
+        `PRESTATIONS:`,
+        `Désignation | Quantité | Prix unitaire HT | ${tvaEnabled ? 'TVA | ' : ''}Total HT`,
+        linesText,
+        ``,
+        `TOTAUX:`,
+        `Sous-total HT: ${subtotalHT.toFixed(2)} €`,
+        tvaEnabled ? `TVA: ${totalTVA.toFixed(2)} €` : '',
+        tvaEnabled ? `Total TTC: ${totalTTC.toFixed(2)} €` : `Total HT: ${subtotalHT.toFixed(2)} €`,
+        ``,
+        `CONDITIONS:`,
+        `Règlement: ${paymentMode}`,
+        docType === 'facture' && paymentDue ? `Échéance: ${paymentDue}` : '',
+        discount ? `Escompte: ${discount}` : '',
+        notes ? `Notes: ${notes}` : '',
+        attachedRapport ? `Rapport joint: ${attachedRapport.rapportNumber} — ${attachedRapport.motif || 'Intervention'} — ${attachedRapport.status === 'termine' ? 'Terminé' : attachedRapport.status}` : '',
+        ``,
+        getLegalMentions().join('\n'),
+      ].filter(Boolean).join('\n')
+
+      // Aller sur la première page et écrire le texte invisible
+      pdf.setPage(1)
+      pdf.setTextColor(255, 255, 255)
+      pdf.setFontSize(0.5)
+      const textLines = pdf.splitTextToSize(extractableText, pdfWidth - 20)
+      pdf.text(textLines, 10, 10)
+
       const safeName = clientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_À-ÿ]/g, '') || 'Client'
       const filename = `${docType === 'devis' ? 'Devis' : 'Facture'}_${docNumber}_${safeName}.pdf`
       pdf.save(filename)
 
-      // Proposer envoi par email si clientEmail renseigné
-      if (clientEmail) {
-        const totalVal = tvaEnabled ? totalTTC : subtotalHT
-        const totalStr = `${totalVal.toFixed(2)} € ${tvaEnabled ? 'TTC' : 'HT'}`
-        const subject = encodeURIComponent(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ${companyName}`)
-        const body = encodeURIComponent(
-          `Bonjour ${clientName},\n\nVeuillez trouver en pièce jointe votre ${docType === 'devis' ? 'devis' : 'facture'} N°${docNumber} d'un montant de ${totalStr}.\n\nCordialement,\n${companyName}${companyPhone ? '\n' + companyPhone : ''}`
-        )
+      // Auto-sauvegarder le document dans l'historique à chaque génération PDF
+      const data = buildData()
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
+      // Éviter les doublons : remplacer si même numéro existe déjà
+      const existingIdx = docs.findIndex((d: any) => d.docNumber === data.docNumber)
+      const docEntry = { ...data, savedAt: new Date().toISOString(), status: 'envoye' as const }
+      if (existingIdx >= 0) {
+        docs[existingIdx] = docEntry
+      } else {
+        docs.push(docEntry)
+      }
+      localStorage.setItem(`fixit_documents_${artisan?.id || 'default'}`, JSON.stringify(docs))
+      onSave?.(data)
+
+      // Proposer envoi par email ou Vitfix si clientEmail ou booking lié
+      if (clientEmail || linkedBookingId) {
         setTimeout(() => {
-          if (window.confirm('✅ PDF téléchargé ! Voulez-vous l\'envoyer par email au client ?')) {
-            window.open(`mailto:${clientEmail}?subject=${subject}&body=${body}`)
-          }
+          setShowSendModal('pdf')
         }, 600)
       }
     } catch (err) {
@@ -447,19 +736,83 @@ export default function DevisFactureForm({
       if (!compliance.insurance) missing.push("N° assurance RC Pro")
       if (!compliance.client) missing.push('Nom client')
       if (!compliance.lines) missing.push('Au moins une prestation')
+      if ('capital' in compliance && !compliance.capital) missing.push('Capital social (obligatoire pour ' + getStatusLabel(companyStatus) + ')')
+      if ('tvaNumber' in compliance && !compliance.tvaNumber) missing.push('N° TVA intracommunautaire')
       alert('❌ Informations manquantes :\n\n' + missing.join('\n'))
       return
     }
+    setShowSendModal('validate')
+  }
 
-    const typeLabel = docType === 'devis' ? 'Devis' : 'Facture'
-    if (confirm(`✅ ${typeLabel} conforme aux normes françaises.\n\nEnvoyer au client ?`)) {
+  // ─── Save document helper (used by both send methods in validate mode) ───
+  const saveAndFinalize = (mode: 'pdf' | 'validate' | null) => {
+    if (mode === 'validate') {
       const data = buildData()
-      const docs = JSON.parse(localStorage.getItem('fixit_documents') || '[]')
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
       docs.push({ ...data, savedAt: new Date().toISOString(), status: 'envoye' })
-      localStorage.setItem('fixit_documents', JSON.stringify(docs))
+      localStorage.setItem(`fixit_documents_${artisan?.id || 'default'}`, JSON.stringify(docs))
       onSave?.(data)
-      alert(`✅ ${typeLabel} ${docNumber} envoyé avec succès !`)
-      onBack()
+    }
+    setShowSendModal(null)
+    if (mode === 'validate') onBack()
+  }
+
+  // ─── Send via Email ───
+  const handleSendViaEmail = () => {
+    const currentMode = showSendModal
+    const totalVal = tvaEnabled ? totalTTC : subtotalHT
+    const totalStr = `${totalVal.toFixed(2)} € ${tvaEnabled ? 'TTC' : 'HT'}`
+    const subject = encodeURIComponent(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ${companyName}`)
+    const body = encodeURIComponent(
+      `Bonjour ${clientName},\n\nVeuillez trouver en pièce jointe votre ${docType === 'devis' ? 'devis' : 'facture'} N°${docNumber} d'un montant de ${totalStr}.\n\nCordialement,\n${companyName}${companyPhone ? '\n' + companyPhone : ''}`
+    )
+    window.open(`mailto:${clientEmail}?subject=${subject}&body=${body}`)
+    saveAndFinalize(currentMode)
+  }
+
+  // ─── Send via Vitfix Channel ───
+  const handleSendViaVitfix = async () => {
+    if (!linkedBookingId) {
+      alert('Aucune intervention liée. Veuillez importer depuis une intervention pour utiliser le canal Vitfix.')
+      return
+    }
+    const currentMode = showSendModal
+    setSendingVitfix(true)
+    try {
+      const headers = await getAuthHeaders()
+      const totalVal = tvaEnabled ? totalTTC : subtotalHT
+      const totalStr = `${totalVal.toFixed(2)} € ${tvaEnabled ? 'TTC' : 'HT'}`
+      const typeLabel = docType === 'devis' ? 'Devis' : 'Facture'
+
+      const messageContent = `📄 ${typeLabel} N°${docNumber}\n` +
+        `Montant : ${totalStr}\n` +
+        (docTitle ? `Objet : ${docTitle}\n` : '') +
+        `Date : ${new Date(docDate).toLocaleDateString('fr-FR')}\n` +
+        `\nLe document PDF a été généré et est disponible en téléchargement.\n` +
+        `N'hésitez pas à me contacter pour toute question.\n` +
+        `— ${companyName}`
+
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify({
+          booking_id: linkedBookingId,
+          content: messageContent,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Erreur envoi')
+
+      alert(`✅ ${typeLabel} envoyé via le canal Vitfix ! Le client recevra une notification.`)
+      saveAndFinalize(currentMode)
+    } catch (err) {
+      console.error('Erreur envoi Vitfix:', err)
+      alert('❌ Erreur lors de l\'envoi via Vitfix. Veuillez réessayer.')
+    } finally {
+      setSendingVitfix(false)
     }
   }
 
@@ -482,6 +835,7 @@ export default function DevisFactureForm({
     clientName,
     clientEmail,
     clientAddress,
+    interventionAddress,
     clientPhone,
     clientSiret,
     docDate,
@@ -518,7 +872,7 @@ export default function DevisFactureForm({
             </button>
             <h1 className="text-xl font-semibold">
               {docType === 'devis' ? '📄 Nouveau Devis' : '🧾 Nouvelle Facture'}
-              {docTitle && <span className="text-gray-400 font-normal ml-2">— {docTitle}</span>}
+              {docTitle && <span className="text-gray-500 font-normal ml-2">— {docTitle}</span>}
             </h1>
           </div>
           <div className="flex items-center gap-3">
@@ -578,7 +932,7 @@ export default function DevisFactureForm({
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   🏷️ Titre / Objet du {docType === 'devis' ? 'devis' : 'de la facture'}
-                  <span className="text-gray-400 font-normal ml-1">(ex : Nettoyage parc, Rénovation cuisine…)</span>
+                  <span className="text-gray-500 font-normal ml-1">(ex : Nettoyage parc, Rénovation cuisine…)</span>
                 </label>
                 <input
                   type="text"
@@ -601,19 +955,29 @@ export default function DevisFactureForm({
               {/* Quick import */}
               {recentBookings.length > 0 && (
                 <div className="bg-gradient-to-r from-[#FFF9E6] to-[#FFE082] p-4 rounded-xl border-2 border-[#FFC107]">
-                  <h3 className="font-semibold mb-2 flex items-center gap-2">{'⚡'} Import rapide depuis intervention</h3>
-                  <select
-                    onChange={(e) => importFromBooking(e.target.value)}
-                    className="w-full p-3 border-2 border-[#FFC107] rounded-lg bg-white text-sm cursor-pointer focus:outline-none"
-                    defaultValue=""
-                  >
-                    <option value="">Sélectionner une intervention récente...</option>
-                    {recentBookings.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.booking_date} {b.booking_time?.substring(0, 5)} - {b.services?.name || 'Prestation'} - {formatPrice(b.price_ttc)}
-                      </option>
-                    ))}
-                  </select>
+                  <h3 className="font-semibold mb-1 flex items-center gap-2">{'⚡'} Import rapide depuis intervention</h3>
+                  <p className="text-xs text-amber-700 mb-3">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</p>
+                  <div className="relative">
+                    <select
+                      onChange={(e) => importFromBooking(e.target.value)}
+                      disabled={importingBooking}
+                      className="w-full p-3 border-2 border-[#FFC107] rounded-lg bg-white text-sm cursor-pointer focus:outline-none disabled:opacity-60"
+                      defaultValue=""
+                    >
+                      <option value="">Sélectionner une intervention récente...</option>
+                      {recentBookings.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.booking_date} {b.booking_time?.substring(0, 5)} – {b.services?.name || 'Prestation'} – {formatPrice(b.price_ttc)}
+                        </option>
+                      ))}
+                    </select>
+                    {importingBooking && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-700 text-xs font-medium">
+                        <span className="inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                        Chargement…
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -776,21 +1140,48 @@ export default function DevisFactureForm({
                 </div>
               </div>
 
-              {/* Assurance RC Pro */}
+              {/* Assurance décennale / RC Pro */}
               <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-lg mb-4">
-                <p className="text-sm text-blue-800 font-semibold">{'📋'} OBLIGATOIRE : Assurance Responsabilité Civile Professionnelle</p>
+                <p className="text-sm text-blue-800 font-semibold">{'🛡️'} OBLIGATOIRE : Assurance Décennale / RC Pro (Loi Pinel 2014)</p>
+                <p className="text-xs text-blue-600 mt-1">Mention obligatoire sur tous les devis et factures BTP — Absence sanctionnée jusqu&apos;à 75 000 €</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">N° police d&apos;assurance <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Nom assureur <span className="text-red-500">*</span></label>
+                  <input type="text" value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)}
+                    placeholder="Ex: MAAF Assurances"
+                    className={normalFieldClass} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">N° contrat <span className="text-red-500">*</span></label>
                   <input type="text" value={insuranceNumber} onChange={(e) => setInsuranceNumber(e.target.value)}
                     placeholder="Ex: RC-2024-123456"
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Nom assureur <span className="text-red-500">*</span></label>
-                  <input type="text" value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)}
-                    placeholder="Ex: MAAF Assurances"
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Couverture géographique <span className="text-red-500">*</span></label>
+                  <input type="text" value={insuranceCoverage} onChange={(e) => setInsuranceCoverage(e.target.value)}
+                    placeholder="France métropolitaine"
+                    className={normalFieldClass} />
+                </div>
+              </div>
+
+              {/* Médiateur de la consommation */}
+              <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded-r-lg mb-4 mt-6">
+                <p className="text-sm text-purple-800 font-semibold">{'⚖️'} OBLIGATOIRE : Médiateur de la consommation (depuis 01/01/2016)</p>
+                <p className="text-xs text-purple-600 mt-1">Tout professionnel doit communiquer les coordonnées de son médiateur — Absence sanctionnée jusqu&apos;à 15 000 €</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Nom du médiateur</label>
+                  <input type="text" value={mediatorName} onChange={(e) => setMediatorName(e.target.value)}
+                    placeholder="Ex: Médiation de la consommation — CNPM"
+                    className={normalFieldClass} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Site web du médiateur</label>
+                  <input type="text" value={mediatorUrl} onChange={(e) => setMediatorUrl(e.target.value)}
+                    placeholder="Ex: https://www.cnpm-mediation.fr"
                     className={normalFieldClass} />
                 </div>
               </div>
@@ -803,7 +1194,12 @@ export default function DevisFactureForm({
               </h3>
               <div className="flex items-center gap-4 p-4 bg-[#F8F9FA] rounded-xl mb-4">
                 <button
-                  onClick={() => setTvaEnabled(!tvaEnabled)}
+                  onClick={() => {
+                    const next = !tvaEnabled
+                    setTvaEnabled(next)
+                    // Mettre à jour le taux TVA de toutes les lignes existantes
+                    setLines(prev => prev.map(l => ({ ...l, tvaRate: next ? 20 : 0 })))
+                  }}
                   className={`w-14 h-7 rounded-full relative transition-colors flex-shrink-0 ${tvaEnabled ? 'bg-green-400' : 'bg-gray-300'}`}
                 >
                   <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${tvaEnabled ? 'translate-x-7' : 'translate-x-0.5'}`} />
@@ -815,6 +1211,13 @@ export default function DevisFactureForm({
                   </div>
                 </div>
               </div>
+              {(companyStatus === 'ae' || companyStatus === 'ei') && (
+                <div className={`text-xs p-3 rounded-lg mb-4 ${tvaEnabled ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                  {tvaEnabled
+                    ? '⚠️ En tant qu\'auto-entrepreneur/EI, vous ne facturez TVA que si vous avez dépassé le seuil de franchise (37 500 € pour les services, 85 000 € pour la vente). Vérifiez votre situation.'
+                    : '✅ TVA non applicable — mention « TVA non applicable, art. 293 B du CGI » ajoutée automatiquement sur vos documents.'}
+                </div>
+              )}
               {tvaEnabled && (
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Numéro de TVA intracommunautaire <span className="text-red-500">*</span></label>
@@ -845,11 +1248,24 @@ export default function DevisFactureForm({
                 </div>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Adresse complète <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Adresse complète (siège / domicile) <span className="text-red-500">*</span></label>
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
                   placeholder="12 rue de la Paix, 75002 Paris"
                   className={normalFieldClass} />
               </div>
+              {/* Adresse d'intervention — apparaît dès qu'un SIRET client est renseigné (pro/syndic) */}
+              {clientSiret.trim().length > 0 && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
+                    📍 Adresse d&apos;intervention
+                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">Client pro</span>
+                  </label>
+                  <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
+                    placeholder="Adresse du chantier / lieu d'intervention (si différent du siège)"
+                    className={normalFieldClass} />
+                  <p className="text-xs text-gray-400 mt-1">Pour les syndics et professionnels, le lieu d&apos;intervention peut différer de l&apos;adresse du siège social</p>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Téléphone</label>
@@ -858,9 +1274,9 @@ export default function DevisFactureForm({
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">SIRET (si pro)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">SIRET (si pro / syndic)</label>
                   <input type="text" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)}
-                    placeholder="Optionnel"
+                    placeholder="Optionnel — renseigner pour afficher l'adresse d'intervention"
                     className={normalFieldClass} />
                 </div>
               </div>
@@ -893,11 +1309,36 @@ export default function DevisFactureForm({
                 )}
               </div>
               {docType === 'devis' && (
-                <div>
+                <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-600 mb-1">Délai d&apos;exécution <span className="text-red-500">*</span></label>
                   <input type="text" value={executionDelay} onChange={(e) => setExecutionDelay(e.target.value)}
                     placeholder="Ex: 5 jours ouvrés après acceptation"
                     className={normalFieldClass} />
+                </div>
+              )}
+
+              {/* Toggle droit de rétractation (devis uniquement) */}
+              {docType === 'devis' && (
+                <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg">
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsHorsEtablissement(!isHorsEtablissement)}
+                      className={`w-14 h-7 rounded-full relative transition-colors flex-shrink-0 ${isHorsEtablissement ? 'bg-orange-400' : 'bg-gray-300'}`}
+                    >
+                      <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${isHorsEtablissement ? 'translate-x-7' : 'translate-x-0.5'}`} />
+                    </button>
+                    <div>
+                      <div className="font-semibold text-sm text-orange-900">
+                        {isHorsEtablissement ? '📋 Droit de rétractation 14 jours inclus' : 'Droit de rétractation désactivé'}
+                      </div>
+                      <div className="text-xs text-orange-700 mt-0.5">
+                        {isHorsEtablissement
+                          ? 'Contrat hors établissement (domicile du client, chantier, démarchage, à distance) — Mention obligatoire art. L. 221-18 C. conso.'
+                          : 'Activez si le devis est signé hors de vos locaux professionnels. Attention : l\'absence de cette mention prolonge le délai de rétractation à 12 mois + 14 jours.'}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -982,7 +1423,7 @@ export default function DevisFactureForm({
                             value={line.tvaRate}
                             onChange={(e) => updateLine(line.id, 'tvaRate', parseFloat(e.target.value))}
                             disabled={!tvaEnabled}
-                            className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none disabled:opacity-50"
+                            className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none disabled:opacity-60"
                           >
                             <option value={20}>20%</option>
                             <option value={10}>10%</option>
@@ -1063,6 +1504,71 @@ export default function DevisFactureForm({
               />
             </div>
 
+            {/* ─── Section: Joindre un rapport ─── */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm">
+              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
+                {'📋'} Joindre un rapport d&apos;intervention
+              </h3>
+              {availableRapports.length > 0 ? (
+                <div className="space-y-3">
+                  <select
+                    value={attachedRapportId || ''}
+                    onChange={(e) => setAttachedRapportId(e.target.value || null)}
+                    className={normalFieldClass}
+                  >
+                    <option value="">— Aucun rapport joint —</option>
+                    {availableRapports.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.rapportNumber} — {r.interventionDate ? new Date(r.interventionDate).toLocaleDateString('fr-FR') : 'N/D'} — {r.motif || r.clientName || 'Intervention'}
+                      </option>
+                    ))}
+                  </select>
+                  {attachedRapport && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-amber-900 text-sm">{attachedRapport.rapportNumber}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          attachedRapport.status === 'termine' ? 'bg-green-100 text-green-700' :
+                          attachedRapport.status === 'en_cours' ? 'bg-blue-100 text-blue-700' :
+                          attachedRapport.status === 'a_reprendre' ? 'bg-amber-100 text-amber-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>
+                          {attachedRapport.status === 'termine' ? 'Terminé' :
+                           attachedRapport.status === 'en_cours' ? 'En cours' :
+                           attachedRapport.status === 'a_reprendre' ? 'À reprendre' : 'Sous garantie'}
+                        </span>
+                      </div>
+                      {attachedRapport.motif && (
+                        <p className="text-sm text-amber-800">{'🔧'} {attachedRapport.motif}</p>
+                      )}
+                      <div className="text-xs text-amber-600 space-y-0.5">
+                        {attachedRapport.interventionDate && (
+                          <p>{'📅'} {new Date(attachedRapport.interventionDate).toLocaleDateString('fr-FR')}
+                            {attachedRapport.startTime && ` à ${attachedRapport.startTime}`}
+                            {attachedRapport.endTime && ` → ${attachedRapport.endTime}`}
+                          </p>
+                        )}
+                        {attachedRapport.siteAddress && <p>{'📍'} {attachedRapport.siteAddress}</p>}
+                        {attachedRapport.travaux?.filter(Boolean).length > 0 && (
+                          <p>{'✅'} {attachedRapport.travaux.filter(Boolean).length} travaux effectués</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setAttachedRapportId(null)}
+                        className="text-xs text-red-500 hover:text-red-700 mt-1"
+                      >
+                        Retirer le rapport
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">
+                  Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.
+                </p>
+              )}
+            </div>
+
             {/* ─── Legal Mentions ─── */}
             <div className="bg-[#F8F9FA] rounded-xl p-4">
               <p className="text-sm text-gray-600 leading-relaxed">
@@ -1105,29 +1611,29 @@ export default function DevisFactureForm({
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 flex-shrink-0">{'📋'}</span>
+                    <span className="text-gray-500 flex-shrink-0">{'📋'}</span>
                     <div>
                       <p className="font-semibold text-gray-800">{companyName}</p>
                       <p className="text-gray-500 text-xs">{officialLegalForm || getStatusLabel(companyStatus)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-400">{'🆔'}</span>
+                    <span className="text-gray-500">{'🆔'}</span>
                     <span className="text-gray-600">SIRET: {companySiret}</span>
                   </div>
                   {companySiren && (
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400">{'🏛️'}</span>
+                      <span className="text-gray-500">{'🏛️'}</span>
                       <span className="text-gray-600">SIREN: {companySiren}</span>
                     </div>
                   )}
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-400 flex-shrink-0">{'📍'}</span>
+                    <span className="text-gray-500 flex-shrink-0">{'📍'}</span>
                     <span className="text-gray-600">{companyAddress}</span>
                   </div>
                   {companyNafLabel && (
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400">{'🔧'}</span>
+                      <span className="text-gray-500">{'🔧'}</span>
                       <span className="text-gray-600 text-xs">{companyNafLabel}</span>
                     </div>
                   )}
@@ -1137,7 +1643,10 @@ export default function DevisFactureForm({
 
             {/* Compliance */}
             <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4">Conformité légale</h3>
+              <h3 className="font-bold text-[#2C3E50] mb-3">Conformité légale</h3>
+              <div className="text-xs text-gray-500 mb-3 bg-gray-50 px-3 py-1.5 rounded-lg">
+                Statut : <span className="font-semibold text-gray-700">{getStatusLabel(companyStatus)}</span>
+              </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center">
                   <span>SIRET</span>
@@ -1159,6 +1668,18 @@ export default function DevisFactureForm({
                   <span>Prestations détaillées</span>
                   <span className={compliance.lines ? 'text-green-500' : 'text-red-500'}>{compliance.lines ? '✅' : '❌'}</span>
                 </div>
+                {'capital' in compliance && (
+                  <div className="flex justify-between items-center">
+                    <span>Capital social</span>
+                    <span className={(compliance as any).capital ? 'text-green-500' : 'text-red-500'}>{(compliance as any).capital ? '✅' : '❌'}</span>
+                  </div>
+                )}
+                {'tvaNumber' in compliance && (
+                  <div className="flex justify-between items-center">
+                    <span>N° TVA intracom.</span>
+                    <span className={(compliance as any).tvaNumber ? 'text-green-500' : 'text-red-500'}>{(compliance as any).tvaNumber ? '✅' : '❌'}</span>
+                  </div>
+                )}
                 {isLegalLocked && (
                   <div className="flex justify-between items-center">
                     <span>Données entreprise vérifiées</span>
@@ -1192,7 +1713,7 @@ export default function DevisFactureForm({
                 <button
                   onClick={handleValidateAndSend}
                   disabled={!allCompliant}
-                  className="w-full p-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full p-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {'✉️'} Valider et envoyer
                 </button>
@@ -1201,6 +1722,84 @@ export default function DevisFactureForm({
           </div>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════
+          MODAL ENVOI — Email ou Vitfix Channel
+          ═══════════════════════════════════════════════ */}
+      {showSendModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-5">
+              <h3 className="text-lg font-bold text-gray-900">
+                {showSendModal === 'pdf' ? '✅ PDF téléchargé !' : `✅ ${docType === 'devis' ? 'Devis' : 'Facture'} conforme`}
+              </h3>
+              <p className="text-gray-700 text-sm mt-1">
+                Comment souhaitez-vous envoyer ce document au client ?
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* Option 1: Email */}
+              {clientEmail && (
+                <button
+                  onClick={handleSendViaEmail}
+                  className="w-full flex items-center gap-4 p-4 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-blue-200 transition group"
+                >
+                  <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-xl">{'✉️'}</span>
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold text-blue-900">Envoyer par email</div>
+                    <div className="text-xs text-blue-600 truncate max-w-[200px]">{clientEmail}</div>
+                  </div>
+                  <span className="ml-auto text-blue-400 group-hover:translate-x-1 transition-transform">{'→'}</span>
+                </button>
+              )}
+
+              {/* Option 2: Vitfix Channel */}
+              <button
+                onClick={handleSendViaVitfix}
+                disabled={!linkedBookingId || sendingVitfix}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition group ${
+                  linkedBookingId
+                    ? 'bg-amber-50 hover:bg-amber-100 border-amber-200'
+                    : 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
+                }`}
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  linkedBookingId ? 'bg-[#FFC107]' : 'bg-gray-300'
+                }`}>
+                  {sendingVitfix ? (
+                    <span className="text-white text-xl animate-spin">{'⏳'}</span>
+                  ) : (
+                    <span className="text-white text-xl">{'💬'}</span>
+                  )}
+                </div>
+                <div className="text-left">
+                  <div className={`font-semibold ${linkedBookingId ? 'text-amber-900' : 'text-gray-500'}`}>
+                    {sendingVitfix ? 'Envoi en cours...' : 'Envoyer via Vitfix'}
+                  </div>
+                  <div className={`text-xs ${linkedBookingId ? 'text-amber-600' : 'text-gray-500'}`}>
+                    {linkedBookingId
+                      ? 'Message direct dans le canal client'
+                      : 'Importez depuis une intervention'}
+                  </div>
+                </div>
+                {linkedBookingId && !sendingVitfix && (
+                  <span className="ml-auto text-amber-400 group-hover:translate-x-1 transition-transform">{'→'}</span>
+                )}
+              </button>
+
+              {/* Cancel */}
+              <button
+                onClick={() => setShowSendModal(null)}
+                className="w-full p-3 text-gray-500 hover:text-gray-700 text-sm font-medium transition"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════
           TEMPLATE PDF CACHÉ — capturé par html2canvas
@@ -1224,77 +1823,86 @@ export default function DevisFactureForm({
           lineHeight: '1.5',
         }}
       >
-        {/* ─── En-tête ─── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', paddingBottom: '20px', borderBottom: '4px solid #FFC107' }}>
-          {/* Colonne gauche : Artisan */}
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#2C3E50', marginBottom: '4px' }}>{companyName}</div>
-            <div style={{ color: '#666', fontSize: '11px', marginBottom: '2px' }}>{getStatusLabel(companyStatus)}</div>
-            {companySiret && <div style={{ color: '#555', fontSize: '11px' }}>SIRET : {companySiret}</div>}
-            {companyRCS && <div style={{ color: '#555', fontSize: '11px' }}>RCS/RM : {companyRCS}</div>}
-            {companyCapital && <div style={{ color: '#555', fontSize: '11px' }}>Capital : {companyCapital} €</div>}
-            {companyAddress && <div style={{ color: '#555', fontSize: '11px', marginTop: '4px' }}>{companyAddress}</div>}
-            {companyPhone && <div style={{ color: '#555', fontSize: '11px' }}>{companyPhone}</div>}
-            {companyEmail && <div style={{ color: '#555', fontSize: '11px' }}>{companyEmail}</div>}
-            {insuranceNumber && (
-              <div style={{ color: '#666', fontSize: '10px', marginTop: '6px', padding: '4px 8px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                RC Pro : {insuranceName} — N° {insuranceNumber}
-              </div>
-            )}
+        {/* ─── Titre centré en gras + bande jaune ─── */}
+        <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+          <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+            {docType === 'devis' ? 'Devis' : 'Facture'} {docNumber}
           </div>
-          {/* Colonne droite : Infos document */}
-          <div style={{ textAlign: 'right', minWidth: '180px' }}>
-            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#FFC107', textTransform: 'uppercase', letterSpacing: '2px' }}>
-              {docType === 'devis' ? 'DEVIS' : 'FACTURE'}
-            </div>
-            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#2C3E50', marginBottom: docTitle ? '4px' : '8px' }}>{docNumber}</div>
-            {docTitle && (
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#2C3E50', marginBottom: '8px', fontStyle: 'italic' }}>{docTitle}</div>
-            )}
-            <div style={{ color: '#555', fontSize: '11px' }}>Date : {docDate}</div>
-            {docType === 'devis' && docValidity && <div style={{ color: '#555', fontSize: '11px' }}>Validité : {docValidity} jours</div>}
-            {docType === 'devis' && prestationDate && <div style={{ color: '#555', fontSize: '11px' }}>Date prestation : {prestationDate}</div>}
-            {docType === 'facture' && paymentDue && <div style={{ color: '#555', fontSize: '11px' }}>Échéance : {paymentDue}</div>}
-            {tvaEnabled && tvaNumber && <div style={{ color: '#555', fontSize: '10px', marginTop: '4px' }}>N° TVA : {tvaNumber}</div>}
+          {docTitle && (
+            <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748B', marginTop: '4px' }}>{docTitle}</div>
+          )}
+        </div>
+        <div style={{ height: '4px', backgroundColor: '#FFC107', margin: '0 -48px 20px -48px' }}></div>
+
+        {/* ─── Émetteur + Destinataire côte à côte ─── */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '18px' }}>
+          {/* Émetteur */}
+          <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10.5px', lineHeight: '1.7' }}>
+            <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>Émetteur</div>
+            <div style={{ color: '#64748B' }}>Société : <span style={{ color: '#1E293B', fontWeight: '600' }}>{companyName}</span></div>
+            {companySiret && <div style={{ color: '#64748B' }}>SIRET : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companySiret}</span></div>}
+            {companyRCS && <div style={{ color: '#64748B' }}>RCS/RM : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyRCS}</span></div>}
+            {companyCapital && <div style={{ color: '#64748B' }}>Capital : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyCapital} €</span></div>}
+            {companyAddress && <div style={{ color: '#64748B' }}>Adresse : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyAddress}</span></div>}
+            {companyPhone && <div style={{ color: '#64748B' }}>Téléphone : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyPhone}</span></div>}
+            {companyEmail && <div style={{ color: '#64748B' }}>Email : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyEmail}</span></div>}
+            {tvaEnabled && tvaNumber && <div style={{ color: '#64748B' }}>N° TVA : <span style={{ color: '#1E293B', fontWeight: '500' }}>{tvaNumber}</span></div>}
+            {insuranceName && <div style={{ color: '#64748B', marginTop: '4px', borderTop: '1px solid #E2E8F0', paddingTop: '4px' }}>Assureur : <span style={{ color: '#1E293B', fontWeight: '500' }}>{insuranceName}</span></div>}
+            {insuranceNumber && <div style={{ color: '#64748B' }}>N° contrat : <span style={{ color: '#1E293B', fontWeight: '500' }}>{insuranceNumber}</span></div>}
+            {insuranceCoverage && <div style={{ color: '#64748B' }}>Couverture : <span style={{ color: '#1E293B', fontWeight: '500' }}>{insuranceCoverage}</span></div>}
+          </div>
+          {/* Destinataire */}
+          <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10.5px', lineHeight: '1.7' }}>
+            <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>Destinataire</div>
+            <div style={{ color: '#64748B' }}>Nom : <span style={{ color: '#1E293B', fontWeight: '600' }}>{clientName}</span></div>
+            {clientAddress && <div style={{ color: '#64748B' }}>Adresse : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientAddress}</span></div>}
+            {interventionAddress && <div style={{ color: '#64748B' }}>Lieu d&apos;intervention : <span style={{ color: '#1E293B', fontWeight: '500' }}>{interventionAddress}</span></div>}
+            {clientPhone && <div style={{ color: '#64748B' }}>Téléphone : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientPhone}</span></div>}
+            {clientEmail && <div style={{ color: '#64748B' }}>Email : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientEmail}</span></div>}
+            {clientSiret && <div style={{ color: '#64748B' }}>SIRET : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientSiret}</span></div>}
           </div>
         </div>
 
-        {/* ─── Bloc Client ─── */}
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-          <div style={{ flex: 1, backgroundColor: '#F8F9FA', borderLeft: '4px solid #FFC107', padding: '14px 16px', borderRadius: '0 8px 8px 0' }}>
-            <div style={{ fontWeight: 'bold', color: '#2C3E50', marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Client</div>
-            <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1a1a1a' }}>{clientName}</div>
-            {clientAddress && <div style={{ color: '#555', fontSize: '11px', marginTop: '2px' }}>{clientAddress}</div>}
-            {clientEmail && <div style={{ color: '#555', fontSize: '11px' }}>{clientEmail}</div>}
-            {clientPhone && <div style={{ color: '#555', fontSize: '11px' }}>{clientPhone}</div>}
-            {clientSiret && <div style={{ color: '#888', fontSize: '10px', marginTop: '4px' }}>SIRET : {clientSiret}</div>}
+        {/* ─── Assurance décennale — bannière Vitfix ─── */}
+        {insuranceNumber && (
+          <div style={{ marginBottom: '14px', padding: '10px 16px', backgroundColor: '#FFF8E1', borderRadius: '6px', border: '1.5px solid #FFC107', fontSize: '10px', color: '#1E293B', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '36px', fontWeight: '500' }}>
+            Assurance décennale / RC Pro : <strong style={{ marginLeft: '4px' }}>{insuranceName}</strong> — N° <strong>{insuranceNumber}</strong> — Couverture : <strong>{insuranceCoverage}</strong>
           </div>
+        )}
+
+        {/* ─── Date / Validité / Délai — au-dessus du tableau ─── */}
+        <div style={{ display: 'flex', gap: '24px', marginBottom: '10px', fontSize: '10.5px', color: '#64748B', padding: '9px 16px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0', alignItems: 'center' }}>
+          <div>Date : <span style={{ color: '#1E293B', fontWeight: '600' }}>{docDate ? new Date(docDate).toLocaleDateString('fr-FR') : docDate}</span></div>
+          {docType === 'devis' && docValidity && <div>Validité : <span style={{ color: '#1E293B', fontWeight: '600' }}>{docValidity} jours</span></div>}
+          {docType === 'devis' && executionDelay && <div>Délai d&apos;exécution : <span style={{ color: '#1E293B', fontWeight: '600' }}>{executionDelay}</span></div>}
+          {docType === 'devis' && prestationDate && <div>Date prestation : <span style={{ color: '#1E293B', fontWeight: '600' }}>{new Date(prestationDate).toLocaleDateString('fr-FR')}</span></div>}
+          {docType === 'facture' && paymentDue && <div>Échéance : <span style={{ color: '#1E293B', fontWeight: '600' }}>{new Date(paymentDue).toLocaleDateString('fr-FR')}</span></div>}
         </div>
 
         {/* ─── Tableau Prestations ─── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '11px' }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0', marginBottom: '24px', fontSize: '11px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #E2E8F0' }}>
           <thead>
-            <tr style={{ backgroundColor: '#2C3E50', color: '#ffffff' }}>
-              <th style={{ padding: '10px 12px', textAlign: 'left', width: '45%', fontWeight: 'bold' }}>Désignation</th>
-              <th style={{ padding: '10px 8px', textAlign: 'center', width: '8%', fontWeight: 'bold' }}>Qté</th>
-              <th style={{ padding: '10px 8px', textAlign: 'right', width: '16%', fontWeight: 'bold' }}>Prix U. HT</th>
-              {tvaEnabled && <th style={{ padding: '10px 8px', textAlign: 'center', width: '10%', fontWeight: 'bold' }}>TVA</th>}
-              <th style={{ padding: '10px 12px', textAlign: 'right', width: tvaEnabled ? '21%' : '31%', fontWeight: 'bold' }}>Total HT</th>
+            <tr style={{ backgroundColor: '#FFC107', color: '#1E293B' }}>
+              <th style={{ padding: '10px 16px', textAlign: 'left', width: '45%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.8px', verticalAlign: 'middle' }}>Désignation</th>
+              <th style={{ padding: '10px 10px', textAlign: 'center', width: '8%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>Qté</th>
+              <th style={{ padding: '10px 10px', textAlign: 'right', width: '16%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>Prix U. HT</th>
+              {tvaEnabled && <th style={{ padding: '10px 10px', textAlign: 'center', width: '10%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>TVA</th>}
+              <th style={{ padding: '10px 16px', textAlign: 'right', width: tvaEnabled ? '21%' : '31%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>Total HT</th>
             </tr>
           </thead>
           <tbody>
             {lines.filter(l => l.description.trim()).map((line, idx) => (
-              <tr key={line.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#F8F9FA' }}>
-                <td style={{ padding: '9px 12px', borderBottom: '1px solid #EBEBEB' }}>{line.description}</td>
-                <td style={{ padding: '9px 8px', textAlign: 'center', borderBottom: '1px solid #EBEBEB' }}>{line.qty}</td>
-                <td style={{ padding: '9px 8px', textAlign: 'right', borderBottom: '1px solid #EBEBEB' }}>{line.priceHT.toFixed(2)} €</td>
-                {tvaEnabled && <td style={{ padding: '9px 8px', textAlign: 'center', borderBottom: '1px solid #EBEBEB' }}>{line.tvaRate}%</td>}
-                <td style={{ padding: '9px 12px', textAlign: 'right', borderBottom: '1px solid #EBEBEB', fontWeight: '600' }}>{line.totalHT.toFixed(2)} €</td>
+              <tr key={line.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#F8FAFC' }}>
+                <td style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9', color: '#1E293B', fontWeight: '500' }}>{line.description}</td>
+                <td style={{ padding: '10px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', color: '#64748B' }}>{line.qty}</td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', borderBottom: '1px solid #F1F5F9', color: '#64748B' }}>{line.priceHT.toFixed(2)} €</td>
+                {tvaEnabled && <td style={{ padding: '10px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', color: '#94A3B8' }}>{line.tvaRate}%</td>}
+                <td style={{ padding: '10px 16px', textAlign: 'right', borderBottom: '1px solid #F1F5F9', fontWeight: '700', color: '#1E293B' }}>{line.totalHT.toFixed(2)} €</td>
               </tr>
             ))}
             {lines.filter(l => l.description.trim()).length === 0 && (
               <tr>
-                <td colSpan={tvaEnabled ? 5 : 4} style={{ padding: '16px', textAlign: 'center', color: '#aaa', fontStyle: 'italic' }}>
+                <td colSpan={tvaEnabled ? 5 : 4} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>
                   Aucune prestation renseignée
                 </td>
               </tr>
@@ -1304,65 +1912,169 @@ export default function DevisFactureForm({
 
         {/* ─── Totaux ─── */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
-          <div style={{ width: '260px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #E5E7EB', fontSize: '12px' }}>
-              <span style={{ color: '#555' }}>Sous-total HT</span>
-              <span style={{ fontWeight: '600' }}>{subtotalHT.toFixed(2)} €</span>
+          <div style={{ width: '280px', border: '1px solid #E2E8F0', borderRadius: '6px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #F1F5F9', fontSize: '11px', backgroundColor: '#F8FAFC' }}>
+              <span style={{ color: '#64748B' }}>Sous-total HT</span>
+              <span style={{ fontWeight: '600', color: '#1E293B' }}>{subtotalHT.toFixed(2)} €</span>
             </div>
             {tvaEnabled && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #E5E7EB', fontSize: '12px' }}>
-                <span style={{ color: '#555' }}>TVA</span>
-                <span style={{ fontWeight: '600' }}>{totalTVA.toFixed(2)} €</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #F1F5F9', fontSize: '11px', backgroundColor: '#F8FAFC' }}>
+                <span style={{ color: '#64748B' }}>TVA</span>
+                <span style={{ fontWeight: '600', color: '#1E293B' }}>{totalTVA.toFixed(2)} €</span>
               </div>
             )}
             {docType === 'facture' && discount && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #E5E7EB', fontSize: '12px' }}>
-                <span style={{ color: '#555' }}>Escompte</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #F1F5F9', fontSize: '11px', backgroundColor: '#F8FAFC' }}>
+                <span style={{ color: '#64748B' }}>Escompte</span>
                 <span style={{ fontWeight: '600' }}>{discount}</span>
               </div>
             )}
             <div style={{
-              display: 'flex', justifyContent: 'space-between',
-              padding: '12px 14px',
-              backgroundColor: tvaEnabled ? '#27AE60' : '#FFC107',
-              color: tvaEnabled ? '#ffffff' : '#1a1a1a',
-              fontWeight: 'bold',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 16px',
+              backgroundColor: '#FFC107',
+              color: '#1E293B',
+              fontWeight: '900',
               fontSize: '15px',
-              borderRadius: '8px',
-              marginTop: '8px',
             }}>
-              <span>{tvaEnabled ? 'Total TTC' : 'Total HT'}</span>
+              <span>{tvaEnabled ? 'TOTAL TTC' : 'TOTAL HT'}</span>
               <span>{(tvaEnabled ? totalTTC : subtotalHT).toFixed(2)} €</span>
             </div>
           </div>
         </div>
 
-        {/* ─── Conditions de paiement (facture uniquement) ─── */}
-        {docType === 'facture' && (paymentMode || paymentDue) && (
-          <div style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#F8F9FA', borderRadius: '6px', fontSize: '11px', color: '#555' }}>
-            {paymentMode && <><strong>Mode de règlement :</strong> {paymentMode}{'  '}</>}
-            {paymentDue && <><strong>Échéance :</strong> {paymentDue}</>}
+        {/* ─── Conditions + Signature côte à côte (devis) / Conditions de paiement (facture) ─── */}
+        {docType === 'devis' ? (
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+            {/* Conditions à gauche */}
+            <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10px', color: '#475569', lineHeight: '1.6' }}>
+              <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Conditions</div>
+              <div>Validité du devis : {docValidity ? `${docValidity} jours` : '30 jours'} à compter de la date d&apos;émission.</div>
+              {executionDelay && <div>Délai d&apos;exécution : {executionDelay}.</div>}
+              <div>Toute modification des travaux fera l&apos;objet d&apos;un avenant signé par les deux parties.</div>
+              {paymentMode && <div style={{ marginTop: '4px' }}>Mode de règlement : {paymentMode}.</div>}
+            </div>
+            {/* Signature à droite */}
+            <div style={{ width: '280px', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10px', color: '#555' }}>
+              <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Bon pour accord</div>
+              <div style={{ color: '#6B7280', marginBottom: '4px' }}>Mention manuscrite :</div>
+              <div style={{ fontStyle: 'italic', color: '#9CA3AF', marginBottom: '12px', lineHeight: '1.5', fontSize: '9px' }}>&quot;Devis reçu avant l&apos;exécution des travaux, lu et approuvé, bon pour accord&quot;</div>
+              <div style={{ borderBottom: '1px dotted #D1D5DB', marginBottom: '8px', height: '24px' }}></div>
+              <div style={{ color: '#6B7280', fontSize: '9px' }}>Date : ___/___/______</div>
+              <div style={{ marginTop: '4px', color: '#6B7280', fontSize: '9px' }}>Signature :</div>
+              <div style={{ height: '40px' }}></div>
+            </div>
           </div>
+        ) : (
+          (paymentMode || paymentDue) && (
+            <div style={{ marginBottom: '18px', padding: '10px 16px', backgroundColor: '#EFF6FF', borderRadius: '6px', border: '1px solid #BFDBFE', fontSize: '11px', color: '#1E40AF' }}>
+              <strong style={{ fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.8px', color: '#1D4ED8' }}>Conditions de règlement</strong>
+              <div style={{ marginTop: '6px', lineHeight: '1.6' }}>
+                {paymentMode && <span>Mode : <strong>{paymentMode}</strong></span>}
+                {paymentMode && paymentDue && <span> — </span>}
+                {paymentDue && <span>Échéance : <strong>{new Date(paymentDue).toLocaleDateString('fr-FR')}</strong></span>}
+              </div>
+            </div>
+          )
         )}
 
         {/* ─── Notes ─── */}
         {notes && (
-          <div style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '6px', fontSize: '11px', color: '#78350F' }}>
-            <strong>Notes :</strong> {notes}
+          <div style={{ marginBottom: '14px', padding: '10px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '6px', fontSize: '10.5px', color: '#78350F', lineHeight: '1.6' }}>
+            <strong style={{ color: '#92400E' }}>Notes :</strong> {notes}
           </div>
         )}
 
-        {/* ─── Mentions légales ─── */}
-        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '14px', fontSize: '9.5px', color: '#9CA3AF', lineHeight: '1.7' }}>
-          {getLegalMentions().map((m, i) => (
-            <div key={i}>• {m}</div>
-          ))}
-          {tvaEnabled && tvaNumber && <div>• N° TVA intracommunautaire : {tvaNumber}</div>}
-          <div style={{ marginTop: '6px', color: '#C6C6C6', fontSize: '9px' }}>
-            Document généré par VitFix Pro — {new Date().toLocaleDateString('fr-FR')}
+        {/* ─── Rapport joint ─── */}
+        {attachedRapport && (
+          <div style={{ marginBottom: '14px', padding: '10px 14px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '6px', fontSize: '10.5px' }}>
+            <div style={{ fontWeight: 'bold', color: '#9A3412', marginBottom: '4px' }}>
+              Rapport d&apos;intervention joint — {attachedRapport.rapportNumber}
+            </div>
+            <div style={{ color: '#78350F', lineHeight: '1.6' }}>
+              {attachedRapport.interventionDate && (
+                <div>Date : {new Date(attachedRapport.interventionDate).toLocaleDateString('fr-FR')}
+                  {attachedRapport.startTime && ` de ${attachedRapport.startTime}`}
+                  {attachedRapport.endTime && ` à ${attachedRapport.endTime}`}
+                </div>
+              )}
+              {attachedRapport.motif && <div>Motif : {attachedRapport.motif}</div>}
+              {attachedRapport.siteAddress && <div>Lieu : {attachedRapport.siteAddress}</div>}
+              {attachedRapport.travaux?.filter(Boolean).length > 0 && (
+                <div>Travaux : {attachedRapport.travaux.filter(Boolean).join(', ')}</div>
+              )}
+              {attachedRapport.observations && <div>Observations : {attachedRapport.observations}</div>}
+              <div style={{ marginTop: '4px', fontSize: '9.5px', color: '#B45309' }}>
+                Statut : {attachedRapport.status === 'termine' ? 'Terminé' :
+                          attachedRapport.status === 'en_cours' ? 'En cours' :
+                          attachedRapport.status === 'a_reprendre' ? 'À reprendre' : 'Sous garantie'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Mentions légales — compact, 7px ─── */}
+        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '10px', marginBottom: '0', fontSize: '7px', color: '#9CA3AF', lineHeight: '1.5' }}>
+          <span style={{ fontWeight: '600', color: '#6B7280' }}>Mentions légales : </span>
+          {getLegalMentions().join(' — ')}
+          {tvaEnabled && tvaNumber && <span> — N° TVA intracommunautaire : {tvaNumber}</span>}
+          <span> — Document généré par Vitfix Pro le {new Date().toLocaleDateString('fr-FR')} — Conformité : Code de commerce, Code de la consommation, Loi Pinel 2014.</span>
+        </div>
+
+      </div>
+
+      {/* ═══════════════════════════════════════════════
+          PAGE 2 — RÉTRACTATION — Template séparé capturé indépendamment
+          Permet un saut de page propre sans couper les éléments
+          ═══════════════════════════════════════════════ */}
+      {docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0 && (
+        <div
+          ref={pdfRetractRef}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: '-9999px',
+            top: '-9999px',
+            width: '794px',
+            backgroundColor: '#ffffff',
+            fontFamily: 'Arial, Helvetica, sans-serif',
+            fontSize: '12px',
+            color: '#1a1a1a',
+            padding: '48px',
+            boxSizing: 'border-box',
+            lineHeight: '1.5',
+          }}
+        >
+          {/* ─── Bandeau jaune en haut de page 2 ─── */}
+          <div style={{ height: '4px', backgroundColor: '#FFC107', margin: '-48px -48px 24px -48px' }}></div>
+
+          <div style={{ textAlign: 'center', marginBottom: '20px', fontSize: '10px', color: '#64748B' }}>
+            {docType === 'devis' ? 'Devis' : 'Facture'} {docNumber} — {companyName} — Page 2/2
+          </div>
+
+          <div style={{ padding: '18px 20px', backgroundColor: '#FFF8F0', border: '2px solid #F59E0B', borderRadius: '8px', fontSize: '10.5px', color: '#92400E', lineHeight: '1.7' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '8px', color: '#B45309', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Droit de rétractation — Article L. 221-18 du Code de la consommation
+            </div>
+            <div>Le client dispose d&apos;un délai de <strong>14 jours calendaires</strong> à compter de la signature du présent devis pour exercer son droit de rétractation, sans avoir à justifier de motifs ni à payer de pénalités.</div>
+            <div style={{ marginTop: '6px' }}>Pour exercer ce droit, le client peut utiliser le formulaire de rétractation ci-dessous ou adresser toute déclaration dénuée d&apos;ambiguïté exprimant sa volonté de se rétracter.</div>
+            <div style={{ marginTop: '8px', fontWeight: 'bold', fontSize: '10.5px' }}>Aucun paiement ne peut être exigé avant l&apos;expiration d&apos;un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents d&apos;entretien ou de réparation demandés expressément par le client.</div>
+
+            <div style={{ marginTop: '16px', borderTop: '2px dashed #F59E0B', paddingTop: '12px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '8px', color: '#B45309', textAlign: 'center' }}>FORMULAIRE DE RÉTRACTATION</div>
+              <div style={{ marginBottom: '6px' }}>À l&apos;attention de : {companyName}, {companyAddress}</div>
+              <div style={{ marginBottom: '10px' }}>Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.</div>
+              <div style={{ marginTop: '10px', lineHeight: '2.2' }}>
+                <div>Commandé le / reçu le : ____________________________________</div>
+                <div>Nom du client : ____________________________________</div>
+                <div>Adresse du client : ____________________________________</div>
+                <div>Signature du client : ____________________________________</div>
+                <div>Date : ____________________________________</div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
@@ -21,6 +21,10 @@ import {
   Home,
   Search,
   X,
+  Building2,
+  Shield,
+  FileText,
+  ChevronDown,
 } from 'lucide-react'
 
 const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
@@ -350,6 +354,7 @@ export default function ArtisanProfilePage() {
   const [selectedServices, setSelectedServices] = useState<any[]>([])
   const [serviceQuantities, setServiceQuantities] = useState<Record<string, string>>({})
   const [showEstimateModal, setShowEstimateModal] = useState(false)
+  const [showBusinessCard, setShowBusinessCard] = useState(false)
   // ─────────────────────────────────────────────────────────────────
 
   // Calendar state
@@ -367,6 +372,7 @@ export default function ArtisanProfilePage() {
     cgu: false,
   })
   const [submitting, setSubmitting] = useState(false)
+  const [bookingError, setBookingError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchArtisan()
@@ -378,28 +384,64 @@ export default function ArtisanProfilePage() {
       }
     }
     checkUser()
+
+    // Browser back button: push a guard entry, intercept every back press
+    window.history.pushState(null, '')
+    const onPopState = () => {
+      const cur = stepRef.current
+      if (cur === 'calendar') {
+        window.history.pushState(null, '')
+        setStep('motif')
+      } else if (cur === 'motif') {
+        window.history.pushState(null, '')
+        setStep('profile')
+      } else {
+        // On profile — go back for real (leave the page)
+        window.history.back()
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Track current step in a ref so popstate handler always reads latest
+  const stepRef = useRef(step)
+  useEffect(() => { stepRef.current = step }, [step])
+
   const fetchArtisan = async () => {
-    // Artisan profile and services can still use anon key (public read)
-    const { data: artisanData } = await supabase
-      .from('profiles_artisan')
-      .select('*')
-      .eq('id', params.id)
-      .single()
+    const paramId = params.id as string
+
+    // Résolution par slug OU par UUID
+    // UUID = format 8-4-4-4-12 hex, sinon c'est un slug
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paramId)
+
+    let artisanData: any = null
+    if (isUuid) {
+      const { data } = await supabase
+        .from('profiles_artisan').select('*').eq('id', paramId).single()
+      artisanData = data
+    } else {
+      // Chercher par slug
+      const { data } = await supabase
+        .from('profiles_artisan').select('*').eq('slug', paramId).single()
+      artisanData = data
+    }
+
+    if (!artisanData) { setLoading(false); return }
+    const artisanId = artisanData.id
 
     const { data: servicesData } = await supabase
       .from('services')
       .select('*')
-      .eq('artisan_id', params.id)
+      .eq('artisan_id', artisanId)
       .eq('active', true)
 
     // Use API routes (server-side service_role key) to bypass RLS
     const [availRes, bookingsRes, dsRes] = await Promise.all([
-      fetch(`/api/availability?artisan_id=${params.id}`),
-      fetch(`/api/bookings?artisan_id=${params.id}`),
-      fetch(`/api/availability-services?artisan_id=${params.id}`),
+      fetch(`/api/availability?artisan_id=${artisanId}`),
+      fetch(`/api/bookings?artisan_id=${artisanId}`),
+      fetch(`/api/availability-services?artisan_id=${artisanId}`),
     ])
 
     const availJson = await availRes.json()
@@ -420,12 +462,25 @@ export default function ArtisanProfilePage() {
 
   // ---- Helpers ----
 
-  const cleanBio = (bio: string) => (bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
+  const cleanBio = (bio: string) => {
+    let text = (bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
+    // Retirer les adresses physiques : "— Bâtiment X, Rés. Y, 13600 Ville."
+    text = text.replace(/\s*—\s*[\s\S]*?\d{5}\s*[^.]*\./g, '.')
+    // Retirer les mentions "(rayon XX km)" redondantes avec le header
+    text = text.replace(/\s*\(rayon\s*\d+\s*km\)\s*/gi, ' ')
+    // Retirer les doubles espaces et points
+    text = text.replace(/\.\s*\./g, '.').replace(/\s+/g, ' ').trim()
+    return text
+  }
 
   const isServiceAvailableOnDay = (serviceId: string, dayOfWeek: number): boolean => {
     const dayConfig = dayServicesConfig[String(dayOfWeek)]
     // If no config for this day, or empty array = all services available
     if (!dayConfig || dayConfig.length === 0) return true
+    // If this service is not referenced in ANY day's config, it's available everywhere
+    // (only restrict services that have been explicitly configured)
+    const allConfiguredServices = new Set(Object.values(dayServicesConfig).flat())
+    if (!allConfiguredServices.has(serviceId)) return true
     return dayConfig.includes(serviceId)
   }
 
@@ -491,20 +546,53 @@ export default function ArtisanProfilePage() {
     return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
   }
 
+  // Active days of the week (display order Mon→Sun)
+  const activeDayIndices = useMemo(() => {
+    const displayOrder = [1, 2, 3, 4, 5, 6, 0] // Mon=1 ... Sun=0
+    if (!availability || availability.length === 0) return displayOrder // fallback: all 7 days
+    const active = displayOrder.filter(dow =>
+      availability.some(a => a.day_of_week === dow && a.is_available)
+    )
+    return active.length > 0 ? active : displayOrder // fallback if none active
+  }, [availability])
+
+  const dayHeaders = useMemo(() => {
+    const labels: Record<number, string> = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Jeu', 5: 'Ven', 6: 'Sam', 0: 'Dim' }
+    return activeDayIndices.map(dow => labels[dow])
+  }, [activeDayIndices])
+
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
-    const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
-    const startPadding = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const activeSet = new Set(activeDayIndices)
+    const numCols = activeDayIndices.length
 
-    const days: (Date | null)[] = []
-    for (let i = 0; i < startPadding; i++) days.push(null)
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-      days.push(new Date(year, month, d))
+    // Build week rows with only active day columns
+    const rows: (Date | null)[][] = []
+    const firstOfMonth = new Date(year, month, 1)
+    const firstDow = firstOfMonth.getDay()
+    const mondayOffset = firstDow === 0 ? -6 : 1 - firstDow
+    let weekMonday = new Date(year, month, 1 + mondayOffset)
+
+    while (rows.length < 7) {
+      const row: (Date | null)[] = []
+      for (const dow of activeDayIndices) {
+        const dayOffset = dow === 0 ? 6 : dow - 1 // Mon=0 offset, Sun=6 offset
+        const date = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + dayOffset)
+        if (date.getMonth() === month) {
+          row.push(date)
+        } else {
+          row.push(null)
+        }
+      }
+      rows.push(row)
+      weekMonday = new Date(weekMonday.getFullYear(), weekMonday.getMonth(), weekMonday.getDate() + 7)
+      if (weekMonday.getMonth() > month || weekMonday.getFullYear() > year) break
     }
-    return days
-  }, [currentMonth])
+
+    return rows.flat()
+  }, [currentMonth, activeDayIndices])
 
   const changeMonth = (dir: number) => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + dir, 1))
@@ -580,6 +668,7 @@ export default function ArtisanProfilePage() {
   const submitBooking = async () => {
     if (!selectedDate || !selectedSlot || !bookingForm.name || !bookingForm.phone || !bookingForm.cgu) return
     setSubmitting(true)
+    setBookingError(null)
 
     const dateStr = selectedDate.toISOString().split('T')[0]
 
@@ -629,10 +718,21 @@ export default function ArtisanProfilePage() {
       insertData.service_id = mainService.id
     }
 
+    // Get auth token for API call
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setBookingError('Vous devez être connecté pour réserver. Veuillez vous connecter.')
+      setSubmitting(false)
+      return
+    }
+
     // Use API route to bypass RLS
     const bookingRes = await fetch('/api/bookings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify(insertData),
     })
     const bookingJson = await bookingRes.json()
@@ -640,7 +740,7 @@ export default function ArtisanProfilePage() {
     if (!bookingJson.error && bookingJson.data) {
       router.push(`/confirmation?id=${bookingJson.data.id}`)
     } else {
-      alert('Erreur lors de la réservation. Veuillez réessayer.')
+      setBookingError('Erreur lors de la réservation. Veuillez réessayer.')
     }
 
     setSubmitting(false)
@@ -748,6 +848,171 @@ export default function ArtisanProfilePage() {
                 </p>
               </div>
 
+              {/* Carnet de visite */}
+              <div className="mb-8">
+                <button
+                  onClick={() => setShowBusinessCard(!showBusinessCard)}
+                  className="w-full flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-[#FFC107]" />
+                    </div>
+                    <h2 className="text-2xl font-bold group-hover:text-[#FFC107] transition">Carnet de visite</h2>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showBusinessCard ? 'rotate-180' : ''}`} />
+                </button>
+
+                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showBusinessCard ? 'max-h-[800px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
+                  <div className="bg-gradient-to-br from-gray-50 to-amber-50/30 rounded-2xl border border-gray-100 p-6">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      {/* Nom de l'entreprise */}
+                      {artisan.company_name && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <Building2 className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Entreprise</div>
+                            <div className="font-semibold text-gray-900">{artisan.company_name}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Forme juridique */}
+                      {artisan.legal_form && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <FileText className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Forme juridique</div>
+                            <div className="font-semibold text-gray-900">{artisan.legal_form}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SIRET */}
+                      {artisan.siret && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <Shield className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">SIRET</div>
+                            <div className="font-semibold text-gray-900 font-mono text-sm">{artisan.siret}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Code NAF */}
+                      {artisan.naf_code && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <FileText className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Code NAF</div>
+                            <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? ` — ${artisan.naf_label}` : ''}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Adresse */}
+                      {(artisan.company_address || artisan.company_city) && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <MapPin className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Adresse</div>
+                            <div className="font-semibold text-gray-900 text-sm">
+                              {artisan.company_address && <span>{artisan.company_address}<br /></span>}
+                              {artisan.company_postal_code && <span>{artisan.company_postal_code} </span>}
+                              {artisan.company_city}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Téléphone */}
+                      {artisan.phone && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <Phone className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Téléphone</div>
+                            <a href={`tel:${artisan.phone.replace(/\s/g, '')}`} className="font-semibold text-gray-900 hover:text-[#FFC107] transition">
+                              {artisan.phone}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Email */}
+                      {artisan.email && (
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                            <Mail className="w-4.5 h-4.5 text-[#FFC107]" />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Email</div>
+                            <a href={`mailto:${artisan.email}`} className="font-semibold text-gray-900 hover:text-[#FFC107] transition text-sm break-all">
+                              {artisan.email}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Zone d'intervention */}
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
+                          <Search className="w-4.5 h-4.5 text-[#FFC107]" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Zone d&apos;intervention</div>
+                          <div className="font-semibold text-gray-900">{artisan.company_city || artisan.city || 'La Ciotat'} — rayon {artisan.zone_radius_km || 30} km</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Photos / Réalisations dans le carnet de visite */}
+                    {artisan.portfolio_photos && Array.isArray(artisan.portfolio_photos) && artisan.portfolio_photos.length > 0 && (
+                      <div className="mt-6 pt-5 border-t border-gray-200/60">
+                        <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          📸 Réalisations
+                          <span className="text-xs text-gray-500 font-normal">({artisan.portfolio_photos.length} photo{artisan.portfolio_photos.length > 1 ? 's' : ''})</span>
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                          {artisan.portfolio_photos.slice(0, 6).map((photo: any, idx: number) => (
+                            <div
+                              key={photo.id || idx}
+                              className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
+                              onClick={() => window.open(photo.url, '_blank')}
+                            >
+                              <img
+                                src={photo.url}
+                                alt={photo.title || 'Réalisation'}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
+                                <div className="text-white text-xs font-semibold truncate">{photo.title || 'Réalisation'}</div>
+                                {photo.category && <div className="text-gray-300 text-[10px]">{photo.category}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {artisan.portfolio_photos.length > 6 && (
+                          <p className="text-sm text-gray-500 mt-2.5 text-center">+ {artisan.portfolio_photos.length - 6} autres réalisations</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Services */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
@@ -770,7 +1035,7 @@ export default function ArtisanProfilePage() {
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-xl">{group.emoji}</span>
                           <h3 className="font-bold text-lg text-gray-800">{group.label}</h3>
-                          <span className="text-xs text-gray-400 ml-1">({group.services.length})</span>
+                          <span className="text-xs text-gray-500 ml-1">({group.services.length})</span>
                         </div>
                         <div className="grid md:grid-cols-2 gap-3">
                           {group.services.map((service) => {
@@ -797,20 +1062,24 @@ export default function ArtisanProfilePage() {
                                   }}
                                   title={isInCart ? 'Retirer du panier' : 'Ajouter au panier'}
                                   className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center font-bold text-base transition z-10 ${
-                                    isInCart ? 'bg-[#FFC107] border-[#FFC107] text-gray-900' : 'border-gray-300 text-gray-400 hover:border-[#FFC107] hover:text-[#FFC107] bg-white'
+                                    isInCart ? 'bg-[#FFC107] border-[#FFC107] text-gray-900' : 'border-gray-300 text-gray-500 hover:border-[#FFC107] hover:text-[#FFC107] bg-white'
                                   }`}
                                 >
                                   {isInCart ? '✓' : '+'}
                                 </button>
 
-                                {/* Card body → single service motif step */}
+                                {/* Card body → toggle service in cart */}
                                 <div
                                   className="cursor-pointer"
                                   onClick={() => {
-                                    setSelectedService(service)
-                                    setSelectedPriceTier(null)
-                                    setStep('motif')
-                                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                                    setSelectedServices(prev => {
+                                      const exists = prev.find(s => s.id === service.id)
+                                      if (exists) {
+                                        setServiceQuantities(q => { const nq = { ...q }; delete nq[service.id]; return nq })
+                                        return prev.filter(s => s.id !== service.id)
+                                      }
+                                      return [...prev, service]
+                                    })
                                   }}
                                 >
                                   <div className="flex items-start gap-3 mb-2 pr-10">
@@ -843,7 +1112,7 @@ export default function ArtisanProfilePage() {
                                         {priceInfo.type === 'fixed' && <span className="text-lg font-bold text-[#FFC107]">{priceInfo.label}</span>}
                                       </>
                                     )}
-                                    <span className="text-xs text-gray-400">Voir d&eacute;tails &rarr;</span>
+                                    <span className="text-xs text-gray-500">{isInCart ? '✓ Sélectionné' : 'Cliquez pour sélectionner'}</span>
                                   </div>
                                 </div>
                               </div>
@@ -855,25 +1124,9 @@ export default function ArtisanProfilePage() {
                   </div>
                 )}
 
-                {/* CTA — single ou multi selon cart */}
-                {services.length > 0 && (
-                  <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center items-center">
-                    <button
-                      onClick={goToMotif}
-                      className="border-2 border-[#FFC107] text-gray-800 px-6 py-3 rounded-lg font-semibold transition text-base inline-flex items-center gap-2 hover:bg-amber-50"
-                    >
-                      <Calendar className="w-5 h-5" />
-                      Choisir un seul service
-                    </button>
-                    {selectedServices.length > 0 && (
-                      <button
-                        onClick={() => setShowEstimateModal(true)}
-                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-bold transition text-base inline-flex items-center gap-2 shadow-md"
-                      >
-                        🛒 Voir l&apos;estimation ({selectedServices.length} motif{selectedServices.length > 1 ? 's' : ''})
-                      </button>
-                    )}
-                  </div>
+                {/* Spacer pour la sticky bar en bas */}
+                {selectedServices.length > 0 && (
+                  <div className="h-16"></div>
                 )}
               </div>
 
@@ -884,7 +1137,7 @@ export default function ArtisanProfilePage() {
                     <div className="p-6">
                       <div className="flex items-center justify-between mb-5">
                         <h2 className="text-xl font-bold">📋 R&eacute;capitulatif de votre demande</h2>
-                        <button onClick={() => setShowEstimateModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+                        <button onClick={() => setShowEstimateModal(false)} className="text-gray-500 hover:text-gray-600"><X className="w-6 h-6" /></button>
                       </div>
 
                       <div className="space-y-3 mb-5">
@@ -922,7 +1175,7 @@ export default function ArtisanProfilePage() {
                                 {isDevis ? (
                                   <span className="text-blue-600 text-sm font-semibold">Sur devis</span>
                                 ) : needsQty && !qty ? (
-                                  <span className="text-gray-400 text-xs">Entrez la quantit&eacute; pour estimer</span>
+                                  <span className="text-gray-500 text-xs">Entrez la quantit&eacute; pour estimer</span>
                                 ) : (
                                   <span className="text-[#FFC107] font-bold text-sm">
                                     {t && t.min === t.max ? `${t.min}€` : `${minVal} – ${maxVal}€`}
@@ -993,19 +1246,60 @@ export default function ArtisanProfilePage() {
 
               {/* ── Sticky cart bar ───────────────────────────────────────── */}
               {selectedServices.length > 0 && !showEstimateModal && (
-                <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900 text-white px-4 py-3 flex items-center justify-between gap-3 shadow-2xl">
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-400">Panier multi-services</p>
-                    <p className="font-semibold text-sm truncate">
-                      {selectedServices.map(s => s.name).join(' · ')}
-                    </p>
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900 text-white px-4 py-3 shadow-2xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-gray-500">
+                        {selectedServices.length === 1 ? 'Service sélectionné' : 'Panier multi-services'}
+                      </p>
+                      <p className="font-semibold text-sm truncate">
+                        {selectedServices.map(s => s.name).join(' · ')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setShowEstimateModal(true)}
+                        className="bg-[#FFC107] text-gray-900 px-4 py-2 rounded-lg font-bold text-sm"
+                      >
+                        Estimation 🛒
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Pre-select the first service as motif
+                          setSelectedService(selectedServices[0])
+                          setSelectedPriceTier(null)
+                          setSelectedTreeWidth(null)
+                          setQuantityKnown(null)
+                          setQuantityValue('')
+                          setUseCustomMotif(false)
+                          setCustomMotif('')
+                          // Go directly to calendar
+                          setStep('calendar')
+                          setSelectedDate(null)
+                          setSelectedSlot(null)
+                          // Pre-fill form with connected user data
+                          if (connectedUser) {
+                            const meta = connectedUser.user_metadata || {}
+                            const addressParts = [meta.address, meta.postal_code, meta.city].filter(Boolean)
+                            setBookingForm({
+                              name: meta.full_name || '',
+                              email: connectedUser.email || '',
+                              phone: meta.phone || '',
+                              address: addressParts.join(', '),
+                              notes: '',
+                              cgu: false,
+                            })
+                          } else {
+                            setBookingForm({ name: '', email: '', phone: '', address: '', notes: '', cgu: false })
+                          }
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
+                        className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold text-sm"
+                      >
+                        Prendre RDV 📅
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setShowEstimateModal(true)}
-                    className="flex-shrink-0 bg-[#FFC107] text-gray-900 px-4 py-2 rounded-lg font-bold text-sm"
-                  >
-                    Voir l&apos;estimation 🛒
-                  </button>
                 </div>
               )}
 
@@ -1189,7 +1483,7 @@ export default function ArtisanProfilePage() {
                             const avail = availability.find(a => a.day_of_week === dayNum && a.is_available)
                             const serviceOk = isServiceAvailableOnDay(service.id, dayNum)
                             return (
-                              <span key={dayNum} className={`text-[10px] px-1.5 py-0.5 rounded ${avail && serviceOk ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                              <span key={dayNum} className={`text-[10px] px-1.5 py-0.5 rounded ${avail && serviceOk ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {dayName}
                               </span>
                             )
@@ -1219,7 +1513,7 @@ export default function ArtisanProfilePage() {
                             >
                               <span>🌳 {tier.label}</span>
                               {selectedPriceTier?.label !== tier.label && (
-                                <span className="text-xs text-gray-400 font-normal">Sélectionner</span>
+                                <span className="text-xs text-gray-500 font-normal">Sélectionner</span>
                               )}
                             </button>
                           ))}
@@ -1310,7 +1604,7 @@ export default function ArtisanProfilePage() {
                           <p className="text-lg font-bold text-gray-900">
                             {calculateEstimatedPrice(priceInfo, Number(quantityValue))}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">* Estimation indicative. Le montant final dépendra des conditions d&apos;accès et de la complexité des travaux.</p>
+                          <p className="text-xs text-gray-500 mt-1">* Estimation indicative. Le montant final dépendra des conditions d&apos;accès et de la complexité des travaux.</p>
                         </div>
                       )}
 
@@ -1391,7 +1685,7 @@ export default function ArtisanProfilePage() {
                   })()}
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm">Aucun motif s&eacute;lectionn&eacute;</p>
+                <p className="text-gray-500 text-sm">Aucun motif s&eacute;lectionn&eacute;</p>
               )}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -1484,16 +1778,16 @@ export default function ArtisanProfilePage() {
                 </div>
 
                 {/* Day headers */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
-                    <div key={d} className="text-center text-sm font-semibold text-gray-400 py-2">
+                <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: `repeat(${activeDayIndices.length}, 1fr)` }}>
+                  {dayHeaders.map((d) => (
+                    <div key={d} className="text-center text-sm font-semibold text-gray-500 py-2">
                       {d}
                     </div>
                   ))}
                 </div>
 
                 {/* Calendar grid */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${activeDayIndices.length}, 1fr)` }}>
                   {calendarDays.map((date, i) => {
                     if (!date) return <div key={`empty-${i}`} />
                     const available = isDateAvailableForService(date, selectedService?.id || null)
@@ -1522,7 +1816,7 @@ export default function ArtisanProfilePage() {
                 </div>
 
                 {/* Legend */}
-                <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4 text-xs text-gray-400">
+                <div className="mt-5 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4 text-xs text-gray-500">
                   <span className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded bg-blue-100 border border-blue-300"></span>
                     Aujourd&apos;hui
@@ -1564,7 +1858,7 @@ export default function ArtisanProfilePage() {
                             disabled={!slot.available}
                             className={`p-3 rounded-lg text-center font-semibold text-sm transition-all ${
                               !slot.available
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                                ? 'bg-gray-100 text-gray-500 cursor-not-allowed line-through'
                                 : selectedSlot === slot.time
                                   ? 'bg-[#FFC107] text-gray-900 shadow-md'
                                   : 'bg-gray-50 hover:bg-amber-100 text-gray-700 border border-gray-200 hover:border-[#FFC107]'
@@ -1575,7 +1869,7 @@ export default function ArtisanProfilePage() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-12 text-gray-400">
+                      <div className="text-center py-12 text-gray-500">
                         <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p className="font-medium">Aucun cr&eacute;neau disponible</p>
                         <p className="text-sm">Tous les cr&eacute;neaux sont pris ce jour</p>
@@ -1583,7 +1877,7 @@ export default function ArtisanProfilePage() {
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-16 text-gray-400">
+                  <div className="text-center py-16 text-gray-500">
                     <Calendar className="w-16 h-16 mx-auto mb-4 opacity-40" />
                     <p className="font-medium text-lg">S&eacute;lectionnez une date</p>
                     <p className="text-sm">Choisissez un jour disponible dans le calendrier ci-dessus</p>
@@ -1606,7 +1900,7 @@ export default function ArtisanProfilePage() {
                       <div className="flex items-center gap-1 text-sm">
                         <Star className="w-3.5 h-3.5 fill-[#FFC107] text-[#FFC107]" />
                         <span className="font-medium">{artisan.rating_avg || '5.0'}</span>
-                        <span className="text-gray-400">({artisan.rating_count || 0})</span>
+                        <span className="text-gray-500">({artisan.rating_count || 0})</span>
                       </div>
                     </div>
                   </div>
@@ -1663,7 +1957,7 @@ export default function ArtisanProfilePage() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium mb-1 text-gray-700 flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-gray-400" />
+                        <User className="w-3.5 h-3.5 text-gray-500" />
                         Nom complet <span className="text-red-400">*</span>
                       </label>
                       <input
@@ -1679,7 +1973,7 @@ export default function ArtisanProfilePage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 text-gray-700 flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-gray-400" />
+                        <Mail className="w-3.5 h-3.5 text-gray-500" />
                         Email
                       </label>
                       <input
@@ -1694,7 +1988,7 @@ export default function ArtisanProfilePage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 text-gray-700 flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-gray-400" />
+                        <Phone className="w-3.5 h-3.5 text-gray-500" />
                         T&eacute;l&eacute;phone <span className="text-red-400">*</span>
                       </label>
                       <input
@@ -1710,7 +2004,7 @@ export default function ArtisanProfilePage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 text-gray-700 flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                        <MapPin className="w-3.5 h-3.5 text-gray-500" />
                         Adresse d&apos;intervention
                       </label>
                       <input
@@ -1721,21 +2015,22 @@ export default function ArtisanProfilePage() {
                         className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none transition text-sm"
                       />
                       {connectedUser && bookingForm.address && (
-                        <p className="text-[11px] text-gray-400 mt-1">Adresse de votre profil par d&eacute;faut &mdash; modifiable si l&apos;intervention est ailleurs</p>
+                        <p className="text-[11px] text-gray-500 mt-1">Adresse de votre profil par d&eacute;faut &mdash; modifiable si l&apos;intervention est ailleurs</p>
                       )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 text-gray-700 flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                        Notes / Pr&eacute;cisions
+                        <MessageSquare className="w-3.5 h-3.5 text-gray-500" />
+                        Note suppl&eacute;mentaire / Question pour l&apos;artisan
                       </label>
                       <textarea
                         value={bookingForm.notes}
                         onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
-                        rows={2}
-                        placeholder="D&eacute;crivez votre besoin..."
+                        rows={3}
+                        placeholder="D&eacute;crivez votre besoin, posez une question, ou indiquez des infos d'acc&egrave;s (code porte, &eacute;tage, parking, etc.)"
                         className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none transition resize-none text-sm"
                       />
+                      <p className="text-xs text-gray-500 mt-1">L&apos;artisan pourra vous r&eacute;pondre via la messagerie apr&egrave;s la r&eacute;servation</p>
                     </div>
 
                     {/* CGU checkbox */}
@@ -1759,6 +2054,13 @@ export default function ArtisanProfilePage() {
                       </span>
                     </label>
                   </div>
+
+                  {/* Booking error message */}
+                  {bookingError && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {bookingError}
+                    </div>
+                  )}
 
                   {/* Action buttons */}
                   <div className="mt-5 space-y-3">

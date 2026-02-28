@@ -77,7 +77,7 @@ html, body {
   user-select: none;
 }
 
-/* ── Protection du contenu VitFix ──────────────────────────── */
+/* ── Protection du contenu Vitfix ──────────────────────────── */
 /* Bloque l'impression non autorisée */
 @media print {
   body {
@@ -85,7 +85,7 @@ html, body {
   }
   body::before {
     visibility: visible;
-    content: "© VitFix SAS — Reproduction interdite sans autorisation écrite préalable.";
+    content: "© Vitfix SAS — Reproduction interdite sans autorisation écrite préalable.";
     font-size: 20px;
     font-weight: bold;
     display: block;

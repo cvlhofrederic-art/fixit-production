@@ -97,8 +97,8 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 gap-4">
         <div className="text-4xl">😕</div>
         <h2 className="text-lg font-bold text-gray-800">{error}</h2>
-        <p className="text-sm text-gray-400 text-center">Demandez à votre artisan un nouveau lien de suivi.</p>
-        <div className="mt-4 text-xs text-gray-400">Powered by <span className="font-bold text-amber-500">Fixit</span></div>
+        <p className="text-sm text-gray-500 text-center">Demandez à votre artisan un nouveau lien de suivi.</p>
+        <div className="mt-4 text-xs text-gray-500">Powered by <span className="font-bold text-amber-500">Fixit</span></div>
       </div>
     )
   }
@@ -156,12 +156,12 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
                     i < currentIdx  ? 'bg-green-500 border-green-500 text-white' :
                     i === currentIdx ? 'bg-amber-400 border-amber-400 text-white shadow-lg scale-110' :
-                                      'bg-gray-100 border-gray-200 text-gray-400'
+                                      'bg-gray-100 border-gray-200 text-gray-500'
                   }`}>
                     {i < currentIdx ? '✓' : step.icon}
                   </div>
                   <span className={`text-[10px] mt-1.5 text-center leading-tight font-semibold ${
-                    i <= currentIdx ? 'text-gray-700' : 'text-gray-400'
+                    i <= currentIdx ? 'text-gray-700' : 'text-gray-500'
                   }`}>{step.label}</span>
                 </div>
                 {i < STEPS.length - 1 && (
@@ -182,7 +182,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                 <span className="text-sm font-semibold text-gray-700">Position en direct</span>
               </div>
-              <span className="text-xs text-gray-400">OpenStreetMap</span>
+              <span className="text-xs text-gray-500">OpenStreetMap</span>
             </div>
             <iframe
               src={mapUrl}
@@ -204,7 +204,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-start gap-3">
             <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center text-base flex-shrink-0">🏠</div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5">Lieu d'intervention</p>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-0.5">Lieu d'intervention</p>
               <p className="text-sm font-semibold text-gray-800">{data.mission_adresse}</p>
             </div>
           </div>
@@ -244,7 +244,7 @@ export default function TrackingPage({ params }: { params: { token: string } }) 
         {/* ─── Refresh info ─── */}
         <div className="flex items-center justify-center gap-2 py-2">
           <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-          <p className="text-xs text-gray-400">Actualisation automatique toutes les 12 secondes</p>
+          <p className="text-xs text-gray-500">Actualisation automatique toutes les 12 secondes</p>
         </div>
 
         {/* ─── Footer ─── */}

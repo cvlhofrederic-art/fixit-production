@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
-import { Star, Check, Home, Printer } from 'lucide-react'
+import { Star, Check, Home, Printer, Send, MessageSquare } from 'lucide-react'
 
 function getArtisanInitials(name: string): string {
   if (!name) return '?'
@@ -50,6 +50,10 @@ function ConfirmationContent() {
   const [service, setService] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [messages, setMessages] = useState<any[]>([])
+  const [newMessage, setNewMessage] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const [myRole, setMyRole] = useState<string>('')
 
   useEffect(() => {
     if (bookingId) {
@@ -103,6 +107,56 @@ function ConfirmationContent() {
     }
 
     setLoading(false)
+
+    // Fetch messages for this booking
+    try {
+      const msgRes = await fetch(`/api/booking-messages?booking_id=${bookingId}`)
+      const msgJson = await msgRes.json()
+      if (msgJson.data) {
+        setMessages(msgJson.data)
+        setMyRole(msgJson.role || '')
+      }
+    } catch {}
+  }
+
+  // Realtime subscription for new messages
+  useEffect(() => {
+    if (!bookingId || !booking) return
+    const channel = supabase
+      .channel(`booking_msgs_${bookingId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'booking_messages',
+        filter: `booking_id=eq.${bookingId}`,
+      }, (payload) => {
+        const msg = payload.new as any
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          return [...prev, msg]
+        })
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [bookingId, booking])
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !bookingId || sendingMessage) return
+    setSendingMessage(true)
+    try {
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId, content: newMessage.trim() }),
+      })
+      const json = await res.json()
+      if (json.data) {
+        setMessages(prev => [...prev, json.data])
+        setNewMessage('')
+      }
+    } catch {}
+    setSendingMessage(false)
   }
 
   if (loading) {
@@ -157,7 +211,7 @@ function ConfirmationContent() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
               Rendez-vous confirm&eacute; !
             </h1>
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-500 text-sm">
               Vous recevrez une confirmation par SMS et email
             </p>
           </div>
@@ -179,7 +233,7 @@ function ConfirmationContent() {
                     <span className="text-sm font-semibold text-[#FFC107]">
                       {artisan.rating_avg || '5.0'}
                     </span>
-                    <span className="text-xs text-gray-400">({artisan.rating_count || 0} avis)</span>
+                    <span className="text-xs text-gray-500">({artisan.rating_count || 0} avis)</span>
                   </div>
                 </div>
               </div>
@@ -246,14 +300,99 @@ function ConfirmationContent() {
                         ? `${Number(booking.price_ttc).toLocaleString('fr-FR')} €`
                         : `${Number(booking.price_ht).toLocaleString('fr-FR')} € – ${Number(booking.price_ttc).toLocaleString('fr-FR')} €`
                       }
-                      <span className="text-xs font-normal text-gray-400 ml-1">TTC</span>
+                      <span className="text-xs font-normal text-gray-500 ml-1">TTC</span>
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed">
                     * Estimation indicative. Le montant final d&eacute;pendra des conditions d&apos;acc&egrave;s au chantier, de la complexit&eacute; des travaux et d&apos;autres d&eacute;tails &agrave; clarifier avec l&apos;artisan. Des frais suppl&eacute;mentaires peuvent &ecirc;tre appliqu&eacute;s.
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* 48h deadline info */}
+          {booking.status === 'pending' && booking.expires_at && (
+            <div className="mx-6 mb-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm">
+                <p className="text-amber-800">
+                  {'⏳'} <strong>L&apos;artisan a 48h pour confirmer votre RDV.</strong>
+                  {' '}Expiration le {new Date(booking.expires_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {booking.status === 'confirmed' && (
+            <div className="mx-6 mb-4">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
+                <p className="text-green-800">
+                  {'✅'} <strong>RDV confirm&eacute; par l&apos;artisan !</strong>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Messaging section */}
+          <div className="mx-6 mb-6">
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-gray-500" />
+                <h3 className="font-semibold text-sm text-gray-700">Messagerie avec l&apos;artisan</h3>
+              </div>
+
+              {/* Messages list */}
+              <div className="max-h-64 overflow-y-auto p-4 space-y-3">
+                {messages.length === 0 && (
+                  <p className="text-xs text-gray-500 text-center py-4">
+                    Aucun message pour le moment. Posez une question &agrave; l&apos;artisan ci-dessous.
+                  </p>
+                )}
+                {messages.map((msg) => {
+                  const isMe = msg.sender_role === myRole || (myRole === '' && msg.sender_role === 'client')
+                  const isAutoReply = msg.type === 'auto_reply'
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                        isAutoReply
+                          ? 'bg-blue-50 border border-blue-200 text-blue-800'
+                          : isMe
+                            ? 'bg-[#FFC107] text-gray-900'
+                            : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {!isMe && (
+                          <p className="text-xs font-semibold mb-0.5 opacity-70">
+                            {isAutoReply ? '🤖 R\u00E9ponse automatique' : msg.sender_name || 'Artisan'}
+                          </p>
+                        )}
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <p className="text-[10px] opacity-50 mt-1">
+                          {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Input */}
+              <div className="border-t border-gray-200 p-3 flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder="&Eacute;crivez un message..."
+                  className="flex-1 text-sm border border-gray-200 rounded-full px-4 py-2 focus:border-[#FFC107] focus:outline-none"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={sendingMessage || !newMessage.trim()}
+                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 w-9 h-9 rounded-full flex items-center justify-center transition disabled:opacity-40"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 

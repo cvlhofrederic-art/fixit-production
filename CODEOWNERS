@@ -1,0 +1,17 @@
+# Code owners — require review for critical files
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @vitfix-team
+
+# Security-critical files require admin review
+lib/supabase-server.ts @vitfix-admin
+lib/auth-helpers.ts @vitfix-admin
+middleware.ts @vitfix-admin
+app/api/admin/** @vitfix-admin
+app/api/user/** @vitfix-admin
+
+# Infrastructure
+next.config.ts @vitfix-admin
+vercel.json @vitfix-admin
+.github/** @vitfix-admin

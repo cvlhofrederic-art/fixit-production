@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import Link from 'next/link'
-import { Calendar, Clock, MapPin, Star, LogOut, User, Search, ChevronRight, Pencil, Save, X, Home, Shield, FileText, CheckCircle, AlertTriangle, Copy, Filter, FileSearch } from 'lucide-react'
+import { Calendar, Clock, MapPin, Star, LogOut, User, Search, ChevronRight, Pencil, Save, X, Home, Shield, FileText, CheckCircle, AlertTriangle, Copy, Filter, FileSearch, MessageSquare, Send } from 'lucide-react'
 
 type Booking = {
   id: string
@@ -19,6 +19,7 @@ type Booking = {
   artisan_id?: string
   confirmed_at?: string
   completed_at?: string
+  expires_at?: string
   services?: { name: string } | null
   profiles_artisan?: { company_name: string; rating_avg: number; rating_count?: number } | null
 }
@@ -82,6 +83,13 @@ export default function ClientDashboardPage() {
   // ── Favoris ──
   const [favoris, setFavoris] = useState<string[]>([])
 
+  // ── Messagerie ──
+  const [messageModal, setMessageModal] = useState<Booking | null>(null)
+  const [messages, setMessages] = useState<any[]>([])
+  const [newMessage, setNewMessage] = useState('')
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+
   // ── Carnet de Santé Logement ──
   const [cilEntries, setCilEntries] = useState<CILEntry[]>([])
   const [showCilDetail, setShowCilDetail] = useState<CILEntry | null>(null)
@@ -92,7 +100,7 @@ export default function ClientDashboardPage() {
   const [analyseFilename, setAnalyseFilename] = useState('')
   const [analyseResult, setAnalyseResult] = useState('')
   const [analyseLoading, setAnalyseLoading] = useState(false)
-  const [analyseInputMode, setAnalyseInputMode] = useState<'paste' | 'pdf'>('paste')
+  const [analyseInputMode, setAnalyseInputMode] = useState<'paste' | 'pdf'>('pdf')
   const [analyseExtracting, setAnalyseExtracting] = useState(false)
   const [analysePdfReady, setAnalysePdfReady] = useState(false)
   const [analyseHistory, setAnalyseHistory] = useState<{date: string; filename: string; verdict: string}[]>([])
@@ -324,6 +332,43 @@ export default function ClientDashboardPage() {
     try { localStorage.setItem(`fixit_client_favoris_${user?.id}`, JSON.stringify(next)) } catch {}
   }
 
+  // ── Messagerie ──
+  const openMessages = async (booking: Booking) => {
+    setMessageModal(booking)
+    setMessages([])
+    setNewMessage('')
+    try {
+      const res = await fetch(`/api/booking-messages?booking_id=${booking.id}`, {
+        headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+      })
+      const json = await res.json()
+      if (json.data) setMessages(json.data)
+      // Clear unread count
+      setUnreadCounts(prev => ({ ...prev, [booking.id]: 0 }))
+    } catch (e) { console.error('Error fetching messages:', e) }
+  }
+
+  const sendMessage = async () => {
+    if (!messageModal || !newMessage.trim() || sendingMessage) return
+    setSendingMessage(true)
+    try {
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({ booking_id: messageModal.id, content: newMessage.trim() }),
+      })
+      const json = await res.json()
+      if (json.data) {
+        setMessages(prev => [...prev, json.data])
+        setNewMessage('')
+      }
+    } catch (e) { console.error('Error sending message:', e) }
+    setSendingMessage(false)
+  }
+
   // ── Générer le Carnet de Santé (CIL) depuis les bookings terminés ──
   const generateCIL = (bks: Booking[]) => {
     const proofs = JSON.parse(localStorage.getItem('fixit_proofs') || '[]')
@@ -509,7 +554,7 @@ export default function ClientDashboardPage() {
           <div className="flex justify-between items-center py-4">
             <Link href="/" className="flex items-center gap-2">
               <span className="text-3xl">{'\u26A1'}</span>
-              <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
+              <span className="text-2xl font-bold text-[#FFC107]">Vitfix</span>
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/recherche" className="hidden sm:flex items-center gap-2 text-gray-600 hover:text-[#FFC107] transition text-sm font-medium">
@@ -520,7 +565,7 @@ export default function ClientDashboardPage() {
               {bookings.filter(b => b.status === 'pending').length > 0 && (
                 <button
                   onClick={() => setActiveTab('upcoming')}
-                  className="relative p-1.5 text-gray-400 hover:text-[#FFC107] transition"
+                  className="relative p-1.5 text-gray-500 hover:text-[#FFC107] transition"
                   title="Réservations en attente"
                 >
                   <span className="text-xl">🔔</span>
@@ -539,7 +584,7 @@ export default function ClientDashboardPage() {
                 </div>
                 <span className="hidden sm:block text-sm font-semibold text-gray-800">{userName}</span>
               </div>
-              <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition p-1" title="D&eacute;connexion">
+              <button onClick={handleLogout} className="text-gray-500 hover:text-red-500 transition p-1" title="D&eacute;connexion">
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
@@ -555,22 +600,22 @@ export default function ClientDashboardPage() {
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-5 rounded-2xl shadow-sm">
-            <div className="text-sm text-gray-500 mb-1">R&eacute;servations</div>
-            <div className="text-2xl font-bold">{bookings.length}</div>
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-400">
+            <div className="text-sm text-gray-600 mb-1">R&eacute;servations</div>
+            <div className="text-2xl font-bold text-gray-900">{bookings.length}</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm">
-            <div className="text-sm text-gray-500 mb-1">{'\u00C0'} venir</div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-[#FFC107]">
+            <div className="text-sm text-gray-600 mb-1">{'\u00C0'} venir</div>
             <div className="text-2xl font-bold text-[#FFC107]">{upcomingBookings.length}</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm">
-            <div className="text-sm text-gray-500 mb-1">Termin&eacute;es</div>
-            <div className="text-2xl font-bold text-green-500">{pastBookings.filter(b => b.status === 'completed').length}</div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-400">
+            <div className="text-sm text-gray-600 mb-1">Termin&eacute;es</div>
+            <div className="text-2xl font-bold text-green-600">{pastBookings.filter(b => b.status === 'completed').length}</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm">
-            <div className="text-sm text-gray-500 mb-1">En attente</div>
-            <div className="text-2xl font-bold text-amber-500">{bookings.filter(b => b.status === 'pending').length}</div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-amber-400">
+            <div className="text-sm text-gray-600 mb-1">En attente</div>
+            <div className="text-2xl font-bold text-amber-600">{bookings.filter(b => b.status === 'pending').length}</div>
           </div>
         </div>
 
@@ -587,7 +632,7 @@ export default function ClientDashboardPage() {
         </Link>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 max-w-2xl">
+        <div className="flex gap-2 bg-gray-100 rounded-xl p-1.5 mb-6 max-w-2xl">
           <button
             onClick={() => setActiveTab('upcoming')}
             className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition ${
@@ -620,7 +665,7 @@ export default function ClientDashboardPage() {
             }`}
           >
             <FileSearch className="w-3.5 h-3.5" />
-            Analyser
+            Analyse Devis
           </button>
           <button
             onClick={() => setActiveTab('profile')}
@@ -663,7 +708,7 @@ export default function ClientDashboardPage() {
                 <button
                   onClick={exportCIL}
                   disabled={cilEntries.length === 0}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Copy className="w-4 h-4" />
                   Exporter le CIL
@@ -699,7 +744,7 @@ export default function ClientDashboardPage() {
             {/* Category filter chips */}
             {cilEntries.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <Filter className="w-4 h-4 text-gray-400" />
+                <Filter className="w-4 h-4 text-gray-500" />
                 {([
                   { key: 'all' as const, label: 'Tout' },
                   { key: 'plomberie' as const, label: 'Plomberie' },
@@ -733,7 +778,7 @@ export default function ClientDashboardPage() {
                 </h3>
                 <p className="text-gray-500 mb-4 max-w-md mx-auto">
                   {cilEntries.length === 0
-                    ? 'Votre carnet de sant\u00E9 se remplira automatiquement apr\u00E8s chaque intervention termin\u00E9e par un artisan VitFix.'
+                    ? 'Votre carnet de sant\u00E9 se remplira automatiquement apr\u00E8s chaque intervention termin\u00E9e par un artisan Vitfix.'
                     : 'Essayez un autre filtre pour voir vos interventions.'
                   }
                 </p>
@@ -866,78 +911,38 @@ export default function ClientDashboardPage() {
           /* ============== ANALYSE DEVIS TAB ============== */
           <div className="space-y-6">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white">
+            <div className="bg-gradient-to-r from-[#FFC107] to-[#FFB300] rounded-2xl p-6 text-gray-900">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-white/40 rounded-xl flex items-center justify-center">
                   <FileSearch className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold">Analyse de devis</h2>
-                  <p className="text-blue-100 text-sm">V{'\u00E9'}rifiez un devis avant de l{'\u2019'}accepter</p>
+                  <h2 className="text-xl font-bold">Analyse Devis</h2>
+                  <p className="text-gray-700 text-sm">V{'\u00E9'}rifiez un devis avant de l{'\u2019'}accepter</p>
                 </div>
               </div>
               <div className="flex gap-4 mt-4 text-sm">
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle className="w-4 h-4 text-green-300" />
-                  <span>Prix du march{'\u00E9'}</span>
+                  <CheckCircle className="w-4 h-4 text-green-700" />
+                  <span>Prix march{'\u00E9'} 2025</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-green-300" />
-                  <span>Conformit{'\u00E9'} l{'\u00E9'}gale</span>
+                  <Shield className="w-4 h-4 text-green-700" />
+                  <span>D{'\u00E9'}composition co{'\u00FB'}ts</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-yellow-300" />
+                  <AlertTriangle className="w-4 h-4 text-amber-700" />
                   <span>D{'\u00E9'}tection arnaques</span>
                 </div>
               </div>
             </div>
 
-            {/* Input mode toggle */}
+            {/* PDF upload */}
             {!analyseResult && (
               <div>
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => { setAnalyseInputMode('paste'); setAnalysePdfReady(false) }}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${
-                      analyseInputMode === 'paste' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Coller le texte
-                  </button>
-                  <button
-                    onClick={() => setAnalyseInputMode('pdf')}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${
-                      analyseInputMode === 'pdf' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    Importer un PDF
-                  </button>
-                </div>
-
-                {analyseInputMode === 'paste' ? (
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={analyseFilename}
-                      onChange={e => setAnalyseFilename(e.target.value)}
-                      placeholder="Nom du document (optionnel)"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <textarea
-                      value={analyseInput}
-                      onChange={e => setAnalyseInput(e.target.value)}
-                      rows={10}
-                      placeholder={"Collez ici le texte du devis ou de la facture...\n\nAstuce : ouvrez le devis PDF, s\u00E9lectionnez tout (Ctrl+A), copiez (Ctrl+C) puis collez ici."}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none font-mono"
-                    />
-                    {analyseInput && (
-                      <div className="text-xs text-gray-400 text-right">{analyseInput.length} caract{'\u00E8'}res</div>
-                    )}
-                  </div>
-                ) : (
                   <div className="space-y-3">
                     {!analysePdfReady ? (
-                      <label className="block border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition">
+                      <label className="block border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-[#FFC107] hover:bg-amber-50 transition">
                         <input
                           type="file"
                           accept=".pdf"
@@ -962,7 +967,7 @@ export default function ClientDashboardPage() {
                                 setAnalysePdfReady(true)
                               } else {
                                 alert(data.error || 'Erreur extraction PDF')
-                                if (data.isScanned) setAnalyseInputMode('paste')
+                                // PDF scanné non supporté
                               }
                             } catch { alert('Erreur r\u00E9seau') }
                             finally { setAnalyseExtracting(false) }
@@ -972,13 +977,13 @@ export default function ClientDashboardPage() {
                           <div>
                             <div className="text-3xl mb-2 animate-pulse">{'\u23F3'}</div>
                             <div className="font-semibold text-gray-700">Extraction en cours...</div>
-                            <div className="text-sm text-gray-400">Lecture du PDF</div>
+                            <div className="text-sm text-gray-500">Lecture du PDF</div>
                           </div>
                         ) : (
                           <div>
                             <div className="text-3xl mb-2">{'\uD83D\uDCC4'}</div>
                             <div className="font-semibold text-gray-700">Cliquez pour importer un PDF</div>
-                            <div className="text-sm text-gray-400 mt-1">Devis ou facture au format PDF (max 20 Mo)</div>
+                            <div className="text-sm text-gray-500 mt-1">Devis ou facture au format PDF (max 20 Mo)</div>
                           </div>
                         )}
                       </label>
@@ -993,7 +998,6 @@ export default function ClientDashboardPage() {
                       </div>
                     )}
                   </div>
-                )}
 
                 {/* Analyze button */}
                 <button
@@ -1025,12 +1029,12 @@ export default function ClientDashboardPage() {
                     } catch { alert('Erreur r\u00E9seau') }
                     finally { setAnalyseLoading(false) }
                   }}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-4 rounded-xl text-sm transition flex items-center justify-center gap-2 mt-4"
+                  className="w-full bg-[#FFC107] hover:bg-[#FFB300] disabled:opacity-40 text-gray-900 font-bold py-4 rounded-xl text-sm transition flex items-center justify-center gap-2 mt-4"
                 >
                   {analyseLoading ? (
                     <>
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Analyse en cours...
+                      <span className="w-4 h-4 border-2 border-gray-900/30 border-t-gray-900 rounded-full animate-spin" />
+                      Analyse approfondie en cours...
                     </>
                   ) : (
                     <>
@@ -1057,7 +1061,7 @@ export default function ClientDashboardPage() {
                   </button>
                   <button
                     onClick={() => { setAnalyseResult(''); setAnalyseInput(''); setAnalyseFilename(''); setAnalysePdfReady(false) }}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[#FFC107] text-gray-900 hover:bg-[#FFB300] transition"
                   >
                     Analyser un autre
                   </button>
@@ -1075,21 +1079,90 @@ export default function ClientDashboardPage() {
                     [&_ul]:list-disc [&_ul]:ml-4 [&_ul]:space-y-1
                     [&_ol]:list-decimal [&_ol]:ml-4 [&_ol]:space-y-1
                     [&_p]:mb-2 [&_p]:leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: analyseResult
-                    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-                    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/^---$/gm, '<hr/>')
-                    .replace(/^\| (.+)$/gm, (match: string) => {
-                      const cells = match.split('|').filter((c: string) => c.trim())
-                      if (cells.every((c: string) => c.trim().match(/^[-:]+$/))) return ''
-                      const tag = 'td'
-                      return '<tr>' + cells.map((c: string) => `<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>'
-                    })
-                    .replace(/((<tr>.*<\/tr>\s*)+)/g, '<table>$1</table>')
-                    .replace(/\n\n/g, '</p><p>')
-                    .replace(/\n/g, '<br/>')
-                  }}
+                  dangerouslySetInnerHTML={{ __html: (() => {
+                    // ── Markdown → HTML avec vrai parser de tableaux ──
+                    const lines = analyseResult.split('\n')
+                    const htmlParts: string[] = []
+                    let i = 0
+
+                    while (i < lines.length) {
+                      const line = lines[i]
+                      const trimmed = line.trim()
+
+                      // Détecter un bloc tableau : au moins 2 lignes consécutives contenant des | comme séparateurs
+                      if (trimmed.includes('|') && trimmed.split('|').filter((c: string) => c.trim()).length >= 2) {
+                        const tableLines: string[] = []
+                        while (i < lines.length) {
+                          const tl = lines[i]?.trim() || ''
+                          if (tl.includes('|') && tl.split('|').filter((c: string) => c.trim()).length >= 2) {
+                            tableLines.push(tl)
+                            i++
+                          } else if (tl === '' && tableLines.length > 0) {
+                            // Ligne vide = fin du tableau
+                            break
+                          } else {
+                            break
+                          }
+                        }
+
+                        if (tableLines.length >= 2) {
+                          // Construire le tableau HTML
+                          const isSeparator = (l: string) => {
+                            const cells = l.split('|').filter((c: string) => c.trim())
+                            return cells.length >= 2 && cells.every((c: string) => /^[\s\-:]+$/.test(c))
+                          }
+
+                          let headerDone = false
+                          let tableHtml = '<table>'
+
+                          for (let j = 0; j < tableLines.length; j++) {
+                            if (isSeparator(tableLines[j])) {
+                              headerDone = true
+                              continue
+                            }
+                            const cells = tableLines[j].split('|').filter((c: string) => c.trim())
+                            if (cells.length < 2) continue
+
+                            // Premier row avant le séparateur = header
+                            const isHeader = !headerDone && j === 0 && (j + 1 < tableLines.length && isSeparator(tableLines[j + 1]))
+                            const tag = isHeader ? 'th' : 'td'
+                            const boldedCells = cells.map((c: string) => {
+                              let cell = c.trim()
+                              cell = cell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                              return cell
+                            })
+                            tableHtml += '<tr>' + boldedCells.map((c: string) => `<${tag}>${c}</${tag}>`).join('') + '</tr>'
+                          }
+
+                          tableHtml += '</table>'
+                          htmlParts.push(tableHtml)
+                        } else {
+                          // Pas assez de lignes pour un tableau, traiter comme texte normal
+                          for (const tl of tableLines) {
+                            htmlParts.push(tl)
+                          }
+                        }
+                        continue
+                      }
+
+                      // Ligne normale — appliquer le markdown inline
+                      let html = trimmed
+                      if (html.match(/^## (.+)/)) html = `<h2>${html.replace(/^## /, '')}</h2>`
+                      else if (html.match(/^### (.+)/)) html = `<h3>${html.replace(/^### /, '')}</h3>`
+                      else if (html === '---') html = '<hr/>'
+                      else if (html === '') html = '</p><p>'
+                      else {
+                        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                      }
+
+                      htmlParts.push(html)
+                      i++
+                    }
+
+                    return htmlParts.join('\n').replace(/\n/g, '<br/>')
+                      // Nettoyer les <br/> parasites dans les tableaux
+                      .replace(/<table>([\s\S]*?)<\/table>/g, (m: string) => m.replace(/<br\/>/g, ''))
+                  })() }}
                 />
               </div>
             )}
@@ -1103,7 +1176,7 @@ export default function ClientDashboardPage() {
                     <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
                       <div>
                         <div className="text-sm font-semibold text-gray-800">{h.filename}</div>
-                        <div className="text-xs text-gray-400">{new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-xs text-gray-500">{new Date(h.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
                       <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600">{h.verdict.substring(0, 30) || 'Analys\u00E9'}</span>
                     </div>
@@ -1114,12 +1187,12 @@ export default function ClientDashboardPage() {
 
             {/* Trust banner */}
             {!analyseResult && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                 <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <Shield className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-semibold text-blue-800 text-sm">100% confidentiel</div>
-                    <div className="text-xs text-blue-600 mt-0.5">Vos documents sont analys{'\u00E9'}s par IA et ne sont jamais stock{'\u00E9'}s sur nos serveurs. L{'\u2019'}analyse est instantan{'\u00E9'}e et priv{'\u00E9'}e.</div>
+                    <div className="font-semibold text-amber-800 text-sm">100% confidentiel</div>
+                    <div className="text-xs text-amber-600 mt-0.5">Vos documents sont analys{'\u00E9'}s par IA avec les prix du march{'\u00E9'} 2025-2026 et ne sont jamais stock{'\u00E9'}s. Analyse priv{'\u00E9'}e et d{'\u00E9'}composition des co{'\u00FB'}ts incluse.</div>
                   </div>
                 </div>
               </div>
@@ -1152,7 +1225,7 @@ export default function ClientDashboardPage() {
                 ) : user?.user_metadata?.profile_photo_url ? (
                   <img src={user.user_metadata.profile_photo_url} alt="Photo" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-3xl font-bold text-gray-400">{userInitials}</span>
+                  <span className="text-3xl font-bold text-gray-500">{userInitials}</span>
                 )}
               </div>
               <div>
@@ -1173,7 +1246,7 @@ export default function ClientDashboardPage() {
                   <button
                     onClick={() => uploadClientPhoto(clientPhotoFile)}
                     disabled={clientPhotoUploading}
-                    className="ml-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-1.5 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+                    className="ml-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-1.5 rounded-lg text-sm font-semibold transition disabled:opacity-60"
                   >
                     {clientPhotoUploading ? '⏳ Upload...' : '⬆️ Envoyer'}
                   </button>
@@ -1262,7 +1335,7 @@ export default function ClientDashboardPage() {
                     disabled
                     className="w-full px-4 py-3 border-2 border-gray-100 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
                   />
-                  <p className="text-xs text-gray-400 mt-1">L'email ne peut pas être modifié</p>
+                  <p className="text-xs text-gray-500 mt-1">L'email ne peut pas être modifié</p>
                 </div>
 
                 {/* Type de client (lecture seule) */}
@@ -1286,7 +1359,7 @@ export default function ClientDashboardPage() {
                   <button
                     onClick={saveProfile}
                     disabled={savingProfile}
-                    className="flex items-center gap-2 px-6 py-3 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-lg font-semibold transition disabled:opacity-50 text-sm"
+                    className="flex items-center gap-2 px-6 py-3 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-lg font-semibold transition disabled:opacity-60 text-sm"
                   >
                     {savingProfile ? (
                       <>
@@ -1322,7 +1395,7 @@ export default function ClientDashboardPage() {
                       <User className="w-4 h-4 text-[#FFC107]" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Nom complet</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Nom complet</p>
                       <p className="font-semibold text-gray-900">{user?.user_metadata?.full_name || '—'}</p>
                     </div>
                   </div>
@@ -1332,7 +1405,7 @@ export default function ClientDashboardPage() {
                       <svg className="w-4 h-4 text-[#FFC107]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Email</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Email</p>
                       <p className="font-semibold text-gray-900">{user?.email || '—'}</p>
                     </div>
                   </div>
@@ -1342,7 +1415,7 @@ export default function ClientDashboardPage() {
                       <svg className="w-4 h-4 text-[#FFC107]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Téléphone</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Téléphone</p>
                       <p className="font-semibold text-gray-900">{user?.user_metadata?.phone || '—'}</p>
                     </div>
                   </div>
@@ -1352,7 +1425,7 @@ export default function ClientDashboardPage() {
                       <MapPin className="w-4 h-4 text-[#FFC107]" />
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Adresse</p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Adresse</p>
                       <p className="font-semibold text-gray-900">
                         {user?.user_metadata?.address || '—'}
                         {user?.user_metadata?.postal_code || user?.user_metadata?.city ? (
@@ -1371,7 +1444,7 @@ export default function ClientDashboardPage() {
                         <span className="text-sm">{user.user_metadata.client_type === 'entreprise' ? '🏢' : '🏠'}</span>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">Type de compte</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Type de compte</p>
                         <p className="font-semibold text-gray-900">
                           {user.user_metadata.client_type === 'entreprise' ? 'Entreprise' : 'Particulier'}
                           {user.user_metadata.company_name && (
@@ -1388,7 +1461,7 @@ export default function ClientDashboardPage() {
                         <span className="text-sm">📋</span>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">SIRET</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">SIRET</p>
                         <p className="font-semibold text-gray-900 font-mono">
                           {user.user_metadata.siret}
                           {user.user_metadata.company_verified && (
@@ -1401,7 +1474,7 @@ export default function ClientDashboardPage() {
                 </div>
 
                 <div className="pt-4">
-                  <p className="text-xs text-gray-400">Membre depuis {user?.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—'}</p>
+                  <p className="text-xs text-gray-500">Membre depuis {user?.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—'}</p>
                 </div>
               </div>
             )}
@@ -1499,6 +1572,15 @@ export default function ClientDashboardPage() {
                             <span className="truncate">{booking.address}</span>
                           </div>
                         )}
+                        {/* 48h countdown */}
+                        {booking.status === 'pending' && booking.expires_at && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                            <span className="text-xs text-amber-600 font-medium">
+                              En attente de confirmation &bull; Expire le {new Date(booking.expires_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
                         {/* Notes affichées */}
                         {booking.notes && (
                           <div className="flex items-start gap-2 mt-2 bg-gray-50 rounded-lg px-3 py-2">
@@ -1510,12 +1592,24 @@ export default function ClientDashboardPage() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-xl font-bold text-[#FFC107]">{formatPrice(booking.price_ttc || 0)}</div>
-                      <div className="text-xs text-gray-400 mt-1">TTC</div>
+                      <div className="text-xs text-gray-500 mt-1">TTC</div>
                     </div>
                   </div>
 
                   {/* Action buttons */}
                   <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                    {/* Messages */}
+                    {booking.status !== 'cancelled' && (
+                      <button
+                        onClick={() => openMessages(booking)}
+                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition relative"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Messages
+                        {unreadCounts[booking.id] > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{unreadCounts[booking.id]}</span>
+                        )}
+                      </button>
+                    )}
                     {/* Suivre GPS */}
                     {isUpcoming && booking.status === 'confirmed' && (
                       <button
@@ -1551,7 +1645,7 @@ export default function ClientDashboardPage() {
                     )}
                     {/* Notation verrouillée (post-facture) */}
                     {!isUpcoming && booking.status === 'completed' && !myRating && !(booking.price_ttc > 0) && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-gray-400 px-3 py-2">
+                      <div className="flex items-center gap-1.5 text-[11px] text-gray-500 px-3 py-2">
                         🔒 Avis disponible après facturation
                       </div>
                     )}
@@ -1592,7 +1686,7 @@ export default function ClientDashboardPage() {
               <button
                 onClick={() => cancelBooking(cancelConfirm)}
                 disabled={!!cancellingId}
-                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-3 rounded-xl font-bold text-sm transition"
+                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white py-3 rounded-xl font-bold text-sm transition"
               >
                 {cancellingId ? '...' : '✕ Confirmer annulation'}
               </button>
@@ -1633,7 +1727,7 @@ export default function ClientDashboardPage() {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setRatingModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
-                <button onClick={submitRating} disabled={ratingSubmitting} className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] disabled:opacity-50 text-gray-900 py-3 rounded-xl text-sm font-bold transition">
+                <button onClick={submitRating} disabled={ratingSubmitting} className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] disabled:opacity-60 text-gray-900 py-3 rounded-xl text-sm font-bold transition">
                   {ratingSubmitting ? '...' : 'Envoyer'}
                 </button>
               </div>
@@ -1651,7 +1745,7 @@ export default function ClientDashboardPage() {
                 <h3 className="text-lg font-bold text-gray-900">📍 Suivi en temps réel</h3>
                 <p className="text-sm text-gray-500 mt-0.5">{trackingModal.profiles_artisan?.company_name}</p>
               </div>
-              <button onClick={() => setTrackingModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setTrackingModal(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-4">
               {trackingData[trackingModal.id]?.active ? (
@@ -1670,18 +1764,94 @@ export default function ClientDashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="text-xs text-gray-400 text-center">Position mise à jour en temps réel par l&apos;artisan</div>
+                  <div className="text-xs text-gray-500 text-center">Position mise à jour en temps réel par l&apos;artisan</div>
                 </>
               ) : (
                 <div className="text-center py-6">
                   <div className="text-4xl mb-3">🚗</div>
                   <div className="text-sm font-semibold text-gray-700 mb-1">Artisan pas encore en route</div>
-                  <div className="text-xs text-gray-400">Le suivi GPS s&apos;activera quand l&apos;artisan démarrera sa navigation</div>
+                  <div className="text-xs text-gray-500">Le suivi GPS s&apos;activera quand l&apos;artisan démarrera sa navigation</div>
                   <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
                     📅 RDV le {trackingModal.booking_date ? new Date(trackingModal.booking_date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : ''} à {trackingModal.booking_time?.substring(0,5)}
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Messagerie ── */}
+      {messageModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setMessageModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" /> Messages
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">{messageModal.profiles_artisan?.company_name || 'Artisan'} &bull; {messageModal.services?.name || 'Service'}</p>
+              </div>
+              <button onClick={() => setMessageModal(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+              {messages.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  Aucun message. Envoyez un message pour communiquer avec l&apos;artisan.
+                </div>
+              ) : (
+                messages.map((msg: any) => (
+                  <div key={msg.id} className={`flex ${msg.sender_role === 'client' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                      msg.sender_role === 'client'
+                        ? 'bg-[#FFC107] text-gray-900'
+                        : msg.type === 'auto_reply'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {msg.type === 'auto_reply' && (
+                        <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>
+                      )}
+                      <p className="text-sm">{msg.content}</p>
+                      <p className={`text-[10px] mt-1 ${msg.sender_role === 'client' ? 'text-gray-700' : 'text-gray-500'}`}>
+                        {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="px-4 pb-4 pt-2 border-t border-gray-100 flex-shrink-0 space-y-2">
+              <button
+                onClick={() => {
+                  const artisanName = messageModal?.profiles_artisan?.company_name || 'Artisan'
+                  const serviceName = messageModal?.services?.name || ''
+                  setMessageModal(null)
+                  setActiveTab('analyse')
+                  setAnalyseFilename(`Devis ${artisanName}${serviceName ? ' - ' + serviceName : ''}`)
+                }}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold py-2 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition"
+              >
+                <FileSearch className="w-3.5 h-3.5" />
+                Analyser un devis re{'\u00E7'}u
+              </button>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder="Votre message..."
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={sendingMessage || !newMessage.trim()}
+                  className="bg-[#FFC107] text-gray-900 px-4 py-2.5 rounded-xl disabled:opacity-60"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1711,7 +1881,7 @@ export default function ClientDashboardPage() {
                       <p className="text-sm text-gray-500">{catInfo.label} &bull; {new Date(entry.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowCilDetail(null)} className="text-gray-400 hover:text-gray-600 text-xl p-1">{'\u2715'}</button>
+                  <button onClick={() => setShowCilDetail(null)} className="text-gray-500 hover:text-gray-600 text-xl p-1">{'\u2715'}</button>
                 </div>
               </div>
 
@@ -1730,11 +1900,11 @@ export default function ClientDashboardPage() {
                 {/* Details grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Montant TTC</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Montant TTC</p>
                     <p className="font-bold text-gray-900">{formatPrice(entry.priceTTC)}</p>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Adresse</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Adresse</p>
                     <p className="font-semibold text-gray-900 text-sm truncate">{entry.address || 'Non renseign\u00E9e'}</p>
                   </div>
                 </div>
@@ -1742,17 +1912,17 @@ export default function ClientDashboardPage() {
                 {/* Description */}
                 {entry.description && (
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1.5">Description</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1.5">Description</p>
                     <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-3">{entry.description}</p>
                   </div>
                 )}
 
                 {/* Proof of Work attestation */}
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Attestation de travaux</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Attestation de travaux</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div className={`flex items-center gap-2 p-3 rounded-xl border ${entry.hasProof ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <FileText className={`w-4 h-4 ${entry.hasProof ? 'text-green-600' : 'text-gray-400'}`} />
+                      <FileText className={`w-4 h-4 ${entry.hasProof ? 'text-green-600' : 'text-gray-500'}`} />
                       <div>
                         <p className={`text-xs font-semibold ${entry.hasProof ? 'text-green-700' : 'text-gray-500'}`}>Preuve</p>
                         <p className="text-[11px] text-gray-500">{entry.hasProof ? `${entry.proofPhotosCount} photo${entry.proofPhotosCount > 1 ? 's' : ''}` : 'Absente'}</p>
@@ -1766,14 +1936,14 @@ export default function ClientDashboardPage() {
                       </div>
                     </div>
                     <div className={`flex items-center gap-2 p-3 rounded-xl border ${entry.hasGPS ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <MapPin className={`w-4 h-4 ${entry.hasGPS ? 'text-purple-600' : 'text-gray-400'}`} />
+                      <MapPin className={`w-4 h-4 ${entry.hasGPS ? 'text-purple-600' : 'text-gray-500'}`} />
                       <div>
                         <p className={`text-xs font-semibold ${entry.hasGPS ? 'text-purple-700' : 'text-gray-500'}`}>G{'\u00E9'}olocalisation</p>
                         <p className="text-[11px] text-gray-500">{entry.hasGPS ? 'V\u00E9rifi\u00E9e' : 'Absente'}</p>
                       </div>
                     </div>
                     <div className={`flex items-center gap-2 p-3 rounded-xl border ${entry.hasProof && entry.hasSignature && entry.hasGPS ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <Shield className={`w-4 h-4 ${entry.hasProof && entry.hasSignature && entry.hasGPS ? 'text-emerald-600' : 'text-gray-400'}`} />
+                      <Shield className={`w-4 h-4 ${entry.hasProof && entry.hasSignature && entry.hasGPS ? 'text-emerald-600' : 'text-gray-500'}`} />
                       <div>
                         <p className={`text-xs font-semibold ${entry.hasProof && entry.hasSignature && entry.hasGPS ? 'text-emerald-700' : 'text-gray-500'}`}>CIL conforme</p>
                         <p className="text-[11px] text-gray-500">{entry.hasProof && entry.hasSignature && entry.hasGPS ? 'Complet' : 'Incomplet'}</p>

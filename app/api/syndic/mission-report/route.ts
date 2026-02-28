@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         gmail_message_id: `mission_report_${reportId}`,
         gmail_thread_id: mission_id || null,
         from_email: `artisan_${artisan_id}@vitfix.internal`,
-        from_name: artisan_nom || 'Artisan VitFix',
+        from_name: artisan_nom || 'Artisan Vitfix',
         subject: `Rapport d'intervention — ${type_travaux || 'Travaux'} · ${immeuble || ''}`,
         body_preview: `${description || ''}\n\n📍 GPS: ${gps_lat || '?'}, ${gps_lng || '?'}\n🕐 Début: ${started_at || '?'} · Fin: ${completed_at || now}\n📸 ${photosCount} photos · ${signature_svg ? '✅ Signé' : '⏳ Sans signature'}`,
         received_at: now,

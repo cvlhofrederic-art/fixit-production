@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { callGroqWithRetry } from '@/lib/groq'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -206,52 +207,33 @@ Champs à extraire :
 - "priorite" : "urgente", "normale" ou "planifiee" selon le contexte (urgence mentionnée → urgente, date proche → normale, date lointaine → planifiee)`
 
   try {
-    // Appels parallèles : analyse textuelle + extraction structurée
-    const [groqResponse, extractResponse] = await Promise.all([
-      fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 4000,
-        }),
+    // Appels parallèles avec retry : analyse textuelle + extraction structurée
+    const [analyseData, extractData] = await Promise.all([
+      callGroqWithRetry({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 5000,
       }),
-      fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: EXTRACT_PROMPT },
-            { role: 'user', content: `Document à analyser :\n\n${content}` },
-          ],
-          temperature: 0,
-          max_tokens: 500,
-        }),
-      }),
+      callGroqWithRetry({
+        messages: [
+          { role: 'system', content: EXTRACT_PROMPT },
+          { role: 'user', content: `Document à analyser :\n\n${content}` },
+        ],
+        temperature: 0,
+        max_tokens: 800,
+      }).catch(() => null),
     ])
 
-    if (!groqResponse.ok) {
-      const errText = await groqResponse.text()
-      console.error('Groq error:', errText)
-      return NextResponse.json({ error: 'Erreur API IA' }, { status: 500 })
-    }
-
-    const groqData = await groqResponse.json()
-    const analysis = groqData.choices?.[0]?.message?.content || ''
+    const analysis = analyseData.choices?.[0]?.message?.content || ''
 
     // Extraire les données structurées (best-effort)
     let extracted: Record<string, unknown> = {}
     try {
-      if (extractResponse.ok) {
-        const extractData = await extractResponse.json()
+      if (extractData) {
         const rawJson = extractData.choices?.[0]?.message?.content || '{}'
-        // Nettoyer si l'IA a quand même mis des backticks
         const cleaned = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
         extracted = JSON.parse(cleaned)
       }
@@ -263,8 +245,8 @@ Champs à extraire :
       success: true,
       analysis,
       extracted,
-      model: groqData.model,
-      tokens: groqData.usage?.total_tokens,
+      model: analyseData.model,
+      tokens: (analyseData.usage?.total_tokens || 0) + (extractData?.usage?.total_tokens || 0),
     })
   } catch (err) {
     console.error('Analyse devis error:', err)

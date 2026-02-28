@@ -221,7 +221,7 @@ function SyndicInviteContent() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-xs text-gray-500 mt-6">
           Déjà un compte ?{' '}
           <button
             onClick={() => router.push('/syndic/login')}

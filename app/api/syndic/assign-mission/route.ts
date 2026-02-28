@@ -115,6 +115,6 @@ export async function POST(request: NextRequest) {
     artisan_found: !!artisanUserId,
     message: artisanUserId
       ? `Mission assignée à ${artisan_name || artisan_email} — notification envoyée sur son agenda`
-      : `Mission créée — artisan non trouvé dans VitFix (email: ${artisan_email})`,
+      : `Mission créée — artisan non trouvé dans Vitfix (email: ${artisan_email})`,
   })
 }

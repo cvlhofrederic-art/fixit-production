@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get('state') // = syndic_id:nonce
   const error = searchParams.get('error')
 
-  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fixit-production.vercel.app'
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
 
   if (error || !code || !state) {
     return NextResponse.redirect(`${APP_URL}/syndic/dashboard?email_error=${error || 'missing_code'}`)

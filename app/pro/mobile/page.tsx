@@ -118,7 +118,7 @@ function BottomNav({ active, onChange, pendingCount, notifCount }: { active: Tab
             key={item.tab}
             onClick={() => onChange(item.tab)}
             className={`flex-1 flex flex-col items-center justify-center py-2 pt-3 transition-all relative ${
-              active === item.tab ? 'text-[#FFC107]' : 'text-gray-400'
+              active === item.tab ? 'text-[#FFC107]' : 'text-gray-500'
             }`}
           >
             {item.badge ? (
@@ -127,7 +127,7 @@ function BottomNav({ active, onChange, pendingCount, notifCount }: { active: Tab
               </span>
             ) : null}
             <span className="text-2xl leading-none">{item.icon}</span>
-            <span className={`text-[10px] mt-1 font-medium ${active === item.tab ? 'text-[#FFC107]' : 'text-gray-400'}`}>
+            <span className={`text-[10px] mt-1 font-medium ${active === item.tab ? 'text-[#FFC107]' : 'text-gray-500'}`}>
               {item.label}
             </span>
             {active === item.tab && (
@@ -243,8 +243,8 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
         <h2 className="text-white text-xl font-bold text-center mb-3">
           Fonctionnalité mobile uniquement
         </h2>
-        <p className="text-gray-400 text-sm text-center leading-relaxed">
-          Le Proof of Work nécessite l'application mobile VitFix Pro pour accéder à la caméra native et au GPS.
+        <p className="text-gray-500 text-sm text-center leading-relaxed">
+          Le Proof of Work nécessite l'application mobile Vitfix Pro pour accéder à la caméra native et au GPS.
           <br />Cette fonctionnalité est conçue pour éviter les fraudes.
         </p>
         <button
@@ -464,7 +464,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                 className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all ${
                   canProceed
                     ? 'bg-[#FFC107] text-gray-900 shadow-md'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
               >
                 {step === 'after' ? 'Signature client →' : 'Suivant →'}
@@ -521,7 +521,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                   <strong>Déclaration :</strong> Je soussigné(e) certifie que les travaux effectués par{' '}
                   <strong>{artisan?.company_name}</strong> sont terminés et conformes à ma demande.
                   <br />
-                  <span className="text-gray-400">Date : {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-gray-500">Date : {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                 </p>
               </div>
 
@@ -556,7 +556,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                 </div>
               </div>
 
-              <div className="text-[10px] text-gray-400 text-center mb-4">
+              <div className="text-[10px] text-gray-500 text-center mb-4">
                 🔒 Signature horodatée et archivée — Valeur légale
               </div>
             </div>
@@ -574,7 +574,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                 className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
                   signaturePoints.length >= 3 && !saving
                     ? 'bg-green-500 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
               >
                 {saving ? 'Enregistrement...' : '✅ Valider & Terminer'}
@@ -588,10 +588,11 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
 }
 
 // ─── Booking Card ──────────────────────────────────────────────────────────────
-function BookingCard({ booking, onProof, onStatusChange, trackingToken, onStartTracking, onStopTracking, onCopyLink, linkCopied }: {
+function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingToken, onStartTracking, onStopTracking, onCopyLink, linkCopied }: {
   booking: any
   onProof: () => void
   onStatusChange: (id: string, status: string) => void
+  onMessages?: () => void
   trackingToken?: string
   onStartTracking?: () => void
   onStopTracking?: () => void
@@ -617,14 +618,14 @@ function BookingCard({ booking, onProof, onStatusChange, trackingToken, onStartT
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-gray-900 text-sm truncate">{clientName}</div>
           <div className="text-xs text-gray-500 truncate">{booking.services?.name || 'Service'}</div>
-          <div className="text-xs text-gray-400 mt-0.5">{formatDateFR(booking.booking_date)} · {booking.booking_time?.substring(0, 5)}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{formatDateFR(booking.booking_date)} · {booking.booking_time?.substring(0, 5)}</div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getStatusColor(booking.status)}`}>
             {getStatusLabel(booking.status)}
           </span>
           {booking.price_ttc && <span className="text-xs font-bold text-green-600">{formatPrice(booking.price_ttc)}</span>}
-          <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
+          <span className="text-gray-500 text-sm">{expanded ? '▲' : '▼'}</span>
         </div>
       </div>
 
@@ -641,6 +642,26 @@ function BookingCard({ booking, onProof, onStatusChange, trackingToken, onStartT
               <span className="text-sm">📝</span>
               <span className="text-xs text-gray-600">{booking.notes}</span>
             </div>
+          )}
+
+          {/* 48h expiration for pending */}
+          {booking.status === 'pending' && booking.expires_at && (
+            <div className="flex items-center gap-2 mb-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              <span className="text-xs">⏳</span>
+              <span className="text-xs text-amber-700 font-medium">
+                Expire le {new Date(booking.expires_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          )}
+
+          {/* Message button */}
+          {booking.status !== 'cancelled' && onMessages && (
+            <button
+              onClick={onMessages}
+              className="w-full bg-purple-50 border border-purple-200 text-purple-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mb-3 active:scale-95 transition-transform"
+            >
+              💬 Messages
+            </button>
           )}
 
           <div className="flex gap-2 flex-wrap">
@@ -761,8 +782,13 @@ export default function MobileDashboard() {
   const [showNewRdv, setShowNewRdv] = useState(false)
   const [newRdv, setNewRdv] = useState({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '' })
   const [savingRdv, setSavingRdv] = useState(false)
-  const [settingsForm, setSettingsForm] = useState({ company_name: '', phone: '', bio: '' })
+  const [settingsForm, setSettingsForm] = useState({ company_name: '', phone: '', bio: '', auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30 })
   const [savingSettings, setSavingSettings] = useState(false)
+  // ── Messagerie artisan ──
+  const [msgModal, setMsgModal] = useState<any>(null)
+  const [msgList, setMsgList] = useState<any[]>([])
+  const [msgText, setMsgText] = useState('')
+  const [msgSending, setMsgSending] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
   const [motifModal, setMotifModal] = useState(false)
   const [motifForm, setMotifForm] = useState({ name: '', duration_estimate: '', price_min: '', price_max: '', pricing_unit: 'forfait' })
@@ -770,8 +796,8 @@ export default function MobileDashboard() {
   const [serviceRanges, setServiceRanges] = useState<Record<string, { priceMin: number; priceMax: number; durationEstimate?: string; pricingUnit?: string }>>({})
   const [autoAccept, setAutoAccept] = useState(false)
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
-  const [artisanNotifs, setArtisanNotifs] = useState<{ id: string; title: string; body: string; type: string; read: boolean; created_at: string }[]>([])
-  const [notifToast, setNotifToast] = useState<{ title: string; body: string } | null>(null)
+  const [artisanNotifs, setArtisanNotifs] = useState<{ id: string; title: string; body: string; type: string; read: boolean; created_at: string; data_json?: any }[]>([])
+  const [notifToast, setNotifToast] = useState<{ title: string; body: string; type?: string; data_json?: any } | null>(null)
   // ── Compliance Wallet ──
   const [complianceDocs, setComplianceDocs] = useState<ComplianceDoc[]>([])
   const [showComplianceModal, setShowComplianceModal] = useState(false)
@@ -823,10 +849,12 @@ export default function MobileDashboard() {
         filter: `artisan_id=eq.${artisan.user_id}`,
       }, (payload) => {
         const n = payload.new as any
-        setArtisanNotifs(prev => [{ id: n.id, title: n.title, body: n.body, type: n.type, read: false, created_at: n.created_at }, ...prev])
-        // Afficher toast in-app
-        setNotifToast({ title: n.title, body: n.body })
-        setTimeout(() => setNotifToast(null), 5000)
+        setArtisanNotifs(prev => [{ id: n.id, title: n.title, body: n.body, type: n.type, read: false, created_at: n.created_at, data_json: n.data_json }, ...prev])
+        // Afficher toast in-app (persistent for new_booking so artisan can act)
+        setNotifToast({ title: n.title, body: n.body, type: n.type, data_json: n.data_json })
+        if (n.type !== 'new_booking') {
+          setTimeout(() => setNotifToast(null), 5000)
+        }
       })
       .subscribe()
 
@@ -838,7 +866,15 @@ export default function MobileDashboard() {
       .from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (!artisanData) { router.push('/pro/login'); return }
     setArtisan(artisanData)
-    setSettingsForm({ company_name: artisanData.company_name || '', phone: artisanData.phone || '', bio: (artisanData.bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim() })
+    setSettingsForm({
+      company_name: artisanData.company_name || '',
+      phone: artisanData.phone || '',
+      bio: (artisanData.bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim(),
+      auto_reply_message: artisanData.auto_reply_message || '',
+      auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
+      zone_radius_km: artisanData.zone_radius_km || 30,
+    })
+    if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const { data: bData } = await supabase.from('bookings').select('*, services(name)')
       .eq('artisan_id', artisanData.id).order('booking_date', { ascending: false }).limit(50)
@@ -859,8 +895,7 @@ export default function MobileDashboard() {
       if (j.data) setDayServices(j.data)
     } catch {}
 
-    const savedAA = localStorage.getItem(`fixit_auto_accept_${artisanData.id}`)
-    if (savedAA !== null) setAutoAccept(savedAA === 'true')
+    // auto_accept is now loaded from DB (line above), no localStorage fallback needed
 
     // Compliance wallet
     try {
@@ -1215,7 +1250,13 @@ export default function MobileDashboard() {
   const saveSettings = async () => {
     if (!artisan) return
     setSavingSettings(true)
-    await supabase.from('profiles_artisan').update({ company_name: settingsForm.company_name, phone: settingsForm.phone }).eq('id', artisan.id)
+    await supabase.from('profiles_artisan').update({
+      company_name: settingsForm.company_name,
+      phone: settingsForm.phone,
+      auto_reply_message: settingsForm.auto_reply_message,
+      auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
+      zone_radius_km: settingsForm.zone_radius_km,
+    }).eq('id', artisan.id)
     setArtisan({ ...artisan, ...settingsForm })
     setSavingSettings(false)
   }
@@ -1252,10 +1293,47 @@ export default function MobileDashboard() {
     router.push('/pro/login')
   }
 
-  const toggleAutoAccept = () => {
+  // ── Messagerie artisan ──
+  const openArtisanMessages = async (booking: any) => {
+    setMsgModal(booking)
+    setMsgList([])
+    setMsgText('')
+    try {
+      const res = await fetch(`/api/booking-messages?booking_id=${booking.id}`, {
+        headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+      })
+      const json = await res.json()
+      if (json.data) setMsgList(json.data)
+    } catch (e) { console.error('Error fetching messages:', e) }
+  }
+
+  const sendArtisanMessage = async () => {
+    if (!msgModal || !msgText.trim() || msgSending) return
+    setMsgSending(true)
+    try {
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({ booking_id: msgModal.id, content: msgText.trim() }),
+      })
+      const json = await res.json()
+      if (json.data) {
+        setMsgList(prev => [...prev, json.data])
+        setMsgText('')
+      }
+    } catch (e) { console.error('Error sending message:', e) }
+    setMsgSending(false)
+  }
+
+  const toggleAutoAccept = async () => {
     const v = !autoAccept
     setAutoAccept(v)
-    if (artisan) localStorage.setItem(`fixit_auto_accept_${artisan.id}`, String(v))
+    if (artisan) {
+      await supabase.from('profiles_artisan').update({ auto_accept: v }).eq('id', artisan.id)
+    }
   }
 
   const toggleDayAvailability = async (day: number) => {
@@ -1304,13 +1382,39 @@ export default function MobileDashboard() {
       {/* ─── Toast notification in-app artisan ─── */}
       {notifToast && (
         <div className="fixed top-4 left-4 right-4 z-50 animate-fade-in">
-          <div className="bg-gray-900 text-white rounded-2xl px-4 py-3 shadow-2xl flex items-start gap-3">
-            <span className="text-xl flex-shrink-0">📣</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">{notifToast.title}</p>
-              {notifToast.body && <p className="text-xs text-gray-300 mt-0.5 truncate">{notifToast.body}</p>}
+          <div className="bg-gray-900 text-white rounded-2xl px-4 py-3 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <span className="text-xl flex-shrink-0">{notifToast.type === 'new_booking' ? '📅' : '📣'}</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">{notifToast.title}</p>
+                {notifToast.body && <p className="text-xs text-gray-300 mt-1">{notifToast.body}</p>}
+              </div>
+              <button onClick={() => setNotifToast(null)} className="text-gray-500 text-lg leading-none flex-shrink-0">×</button>
             </div>
-            <button onClick={() => setNotifToast(null)} className="text-gray-400 text-lg leading-none flex-shrink-0">×</button>
+            {notifToast.type === 'new_booking' && notifToast.data_json?.booking_id && (
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={async () => {
+                    const bookingId = notifToast.data_json.booking_id
+                    await updateBookingStatus(bookingId, 'confirmed')
+                    setNotifToast(null)
+                  }}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl font-bold text-sm transition"
+                >
+                  Confirmer
+                </button>
+                <button
+                  onClick={async () => {
+                    const bookingId = notifToast.data_json.booking_id
+                    await updateBookingStatus(bookingId, 'cancelled')
+                    setNotifToast(null)
+                  }}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl font-bold text-sm transition"
+                >
+                  Refuser
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1368,7 +1472,7 @@ export default function MobileDashboard() {
           <div className="bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">Nouveau RDV</h2>
-              <button onClick={() => setShowNewRdv(false)} className="text-gray-400 text-xl">✕</button>
+              <button onClick={() => setShowNewRdv(false)} className="text-gray-500 text-xl">✕</button>
             </div>
             <div className="space-y-4">
               <div>
@@ -1423,7 +1527,7 @@ export default function MobileDashboard() {
           <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">Nouveau motif</h2>
-              <button onClick={() => setMotifModal(false)} className="text-gray-400 text-xl">✕</button>
+              <button onClick={() => setMotifModal(false)} className="text-gray-500 text-xl">✕</button>
             </div>
             <div className="space-y-4">
               <div>
@@ -1432,22 +1536,22 @@ export default function MobileDashboard() {
                   placeholder="Ex: Installation prise électrique" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Durée estimée <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Durée estimée <span className="text-gray-500 font-normal">(optionnel)</span></label>
                 <input type="text" value={motifForm.duration_estimate} onChange={e => setMotifForm(p => ({ ...p, duration_estimate: e.target.value }))}
                   placeholder="Ex : 1h à 3h, ~2h, une demi-journée…" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
-                <p className="text-[10px] text-gray-400 mt-1">Libre — visible par le client uniquement si rempli.</p>
+                <p className="text-[10px] text-gray-500 mt-1">Libre — visible par le client uniquement si rempli.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Prix TTC (€)</label>
                 <div className="flex items-center gap-2">
                   <input type="number" value={motifForm.price_min} onChange={e => setMotifForm(p => ({ ...p, price_min: e.target.value }))}
                     placeholder="Min" className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  <span className="text-gray-400 text-sm font-medium">à</span>
+                  <span className="text-gray-500 text-sm font-medium">à</span>
                   <input type="number" value={motifForm.price_max} onChange={e => setMotifForm(p => ({ ...p, price_max: e.target.value }))}
                     placeholder="Max" className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  <span className="text-xs text-gray-400 flex-shrink-0">€</span>
+                  <span className="text-xs text-gray-500 flex-shrink-0">€</span>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Fourchette tarifaire. Le prix exact sera ajusté selon le devis.</p>
+                <p className="text-[10px] text-gray-500 mt-1">Fourchette tarifaire. Le prix exact sera ajusté selon le devis.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Unité de facturation</label>
@@ -1505,7 +1609,7 @@ export default function MobileDashboard() {
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-green-600">{formatPrice(totalRevenue)}</div>
                 <div className="text-xs text-gray-500 mt-0.5">Chiffre d&apos;affaires</div>
-                <div className="text-[10px] text-gray-400 mt-1">{completedBookings.length} terminées</div>
+                <div className="text-[10px] text-gray-500 mt-1">{completedBookings.length} terminées</div>
               </div>
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-blue-600">{confirmedBookings.length}</div>
@@ -1514,7 +1618,7 @@ export default function MobileDashboard() {
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-amber-500">⭐ {artisan?.rating_avg || '5.0'}</div>
                 <div className="text-xs text-gray-500 mt-0.5">Note moyenne</div>
-                <div className="text-[10px] text-gray-400 mt-1">{artisan?.rating_count || 0} avis</div>
+                <div className="text-[10px] text-gray-500 mt-1">{artisan?.rating_count || 0} avis</div>
               </div>
             </div>
 
@@ -1580,21 +1684,21 @@ export default function MobileDashboard() {
                     <div className="bg-green-50 rounded-xl p-3">
                       <div className="text-xs text-gray-500 mb-0.5">Ce mois</div>
                       <div className="text-xl font-black text-green-600">{formatPrice(revThisMonth)}</div>
-                      <div className="text-[10px] text-gray-400">{completedThisMonth.length} interv.</div>
+                      <div className="text-[10px] text-gray-500">{completedThisMonth.length} interv.</div>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
                       <div className="text-xs text-gray-500 mb-0.5">Mois préc.</div>
                       <div className="text-xl font-black text-gray-600">{formatPrice(revLastMonth)}</div>
-                      <div className="text-[10px] text-gray-400">{completedLastMonth.length} interv.</div>
+                      <div className="text-[10px] text-gray-500">{completedLastMonth.length} interv.</div>
                     </div>
                   </div>
                   {topServices.length > 0 && (
                     <div>
-                      <div className="text-xs text-gray-400 font-medium mb-2">Top services</div>
+                      <div className="text-xs text-gray-500 font-medium mb-2">Top services</div>
                       <div className="space-y-1.5">
                         {topServices.map((s, i) => (
                           <div key={s.id} className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-400 w-4">{i + 1}.</span>
+                            <span className="text-xs font-bold text-gray-500 w-4">{i + 1}.</span>
                             <div className="flex-1 min-w-0">
                               <div className="text-xs font-semibold text-gray-800 truncate">{s.name}</div>
                             </div>
@@ -1605,7 +1709,7 @@ export default function MobileDashboard() {
                     </div>
                   )}
                   {topServices.length === 0 && (
-                    <div className="text-xs text-gray-400 text-center py-2">
+                    <div className="text-xs text-gray-500 text-center py-2">
                       Complétez des interventions pour voir vos stats
                     </div>
                   )}
@@ -1649,7 +1753,7 @@ export default function MobileDashboard() {
                 <div className="text-sm font-bold text-gray-700 mb-3">Aujourd&apos;hui</div>
                 <div className="space-y-2">
                   {todayBookings.map(b => (
-                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
+                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                   ))}
                 </div>
               </div>
@@ -1661,7 +1765,7 @@ export default function MobileDashboard() {
                 <div className="text-sm font-bold text-gray-700 mb-3">Demain</div>
                 <div className="space-y-2">
                   {tomorrowBookings.map(b => (
-                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
+                    <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                   ))}
                 </div>
               </div>
@@ -1682,19 +1786,19 @@ export default function MobileDashboard() {
                 <button onClick={() => {
                   const d = new Date(selectedDate); d.setMonth(d.getMonth() - 1)
                   setSelectedDate(d.toISOString().split('T')[0])
-                }} className="text-gray-400 text-lg p-1">◀</button>
+                }} className="text-gray-500 text-lg p-1">◀</button>
                 <span className="text-sm font-semibold text-gray-700 capitalize">
                   {new Date(selectedDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
                 </span>
                 <button onClick={() => {
                   const d = new Date(selectedDate); d.setMonth(d.getMonth() + 1)
                   setSelectedDate(d.toISOString().split('T')[0])
-                }} className="text-gray-400 text-lg p-1">▶</button>
+                }} className="text-gray-500 text-lg p-1">▶</button>
               </div>
 
               <div className="grid grid-cols-7 bg-gray-50">
                 {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
-                  <div key={i} className="text-center text-[10px] font-bold text-gray-400 py-1">{d}</div>
+                  <div key={i} className="text-center text-[10px] font-bold text-gray-500 py-1">{d}</div>
                 ))}
               </div>
 
@@ -1737,13 +1841,13 @@ export default function MobileDashboard() {
             {selectedDateBookings.length === 0 ? (
               <div className="text-center py-10">
                 <div className="text-4xl mb-2">📭</div>
-                <div className="text-sm text-gray-400">Aucun RDV ce jour</div>
+                <div className="text-sm text-gray-500">Aucun RDV ce jour</div>
                 <button onClick={() => setShowNewRdv(true)} className="mt-3 text-[#FFC107] text-sm font-semibold">+ Créer un RDV</button>
               </div>
             ) : (
               <div className="space-y-3">
                 {selectedDateBookings.sort((a, b) => a.booking_time?.localeCompare(b.booking_time)).map(b => (
-                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
+                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                 ))}
               </div>
             )}
@@ -1756,7 +1860,7 @@ export default function MobileDashboard() {
         <div>
           <div className="bg-white px-4 pt-12 pb-4 safe-area-pt border-b border-gray-100">
             <div className="text-lg font-bold text-gray-900">🔧 Interventions</div>
-            <div className="text-xs text-gray-400 mt-0.5">{bookings.length} au total</div>
+            <div className="text-xs text-gray-500 mt-0.5">{bookings.length} au total</div>
           </div>
 
           <div className="p-4">
@@ -1796,7 +1900,7 @@ export default function MobileDashboard() {
             ) : (
               <div className="space-y-3">
                 {bookings.map(b => (
-                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
+                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
                 ))}
               </div>
             )}
@@ -1821,7 +1925,7 @@ export default function MobileDashboard() {
                   return (
                     <div className="bg-white rounded-2xl p-6 text-center border border-gray-100 shadow-sm">
                       <div className="text-4xl mb-2">📸</div>
-                      <div className="text-sm text-gray-400">Aucune preuve archivée</div>
+                      <div className="text-sm text-gray-500">Aucune preuve archivée</div>
                       <div className="text-xs text-gray-300 mt-1">Les preuves apparaîtront après vos interventions</div>
                     </div>
                   )
@@ -1834,7 +1938,7 @@ export default function MobileDashboard() {
                         <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-lg">✅</div>
                         <div>
                           <div className="font-semibold text-sm text-gray-900">{booking?.services?.name || 'Intervention'}</div>
-                          <div className="text-xs text-gray-400">{p.completedAt ? new Date(p.completedAt).toLocaleDateString('fr-FR') : ''}</div>
+                          <div className="text-xs text-gray-500">{p.completedAt ? new Date(p.completedAt).toLocaleDateString('fr-FR') : ''}</div>
                         </div>
                         <div className="ml-auto">
                           <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Archivé</span>
@@ -1924,7 +2028,7 @@ export default function MobileDashboard() {
                             // Footer
                             doc.setFontSize(8)
                             doc.setTextColor(150, 150, 150)
-                            doc.text(`G\u00E9n\u00E9r\u00E9 par VitFix Pro \u2014 ${new Date().toLocaleString('fr-FR')}`, 15, 285)
+                            doc.text(`G\u00E9n\u00E9r\u00E9 par Vitfix Pro \u2014 ${new Date().toLocaleString('fr-FR')}`, 15, 285)
                             doc.text('Document \u00E0 valeur probante \u2014 GPS + horodatage + signature client', 15, 290)
                             doc.save(`Rapport_${bk?.services?.name?.replace(/\s+/g, '_') || 'chantier'}_${p.completedAt ? new Date(p.completedAt).toISOString().split('T')[0] : 'date'}.pdf`)
                           }).catch(() => alert('Erreur lors de la g\u00E9n\u00E9ration du PDF'))
@@ -1951,7 +2055,7 @@ export default function MobileDashboard() {
               {services.length === 0 ? (
                 <div className="bg-white rounded-2xl p-6 text-center border border-gray-100 shadow-sm">
                   <div className="text-4xl mb-2">🔧</div>
-                  <div className="text-sm text-gray-400">Aucun motif créé</div>
+                  <div className="text-sm text-gray-500">Aucun motif créé</div>
                   <button onClick={() => setMotifModal(true)} className="mt-3 text-[#FFC107] text-sm font-semibold">+ Créer un motif</button>
                 </div>
               ) : (
@@ -1960,13 +2064,13 @@ export default function MobileDashboard() {
                     <div key={s.id} className="bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm flex items-center justify-between">
                       <div>
                         <div className="font-semibold text-sm text-gray-900">{s.name}</div>
-                        <div className="text-xs text-gray-400">{serviceRanges[s.id]?.durationEstimate ? `⏱️ ${serviceRanges[s.id].durationEstimate}` : ''}{serviceRanges[s.id]?.durationEstimate && serviceRanges[s.id]?.pricingUnit ? ' · ' : ''}{serviceRanges[s.id]?.pricingUnit || 'forfait'}</div>
+                        <div className="text-xs text-gray-500">{serviceRanges[s.id]?.durationEstimate ? `⏱️ ${serviceRanges[s.id].durationEstimate}` : ''}{serviceRanges[s.id]?.durationEstimate && serviceRanges[s.id]?.pricingUnit ? ' · ' : ''}{serviceRanges[s.id]?.pricingUnit || 'forfait'}</div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-sm text-green-600">
                           {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}
                         </div>
-                        <div className={`text-[10px] font-medium ${s.active ? 'text-green-500' : 'text-gray-400'}`}>
+                        <div className={`text-[10px] font-medium ${s.active ? 'text-green-500' : 'text-gray-500'}`}>
                           {s.active ? 'Actif' : 'Inactif'}
                         </div>
                       </div>
@@ -2009,7 +2113,7 @@ export default function MobileDashboard() {
                   <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-lg">📊</div>
                   <div className="flex-1">
                     <div className="font-semibold text-sm text-gray-900">Fichier des Écritures Comptables</div>
-                    <div className="text-xs text-gray-400 mt-0.5">Format FEC (Art. L47 A-1 du LPF)</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Format FEC (Art. L47 A-1 du LPF)</div>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mb-3">Exportez vos écritures au format FEC requis par l&apos;administration fiscale. Inclut toutes les interventions facturées.</p>
@@ -2053,7 +2157,7 @@ export default function MobileDashboard() {
                 >
                   📥 Télécharger le FEC
                 </button>
-                <div className="text-[10px] text-gray-400 text-center mt-2">
+                <div className="text-[10px] text-gray-500 text-center mt-2">
                   {completedBookings.length} écriture(s) de vente · Format compatible DGFiP
                 </div>
               </div>
@@ -2102,7 +2206,7 @@ export default function MobileDashboard() {
                     <div className="w-full bg-gray-100 rounded-full h-2">
                       <div className={`${healthBg} h-2 rounded-full transition-all duration-500`} style={{ width: `${healthScore}%` }} />
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-1.5">{validCount}/{requiredTypes.length} documents valides</div>
+                    <div className="text-[10px] text-gray-500 mt-1.5">{validCount}/{requiredTypes.length} documents valides</div>
                   </div>
                 )
               })()}
@@ -2130,7 +2234,7 @@ export default function MobileDashboard() {
                 <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
                   <div className="text-3xl mb-2">🪪</div>
                   <div className="text-sm font-semibold text-gray-700 mb-1">Portefeuille vide</div>
-                  <div className="text-xs text-gray-400 mb-3">Scannez ou ajoutez vos documents pro pour ne jamais rater une echeance</div>
+                  <div className="text-xs text-gray-500 mb-3">Scannez ou ajoutez vos documents pro pour ne jamais rater une echeance</div>
                   <div className="flex gap-2 justify-center">
                     <button onClick={() => { setOcrResult(null); setShowComplianceModal(true); setTimeout(() => ocrInputRef.current?.click(), 300) }} className="bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1">
                       📷 Scanner un document
@@ -2212,7 +2316,7 @@ export default function MobileDashboard() {
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
               <h3 className="font-bold text-gray-800">Ajouter un document</h3>
-              <button onClick={() => { setShowComplianceModal(false); setOcrResult(null) }} className="text-gray-400 text-xl">×</button>
+              <button onClick={() => { setShowComplianceModal(false); setOcrResult(null) }} className="text-gray-500 text-xl">×</button>
             </div>
             <div className="px-5 py-4 space-y-3">
 
@@ -2329,7 +2433,7 @@ export default function MobileDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Notes <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Notes <span className="text-gray-500 font-normal">(optionnel)</span></label>
                 <input
                   type="text"
                   value={complianceForm.notes}
@@ -2359,11 +2463,11 @@ export default function MobileDashboard() {
               </div>
               <div>
                 <div className="text-lg font-bold text-gray-900">{artisan?.company_name}</div>
-                <div className="text-xs text-gray-400">{artisan?.category || 'Artisan'}</div>
+                <div className="text-xs text-gray-500">{artisan?.category || 'Artisan'}</div>
                 <div className="flex items-center gap-1 mt-1">
                   <span className="text-amber-400 text-sm">⭐</span>
                   <span className="text-xs font-semibold text-gray-600">{artisan?.rating_avg || '5.0'}/5</span>
-                  <span className="text-xs text-gray-400">({artisan?.rating_count || 0} avis)</span>
+                  <span className="text-xs text-gray-500">({artisan?.rating_count || 0} avis)</span>
                 </div>
               </div>
             </div>
@@ -2375,7 +2479,7 @@ export default function MobileDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-sm text-gray-900">Acceptation automatique</div>
-                  <div className="text-xs text-gray-400 mt-0.5">Confirme les RDV automatiquement</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Confirme les RDV automatiquement</div>
                 </div>
                 <button
                   onClick={toggleAutoAccept}
@@ -2386,13 +2490,67 @@ export default function MobileDashboard() {
               </div>
             </div>
 
+            {/* Auto-accept sub-settings */}
+            {autoAccept && (
+              <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-3">
+                <div className="text-xs font-semibold text-amber-700">⚙️ Options d'acceptation auto</div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Durée de blocage par RDV</label>
+                  <select
+                    value={settingsForm.auto_block_duration_minutes}
+                    onChange={e => setSettingsForm(p => ({ ...p, auto_block_duration_minutes: parseInt(e.target.value) }))}
+                    className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-[#FFC107]"
+                  >
+                    <option value={60}>1 heure</option>
+                    <option value={120}>2 heures</option>
+                    <option value={180}>3 heures</option>
+                    <option value={240}>4 heures (défaut)</option>
+                    <option value={360}>6 heures</option>
+                    <option value={480}>8 heures (journée)</option>
+                  </select>
+                  <p className="text-[10px] text-gray-500 mt-1">Chaque RDV confirmé bloquera ce créneau dans votre agenda</p>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-reply message */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="font-semibold text-sm text-gray-900 mb-1">💬 Réponse automatique</div>
+              <p className="text-[10px] text-gray-500 mb-3">Envoyée au client dès la prise de RDV</p>
+              <textarea
+                value={settingsForm.auto_reply_message}
+                onChange={e => setSettingsForm(p => ({ ...p, auto_reply_message: e.target.value }))}
+                rows={3}
+                placeholder="Ex: Bonjour, merci pour votre réservation ! Pouvez-vous m'envoyer des photos du lieu et les infos d'accès (code porte, étage) ?"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
+              />
+            </div>
+
+            {/* Zone radius */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="font-semibold text-sm text-gray-900 mb-1">📍 Périmètre d'intervention</div>
+              <p className="text-[10px] text-gray-500 mb-3">Rayon autour de votre adresse</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={settingsForm.zone_radius_km}
+                  onChange={e => setSettingsForm(p => ({ ...p, zone_radius_km: parseInt(e.target.value) }))}
+                  className="flex-1 accent-[#FFC107]"
+                />
+                <span className="text-sm font-bold text-gray-900 min-w-[50px] text-right">{settingsForm.zone_radius_km} km</span>
+              </div>
+            </div>
+
             {/* Modules personnalisables */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-center justify-between mb-1">
                 <div className="font-semibold text-sm text-gray-900">🧩 Mes modules</div>
-                <span className="text-[10px] text-gray-400">{ARTISAN_MODULES.filter(m => isModuleEnabled(m.key)).length}/{ARTISAN_MODULES.length} actifs</span>
+                <span className="text-[10px] text-gray-500">{ARTISAN_MODULES.filter(m => isModuleEnabled(m.key)).length}/{ARTISAN_MODULES.length} actifs</span>
               </div>
-              <p className="text-[11px] text-gray-400 mb-4">Activez uniquement les fonctionnalités dont vous avez besoin</p>
+              <p className="text-[11px] text-gray-500 mb-4">Activez uniquement les fonctionnalités dont vous avez besoin</p>
               <div className="space-y-2">
                 {ARTISAN_MODULES.map(mod => {
                   const enabled = isModuleEnabled(mod.key)
@@ -2401,7 +2559,7 @@ export default function MobileDashboard() {
                       <span className="text-xl flex-shrink-0">{mod.icon}</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-gray-800">{mod.label}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{mod.description}</div>
+                        <div className="text-[10px] text-gray-500 mt-0.5">{mod.description}</div>
                       </div>
                       <button
                         onClick={() => toggleModule(mod.key)}
@@ -2424,7 +2582,7 @@ export default function MobileDashboard() {
                   return (
                     <button key={day} onClick={() => toggleDayAvailability(day)}
                       className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                        isActive ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-400'
+                        isActive ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-500'
                       }`}>
                       {DAY_NAMES[day]}
                     </button>
@@ -2466,7 +2624,74 @@ export default function MobileDashboard() {
             </button>
 
             <div className="text-center text-[10px] text-gray-300 pb-2">
-              VitFix Pro v1.0 · {artisan?.siret && `SIRET ${artisan.siret}`}
+              Vitfix Pro v1.0 · {artisan?.siret && `SIRET ${artisan.siret}`}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Messagerie Artisan ── */}
+      {msgModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center" onClick={() => setMsgModal(null)}>
+          <div className="bg-white rounded-t-3xl w-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="px-5 pb-3 pt-1 flex items-center justify-between border-b border-gray-100">
+              <div>
+                <div className="text-base font-bold text-gray-900">💬 Messages</div>
+                <div className="text-xs text-gray-500">{msgModal.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'} · {msgModal.services?.name || 'Service'}</div>
+              </div>
+              <button onClick={() => setMsgModal(null)} className="text-gray-500 text-xl p-1">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+              {msgList.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  Aucun message pour ce RDV
+                </div>
+              ) : (
+                msgList.map((msg: any) => (
+                  <div key={msg.id} className={`flex ${msg.sender_role === 'artisan' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                      msg.sender_role === 'artisan'
+                        ? 'bg-[#FFC107] text-gray-900'
+                        : msg.type === 'auto_reply'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {msg.type === 'auto_reply' && (
+                        <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>
+                      )}
+                      {msg.sender_role === 'client' && (
+                        <div className="text-[10px] font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>
+                      )}
+                      <p className="text-sm">{msg.content}</p>
+                      <p className={`text-[10px] mt-1 ${msg.sender_role === 'artisan' ? 'text-gray-700' : 'text-gray-500'}`}>
+                        {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="px-4 pb-6 pt-2 border-t border-gray-100 safe-area-pb">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={msgText}
+                  onChange={e => setMsgText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendArtisanMessage()}
+                  placeholder="Votre message..."
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]"
+                />
+                <button
+                  onClick={sendArtisanMessage}
+                  disabled={msgSending || !msgText.trim()}
+                  className="bg-[#FFC107] text-gray-900 px-4 py-3 rounded-xl font-bold disabled:opacity-50"
+                >
+                  ➤
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2482,7 +2707,7 @@ export default function MobileDashboard() {
             </div>
             <div className="px-5 pb-2 pt-1 flex items-center justify-between border-b border-gray-100">
               <div className="text-base font-bold text-gray-900">📝 Devis rapide</div>
-              <button onClick={() => setShowDevisModal(false)} className="text-gray-400 text-xl p-1">✕</button>
+              <button onClick={() => setShowDevisModal(false)} className="text-gray-500 text-xl p-1">✕</button>
             </div>
 
             {!devisGenere ? (
@@ -2585,7 +2810,7 @@ export default function MobileDashboard() {
                     const num = `DEV-${Date.now().toString().slice(-6)}`
                     const texte = `📋 DEVIS ${num}
 ━━━━━━━━━━━━━━━━━━━━━
-Artisan : ${artisan?.company_name || 'VitFix Pro'}
+Artisan : ${artisan?.company_name || 'Vitfix Pro'}
 Date : ${dateDevis}
 Valide jusqu&apos;au : ${dateValidite}
 ━━━━━━━━━━━━━━━━━━━━━
@@ -2643,7 +2868,7 @@ Pour accepter, répondez OUI.`
                 </a>
                 <button
                   onClick={() => { setDevisGenere(null) }}
-                  className="w-full text-gray-400 text-sm py-2"
+                  className="w-full text-gray-500 text-sm py-2"
                 >
                   ← Modifier le devis
                 </button>

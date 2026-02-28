@@ -14,9 +14,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "VITFIX - Trouvez l'artisan pr\u00E8s de chez vous, en 2 clics",
   description: "Trouvez et r\u00E9servez un artisan v\u00E9rifi\u00E9 pr\u00E8s de chez vous en quelques clics. Plomberie, \u00E9lectricit\u00E9, jardinage et plus.",
-  authors: [{ name: "VitFix SAS" }],
-  creator: "VitFix SAS",
-  publisher: "VitFix SAS",
+  authors: [{ name: "Vitfix SAS" }],
+  creator: "Vitfix SAS",
+  publisher: "Vitfix SAS",
   robots: {
     index: true,
     follow: true,

@@ -273,14 +273,14 @@ export default function AdminDashboardPage() {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <span className="text-3xl">⚡</span>
-              <h1 className="text-2xl font-bold text-yellow-400">VitFix</h1>
+              <h1 className="text-2xl font-bold text-yellow-400">Vitfix</h1>
               <span className="bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 text-xs font-bold px-3 py-1 rounded-full">SUPER ADMIN</span>
             </div>
-            <p className="text-gray-400 text-sm">Bienvenue, {user?.user_metadata?.full_name || user?.email} — Sélectionnez le dashboard à visualiser</p>
+            <p className="text-gray-500 text-sm">Bienvenue, {user?.user_metadata?.full_name || user?.email} — Sélectionnez le dashboard à visualiser</p>
           </div>
           <button
             onClick={handleLogout}
-            className="text-sm text-gray-400 hover:text-red-400 transition border border-gray-700 hover:border-red-700 px-4 py-2 rounded-lg"
+            className="text-sm text-gray-500 hover:text-red-400 transition border border-gray-700 hover:border-red-700 px-4 py-2 rounded-lg"
           >
             Déconnexion
           </button>
@@ -312,11 +312,11 @@ export default function AdminDashboardPage() {
 
               <div className="text-4xl mb-3">{db.emoji}</div>
               <h3 className="font-bold text-white text-base mb-1.5">{db.label}</h3>
-              <p className="text-gray-400 text-xs leading-relaxed">{db.desc}</p>
+              <p className="text-gray-500 text-xs leading-relaxed">{db.desc}</p>
 
               <div className="mt-4 flex flex-wrap gap-1">
                 {db.roles.slice(0, 3).map(r => (
-                  <span key={r} className="text-[10px] bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-full font-mono">
+                  <span key={r} className="text-[10px] bg-white/5 border border-white/10 text-gray-500 px-2 py-0.5 rounded-full font-mono">
                     {r}
                   </span>
                 ))}
@@ -367,7 +367,7 @@ export default function AdminDashboardPage() {
                 <span className="text-3xl">{subRoleModal.emoji}</span>
                 <div>
                   <h3 className="text-lg font-bold text-white">{subRoleModal.label}</h3>
-                  <p className="text-gray-400 text-sm">Choisissez le rôle avec lequel accéder au dashboard</p>
+                  <p className="text-gray-500 text-sm">Choisissez le rôle avec lequel accéder au dashboard</p>
                 </div>
               </div>
               <button
@@ -399,9 +399,9 @@ export default function AdminDashboardPage() {
                     <span className="text-2xl">{sub.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-white text-sm mb-0.5">{sub.label}</div>
-                      <div className="text-gray-400 text-xs leading-relaxed">{sub.desc}</div>
+                      <div className="text-gray-500 text-xs leading-relaxed">{sub.desc}</div>
                       <div className="mt-2">
-                        <span className="text-[10px] bg-white/5 border border-white/10 text-gray-400 px-2 py-0.5 rounded-full font-mono">
+                        <span className="text-[10px] bg-white/5 border border-white/10 text-gray-500 px-2 py-0.5 rounded-full font-mono">
                           {sub.role}
                         </span>
                       </div>

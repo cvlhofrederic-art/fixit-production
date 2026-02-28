@@ -1,7 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  // ── SÉCURITÉ : auth obligatoire + vérification admin ──────────────────────
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL].filter(Boolean) as string[]
+  if (!user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    return NextResponse.json({ error: 'Accès réservé aux administrateurs' }, { status: 403 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`run_migration_${ip}`, 3, 60_000)) return rateLimitResponse()
+
   const url = new URL(request.url)
   const step = url.searchParams.get('step') || 'info'
 

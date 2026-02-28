@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,9 +9,20 @@ const supabaseAdmin = createClient(
 )
 
 // ── Envoie une notification in-app à un artisan ───────────────────────────────
-// Appelé quand le syndic crée une mission ou pose un RDV sur le planning artisan
+// ⚠️ SÉCURISÉ : auth obligatoire + vérification rôle syndic
 
 export async function POST(request: NextRequest) {
+  // ── Auth obligatoire ──────────────────────────────────────────────────────
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+  if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
+  }
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`notify_artisan_${ip}`, 30, 60_000)) return rateLimitResponse()
+
   try {
     const {
       artisan_id,
@@ -59,6 +72,10 @@ export async function POST(request: NextRequest) {
 
 // ── Marquer une notification comme lue ───────────────────────────────────────
 export async function PATCH(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
   try {
     const body = await request.json()
     const { notification_id, artisan_id, syndic_id, mark_all_read } = body
@@ -91,7 +108,12 @@ export async function PATCH(request: NextRequest) {
 }
 
 // ── Récupérer les notifications d'un artisan OU d'un syndic ──────────────────
+// ⚠️ SÉCURISÉ : auth obligatoire
 export async function GET(request: NextRequest) {
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
   const { searchParams } = new URL(request.url)
   const artisan_id = searchParams.get('artisan_id')
   const syndic_id = searchParams.get('syndic_id')

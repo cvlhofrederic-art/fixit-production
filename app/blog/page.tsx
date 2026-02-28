@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Blog - VitFix',
-  description: 'Conseils, guides et actualités sur les travaux et la rénovation par VitFix.',
+  title: 'Blog - Vitfix',
+  description: 'Conseils, guides et actualités sur les travaux et la rénovation par Vitfix.',
 }
 
 const articles = [
@@ -63,7 +63,7 @@ export default function BlogPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Le blog VitFix
+            Le blog Vitfix
           </h1>
           <p className="text-lg text-gray-600">
             Conseils travaux, guides pratiques et actualités pour votre habitat
@@ -81,7 +81,7 @@ export default function BlogPage() {
                   <span className="bg-[#FFF9E6] text-[#FFC107] text-xs font-semibold px-2 py-1 rounded-full">
                     {article.categorie}
                   </span>
-                  <span className="text-gray-400 text-xs">{article.date}</span>
+                  <span className="text-gray-500 text-xs">{article.date}</span>
                 </div>
                 <h2 className="font-bold text-gray-900 mb-2 group-hover:text-[#FFC107] transition">
                   {article.titre}

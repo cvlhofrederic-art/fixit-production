@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,7 +10,24 @@ const supabaseAdmin = createClient(
 )
 
 // GET /api/admin/setup?step=tables|admin|all
-export async function GET(request: Request) {
+// ⚠️ SÉCURISÉ : nécessite authentification super_admin + vérification email
+export async function GET(request: NextRequest) {
+  // ── Rate limit strict pour endpoint admin ──────────────────────────────
+  const ip = getClientIP(request)
+  if (!checkRateLimit(`admin_setup_${ip}`, 5, 60_000)) return rateLimitResponse()
+
+  // ── Vérification authentification ────────────────────────────────────────
+  const user = await getAuthUser(request as any)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+
+  // ── Vérification admin via email (non forgeable, contrairement à user_metadata) ──
+  const ADMIN_EMAILS = [process.env.ADMIN_EMAIL].filter(Boolean) as string[]
+  if (!user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    return NextResponse.json({ error: 'Accès réservé aux super_admin' }, { status: 403 })
+  }
+
   const url = new URL(request.url)
   const step = url.searchParams.get('step') || 'all'
   const results: Record<string, any> = {}
@@ -138,21 +157,38 @@ export async function GET(request: Request) {
           SELECT 1 FROM syndic_team_members WHERE cabinet_id = syndic_immeubles.cabinet_id AND user_id = auth.uid() AND is_active = true
         ));
 
-      -- Policies syndic_signalements (lecture publique limitée + écriture copropriétaire)
+      -- Policies syndic_signalements (sécurisées par cabinet_id)
       DROP POLICY IF EXISTS "syndic_signalements_read" ON syndic_signalements;
       CREATE POLICY "syndic_signalements_read" ON syndic_signalements FOR SELECT
-        USING (true);
+        USING (cabinet_id = auth.uid() OR EXISTS (
+          SELECT 1 FROM syndic_team_members WHERE cabinet_id = syndic_signalements.cabinet_id AND user_id = auth.uid() AND is_active = true
+        ));
       DROP POLICY IF EXISTS "syndic_signalements_insert" ON syndic_signalements;
       CREATE POLICY "syndic_signalements_insert" ON syndic_signalements FOR INSERT
         WITH CHECK (true);
       DROP POLICY IF EXISTS "syndic_signalements_update" ON syndic_signalements;
       CREATE POLICY "syndic_signalements_update" ON syndic_signalements FOR UPDATE
-        USING (true);
+        USING (cabinet_id = auth.uid() OR EXISTS (
+          SELECT 1 FROM syndic_team_members WHERE cabinet_id = syndic_signalements.cabinet_id AND user_id = auth.uid() AND is_active = true
+        ));
 
-      -- Policies syndic_signalement_messages
+      -- Policies syndic_signalement_messages (sécurisées)
       DROP POLICY IF EXISTS "syndic_signalement_messages_all" ON syndic_signalement_messages;
       CREATE POLICY "syndic_signalement_messages_all" ON syndic_signalement_messages
-        USING (true) WITH CHECK (true);
+        USING (EXISTS (
+          SELECT 1 FROM syndic_signalements s
+          WHERE s.id = syndic_signalement_messages.signalement_id
+          AND (s.cabinet_id = auth.uid() OR EXISTS (
+            SELECT 1 FROM syndic_team_members WHERE cabinet_id = s.cabinet_id AND user_id = auth.uid() AND is_active = true
+          ))
+        ))
+        WITH CHECK (EXISTS (
+          SELECT 1 FROM syndic_signalements s
+          WHERE s.id = syndic_signalement_messages.signalement_id
+          AND (s.cabinet_id = auth.uid() OR EXISTS (
+            SELECT 1 FROM syndic_team_members WHERE cabinet_id = s.cabinet_id AND user_id = auth.uid() AND is_active = true
+          ))
+        ));
 
       -- Policies syndic_missions
       DROP POLICY IF EXISTS "syndic_missions_access" ON syndic_missions;
@@ -168,7 +204,6 @@ export async function GET(request: Request) {
     `
 
     try {
-      // Exécuter la migration via rpc ou requêtes séquentielles
       const statements = tablesSql
         .split(';')
         .map(s => s.trim())
@@ -191,71 +226,61 @@ export async function GET(request: Request) {
 
   // ── ÉTAPE 2 : Créer le compte super_admin ────────────────────────────────────
   if (step === 'admin' || step === 'all') {
-    const ADMIN_EMAIL = 'AdminCvlho@gmail.com'
-    const ADMIN_PASSWORD = 'VitFixAdmin2024!'
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
-    try {
-      // Vérifier si l'utilisateur existe déjà
-      const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-      if (listError) throw listError
+    if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+      results.admin = { success: false, error: 'Variables ADMIN_EMAIL et ADMIN_PASSWORD requises dans les env vars' }
+    } else {
+      try {
+        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+        if (listError) throw listError
 
-      const existing = users.find(u => u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase())
+        const existing = users.find(u => u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase())
 
-      if (existing) {
-        // Mettre à jour le rôle si nécessaire
-        const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
-          user_metadata: {
-            ...existing.user_metadata,
-            role: 'super_admin',
-            full_name: 'Super Admin VitFix',
+        if (existing) {
+          const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+            user_metadata: {
+              ...existing.user_metadata,
+              role: 'super_admin',
+              full_name: 'Super Admin Vitfix',
+            }
+          })
+          results.admin = {
+            success: !error,
+            action: 'updated',
+            user_id: existing.id,
+            email: existing.email,
+            role: data?.user?.user_metadata?.role,
+            error: error?.message,
           }
-        })
-        results.admin = {
-          success: !error,
-          action: 'updated',
-          user_id: existing.id,
-          email: existing.email,
-          role: data?.user?.user_metadata?.role,
-          error: error?.message,
-        }
-      } else {
-        // Créer le compte
-        const { data, error } = await supabaseAdmin.auth.admin.createUser({
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-          email_confirm: true,
-          user_metadata: {
-            role: 'super_admin',
-            full_name: 'Super Admin VitFix',
+        } else {
+          const { data, error } = await supabaseAdmin.auth.admin.createUser({
+            email: ADMIN_EMAIL,
+            password: ADMIN_PASSWORD,
+            email_confirm: true,
+            user_metadata: {
+              role: 'super_admin',
+              full_name: 'Super Admin Vitfix',
+            }
+          })
+          results.admin = {
+            success: !error,
+            action: 'created',
+            user_id: data?.user?.id,
+            email: data?.user?.email,
+            role: data?.user?.user_metadata?.role,
+            error: error?.message,
           }
-        })
-        results.admin = {
-          success: !error,
-          action: 'created',
-          user_id: data?.user?.id,
-          email: data?.user?.email,
-          role: data?.user?.user_metadata?.role,
-          password: ADMIN_PASSWORD,
-          error: error?.message,
         }
+      } catch (e: any) {
+        results.admin = { success: false, error: e.message }
       }
-    } catch (e: any) {
-      results.admin = { success: false, error: e.message }
     }
   }
 
   return NextResponse.json({
     ...results,
     timestamp: new Date().toISOString(),
-    instructions: {
-      tables: 'GET /api/admin/setup?step=tables',
-      admin: 'GET /api/admin/setup?step=admin',
-      all: 'GET /api/admin/setup?step=all (recommandé)',
-      login: {
-        url: '/admin/login',
-        email: 'AdminCvlho@gmail.com',
-        password: 'VitFixAdmin2024!',
-      }
-    }
   })
 }

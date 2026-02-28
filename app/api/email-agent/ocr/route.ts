@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { callGroqWithRetry } from '@/lib/groq'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -76,13 +77,9 @@ export async function POST(request: NextRequest) {
       ? image_base64
       : `data:${mime_type};base64,${image_base64}`
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    let groqData
+    try {
+      groqData = await callGroqWithRetry({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: [
           {
@@ -100,22 +97,17 @@ export async function POST(request: NextRequest) {
           },
         ],
         temperature: 0.1,
-        max_tokens: 500,
+        max_tokens: 800,
         response_format: { type: 'json_object' },
-      }),
-    })
-
-    if (!groqRes.ok) {
-      const errText = await groqRes.text()
-      console.error('Groq Vision error:', groqRes.status, errText)
-      // Fallback : retourner résultat vide avec confidence basse
+      }, { fallbackModel: 'meta-llama/llama-4-scout-17b-16e-instruct' })
+    } catch (groqErr: any) {
+      console.error('Groq Vision error:', groqErr.message)
       return NextResponse.json({
         result: { confidence: 'basse' } as OCRResult,
         error: 'Analyse vision échouée',
       })
     }
 
-    const groqData = await groqRes.json()
     const rawContent = groqData.choices?.[0]?.message?.content || '{}'
 
     let result: OCRResult

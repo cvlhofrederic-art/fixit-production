@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Avis clients - VitFix',
-  description: 'Découvrez les avis de nos clients sur VitFix et leurs expériences avec nos artisans partenaires.',
+  title: 'Avis clients - Vitfix',
+  description: 'Découvrez les avis de nos clients sur Vitfix et leurs expériences avec nos artisans partenaires.',
 }
 
 const temoignages = [
@@ -52,7 +52,7 @@ const temoignages = [
     ville: 'Nantes',
     metier: 'Menuiserie',
     note: 5,
-    texte: 'Installation de parquet flottant dans tout l\'appartement. Travail soigné, délais respectés. Je referai appel à VitFix sans hésiter.',
+    texte: 'Installation de parquet flottant dans tout l\'appartement. Travail soigné, délais respectés. Je referai appel à Vitfix sans hésiter.',
     date: 'Décembre 2025',
   },
 ]
@@ -105,7 +105,7 @@ export default function AvisPage() {
               </div>
               <Etoiles note={t.note} />
               <p className="text-gray-600 text-sm mt-3 leading-relaxed">&quot;{t.texte}&quot;</p>
-              <p className="text-gray-400 text-xs mt-3">{t.date}</p>
+              <p className="text-gray-500 text-xs mt-3">{t.date}</p>
             </div>
           ))}
         </div>

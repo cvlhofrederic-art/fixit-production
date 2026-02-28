@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
   }
 
   // URL d'invitation
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://fixit-production.vercel.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
   const inviteUrl = `${appUrl}/syndic/invite?token=${inviteToken}`
 
   return NextResponse.json({

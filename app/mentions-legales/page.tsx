@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Mentions légales - VitFix',
-  description: 'Mentions légales de la plateforme VitFix, conformes à la loi française.',
+  title: 'Mentions légales - Vitfix',
+  description: 'Mentions légales de la plateforme Vitfix, conformes à la loi française.',
 }
 
 export default function MentionsLegalesPage() {
@@ -20,13 +20,13 @@ export default function MentionsLegalesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">&Eacute;diteur du site</h2>
             <ul className="space-y-2 text-sm">
-              <li><strong>D&eacute;nomination sociale :</strong> VitFix SAS</li>
+              <li><strong>D&eacute;nomination sociale :</strong> Vitfix SAS</li>
               <li><strong>Forme juridique :</strong> Soci&eacute;t&eacute; par Actions Simplifi&eacute;e (SAS)</li>
               <li><strong>Capital social :</strong> 10&nbsp;000 &euro;</li>
               <li><strong>Si&egrave;ge social :</strong> France</li>
-              <li><strong>Num&eacute;ro SIREN :</strong> [en cours d&apos;enregistrement]</li>
-              <li><strong>Num&eacute;ro TVA intracommunautaire :</strong> [en cours]</li>
-              <li><strong>Directeur de la publication :</strong> Le Pr&eacute;sident de VitFix SAS</li>
+              <li><strong>Num&eacute;ro SIREN :</strong> En cours d&apos;immatriculation aupr&egrave;s du RCS</li>
+              <li><strong>Num&eacute;ro TVA intracommunautaire :</strong> En cours d&apos;attribution</li>
+              <li><strong>Directeur de la publication :</strong> Le Pr&eacute;sident de Vitfix SAS</li>
               <li><strong>Email :</strong> <a href="mailto:contact@vitfix.fr" className="text-[#FFC107] hover:underline">contact@vitfix.fr</a></li>
             </ul>
           </section>
@@ -43,9 +43,9 @@ export default function MentionsLegalesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Propri&eacute;t&eacute; intellectuelle</h2>
             <p>
-              L&apos;ensemble des contenus pr&eacute;sents sur le site VitFix — notamment les textes, images, logos,
+              L&apos;ensemble des contenus pr&eacute;sents sur le site Vitfix — notamment les textes, images, logos,
               graphismes, ic&ocirc;nes, photographies, animations et logiciels — est la propri&eacute;t&eacute; exclusive
-              de VitFix SAS ou fait l&apos;objet de droits d&apos;utilisation d&ucirc;ment conc&eacute;d&eacute;s.
+              de Vitfix SAS ou fait l&apos;objet de droits d&apos;utilisation d&ucirc;ment conc&eacute;d&eacute;s.
             </p>
             <p className="mt-3">
               Ces contenus sont prot&eacute;g&eacute;s par le Code de la propri&eacute;t&eacute; intellectuelle (CPI),
@@ -55,7 +55,7 @@ export default function MentionsLegalesPage() {
             <p className="mt-3">
               Toute reproduction, repr&eacute;sentation, modification, publication, adaptation ou exploitation,
               totale ou partielle, par quelque proc&eacute;d&eacute; et sur quelque support que ce soit, sans
-              l&apos;autorisation &eacute;crite pr&eacute;alable de VitFix SAS, est strictement interdite et constitue
+              l&apos;autorisation &eacute;crite pr&eacute;alable de Vitfix SAS, est strictement interdite et constitue
               une contrefa&ccedil;on sanctionn&eacute;e par les articles L.&nbsp;335-2 et suivants du CPI,
               passible de 3 ans d&apos;emprisonnement et 300&nbsp;000 &euro; d&apos;amende.
             </p>
@@ -64,7 +64,7 @@ export default function MentionsLegalesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Marque</h2>
             <p>
-              La marque &laquo;&nbsp;VitFix&nbsp;&raquo; et le logo associ&eacute; sont des marques en cours de d&eacute;p&ocirc;t
+              La marque &laquo;&nbsp;Vitfix&nbsp;&raquo; et le logo associ&eacute; sont des marques en cours de d&eacute;p&ocirc;t
               aupr&egrave;s de l&apos;Institut National de la Propri&eacute;t&eacute; Industrielle (INPI).
               Toute utilisation non autoris&eacute;e est susceptible de constituer une contrefaçon.
             </p>
@@ -73,15 +73,15 @@ export default function MentionsLegalesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Limitation de responsabilit&eacute;</h2>
             <p>
-              VitFix agit en tant qu&apos;interm&eacute;diaire technique de mise en relation entre clients et artisans,
+              Vitfix agit en tant qu&apos;interm&eacute;diaire technique de mise en relation entre clients et artisans,
               au sens de la loi n&deg;&nbsp;2004-575 du 21&nbsp;juin&nbsp;2004 (LCEN).
-              VitFix ne saurait &ecirc;tre tenu responsable des prestations r&eacute;alis&eacute;es par les artisans
+              Vitfix ne saurait &ecirc;tre tenu responsable des prestations r&eacute;alis&eacute;es par les artisans
               r&eacute;f&eacute;renc&eacute;s sur la Plateforme, ni des dommages directs ou indirects li&eacute;s &agrave;
               l&apos;utilisation du site.
             </p>
             <p className="mt-3">
-              VitFix s&apos;efforce de maintenir l&apos;exactitude des informations publi&eacute;es sur le site.
-              Toutefois, VitFix ne peut garantir l&apos;exactitude, l&apos;exhaustivit&eacute; et l&apos;actualit&eacute; des
+              Vitfix s&apos;efforce de maintenir l&apos;exactitude des informations publi&eacute;es sur le site.
+              Toutefois, Vitfix ne peut garantir l&apos;exactitude, l&apos;exhaustivit&eacute; et l&apos;actualit&eacute; des
               informations diffus&eacute;es et d&eacute;cline toute responsabilit&eacute; pour d&eacute;faut d&apos;exactitude,
               d&apos;exhaustivit&eacute; ou d&apos;actualit&eacute; des informations.
             </p>
@@ -90,10 +90,10 @@ export default function MentionsLegalesPage() {
           <section>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Liens hypertextes</h2>
             <p>
-              Le site VitFix peut contenir des liens vers des sites tiers. VitFix n&apos;exerce aucun contr&ocirc;le
+              Le site Vitfix peut contenir des liens vers des sites tiers. Vitfix n&apos;exerce aucun contr&ocirc;le
               sur ces sites et d&eacute;cline toute responsabilit&eacute; quant &agrave; leur contenu ou leurs pratiques.
               La cr&eacute;ation de liens hypertextes vers le site vitfix.fr n&eacute;cessite une autorisation
-              pr&eacute;alable &eacute;crite de VitFix SAS.
+              pr&eacute;alable &eacute;crite de Vitfix SAS.
             </p>
           </section>
 

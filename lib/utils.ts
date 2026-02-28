@@ -21,3 +21,17 @@ export function formatDate(date: string) {
     dateStyle: 'long'
   }).format(new Date(date))
 }
+
+/**
+ * Génère un slug URL-safe depuis un nom (company_name)
+ * "Lepore Sebastien" → "leporesebastien"
+ * "Électricité Martin & Fils" → "electricitemartinfils"
+ */
+export function generateSlug(name: string): string {
+  return name
+    .normalize('NFD')                     // décompose les accents
+    .replace(/[\u0300-\u036f]/g, '')      // supprime les diacritiques
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')            // garde uniquement alphanumérique
+    .substring(0, 50)                     // max 50 chars
+}

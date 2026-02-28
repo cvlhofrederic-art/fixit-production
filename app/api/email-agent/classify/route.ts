@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { callGroqWithRetry } from '@/lib/groq'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -12,7 +13,7 @@ export interface EmailClassification {
   reponse_suggeree: string | null
 }
 
-const SYSTEM_PROMPT = `Tu es Max, assistant IA expert en gestion de copropriété pour VitFix Pro.
+const SYSTEM_PROMPT = `Tu es Max, assistant IA expert en gestion de copropriété pour Vitfix Pro.
 Analyse cet email reçu par un syndic/gestionnaire de copropriété et retourne UNIQUEMENT un objet JSON valide, sans markdown, sans texte avant ou après.
 
 Format de réponse JSON strict :
@@ -69,31 +70,21 @@ ${(body || '').substring(0, 800)}`
       return NextResponse.json({ classification: getFallbackClassification(subject || '', body || '') })
     }
 
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant', // 8B : rapide et suffisant pour classification
+    let groqData: any
+    try {
+      groqData = await callGroqWithRetry({
+        model: 'llama-3.1-8b-instant',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: `Analyse cet email et retourne uniquement le JSON :\n\n${emailContent}` },
         ],
-        temperature: 0.1, // Très déterministe pour JSON structuré
+        temperature: 0.1,
         max_tokens: 500,
         response_format: { type: 'json_object' },
-      }),
-    })
-
-    if (!groqRes.ok) {
-      const errText = await groqRes.text()
-      console.error('Groq classify error:', groqRes.status, errText)
+      }, { fallbackModel: 'llama-3.1-8b-instant' })
+    } catch {
       return NextResponse.json({ classification: getFallbackClassification(subject || '', body || '') })
     }
-
-    const groqData = await groqRes.json()
     const rawContent = groqData.choices?.[0]?.message?.content || '{}'
 
     let classification: EmailClassification

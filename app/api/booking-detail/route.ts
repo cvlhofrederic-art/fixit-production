@@ -39,13 +39,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Booking not found' }, { status: 404 })
   }
 
-  // IDOR check : seul l'artisan ou le client concerné peut voir ce booking
-  if (data.artisan_id !== user.id && data.client_id !== user.id) {
-    // Vérifier si c'est un syndic avec accès (via syndic_id sur le booking)
-    const isSyndicOwner = data.syndic_id && data.syndic_id === user.id
-    if (!isSyndicOwner) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
-    }
+  // IDOR check : seul l'artisan, le client ou le syndic concerné peut voir ce booking
+  // Note : artisan_id = profil artisan (pas user.id), donc on doit vérifier via profiles_artisan
+  let canAccess = false
+
+  // 1. Vérifier si l'utilisateur est le client
+  if (data.client_id === user.id) {
+    canAccess = true
+  }
+
+  // 2. Vérifier si l'utilisateur est l'artisan (artisan_id = profil ID, pas user.id)
+  if (!canAccess) {
+    const { data: artisanProfile } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('id', data.artisan_id)
+      .single()
+    if (artisanProfile) canAccess = true
+  }
+
+  // 3. Vérifier si l'utilisateur est le syndic
+  if (!canAccess && data.syndic_id && data.syndic_id === user.id) {
+    canAccess = true
+  }
+
+  if (!canAccess) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
   return NextResponse.json({ data })

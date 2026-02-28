@@ -1,143 +1,442 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase-server'
+import { TOOLS, buildToolDescriptions, type ToolResult } from './tools'
+import { callGroqWithRetry } from '@/lib/groq'
+import crypto from 'crypto'
+import { getAuthUser, unauthorizedResponse, verifyArtisanOwnership } from '@/lib/auth-helpers'
+import { fixyAiSchema, validateBody } from '@/lib/validation'
 
-// Fixy AI — Traitement intelligent des messages via Groq (gratuit, Llama 3)
-// L'IA comprend le langage naturel et extrait les données structurées
+export const maxDuration = 30
+
+// ── Fixy AI v2 — Assistant IA avec exécution d'actions serveur ────────────────
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
-type ClientInfo = {
-  name: string
-  email: string
-  phone: string
-  address: string
-  siret: string
+// ── Rate limiting (in-memory, per artisan) ───────────────────────────────────
+const rateLimits = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT = 30 // max requests per window
+const RATE_WINDOW = 60_000 // 1 minute
+
+function checkRateLimit(artisanId: string): boolean {
+  const now = Date.now()
+  const entry = rateLimits.get(artisanId)
+  if (!entry || entry.resetAt < now) {
+    rateLimits.set(artisanId, { count: 1, resetAt: now + RATE_WINDOW })
+    return true
+  }
+  if (entry.count >= RATE_LIMIT) return false
+  entry.count++
+  return true
 }
 
+// Cleanup rate limits every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of rateLimits) {
+    if (entry.resetAt < now) rateLimits.delete(key)
+  }
+}, 300_000)
+
+// ── Pending confirmations (in-memory, TTL 5min) ─────────────────────────────
+const pendingConfirmations = new Map<string, {
+  tool: string
+  params: Record<string, unknown>
+  artisanId: string
+  expiresAt: number
+}>()
+
+// Cleanup expired tokens every 2 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [token, data] of pendingConfirmations) {
+    if (data.expiresAt < now) pendingConfirmations.delete(token)
+  }
+}, 120_000)
+
+// ── Day names for prompt ────────────────────────────────────────────────────
+const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+
+// ── Build system prompt ─────────────────────────────────────────────────────
+function buildSystemPrompt(context: any): string {
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  const dayName = DAY_NAMES[today.getDay()]
+
+  // Services
+  const serviceLines = (context.services || []).map((s: any) =>
+    `- ID:${s.id} | ${s.name} | ${s.active ? 'ACTIF' : 'INACTIF'} | ${s.price_ttc ? s.price_ttc + '€' : 'prix libre'} | ${s.duration_minutes || 60}min`
+  ).join('\n') || '(Aucun)'
+
+  // Availability
+  const availLines = [0, 1, 2, 3, 4, 5, 6].map(d => {
+    const slot = (context.availability || []).find((a: any) => a.day_of_week === d)
+    const linked = (context.dayServices || {})[String(d)]
+    const linkedNames = linked?.length
+      ? linked.map((sid: string) => {
+          const svc = (context.services || []).find((s: any) => s.id === sid)
+          return svc?.name || sid.substring(0, 8)
+        }).join(', ')
+      : 'aucun'
+    if (!slot) return `${DAY_NAMES[d]}: NON CONFIGURÉ | Services: ${linkedNames}`
+    return `${DAY_NAMES[d]}: ${slot.is_available ? `OUVERT ${slot.start_time?.substring(0, 5)}-${slot.end_time?.substring(0, 5)}` : 'FERMÉ'} | Services liés: ${linkedNames}`
+  }).join('\n')
+
+  // Bookings
+  const bookingLines = (context.bookings || []).slice(0, 10).map((b: any) =>
+    `- ID:${b.id} | ${b.booking_date} ${(b.booking_time || '').substring(0, 5)} | ${b.service_name || 'Intervention'} | ${b.client_name || 'Inconnu'} | ${b.status}`
+  ).join('\n') || '(Aucun)'
+
+  // Clients
+  const clientLines = (context.clients || []).slice(0, 20).map((c: any) =>
+    `- ${c.name}${c.phone ? ` (${c.phone})` : ''}${c.email ? ` [${c.email}]` : ''}`
+  ).join('\n') || '(Aucun)'
+
+  // Tool descriptions
+  const toolDesc = buildToolDescriptions()
+
+  return `Tu es Fixy, l'assistant IA de ${context.artisan_name || "l'artisan"} sur Vitfix.
+Tu es un robot efficace 🔧, amical et HONNÊTE. Tu parles français.
+
+📅 Aujourd'hui : ${dayName} ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} (${todayStr})
+
+═══ MODULES ACCESSIBLES ═══
+Tu as accès à TOUS les modules du dashboard artisan :
+- 📅 RDV/Agenda : créer, confirmer, annuler, reprogrammer, détails
+- ⏰ Disponibilités : jours, horaires, services liés
+- 🔧 Motifs/Services : créer, modifier, activer/désactiver, supprimer, lier aux jours
+- 👥 Clients : liste complète, détails, historique RDV, CA par client
+- 💬 Messages : lire et envoyer des messages dans les RDV
+- 💰 Comptabilité : CA par période, données URSSAF, déclaration trimestrielle
+- 📄 Devis/Factures : créer via formulaire client
+- 🏢 Infos entreprise : SIRET, forme juridique, adresse, NAF
+- ⚙️ Paramètres : message auto-réponse, durée blocage auto
+- 🧭 Navigation : ouvrir n'importe quelle page du dashboard
+
+═══ ÉTAT ACTUEL DE L'ARTISAN ═══
+
+SERVICES/MOTIFS :
+${serviceLines}
+
+DISPONIBILITÉS :
+${availLines}
+
+PROCHAINS RDV :
+${bookingLines}
+
+CLIENTS :
+${clientLines}
+
+═══ OUTILS DISPONIBLES ═══
+${toolDesc}
+
+═══ RÈGLES CRITIQUES ═══
+
+1. TOLÉRANCE ORTHOGRAPHIQUE : L'artisan écrit souvent mal le français.
+   "activ tout mes motif" = "active tous mes motifs"
+   "met mon lundi de 9 a 18" = "mets lundi de 9h à 18h"
+   "desactiv le samdi" = "désactive le samedi"
+   "c koi mes dispo" = "c'est quoi mes disponibilités"
+   "conbien jai gagner" = "combien j'ai gagné"
+   Comprends le SENS, pas l'orthographe.
+
+2. HONNÊTETÉ ABSOLUE : Si tu retournes un tableau "actions" vide, NE DIS PAS "c'est fait".
+   Tu peux UNIQUEMENT dire "c'est fait" si tu as des actions dans le tableau.
+   Si tu ne peux pas faire quelque chose → dis-le clairement.
+
+3. MULTI-ÉTAPES : Pour "active tous mes services sur toutes mes plages" :
+   actions: [
+     { "tool": "toggle_service_active", "params": { "service_id": "all", "active": true } },
+     { "tool": "link_services_to_days", "params": { "day_of_week": "all", "service_ids": "all", "mode": "set" } }
+   ]
+
+4. CONFIRMATION : Les outils marqués ⚠️ (delete_service, cancel_booking) doivent aller dans "pending_confirmation" et PAS dans "actions".
+
+5. IDs : Utilise les vrais IDs du contexte ci-dessus. JAMAIS inventer un ID.
+
+6. DATES RELATIVES : "demain" = jour après ${todayStr}. "lundi" = prochain lundi.
+   "la semaine prochaine" = semaine qui commence lundi prochain.
+
+7. create_devis / create_facture : retourne-les dans "client_actions" car c'est le client qui ouvre le formulaire.
+
+8. NAVIGATION : "ouvre la comptabilité", "va aux factures", "montre mes stats" → actions: [{ "tool": "navigate_to", "params": { "page": "..." } }]
+   Le résultat de navigate_to sera automatiquement converti en client_action navigate.
+
+9. FORMAT RÉPONSE — JSON valide, structure EXACTE :
+{
+  "actions": [
+    { "tool": "nom_outil", "params": { ... } }
+  ],
+  "response": "Ta réponse naturelle (courte, avec emojis et **gras**)",
+  "client_actions": [
+    { "type": "open_devis_form", "data": { ... } }
+  ],
+  "pending_confirmation": null
+}
+
+Si action destructive :
+{
+  "actions": [],
+  "response": "Tu veux vraiment annuler ce RDV ?",
+  "client_actions": [],
+  "pending_confirmation": {
+    "tool": "cancel_booking",
+    "params": { "booking_id": "xxx" },
+    "description": "Annuler le RDV du 15 mars avec Dupont"
+  }
+}
+
+EXEMPLES :
+- "mes dispos" → actions: [{ "tool": "list_availability" }]
+- "active le mardi" → actions: [{ "tool": "set_day_availability", "params": { "day_of_week": 2, "is_available": true } }]
+- "active tous mes motifs sur mes plages" → actions multiples toggle_service_active + link_services_to_days
+- "fait un devis pour dupont 500€ élagage" → client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Dupont", ... } }]
+- "confirme le rdv de demain" → cherche le booking_id dans le contexte, puis actions: [{ "tool": "confirm_booking", ... }]
+- "met le prix de plomberie à 80€" → actions: [{ "tool": "update_service", "params": { "service_id": "...", "price_ttc": 80, "price_ht": 66.67 } }]
+- "déplace le rdv de demain à vendredi 10h" → actions: [{ "tool": "reschedule_booking", "params": { "booking_id": "...", "new_date": "...", "new_time": "10:00" } }]
+- "combien j'ai gagné ce mois" → actions: [{ "tool": "get_revenue_summary", "params": { "period": "month" } }]
+- "ma liste de clients" → actions: [{ "tool": "list_clients" }]
+- "les messages du rdv de dupont" → actions: [{ "tool": "list_booking_messages", "params": { "booking_id": "..." } }]
+- "envoie un message : on arrive à 14h" → actions: [{ "tool": "send_booking_message", "params": { "booking_id": "...", "content": "On arrive à 14h" } }]
+- "ma déclaration URSSAF" → actions: [{ "tool": "get_quarterly_data" }]
+- "mon SIRET" → actions: [{ "tool": "get_company_info" }]
+- "ouvre la comptabilité" → actions: [{ "tool": "navigate_to", "params": { "page": "comptabilite" } }]
+
+NE JAMAIS inclure de texte avant ou après le JSON.`
+}
+
+// ── Main POST handler ───────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { message, clients, services, bookings, artisanName } = body
+    const validation = validateBody(fixyAiSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+    const { message, artisan_id, context, conversation_history } = validation.data
 
-    if (!message) {
-      return NextResponse.json({ error: 'Message requis' }, { status: 400 })
+    // ── Auth: verify Bearer token and artisan ownership ──
+    const user = await getAuthUser(request)
+    if (!user) return unauthorizedResponse()
+
+    const verified = await verifyArtisanOwnership(user.id, artisan_id, supabaseAdmin)
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden: artisan_id mismatch' }, { status: 403 })
+    }
+
+    if (!checkRateLimit(artisan_id)) {
+      return NextResponse.json({ success: false, response: 'Tu vas trop vite ! Attends un peu avant de renvoyer un message.', actions_executed: [], client_actions: [] })
     }
 
     if (!GROQ_API_KEY) {
-      // Fallback: retourner un parsing basique si pas de clé API
-      return NextResponse.json({ error: 'GROQ_API_KEY non configurée', fallback: true })
+      return NextResponse.json({ success: false, response: 'Service IA indisponible. Réessaie plus tard.', actions_executed: [], client_actions: [] })
     }
 
-    // Construire le contexte pour l'IA
-    const clientList = (clients || []).map((c: ClientInfo) =>
-      `- ${c.name}${c.phone ? ` (Tél: ${c.phone})` : ''}${c.email ? ` (Email: ${c.email})` : ''}${c.address ? ` (Adresse: ${c.address})` : ''}${c.siret ? ` (SIRET: ${c.siret})` : ''}`
-    ).join('\n')
+    // Build system prompt with full context
+    const systemPrompt = buildSystemPrompt(context || {})
 
-    const serviceList = (services || []).map((s: any) =>
-      `- ${s.name}: ${s.price_ttc ? s.price_ttc + '€ TTC' : 'prix libre'}${s.duration_minutes ? ` (${s.duration_minutes} min)` : ''}`
-    ).join('\n')
+    // Build conversation messages
+    const messages: Array<{ role: string; content: string }> = [
+      { role: 'system', content: systemPrompt },
+    ]
+    // Add conversation history (last 12 messages = ~6 turns)
+    if (conversation_history && Array.isArray(conversation_history)) {
+      for (const m of conversation_history.slice(-12)) {
+        messages.push({ role: m.role, content: m.content })
+      }
+    }
+    messages.push({ role: 'user', content: message })
 
-    const upcomingBookings = (bookings || [])
-      .filter((b: any) => b.booking_date >= new Date().toISOString().split('T')[0] && b.status !== 'cancelled')
-      .slice(0, 10)
-      .map((b: any) => {
-        const notes = b.notes || ''
-        const clientMatch = notes.match(/Client:\s*([^|.]+)/)
-        const clientName = clientMatch ? clientMatch[1].trim() : 'Client inconnu'
-        return `- ${b.booking_date} à ${b.booking_time?.substring(0, 5) || '?'}: ${b.services?.name || 'Intervention'} avec ${clientName} (${b.status})`
-      }).join('\n')
-
-    const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
-    const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
-    const todayDayName = dayNames[today.getDay()]
-
-    const systemPrompt = `Tu es Fixy, l'assistant IA personnel de ${artisanName || "l'artisan"} sur la plateforme Fixit.
-Tu es un petit robot sympa avec une clé à molette 🔧. Tu parles en français, tu es efficace et amical.
-
-📅 Aujourd'hui c'est ${todayDayName} ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.
-
-Tu dois analyser le message de l'artisan et extraire les informations structurées.
-
-CLIENTS DE L'ARTISAN :
-${clientList || '(Aucun client enregistré)'}
-
-SERVICES/MOTIFS DE L'ARTISAN :
-${serviceList || '(Aucun service configuré)'}
-
-PROCHAINS RDV :
-${upcomingBookings || '(Aucun RDV à venir)'}
-
-IMPORTANT - Tu dois TOUJOURS répondre en JSON valide avec cette structure exacte :
-{
-  "intent": "create_rdv" | "create_devis" | "create_facture" | "list_rdv" | "help" | "chat",
-  "data": {
-    "clientName": "nom complet du client si mentionné",
-    "clientMatch": true/false (si le client a été trouvé dans la base clients),
-    "clientEmail": "email du client si trouvé dans la base",
-    "clientPhone": "téléphone du client si trouvé dans la base",
-    "clientAddress": "adresse du client si trouvé dans la base",
-    "clientSiret": "siret du client si trouvé dans la base",
-    "date": "YYYY-MM-DD si mentionné",
-    "time": "HH:MM si mentionné",
-    "service": "nom du service/motif",
-    "amount": nombre en euros TTC si mentionné,
-    "address": "adresse de l'intervention si mentionné",
-    "description": "description libre de la prestation"
-  },
-  "response": "Ta réponse naturelle à l'artisan (avec **gras** pour les infos importantes, courte et efficace)",
-  "needsConfirmation": true/false (si tu as assez d'infos pour agir),
-  "missingFields": ["liste des champs manquants si needed"]
-}
-
-RÈGLES :
-1. Si l'artisan mentionne un client, cherche TOUJOURS dans la base clients (par nom, même partiel/approximatif).
-2. Si le client est trouvé, remplis TOUTES ses infos (email, phone, address, siret).
-3. Pour les dates relatives : "demain" = lendemain de ${todayStr}, "mardi" = prochain mardi, etc.
-4. Pour les montants : "150€" ou "150 euros" = amount: 150 (TTC).
-5. "motif élagage" ou "pour élagage" = service: "Élagage".
-6. Si un "motif" est donné mais ne correspond à aucun service existant, utilise-le tel quel comme nom de service.
-7. Sois toujours positif et utilise des emojis.
-8. Pour "help", "aide", "bonjour" → intent: "help".
-9. Pour une question ou conversation générale → intent: "chat".
-10. NE JAMAIS inclure de texte avant ou après le JSON.`
-
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message },
-        ],
-        temperature: 0.3,
-        max_tokens: 1024,
+    // Call Groq API with retry
+    let groqData: any
+    try {
+      groqData = await callGroqWithRetry({
+        messages,
+        temperature: 0.2,
+        max_tokens: 3000,
         response_format: { type: 'json_object' },
-      }),
-    })
-
-    if (!groqResponse.ok) {
-      const errText = await groqResponse.text()
-      console.error('Groq API error:', groqResponse.status, errText)
-      return NextResponse.json({ error: 'Erreur API IA', fallback: true })
+      })
+    } catch {
+      return NextResponse.json({ success: false, response: 'Erreur IA temporaire. Réessaie dans quelques instants.', actions_executed: [], client_actions: [] })
     }
-
-    const groqData = await groqResponse.json()
     const content = groqData.choices?.[0]?.message?.content || ''
 
-    try {
-      const parsed = JSON.parse(content)
-      return NextResponse.json({ success: true, ...parsed })
-    } catch {
+    let parsed: any
+    try { parsed = JSON.parse(content) } catch {
       console.error('Failed to parse Groq response:', content)
-      return NextResponse.json({ error: 'Réponse IA invalide', fallback: true, raw: content })
+      return NextResponse.json({ success: false, response: 'Je n\'ai pas bien compris. Reformule ?', actions_executed: [], client_actions: [] })
     }
+
+    // ── EXECUTION PHASE ──────────────────────────────────────────────────
+    const actionsExecuted: Array<{ tool: string; result: string; detail: string }> = []
+    let pendingConf = null
+
+    // Handle pending_confirmation from AI
+    if (parsed.pending_confirmation && parsed.pending_confirmation.tool) {
+      const pc = parsed.pending_confirmation
+      const toolDef = TOOLS[pc.tool]
+      if (toolDef && toolDef.requiresConfirmation) {
+        const token = crypto.randomUUID()
+        pendingConfirmations.set(token, {
+          tool: pc.tool,
+          params: pc.params || {},
+          artisanId: artisan_id,
+          expiresAt: Date.now() + 5 * 60 * 1000,
+        })
+        pendingConf = {
+          tool: pc.tool,
+          params: pc.params || {},
+          description: pc.description || `Exécuter ${pc.tool}`,
+          confirm_token: token,
+        }
+      }
+    }
+
+    // Execute non-destructive actions
+    const actions = Array.isArray(parsed.actions) ? parsed.actions : []
+    for (const action of actions) {
+      const toolName = action.tool
+      const toolDef = TOOLS[toolName]
+
+      if (!toolDef) {
+        actionsExecuted.push({ tool: toolName, result: 'error', detail: `Outil "${toolName}" inconnu` })
+        continue
+      }
+
+      // If tool needs confirmation but AI put it in actions, move to pending
+      if (toolDef.requiresConfirmation) {
+        if (!pendingConf) {
+          const token = crypto.randomUUID()
+          pendingConfirmations.set(token, {
+            tool: toolName,
+            params: action.params || {},
+            artisanId: artisan_id,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+          })
+          pendingConf = {
+            tool: toolName,
+            params: action.params || {},
+            description: `Exécuter ${toolName}`,
+            confirm_token: token,
+          }
+        }
+        continue
+      }
+
+      // Execute the tool
+      try {
+        const result: ToolResult = await toolDef.execute(action.params || {}, artisan_id)
+        actionsExecuted.push({
+          tool: toolName,
+          result: result.success ? 'success' : 'error',
+          detail: result.detail,
+        })
+      } catch (execErr: any) {
+        actionsExecuted.push({
+          tool: toolName,
+          result: 'error',
+          detail: `Erreur d'exécution : ${execErr.message || 'inconnue'}`,
+        })
+      }
+    }
+
+    // Build client_actions array
+    const clientActions = Array.isArray(parsed.client_actions) ? parsed.client_actions : []
+
+    // Also handle legacy intents: if AI returns create_devis/create_facture as action
+    for (const action of actions) {
+      if (action.tool === 'create_devis' || action.tool === 'create_facture') {
+        clientActions.push({
+          type: action.tool === 'create_devis' ? 'open_devis_form' : 'open_facture_form',
+          data: action.params || {},
+        })
+      }
+    }
+
+    // Handle navigate_to results → push as client_action navigate
+    for (const exec of actionsExecuted) {
+      if (exec.tool === 'navigate_to' && exec.result === 'success') {
+        // Extract page from the detail (format: "Navigation vers pageName")
+        const pageMatch = exec.detail.match(/Navigation vers\s+(\S+)/)
+        if (pageMatch) {
+          clientActions.push({ type: 'navigate', page: pageMatch[1] })
+        }
+      }
+    }
+
+    // If any actions were executed, ask client to refresh data
+    if (actionsExecuted.some(a => a.result === 'success')) {
+      clientActions.push({ type: 'refresh_data' })
+    }
+
+    return NextResponse.json({
+      success: true,
+      response: parsed.response || 'Action effectuée.',
+      actions_executed: actionsExecuted,
+      pending_confirmation: pendingConf,
+      client_actions: clientActions,
+    })
 
   } catch (error: any) {
     console.error('Fixy AI error:', error)
-    return NextResponse.json({ error: error.message || 'Erreur serveur', fallback: true })
+    return NextResponse.json({
+      success: false,
+      response: 'Oups, une erreur est survenue. Réessaie !',
+      actions_executed: [],
+      client_actions: [],
+    })
+  }
+}
+
+// ── GET: Confirm pending action ─────────────────────────────────────────────
+// Using GET with query params for simplicity (called from client)
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { artisan_id, confirm_token, confirmed } = body
+
+    if (!confirm_token) {
+      return NextResponse.json({ error: 'confirm_token requis' }, { status: 400 })
+    }
+
+    // ── Auth: verify Bearer token and artisan ownership ──
+    const user = await getAuthUser(request)
+    if (!user) return unauthorizedResponse()
+
+    const verified = await verifyArtisanOwnership(user.id, artisan_id, supabaseAdmin)
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden: artisan_id mismatch' }, { status: 403 })
+    }
+
+    const pending = pendingConfirmations.get(confirm_token)
+    if (!pending) {
+      return NextResponse.json({ success: false, detail: 'Action expirée ou déjà traitée.' })
+    }
+
+    if (pending.artisanId !== artisan_id) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
+
+    pendingConfirmations.delete(confirm_token)
+
+    if (!confirmed) {
+      return NextResponse.json({ success: true, detail: 'Action annulée.' })
+    }
+
+    // Execute the tool
+    const toolDef = TOOLS[pending.tool]
+    if (!toolDef) {
+      return NextResponse.json({ success: false, detail: `Outil "${pending.tool}" introuvable.` })
+    }
+
+    const result = await toolDef.execute(pending.params, pending.artisanId)
+    return NextResponse.json({
+      success: result.success,
+      detail: result.detail,
+      tool: pending.tool,
+    })
+
+  } catch (error: any) {
+    console.error('Fixy confirm error:', error)
+    return NextResponse.json({ success: false, detail: 'Erreur serveur' }, { status: 500 })
   }
 }

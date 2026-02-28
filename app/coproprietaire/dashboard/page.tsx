@@ -500,12 +500,12 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${statutCfg[i.statut].bg} ${statutCfg[i.statut].color}`}>
                     {statutCfg[i.statut].emoji} {statutCfg[i.statut].label}
                   </span>
-                  {i.gpsEta && <div className="text-[10px] text-gray-400 mt-1">ETA : ~{i.gpsEta} min</div>}
+                  {i.gpsEta && <div className="text-[10px] text-gray-500 mt-1">ETA : ~{i.gpsEta} min</div>}
                 </div>
               </div>
               {/* Progress bar */}
               <div className="mt-3">
-                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
                   <span>Progression</span>
                   <span>{i.progression}%</span>
                 </div>
@@ -537,9 +537,9 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
       {/* Liste interventions */}
       <div className="space-y-3">
         {filtered.length === 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <div className="text-4xl mb-2">🔧</div>
-            <div className="text-sm text-gray-400">Aucune intervention pour ce filtre</div>
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <div className="text-5xl mb-3">🔧</div>
+            <div className="text-sm text-gray-600 font-medium">Aucune intervention pour ce filtre</div>
           </div>
         )}
         {filtered.map(i => {
@@ -548,17 +548,17 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
             <div
               key={i.id}
               onClick={() => setSelected(i)}
-              className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-purple-300 cursor-pointer transition"
+              className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-purple-300 hover:shadow-md cursor-pointer transition-all"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.emoji} {cfg.label}</span>
-                    <span className="text-xs text-gray-400">{new Date(i.dateRdv).toLocaleDateString('fr-FR')} · {i.heureRdv}</span>
+                    <span className="text-xs text-gray-500">{new Date(i.dateRdv).toLocaleDateString('fr-FR')} · {i.heureRdv}</span>
                   </div>
                   <div className="font-semibold text-gray-900">{i.type}</div>
                   <div className="text-sm text-gray-500 truncate">{i.description}</div>
-                  <div className="text-xs text-gray-400 mt-1">👷 {i.artisan}</div>
+                  <div className="text-xs text-gray-500 mt-1">👷 {i.artisan}</div>
                 </div>
                 <div className="flex-shrink-0 flex flex-col items-end gap-2">
                   {i.note && (
@@ -602,7 +602,7 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
                 <h3 className="text-lg font-bold text-gray-900">{selected.type}</h3>
                 <p className="text-sm text-gray-500">{selected.description}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setSelected(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="p-6 space-y-4">
               {/* Statut */}
@@ -617,7 +617,7 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
 
               {/* Artisan */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1 font-medium">ARTISAN</div>
+                <div className="text-xs text-gray-500 mb-1 font-medium">ARTISAN</div>
                 <div className="font-semibold text-gray-900">{selected.artisan}</div>
                 <a href={`tel:${selected.artisanPhone.replace(/\s/g, '')}`} className="text-sm text-purple-600 hover:text-purple-800 font-medium mt-1 inline-block">
                   📞 {selected.artisanPhone}
@@ -626,7 +626,7 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
 
               {/* RDV */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1 font-medium">RDV</div>
+                <div className="text-xs text-gray-500 mb-1 font-medium">RDV</div>
                 <div className="font-semibold text-gray-900">
                   {new Date(selected.dateRdv).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} à {selected.heureRdv}
                 </div>
@@ -657,7 +657,7 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
                       style={{ width: `${selected.progression}%`, backgroundColor: selected.progression === 100 ? '#10b981' : '#8b5cf6' }}
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>Démarrage</span>
                     <span>En cours</span>
                     <span>Terminé</span>
@@ -805,14 +805,14 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="text-xs text-gray-500 font-medium mb-1">Budget annuel</div>
           <div className="text-2xl font-black text-gray-900">{formatPrice(totalBudgetAnnee)}</div>
-          <div className="text-xs text-gray-400 mt-1">Quote-part {profile.quotePart}%</div>
+          <div className="text-xs text-gray-500 mt-1">Quote-part {profile.quotePart}%</div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="text-xs text-gray-500 font-medium mb-1">Réalisé / Budget</div>
           <div className={`text-2xl font-black ${totalReelAnnee > totalBudgetAnnee ? 'text-red-600' : 'text-green-600'}`}>
             {Math.round((totalReelAnnee / totalBudgetAnnee) * 100)}%
           </div>
-          <div className="text-xs text-gray-400 mt-1">{formatPrice(totalReelAnnee)} réel</div>
+          <div className="text-xs text-gray-500 mt-1">{formatPrice(totalReelAnnee)} réel</div>
         </div>
       </div>
 
@@ -844,7 +844,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                       style={{ height: `${h}%`, backgroundColor: color }}
                       title={`${m.mois}: ${formatPrice(m.montant)}`}
                     />
-                    <div className="text-[9px] text-gray-400 font-medium">{m.mois}</div>
+                    <div className="text-[9px] text-gray-500 font-medium">{m.mois}</div>
                   </div>
                 )
               })}
@@ -875,7 +875,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                       />
                     </div>
                   </div>
-                  <div className="text-[10px] text-gray-400 flex-shrink-0 w-8 text-right">
+                  <div className="text-[10px] text-gray-500 flex-shrink-0 w-8 text-right">
                     {Math.round((p.montantAnnuel / totalReelAnnee) * 100)}%
                   </div>
                 </div>
@@ -897,7 +897,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                     <span className="text-2xl">{p.emoji}</span>
                     <div>
                       <div className="font-semibold text-gray-900 text-sm">{p.label}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">Budget : {formatPrice(p.budget)} · Réel : {formatPrice(p.montantAnnuel)}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">Budget : {formatPrice(p.budget)} · Réel : {formatPrice(p.montantAnnuel)}</div>
                     </div>
                   </div>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${over ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
@@ -914,7 +914,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                       }}
                     />
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-1">{Math.round((p.montantAnnuel / p.budget) * 100)}% du budget consommé</div>
+                  <div className="text-[10px] text-gray-500 mt-1">{Math.round((p.montantAnnuel / p.budget) * 100)}% du budget consommé</div>
                 </div>
               </div>
             )
@@ -941,7 +941,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                     </div>
                     <div className="text-right">
                       <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatPrice(Math.abs(p.montant))}</div>
-                      <div className={`text-[10px] font-bold mt-0.5 ${urgent ? 'text-red-600' : 'text-gray-400'}`}>
+                      <div className={`text-[10px] font-bold mt-0.5 ${urgent ? 'text-red-600' : 'text-gray-500'}`}>
                         {urgent ? `⚠️ J-${daysLeft}` : `J-${daysLeft}`}
                       </div>
                     </div>
@@ -1106,19 +1106,19 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="text-xs text-gray-500 font-medium mb-1">Loyer mensuel</div>
           <div className="text-2xl font-black text-gray-900">{formatPrice(BAIL_DEMO.loyerBase + BAIL_DEMO.charges)}</div>
-          <div className="text-xs text-gray-400 mt-1">{formatPrice(BAIL_DEMO.loyerBase)} + {formatPrice(BAIL_DEMO.charges)} charges</div>
+          <div className="text-xs text-gray-500 mt-1">{formatPrice(BAIL_DEMO.loyerBase)} + {formatPrice(BAIL_DEMO.charges)} charges</div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
           <div className="text-xs text-gray-500 font-medium mb-1">Total {anneeFilter}</div>
           <div className="text-2xl font-black text-purple-600">{formatPrice(totalAnnee)}</div>
-          <div className="text-xs text-gray-400 mt-1">{filtered.length} quittance{filtered.length > 1 ? 's' : ''}</div>
+          <div className="text-xs text-gray-500 mt-1">{filtered.length} quittance{filtered.length > 1 ? 's' : ''}</div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm col-span-2 md:col-span-1">
           <div className="text-xs text-gray-500 font-medium mb-1">Prochaine révision</div>
           <div className="text-xl font-black text-amber-600">
             {new Date(BAIL_DEMO.prochaineRevision).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
           </div>
-          <div className="text-xs text-gray-400 mt-1">Indice IRL</div>
+          <div className="text-xs text-gray-500 mt-1">Indice IRL</div>
         </div>
       </div>
 
@@ -1144,7 +1144,7 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
               </div>
               <div className="min-w-0">
                 <div className="font-semibold text-gray-900">{moisLabel(q.mois)}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{q.reference} · Émise le {new Date(q.dateEmission).toLocaleDateString('fr-FR')}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{q.reference} · Émise le {new Date(q.dateEmission).toLocaleDateString('fr-FR')}</div>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -1317,26 +1317,26 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div className="space-y-2">
             <div className="flex items-start gap-2">
-              <span className="text-gray-400 w-5 flex-shrink-0">🏢</span>
-              <div><div className="text-xs text-gray-400">Bailleur</div><div className="font-semibold">{bail.bailleur}</div></div>
+              <span className="text-gray-500 w-5 flex-shrink-0">🏢</span>
+              <div><div className="text-xs text-gray-500">Bailleur</div><div className="font-semibold">{bail.bailleur}</div></div>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-gray-400 w-5 flex-shrink-0">📍</span>
-              <div><div className="text-xs text-gray-400">Adresse</div><div className="font-semibold">{bail.bailleurAdresse}</div></div>
+              <span className="text-gray-500 w-5 flex-shrink-0">📍</span>
+              <div><div className="text-xs text-gray-500">Adresse</div><div className="font-semibold">{bail.bailleurAdresse}</div></div>
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-start gap-2">
-              <span className="text-gray-400 w-5 flex-shrink-0">📞</span>
+              <span className="text-gray-500 w-5 flex-shrink-0">📞</span>
               <div>
-                <div className="text-xs text-gray-400">Téléphone</div>
+                <div className="text-xs text-gray-500">Téléphone</div>
                 <a href={`tel:${bail.bailleurPhone.replace(/\s/g, '')}`} className="font-semibold text-purple-600 hover:text-purple-800">{bail.bailleurPhone}</a>
               </div>
             </div>
             {bail.agence && (
               <div className="flex items-start gap-2">
-                <span className="text-gray-400 w-5 flex-shrink-0">🏪</span>
-                <div><div className="text-xs text-gray-400">Agence</div><div className="font-semibold">{bail.agence}</div></div>
+                <span className="text-gray-500 w-5 flex-shrink-0">🏪</span>
+                <div><div className="text-xs text-gray-500">Agence</div><div className="font-semibold">{bail.agence}</div></div>
               </div>
             )}
           </div>
@@ -1812,7 +1812,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
       <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gray-900 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
         {/* Logo */}
         <div className="p-4 border-b border-gray-800 flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white transition flex-shrink-0">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-white transition flex-shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -1821,7 +1821,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-lg">⚡</span>
-                <span className="font-bold text-[#FFC107] text-sm">VitFix</span>
+                <span className="font-bold text-[#FFC107] text-sm">Vitfix</span>
                 <span className="text-purple-400 font-bold text-sm">Copro</span>
               </div>
               <p className="text-xs text-gray-500 truncate">{profile.immeuble}</p>
@@ -1840,7 +1840,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
                   page === item.id
                     ? 'bg-purple-600 text-white'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                    : 'text-gray-500 hover:bg-gray-800 hover:text-white'
                 }`}
               >
                 <span className="text-lg flex-shrink-0">{item.emoji}</span>
@@ -1892,7 +1892,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
           </div>
           <div className="flex items-center gap-3">
             {notifNonLues > 0 && (
-              <button onClick={() => setPage('accueil')} className="relative p-2 text-gray-400 hover:text-purple-600 transition" title="Notifications">
+              <button onClick={() => setPage('accueil')} className="relative p-2 text-gray-500 hover:text-purple-600 transition" title="Notifications">
                 <span className="text-xl">🔔</span>
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-purple-600 text-white text-xs rounded-full flex items-center justify-center font-bold">
                   {notifNonLues}
@@ -2014,7 +2014,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                             {!n.lu && <span className="w-2 h-2 bg-purple-600 rounded-full flex-shrink-0" />}
                           </div>
                           <p className="text-xs text-gray-500 truncate">{n.message}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{new Date(n.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{new Date(n.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                       </div>
                     ))}
@@ -2109,7 +2109,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       </div>
                       <h3 className="text-sm font-bold text-gray-900 mb-1">{doc.nom}</h3>
                       <p className="text-xs text-gray-500 mb-1">{DOC_TYPE_LABELS[doc.type]?.label} · {doc.annee}</p>
-                      <p className="text-xs text-gray-400 mb-3">{doc.taille} · Ajouté le {formatDate(doc.dateUpload)}</p>
+                      <p className="text-xs text-gray-500 mb-3">{doc.taille} · Ajouté le {formatDate(doc.dateUpload)}</p>
                       {doc.consulte && doc.dateConsultation && (
                         <p className="text-xs text-green-600 mb-3">✓ Consulté le {formatDate(doc.dateConsultation)}</p>
                       )}
@@ -2237,7 +2237,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                             }`}>
                               {p.statut === 'payee' ? '✓ Payé' : p.statut === 'en_retard' ? '⚠ En retard' : '⏳ En attente'}
                             </span>
-                            {p.datePaiement && <p className="text-xs text-gray-400 mt-1">le {formatDate(p.datePaiement)}</p>}
+                            {p.datePaiement && <p className="text-xs text-gray-500 mt-1">le {formatDate(p.datePaiement)}</p>}
                           </td>
                           <td className="px-5 py-3 text-right">
                             {p.statut === 'payee' && (
@@ -2281,11 +2281,11 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       </span>
                       {!a.lu && <span className="w-2 h-2 bg-purple-600 rounded-full" />}
                     </div>
-                    <span className="text-xs text-gray-400">{formatDate(a.date)}</span>
+                    <span className="text-xs text-gray-500">{formatDate(a.date)}</span>
                   </div>
                   <h3 className={`text-sm mb-2 ${!a.lu ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>{a.titre}</h3>
                   <p className="text-sm text-gray-600 leading-relaxed">{a.contenu}</p>
-                  <p className="text-xs text-gray-400 mt-3">Par {a.auteur}</p>
+                  <p className="text-xs text-gray-500 mt-3">Par {a.auteur}</p>
                 </div>
               ))}
             </div>
@@ -2414,7 +2414,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       📤 Envoyer le signalement au syndic
                     </button>
 
-                    <p className="text-xs text-gray-400 text-center">
+                    <p className="text-xs text-gray-500 text-center">
                       Votre signalement sera transmis à votre gestionnaire de copropriété.
                     </p>
                   </div>
@@ -2573,7 +2573,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                                     </div>
                                     <span className="text-xs font-medium text-gray-700 w-10 text-right">{pctAbst}%</span>
                                   </div>
-                                  <p className="text-xs text-gray-400">Total : {totalVotes.toLocaleString('fr-FR')} tantièmes exprimés</p>
+                                  <p className="text-xs text-gray-500">Total : {totalVotes.toLocaleString('fr-FR')} tantièmes exprimés</p>
                                 </div>
                               )}
 
@@ -2652,7 +2652,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                               >
                                 📋 Copier le template de mise en demeure
                               </button>
-                              <p className="text-[10px] text-gray-400 text-center mt-2">
+                              <p className="text-[10px] text-gray-500 text-center mt-2">
                                 Deadline : {deadline.toLocaleDateString('fr-FR')} · Envoi par LRAR recommandé
                               </p>
                             </>
@@ -2710,7 +2710,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                           className={`w-full rounded-t-md transition-all ${c.statut === 'payee' ? 'bg-purple-500' : 'bg-purple-200'}`}
                           style={{ height: `${height}%`, minHeight: '4px' }}
                         />
-                        <span className="text-xs text-gray-400">{c.mois.slice(5)}/{c.mois.slice(2, 4)}</span>
+                        <span className="text-xs text-gray-500">{c.mois.slice(5)}/{c.mois.slice(2, 4)}</span>
                       </div>
                     )
                   })}
@@ -2760,7 +2760,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900">{h.titre}</p>
                               <p className="text-xs text-gray-500">{h.description}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">{formatDate(h.date)}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{formatDate(h.date)}</p>
                             </div>
                             {h.montant !== undefined && (
                               <span className={`text-sm font-bold ${h.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>
@@ -3045,7 +3045,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                         Je suis Sofia, votre assistante personnelle pour la copropriété <strong>{profile.immeuble}</strong>.
                         Je peux répondre à toutes vos questions — même si vous n'êtes pas à l'aise avec la technologie !
                       </p>
-                      <p className="text-xs text-gray-400 mb-4 font-medium">Questions fréquentes :</p>
+                      <p className="text-xs text-gray-500 mb-4 font-medium">Questions fréquentes :</p>
                       <div className="flex flex-wrap gap-2 justify-center max-w-lg">
                         {[
                           'Combien je dois payer ce mois ?',
@@ -3165,7 +3165,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       )}
                     </button>
                   </form>
-                  <p className="text-xs text-gray-400 mt-2 text-center">
+                  <p className="text-xs text-gray-500 mt-2 text-center">
                     Sofia peut répondre à toutes vos questions sur votre copropriété
                   </p>
                 </div>

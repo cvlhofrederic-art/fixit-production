@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -40,19 +40,13 @@ const services = [
     icon: '🧱',
     title: 'Maçonnerie',
     slug: 'maconnerie',
-    description: 'Construction, rénovation, enduits, dalles et fondations',
+    description: 'Construction, rénovation, carrelage, enduits et dalles',
   },
   {
     icon: '🪚',
     title: 'Menuiserie',
     slug: 'menuiserie',
     description: 'Portes, fenêtres, parquet, dressing et aménagements bois',
-  },
-  {
-    icon: '🔲',
-    title: 'Carrelage',
-    slug: 'carrelage',
-    description: 'Pose de carrelage, faïence, mosaïque et joints',
   },
   {
     icon: '🏚️',
@@ -102,6 +96,12 @@ const services = [
     slug: 'nettoyage',
     description: 'Nettoyage professionnel, fin de chantier, vitrerie',
   },
+  {
+    icon: '🐛',
+    title: 'Traitement nuisibles',
+    slug: 'traitement-nuisibles',
+    description: 'Dératisation, désinsectisation, punaises de lit, termites, guêpes',
+  },
 ]
 
 export default function HomePage() {
@@ -109,9 +109,15 @@ export default function HomePage() {
   const [categories, setCategories] = useState<any[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
   const [location, setLocation] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const comboRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchCategories()
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user || null))
+    return () => subscription.unsubscribe()
   }, [])
 
   const fetchCategories = async () => {
@@ -125,7 +131,38 @@ export default function HomePage() {
     setCategories(data || [])
   }
 
+  // Close suggestions dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Override Supabase icons/names with "Nos services" values for consistency
+  const serviceOverrides = Object.fromEntries(services.map(s => [s.slug, { icon: s.icon, name: s.title }]))
+
+  // Filter suggestions based on input
+  const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+  const filteredSuggestions = categories.map((cat) => {
+    const override = serviceOverrides[cat.slug]
+    return override ? { ...cat, icon: override.icon, name: override.name } : cat
+  }).filter((cat) => {
+    if (!selectedCategory) return true // show all when empty
+    const norm = normalizeText(selectedCategory)
+    const catName = normalizeText(cat.name || '')
+    const catSlug = normalizeText(cat.slug || '')
+    return catName.includes(norm) || catSlug.includes(norm) || norm.includes(catSlug)
+  })
+
   const handleSearch = () => {
+    if (!user) {
+      router.push('/auth/login')
+      return
+    }
     const params = new URLSearchParams()
     if (selectedCategory) params.set('category', selectedCategory)
     if (location) params.set('loc', location)
@@ -137,10 +174,10 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-[#FFF9E6] to-white py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
             {/* Left side - Text + CTA */}
             <div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 leading-tight">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 leading-tight tracking-tight">
                 Trouvez l&apos;artisan pr&egrave;s de chez vous, <span className="text-[#FFC107]">en 2 clics</span>
               </h1>
               <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed">
@@ -150,13 +187,13 @@ export default function HomePage() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   href="/recherche"
-                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition text-center text-lg"
+                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3.5 rounded-xl font-semibold transition-all text-center text-lg shadow-sm hover:shadow-md"
                 >
                   Trouver un artisan
                 </Link>
                 <Link
                   href="/pro/register"
-                  className="border-2 border-[#FFC107] text-[#FFC107] hover:bg-[#FFF9E6] px-8 py-3 rounded-lg font-semibold transition text-center text-lg"
+                  className="border-2 border-[#FFC107] text-[#FFC107] hover:bg-[#FFF9E6] px-8 py-3.5 rounded-xl font-semibold transition-all text-center text-lg"
                 >
                   Vous &ecirc;tes artisan ?
                 </Link>
@@ -170,22 +207,39 @@ export default function HomePage() {
               </h2>
 
               <div className="space-y-4">
-                <div>
+                <div ref={comboRef} className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type d&apos;intervention
+                    Sp&eacute;cialit&eacute; ou motif
                   </label>
-                  <select
+                  <input
+                    type="text"
                     value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedCategory(e.target.value)
+                      setShowSuggestions(true)
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { setShowSuggestions(false); handleSearch() } }}
+                    placeholder="Ex: plombier, fuite, taille haie..."
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none bg-white text-gray-900"
-                  >
-                    <option value="">Tous les m&eacute;tiers</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.slug}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
+                  {showSuggestions && filteredSuggestions.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredSuggestions.map((cat) => (
+                        <button
+                          key={cat.id}
+                          onClick={() => {
+                            setSelectedCategory(cat.slug)
+                            setShowSuggestions(false)
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-[#FFF9E6] transition flex items-center gap-2 text-sm"
+                        >
+                          <span className="text-lg">{cat.icon}</span>
+                          <span className="text-gray-900">{cat.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -203,7 +257,7 @@ export default function HomePage() {
 
                 <button
                   onClick={handleSearch}
-                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition text-lg"
+                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition-all text-lg shadow-sm hover:shadow-md"
                 >
                   Rechercher
                 </button>
@@ -234,7 +288,7 @@ export default function HomePage() {
                 <h3 className="text-lg font-bold text-gray-900 mb-2">
                   {service.title}
                 </h3>
-                <p className="text-gray-500 text-sm">{service.description}</p>
+                <p className="text-gray-600 text-sm">{service.description}</p>
               </Link>
             ))}
           </div>
@@ -251,9 +305,9 @@ export default function HomePage() {
             R&eacute;servez votre artisan en 3 &eacute;tapes simples
           </p>
 
-          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             <div className="text-center">
-              <div className="w-16 h-16 bg-[#FFC107] rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto mb-6">
+              <div className="w-16 h-16 bg-[#FFC107] rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto mb-6 shadow-md">
                 1
               </div>
               <h3 className="text-xl font-bold mb-3">Cherchez</h3>
@@ -299,7 +353,7 @@ export default function HomePage() {
           </p>
           <Link
             href="/recherche"
-            className="inline-block bg-gray-900 hover:bg-gray-800 text-white px-8 py-4 rounded-lg font-semibold transition text-lg"
+            className="inline-block bg-gray-900 hover:bg-gray-800 text-white px-8 py-4 rounded-xl font-semibold transition-all text-lg shadow-lg hover:shadow-xl"
           >
             Trouver un artisan maintenant
           </Link>

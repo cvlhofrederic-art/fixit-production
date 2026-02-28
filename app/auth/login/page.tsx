@@ -65,11 +65,11 @@ export default function LoginPage() {
     {
       id: 'syndic' as Espace,
       emoji: '🏢',
-      titre: 'Syndic / Pro',
-      desc: 'Pilotez vos immeubles',
+      titre: 'Pro',
+      desc: 'Syndics, gestionnaires, entreprises',
       couleur: 'border-purple-300 bg-purple-50',
       couleurActif: 'border-purple-500 bg-purple-50 ring-2 ring-purple-300',
-      registerHref: '/syndic/register',
+      registerHref: '/pro/register',
     },
   ]
 
@@ -82,7 +82,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <span className="text-4xl">⚡</span>
-            <span className="text-3xl font-bold text-[#FFC107]">VitFix</span>
+            <span className="text-3xl font-bold text-[#FFC107]">Vitfix</span>
           </Link>
           <p className="text-gray-500 mt-2 text-sm">Choisissez votre espace pour vous connecter</p>
         </div>
@@ -93,7 +93,7 @@ export default function LoginPage() {
             <button
               key={e.id}
               onClick={() => { setEspace(e.id); setError('') }}
-              className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all cursor-pointer text-center ${
+              className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${
                 espace === e.id ? e.couleurActif : e.couleur + ' hover:opacity-80'
               }`}
             >
@@ -104,8 +104,8 @@ export default function LoginPage() {
           ))}
         </div>
 
-        {/* Formulaire */}
-        {espace && espaceActif && (
+        {/* Formulaire — Particulier ou Artisan */}
+        {espace && espaceActif && espace !== 'syndic' && (
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
               <span className="text-3xl">{espaceActif.emoji}</span>
@@ -122,7 +122,7 @@ export default function LoginPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
                 <input
                   type="email"
                   value={email}
@@ -134,7 +134,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Mot de passe</label>
                 <input
                   type="password"
                   value={password}
@@ -148,7 +148,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-lg font-bold transition disabled:opacity-50 text-lg mt-2"
+                className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed text-lg mt-2 shadow-sm hover:shadow-md"
               >
                 {loading ? 'Connexion...' : `Se connecter`}
               </button>
@@ -163,8 +163,33 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Espace Pro → vitfix.pro */}
+        {espace === 'syndic' && (
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <div className="text-5xl mb-4">🚀</div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Bient&ocirc;t disponible</h2>
+            <p className="text-gray-600 mb-4">
+              L&apos;espace de connexion pour les professionnels (syndics, gestionnaires, conciergeries, entreprises BTP) sera accessible sur notre plateforme d&eacute;di&eacute;e.
+            </p>
+            <div className="inline-flex items-center gap-2 bg-gray-50 border-2 border-purple-300 rounded-xl px-5 py-3 mb-4">
+              <span className="text-lg">🌐</span>
+              <span className="font-bold text-purple-600 text-lg">vitfix.pro</span>
+              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-semibold">BIENT&Ocirc;T</span>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Ce site est d&eacute;di&eacute; aux particuliers et artisans ind&eacute;pendants.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-gray-700">
+              <strong>🔧 Vous &ecirc;tes artisan ind&eacute;pendant ?</strong>{' '}
+              <button onClick={() => setEspace('artisan')} className="text-[#FFC107] hover:underline font-semibold">
+                Connectez-vous ici &rarr;
+              </button>
+            </div>
+          </div>
+        )}
+
         {!espace && (
-          <p className="text-center text-gray-400 text-sm py-4">
+          <p className="text-center text-gray-500 text-sm py-4">
             Sélectionnez votre espace ci-dessus
           </p>
         )}

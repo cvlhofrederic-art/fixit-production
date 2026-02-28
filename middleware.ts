@@ -41,29 +41,15 @@ export async function middleware(request: NextRequest) {
     role === 'syndic' || (typeof role === 'string' && role.startsWith('syndic_'))
 
   const role = user?.user_metadata?.role as string | undefined
-  const isAdminOverride = user?.user_metadata?._admin_override === true
-
-  const originalRole = user?.user_metadata?._original_role as string | undefined
 
   // Super admin : accès libre à tout, pas de redirection
-  if (role === 'super_admin' && !isAdminOverride) {
+  if (role === 'super_admin') {
     // Redirige vers le dashboard admin si pas déjà dessus
     if (!pathname.startsWith('/admin')) {
       const url = request.nextUrl.clone()
       url.pathname = '/admin/dashboard'
       return NextResponse.redirect(url)
     }
-    return supabaseResponse
-  }
-
-  // Admin revenant d'un sous-dashboard (rôle changé mais _original_role = super_admin)
-  // Laisser passer vers /admin/* pour que la page restaure le rôle
-  if (originalRole === 'super_admin' && pathname.startsWith('/admin')) {
-    return supabaseResponse
-  }
-
-  // Mode admin override : laisser passer vers n'importe quel dashboard
-  if (isAdminOverride) {
     return supabaseResponse
   }
 
@@ -149,6 +135,8 @@ export async function middleware(request: NextRequest) {
       }
     }
   }
+
+  supabaseResponse.headers.set('X-API-Version', '1.0.0')
 
   return supabaseResponse
 }

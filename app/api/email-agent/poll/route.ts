@@ -1,14 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { callGroqWithRetry } from '@/lib/groq'
+import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import type { EmailClassification } from '../classify/route'
+
+export const maxDuration = 60
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fixit-production.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
 
 // ── Rafraîchit un access_token Gmail expiré ───────────────────────────────────
 async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
@@ -102,9 +105,9 @@ function extractBody(payload: any): string {
   return ''
 }
 
-// ── Classification IA via Groq ────────────────────────────────────────────────
+// ── Classification IA via Groq (avec retry 429 + fallback) ──────────────────
 async function classifyEmail(from: string, subject: string, body: string): Promise<EmailClassification> {
-  const SYSTEM_PROMPT = `Tu es Max, assistant IA expert en gestion de copropriété pour VitFix Pro.
+  const SYSTEM_PROMPT = `Tu es Max, assistant IA expert en gestion de copropriété pour Vitfix Pro.
 Analyse cet email reçu par un syndic et retourne UNIQUEMENT un objet JSON valide, sans markdown.
 
 Format JSON strict :
@@ -122,26 +125,20 @@ Urgence haute : fuite, inondation, incendie, panne ascenseur bloqué, coupure ga
 Urgence moyenne : réclamation, panne non bloquante, devis urgent, problème en cours.
 Urgence basse : information, AG planifiée, document admin, devis futur.`
 
-  if (!GROQ_API_KEY) return getFallback(subject, body)
+  if (!process.env.GROQ_API_KEY) return getFallback(subject, body)
 
   try {
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `De : ${from}\nObjet : ${subject}\nCorps :\n${body.substring(0, 600)}` },
-        ],
-        temperature: 0.1,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-      }),
-    })
+    const data = await callGroqWithRetry({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `De : ${from}\nObjet : ${subject}\nCorps :\n${body.substring(0, 600)}` },
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
+      response_format: { type: 'json_object' },
+    }, { fallbackModel: 'llama-3.1-8b-instant' })
 
-    if (!groqRes.ok) return getFallback(subject, body)
-    const data = await groqRes.json()
     const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}')
 
     return {
@@ -186,11 +183,25 @@ export async function POST(request: NextRequest) {
     let syndicIds: string[] = []
 
     if (syndic_id) {
+      // Si syndic_id fourni → vérifier auth utilisateur
+      const user = await getAuthUser(request)
+      if (!user) {
+        return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+      }
+      // Vérifier que l'utilisateur est bien le syndic ou membre de son cabinet
+      if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+        return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
+      }
+      const userCabinetId = user.user_metadata?.cabinet_id || user.id
+      if (userCabinetId !== syndic_id && user.user_metadata?.role !== 'super_admin') {
+        return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
+      }
       syndicIds = [syndic_id]
     } else {
-      // Vérifier clé cron pour sécuriser l'endpoint public
+      // Appel cron → vérifier clé cron (guard contre CRON_SECRET undefined)
       const cronKey = request.headers.get('x-cron-key')
-      if (cronKey !== process.env.CRON_SECRET) {
+      const cronSecret = process.env.CRON_SECRET
+      if (!cronSecret || cronKey !== cronSecret) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -295,8 +306,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── GET : récupérer les emails analysés d'un syndic ──────────────────────────
+// ── GET : récupérer les emails analysés d'un syndic (authentifié) ────────────
 export async function GET(request: NextRequest) {
+  // ── Auth obligatoire ──────────────────────────────────────────────────────
+  const user = await getAuthUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  }
+  if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(request.url)
   const syndic_id = searchParams.get('syndic_id')
   const limit = parseInt(searchParams.get('limit') || '50')
@@ -304,6 +324,12 @@ export async function GET(request: NextRequest) {
   const statut = searchParams.get('statut')
 
   if (!syndic_id) return NextResponse.json({ error: 'syndic_id requis' }, { status: 400 })
+
+  // Vérifier que l'utilisateur a accès à ce syndic
+  const userCabinetId = user.user_metadata?.cabinet_id || user.id
+  if (userCabinetId !== syndic_id && user.user_metadata?.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
+  }
 
   let query = supabaseAdmin
     .from('syndic_emails_analysed')

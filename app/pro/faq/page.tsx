@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'FAQ Artisans - VitFix',
-  description: 'Toutes les réponses à vos questions sur l\'inscription et l\'utilisation de VitFix pour les artisans.',
+  title: 'FAQ Artisans - Vitfix',
+  description: 'Toutes les réponses à vos questions sur l\'inscription et l\'utilisation de Vitfix pour les artisans.',
 }
 
 const faqs = [
@@ -16,7 +16,7 @@ const faqs = [
       },
       {
         q: 'L\'inscription est-elle vraiment gratuite ?',
-        r: 'Oui, l\'inscription et l\'offre Starter sont entièrement gratuites. Vous pouvez commencer à recevoir des réservations sans frais, jusqu\'à 5 par mois. Des offres payantes avec plus de fonctionnalités sont disponibles.',
+        r: 'Oui, l\'inscription et l\'offre Freemium sont entièrement gratuites. Vous bénéficiez d\'un profil vérifié et de la création de devis & factures PDF. L\'offre Pro à 49€/mois HT débloque tous les modules : agenda, réservations illimitées, messagerie, comptabilité IA, Proof of Work, app mobile et support prioritaire.',
       },
       {
         q: 'Combien de temps dure la vérification de mon profil ?',
@@ -46,11 +46,11 @@ const faqs = [
     questions: [
       {
         q: 'Comment suis-je payé par mes clients ?',
-        r: 'Le paiement s\'effectue directement entre vous et le client, selon les modalités que vous définissez (chèque, virement, espèces, CB). VitFix n\'intervient pas dans la transaction financière.',
+        r: 'Le paiement s\'effectue directement entre vous et le client, selon les modalités que vous définissez (chèque, virement, espèces, CB). Vitfix n\'intervient pas dans la transaction financière.',
       },
       {
-        q: 'VitFix prend-il une commission sur mes interventions ?',
-        r: 'Non. Vous conservez l\'intégralité de vos revenus. VitFix se rémunère uniquement via les abonnements des offres Pro et Entreprise.',
+        q: 'Vitfix prend-il une commission sur mes interventions ?',
+        r: 'Non. Vous conservez l\'intégralité de vos revenus. Vitfix se rémunère uniquement via les abonnements des offres Pro et Entreprise.',
       },
     ],
   },
@@ -59,15 +59,19 @@ const faqs = [
     questions: [
       {
         q: 'Comment fonctionne le Proof of Work ?',
-        r: 'Le Proof of Work vous permet de prendre des photos avant/après intervention avec horodatage GPS automatique. Le client peut signer électroniquement sur votre téléphone. Ces preuves sont stockées et exportables.',
+        r: 'Disponible avec l\'offre Pro, le Proof of Work vous permet de prendre des photos avant/après intervention avec horodatage et géolocalisation GPS automatiques. Le client peut signer électroniquement sur votre téléphone. Ces preuves sont stockées dans votre espace et exportables.',
+      },
+      {
+        q: 'Quelle est la différence entre Freemium et Pro ?',
+        r: 'L\'offre Freemium (gratuite) donne accès uniquement au module Devis & Factures PDF et à un profil artisan vérifié. L\'offre Pro (49€/mois HT) débloque l\'ensemble des modules : agenda en ligne, réservations illimitées, messagerie client, mise en avant dans les résultats, comptabilité intégrée avec l\'agent IA Léa, Proof of Work, notifications push, application mobile complète et support prioritaire.',
       },
       {
         q: 'Puis-je générer des devis et factures ?',
-        r: 'Oui, depuis votre dashboard (offre Pro). Vous pouvez créer des devis et factures en PDF, les envoyer par email et les transformer en facture une fois la prestation réalisée.',
+        r: 'Oui, la génération de devis et factures PDF est disponible dès l\'offre Freemium. Vous pouvez créer vos documents, les envoyer par email et transformer un devis en facture une fois la prestation réalisée.',
       },
       {
         q: 'L\'application mobile est-elle disponible ?',
-        r: 'Oui, VitFix Pro est disponible sur iOS et Android. L\'app mobile vous permet de gérer vos interventions, recevoir des notifications et effectuer le Proof of Work depuis votre smartphone.',
+        r: 'Oui, Vitfix Pro est disponible sur iOS et Android. L\'app mobile vous permet de gérer vos interventions, recevoir des notifications et effectuer le Proof of Work depuis votre smartphone.',
       },
     ],
   },
@@ -79,7 +83,7 @@ export default function ProFAQPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">FAQ Artisans</h1>
         <p className="text-gray-600 mb-10">
-          Tout ce que vous devez savoir pour démarrer et utiliser VitFix en tant qu&apos;artisan.
+          Tout ce que vous devez savoir pour démarrer et utiliser Vitfix en tant qu&apos;artisan.
         </p>
 
         <div className="space-y-10">

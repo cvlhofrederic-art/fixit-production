@@ -419,7 +419,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                 <div className="text-center py-16">
                   <div className="text-5xl mb-3">💬</div>
                   <p className="text-gray-500 font-medium">Aucun message</p>
-                  <p className="text-sm text-gray-400 mt-2">
+                  <p className="text-sm text-gray-500 mt-2">
                     Faites un signalement pour contacter votre gestionnaire.<br/>
                     Les réponses apparaîtront ici.
                   </p>
@@ -440,7 +440,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                     <div key={i} className="flex justify-center">
                       <div className={`${roleBgLight} border ${roleBorderColor} rounded-xl px-4 py-3 max-w-sm text-center`}>
                         <p className={`text-xs ${roleTextColor} leading-relaxed whitespace-pre-line`}>{msg.texte}</p>
-                        <p className="text-xs text-gray-400 mt-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-xs text-gray-500 mt-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   )
@@ -452,7 +452,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                       {msg.auteur.charAt(0).toUpperCase()}
                     </div>
                     <div className={`max-w-xs flex flex-col gap-1 ${isMine ? 'items-end' : 'items-start'}`}>
-                      <p className="text-xs text-gray-400 px-1">{msg.auteur} {isGestionnaire ? '· Gestionnaire' : ''}</p>
+                      <p className="text-xs text-gray-500 px-1">{msg.auteur} {isGestionnaire ? '· Gestionnaire' : ''}</p>
                       <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line ${isMine ? `${roleBgColor} text-white rounded-tr-sm` : 'bg-white text-gray-900 border border-gray-200 rounded-tl-sm shadow-sm'}`}>
                         {msg.texte}
                       </div>
@@ -479,7 +479,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                 <button
                   onClick={handleSendMsg}
                   disabled={!newMsg.trim()}
-                  className={`${roleBgColor} text-white px-5 py-2 rounded-xl font-semibold text-sm transition disabled:opacity-50 self-end`}
+                  className={`${roleBgColor} text-white px-5 py-2 rounded-xl font-semibold text-sm transition disabled:opacity-60 self-end`}
                 >
                   Envoyer
                 </button>
@@ -517,7 +517,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                       {profile?.etage && <span className="text-xs bg-white border border-gray-200 px-2 py-1 rounded-lg">Étage {profile.etage}</span>}
                       {profile?.numLot && <span className="text-xs bg-white border border-gray-200 px-2 py-1 rounded-lg">Lot / Porte {profile.numLot}</span>}
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">Ces informations seront automatiquement transmises avec votre signalement.</p>
+                    <p className="text-xs text-gray-500 mt-2">Ces informations seront automatiquement transmises avec votre signalement.</p>
                   </div>
                 )}
 
@@ -711,12 +711,12 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                 <button
                   onClick={handleEnvoyerSignalement}
                   disabled={!form.typeIntervention || !form.description.trim()}
-                  className={`w-full ${roleBgColor} text-white py-4 rounded-2xl font-bold text-base transition disabled:opacity-50 disabled:cursor-not-allowed`}
+                  className={`w-full ${roleBgColor} text-white py-4 rounded-2xl font-bold text-base transition disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                   🔔 Envoyer le signalement
                 </button>
 
-                <p className="text-xs text-gray-400 text-center">Votre gestionnaire sera notifié immédiatement. Vous recevrez une réponse dans votre canal de messages.</p>
+                <p className="text-xs text-gray-500 text-center">Votre gestionnaire sera notifié immédiatement. Vous recevrez une réponse dans votre canal de messages.</p>
               </div>
             )}
           </div>

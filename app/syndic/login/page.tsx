@@ -53,7 +53,7 @@ export default function SyndicLoginPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
             <span className="text-3xl">⚡</span>
-            <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
+            <span className="text-2xl font-bold text-[#FFC107]">Vitfix</span>
             <span className="text-purple-600 font-bold text-xl ml-1">Pro</span>
           </Link>
           <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
@@ -110,7 +110,7 @@ export default function SyndicLoginPage() {
                 Créer un compte — 14 jours gratuits
               </Link>
             </p>
-            <p className="text-gray-400 text-xs">
+            <p className="text-gray-500 text-xs">
               Vous êtes artisan ?{' '}
               <Link href="/pro/login" className="text-amber-500 hover:underline">Espace artisan</Link>
               {' '}· Particulier ?{' '}
