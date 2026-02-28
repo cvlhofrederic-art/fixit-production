@@ -1,13 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { db: { schema: 'public' } }
-)
+export const dynamic = 'force-dynamic'
 
 // GET /api/admin/setup?step=tables|admin|all
 // ⚠️ SÉCURISÉ : nécessite authentification super_admin + vérification email
