@@ -171,7 +171,8 @@ export default function DevisFactureForm({
   const [paymentDue, setPaymentDue] = useState(dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
   const [iban, setIban] = useState(initialData?.iban || '')
-  const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || 'Paiement comptable à réception de facture')
+  const [bic, setBic] = useState(initialData?.bic || '')
+  const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || 'Paiement comptant à réception de facture')
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? `Réf. devis : ${initialData.docNumber}` : ''))
@@ -199,12 +200,30 @@ export default function DevisFactureForm({
 
   const attachedRapport = availableRapports.find(r => r.id === attachedRapportId) || null
 
-  // Generate document number
-  const [devisCount] = useState(4)
-  const [factureCount] = useState(16)
+  // Generate document number — séquences séparées devis / facture / avoir (art. L441-9 C. com.)
+  const isConversion = docType === 'facture' && initialData?.docType === 'devis' && initialData?.docNumber
+
+  const [devisCount] = useState(() => {
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
+      const devisDocs = docs.filter((d: any) => d.docType === 'devis')
+      return devisDocs.length + 1
+    } catch { return 1 }
+  })
+  const [factureCount] = useState(() => {
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
+      const factureDocs = docs.filter((d: any) => d.docType === 'facture')
+      return factureDocs.length + 1
+    } catch { return 1 }
+  })
+
   const docNumber = docType === 'devis'
     ? `DEV-${new Date().getFullYear()}-${String(devisCount).padStart(3, '0')}`
     : `FACT-${new Date().getFullYear()}-${String(factureCount).padStart(3, '0')}`
+
+  // Référence du devis d'origine (si conversion devis → facture)
+  const sourceDevisRef = isConversion ? initialData.docNumber : null
 
   // ─── Auth helper for API calls ───
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
@@ -545,11 +564,15 @@ export default function DevisFactureForm({
       if (!discount) mentions.push('Pas d\'escompte pour paiement anticipé, sauf accord préalable')
       // Réserve de propriété (si fourniture de matériel)
       mentions.push('Le matériel fourni reste la propriété de l\'entreprise jusqu\'au paiement intégral de la facture.')
-      // Référence au devis signé
-      if (notes && notes.includes('Réf. devis')) {
+      // Référence au devis signé (lien juridique devis ↔ facture)
+      if (sourceDevisRef) {
+        mentions.push(`Facture établie conformément au devis signé n° ${sourceDevisRef}${prestationDate ? ` en date du ${new Date(prestationDate).toLocaleDateString('fr-FR')}` : ''}.`)
+      } else if (notes && notes.includes('Réf. devis')) {
         const devisRef = notes.match(/Réf\. devis\s*:\s*([^\n]+)/)?.[1]?.trim()
-        if (devisRef) mentions.push(`Travaux réalisés conformément au devis signé n° ${devisRef}.`)
+        if (devisRef) mentions.push(`Facture établie conformément au devis signé n° ${devisRef}.`)
       }
+      // Clause de contestation
+      mentions.push('En cas de contestation, celle-ci devra être formulée par écrit dans un délai de 8 jours suivant réception de la facture.')
       // Garantie — seulement pour clients particuliers (B2C)
       if (!isClientPro) {
         mentions.push('Garantie légale de conformité : 2 ans minimum (art. L. 217-3 C. conso.)')
@@ -750,6 +773,8 @@ export default function DevisFactureForm({
         // Date de prestation (quand les travaux ont été réalisés) — distincte de la date d'émission
         if (prestationDate) drawInfo('Prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
         if (paymentDue) drawInfo('Échéance : ', new Date(paymentDue).toLocaleDateString('fr-FR'))
+        // Référence au devis d'origine
+        if (sourceDevisRef) drawInfo('Réf. devis : ', sourceDevisRef)
       }
       y += 12
 
@@ -935,15 +960,19 @@ export default function DevisFactureForm({
         if (paymentCondition) payLines.push(paymentCondition)
         if (paymentMode) payLines.push(`Mode de règlement : ${paymentMode}`)
         if (paymentDue) payLines.push(`Date limite de paiement : ${new Date(paymentDue).toLocaleDateString('fr-FR')}`)
-        if (iban) payLines.push(`IBAN : ${iban}`)
+        if (iban) payLines.push(`IBAN : ${iban}${bic ? '  —  BIC : ' + bic : ''}`)
         payLines.push("Pénalités de retard : tout retard de paiement entraînera l'application de pénalités calculées au taux légal majoré de 10 points (art. L. 441-10 C. com.) ainsi qu'une indemnité forfaitaire de 40 € pour frais de recouvrement (art. D. 441-5 C. com.).")
         if (discount) payLines.push(`Escompte pour paiement anticipé : ${discount}`)
         else payLines.push("Pas d'escompte pour paiement anticipé, sauf accord préalable.")
-        // Référence au devis signé
-        if (notes && notes.includes('Réf. devis')) {
+        // Référence au devis signé (lien juridique)
+        if (sourceDevisRef) {
+          payLines.push(`Facture établie conformément au devis signé n° ${sourceDevisRef}${prestationDate ? ` en date du ${new Date(prestationDate).toLocaleDateString('fr-FR')}` : ''}.`)
+        } else if (notes && notes.includes('Réf. devis')) {
           const devisRef = notes.match(/Réf\. devis\s*:\s*([^\n]+)/)?.[1]?.trim()
-          if (devisRef) payLines.push(`Travaux réalisés conformément au devis signé n° ${devisRef}.`)
+          if (devisRef) payLines.push(`Facture établie conformément au devis signé n° ${devisRef}.`)
         }
+        // Clause contestation
+        payLines.push("En cas de contestation, celle-ci devra être formulée par écrit dans un délai de 8 jours suivant réception de la facture.")
 
         // Calcul hauteur dynamique d'abord
         const condStartY = y
@@ -1974,11 +2003,19 @@ export default function DevisFactureForm({
                       className={normalFieldClass} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">IBAN (coordonnées bancaires)</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">IBAN</label>
                     <input type="text" value={iban} onChange={(e) => setIban(e.target.value)}
                       placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
                       className={normalFieldClass} />
-                    <p className="text-[10px] text-gray-400 mt-1">Recommandé si paiement par virement — évite les retards</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">BIC</label>
+                    <input type="text" value={bic} onChange={(e) => setBic(e.target.value)}
+                      placeholder="BNPAFRPP"
+                      className={normalFieldClass} />
+                    <p className="text-[10px] text-gray-400 mt-1">IBAN + BIC recommandés si virement — évite les retards de paiement</p>
                   </div>
                 </div>
                 <div>
