@@ -737,6 +737,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
             id: Date.now(),
             description: desc,
             qty: 1,
+            unit: 'u',
             priceHT: Math.round(priceHT * 100) / 100,
             tvaRate: 20,
             totalHT: Math.round(priceHT * 100) / 100,

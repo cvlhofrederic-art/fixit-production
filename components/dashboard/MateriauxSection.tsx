@@ -242,6 +242,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
         id: i + 1,
         description: `${m.name} — ${m.category}${m.norms?.length ? ` (${m.norms[0]})` : ''}`,
         qty: m.qty,
+        unit: m.unit || 'u',
         priceHT,
         // AE : TVA non applicable → tvaRate = 0 et tvaEnabled = false dans le devis
         // Assujetti : TVA 10% rénovation BTP (art. 279-0 bis CGI)

@@ -12,6 +12,7 @@ interface ProductLine {
   id: number
   description: string
   qty: number
+  unit: string  // 'u' | 'm²' | 'm³' | 'ml' | 'h' | 'forfait' | 'kg' | 'lot'
   priceHT: number
   tvaRate: number
   totalHT: number
@@ -118,9 +119,7 @@ export default function DevisFactureForm({
   dueDate.setDate(dueDate.getDate() + 30)
   const dueDateStr = dueDate.toISOString().split('T')[0]
 
-  // ─── PDF ───
-  const pdfTemplateRef = useRef<HTMLDivElement>(null)
-  const pdfRetractRef = useRef<HTMLDivElement>(null)
+  // ─── PDF (vector-based jsPDF + autoTable) ───
   const [pdfLoading, setPdfLoading] = useState(false)
 
   // ─── Verified Company Data ───
@@ -319,6 +318,7 @@ export default function DevisFactureForm({
       id: Date.now(),
       description: '',
       qty: 1,
+      unit: 'u',
       priceHT: 0,
       tvaRate: defaultTvaRate,
       totalHT: 0,
@@ -330,6 +330,7 @@ export default function DevisFactureForm({
       id: Date.now() + Math.random(),
       description: desc,
       qty,
+      unit: 'u',
       priceHT: price,
       tvaRate: tva,
       totalHT: qty * price,
@@ -364,6 +365,7 @@ export default function DevisFactureForm({
         return {
           ...line,
           description: service.name,
+          unit: line.unit || 'u',
           priceHT: price,
           tvaRate: defaultTvaRate,
           totalHT: 1 * price,
@@ -401,6 +403,7 @@ export default function DevisFactureForm({
         id: Date.now(),
         description: serviceName,
         qty: 1,
+        unit: 'u',
         priceHT: linePrice,
         tvaRate: lineTva,
         totalHT: linePrice,
@@ -591,110 +594,400 @@ export default function DevisFactureForm({
   }
 
   const handleGeneratePDF = async () => {
-    if (!pdfTemplateRef.current) return
     setPdfLoading(true)
     try {
-      const html2canvas = (await import('html2canvas')).default
       const { jsPDF } = await import('jspdf')
+      const autoTableModule = await import('jspdf-autotable')
+      const autoTable = autoTableModule.default
 
-      const canvas = await html2canvas(pdfTemplateRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: 794,
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()  // 210mm
+      const pageH = pdf.internal.pageSize.getHeight() // 297mm
+      const mL = 18, mR = 18  // margins
+      const contentW = pageW - mL - mR
+      const col = '#1E293B', colLight = '#64748B', colAccent = '#FFC107'
+      let y = 18
+
+      // ─── Helper functions ───
+      const drawLine = (x1: number, yPos: number, x2: number, color = '#E2E8F0', width = 0.3) => {
+        pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
+      }
+      const centerText = (text: string, yPos: number, size: number, style: string = 'normal', color: string = col) => {
+        pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
+        pdf.text(text, pageW / 2, yPos, { align: 'center' })
+      }
+      const leftText = (text: string, x: number, yPos: number, size: number, style: string = 'normal', color: string = col) => {
+        pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
+        pdf.text(text, x, yPos)
+      }
+      const rightText = (text: string, x: number, yPos: number, size: number, style: string = 'normal', color: string = col) => {
+        pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
+        pdf.text(text, x, yPos, { align: 'right' })
+      }
+      const labelValue = (label: string, value: string, x: number, yPos: number, maxW: number) => {
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
+        pdf.text(label, x, yPos)
+        const labelW = pdf.getTextWidth(label)
+        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        const valLines = pdf.splitTextToSize(value, maxW - labelW - 1)
+        pdf.text(valLines, x + labelW + 1, yPos)
+        return valLines.length * 3.2
+      }
+
+      // ═══ 1. TITRE ═══
+      centerText(`${docType === 'devis' ? 'DEVIS' : 'FACTURE'} ${docNumber}`, y, 16, 'bold')
+      y += 5
+      if (docTitle) { centerText(docTitle, y, 8, 'normal', colLight); y += 4 }
+      // Petit trait centré
+      drawLine(pageW / 2 - 15, y, pageW / 2 + 15, colAccent, 0.8)
+      y += 6
+
+      // ═══ 2. ÉMETTEUR + DESTINATAIRE ═══
+      const boxW = (contentW - 6) / 2
+      const boxStartY = y
+      const boxPad = 4
+
+      // ── Émetteur box ──
+      const emX = mL
+      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+      // Header
+      centerText('ÉMETTEUR', boxStartY + boxPad, 7, 'bold', col)
+      // petit trait centré sous le header
+      const emCenterX = emX + boxW / 2
+      drawLine(emCenterX - 8, boxStartY + boxPad + 2, emCenterX + 8, '#E2E8F0', 0.2)
+      let ey = boxStartY + boxPad + 5
+      const emMaxW = boxW - boxPad * 2
+      // We need to position text within the left box
+      const emLx = emX + boxPad
+      ey += labelValue('Société : ', companyName, emLx, ey, emMaxW)
+      if (companySiret) ey += labelValue('SIRET : ', companySiret, emLx, ey, emMaxW)
+      if (companyRCS) ey += labelValue('RCS/RM : ', companyRCS, emLx, ey, emMaxW)
+      if (companyCapital) ey += labelValue('Capital : ', `${companyCapital} €`, emLx, ey, emMaxW)
+      if (companyAddress) ey += labelValue('Adresse : ', companyAddress, emLx, ey, emMaxW)
+      if (companyPhone) ey += labelValue('Tél : ', companyPhone, emLx, ey, emMaxW)
+      if (companyEmail) ey += labelValue('Email : ', companyEmail, emLx, ey, emMaxW)
+      if (tvaEnabled && tvaNumber) ey += labelValue('N° TVA : ', tvaNumber, emLx, ey, emMaxW)
+      if (insuranceName) { ey += 1; ey += labelValue('Assureur : ', insuranceName, emLx, ey, emMaxW) }
+      if (insuranceNumber) ey += labelValue('N° contrat : ', insuranceNumber, emLx, ey, emMaxW)
+      if (insuranceCoverage) ey += labelValue('Couverture : ', insuranceCoverage, emLx, ey, emMaxW)
+
+      // ── Destinataire box ──
+      const destX = emX + boxW + 6
+      const destCenterX = destX + boxW / 2
+      centerText('DESTINATAIRE', boxStartY + boxPad, 7, 'bold', col)
+      // Need to re-center this text in the right box
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text('DESTINATAIRE', destCenterX, boxStartY + boxPad, { align: 'center' })
+      drawLine(destCenterX - 8, boxStartY + boxPad + 2, destCenterX + 8, '#E2E8F0', 0.2)
+      let dy = boxStartY + boxPad + 5
+      const destLx = destX + boxPad
+      const destMaxW = boxW - boxPad * 2
+      dy += labelValue('Nom : ', clientName, destLx, dy, destMaxW)
+      if (clientAddress) dy += labelValue('Adresse : ', clientAddress, destLx, dy, destMaxW)
+      if (interventionAddress) dy += labelValue('Lieu intervention : ', interventionAddress, destLx, dy, destMaxW)
+      if (clientPhone) dy += labelValue('Tél : ', clientPhone, destLx, dy, destMaxW)
+      if (clientEmail) dy += labelValue('Email : ', clientEmail, destLx, dy, destMaxW)
+      if (clientSiret) dy += labelValue('SIRET : ', clientSiret, destLx, dy, destMaxW)
+
+      const boxH = Math.max(ey, dy) - boxStartY + 2
+      // Draw box borders
+      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+      pdf.roundedRect(emX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
+      pdf.roundedRect(destX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
+      // Fix ÉMETTEUR header (centered in left box, not page center)
+      pdf.setFillColor('#ffffff')
+      pdf.rect(emCenterX - 10, boxStartY + 0.5, 20, 5.5, 'F')
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text('ÉMETTEUR', emCenterX, boxStartY + boxPad, { align: 'center' })
+      drawLine(emCenterX - 8, boxStartY + boxPad + 2, emCenterX + 8, '#E2E8F0', 0.2)
+      // Fix DESTINATAIRE header
+      pdf.setFillColor('#ffffff')
+      pdf.rect(destCenterX - 12, boxStartY + 0.5, 24, 5.5, 'F')
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text('DESTINATAIRE', destCenterX, boxStartY + boxPad, { align: 'center' })
+      drawLine(destCenterX - 8, boxStartY + boxPad + 2, destCenterX + 8, '#E2E8F0', 0.2)
+
+      y = boxStartY + boxH + 6
+
+      // ═══ 3. DATE / VALIDITÉ / DÉLAI ═══
+      pdf.setFillColor('#F8FAFC'); pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+      pdf.roundedRect(mL, y, contentW, 8, 1.5, 1.5, 'FD')
+      let infoX = mL + 4
+      const infoY = y + 5.5
+      pdf.setFontSize(7.5)
+      const drawInfo = (label: string, val: string) => {
+        pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
+        pdf.text(label, infoX, infoY)
+        infoX += pdf.getTextWidth(label) + 0.5
+        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        pdf.text(val, infoX, infoY)
+        infoX += pdf.getTextWidth(val) + 6
+      }
+      drawInfo('Date : ', docDate ? new Date(docDate).toLocaleDateString('fr-FR') : docDate)
+      if (docType === 'devis' && docValidity) drawInfo('Validité : ', `${docValidity} jours`)
+      if (docType === 'devis' && executionDelay) drawInfo("Délai d'exécution : ", executionDelay)
+      if (docType === 'devis' && prestationDate) drawInfo('Date prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
+      if (docType === 'facture' && paymentDue) drawInfo('Échéance : ', new Date(paymentDue).toLocaleDateString('fr-FR'))
+      y += 12
+
+      // ═══ 4. TABLEAU PRESTATIONS (autoTable) ═══
+      const priceLabel = tvaEnabled ? 'HT' : 'TTC'
+      const tableHead = tvaEnabled
+        ? [['Désignation', 'Qté', 'Unité', `Prix U. ${priceLabel}`, 'TVA', `Total ${priceLabel}`]]
+        : [['Désignation', 'Qté', 'Unité', `Prix U. ${priceLabel}`, `Total ${priceLabel}`]]
+
+      const tableBody = lines.filter(l => l.description.trim()).map(l => {
+        const unitStr = l.unit && l.unit !== 'u' ? l.unit : ''
+        const row = [l.description, String(l.qty), unitStr, `${l.priceHT.toFixed(2)} €`]
+        if (tvaEnabled) row.push(`${l.tvaRate}%`)
+        row.push(`${l.totalHT.toFixed(2)} €`)
+        return row
       })
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.92)
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const imgHeight = (canvas.height / canvas.width) * pdfWidth
-      const pageHeight = pdf.internal.pageSize.getHeight()
-
-      let position = 0
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
-      while (imgHeight > pageHeight + Math.abs(position)) {
-        position -= pageHeight
-        pdf.addPage()
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
+      if (tableBody.length === 0) {
+        tableBody.push(tvaEnabled
+          ? ['Aucune prestation renseignée', '', '', '', '', '']
+          : ['Aucune prestation renseignée', '', '', '', '']
+        )
       }
 
-      // ── Page 2 : Rétractation (rendu séparé pour saut de page propre) ──
-      if (pdfRetractRef.current) {
-        const canvas2 = await html2canvas(pdfRetractRef.current, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          windowWidth: 794,
-        })
-        const img2 = canvas2.toDataURL('image/jpeg', 0.92)
-        const img2Height = (canvas2.height / canvas2.width) * pdfWidth
-        pdf.addPage()
-        pdf.addImage(img2, 'JPEG', 0, 0, pdfWidth, img2Height)
+      const colCount = tvaEnabled ? 6 : 5
+      const colStyles: any = {
+        0: { cellWidth: contentW * 0.38, halign: 'left' },
+        1: { cellWidth: contentW * 0.08, halign: 'center' },
+        2: { cellWidth: contentW * 0.08, halign: 'center' },
+        3: { cellWidth: contentW * 0.16, halign: 'right' },
+      }
+      if (tvaEnabled) {
+        colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
+        colStyles[5] = { cellWidth: contentW * 0.20, halign: 'right' }
+      } else {
+        colStyles[4] = { cellWidth: contentW * 0.30, halign: 'right' }
       }
 
-      // ── Calque texte invisible pour extraction PDF ──
-      // Permet à unpdf/pdf.js d'extraire le texte structuré du devis
-      // Le texte est blanc sur fond blanc, taille 0.5pt = invisible à l'œil
+      autoTable(pdf, {
+        head: tableHead,
+        body: tableBody,
+        startY: y,
+        margin: { left: mL, right: mR },
+        theme: 'plain',
+        headStyles: {
+          fillColor: [255, 193, 7],
+          textColor: [30, 41, 59],
+          fontStyle: 'bold',
+          fontSize: 7,
+          cellPadding: 3,
+          halign: 'center',
+        },
+        bodyStyles: {
+          fontSize: 8,
+          cellPadding: 3,
+          textColor: [30, 41, 59],
+          lineWidth: 0.1,
+          lineColor: [241, 245, 249],
+        },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: colStyles,
+        tableLineColor: [226, 232, 240],
+        tableLineWidth: 0.3,
+        didDrawPage: () => {},
+      })
+
+      y = (pdf as any).lastAutoTable.finalY + 6
+
+      // ═══ 5. TOTAUX (aligné à droite) ═══
+      const totBoxW = 70, totBoxX = pageW - mR - totBoxW
+      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+      // Sous-total
+      pdf.setFillColor('#F8FAFC')
+      pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
+      pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
+      pdf.text(tvaEnabled ? 'Sous-total HT' : 'Sous-total', totBoxX + 3, y + 5)
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text(`${subtotalHT.toFixed(2)} €`, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
+      y += 7
+
+      if (tvaEnabled) {
+        pdf.setFillColor('#F8FAFC')
+        pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
+        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
+        pdf.text('TVA', totBoxX + 3, y + 5)
+        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        pdf.text(`${totalTVA.toFixed(2)} €`, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
+        y += 7
+      }
+
+      if (docType === 'facture' && discount) {
+        pdf.setFillColor('#F8FAFC')
+        pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
+        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
+        pdf.text('Escompte', totBoxX + 3, y + 5)
+        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        pdf.text(discount, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
+        y += 7
+      }
+
+      // Total final — bande accent
       const totalVal = tvaEnabled ? totalTTC : subtotalHT
-      const linesText = lines
-        .filter(l => l.description.trim() && l.totalHT > 0)
-        .map(l => `${l.description} | Qté: ${l.qty} | PU HT: ${l.priceHT.toFixed(2)} € | ${tvaEnabled ? `TVA: ${l.tvaRate}% | ` : ''}Total HT: ${l.totalHT.toFixed(2)} €`)
-        .join('\n')
+      pdf.setFillColor(colAccent)
+      pdf.rect(totBoxX, y, totBoxW, 10, 'F')
+      pdf.setFontSize(11); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text(tvaEnabled ? 'TOTAL TTC' : 'TOTAL NET', totBoxX + 3, y + 7)
+      pdf.text(`${totalVal.toFixed(2)} €`, totBoxX + totBoxW - 3, y + 7, { align: 'right' })
+      y += 16
 
-      const extractableText = [
-        `[VITFIX-DEVIS-METADATA]`,
-        `Type: ${docType === 'devis' ? 'Devis' : 'Facture'}`,
-        `Numéro: ${docNumber}`,
-        `Date: ${docDate}`,
-        docType === 'devis' ? `Validité: ${docValidity} jours` : '',
-        prestationDate ? `Date prestation: ${prestationDate}` : '',
-        ``,
-        `ÉMETTEUR:`,
-        `Entreprise: ${companyName}`,
-        `Statut: ${getStatusLabel(companyStatus)}`,
-        `SIRET: ${companySiret}`,
-        companyRCS ? `RCS: ${companyRCS}` : '',
-        `Adresse: ${companyAddress}`,
-        companyPhone ? `Tél: ${companyPhone}` : '',
-        companyEmail ? `Email: ${companyEmail}` : '',
-        tvaEnabled && tvaNumber ? `TVA: ${tvaNumber}` : 'TVA non applicable, art. 293 B du CGI',
-        insuranceNumber ? `RC Pro: ${insuranceNumber} (${insuranceName})` : '',
-        ``,
-        `DESTINATAIRE:`,
-        `Client: ${clientName}`,
-        clientAddress ? `Adresse: ${clientAddress}` : '',
-        interventionAddress ? `Lieu d'intervention: ${interventionAddress}` : '',
-        clientEmail ? `Email: ${clientEmail}` : '',
-        clientPhone ? `Tél: ${clientPhone}` : '',
-        clientSiret ? `SIRET client: ${clientSiret}` : '',
-        ``,
-        `PRESTATIONS:`,
-        `Désignation | Quantité | Prix unitaire HT | ${tvaEnabled ? 'TVA | ' : ''}Total HT`,
-        linesText,
-        ``,
-        `TOTAUX:`,
-        `Sous-total HT: ${subtotalHT.toFixed(2)} €`,
-        tvaEnabled ? `TVA: ${totalTVA.toFixed(2)} €` : '',
-        tvaEnabled ? `Total TTC: ${totalTTC.toFixed(2)} €` : `Total HT: ${subtotalHT.toFixed(2)} €`,
-        ``,
-        `CONDITIONS:`,
-        `Règlement: ${paymentMode}`,
-        docType === 'facture' && paymentDue ? `Échéance: ${paymentDue}` : '',
-        discount ? `Escompte: ${discount}` : '',
-        notes ? `Notes: ${notes}` : '',
-        attachedRapport ? `Rapport joint: ${attachedRapport.rapportNumber} — ${attachedRapport.motif || 'Intervention'} — ${attachedRapport.status === 'termine' ? 'Terminé' : attachedRapport.status}` : '',
-        ``,
-        getLegalMentions().join('\n'),
-      ].filter(Boolean).join('\n')
+      // ═══ 6. CONDITIONS + SIGNATURE (devis) ou CONDITIONS DE PAIEMENT (facture) ═══
+      if (y > pageH - 80) { pdf.addPage(); y = 18 }
 
-      // Aller sur la première page et écrire le texte invisible
-      pdf.setPage(1)
-      pdf.setTextColor(255, 255, 255)
-      pdf.setFontSize(0.5)
-      const textLines = pdf.splitTextToSize(extractableText, pdfWidth - 20)
-      pdf.text(textLines, 10, 10)
+      if (docType === 'devis') {
+        const condW = contentW * 0.55
+        const sigW = contentW - condW - 6
+        const condX = mL, sigX = mL + condW + 6
+        const condStartY = y
+
+        // Conditions box
+        pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        const condCenterX = condX + condW / 2
+        pdf.text('CONDITIONS', condCenterX, condStartY + 4, { align: 'center' })
+        drawLine(condCenterX - 8, condStartY + 6, condCenterX + 8, '#E2E8F0', 0.2)
+        let cy = condStartY + 10
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
+        const condLines = [
+          `Validité du devis : ${docValidity ? `${docValidity} jours` : '30 jours'} à compter de la date d'émission.`,
+          ...(executionDelay ? [`Délai d'exécution : ${executionDelay}.`] : []),
+          "Toute modification des travaux fera l'objet d'un avenant signé par les deux parties.",
+          ...(paymentMode ? [`Mode de règlement : ${paymentMode}.`] : []),
+        ]
+        condLines.forEach(line => {
+          const wrapped = pdf.splitTextToSize(line, condW - 8)
+          pdf.text(wrapped, condX + 4, cy)
+          cy += wrapped.length * 3
+        })
+        const condH = Math.max(cy - condStartY + 2, 35)
+        pdf.roundedRect(condX, condStartY, condW, condH, 1.5, 1.5, 'S')
+
+        // Signature box
+        const sigCenterX = sigX + sigW / 2
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        pdf.text('BON POUR ACCORD', sigCenterX, condStartY + 4, { align: 'center' })
+        drawLine(sigCenterX - 10, condStartY + 6, sigCenterX + 10, '#E2E8F0', 0.2)
+        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+        pdf.text('Mention manuscrite :', sigX + 4, condStartY + 10)
+        pdf.setFont('helvetica', 'italic'); pdf.setFontSize(5.5); pdf.setTextColor('#9CA3AF')
+        const mentionText = '"Devis reçu avant l\'exécution des travaux, lu et approuvé, bon pour accord"'
+        const mentionWrapped = pdf.splitTextToSize(mentionText, sigW - 8)
+        pdf.text(mentionWrapped, sigX + 4, condStartY + 14)
+        const mentionEndY = condStartY + 14 + mentionWrapped.length * 2.5
+        drawLine(sigX + 4, mentionEndY + 3, sigX + sigW - 4, '#D1D5DB', 0.2)
+        pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+        pdf.text('Date : ___/___/______', sigX + 4, mentionEndY + 7)
+        pdf.text('Signature :', sigX + 4, mentionEndY + 11)
+        pdf.roundedRect(sigX, condStartY, sigW, condH, 1.5, 1.5, 'S')
+
+        y = condStartY + condH + 6
+      } else if (paymentMode || paymentDue) {
+        pdf.setFillColor('#EFF6FF'); pdf.setDrawColor('#BFDBFE'); pdf.setLineWidth(0.3)
+        pdf.roundedRect(mL, y, contentW, 12, 1.5, 1.5, 'FD')
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
+        pdf.text('CONDITIONS DE RÈGLEMENT', mL + 4, y + 5)
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#1E40AF')
+        let payText = ''
+        if (paymentMode) payText += `Mode : ${paymentMode}`
+        if (paymentMode && paymentDue) payText += ' — '
+        if (paymentDue) payText += `Échéance : ${new Date(paymentDue).toLocaleDateString('fr-FR')}`
+        pdf.text(payText, mL + 4, y + 9)
+        y += 16
+      }
+
+      // ═══ 7. NOTES ═══
+      if (notes && y < pageH - 30) {
+        pdf.setFillColor('#FFFBEB'); pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
+        const noteWrapped = pdf.splitTextToSize(`Notes : ${notes}`, contentW - 8)
+        const noteH = noteWrapped.length * 3.5 + 6
+        pdf.roundedRect(mL, y, contentW, noteH, 1.5, 1.5, 'FD')
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#78350F')
+        pdf.text(noteWrapped, mL + 4, y + 4)
+        y += noteH + 4
+      }
+
+      // ═══ 8. RAPPORT JOINT ═══
+      if (attachedRapport && y < pageH - 25) {
+        pdf.setFillColor('#FFF7ED'); pdf.setDrawColor('#FED7AA'); pdf.setLineWidth(0.3)
+        const rapportLines: string[] = []
+        rapportLines.push(`Rapport d'intervention joint — ${attachedRapport.rapportNumber}`)
+        if (attachedRapport.interventionDate) rapportLines.push(`Date : ${new Date(attachedRapport.interventionDate).toLocaleDateString('fr-FR')}${attachedRapport.startTime ? ` de ${attachedRapport.startTime}` : ''}${attachedRapport.endTime ? ` à ${attachedRapport.endTime}` : ''}`)
+        if (attachedRapport.motif) rapportLines.push(`Motif : ${attachedRapport.motif}`)
+        if (attachedRapport.siteAddress) rapportLines.push(`Lieu : ${attachedRapport.siteAddress}`)
+        const rapportH = rapportLines.length * 3.5 + 6
+        pdf.roundedRect(mL, y, contentW, rapportH, 1.5, 1.5, 'FD')
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#9A3412')
+        pdf.text(rapportLines[0], mL + 4, y + 4)
+        pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#78350F')
+        rapportLines.slice(1).forEach((rl, i) => pdf.text(rl, mL + 4, y + 4 + (i + 1) * 3.5))
+        y += rapportH + 4
+      }
+
+      // ═══ 9. MENTIONS LÉGALES ═══
+      if (y > pageH - 20) { pdf.addPage(); y = 18 }
+      drawLine(mL, y, pageW - mR, '#E5E7EB', 0.2)
+      y += 3
+      pdf.setFontSize(5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#9CA3AF')
+      const legalText = `Mentions légales : ${getLegalMentions().join(' — ')}${tvaEnabled && tvaNumber ? ` — N° TVA intracommunautaire : ${tvaNumber}` : ''} — Document généré par Vitfix Pro le ${new Date().toLocaleDateString('fr-FR')} — Conformité : Code de commerce, Code de la consommation, Loi Pinel 2014.`
+      const legalWrapped = pdf.splitTextToSize(legalText, contentW)
+      pdf.text(legalWrapped, mL, y)
+
+      // ═══ PAGE 2 — RÉTRACTATION ═══
+      if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0) {
+        pdf.addPage()
+        let ry = 18
+        // Petit trait accent en haut
+        drawLine(pageW / 2 - 15, ry - 4, pageW / 2 + 15, colAccent, 0.8)
+        centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ${companyName} — Page 2/2`, ry, 7, 'normal', colLight)
+        ry += 8
+
+        // Encadré rétractation
+        pdf.setFillColor('#FFF8F0'); pdf.setDrawColor('#F59E0B'); pdf.setLineWidth(0.5)
+        const retBoxH = 110
+        pdf.roundedRect(mL, ry, contentW, retBoxH, 2, 2, 'FD')
+
+        centerText('DROIT DE RÉTRACTATION — Article L. 221-18 du Code de la consommation', ry + 7, 9, 'bold', '#B45309')
+        ry += 14
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#92400E')
+        const retLines = [
+          "Le client dispose d'un délai de 14 jours calendaires à compter de la signature du présent devis pour exercer son droit de rétractation, sans avoir à justifier de motifs ni à payer de pénalités.",
+          "",
+          "Pour exercer ce droit, le client peut utiliser le formulaire de rétractation ci-dessous ou adresser toute déclaration dénuée d'ambiguïté exprimant sa volonté de se rétracter.",
+        ]
+        retLines.forEach(rl => {
+          if (rl === '') { ry += 2; return }
+          const wrapped = pdf.splitTextToSize(rl, contentW - 12)
+          pdf.text(wrapped, mL + 6, ry)
+          ry += wrapped.length * 3.2
+        })
+        ry += 2
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#92400E')
+        const urgentText = "Aucun paiement ne peut être exigé avant l'expiration d'un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents d'entretien ou de réparation demandés expressément par le client."
+        const urgentWrapped = pdf.splitTextToSize(urgentText, contentW - 12)
+        pdf.text(urgentWrapped, mL + 6, ry)
+        ry += urgentWrapped.length * 3.2 + 4
+
+        // Formulaire
+        drawLine(mL + 10, ry, pageW - mR - 10, '#F59E0B', 0.3)
+        ry += 5
+        centerText('FORMULAIRE DE RÉTRACTATION', ry, 8, 'bold', '#B45309')
+        ry += 5
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#92400E')
+        pdf.text(`À l'attention de : ${companyName}, ${companyAddress}`, mL + 6, ry); ry += 4
+        pdf.text("Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.", mL + 6, ry); ry += 6
+        const formFields = ['Commandé le / reçu le :', 'Nom du client :', 'Adresse du client :', 'Signature du client :', 'Date :']
+        formFields.forEach(f => {
+          pdf.text(f, mL + 6, ry)
+          const fw = pdf.getTextWidth(f) + 2
+          drawLine(mL + 6 + fw, ry + 0.5, pageW - mR - 10, '#D1D5DB', 0.2)
+          ry += 6
+        })
+      }
 
       const safeName = clientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_À-ÿ]/g, '') || 'Client'
       const filename = `${docType === 'devis' ? 'Devis' : 'Facture'}_${docNumber}_${safeName}.pdf`
@@ -1354,11 +1647,12 @@ export default function DevisFactureForm({
                 <table className="w-full border-collapse min-w-[600px]">
                   <thead>
                     <tr className="bg-[#2C3E50] text-white">
-                      <th className="text-left p-3 font-semibold text-sm rounded-tl-lg" style={{ width: '35%' }}>Désignation</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>Qté</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '15%' }}>Prix U. HT</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '12%' }}>TVA %</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '18%' }}>Total HT</th>
+                      <th className="text-left p-3 font-semibold text-sm rounded-tl-lg" style={{ width: '30%' }}>Désignation</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '8%' }}>Qté</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>Unité</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '14%' }}>{tvaEnabled ? 'Prix U. HT' : 'Prix U. TTC'}</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>TVA %</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '18%' }}>{tvaEnabled ? 'Total HT' : 'Total TTC'}</th>
                       <th className="p-3 rounded-tr-lg" style={{ width: '8%' }}></th>
                     </tr>
                   </thead>
@@ -1408,6 +1702,22 @@ export default function DevisFactureForm({
                             min={1}
                             className="w-full p-2 border border-gray-200 rounded-md text-sm text-center focus:border-[#FFC107] focus:outline-none"
                           />
+                        </td>
+                        <td className="p-2">
+                          <select
+                            value={line.unit || 'u'}
+                            onChange={(e) => updateLine(line.id, 'unit', e.target.value)}
+                            className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none"
+                          >
+                            <option value="u">Unité</option>
+                            <option value="m²">m²</option>
+                            <option value="m³">m³</option>
+                            <option value="ml">ml</option>
+                            <option value="h">Heure</option>
+                            <option value="forfait">Forfait</option>
+                            <option value="kg">kg</option>
+                            <option value="lot">Lot</option>
+                          </select>
                         </td>
                         <td className="p-2">
                           <input
@@ -1587,7 +1897,7 @@ export default function DevisFactureForm({
               <h3 className="font-bold text-[#2C3E50] mb-4">Résumé</h3>
               <div className="space-y-3">
                 <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Sous-total HT</span>
+                  <span className="text-gray-600">{tvaEnabled ? 'Sous-total HT' : 'Sous-total'}</span>
                   <span className="font-semibold">{subtotalHT.toFixed(2)} €</span>
                 </div>
                 {tvaEnabled && (
@@ -1597,7 +1907,7 @@ export default function DevisFactureForm({
                   </div>
                 )}
                 <div className={`flex justify-between p-4 -mx-5 -mb-5 rounded-b-2xl text-lg font-bold ${tvaEnabled ? 'bg-green-500 text-white' : 'bg-[#FFC107] text-gray-900'}`}>
-                  <span>{tvaEnabled ? 'Total TTC' : 'Total HT'}</span>
+                  <span>{tvaEnabled ? 'TOTAL TTC' : 'TOTAL NET'}</span>
                   <span>{(tvaEnabled ? totalTTC : subtotalHT).toFixed(2)} €</span>
                 </div>
               </div>
@@ -1801,280 +2111,7 @@ export default function DevisFactureForm({
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════
-          TEMPLATE PDF CACHÉ — capturé par html2canvas
-          Positionné hors écran, jamais visible par l'utilisateur
-          Tous les styles en inline (html2canvas ignore Tailwind)
-          ═══════════════════════════════════════════════ */}
-      <div
-        ref={pdfTemplateRef}
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          left: '-9999px',
-          top: '-9999px',
-          width: '794px',
-          backgroundColor: '#ffffff',
-          fontFamily: 'Arial, Helvetica, sans-serif',
-          fontSize: '12px',
-          color: '#1a1a1a',
-          padding: '48px 48px 40px 48px',
-          boxSizing: 'border-box',
-          lineHeight: '1.5',
-        }}
-      >
-        {/* ─── Titre centré en gras + bande jaune ─── */}
-        <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-          <div style={{ fontSize: '20px', fontWeight: '900', color: '#1E293B', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-            {docType === 'devis' ? 'Devis' : 'Facture'} {docNumber}
-          </div>
-          {docTitle && (
-            <div style={{ fontSize: '11px', fontWeight: '500', color: '#64748B', marginTop: '4px' }}>{docTitle}</div>
-          )}
-        </div>
-        <div style={{ height: '4px', backgroundColor: '#FFC107', margin: '0 -48px 20px -48px' }}></div>
-
-        {/* ─── Émetteur + Destinataire côte à côte ─── */}
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '18px' }}>
-          {/* Émetteur */}
-          <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10.5px', lineHeight: '1.7' }}>
-            <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>Émetteur</div>
-            <div style={{ color: '#64748B' }}>Société : <span style={{ color: '#1E293B', fontWeight: '600' }}>{companyName}</span></div>
-            {companySiret && <div style={{ color: '#64748B' }}>SIRET : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companySiret}</span></div>}
-            {companyRCS && <div style={{ color: '#64748B' }}>RCS/RM : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyRCS}</span></div>}
-            {companyCapital && <div style={{ color: '#64748B' }}>Capital : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyCapital} €</span></div>}
-            {companyAddress && <div style={{ color: '#64748B' }}>Adresse : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyAddress}</span></div>}
-            {companyPhone && <div style={{ color: '#64748B' }}>Téléphone : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyPhone}</span></div>}
-            {companyEmail && <div style={{ color: '#64748B' }}>Email : <span style={{ color: '#1E293B', fontWeight: '500' }}>{companyEmail}</span></div>}
-            {tvaEnabled && tvaNumber && <div style={{ color: '#64748B' }}>N° TVA : <span style={{ color: '#1E293B', fontWeight: '500' }}>{tvaNumber}</span></div>}
-            {insuranceName && <div style={{ color: '#64748B', marginTop: '4px', borderTop: '1px solid #E2E8F0', paddingTop: '4px' }}>Assureur : <span style={{ color: '#1E293B', fontWeight: '500' }}>{insuranceName}</span></div>}
-            {insuranceNumber && <div style={{ color: '#64748B' }}>N° contrat : <span style={{ color: '#1E293B', fontWeight: '500' }}>{insuranceNumber}</span></div>}
-            {insuranceCoverage && <div style={{ color: '#64748B' }}>Couverture : <span style={{ color: '#1E293B', fontWeight: '500' }}>{insuranceCoverage}</span></div>}
-          </div>
-          {/* Destinataire */}
-          <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10.5px', lineHeight: '1.7' }}>
-            <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>Destinataire</div>
-            <div style={{ color: '#64748B' }}>Nom : <span style={{ color: '#1E293B', fontWeight: '600' }}>{clientName}</span></div>
-            {clientAddress && <div style={{ color: '#64748B' }}>Adresse : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientAddress}</span></div>}
-            {interventionAddress && <div style={{ color: '#64748B' }}>Lieu d&apos;intervention : <span style={{ color: '#1E293B', fontWeight: '500' }}>{interventionAddress}</span></div>}
-            {clientPhone && <div style={{ color: '#64748B' }}>Téléphone : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientPhone}</span></div>}
-            {clientEmail && <div style={{ color: '#64748B' }}>Email : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientEmail}</span></div>}
-            {clientSiret && <div style={{ color: '#64748B' }}>SIRET : <span style={{ color: '#1E293B', fontWeight: '500' }}>{clientSiret}</span></div>}
-          </div>
-        </div>
-
-        {/* ─── Assurance décennale — bannière Vitfix ─── */}
-        {insuranceNumber && (
-          <div style={{ marginBottom: '14px', padding: '10px 16px', backgroundColor: '#FFF8E1', borderRadius: '6px', border: '1.5px solid #FFC107', fontSize: '10px', color: '#1E293B', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '36px', fontWeight: '500' }}>
-            Assurance décennale / RC Pro : <strong style={{ marginLeft: '4px' }}>{insuranceName}</strong> — N° <strong>{insuranceNumber}</strong> — Couverture : <strong>{insuranceCoverage}</strong>
-          </div>
-        )}
-
-        {/* ─── Date / Validité / Délai — au-dessus du tableau ─── */}
-        <div style={{ display: 'flex', gap: '24px', marginBottom: '10px', fontSize: '10.5px', color: '#64748B', padding: '9px 16px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0', alignItems: 'center' }}>
-          <div>Date : <span style={{ color: '#1E293B', fontWeight: '600' }}>{docDate ? new Date(docDate).toLocaleDateString('fr-FR') : docDate}</span></div>
-          {docType === 'devis' && docValidity && <div>Validité : <span style={{ color: '#1E293B', fontWeight: '600' }}>{docValidity} jours</span></div>}
-          {docType === 'devis' && executionDelay && <div>Délai d&apos;exécution : <span style={{ color: '#1E293B', fontWeight: '600' }}>{executionDelay}</span></div>}
-          {docType === 'devis' && prestationDate && <div>Date prestation : <span style={{ color: '#1E293B', fontWeight: '600' }}>{new Date(prestationDate).toLocaleDateString('fr-FR')}</span></div>}
-          {docType === 'facture' && paymentDue && <div>Échéance : <span style={{ color: '#1E293B', fontWeight: '600' }}>{new Date(paymentDue).toLocaleDateString('fr-FR')}</span></div>}
-        </div>
-
-        {/* ─── Tableau Prestations ─── */}
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0', marginBottom: '24px', fontSize: '11px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #E2E8F0' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#FFC107', color: '#1E293B' }}>
-              <th style={{ padding: '10px 16px', textAlign: 'left', width: '45%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.8px', verticalAlign: 'middle' }}>Désignation</th>
-              <th style={{ padding: '10px 10px', textAlign: 'center', width: '8%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>Qté</th>
-              <th style={{ padding: '10px 10px', textAlign: 'right', width: '16%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>Prix U. HT</th>
-              {tvaEnabled && <th style={{ padding: '10px 10px', textAlign: 'center', width: '10%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>TVA</th>}
-              <th style={{ padding: '10px 16px', textAlign: 'right', width: tvaEnabled ? '21%' : '31%', fontWeight: '800', fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>Total HT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.filter(l => l.description.trim()).map((line, idx) => (
-              <tr key={line.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#F8FAFC' }}>
-                <td style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9', color: '#1E293B', fontWeight: '500' }}>{line.description}</td>
-                <td style={{ padding: '10px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', color: '#64748B' }}>{line.qty}</td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', borderBottom: '1px solid #F1F5F9', color: '#64748B' }}>{line.priceHT.toFixed(2)} €</td>
-                {tvaEnabled && <td style={{ padding: '10px 10px', textAlign: 'center', borderBottom: '1px solid #F1F5F9', color: '#94A3B8' }}>{line.tvaRate}%</td>}
-                <td style={{ padding: '10px 16px', textAlign: 'right', borderBottom: '1px solid #F1F5F9', fontWeight: '700', color: '#1E293B' }}>{line.totalHT.toFixed(2)} €</td>
-              </tr>
-            ))}
-            {lines.filter(l => l.description.trim()).length === 0 && (
-              <tr>
-                <td colSpan={tvaEnabled ? 5 : 4} style={{ padding: '24px', textAlign: 'center', color: '#94A3B8', fontStyle: 'italic' }}>
-                  Aucune prestation renseignée
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* ─── Totaux ─── */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
-          <div style={{ width: '280px', border: '1px solid #E2E8F0', borderRadius: '6px', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #F1F5F9', fontSize: '11px', backgroundColor: '#F8FAFC' }}>
-              <span style={{ color: '#64748B' }}>Sous-total HT</span>
-              <span style={{ fontWeight: '600', color: '#1E293B' }}>{subtotalHT.toFixed(2)} €</span>
-            </div>
-            {tvaEnabled && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #F1F5F9', fontSize: '11px', backgroundColor: '#F8FAFC' }}>
-                <span style={{ color: '#64748B' }}>TVA</span>
-                <span style={{ fontWeight: '600', color: '#1E293B' }}>{totalTVA.toFixed(2)} €</span>
-              </div>
-            )}
-            {docType === 'facture' && discount && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderBottom: '1px solid #F1F5F9', fontSize: '11px', backgroundColor: '#F8FAFC' }}>
-                <span style={{ color: '#64748B' }}>Escompte</span>
-                <span style={{ fontWeight: '600' }}>{discount}</span>
-              </div>
-            )}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px',
-              backgroundColor: '#FFC107',
-              color: '#1E293B',
-              fontWeight: '900',
-              fontSize: '15px',
-            }}>
-              <span>{tvaEnabled ? 'TOTAL TTC' : 'TOTAL HT'}</span>
-              <span>{(tvaEnabled ? totalTTC : subtotalHT).toFixed(2)} €</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── Conditions + Signature côte à côte (devis) / Conditions de paiement (facture) ─── */}
-        {docType === 'devis' ? (
-          <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-            {/* Conditions à gauche */}
-            <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10px', color: '#475569', lineHeight: '1.6' }}>
-              <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Conditions</div>
-              <div>Validité du devis : {docValidity ? `${docValidity} jours` : '30 jours'} à compter de la date d&apos;émission.</div>
-              {executionDelay && <div>Délai d&apos;exécution : {executionDelay}.</div>}
-              <div>Toute modification des travaux fera l&apos;objet d&apos;un avenant signé par les deux parties.</div>
-              {paymentMode && <div style={{ marginTop: '4px' }}>Mode de règlement : {paymentMode}.</div>}
-            </div>
-            {/* Signature à droite */}
-            <div style={{ width: '280px', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px 16px', fontSize: '10px', color: '#555' }}>
-              <div style={{ fontWeight: '700', fontSize: '9.5px', color: '#1E293B', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Bon pour accord</div>
-              <div style={{ color: '#6B7280', marginBottom: '4px' }}>Mention manuscrite :</div>
-              <div style={{ fontStyle: 'italic', color: '#9CA3AF', marginBottom: '12px', lineHeight: '1.5', fontSize: '9px' }}>&quot;Devis reçu avant l&apos;exécution des travaux, lu et approuvé, bon pour accord&quot;</div>
-              <div style={{ borderBottom: '1px dotted #D1D5DB', marginBottom: '8px', height: '24px' }}></div>
-              <div style={{ color: '#6B7280', fontSize: '9px' }}>Date : ___/___/______</div>
-              <div style={{ marginTop: '4px', color: '#6B7280', fontSize: '9px' }}>Signature :</div>
-              <div style={{ height: '40px' }}></div>
-            </div>
-          </div>
-        ) : (
-          (paymentMode || paymentDue) && (
-            <div style={{ marginBottom: '18px', padding: '10px 16px', backgroundColor: '#EFF6FF', borderRadius: '6px', border: '1px solid #BFDBFE', fontSize: '11px', color: '#1E40AF' }}>
-              <strong style={{ fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.8px', color: '#1D4ED8' }}>Conditions de règlement</strong>
-              <div style={{ marginTop: '6px', lineHeight: '1.6' }}>
-                {paymentMode && <span>Mode : <strong>{paymentMode}</strong></span>}
-                {paymentMode && paymentDue && <span> — </span>}
-                {paymentDue && <span>Échéance : <strong>{new Date(paymentDue).toLocaleDateString('fr-FR')}</strong></span>}
-              </div>
-            </div>
-          )
-        )}
-
-        {/* ─── Notes ─── */}
-        {notes && (
-          <div style={{ marginBottom: '14px', padding: '10px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '6px', fontSize: '10.5px', color: '#78350F', lineHeight: '1.6' }}>
-            <strong style={{ color: '#92400E' }}>Notes :</strong> {notes}
-          </div>
-        )}
-
-        {/* ─── Rapport joint ─── */}
-        {attachedRapport && (
-          <div style={{ marginBottom: '14px', padding: '10px 14px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '6px', fontSize: '10.5px' }}>
-            <div style={{ fontWeight: 'bold', color: '#9A3412', marginBottom: '4px' }}>
-              Rapport d&apos;intervention joint — {attachedRapport.rapportNumber}
-            </div>
-            <div style={{ color: '#78350F', lineHeight: '1.6' }}>
-              {attachedRapport.interventionDate && (
-                <div>Date : {new Date(attachedRapport.interventionDate).toLocaleDateString('fr-FR')}
-                  {attachedRapport.startTime && ` de ${attachedRapport.startTime}`}
-                  {attachedRapport.endTime && ` à ${attachedRapport.endTime}`}
-                </div>
-              )}
-              {attachedRapport.motif && <div>Motif : {attachedRapport.motif}</div>}
-              {attachedRapport.siteAddress && <div>Lieu : {attachedRapport.siteAddress}</div>}
-              {attachedRapport.travaux?.filter(Boolean).length > 0 && (
-                <div>Travaux : {attachedRapport.travaux.filter(Boolean).join(', ')}</div>
-              )}
-              {attachedRapport.observations && <div>Observations : {attachedRapport.observations}</div>}
-              <div style={{ marginTop: '4px', fontSize: '9.5px', color: '#B45309' }}>
-                Statut : {attachedRapport.status === 'termine' ? 'Terminé' :
-                          attachedRapport.status === 'en_cours' ? 'En cours' :
-                          attachedRapport.status === 'a_reprendre' ? 'À reprendre' : 'Sous garantie'}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── Mentions légales — compact, 7px ─── */}
-        <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '10px', marginBottom: '0', fontSize: '7px', color: '#9CA3AF', lineHeight: '1.5' }}>
-          <span style={{ fontWeight: '600', color: '#6B7280' }}>Mentions légales : </span>
-          {getLegalMentions().join(' — ')}
-          {tvaEnabled && tvaNumber && <span> — N° TVA intracommunautaire : {tvaNumber}</span>}
-          <span> — Document généré par Vitfix Pro le {new Date().toLocaleDateString('fr-FR')} — Conformité : Code de commerce, Code de la consommation, Loi Pinel 2014.</span>
-        </div>
-
-      </div>
-
-      {/* ═══════════════════════════════════════════════
-          PAGE 2 — RÉTRACTATION — Template séparé capturé indépendamment
-          Permet un saut de page propre sans couper les éléments
-          ═══════════════════════════════════════════════ */}
-      {docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0 && (
-        <div
-          ref={pdfRetractRef}
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            left: '-9999px',
-            top: '-9999px',
-            width: '794px',
-            backgroundColor: '#ffffff',
-            fontFamily: 'Arial, Helvetica, sans-serif',
-            fontSize: '12px',
-            color: '#1a1a1a',
-            padding: '48px',
-            boxSizing: 'border-box',
-            lineHeight: '1.5',
-          }}
-        >
-          {/* ─── Bandeau jaune en haut de page 2 ─── */}
-          <div style={{ height: '4px', backgroundColor: '#FFC107', margin: '-48px -48px 24px -48px' }}></div>
-
-          <div style={{ textAlign: 'center', marginBottom: '20px', fontSize: '10px', color: '#64748B' }}>
-            {docType === 'devis' ? 'Devis' : 'Facture'} {docNumber} — {companyName} — Page 2/2
-          </div>
-
-          <div style={{ padding: '18px 20px', backgroundColor: '#FFF8F0', border: '2px solid #F59E0B', borderRadius: '8px', fontSize: '10.5px', color: '#92400E', lineHeight: '1.7' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '8px', color: '#B45309', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Droit de rétractation — Article L. 221-18 du Code de la consommation
-            </div>
-            <div>Le client dispose d&apos;un délai de <strong>14 jours calendaires</strong> à compter de la signature du présent devis pour exercer son droit de rétractation, sans avoir à justifier de motifs ni à payer de pénalités.</div>
-            <div style={{ marginTop: '6px' }}>Pour exercer ce droit, le client peut utiliser le formulaire de rétractation ci-dessous ou adresser toute déclaration dénuée d&apos;ambiguïté exprimant sa volonté de se rétracter.</div>
-            <div style={{ marginTop: '8px', fontWeight: 'bold', fontSize: '10.5px' }}>Aucun paiement ne peut être exigé avant l&apos;expiration d&apos;un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents d&apos;entretien ou de réparation demandés expressément par le client.</div>
-
-            <div style={{ marginTop: '16px', borderTop: '2px dashed #F59E0B', paddingTop: '12px' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: '8px', color: '#B45309', textAlign: 'center' }}>FORMULAIRE DE RÉTRACTATION</div>
-              <div style={{ marginBottom: '6px' }}>À l&apos;attention de : {companyName}, {companyAddress}</div>
-              <div style={{ marginBottom: '10px' }}>Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.</div>
-              <div style={{ marginTop: '10px', lineHeight: '2.2' }}>
-                <div>Commandé le / reçu le : ____________________________________</div>
-                <div>Nom du client : ____________________________________</div>
-                <div>Adresse du client : ____________________________________</div>
-                <div>Signature du client : ____________________________________</div>
-                <div>Date : ____________________________________</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ═══ PDF is now generated with vector-based jsPDF + autoTable — no hidden HTML template needed ═══ */}
     </div>
   )
 }

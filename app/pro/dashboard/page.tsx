@@ -30,7 +30,11 @@ export default function DashboardPage() {
   const [availability, setAvailability] = useState<any[]>([])
   const [autoAccept, setAutoAccept] = useState(false)
   const [showNewRdv, setShowNewRdv] = useState(false)
-  const [newRdv, setNewRdv] = useState({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '' })
+  const [newRdv, setNewRdv] = useState({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
+  // ── Absences ──
+  const [absences, setAbsences] = useState<any[]>([])
+  const [showAbsenceModal, setShowAbsenceModal] = useState(false)
+  const [newAbsence, setNewAbsence] = useState({ start_date: '', end_date: '', reason: 'Vacances', label: '' })
   const [selectedBooking, setSelectedBooking] = useState<any>(null)
   const [showBookingDetail, setShowBookingDetail] = useState(false)
   const [convertingDevis, setConvertingDevis] = useState<any>(null)
@@ -245,7 +249,12 @@ export default function DashboardPage() {
       setAvailability([])
     }
 
-    // auto_accept is loaded from DB above
+    // Load absences
+    try {
+      const absRes = await fetch(`/api/artisan-absences?artisan_id=${artisanData.id}`)
+      const absJson = await absRes.json()
+      setAbsences(absJson.data || [])
+    } catch { setAbsences([]) }
 
     // Load dayServices from API (stored in bio marker, shared with client)
     try {
@@ -368,7 +377,7 @@ export default function DashboardPage() {
     if (!error && data) {
       setBookings([data, ...bookings])
       setShowNewRdv(false)
-      setNewRdv({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '' })
+      setNewRdv({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
     }
   }
 
@@ -386,7 +395,7 @@ export default function DashboardPage() {
   // Clic sur une case vide de l'agenda → ouvrir nouveau RDV pré-rempli
   const handleEmptyCellClick = (date: Date, hour: string) => {
     const dateStr = date.toISOString().split('T')[0]
-    setNewRdv({ client_name: '', service_id: '', date: dateStr, time: hour, address: '', notes: '' })
+    setNewRdv({ client_name: '', service_id: '', date: dateStr, time: hour, address: '', notes: '', phone: '', duration: '' })
     setShowNewRdv(true)
   }
 
@@ -407,8 +416,8 @@ export default function DashboardPage() {
     if (clientMatch) clientName = clientMatch[1].trim()
 
     const lines = priceHT > 0
-      ? [{ id: 1, description: serviceName, qty: 1, priceHT, tvaRate: 10, totalHT: priceHT }]
-      : [{ id: 1, description: serviceName, qty: 1, priceHT: 0, tvaRate: 10, totalHT: 0 }]
+      ? [{ id: 1, description: serviceName, qty: 1, unit: 'u', priceHT, tvaRate: 10, totalHT: priceHT }]
+      : [{ id: 1, description: serviceName, qty: 1, unit: 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }]
 
     const devisData = {
       docType: 'devis' as const,
@@ -449,6 +458,43 @@ export default function DashboardPage() {
     const dateStr = date.toISOString().split('T')[0]
     return bookings.filter((b) => b.booking_date === dateStr)
   }, [bookings])
+
+  const isDateAbsent = useCallback((date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    const match = absences.find((a: any) => dateStr >= a.start_date && dateStr <= a.end_date)
+    return match ? { absent: true, reason: match.reason || '', label: match.label || '', source: match.source || 'manual', id: match.id } : { absent: false, reason: '', label: '', source: '', id: '' }
+  }, [absences])
+
+  // Feature 3: Only working days for week view
+  const getWorkingWeekDates = useCallback(() => {
+    const allDates = getWeekDates()
+    if (availability.length === 0) return allDates.filter(d => d.getDay() !== 0 && d.getDay() !== 6)
+    const workingDows = availability.filter((a: any) => a.is_available).map((a: any) => a.day_of_week)
+    if (workingDows.length === 0) return allDates.filter(d => d.getDay() !== 0 && d.getDay() !== 6)
+    return allDates.filter(d => workingDows.includes(d.getDay()))
+  }, [getWeekDates, availability])
+
+  const createAbsence = async () => {
+    if (!artisan || !newAbsence.start_date || !newAbsence.end_date) return
+    try {
+      const res = await fetch('/api/artisan-absences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artisan_id: artisan.id, ...newAbsence })
+      })
+      const json = await res.json()
+      if (json.data) setAbsences([...absences, json.data])
+      setShowAbsenceModal(false)
+      setNewAbsence({ start_date: '', end_date: '', reason: 'Vacances', label: '' })
+    } catch (err) { console.error('Erreur création absence:', err) }
+  }
+
+  const deleteAbsence = async (absenceId: string) => {
+    try {
+      await fetch(`/api/artisan-absences?id=${absenceId}`, { method: 'DELETE' })
+      setAbsences(absences.filter((a: any) => a.id !== absenceId))
+    } catch (err) { console.error('Erreur suppression absence:', err) }
+  }
 
   const changeWeek = (direction: number) => {
     const d = new Date(selectedWeekStart)
@@ -1074,6 +1120,9 @@ export default function DashboardPage() {
                           </button>
                         ))}
                       </div>
+                      <button onClick={() => setShowAbsenceModal(true)} className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-1.5 rounded-lg font-semibold text-sm transition-all">
+                        Absence
+                      </button>
                       <button onClick={() => setShowNewRdv(true)} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-1.5 rounded-lg font-semibold text-sm shadow-sm transition-all">
                         + Nouveau rendez-vous
                       </button>
@@ -1084,6 +1133,7 @@ export default function DashboardPage() {
                   {calendarView === 'day' && (() => {
                     const dayDate = new Date(selectedDay)
                     const dayBookings = getBookingsForDate(dayDate)
+                    const absenceInfo = isDateAbsent(dayDate)
                     return (
                       <div>
                         <div className="p-3 text-center border-b border-gray-200 bg-gray-50">
@@ -1094,6 +1144,15 @@ export default function DashboardPage() {
                             {dayDate.getDate()}
                           </div>
                         </div>
+                        {absenceInfo.absent && (
+                          <div className={`p-4 border-l-4 ${absenceInfo.source === 'devis' ? 'bg-red-200 border-red-600' : 'bg-red-100 border-red-400'} flex items-center justify-between`}>
+                            <div>
+                              <div className="font-bold text-red-800 text-sm">{absenceInfo.source === 'devis' ? `🔧 ${absenceInfo.label}` : `🚫 Absent — ${absenceInfo.reason}`}</div>
+                              {absenceInfo.source === 'devis' && <div className="text-xs text-red-600">{absenceInfo.reason}</div>}
+                            </div>
+                            <button onClick={() => deleteAbsence(absenceInfo.id)} className="text-red-400 hover:text-red-600 text-xs">Supprimer</button>
+                          </div>
+                        )}
                         {getCalendarHours().map((hour) => {
                           const hourBookings = dayBookings.filter((b) => b.booking_time?.substring(0, 5) === hour)
                           const isEmpty = hourBookings.length === 0
@@ -1139,24 +1198,30 @@ export default function DashboardPage() {
                   })()}
 
                   {/* ═══ VUE SEMAINE ═══ */}
-                  {calendarView === 'week' && (
+                  {calendarView === 'week' && (() => {
+                    const weekDates = getWorkingWeekDates()
+                    const colCount = weekDates.length
+                    return (
                     <div className="overflow-x-auto">
                       <div className="min-w-[800px]">
                         {/* Day headers */}
-                        <div className="grid grid-cols-[70px_repeat(7,1fr)] border-b border-gray-200">
+                        <div className="grid border-b border-gray-200" style={{ gridTemplateColumns: `70px repeat(${colCount}, 1fr)` }}>
                           <div className="p-2 text-center text-xs text-gray-500 border-r border-gray-100"></div>
-                          {getWeekDates().map((date, i) => {
+                          {weekDates.map((date, i) => {
                             const isToday = date.toDateString() === new Date().toDateString()
-                            const isWeekend = date.getDay() === 0 || date.getDay() === 6
+                            const absenceInfo = isDateAbsent(date)
                             return (
                               <div key={i} onClick={() => { setSelectedDay(date.toISOString().split('T')[0]); setCalendarView('day') }}
-                                className={`p-3 text-center border-r border-gray-100 last:border-r-0 cursor-pointer hover:bg-amber-50 transition ${isWeekend ? 'bg-[#FAFAFA]' : ''}`}>
-                                <div className={`text-xs uppercase tracking-wide ${isToday ? 'text-[#FFC107] font-bold' : 'text-gray-500'}`}>
+                                className={`p-3 text-center border-r border-gray-100 last:border-r-0 cursor-pointer hover:bg-amber-50 transition ${absenceInfo.absent ? 'bg-red-50' : ''}`}>
+                                <div className={`text-xs uppercase tracking-wide ${isToday ? 'text-[#FFC107] font-bold' : absenceInfo.absent ? 'text-red-500 font-semibold' : 'text-gray-500'}`}>
                                   {DAY_SHORT[date.getDay()]}
                                 </div>
-                                <div className={`text-lg font-bold mt-0.5 ${isToday ? 'bg-[#FFC107] text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto' : 'text-gray-800'}`}>
+                                <div className={`text-lg font-bold mt-0.5 ${isToday ? 'bg-[#FFC107] text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto' : absenceInfo.absent ? 'text-red-600' : 'text-gray-800'}`}>
                                   {date.getDate()}
                                 </div>
+                                {absenceInfo.absent && (
+                                  <div className="text-[9px] text-red-500 font-semibold truncate mt-0.5">{absenceInfo.source === 'devis' ? `🔧 ${absenceInfo.label}` : `🚫 ${absenceInfo.reason}`}</div>
+                                )}
                               </div>
                             )
                           })}
@@ -1164,20 +1229,31 @@ export default function DashboardPage() {
 
                         {/* Time grid rows */}
                         {getCalendarHours().map((hour) => (
-                          <div key={hour} className="grid grid-cols-[70px_repeat(7,1fr)] border-b border-gray-100 last:border-b-0">
+                          <div key={hour} className="grid border-b border-gray-100 last:border-b-0" style={{ gridTemplateColumns: `70px repeat(${colCount}, 1fr)` }}>
                             <div className="p-2 text-right pr-3 text-xs text-gray-500 font-medium border-r border-gray-100 flex items-start justify-end pt-1">
                               {hour}
                             </div>
-                            {getWeekDates().map((date, i) => {
-                              const isWeekend = date.getDay() === 0 || date.getDay() === 6
+                            {weekDates.map((date, i) => {
+                              const absenceInfo = isDateAbsent(date)
                               const dayBookings = getBookingsForDate(date)
                               const hourBookings = dayBookings.filter((b) => b.booking_time?.substring(0, 5) === hour)
                               const isEmpty = hourBookings.length === 0
+                              if (absenceInfo.absent) {
+                                return (
+                                  <div key={i} className={`min-h-[70px] border-r border-gray-100 last:border-r-0 p-1 ${absenceInfo.source === 'devis' ? 'bg-red-100' : 'bg-red-50'}`}>
+                                    {hour === getCalendarHours()[0] && (
+                                      <div className={`text-[10px] font-semibold px-1 py-0.5 rounded ${absenceInfo.source === 'devis' ? 'text-red-800 bg-red-200' : 'text-red-600 bg-red-100'}`}>
+                                        {absenceInfo.source === 'devis' ? `🔧 ${absenceInfo.label}` : `🚫 ${absenceInfo.reason}`}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              }
                               return (
                                 <div
                                   key={i}
                                   onClick={() => isEmpty && handleEmptyCellClick(date, hour)}
-                                  className={`min-h-[70px] border-r border-gray-100 last:border-r-0 p-1 transition-colors group relative ${isWeekend ? 'bg-[#FAFAFA]' : ''} ${isEmpty ? 'cursor-pointer hover:bg-[#FFF9E6]' : ''}`}
+                                  className={`min-h-[70px] border-r border-gray-100 last:border-r-0 p-1 transition-colors group relative ${isEmpty ? 'cursor-pointer hover:bg-[#FFF9E6]' : ''}`}
                                 >
                                   {isEmpty && (
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1202,7 +1278,8 @@ export default function DashboardPage() {
                         ))}
                       </div>
                     </div>
-                  )}
+                    )
+                  })()}
 
                   {/* ═══ VUE MOIS ═══ */}
                   {calendarView === 'month' && (() => {
@@ -1226,24 +1303,32 @@ export default function DashboardPage() {
                               const isToday = date.toDateString() === new Date().toDateString()
                               const isWeekend = date.getDay() === 0 || date.getDay() === 6
                               const dayBookings = getBookingsForDate(date)
+                              const absenceInfo = isDateAbsent(date)
                               return (
                                 <div key={i}
                                   onClick={() => { setSelectedDay(date.toISOString().split('T')[0]); setCalendarView('day') }}
                                   className={`min-h-[90px] p-1.5 border-r border-gray-100 last:border-r-0 cursor-pointer transition group
-                                    ${!isCurrentMonth ? 'bg-gray-50/50' : isWeekend ? 'bg-[#FAFAFA]' : 'bg-white'}
+                                    ${absenceInfo.absent ? (absenceInfo.source === 'devis' ? 'bg-red-100' : 'bg-red-50') : !isCurrentMonth ? 'bg-gray-50/50' : isWeekend ? 'bg-[#FAFAFA]' : 'bg-white'}
                                     hover:bg-[#FFF9E6]`}
                                 >
                                   <div className="flex items-center justify-between mb-1">
                                     <span className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full
-                                      ${isToday ? 'bg-[#FFC107] text-white' : !isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}`}>
+                                      ${isToday ? 'bg-[#FFC107] text-white' : absenceInfo.absent ? 'bg-red-500 text-white' : !isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}`}>
                                       {date.getDate()}
                                     </span>
-                                    {dayBookings.length > 0 && isCurrentMonth && (
+                                    {absenceInfo.absent && isCurrentMonth ? (
+                                      <span className="text-[9px] text-red-600 font-bold">{absenceInfo.source === 'devis' ? '🔧' : '🚫'}</span>
+                                    ) : dayBookings.length > 0 && isCurrentMonth ? (
                                       <span className="text-xs text-gray-500 font-semibold">{dayBookings.length}</span>
-                                    )}
+                                    ) : null}
                                   </div>
+                                  {absenceInfo.absent && isCurrentMonth && (
+                                    <div className={`text-[9px] font-semibold truncate px-1 py-0.5 rounded mb-0.5 ${absenceInfo.source === 'devis' ? 'text-red-800 bg-red-200' : 'text-red-600 bg-red-100'}`}>
+                                      {absenceInfo.source === 'devis' ? absenceInfo.label : absenceInfo.reason || 'Absent'}
+                                    </div>
+                                  )}
                                   <div className="space-y-0.5">
-                                    {dayBookings.slice(0, 3).map((b) => {
+                                    {dayBookings.slice(0, absenceInfo.absent ? 1 : 3).map((b) => {
                                       const statusColor = b.status === 'confirmed' ? 'bg-green-400' : b.status === 'pending' ? 'bg-orange-400' : b.status === 'completed' ? 'bg-blue-400' : 'bg-red-400'
                                       return (
                                         <div key={b.id} onClick={(e) => { e.stopPropagation(); handleBookingClick(b) }}
@@ -1255,8 +1340,8 @@ export default function DashboardPage() {
                                         </div>
                                       )
                                     })}
-                                    {dayBookings.length > 3 && (
-                                      <div className="text-[10px] text-gray-500 font-semibold pl-2.5">+{dayBookings.length - 3} de plus</div>
+                                    {dayBookings.length > (absenceInfo.absent ? 1 : 3) && (
+                                      <div className="text-[10px] text-gray-500 font-semibold pl-2.5">+{dayBookings.length - (absenceInfo.absent ? 1 : 3)} de plus</div>
                                     )}
                                   </div>
                                 </div>
@@ -2393,7 +2478,7 @@ export default function DashboardPage() {
               bookings={bookings}
               services={services}
               onNewRdv={(clientName: string) => {
-                setNewRdv({ client_name: clientName, service_id: '', date: '', time: '', address: '', notes: '' })
+                setNewRdv({ client_name: clientName, service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
                 setShowNewRdv(true)
                 setActivePage('calendar')
               }}
