@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import FixyChatGeneric from '@/components/FixyChatGeneric'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -6465,19 +6466,9 @@ export default function SyndicDashboard() {
                       <h3 className="text-lg font-bold text-gray-900">{i.nom}</h3>
                       <p className="text-gray-500 text-sm">{i.adresse}, {i.codePostal} {i.ville}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        {i.geolocActivee && i.latitude && i.longitude ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-medium">
-                            📍 Géoloc {i.rayonDetection || 150}m
-                          </span>
-                        ) : i.geolocActivee ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-                            📍 Géoloc — coords manquantes
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-gray-50 text-gray-500 border border-gray-200 px-2 py-0.5 rounded-full font-medium">
-                            📍 Géoloc désactivée
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-medium">
+                          🏢 {i.nbLots} lots
+                        </span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -8363,6 +8354,22 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── Fixy Assistant IA ─── */}
+      {user && (
+        <FixyChatGeneric
+          role={userRole === 'syndic_tech' ? 'syndic_tech' : 'syndic'}
+          userName={userName}
+          context={{
+            immeubles: `${immeubles.length} copropriété(s) gérée(s)`,
+            interventions: `${missions.filter((m: any) => m.statut === 'en_cours' || m.statut === 'planifiée').length} intervention(s) en cours`,
+          }}
+          getAuthToken={async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            return session?.access_token || null
+          }}
+        />
       )}
     </div>
   )

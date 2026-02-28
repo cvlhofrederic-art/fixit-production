@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
-import { Calendar, Clock, MapPin, ArrowLeft } from 'lucide-react'
+import { Calendar, Clock, MapPin, ArrowLeft, User, Phone, Mail } from 'lucide-react'
 
 function ReserverContent() {
   const searchParams = useSearchParams()
@@ -18,28 +18,63 @@ function ReserverContent() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [bookingId, setBookingId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     date: '',
     time: '',
     address: '',
     notes: '',
+    clientName: '',
+    clientPhone: '',
+    clientEmail: '',
   })
 
   useEffect(() => {
     if (artisanId && serviceId) {
       fetchData()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artisanId, serviceId])
 
   const fetchData = async () => {
-    const [artisanRes, serviceRes] = await Promise.all([
-      supabase.from('profiles_artisan').select('*').eq('id', artisanId).single(),
-      supabase.from('services').select('*').eq('id', serviceId).single(),
-    ])
+    try {
+      // Fetch artisan + service data
+      const [artisanRes, serviceRes] = await Promise.all([
+        supabase.from('profiles_artisan').select('*').eq('id', artisanId).single(),
+        supabase.from('services').select('*').eq('id', serviceId).single(),
+      ])
 
-    setArtisan(artisanRes.data)
-    setService(serviceRes.data)
+      setArtisan(artisanRes.data)
+      setService(serviceRes.data)
+
+      // Auto-fill client info from authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const meta = user.user_metadata || {}
+
+        // Try loading client profile from DB
+        const { data: clientProfile } = await supabase
+          .from('profiles_client')
+          .select('first_name, last_name, phone, address')
+          .eq('id', user.id)
+          .single()
+
+        const fullName = clientProfile
+          ? [clientProfile.first_name, clientProfile.last_name].filter(Boolean).join(' ')
+          : meta.full_name || meta.name || ''
+
+        setFormData(prev => ({
+          ...prev,
+          clientName: fullName,
+          clientPhone: clientProfile?.phone || meta.phone || '',
+          clientEmail: user.email || '',
+          address: clientProfile?.address || meta.address || '',
+        }))
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err)
+    }
     setLoading(false)
   }
 
@@ -48,32 +83,53 @@ function ReserverContent() {
     setError('')
     setSubmitting(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
 
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
+      if (!session?.access_token) {
+        router.push('/auth/login')
+        return
+      }
 
-    const { error: bookingError } = await supabase.from('bookings').insert({
-      client_id: user.id,
-      artisan_id: artisanId,
-      service_id: serviceId,
-      status: 'pending',
-      booking_date: formData.date,
-      booking_time: formData.time,
-      duration_minutes: service?.duration_minutes,
-      address: formData.address,
-      notes: formData.notes,
-      price_ht: service?.price_ht,
-      price_ttc: service?.price_ttc,
-    })
+      // Build notes with client info for artisan
+      const clientInfoNote = `Client: ${formData.clientName || 'N/C'} | Tél: ${formData.clientPhone || 'N/C'} | Email: ${formData.clientEmail || 'N/C'}`
+      const fullNotes = formData.notes
+        ? `${clientInfoNote}\n${formData.notes}`
+        : clientInfoNote
 
-    if (bookingError) {
-      setError(bookingError.message)
-      setSubmitting(false)
-    } else {
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          artisan_id: artisanId,
+          service_id: serviceId,
+          booking_date: formData.date,
+          booking_time: formData.time,
+          duration_minutes: service?.duration_minutes || 60,
+          address: formData.address || 'À définir',
+          notes: fullNotes,
+          price_ht: service?.price_ht || 0,
+          price_ttc: service?.price_ttc || 0,
+          status: 'pending',
+        }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        setError(result.error || 'Erreur lors de la réservation. Veuillez réessayer.')
+        setSubmitting(false)
+        return
+      }
+
+      setBookingId(result.data?.id || null)
       setSuccess(true)
+    } catch {
+      setError('Erreur de connexion. Vérifiez votre connexion internet et réessayez.')
+      setSubmitting(false)
     }
   }
 
@@ -95,12 +151,22 @@ function ReserverContent() {
             <p className="text-gray-600 mb-6">
               L&apos;artisan va confirmer votre réservation. Vous recevrez une notification.
             </p>
-            <button
-              onClick={() => router.push('/')}
-              className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
-            >
-              Retour à l&apos;accueil
-            </button>
+            <div className="flex flex-col gap-3">
+              {bookingId && (
+                <button
+                  onClick={() => router.push(`/confirmation?id=${bookingId}`)}
+                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
+                >
+                  Voir ma réservation
+                </button>
+              )}
+              <button
+                onClick={() => router.push('/')}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-xl font-semibold transition"
+              >
+                Retour à l&apos;accueil
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -126,10 +192,55 @@ function ReserverContent() {
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {error && (
-                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
-                    {error}
+                  <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm border border-red-200">
+                    ❌ {error}
                   </div>
                 )}
+
+                {/* Client info section */}
+                <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <User className="w-4 h-4" /> Vos informations
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Nom complet</label>
+                      <input
+                        type="text"
+                        value={formData.clientName}
+                        onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+                        required
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm"
+                        placeholder="Jean Dupont"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">
+                        <Phone className="w-3.5 h-3.5 inline mr-1" />Téléphone
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.clientPhone}
+                        onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                        required
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm"
+                        placeholder="06 12 34 56 78"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      <Mail className="w-3.5 h-3.5 inline mr-1" />Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.clientEmail}
+                      onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm bg-gray-100"
+                      readOnly
+                    />
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -158,7 +269,7 @@ function ReserverContent() {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none bg-white"
                   >
                     <option value="">Choisir une heure</option>
-                    {['08:00', '09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'].map((time) => (
+                    {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((time) => (
                       <option key={time} value={time}>{time}</option>
                     ))}
                   </select>
@@ -188,7 +299,7 @@ function ReserverContent() {
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none resize-none"
-                    placeholder="Détails supplémentaires..."
+                    placeholder="Détails supplémentaires, accès, digicode..."
                   />
                 </div>
 
@@ -197,7 +308,7 @@ function ReserverContent() {
                   disabled={submitting}
                   className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-semibold transition disabled:opacity-60"
                 >
-                  {submitting ? 'Envoi...' : 'Confirmer la réservation'}
+                  {submitting ? '⏳ Envoi en cours...' : 'Confirmer la réservation'}
                 </button>
               </form>
             </div>
@@ -234,6 +345,14 @@ function ReserverContent() {
                   <span className="text-2xl font-bold text-[#FFC107]">
                     {formatPrice(service.price_ttc)}
                   </span>
+                </div>
+              )}
+
+              {formData.clientName && (
+                <div className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500">
+                  <p>📍 {formData.address || 'Adresse non renseignée'}</p>
+                  <p>👤 {formData.clientName}</p>
+                  {formData.clientPhone && <p>📞 {formData.clientPhone}</p>}
                 </div>
               )}
             </div>

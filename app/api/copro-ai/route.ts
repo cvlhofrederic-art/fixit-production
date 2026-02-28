@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const groqMessages = [
-      { role: 'system', content: systemPrompt || 'Tu es Sofia, une assistante IA pour copropriétaires. Réponds toujours en français.' },
+      { role: 'system', content: systemPrompt || 'Tu es Fixy, un assistant IA pour copropriétaires et locataires. Tu es amical, patient et pédagogue. Réponds toujours en français.' },
       ...messages.slice(-20).map((m: any) => ({ role: m.role, content: m.content })),
     ]
 

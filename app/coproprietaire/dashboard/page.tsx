@@ -1405,7 +1405,7 @@ const COPRO_MODULES = [
   { key: 'signalement', label: 'Signalement', icon: '🔔', description: 'Signaler un problème dans l\'immeuble', default: true },
   { key: 'assemblees', label: 'Assemblées & Votes', icon: '🏛️', description: 'AG, résolutions et votes en ligne', default: true },
   { key: 'historique', label: 'Historique', icon: '📈', description: 'Historique de toutes vos actions', default: false },
-  { key: 'assistant', label: 'Assistant IA Sofia', icon: '🤖', description: 'Posez vos questions à Sofia', default: true },
+  { key: 'assistant', label: 'Assistant Fixy', icon: '🤖', description: 'Posez vos questions à Fixy', default: true },
 ] as const
 type CoproModuleKey = typeof COPRO_MODULES[number]['key']
 
@@ -1425,7 +1425,7 @@ const NAV_ITEMS: { id: CoproPage; emoji: string; label: string }[] = [
   { id: 'historique', emoji: '📈', label: 'Historique' },
   { id: 'modules', emoji: '🧩', label: 'Modules' },
   { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
-  { id: 'assistant', emoji: '🤖', label: 'Assistant IA Sofia' },
+  { id: 'assistant', emoji: '🤖', label: 'Assistant Fixy' },
 ]
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -1693,7 +1693,7 @@ export default function CoproprietaireDashboard() {
   const buildCoproSystemPrompt = () => {
     const paiementsAttente = paiements.filter(p => p.statut === 'en_attente')
     const docsListe = documents.map(d => `- ${d.nom} (${d.annee}, ${DOC_TYPE_LABELS[d.type]?.label || d.type})`).join('\n')
-    return `Tu es Sofia, l'assistante IA personnelle de ${profile.prenom} ${profile.nom}, copropriétaire au ${profile.immeuble}, bâtiment ${profile.batiment}, étage ${profile.etage}, lot n°${profile.numLot}. Tu as accès à toutes les informations de sa copropriété. Réponds de façon claire, conviviale et accessible — certaines personnes ne sont pas à l'aise avec la technologie. Réponds toujours en français.
+    return `Tu es Fixy, l'assistant IA personnel de ${profile.prenom} ${profile.nom}, copropriétaire au ${profile.immeuble}, bâtiment ${profile.batiment}, étage ${profile.etage}, lot n°${profile.numLot}. Tu as accès à toutes les informations de sa copropriété. Réponds de façon claire, conviviale et accessible — certaines personnes ne sont pas à l'aise avec la technologie. Réponds toujours en français.
 
 === PROFIL COPROPRIÉTAIRE ===
 Nom: ${profile.prenom} ${profile.nom}
@@ -3014,18 +3014,29 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="flex flex-col h-[calc(100vh-120px)] max-w-3xl mx-auto">
 
               {/* En-tête assistant */}
-              <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-5 mb-4 flex items-center gap-4 shadow-md">
-                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-3xl flex-shrink-0">
-                  🤖
+              <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] rounded-xl p-5 mb-4 flex items-center gap-4 shadow-md">
+                <div className="w-14 h-14 bg-white/30 rounded-full flex items-center justify-center text-3xl flex-shrink-0">
+                  <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="25" y="45" width="50" height="35" rx="8" fill="#FFC107"/>
+                    <rect x="28" y="18" width="44" height="30" rx="10" fill="#FFD54F"/>
+                    <circle cx="40" cy="30" r="5" fill="#1a1a2e"/><circle cx="60" cy="30" r="5" fill="#1a1a2e"/>
+                    <circle cx="42" cy="28" r="1.5" fill="white"/><circle cx="62" cy="28" r="1.5" fill="white"/>
+                    <path d="M42 38 Q50 44 58 38" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                    <line x1="50" y1="18" x2="50" y2="8" stroke="#FFC107" strokeWidth="3" strokeLinecap="round"/>
+                    <circle cx="50" cy="6" r="4" fill="#FF9800"/>
+                    <rect x="12" y="50" width="13" height="6" rx="3" fill="#FFD54F"/>
+                    <rect x="33" y="80" width="10" height="12" rx="4" fill="#FFD54F"/>
+                    <rect x="57" y="80" width="10" height="12" rx="4" fill="#FFD54F"/>
+                  </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Sofia — Assistante IA</h2>
-                  <p className="text-purple-200 text-sm">Je connais toute votre copropriété. Posez-moi n'importe quelle question !</p>
+                  <h2 className="text-xl font-bold text-gray-900">Fixy — Assistant IA</h2>
+                  <p className="text-gray-700 text-sm">Je connais toute votre copropriété. Posez-moi n&apos;importe quelle question !</p>
                 </div>
                 {assistantMessages.length > 0 && (
                   <button
                     onClick={() => setAssistantMessages([])}
-                    className="ml-auto text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg transition"
+                    className="ml-auto text-xs bg-gray-900/10 hover:bg-gray-900/20 text-gray-900 px-3 py-1.5 rounded-lg transition"
                   >
                     Nouvelle conversation
                   </button>
@@ -3042,7 +3053,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       <div className="text-5xl mb-4">💬</div>
                       <p className="text-gray-600 font-medium text-lg mb-2">Bonjour {profile.prenom} !</p>
                       <p className="text-gray-500 text-sm mb-6 max-w-md">
-                        Je suis Sofia, votre assistante personnelle pour la copropriété <strong>{profile.immeuble}</strong>.
+                        Je suis Fixy, votre assistant personnel pour la copropriété <strong>{profile.immeuble}</strong>.
                         Je peux répondre à toutes vos questions — même si vous n'êtes pas à l'aise avec la technologie !
                       </p>
                       <p className="text-xs text-gray-500 mb-4 font-medium">Questions fréquentes :</p>
@@ -3066,7 +3077,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                                 if (input) (input as HTMLInputElement).focus()
                               }, 50)
                             }}
-                            className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-2 rounded-full transition"
+                            className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-3 py-2 rounded-full transition"
                           >
                             {q}
                           </button>
@@ -3078,14 +3089,14 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       {assistantMessages.map((msg, i) => (
                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                           {msg.role === 'assistant' && (
-                            <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0 mt-0.5">
+                            <div className="w-7 h-7 bg-[#FFC107] rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0 mt-0.5">
                               🤖
                             </div>
                           )}
                           <div
                             className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                               msg.role === 'user'
-                                ? 'bg-purple-600 text-white rounded-tr-sm'
+                                ? 'bg-[#FFC107] text-gray-900 rounded-tr-sm'
                                 : 'bg-gray-100 text-gray-800 rounded-tl-sm'
                             }`}
                           >
@@ -3095,7 +3106,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       ))}
                       {assistantLoading && (
                         <div className="flex justify-start">
-                          <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0">
+                          <div className="w-7 h-7 bg-[#FFC107] rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0">
                             🤖
                           </div>
                           <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
@@ -3125,7 +3136,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                             if (input) (input as HTMLInputElement).focus()
                           }, 50)
                         }}
-                        className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-full transition flex-shrink-0"
+                        className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-full transition flex-shrink-0"
                       >
                         {q}
                       </button>
@@ -3144,7 +3155,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       type="text"
                       value={assistantInput}
                       onChange={e => setAssistantInput(e.target.value)}
-                      placeholder="Posez votre question à Sofia…"
+                      placeholder="Posez votre question à Fixy…"
                       disabled={assistantLoading}
                       className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:bg-white disabled:opacity-60 transition"
                     />
@@ -3166,7 +3177,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                     </button>
                   </form>
                   <p className="text-xs text-gray-500 mt-2 text-center">
-                    Sofia peut répondre à toutes vos questions sur votre copropriété
+                    Fixy peut répondre à toutes vos questions sur votre copropriété
                   </p>
                 </div>
               </div>
@@ -3203,14 +3214,21 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
 
         </div>
 
-        {/* Bouton flottant assistant IA */}
+        {/* Bouton flottant Fixy */}
         {page !== 'assistant' && (
           <button
             onClick={() => setPage('assistant')}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-3 rounded-full shadow-xl transition-all hover:scale-105 active:scale-95"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 font-bold px-5 py-3 rounded-full shadow-xl transition-all hover:scale-105 active:scale-95"
           >
-            <span className="text-xl">🤖</span>
-            <span className="text-sm">Assistant IA</span>
+            <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="25" y="45" width="50" height="35" rx="8" fill="#FFC107"/>
+              <rect x="28" y="18" width="44" height="30" rx="10" fill="#FFD54F"/>
+              <circle cx="40" cy="30" r="5" fill="#1a1a2e"/><circle cx="60" cy="30" r="5" fill="#1a1a2e"/>
+              <path d="M42 38 Q50 44 58 38" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+              <line x1="50" y1="18" x2="50" y2="8" stroke="#FFC107" strokeWidth="3" strokeLinecap="round"/>
+              <circle cx="50" cy="6" r="4" fill="#FF9800"/>
+            </svg>
+            <span className="text-sm">Fixy</span>
           </button>
         )}
 

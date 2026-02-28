@@ -2513,11 +2513,17 @@ export default function DashboardPage() {
           {activePage === 'settings' && (
             <div className="animate-fadeIn">
               <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
-                <h1 className="text-2xl font-semibold">⚙️ Paramètres</h1>
+                <div className="flex items-center justify-between">
+                  <h1 className="text-2xl font-semibold">{settingsTab === 'modules' ? '🧩 Modules' : '⚙️ Paramètres'}</h1>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => setSettingsTab('profil')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${settingsTab === 'profil' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>⚙️ Profil & Paramètres</button>
+                  <button onClick={() => setSettingsTab('modules')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${settingsTab === 'modules' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🧩 Modules</button>
+                </div>
               </div>
 
               {/* ─── Profil ─── */}
-              {(
+              {settingsTab === 'profil' && (
               <div className="p-6 lg:p-8">
                 <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-2xl">
                   <h3 className="text-xl font-bold mb-6">Profil professionnel</h3>
@@ -2687,6 +2693,68 @@ export default function DashboardPage() {
                         {savingSettings ? '⏳ Sauvegarde...' : '💾 Enregistrer les paramètres'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+              )}
+
+              {/* ─── Modules Config ─── */}
+              {settingsTab === 'modules' && (
+              <div className="p-6 lg:p-8">
+                <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-3xl">
+                  <h3 className="text-xl font-bold mb-2">Configuration des modules</h3>
+                  <p className="text-sm text-gray-500 mb-6">Activez ou désactivez les modules visibles dans votre barre latérale. Les modules verrouillés ne peuvent pas être désactivés.</p>
+
+                  {/* Group by category */}
+                  {['Principal', 'Communication', 'Facturation', 'Analyse', 'Profil Pro'].map(cat => {
+                    const catModules = ALL_MODULES.filter(m => m.category === cat && !m.locked)
+                    if (catModules.length === 0) return null
+                    return (
+                      <div key={cat} className="mb-6">
+                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{cat}</h4>
+                        <div className="space-y-2">
+                          {catModules.map(mod => {
+                            const conf = modulesConfig.find(c => c.id === mod.id)
+                            const enabled = conf ? conf.enabled : true
+                            return (
+                              <div key={mod.id} className={`flex items-center justify-between p-4 rounded-xl border transition ${enabled ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl">{mod.icon}</span>
+                                  <span className={`font-medium ${enabled ? 'text-gray-900' : 'text-gray-400'}`}>{mod.label}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    onClick={() => moveModule(mod.id, 'up')}
+                                    className="text-gray-400 hover:text-gray-700 text-lg transition"
+                                    title="Monter"
+                                  >↑</button>
+                                  <button
+                                    onClick={() => moveModule(mod.id, 'down')}
+                                    className="text-gray-400 hover:text-gray-700 text-lg transition"
+                                    title="Descendre"
+                                  >↓</button>
+                                  <button
+                                    onClick={() => {
+                                      const updated = modulesConfig.map(c => c.id === mod.id ? { ...c, enabled: !c.enabled } : c)
+                                      saveModulesConfig(updated)
+                                    }}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? 'bg-[#FFC107]' : 'bg-gray-300'}`}
+                                  >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <p className="text-sm text-amber-800">
+                      {'💡'} Les modules <strong>Accueil</strong> et <strong>Paramètres</strong> sont toujours visibles et ne peuvent pas être désactivés.
+                    </p>
                   </div>
                 </div>
               </div>
