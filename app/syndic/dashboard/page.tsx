@@ -7015,10 +7015,22 @@ export default function SyndicDashboard() {
           {page === 'artisans' && !selectedArtisanChat && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-gray-500 text-sm">{artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix</p>
-                <button onClick={() => { setShowModalArtisan(true); setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }); setArtisanSearchResult(null); setArtisanError(''); setArtisanSuccess(''); }} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
-                  + Ajouter un artisan
-                </button>
+                <p className="text-gray-500 text-sm">
+                  {artisans.length} artisans référencés · {artisans.filter(a => a.vitfixCertifie || a.vitfix_certifie).length} certifiés Vitfix
+                  · {artisans.filter(a => a.rcProValide || a.rc_pro_valide).length} RC Pro valides
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setArtisansLoaded(false) }}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1"
+                    title="Rafraîchir la conformité depuis le wallet artisan"
+                  >
+                    🔄 Synchro conformité
+                  </button>
+                  <button onClick={() => { setShowModalArtisan(true); setArtisanForm({ email: '', nom: '', prenom: '', telephone: '', metier: '', siret: '' }); setArtisanSearchResult(null); setArtisanError(''); setArtisanSuccess(''); }} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    + Ajouter un artisan
+                  </button>
+                </div>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 {artisans.map(a => {
@@ -7056,9 +7068,22 @@ export default function SyndicDashboard() {
                           {rcOk ? '✅ RC Pro valide' : '❌ RC Pro manquante'}
                         </div>
                       </div>
+                      {rcOk && rcExp && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700 mb-3 flex items-center gap-2">
+                          <span>📄 RC Pro valide jusqu&apos;au {new Date(rcExp).toLocaleDateString('fr-FR')}</span>
+                          {new Date(rcExp) < new Date(Date.now() + 60 * 86400000) && (
+                            <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold">Expire bientôt</span>
+                          )}
+                        </div>
+                      )}
                       {!rcOk && rcExp && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 mb-3">
                           ⚠️ RC Pro expirée le {new Date(rcExp).toLocaleDateString('fr-FR')}
+                        </div>
+                      )}
+                      {!rcOk && !rcExp && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-700 mb-3">
+                          💡 L&apos;artisan doit uploader sa RC Pro dans son Wallet Conformité
                         </div>
                       )}
                       <div className="flex gap-2">

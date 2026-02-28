@@ -27,15 +27,38 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Auto-vérification RC Pro depuis Supabase Storage pour les artisans liés
+  // Auto-vérification RC Pro depuis Supabase Storage pour les artisans
   // (rattrapage si la sync push n'a pas encore eu lieu)
   const artisans = data || []
   for (const artisan of artisans) {
-    if (artisan.artisan_user_id && !artisan.rc_pro_valide) {
+    // Skip si déjà valide
+    if (artisan.rc_pro_valide) continue
+
+    let userId = artisan.artisan_user_id
+
+    // Si pas de artisan_user_id, essayer de trouver le compte par email
+    if (!userId && artisan.email) {
+      try {
+        const { data: { users: allUsers } } = await supabaseAdmin.auth.admin.listUsers()
+        const found = allUsers.find(u => u.email?.toLowerCase() === artisan.email?.toLowerCase())
+        if (found) {
+          userId = found.id
+          // Lier l'artisan au compte trouvé (rattrapage)
+          await supabaseAdmin
+            .from('syndic_artisans')
+            .update({ artisan_user_id: found.id, updated_at: new Date().toISOString() })
+            .eq('id', artisan.id)
+          artisan.artisan_user_id = found.id
+        }
+      } catch { /* silencieux */ }
+    }
+
+    // Vérifier le Storage si on a un user_id
+    if (userId) {
       try {
         const { data: files } = await supabaseAdmin.storage
           .from('artisan-documents')
-          .list(`wallet/${artisan.artisan_user_id}/rc_pro`, { limit: 1 })
+          .list(`wallet/${userId}/rc_pro`, { limit: 1 })
         if (files && files.length > 0) {
           // RC Pro trouvé dans le storage — mettre à jour la fiche
           await supabaseAdmin
@@ -138,7 +161,23 @@ export async function POST(request: NextRequest) {
     // await sendInviteEmail(email, nom, tempPassword)
   }
 
-  // 2. Insérer dans syndic_artisans (lien cabinet ↔ artisan)
+  // 2. Vérifier si l'artisan a déjà une RC Pro dans le storage (sync au moment de l'ajout)
+  let rcProValide = false
+  let rcProExpiration: string | null = null
+
+  if (artisanUserId) {
+    try {
+      const { data: rcFiles } = await supabaseAdmin.storage
+        .from('artisan-documents')
+        .list(`wallet/${artisanUserId}/rc_pro`, { limit: 1 })
+      if (rcFiles && rcFiles.length > 0) {
+        rcProValide = true
+        console.info(`[ARTISANS POST] RC Pro trouvé dans le storage pour ${artisanUserId}`)
+      }
+    } catch { /* silencieux */ }
+  }
+
+  // 3. Insérer dans syndic_artisans (lien cabinet ↔ artisan)
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from('syndic_artisans')
     .upsert({
@@ -155,8 +194,8 @@ export async function POST(request: NextRequest) {
       vitfix_certifie: isExistingAccount && existingUser?.user_metadata?.role === 'artisan',
       note: 0,
       nb_interventions: 0,
-      rc_pro_valide: false,
-      rc_pro_expiration: null,
+      rc_pro_valide: rcProValide,
+      rc_pro_expiration: rcProExpiration,
       compte_existant: isExistingAccount,
       created_at: new Date().toISOString(),
     }, { onConflict: 'cabinet_id,email' })
