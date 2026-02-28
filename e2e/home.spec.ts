@@ -20,7 +20,7 @@ test.describe('Homepage', () => {
     await expect(header).toBeVisible()
 
     // VITFIX logo / brand name should be in the header
-    await expect(header.getByText('VITFIX')).toBeVisible()
+    await expect(header.getByText('VITFIX', { exact: true }).first()).toBeVisible()
 
     // Desktop nav with role="navigation" exists
     const nav = header.locator('nav')

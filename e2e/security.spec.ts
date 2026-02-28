@@ -43,8 +43,8 @@ test.describe('Security Headers', () => {
 
   test('protected API routes reject unauthenticated requests', async ({ request }) => {
     // All these routes should return 401 without auth
+    // Note: GET /api/bookings is intentionally public (returns slot availability, no personal data)
     const protectedRoutes = [
-      { method: 'GET', url: '/api/bookings' },
       { method: 'POST', url: '/api/fixy-ai' },
       { method: 'POST', url: '/api/comptable-ai' },
       { method: 'GET', url: '/api/artisan-clients?mode=1&clientId=fake' },

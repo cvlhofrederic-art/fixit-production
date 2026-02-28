@@ -11,18 +11,18 @@ test.describe('Auth flow', () => {
     await page.goto('/auth/login')
 
     // The page has the VITFIX branding
-    await expect(page.getByText('VITFIX')).toBeVisible()
+    await expect(page.getByText('VITFIX', { exact: true }).first()).toBeVisible()
 
     // Three space selectors: Particulier, Artisan, Pro (syndic)
-    await expect(page.getByText('Particulier')).toBeVisible()
-    await expect(page.getByText('Artisan')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Particulier/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Artisan/i })).toBeVisible()
   })
 
   test('login form has email and password inputs after selecting a space', async ({ page }) => {
     await page.goto('/auth/login')
 
     // Click on the "Particulier" space to reveal the form
-    await page.getByText('Particulier').click()
+    await page.getByRole('button', { name: /Particulier/i }).click()
 
     // Email and password fields should now be visible
     const emailInput = page.locator('input[type="email"]')
@@ -35,7 +35,7 @@ test.describe('Auth flow', () => {
     await page.goto('/auth/login')
 
     // Select Particulier space to reveal the form
-    await page.getByText('Particulier').click()
+    await page.getByRole('button', { name: /Particulier/i }).click()
 
     // The email input has the required attribute; submitting empty should
     // trigger browser-native validation (the form won't actually submit).
@@ -58,7 +58,7 @@ test.describe('Auth flow', () => {
     await page.goto('/auth/login')
 
     // Select Particulier space
-    await page.getByText('Particulier').click()
+    await page.getByRole('button', { name: /Particulier/i }).click()
 
     // Fill in bogus credentials
     await page.locator('input[type="email"]').fill('nobody@example.com')
