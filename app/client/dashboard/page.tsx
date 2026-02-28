@@ -89,6 +89,14 @@ export default function ClientDashboardPage() {
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  // ── Messagerie enrichie : photos, voice, devis ──
+  const [msgUploading, setMsgUploading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [mediaRecorderRef, setMediaRecorderRef] = useState<MediaRecorder | null>(null)
+  const [signingDevis, setSigningDevis] = useState<string | null>(null) // message_id en cours de signature
+  const [signName, setSignName] = useState('')
+  const [signConfirm, setSignConfirm] = useState(false)
+  const [fullscreenImg, setFullscreenImg] = useState<string | null>(null)
 
   // ── Carnet de Santé Logement ──
   const [cilEntries, setCilEntries] = useState<CILEntry[]>([])
@@ -367,6 +375,113 @@ export default function ClientDashboardPage() {
       }
     } catch (e) { console.error('Error sending message:', e) }
     setSendingMessage(false)
+  }
+
+  // ── Messagerie enrichie helpers ──
+  const getAuthToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
+
+  const uploadMsgAttachment = async (file: File): Promise<string | null> => {
+    setMsgUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('bucket', 'booking-attachments')
+      formData.append('folder', 'messages')
+      const token = await getAuthToken()
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      })
+      const json = await res.json()
+      return json.url || null
+    } catch (e) { console.error('Upload error:', e); return null }
+    finally { setMsgUploading(false) }
+  }
+
+  const sendPhotoMessage = async (file: File) => {
+    if (!messageModal) return
+    const url = await uploadMsgAttachment(file)
+    if (!url) { alert('❌ Erreur upload photo'); return }
+    try {
+      const token = await getAuthToken()
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ booking_id: messageModal.id, content: '', type: 'photo', attachment_url: url }),
+      })
+      const json = await res.json()
+      if (json.data) setMessages(prev => [...prev, json.data])
+    } catch (e) { console.error('Error sending photo:', e) }
+  }
+
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' })
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunks, { type: recorder.mimeType })
+        if (blob.size < 1000) return // trop court
+        const file = new File([blob], `voice_${Date.now()}.webm`, { type: recorder.mimeType })
+        if (!messageModal) return
+        const url = await uploadMsgAttachment(file)
+        if (!url) { alert('❌ Erreur upload vocal'); return }
+        try {
+          const token = await getAuthToken()
+          const res = await fetch('/api/booking-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ booking_id: messageModal.id, content: '🎤 Message vocal', type: 'voice', attachment_url: url }),
+          })
+          const json = await res.json()
+          if (json.data) setMessages(prev => [...prev, json.data])
+        } catch (e) { console.error('Error sending voice:', e) }
+      }
+      recorder.start()
+      setMediaRecorderRef(recorder)
+      setIsRecording(true)
+    } catch (e) {
+      console.error('Microphone error:', e)
+      alert('❌ Impossible d\'accéder au microphone')
+    }
+  }
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef && mediaRecorderRef.state !== 'inactive') {
+      mediaRecorderRef.stop()
+    }
+    setIsRecording(false)
+    setMediaRecorderRef(null)
+  }
+
+  const handleSignDevis = async (messageId: string) => {
+    if (!messageModal || !signName.trim()) return
+    setSendingMessage(true)
+    try {
+      const token = await getAuthToken()
+      const res = await fetch('/api/devis-sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ booking_id: messageModal.id, message_id: messageId, signer_name: signName.trim() }),
+      })
+      const json = await res.json()
+      if (json.success && json.data) {
+        // Rafraîchir les messages pour voir la mise à jour
+        setMessages(prev => {
+          const updated = prev.map(m => m.id === messageId ? { ...m, metadata: { ...m.metadata, signed: true, signed_at: json.data.metadata?.signed_at, signer_name: signName.trim() } } : m)
+          return [...updated, json.data]
+        })
+        setSigningDevis(null)
+        setSignName('')
+        setSignConfirm(false)
+      } else {
+        alert(json.error || '❌ Erreur lors de la signature')
+      }
+    } catch (e) { console.error('Sign error:', e); alert('❌ Erreur réseau') }
+    finally { setSendingMessage(false) }
   }
 
   // ── Générer le Carnet de Santé (CIL) depuis les bookings terminés ──
@@ -1782,8 +1897,16 @@ export default function ClientDashboardPage() {
       )}
 
       {/* ── Modal Messagerie ── */}
+      {/* ── Fullscreen Image Viewer ── */}
+      {fullscreenImg && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setFullscreenImg(null)}>
+          <img src={fullscreenImg} alt="Photo" className="max-w-full max-h-full object-contain rounded-lg" />
+          <button onClick={() => setFullscreenImg(null)} className="absolute top-4 right-4 text-white text-2xl bg-black/50 rounded-full w-10 h-10 flex items-center justify-center">✕</button>
+        </div>
+      )}
+
       {messageModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setMessageModal(null)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setMessageModal(null); setSigningDevis(null) }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="px-6 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
               <div>
@@ -1792,7 +1915,7 @@ export default function ClientDashboardPage() {
                 </h3>
                 <p className="text-sm text-gray-500 mt-0.5">{messageModal.profiles_artisan?.company_name || 'Artisan'} &bull; {messageModal.services?.name || 'Service'}</p>
               </div>
-              <button onClick={() => setMessageModal(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => { setMessageModal(null); setSigningDevis(null) }} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
               {messages.length === 0 ? (
@@ -1800,54 +1923,210 @@ export default function ClientDashboardPage() {
                   Aucun message. Envoyez un message pour communiquer avec l&apos;artisan.
                 </div>
               ) : (
-                messages.map((msg: any) => (
-                  <div key={msg.id} className={`flex ${msg.sender_role === 'client' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                      msg.sender_role === 'client'
-                        ? 'bg-[#FFC107] text-gray-900'
-                        : msg.type === 'auto_reply'
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {msg.type === 'auto_reply' && (
-                        <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>
-                      )}
-                      <p className="text-sm">{msg.content}</p>
-                      <p className={`text-[10px] mt-1 ${msg.sender_role === 'client' ? 'text-gray-700' : 'text-gray-500'}`}>
-                        {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                messages.map((msg: any) => {
+                  const isMe = msg.sender_role === 'client'
+                  const time = new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
+                  // ── Photo message ──
+                  if (msg.type === 'photo' && msg.attachment_url) {
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-2xl p-1.5 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                          <img
+                            src={msg.attachment_url}
+                            alt="Photo"
+                            className="rounded-xl max-w-[220px] max-h-[220px] object-cover cursor-pointer"
+                            onClick={() => setFullscreenImg(msg.attachment_url)}
+                          />
+                          {msg.content && <p className="text-xs mt-1 px-2">{msg.content}</p>}
+                          <p className={`text-[10px] px-2 mt-0.5 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Voice message ──
+                  if (msg.type === 'voice' && msg.attachment_url) {
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">🎤</span>
+                            <span className="text-xs font-medium">Message vocal</span>
+                          </div>
+                          <audio controls src={msg.attachment_url} className="max-w-[200px] h-8" style={{ filter: 'sepia(20%) saturate(70%) grayscale(1) contrast(99%) invert(12%)' }} />
+                          <p className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Devis sent (carte interactive côté client) ──
+                  if (msg.type === 'devis_sent' && msg.metadata) {
+                    const m = msg.metadata
+                    const isSigned = m.signed === true
+                    return (
+                      <div key={msg.id} className="flex justify-start">
+                        <div className={`max-w-[85%] rounded-2xl border-2 overflow-hidden ${isSigned ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+                          <div className="px-4 py-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-lg">{isSigned ? '✅' : '📄'}</span>
+                              <span className="font-bold text-sm text-gray-900">Devis N°{m.docNumber}</span>
+                            </div>
+                            {m.docTitle && <p className="text-xs text-gray-700 mb-1">{m.docTitle}</p>}
+                            <p className="text-sm font-semibold text-gray-900">Montant : {m.totalStr}</p>
+                            {m.prestationDate && <p className="text-xs text-gray-600 mt-1">📅 Prestation : {new Date(m.prestationDate).toLocaleDateString('fr-FR')}</p>}
+                            {m.companyName && <p className="text-xs text-gray-500 mt-0.5">De : {m.companyName}</p>}
+                            {isSigned && <p className="text-xs text-green-700 mt-1 font-semibold">✅ Signé{m.signer_name ? ` par ${m.signer_name}` : ''}{m.signed_at ? ` le ${new Date(m.signed_at).toLocaleDateString('fr-FR')}` : ''}</p>}
+                          </div>
+                          {!isSigned && (
+                            <div className="border-t border-amber-200 px-3 py-2 space-y-1.5">
+                              <button
+                                onClick={() => { setSigningDevis(msg.id); setSignName(user?.user_metadata?.full_name || ''); setSignConfirm(false) }}
+                                className="w-full py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-bold transition flex items-center justify-center gap-1.5"
+                              >
+                                ✍️ Signer ce devis
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const artisanName = messageModal?.profiles_artisan?.company_name || 'Artisan'
+                                  const serviceName = messageModal?.services?.name || ''
+                                  setMessageModal(null)
+                                  setActiveTab('analyse')
+                                  setAnalyseFilename(`Devis ${artisanName}${serviceName ? ' - ' + serviceName : ''}`)
+                                }}
+                                className="w-full py-2 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                              >
+                                🔍 Analyser avec l&apos;IA
+                              </button>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-gray-500 px-4 pb-2">{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Devis signed ──
+                  if (msg.type === 'devis_signed' && msg.metadata) {
+                    const m = msg.metadata
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className="max-w-[85%] rounded-2xl border-2 border-green-300 bg-green-50 px-4 py-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">✅</span>
+                            <span className="font-bold text-sm text-green-800">Devis signé</span>
+                          </div>
+                          <p className="text-xs text-green-700">N°{m.docNumber} — {m.totalStr}</p>
+                          {m.signer_name && <p className="text-xs text-green-600 mt-0.5">Signé par {m.signer_name}</p>}
+                          {m.signed_at && <p className="text-xs text-green-600">le {new Date(m.signed_at).toLocaleDateString('fr-FR')} à {new Date(m.signed_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>}
+                          <p className="text-[10px] text-gray-500 mt-1">{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Default text / auto_reply ──
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                        isMe
+                          ? 'bg-[#FFC107] text-gray-900'
+                          : msg.type === 'auto_reply'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {msg.type === 'auto_reply' && (
+                          <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <p className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
+
+            {/* ── Modal signature devis ── */}
+            {signingDevis && (
+              <div className="px-4 py-3 border-t border-gray-200 bg-green-50 flex-shrink-0">
+                <p className="text-xs font-bold text-green-800 mb-2">✍️ Signature électronique du devis</p>
+                <input
+                  type="text"
+                  value={signName}
+                  onChange={e => setSignName(e.target.value)}
+                  placeholder="Votre nom complet"
+                  className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-green-500"
+                />
+                <label className="flex items-start gap-2 text-xs text-gray-700 mb-2 cursor-pointer">
+                  <input type="checkbox" checked={signConfirm} onChange={e => setSignConfirm(e.target.checked)} className="mt-0.5 accent-green-600" />
+                  <span>Je confirme avoir lu et accepter ce devis. Ma signature électronique vaut accord contractuel.</span>
+                </label>
+                <div className="flex gap-2">
+                  <button onClick={() => { setSigningDevis(null); setSignConfirm(false) }} className="flex-1 py-2 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => handleSignDevis(signingDevis)}
+                    disabled={!signName.trim() || !signConfirm || sendingMessage}
+                    className="flex-1 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-bold disabled:opacity-50 transition"
+                  >
+                    {sendingMessage ? '⏳ Signature...' : '✅ Signer'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Input bar with photo & voice ── */}
             <div className="px-4 pb-4 pt-2 border-t border-gray-100 flex-shrink-0 space-y-2">
-              <button
-                onClick={() => {
-                  const artisanName = messageModal?.profiles_artisan?.company_name || 'Artisan'
-                  const serviceName = messageModal?.services?.name || ''
-                  setMessageModal(null)
-                  setActiveTab('analyse')
-                  setAnalyseFilename(`Devis ${artisanName}${serviceName ? ' - ' + serviceName : ''}`)
-                }}
-                className="w-full flex items-center justify-center gap-2 text-xs font-semibold py-2 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition"
-              >
-                <FileSearch className="w-3.5 h-3.5" />
-                Analyser un devis re{'\u00E7'}u
-              </button>
-              <div className="flex gap-2">
+              {msgUploading && (
+                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg">
+                  <span className="animate-spin">⏳</span> Envoi en cours...
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                {/* Photo button */}
+                <label className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition text-gray-500 hover:text-gray-700 flex-shrink-0">
+                  <span className="text-lg">📷</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) sendPhotoMessage(f)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                {/* Voice button */}
+                <button
+                  onMouseDown={startVoiceRecording}
+                  onMouseUp={stopVoiceRecording}
+                  onMouseLeave={() => { if (isRecording) stopVoiceRecording() }}
+                  onTouchStart={startVoiceRecording}
+                  onTouchEnd={stopVoiceRecording}
+                  className={`p-2 rounded-lg transition flex-shrink-0 ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+                  title="Maintenir pour enregistrer"
+                >
+                  <span className="text-lg">{isRecording ? '⏹️' : '🎤'}</span>
+                </button>
+                {/* Text input */}
                 <input
                   type="text"
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                  placeholder="Votre message..."
-                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                  placeholder={isRecording ? '🔴 Enregistrement...' : 'Votre message...'}
+                  disabled={isRecording}
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] disabled:bg-gray-50"
                 />
+                {/* Send button */}
                 <button
                   onClick={sendMessage}
-                  disabled={sendingMessage || !newMessage.trim()}
-                  className="bg-[#FFC107] text-gray-900 px-4 py-2.5 rounded-xl disabled:opacity-60"
+                  disabled={sendingMessage || !newMessage.trim() || isRecording}
+                  className="bg-[#FFC107] text-gray-900 p-2.5 rounded-xl disabled:opacity-60 flex-shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </button>

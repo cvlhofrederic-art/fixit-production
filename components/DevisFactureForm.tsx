@@ -166,7 +166,6 @@ export default function DevisFactureForm({
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<'ouvres' | 'calendaires'>(initialData?.executionDelayType || 'ouvres')
-  const [blockingAgenda, setBlockingAgenda] = useState(false)
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || 'Virement bancaire')
   const [paymentDue, setPaymentDue] = useState(dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
@@ -1145,66 +1144,6 @@ export default function DevisFactureForm({
     }
   }
 
-  // ─── Valider le devis ET bloquer automatiquement l'agenda ───
-  const handleValidateAndBlock = async () => {
-    if (!artisan) return
-    if (!prestationDate) {
-      alert('⚠️ Veuillez renseigner une date de prestation pour bloquer l\'agenda.')
-      return
-    }
-    setBlockingAgenda(true)
-    try {
-      // Calculer la date de fin en fonction du délai
-      let endDate = prestationDate
-      if (executionDelayDays > 0) {
-        const start = new Date(prestationDate)
-        if (executionDelayType === 'calendaires') {
-          const end = new Date(start)
-          end.setDate(end.getDate() + executionDelayDays - 1)
-          endDate = end.toISOString().split('T')[0]
-        } else {
-          // Jours ouvrés : avancer en sautant weekends
-          let count = 0
-          const current = new Date(start)
-          while (count < executionDelayDays - 1) {
-            current.setDate(current.getDate() + 1)
-            const dow = current.getDay()
-            if (dow >= 1 && dow <= 5) count++
-          }
-          endDate = current.toISOString().split('T')[0]
-        }
-      }
-      // Créer l'absence via l'API
-      const label = `${clientName || 'Client'}${docTitle ? ' - ' + docTitle : ''}`
-      const res = await fetch('/api/artisan-absences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          artisan_id: artisan.id,
-          start_date: prestationDate,
-          end_date: endDate,
-          reason: 'Intervention devis',
-          label,
-          source: 'devis',
-        }),
-      })
-      if (!res.ok) throw new Error('Erreur création absence')
-      // Sauvegarder le devis comme validé
-      const data = buildData()
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
-      docs.push({ ...data, savedAt: new Date().toISOString(), status: 'valide' })
-      localStorage.setItem(`fixit_documents_${artisan?.id || 'default'}`, JSON.stringify(docs))
-      onSave?.(data)
-      alert(`✅ Devis validé ! L'agenda est bloqué du ${prestationDate} au ${endDate}.\n📅 ${label}`)
-      onBack()
-    } catch (err) {
-      console.error('Erreur blocage agenda:', err)
-      alert('❌ Erreur lors du blocage de l\'agenda. Le devis a été sauvegardé mais l\'agenda n\'a pas été mis à jour.')
-    } finally {
-      setBlockingAgenda(false)
-    }
-  }
-
   const handleValidateAndSend = () => {
     if (!allCompliant) {
       const missing: string[] = []
@@ -1261,13 +1200,7 @@ export default function DevisFactureForm({
       const totalStr = `${totalVal.toFixed(2)} € ${tvaEnabled ? 'TTC' : 'HT'}`
       const typeLabel = docType === 'devis' ? 'Devis' : 'Facture'
 
-      const messageContent = `📄 ${typeLabel} N°${docNumber}\n` +
-        `Montant : ${totalStr}\n` +
-        (docTitle ? `Objet : ${docTitle}\n` : '') +
-        `Date : ${new Date(docDate).toLocaleDateString('fr-FR')}\n` +
-        `\nLe document PDF a été généré et est disponible en téléchargement.\n` +
-        `N'hésitez pas à me contacter pour toute question.\n` +
-        `— ${companyName}`
+      const messageContent = `📄 ${typeLabel} N°${docNumber} — ${totalStr}`
 
       const res = await fetch('/api/booking-messages', {
         method: 'POST',
@@ -1278,6 +1211,18 @@ export default function DevisFactureForm({
         body: JSON.stringify({
           booking_id: linkedBookingId,
           content: messageContent,
+          type: docType === 'devis' ? 'devis_sent' : 'text',
+          metadata: docType === 'devis' ? {
+            docNumber,
+            docTitle,
+            totalStr,
+            docType,
+            prestationDate,
+            executionDelayDays,
+            executionDelayType,
+            artisan_id: artisan?.id,
+            companyName,
+          } : undefined,
         }),
       })
 
@@ -2266,19 +2211,6 @@ export default function DevisFactureForm({
                     <><span>📄</span> Télécharger PDF</>
                   )}
                 </button>
-                {docType === 'devis' && prestationDate && (
-                  <button
-                    onClick={handleValidateAndBlock}
-                    disabled={blockingAgenda}
-                    className="w-full p-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
-                  >
-                    {blockingAgenda ? (
-                      <><span className="inline-block animate-spin">⏳</span> Blocage en cours...</>
-                    ) : (
-                      <><span>📅</span> Valider et bloquer agenda</>
-                    )}
-                  </button>
-                )}
                 <button
                   onClick={handleValidateAndSend}
                   disabled={!allCompliant}

@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     const allowedTypes = [
       'image/jpeg', 'image/png', 'image/webp', 'image/gif',
       'application/pdf',
+      'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav',
     ]
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -76,9 +77,17 @@ export async function POST(request: NextRequest) {
       isWebP = webpBytes[0] === 0x57 && webpBytes[1] === 0x45 && webpBytes[2] === 0x42 && webpBytes[3] === 0x50
     }
 
-    if (!isJPEG && !isPNG && !isGIF && !isWebP && !isPDF) {
+    // Audio magic bytes
+    const isOGG = matchesMagic([0x4F, 0x67, 0x67, 0x53]) // OggS
+    const isMP3 = matchesMagic([0xFF, 0xFB]) || matchesMagic([0xFF, 0xF3]) || matchesMagic([0x49, 0x44, 0x33]) // ID3
+    const isWAV = matchesMagic([0x52, 0x49, 0x46, 0x46]) && !isWebP // RIFF but not WebP
+    // WebM/MP4 audio uses complex container formats — trust MIME if it starts with 'audio/'
+    const isAudioMime = file.type.startsWith('audio/')
+    const isAudio = isOGG || isMP3 || isWAV || isAudioMime
+
+    if (!isJPEG && !isPNG && !isGIF && !isWebP && !isPDF && !isAudio) {
       return NextResponse.json(
-        { error: 'Le contenu du fichier ne correspond à aucun format autorisé (JPEG, PNG, GIF, WebP, PDF).' },
+        { error: 'Le contenu du fichier ne correspond à aucun format autorisé (JPEG, PNG, GIF, WebP, PDF, Audio).' },
         { status: 400 }
       )
     }

@@ -44,6 +44,12 @@ export default function DashboardPage() {
   const [dashMsgList, setDashMsgList] = useState<any[]>([])
   const [dashMsgText, setDashMsgText] = useState('')
   const [dashMsgSending, setDashMsgSending] = useState(false)
+  // ── Messagerie enrichie artisan ──
+  const [dashMsgUploading, setDashMsgUploading] = useState(false)
+  const [dashMsgRecording, setDashMsgRecording] = useState(false)
+  const [dashMsgRecorderRef, setDashMsgRecorderRef] = useState<MediaRecorder | null>(null)
+  const [dashMsgFullscreenImg, setDashMsgFullscreenImg] = useState<string | null>(null)
+  const [dashMsgBlockingAgenda, setDashMsgBlockingAgenda] = useState<string | null>(null) // message_id
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('week')
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
@@ -800,6 +806,141 @@ export default function DashboardPage() {
       }
     } catch (e) { console.error('Error sending message:', e) }
     setDashMsgSending(false)
+  }
+
+  // ═══ MESSAGERIE ENRICHIE ARTISAN — helpers ═══
+  const getDashAuthToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
+
+  const uploadDashAttachment = async (file: File): Promise<string | null> => {
+    setDashMsgUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('bucket', 'booking-attachments')
+      formData.append('folder', 'messages')
+      const token = await getDashAuthToken()
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      })
+      const json = await res.json()
+      return json.url || null
+    } catch (e) { console.error('Upload error:', e); return null }
+    finally { setDashMsgUploading(false) }
+  }
+
+  const sendDashPhotoMessage = async (file: File) => {
+    if (!dashMsgModal) return
+    const url = await uploadDashAttachment(file)
+    if (!url) { alert('❌ Erreur upload photo'); return }
+    try {
+      const token = await getDashAuthToken()
+      const res = await fetch('/api/booking-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ booking_id: dashMsgModal.id, content: '', type: 'photo', attachment_url: url }),
+      })
+      const json = await res.json()
+      if (json.data) setDashMsgList(prev => [...prev, json.data])
+    } catch (e) { console.error('Error sending photo:', e) }
+  }
+
+  const startDashVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' })
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunks, { type: recorder.mimeType })
+        if (blob.size < 1000) return
+        const file = new File([blob], `voice_${Date.now()}.webm`, { type: recorder.mimeType })
+        if (!dashMsgModal) return
+        const url = await uploadDashAttachment(file)
+        if (!url) { alert('❌ Erreur upload vocal'); return }
+        try {
+          const token = await getDashAuthToken()
+          const res = await fetch('/api/booking-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ booking_id: dashMsgModal.id, content: '🎤 Message vocal', type: 'voice', attachment_url: url }),
+          })
+          const json = await res.json()
+          if (json.data) setDashMsgList(prev => [...prev, json.data])
+        } catch (e) { console.error('Error sending voice:', e) }
+      }
+      recorder.start()
+      setDashMsgRecorderRef(recorder)
+      setDashMsgRecording(true)
+    } catch (e) {
+      console.error('Microphone error:', e)
+      alert('❌ Impossible d\'accéder au microphone')
+    }
+  }
+
+  const stopDashVoiceRecording = () => {
+    if (dashMsgRecorderRef && dashMsgRecorderRef.state !== 'inactive') {
+      dashMsgRecorderRef.stop()
+    }
+    setDashMsgRecording(false)
+    setDashMsgRecorderRef(null)
+  }
+
+  const handleBlockAgendaFromDevis = async (msg: any) => {
+    if (!msg.metadata || !artisan) return
+    const m = msg.metadata
+    setDashMsgBlockingAgenda(msg.id)
+    try {
+      const prDate = m.prestationDate
+      if (!prDate) {
+        alert('⚠️ Pas de date de prestation renseignée sur ce devis')
+        setDashMsgBlockingAgenda(null)
+        return
+      }
+      // Calculer la date de fin
+      let endDate = prDate
+      const delayDays = m.executionDelayDays || 0
+      if (delayDays > 0) {
+        const start = new Date(prDate)
+        if (m.executionDelayType === 'calendaires') {
+          const end = new Date(start)
+          end.setDate(end.getDate() + delayDays - 1)
+          endDate = end.toISOString().split('T')[0]
+        } else {
+          let count = 0
+          const current = new Date(start)
+          while (count < delayDays - 1) {
+            current.setDate(current.getDate() + 1)
+            const dow = current.getDay()
+            if (dow >= 1 && dow <= 5) count++
+          }
+          endDate = current.toISOString().split('T')[0]
+        }
+      }
+      const label = `${m.signer_name || 'Client'}${m.docTitle ? ' - ' + m.docTitle : ''}`
+      const token = await getDashAuthToken()
+      const res = await fetch('/api/artisan-absences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          artisan_id: artisan.id,
+          start_date: prDate,
+          end_date: endDate,
+          reason: 'Intervention devis',
+          label,
+          source: 'devis',
+        }),
+      })
+      if (!res.ok) throw new Error('Erreur création absence')
+      alert(`✅ Agenda bloqué du ${new Date(prDate).toLocaleDateString('fr-FR')} au ${new Date(endDate).toLocaleDateString('fr-FR')}\n📅 ${label}`)
+    } catch (err) {
+      console.error('Erreur blocage agenda:', err)
+      alert('❌ Erreur lors du blocage de l\'agenda')
+    } finally {
+      setDashMsgBlockingAgenda(null)
+    }
   }
 
   // ═══ UPLOAD DOCUMENT (photo profil, kbis, assurance) ═══
@@ -2852,6 +2993,14 @@ export default function DashboardPage() {
         />
       )}
 
+      {/* ── Fullscreen Image Viewer (artisan) ── */}
+      {dashMsgFullscreenImg && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setDashMsgFullscreenImg(null)}>
+          <img src={dashMsgFullscreenImg} alt="Photo" className="max-w-full max-h-full object-contain rounded-lg" />
+          <button onClick={() => setDashMsgFullscreenImg(null)} className="absolute top-4 right-4 text-white text-2xl bg-black/50 rounded-full w-10 h-10 flex items-center justify-center">✕</button>
+        </div>
+      )}
+
       {/* ── Modal Messagerie Artisan Dashboard ── */}
       {dashMsgModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDashMsgModal(null)}>
@@ -2869,40 +3018,175 @@ export default function DashboardPage() {
                   Aucun message pour ce RDV. Envoyez un message au client.
                 </div>
               ) : (
-                dashMsgList.map((msg: any) => (
-                  <div key={msg.id} className={`flex ${msg.sender_role === 'artisan' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                      msg.sender_role === 'artisan'
-                        ? 'bg-[#FFC107] text-gray-900'
-                        : msg.type === 'auto_reply'
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {msg.type === 'auto_reply' && <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>}
-                      {msg.sender_role === 'client' && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
-                      <p className="text-sm">{msg.content}</p>
-                      <p className={`text-[10px] mt-1 ${msg.sender_role === 'artisan' ? 'text-gray-700' : 'text-gray-500'}`}>
-                        {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                dashMsgList.map((msg: any) => {
+                  const isMe = msg.sender_role === 'artisan'
+                  const time = new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
+                  // ── Photo message ──
+                  if (msg.type === 'photo' && msg.attachment_url) {
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-2xl p-1.5 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                          {!isMe && <div className="text-xs font-semibold text-gray-500 px-2 mb-1">{msg.sender_name || 'Client'}</div>}
+                          <img
+                            src={msg.attachment_url}
+                            alt="Photo"
+                            className="rounded-xl max-w-[220px] max-h-[220px] object-cover cursor-pointer"
+                            onClick={() => setDashMsgFullscreenImg(msg.attachment_url)}
+                          />
+                          {msg.content && <p className="text-xs mt-1 px-2">{msg.content}</p>}
+                          <p className={`text-[10px] px-2 mt-0.5 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Voice message ──
+                  if (msg.type === 'voice' && msg.attachment_url) {
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                          {!isMe && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">🎤</span>
+                            <span className="text-xs font-medium">Message vocal</span>
+                          </div>
+                          <audio controls src={msg.attachment_url} className="max-w-[200px] h-8" style={{ filter: 'sepia(20%) saturate(70%) grayscale(1) contrast(99%) invert(12%)' }} />
+                          <p className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Devis sent (côté artisan = carte informative) ──
+                  if (msg.type === 'devis_sent' && msg.metadata) {
+                    const m = msg.metadata
+                    const isSigned = m.signed === true
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] rounded-2xl border-2 overflow-hidden ${isSigned ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+                          <div className="px-4 py-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-lg">{isSigned ? '✅' : '📄'}</span>
+                              <span className="font-bold text-sm text-gray-900">Devis {isSigned ? 'signé' : 'envoyé'}</span>
+                            </div>
+                            <p className="text-xs text-gray-700">N°{m.docNumber} — {m.totalStr}</p>
+                            {m.docTitle && <p className="text-xs text-gray-600 mt-0.5">{m.docTitle}</p>}
+                            {!isSigned && <p className="text-xs text-amber-600 mt-1 italic">⏳ En attente de signature client</p>}
+                            {isSigned && <p className="text-xs text-green-700 mt-1 font-semibold">✅ Signé par {m.signer_name || 'le client'}</p>}
+                          </div>
+                          <p className="text-[10px] text-gray-500 px-4 pb-2">{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Devis signed (artisan voit avec bouton bloquer agenda) ──
+                  if (msg.type === 'devis_signed' && msg.metadata) {
+                    const m = msg.metadata
+                    return (
+                      <div key={msg.id} className="flex justify-start">
+                        <div className="max-w-[85%] rounded-2xl border-2 border-green-400 bg-green-50 overflow-hidden">
+                          <div className="px-4 py-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-lg">✅</span>
+                              <span className="font-bold text-sm text-green-800">Le client a signé le devis !</span>
+                            </div>
+                            <p className="text-xs text-green-700">N°{m.docNumber} — {m.totalStr}</p>
+                            {m.signer_name && <p className="text-xs text-green-600 mt-0.5">Signé par {m.signer_name}</p>}
+                            {m.signed_at && <p className="text-xs text-green-600">le {new Date(m.signed_at).toLocaleDateString('fr-FR')} à {new Date(m.signed_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>}
+                          </div>
+                          {m.prestationDate && (
+                            <div className="border-t border-green-200 px-3 py-2">
+                              <button
+                                onClick={() => handleBlockAgendaFromDevis(msg)}
+                                disabled={dashMsgBlockingAgenda === msg.id}
+                                className="w-full py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                              >
+                                {dashMsgBlockingAgenda === msg.id ? (
+                                  <><span className="animate-spin">⏳</span> Blocage en cours...</>
+                                ) : (
+                                  <><span>📅</span> Bloquer mon agenda</>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-gray-500 px-4 pb-2">{time}</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // ── Default text / auto_reply ──
+                  return (
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                        isMe
+                          ? 'bg-[#FFC107] text-gray-900'
+                          : msg.type === 'auto_reply'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {msg.type === 'auto_reply' && <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>}
+                        {!isMe && msg.sender_role === 'client' && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <p className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
+
+            {/* ── Input bar with photo & voice (artisan) ── */}
             <div className="px-4 pb-4 pt-2 border-t border-gray-100 flex-shrink-0">
-              <div className="flex gap-2">
+              {dashMsgUploading && (
+                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg mb-2">
+                  <span className="animate-spin">⏳</span> Envoi en cours...
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                {/* Photo button */}
+                <label className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition text-gray-500 hover:text-gray-700 flex-shrink-0">
+                  <span className="text-lg">📷</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) sendDashPhotoMessage(f)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                {/* Voice button */}
+                <button
+                  onMouseDown={startDashVoiceRecording}
+                  onMouseUp={stopDashVoiceRecording}
+                  onMouseLeave={() => { if (dashMsgRecording) stopDashVoiceRecording() }}
+                  onTouchStart={startDashVoiceRecording}
+                  onTouchEnd={stopDashVoiceRecording}
+                  className={`p-2 rounded-lg transition flex-shrink-0 ${dashMsgRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'}`}
+                  title="Maintenir pour enregistrer"
+                >
+                  <span className="text-lg">{dashMsgRecording ? '⏹️' : '🎤'}</span>
+                </button>
+                {/* Text input */}
                 <input
                   type="text"
                   value={dashMsgText}
                   onChange={e => setDashMsgText(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDashMessage()}
-                  placeholder="Votre message..."
-                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                  placeholder={dashMsgRecording ? '🔴 Enregistrement...' : 'Votre message...'}
+                  disabled={dashMsgRecording}
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] disabled:bg-gray-50"
                 />
+                {/* Send button */}
                 <button
                   onClick={sendDashMessage}
-                  disabled={dashMsgSending || !dashMsgText.trim()}
-                  className="bg-[#FFC107] hover:bg-amber-500 text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
+                  disabled={dashMsgSending || !dashMsgText.trim() || dashMsgRecording}
+                  className="bg-[#FFC107] hover:bg-amber-500 text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition flex-shrink-0"
                 >
                   Envoyer
                 </button>
