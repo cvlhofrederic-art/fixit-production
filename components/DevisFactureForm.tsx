@@ -188,6 +188,11 @@ export default function DevisFactureForm({
   const [attachedRapportId, setAttachedRapportId] = useState<string | null>(null)
   const [availableRapports, setAvailableRapports] = useState<any[]>([])
 
+  // ─── Attached Photos Chantier ───
+  const [availablePhotos, setAvailablePhotos] = useState<any[]>([])
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
+  const [photosLoading, setPhotosLoading] = useState(false)
+
   // Load available rapports from localStorage
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
@@ -197,7 +202,38 @@ export default function DevisFactureForm({
     } catch { setAvailableRapports([]) }
   }, [artisan?.id])
 
+  // Load available photos from API
+  useEffect(() => {
+    if (!artisan?.id) return
+    const fetchPhotos = async () => {
+      setPhotosLoading(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch(`/api/artisan-photos?artisan_id=${artisan.id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setAvailablePhotos(json.data || [])
+        }
+      } catch { /* ignore */ }
+      setPhotosLoading(false)
+    }
+    fetchPhotos()
+  }, [artisan?.id])
+
   const attachedRapport = availableRapports.find(r => r.id === attachedRapportId) || null
+  const selectedPhotos = availablePhotos.filter(p => selectedPhotoIds.has(p.id))
+
+  const togglePhotoSelection = (photoId: string) => {
+    setSelectedPhotoIds(prev => {
+      const next = new Set(prev)
+      if (next.has(photoId)) next.delete(photoId)
+      else next.add(photoId)
+      return next
+    })
+  }
 
   // Generate document number — séquences séparées devis / facture / avoir (art. L441-9 C. com.)
   const isConversion = docType === 'facture' && initialData?.docType === 'devis' && initialData?.docNumber
@@ -1110,6 +1146,105 @@ export default function DevisFactureForm({
           drawLine(mL + 6 + fw, ry + 0.5, pageW - mR - 10, '#D1D5DB', 0.2)
           ry += 6
         })
+      }
+
+      // ═══ ANNEXE PHOTOS CHANTIER ═══
+      if (selectedPhotos.length > 0) {
+        // Load all selected photos as base64 images
+        const loadImage = (url: string): Promise<HTMLImageElement> => {
+          return new Promise((resolve, reject) => {
+            const img = new Image()
+            img.crossOrigin = 'anonymous'
+            img.onload = () => resolve(img)
+            img.onerror = () => reject(new Error('Image load failed'))
+            img.src = url
+          })
+        }
+
+        // Photo annexe page(s)
+        pdf.addPage()
+        let py = 18
+        drawLine(pageW / 2 - 15, py - 4, pageW / 2 + 15, colAccent, 0.8)
+        centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ANNEXE PHOTOS`, py, 9, 'bold', col)
+        py += 5
+        centerText(`${selectedPhotos.length} photo${selectedPhotos.length > 1 ? 's' : ''} géolocalisée${selectedPhotos.length > 1 ? 's' : ''} et horodatée${selectedPhotos.length > 1 ? 's' : ''}`, py, 7, 'normal', colLight)
+        py += 8
+
+        // 2 columns layout, 3 rows per page max = 6 photos per page
+        const photoW = (contentW - 6) / 2  // ~84mm each
+        const photoH = 60  // 60mm height per photo
+        const photoGap = 4
+        let col2 = 0
+
+        for (let i = 0; i < selectedPhotos.length; i++) {
+          const photo = selectedPhotos[i]
+
+          // Check if we need a new page
+          if (py + photoH + 12 > pageH - 10 && col2 === 0) {
+            pdf.addPage()
+            py = 18
+            centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ANNEXE PHOTOS (suite)`, py, 7, 'normal', colLight)
+            py += 8
+          }
+
+          const x = mL + col2 * (photoW + photoGap)
+
+          try {
+            const img = await loadImage(photo.url)
+            // Draw photo border
+            pdf.setDrawColor('#E5E7EB'); pdf.setLineWidth(0.3)
+            pdf.roundedRect(x, py, photoW, photoH + 10, 1.5, 1.5, 'S')
+
+            // Draw photo
+            const imgRatio = img.width / img.height
+            let drawW = photoW - 4
+            let drawH = photoH - 2
+            if (imgRatio > drawW / drawH) {
+              drawH = drawW / imgRatio
+            } else {
+              drawW = drawH * imgRatio
+            }
+            const imgX = x + (photoW - drawW) / 2
+            const imgY = py + 1 + (photoH - 2 - drawH) / 2
+
+            // Convert image to canvas → base64
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.min(img.width, 1200) // limit resolution for PDF size
+            canvas.height = Math.round(canvas.width / imgRatio)
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+              const imgData = canvas.toDataURL('image/jpeg', 0.8)
+              pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
+            }
+
+            // Photo info below
+            const infoY = py + photoH + 1
+            pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+            const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString('fr-FR') : 'N/D'
+            pdf.text(`📅 ${dateStr}`, x + 2, infoY + 2)
+            if (photo.lat && photo.lng) {
+              pdf.text(`📍 ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, infoY + 5.5)
+            }
+            if (photo.label) {
+              pdf.setFont('helvetica', 'bold')
+              const labelTrunc = photo.label.length > 35 ? photo.label.substring(0, 35) + '...' : photo.label
+              pdf.text(labelTrunc, x + photoW / 2, infoY + 2, { align: 'center' })
+            }
+          } catch {
+            // If image fails to load, show placeholder
+            pdf.setFillColor('#F3F4F6')
+            pdf.roundedRect(x, py, photoW, photoH + 10, 1.5, 1.5, 'FD')
+            pdf.setFontSize(7); pdf.setTextColor('#9CA3AF')
+            pdf.text('Photo non disponible', x + photoW / 2, py + photoH / 2, { align: 'center' })
+          }
+
+          col2++
+          if (col2 >= 2) {
+            col2 = 0
+            py += photoH + 12 + photoGap
+          }
+        }
       }
 
       const safeName = clientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_À-ÿ]/g, '') || 'Client'
@@ -2066,6 +2201,86 @@ export default function DevisFactureForm({
               ) : (
                 <p className="text-sm text-gray-500 italic">
                   Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.
+                </p>
+              )}
+            </div>
+
+            {/* ─── Section: Photos chantier ─── */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm">
+              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
+                {'📸'} Joindre des photos chantier
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Photos géolocalisées et horodatées prises depuis l&apos;application mobile. Elles seront ajoutées en annexe du document PDF.
+              </p>
+              {photosLoading ? (
+                <p className="text-sm text-gray-400 italic">Chargement des photos...</p>
+              ) : availablePhotos.length > 0 ? (
+                <div className="space-y-3">
+                  {/* Filter by booking if a linked booking exists */}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPhotoIds(new Set())}
+                      className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+                    >
+                      Tout désélectionner ({selectedPhotoIds.size})
+                    </button>
+                    {linkedBookingId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const bookingPhotos = availablePhotos.filter(p => p.booking_id === linkedBookingId)
+                          setSelectedPhotoIds(new Set(bookingPhotos.map(p => p.id)))
+                        }}
+                        className="text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition"
+                      >
+                        Sélectionner photos du chantier lié
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPhotoIds(new Set(availablePhotos.map(p => p.id)))}
+                      className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition"
+                    >
+                      Tout sélectionner
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+                    {availablePhotos.map((photo) => (
+                      <div
+                        key={photo.id}
+                        onClick={() => togglePhotoSelection(photo.id)}
+                        className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                          selectedPhotoIds.has(photo.id)
+                            ? 'border-amber-500 ring-2 ring-amber-300'
+                            : 'border-gray-200 hover:border-gray-400'
+                        }`}
+                      >
+                        <img src={photo.url} alt={photo.label || 'Photo'} className="w-full h-20 object-cover" />
+                        {selectedPhotoIds.has(photo.id) && (
+                          <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">✓</span>
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1 py-0.5">
+                          <p className="text-[9px] text-white truncate">
+                            {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString('fr-FR') : ''}
+                            {photo.lat && photo.lng ? ' 📍' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedPhotoIds.size > 0 && (
+                    <p className="text-sm text-amber-700 font-medium">
+                      {'📎'} {selectedPhotoIds.size} photo{selectedPhotoIds.size > 1 ? 's' : ''} sélectionnée{selectedPhotoIds.size > 1 ? 's' : ''} — sera{selectedPhotoIds.size > 1 ? 'ont' : ''} jointe{selectedPhotoIds.size > 1 ? 's' : ''} en annexe du PDF
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">
+                  Aucune photo disponible. Prenez des photos depuis l&apos;application mobile (onglet Documents {'→'} Photos Chantier).
                 </p>
               )}
             </div>

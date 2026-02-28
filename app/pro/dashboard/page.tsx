@@ -1118,6 +1118,7 @@ export default function DashboardPage() {
             {isModuleEnabled('devis') && <SidebarItem icon="📄" label="Devis" active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
             {isModuleEnabled('factures') && <SidebarItem icon="🧾" label="Factures" active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <SidebarItem icon="📋" label="Rapports" active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
+            <SidebarItem icon="📸" label="Photos Chantier" active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
             {isModuleEnabled('contrats') && (orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
               <SidebarItem icon="📑" label="Contrats" active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
             )}
@@ -2869,6 +2870,11 @@ export default function DashboardPage() {
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
             <RapportsSection artisan={artisan} bookings={bookings} services={services} />
+          )}
+
+          {/* ────── PHOTOS CHANTIER ────── */}
+          {activePage === 'photos_chantier' && (
+            <PhotosChantierSection artisan={artisan} bookings={bookings} />
           )}
 
           {/* ────── CANAL PRO ────── */}
@@ -6175,6 +6181,189 @@ function OrdresMissionPage({ artisan }: { artisan: any }) {
         </div>
       </div>
 
+    </div>
+  )
+}
+
+/* ══════════ PHOTOS CHANTIER ══════════ */
+function PhotosChantierSection({ artisan, bookings }: { artisan: any; bookings: any[] }) {
+  const [photos, setPhotos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | 'unassigned' | string>('all')
+  const [assigning, setAssigning] = useState<string | null>(null) // photo_id
+  const [fullscreen, setFullscreen] = useState<string | null>(null)
+
+  const loadPhotos = async () => {
+    if (!artisan) return
+    setLoading(true)
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      let url = `/api/artisan-photos?artisan_id=${artisan.id}`
+      if (filter === 'unassigned') url += '&unassigned=true'
+      else if (filter !== 'all') url += `&booking_id=${filter}`
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+      const json = await res.json()
+      if (json.data) setPhotos(json.data)
+    } catch (e) { console.error('Error loading photos:', e) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { loadPhotos() }, [artisan, filter])
+
+  const assignPhoto = async (photoId: string, bookingId: string | null) => {
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      await fetch('/api/artisan-photos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ photo_id: photoId, booking_id: bookingId }),
+      })
+      setAssigning(null)
+      loadPhotos()
+    } catch (e) { console.error('Error assigning photo:', e) }
+  }
+
+  const deletePhoto = async (photoId: string) => {
+    if (!confirm('Supprimer cette photo ?')) return
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      await fetch(`/api/artisan-photos?id=${photoId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      loadPhotos()
+    } catch (e) { console.error('Error deleting photo:', e) }
+  }
+
+  const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending' || b.status === 'completed')
+
+  return (
+    <div className="animate-fadeIn">
+      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
+        <h1 className="text-2xl font-semibold">📸 Photos Chantier</h1>
+        <p className="text-sm text-gray-500 mt-1">Photos géolocalisées et horodatées prises depuis l&apos;application mobile. Associez-les à vos chantiers et joignez-les à vos documents.</p>
+      </div>
+
+      {/* Fullscreen viewer */}
+      {fullscreen && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setFullscreen(null)}>
+          <img src={fullscreen} alt="Photo" className="max-w-full max-h-full object-contain rounded-lg" />
+          <button onClick={() => setFullscreen(null)} className="absolute top-4 right-4 text-white text-2xl bg-black/50 rounded-full w-10 h-10 flex items-center justify-center">✕</button>
+        </div>
+      )}
+
+      <div className="p-6 lg:p-8">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${filter === 'all' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            Toutes
+          </button>
+          <button onClick={() => setFilter('unassigned')} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${filter === 'unassigned' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            📌 Non associées
+          </button>
+          {activeBookings.slice(0, 5).map(b => (
+            <button key={b.id} onClick={() => setFilter(b.id)} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${filter === b.id ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {b.services?.name || 'RDV'} — {b.booking_date}
+            </button>
+          ))}
+        </div>
+
+        {/* Info banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+          <span className="text-xl">ℹ️</span>
+          <div className="text-xs text-blue-800">
+            <p className="font-semibold mb-1">Comment ça marche ?</p>
+            <p>1. Prenez des photos depuis l&apos;app mobile (📷 Photos Chantier dans l&apos;onglet Documents)</p>
+            <p>2. Chaque photo est automatiquement géolocalisée et horodatée — impossible de tricher</p>
+            <p>3. Ici, associez-les à un chantier/tâche et joignez-les à vos devis/factures</p>
+          </div>
+        </div>
+
+        {/* Photos grid */}
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">Chargement des photos...</div>
+        ) : photos.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-5xl mb-3">📸</div>
+            <div className="text-gray-500 font-medium">Aucune photo</div>
+            <div className="text-sm text-gray-400 mt-1">Prenez des photos depuis l&apos;app mobile pour les voir ici</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {photos.map((photo: any) => {
+              const booking = bookings.find(b => b.id === photo.booking_id)
+              return (
+                <div key={photo.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group relative">
+                  <div className="relative">
+                    <img
+                      src={photo.url}
+                      alt={photo.label || 'Photo chantier'}
+                      className="w-full h-40 object-cover cursor-pointer"
+                      onClick={() => setFullscreen(photo.url)}
+                    />
+                    {/* GPS badge */}
+                    {photo.lat && photo.lng && (
+                      <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+                        📍 {photo.lat.toFixed(4)}, {photo.lng.toFixed(4)}
+                      </div>
+                    )}
+                    {/* Source badge */}
+                    <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">
+                      📱 {photo.source || 'mobile'}
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    {/* Timestamp */}
+                    <div className="text-xs text-gray-500 mb-1">
+                      🕐 {new Date(photo.taken_at).toLocaleDateString('fr-FR')} à {new Date(photo.taken_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    {/* Booking association */}
+                    {booking ? (
+                      <div className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-lg mb-2">
+                        🔗 {booking.services?.name || 'RDV'} — {booking.booking_date}
+                      </div>
+                    ) : (
+                      <div className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg mb-2">
+                        📌 Non associée
+                      </div>
+                    )}
+                    {/* Actions */}
+                    <div className="flex gap-1.5">
+                      {assigning === photo.id ? (
+                        <div className="w-full">
+                          <select
+                            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 mb-1"
+                            defaultValue=""
+                            onChange={e => assignPhoto(photo.id, e.target.value || null)}
+                          >
+                            <option value="">— Aucun (dissocier) —</option>
+                            {activeBookings.map(b => (
+                              <option key={b.id} value={b.id}>{b.services?.name || 'RDV'} — {b.booking_date}</option>
+                            ))}
+                          </select>
+                          <button onClick={() => setAssigning(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Annuler</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={() => setAssigning(photo.id)} className="flex-1 text-[10px] py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition">
+                            🔗 Associer
+                          </button>
+                          <button onClick={() => deletePhoto(photo.id)} className="text-[10px] py-1.5 px-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition">
+                            🗑️
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

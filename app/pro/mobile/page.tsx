@@ -1444,14 +1444,16 @@ export default function MobileDashboard() {
                   body: JSON.stringify({
                     syndic_id: syndicId,
                     artisan_id: artisan.user_id,
-                    artisan_name: artisan.company_name,
+                    artisan_nom: artisan.company_name,
                     booking_id: proofBooking.id,
-                    mission_description: proofBooking.notes || proofBooking.services?.name || 'Intervention',
+                    type_travaux: proofBooking.services?.name || '',
                     description: proof.description,
                     photos_before: photosBase64Before,
                     photos_after: photosBase64After,
                     signature_svg: proof.signature,
-                    gps: firstGps ? `${firstGps.lat},${firstGps.lng}` : (proof.gpsLat && proof.gpsLng ? `${proof.gpsLat},${proof.gpsLng}` : null),
+                    gps_lat: firstGps?.lat || proof.gpsLat || null,
+                    gps_lng: firstGps?.lng || proof.gpsLng || null,
+                    started_at: proof.startedAt || null,
                     completed_at: proof.completedAt || new Date().toISOString(),
                     immeuble: proofBooking?.address || '',
                   }),
@@ -2163,6 +2165,83 @@ export default function MobileDashboard() {
               </div>
             </div>
             )}
+
+            {/* ── Photos Chantier (banque photos géolocalisées) ── */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-bold text-gray-700">📸 Photos Chantier</div>
+                <label className="cursor-pointer bg-[#FFC107] text-gray-900 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                  📷 Prendre photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file || !artisan) return
+                      e.target.value = ''
+                      // GPS obligatoire
+                      try {
+                        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+                        })
+                        const lat = pos.coords.latitude
+                        const lng = pos.coords.longitude
+                        const takenAt = new Date().toISOString()
+                        // Demander association booking optionnelle
+                        const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending')
+                        let selectedBookingId: string | null = null
+                        if (activeBookings.length > 0) {
+                          const choices = activeBookings.map((b, i) => `${i + 1}. ${b.services?.name || 'RDV'} — ${b.booking_date}`).join('\n')
+                          const answer = prompt(`Associer à un chantier ?\n\n${choices}\n\n0. Aucun (photo libre)\n\nEntrez le numéro :`)
+                          if (answer && parseInt(answer) > 0 && parseInt(answer) <= activeBookings.length) {
+                            selectedBookingId = activeBookings[parseInt(answer) - 1].id
+                          }
+                        }
+                        // Upload
+                        const formData = new FormData()
+                        formData.append('file', file)
+                        formData.append('artisan_id', artisan.id)
+                        formData.append('lat', String(lat))
+                        formData.append('lng', String(lng))
+                        formData.append('taken_at', takenAt)
+                        formData.append('source', 'mobile')
+                        if (selectedBookingId) formData.append('booking_id', selectedBookingId)
+                        const session = await supabase.auth.getSession()
+                        const token = session.data.session?.access_token
+                        const res = await fetch('/api/artisan-photos', {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${token}` },
+                          body: formData,
+                        })
+                        if (res.ok) {
+                          alert('✅ Photo enregistrée avec GPS et horodatage !')
+                        } else {
+                          const err = await res.json()
+                          alert(`❌ ${err.error || 'Erreur upload'}`)
+                        }
+                      } catch (gpsErr) {
+                        alert('❌ GPS requis pour prendre une photo chantier. Activez la géolocalisation.')
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                <div className="text-xs text-gray-500 mb-2">
+                  📍 Toutes les photos sont géolocalisées et horodatées automatiquement.
+                  Depuis le dashboard desktop, vous pouvez les associer à vos chantiers et les joindre à vos devis/factures.
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <span>📱 Prise depuis l&apos;appli uniquement</span>
+                  <span>•</span>
+                  <span>📍 GPS obligatoire</span>
+                  <span>•</span>
+                  <span>🕐 Horodatage auto</span>
+                </div>
+              </div>
+            </div>
 
             {/* ── Compliance Wallet OCR ── */}
             {isModuleEnabled('compliance_wallet') && (
