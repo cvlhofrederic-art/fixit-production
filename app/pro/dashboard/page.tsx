@@ -428,9 +428,22 @@ export default function DashboardPage() {
     const clientMatch = notesStr.match(/Client:\s*([^.]+)/i)
     if (clientMatch) clientName = clientMatch[1].trim()
 
+    // Récupérer l'unité du motif lié au booking
+    const linkedService = services.find(s => s.id === booking.service_id)
+    let lineUnit = 'u'
+    if (linkedService) {
+      const { unit: svcUnit } = parseServiceRange(linkedService)
+      const unitMap: Record<string, string> = {
+        'm2': 'm²', 'ml': 'ml', 'm3': 'm³', 'heure': 'h',
+        'forfait': 'forfait', 'unite': 'u', 'arbre': 'u',
+        'tonne': 'kg', 'kg': 'kg', 'lot': 'lot',
+      }
+      lineUnit = unitMap[svcUnit] || 'u'
+    }
+
     const lines = priceHT > 0
-      ? [{ id: 1, description: serviceName, qty: 1, unit: 'u', priceHT, tvaRate: 10, totalHT: priceHT }]
-      : [{ id: 1, description: serviceName, qty: 1, unit: 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }]
+      ? [{ id: 1, description: serviceName, qty: 1, unit: lineUnit, priceHT, tvaRate: 10, totalHT: priceHT }]
+      : [{ id: 1, description: serviceName, qty: 1, unit: lineUnit, priceHT: 0, tvaRate: 10, totalHT: 0 }]
 
     const devisData = {
       docType: 'devis' as const,

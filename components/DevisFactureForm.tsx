@@ -375,6 +375,20 @@ export default function DevisFactureForm({
     setLines(prev => prev.filter(l => l.id !== id))
   }
 
+  // Extraire l'unité du service (encodée dans description : [unit:m2|min:X|max:Y])
+  // et la mapper au format ProductLine (m², m³, ml, h, forfait, u, kg, lot)
+  const parseServiceUnit = (service: any): string => {
+    const desc = service?.description || ''
+    const match = desc.match(/\[unit:([^|]+)\|/)
+    if (!match) return 'u'
+    const unitMap: Record<string, string> = {
+      'm2': 'm²', 'ml': 'ml', 'm3': 'm³', 'heure': 'h',
+      'forfait': 'forfait', 'unite': 'u', 'arbre': 'u',
+      'tonne': 'kg', 'kg': 'kg', 'lot': 'lot',
+    }
+    return unitMap[match[1]] || 'u'
+  }
+
   const selectMotif = (lineId: number, serviceId: string) => {
     if (serviceId === 'custom') {
       updateLine(lineId, 'description', '')
@@ -385,12 +399,14 @@ export default function DevisFactureForm({
       // Pour un AE/EI sans TVA → price_ttc = prix réel (pas de TVA)
       // Pour une entreprise avec TVA → price_ttc inclut la TVA, price_ht = HT
       const price = tvaEnabled ? (service.price_ht || 0) : (service.price_ttc || service.price_ht || 0)
+      // Unité automatique depuis le paramétrage du motif
+      const serviceUnit = parseServiceUnit(service)
       setLines(prev => prev.map(line => {
         if (line.id !== lineId) return line
         return {
           ...line,
           description: service.name,
-          unit: line.unit || 'u',
+          unit: serviceUnit,
           priceHT: price,
           tvaRate: defaultTvaRate,
           totalHT: 1 * price,
@@ -424,11 +440,14 @@ export default function DevisFactureForm({
       const bookingPrice = booking.price_ttc || booking.price_ht || 0
       const linePrice = tvaEnabled ? Math.round((bookingPrice / 1.2) * 100) / 100 : bookingPrice
       const lineTva = tvaEnabled ? 20 : 0
+      // Récupérer l'unité du service lié au booking
+      const linkedService = services.find(s => s.id === booking.service_id)
+      const serviceUnit = parseServiceUnit(linkedService)
       setLines([{
         id: Date.now(),
         description: serviceName,
         qty: 1,
-        unit: 'u',
+        unit: serviceUnit,
         priceHT: linePrice,
         tvaRate: lineTva,
         totalHT: linePrice,
