@@ -49,6 +49,7 @@ interface Artisan {
   zone_radius_km: number
   city?: string | null
   experience_years?: number | null
+  profile_photo_url?: string | null
   services?: Service[]
   // Catalogue fields
   source?: 'registered' | 'catalogue'
@@ -442,7 +443,7 @@ function MiniWeeklyCalendar({
                 <div
                   className={`text-xs leading-tight ${
                     isToday
-                      ? 'bg-[#D4A017] text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto'
+                      ? 'bg-[#FFC107] text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto'
                       : ''
                   }`}
                 >
@@ -460,7 +461,7 @@ function MiniWeeklyCalendar({
                       <Link
                         key={slot}
                         href={`/artisan/${artisanId}`}
-                        className="text-[10px] sm:text-xs bg-amber-50 hover:bg-[#D4A017] hover:text-gray-900 text-amber-700 font-semibold py-1 px-0.5 rounded text-center transition truncate"
+                        className="text-[10px] sm:text-xs bg-amber-50 hover:bg-[#FFC107] hover:text-gray-900 text-amber-700 font-semibold py-1 px-0.5 rounded text-center transition truncate"
                       >
                         {slot}
                       </Link>
@@ -481,7 +482,7 @@ function MiniWeeklyCalendar({
       {/* See more link */}
       <Link
         href={`/artisan/${artisanId}`}
-        className="mt-2 text-xs text-[#D4A017] hover:text-amber-600 font-semibold text-center transition"
+        className="mt-2 text-xs text-[#FFC107] hover:text-amber-600 font-semibold text-center transition"
       >
         Voir plus de creneaux &rarr;
       </Link>
@@ -557,7 +558,7 @@ function FilterModal({
                   name="dispo"
                   checked={local.disponibilite === opt.value}
                   onChange={() => setLocal({ ...local, disponibilite: opt.value })}
-                  className="w-4 h-4 accent-[#D4A017]"
+                  className="w-4 h-4 accent-[#FFC107]"
                 />
                 <span className="text-sm">{opt.label}</span>
               </label>
@@ -581,7 +582,7 @@ function FilterModal({
                   name="intervention"
                   checked={local.typeIntervention === opt.value}
                   onChange={() => setLocal({ ...local, typeIntervention: opt.value })}
-                  className="w-4 h-4 accent-[#D4A017]"
+                  className="w-4 h-4 accent-[#FFC107]"
                 />
                 <span className="text-sm">{opt.label}</span>
               </label>
@@ -596,7 +597,7 @@ function FilterModal({
               type="checkbox"
               checked={local.verifiedOnly}
               onChange={() => setLocal({ ...local, verifiedOnly: !local.verifiedOnly })}
-              className="w-4 h-4 accent-[#D4A017] rounded"
+              className="w-4 h-4 accent-[#FFC107] rounded"
             />
             <span className="text-sm font-medium">Artisans certifies uniquement</span>
           </label>
@@ -621,7 +622,7 @@ function FilterModal({
               setFilters(local)
               onClose()
             }}
-            className="flex-1 bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 py-2.5 rounded-lg font-semibold transition"
+            className="flex-1 bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 py-2.5 rounded-lg font-semibold transition"
           >
             Appliquer les filtres
           </button>
@@ -656,9 +657,9 @@ function StarsRow({ rating, reviewCount }: { rating: number; reviewCount: number
             key={i}
             className={`w-3.5 h-3.5 ${
               i < fullStars
-                ? 'fill-[#D4A017] text-[#D4A017]'
+                ? 'fill-[#FFC107] text-[#FFC107]'
                 : i === fullStars && hasHalf
-                  ? 'fill-[#D4A017]/50 text-[#D4A017]'
+                  ? 'fill-[#FFC107]/50 text-[#FFC107]'
                   : 'fill-gray-200 text-gray-200'
             }`}
           />
@@ -713,11 +714,19 @@ function ArtisanCard({
         <div className="flex flex-col lg:flex-row lg:gap-6">
           {/* Avatar */}
           <div className="flex lg:flex-col items-center lg:items-center gap-4 lg:gap-2 mb-4 lg:mb-0 lg:w-20 flex-shrink-0">
-            <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-[#D4A017] to-[#C4950F] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
-              {initials}
-            </div>
+            {artisan.profile_photo_url ? (
+              <img
+                src={artisan.profile_photo_url}
+                alt={artisan.company_name || 'Artisan'}
+                className="w-14 h-14 lg:w-16 lg:h-16 rounded-full object-cover shadow-sm flex-shrink-0"
+              />
+            ) : (
+              <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFB300] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
+                {initials}
+              </div>
+            )}
             <div className="hidden lg:flex items-center gap-0.5 mt-1">
-              <Star className="w-3.5 h-3.5 fill-[#D4A017] text-[#D4A017]" />
+              <Star className="w-3.5 h-3.5 fill-[#FFC107] text-[#FFC107]" />
               <span className="text-xs font-semibold">{rating.toFixed(1)}</span>
             </div>
           </div>
@@ -729,7 +738,7 @@ function ArtisanCard({
                 {isCatalogue ? (
                   <span className="font-bold text-lg">{artisan.company_name || 'Artisan'}</span>
                 ) : (
-                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-bold text-lg hover:text-[#D4A017] transition">
+                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-bold text-lg hover:text-[#FFC107] transition">
                     {artisan.company_name || 'Artisan'}
                   </Link>
                 )}
@@ -781,7 +790,7 @@ function ArtisanCard({
                 {artisan.telephone_pro && artisan.verified && (
                   <a
                     href={`tel:${artisan.telephone_pro}`}
-                    className="flex items-center justify-center gap-2 bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 font-bold py-2.5 px-4 rounded-lg transition text-sm"
+                    className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 font-bold py-2.5 px-4 rounded-lg transition text-sm"
                   >
                     📞 {artisan.telephone_pro}
                   </a>
@@ -790,7 +799,7 @@ function ArtisanCard({
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || 'Marseille'))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#D4A017] text-gray-700 hover:text-[#D4A017] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
                 >
                   🔍 Voir sur Google
                 </a>
@@ -802,7 +811,7 @@ function ArtisanCard({
               <div className="flex flex-col gap-3 h-full justify-center">
                 <Link
                   href={`/artisan/${artisan.slug || artisan.id}`}
-                  className="flex items-center justify-center gap-2 bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 font-bold py-3 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 font-bold py-3 px-4 rounded-lg transition text-sm"
                 >
                   <Calendar className="w-4 h-4" />
                   Prendre rendez-vous
@@ -811,7 +820,7 @@ function ArtisanCard({
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.city || ''))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#D4A017] text-gray-700 hover:text-[#D4A017] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
                 >
                   🔍 Voir sur Google
                 </a>
@@ -1273,7 +1282,7 @@ function RechercheContent() {
                 onChange={(e) => setCategoryInput(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Sp&eacute;cialit&eacute; ou motif (ex: plombier, fuite, taille haie...)"
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-[#D4A017] focus:ring-1 focus:ring-[#D4A017] transition text-sm"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-[#FFC107] focus:ring-1 focus:ring-[#FFC107] transition text-sm"
               />
             </div>
             <div className="relative flex-1 sm:max-w-xs">
@@ -1284,8 +1293,8 @@ function RechercheContent() {
                 onChange={(e) => { setLocationInput(e.target.value); setUserCoords(null) }}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Ville ou code postal"
-                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:border-[#D4A017] focus:ring-1 focus:ring-[#D4A017] transition text-sm ${
-                  userCoords ? 'border-[#D4A017] bg-amber-50' : 'border-gray-200'
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:border-[#FFC107] focus:ring-1 focus:ring-[#FFC107] transition text-sm ${
+                  userCoords ? 'border-[#FFC107] bg-amber-50' : 'border-gray-200'
                 }`}
               />
             </div>
@@ -1294,7 +1303,7 @@ function RechercheContent() {
               onClick={handleGeolocate}
               disabled={geoLoading}
               title="Rechercher les artisans autour de moi"
-              className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-[#D4A017] text-[#D4A017] hover:bg-amber-50 rounded-lg font-semibold transition disabled:opacity-60 whitespace-nowrap"
+              className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-[#FFC107] text-[#FFC107] hover:bg-amber-50 rounded-lg font-semibold transition disabled:opacity-60 whitespace-nowrap"
             >
               {geoLoading ? (
                 <span className="animate-spin text-base">⏳</span>
@@ -1305,7 +1314,7 @@ function RechercheContent() {
             </button>
             <button
               onClick={handleSearch}
-              className="bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 px-8 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+              className="bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 px-8 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
             >
               <Search className="w-4 h-4" />
               Rechercher
@@ -1341,7 +1350,7 @@ function RechercheContent() {
           <div className="flex items-center gap-2 overflow-x-auto">
             <button
               onClick={() => setFilterModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:border-[#D4A017] hover:bg-amber-50 transition whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:border-[#FFC107] hover:bg-amber-50 transition whitespace-nowrap"
             >
               <SlidersHorizontal className="w-4 h-4" />
               Filtres
@@ -1361,8 +1370,8 @@ function RechercheContent() {
               title={userCoords ? 'Désactiver la localisation' : 'Rechercher autour de ma position'}
               className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap disabled:opacity-60 ${
                 userCoords
-                  ? 'border-[#D4A017] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#D4A017] hover:bg-amber-50 text-gray-700'
+                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50 text-gray-700'
               }`}
             >
               {geoLoading ? (
@@ -1386,8 +1395,8 @@ function RechercheContent() {
               }
               className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filters.disponibilite === '3days'
-                  ? 'border-[#D4A017] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#D4A017] hover:bg-amber-50'
+                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -1402,8 +1411,8 @@ function RechercheContent() {
               }
               className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filters.disponibilite === 'today'
-                  ? 'border-[#D4A017] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#D4A017] hover:bg-amber-50'
+                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
+                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50'
               }`}
             >
               <Zap className="w-4 h-4" />
@@ -1443,7 +1452,7 @@ function RechercheContent() {
         {/* Results */}
         {loading ? (
           <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#D4A017] border-t-transparent"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
             <p className="mt-4 text-gray-500">Recherche en cours...</p>
           </div>
         ) : filteredArtisans.length === 0 ? (
@@ -1469,7 +1478,7 @@ function RechercheContent() {
                 fetchData('', '')
                 router.push('/recherche')
               }}
-              className="bg-[#D4A017] hover:bg-[#C4950F] text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
+              className="bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >
               Reinitialiser la recherche
             </button>
@@ -1512,7 +1521,7 @@ export default function RecherchePage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#D4A017] border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
         </div>
       }
     >

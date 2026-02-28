@@ -27,7 +27,7 @@ export default function Error({
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={reset}
-            className="bg-[#D4A017] hover:bg-[#C4950F] text-white px-8 py-3 rounded-lg font-semibold transition"
+            className="bg-[#FFC107] hover:bg-[#FFB300] text-white px-8 py-3 rounded-lg font-semibold transition"
           >
             R&eacute;essayer
           </button>
