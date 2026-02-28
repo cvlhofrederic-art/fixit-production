@@ -5,16 +5,16 @@ export default function Footer() {
     <footer className="bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-          {/* Column 1 - VitFix */}
+          {/* Column 1 - VITFIX */}
           <div>
             <div className="flex items-center gap-2 mb-4">
               <span className="text-3xl">{'\u26A1'}</span>
-              <span className="text-2xl font-bold text-[#FFC107]">VitFix</span>
+              <span className="text-2xl font-bold text-[#FFC107]">VITFIX</span>
             </div>
-            <p className="text-gray-400 mb-4">
+            <p className="text-gray-500 mb-4">
               La plateforme de r&eacute;servation d&apos;artisans la plus simple de France.
             </p>
-            <ul className="space-y-2 text-gray-400">
+            <ul className="space-y-3 text-gray-500">
               <li>
                 <Link href="/a-propos" className="hover:text-[#FFC107] transition">
                   &Agrave; propos
@@ -36,7 +36,7 @@ export default function Footer() {
           {/* Column 2 - Pour les particuliers */}
           <div>
             <h3 className="font-bold mb-4 text-[#FFC107]">Pour les particuliers</h3>
-            <ul className="space-y-2 text-gray-400">
+            <ul className="space-y-3 text-gray-500">
               <li>
                 <Link href="/recherche" className="hover:text-[#FFC107] transition">
                   Trouver un artisan
@@ -63,7 +63,7 @@ export default function Footer() {
           {/* Column 3 - Pour les artisans */}
           <div>
             <h3 className="font-bold mb-4 text-[#FFC107]">Pour les artisans</h3>
-            <ul className="space-y-2 text-gray-400">
+            <ul className="space-y-3 text-gray-500">
               <li>
                 <Link href="/pro/register" className="hover:text-[#FFC107] transition">
                   Devenir artisan partenaire
@@ -90,7 +90,7 @@ export default function Footer() {
           {/* Column 4 - Legal */}
           <div>
             <h3 className="font-bold mb-4 text-[#FFC107]">L&eacute;gal</h3>
-            <ul className="space-y-2 text-gray-400">
+            <ul className="space-y-3 text-gray-500">
               <li>
                 <Link href="/mentions-legales" className="hover:text-[#FFC107] transition">
                   Mentions l&eacute;gales
@@ -116,8 +116,8 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-gray-800 mt-10 pt-8 text-center text-gray-400">
-          <p>&copy; 2026 VitFix - Tous droits r&eacute;serv&eacute;s</p>
+        <div className="border-t border-gray-800 mt-10 pt-8 text-center text-gray-500">
+          <p>&copy; 2026 VITFIX - Tous droits r&eacute;serv&eacute;s</p>
         </div>
       </div>
     </footer>

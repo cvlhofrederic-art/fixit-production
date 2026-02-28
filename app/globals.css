@@ -2,16 +2,46 @@
 
 @theme inline {
   --color-primary: #FFC107;
-  --color-primary-hover: #FFD54F;
+  --color-primary-hover: #FFB300;
   --color-primary-light: #FFF9E6;
   --color-background: #ffffff;
   --color-foreground: #333333;
+  --color-particulier: #3b82f6;
+  --color-artisan: #fbbf24;
+  --color-syndic: #a855f7;
   --font-sans: var(--font-inter);
 }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
+}
+
+/* ── Design System — Typography baseline ──────────────────── */
+p, li, span, td {
+  line-height: 1.6;
+}
+
+/* ── Design System — Focus states (accessibilité) ─────────── */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #FFC107;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Design System — Disabled states ──────────────────────── */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ── Design System — Placeholder ──────────────────────────── */
+::placeholder {
+  color: #9ca3af;
 }
 
 /* ── Mobile / Capacitor Safe Areas ─────────────────────────── */
@@ -83,4 +113,71 @@ a img, button img, [data-draggable] img {
 }
 .animate-slideUp {
   animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* ── Table improvements ───────────────────────────────────── */
+table tbody tr {
+  border-bottom: 1px solid #f3f4f6;
+}
+table tbody tr:last-child {
+  border-bottom: none;
+}
+table tbody tr:nth-child(even) {
+  background-color: rgba(249, 250, 251, 0.5);
+}
+
+/* ── Accessibility — Skip to content link ────────────────── */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #1a1a1a;
+  color: white;
+  padding: 8px 16px;
+  z-index: 100;
+  transition: top 0.2s;
+  font-weight: 600;
+  border-bottom-right-radius: 4px;
+}
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* ── Accessibility — Screen reader only ──────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ── Accessibility — Reduced motion ──────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Accessibility — Focus trap for modals ───────────────── */
+[role="dialog"]:focus {
+  outline: none;
+}
+[role="dialog"] {
+  position: relative;
 }
