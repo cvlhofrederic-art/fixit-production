@@ -45,7 +45,8 @@ test.describe('Security Headers', () => {
     // All these routes should return 401 without auth
     // Note: GET /api/bookings is intentionally public (returns slot availability, no personal data)
     const protectedRoutes = [
-      { method: 'POST', url: '/api/fixy-ai' },
+      // fixy-ai validates body schema before auth — must include artisan_id to reach auth check
+      { method: 'POST', url: '/api/fixy-ai', body: { message: 'test', artisan_id: '00000000-0000-0000-0000-000000000000' } },
       { method: 'POST', url: '/api/comptable-ai' },
       { method: 'GET', url: '/api/artisan-clients?mode=1&clientId=fake' },
       { method: 'GET', url: '/api/user/export-data' },
@@ -55,7 +56,7 @@ test.describe('Security Headers', () => {
       const response =
         route.method === 'GET'
           ? await request.get(route.url)
-          : await request.post(route.url, { data: { message: 'test' } })
+          : await request.post(route.url, { data: (route as any).body || { message: 'test' } })
 
       expect(response.status(), `${route.method} ${route.url} should be 401`).toBe(401)
     }

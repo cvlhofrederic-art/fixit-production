@@ -15,7 +15,8 @@ test.describe('Auth flow', () => {
 
     // Three space selectors: Particulier, Artisan, Pro (syndic)
     await expect(page.getByRole('button', { name: /Particulier/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Artisan/i })).toBeVisible()
+    // Case-sensitive match to avoid matching "votre artisan" in Particulier button text
+    await expect(page.getByRole('button', { name: /Artisan/ })).toBeVisible()
   })
 
   test('login form has email and password inputs after selecting a space', async ({ page }) => {
@@ -43,7 +44,7 @@ test.describe('Auth flow', () => {
     await expect(emailInput).toHaveAttribute('required', '')
 
     // Try to submit the form with empty fields
-    const submitButton = page.getByRole('button', { name: /connexion/i })
+    const submitButton = page.getByRole('button', { name: /se connecter/i })
     await expect(submitButton).toBeVisible()
     await submitButton.click()
 
@@ -65,7 +66,7 @@ test.describe('Auth flow', () => {
     await page.locator('input[type="password"]').fill('wrongpassword123')
 
     // Submit
-    await page.getByRole('button', { name: /connexion/i }).click()
+    await page.getByRole('button', { name: /se connecter/i }).click()
 
     // Should display an error message
     const errorBox = page.locator('text=Email ou mot de passe incorrect')

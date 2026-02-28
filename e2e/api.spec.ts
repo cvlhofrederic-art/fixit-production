@@ -33,8 +33,9 @@ test.describe('API endpoint smoke tests', () => {
   })
 
   test('POST /api/fixy-ai without auth returns 401', async ({ request }) => {
+    // Body must include artisan_id to pass schema validation (which runs before auth check)
     const response = await request.post('/api/fixy-ai', {
-      data: { message: 'test' },
+      data: { message: 'test', artisan_id: '00000000-0000-0000-0000-000000000000' },
     })
     expect(response.status()).toBe(401)
   })
@@ -46,8 +47,9 @@ test.describe('API endpoint smoke tests', () => {
     expect(response.status()).toBe(401)
   })
 
-  test('GET /api/bookings without auth returns 401', async ({ request }) => {
+  test('GET /api/bookings without artisan_id returns 400', async ({ request }) => {
+    // GET /api/bookings is intentionally public (slot availability) — returns 400 when artisan_id missing
     const response = await request.get('/api/bookings')
-    expect(response.status()).toBe(401)
+    expect(response.status()).toBe(400)
   })
 })

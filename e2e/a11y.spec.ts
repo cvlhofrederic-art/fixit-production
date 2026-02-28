@@ -57,7 +57,7 @@ test.describe('Accessibility (a11y)', () => {
     await page.goto('/auth/login')
 
     // Select Particulier to reveal the form
-    await page.getByText('Particulier').click()
+    await page.getByRole('button', { name: /Particulier/i }).click()
 
     const inputs = page.locator('input:not([type="hidden"]):not([type="submit"])')
     const count = await inputs.count()
