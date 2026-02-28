@@ -170,6 +170,8 @@ export default function DevisFactureForm({
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || 'Virement bancaire')
   const [paymentDue, setPaymentDue] = useState(dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
+  const [iban, setIban] = useState(initialData?.iban || '')
+  const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || 'Paiement comptable à réception de facture')
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? `Réf. devis : ${initialData.docNumber}` : ''))
@@ -536,9 +538,18 @@ export default function DevisFactureForm({
     // 4. CONDITIONS DE PAIEMENT (facture)
     // ══════════════════════════════════════════════
     if (docType === 'facture') {
-      mentions.push('Pénalités de retard exigibles sans rappel : 3 fois le taux d\'intérêt légal en vigueur (art. L. 441-10 C. com.)')
+      // Conditions de paiement
+      if (paymentCondition) mentions.push(`Conditions de paiement : ${paymentCondition}`)
+      mentions.push('Pénalités de retard exigibles sans rappel : taux légal majoré de 10 points (art. L. 441-10 C. com.)')
       mentions.push('Indemnité forfaitaire pour frais de recouvrement : 40 € (art. D. 441-5 C. com.)')
-      mentions.push('Pas d\'escompte pour paiement anticipé, sauf accord préalable')
+      if (!discount) mentions.push('Pas d\'escompte pour paiement anticipé, sauf accord préalable')
+      // Réserve de propriété (si fourniture de matériel)
+      mentions.push('Le matériel fourni reste la propriété de l\'entreprise jusqu\'au paiement intégral de la facture.')
+      // Référence au devis signé
+      if (notes && notes.includes('Réf. devis')) {
+        const devisRef = notes.match(/Réf\. devis\s*:\s*([^\n]+)/)?.[1]?.trim()
+        if (devisRef) mentions.push(`Travaux réalisés conformément au devis signé n° ${devisRef}.`)
+      }
       // Garantie — seulement pour clients particuliers (B2C)
       if (!isClientPro) {
         mentions.push('Garantie légale de conformité : 2 ans minimum (art. L. 217-3 C. conso.)')
@@ -647,8 +658,8 @@ export default function DevisFactureForm({
         centerText(docTitle.toUpperCase(), y, 14, 'bold')
         y += 5
       }
-      // Numéro du document en dessous, plus petit
-      centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber}`, y, 8, 'normal', colLight)
+      // Numéro du document — sans répéter "Devis" ou "Facture" si docTitle présent
+      centerText(docNumber, y, 8, 'normal', colLight)
       y += 4
       // Petit trait centré
       drawLine(pageW / 2 - 15, y, pageW / 2 + 15, colAccent, 0.8)
@@ -728,11 +739,18 @@ export default function DevisFactureForm({
         pdf.text(val, infoX, infoY)
         infoX += pdf.getTextWidth(val) + 6
       }
-      drawInfo('Date : ', docDate ? new Date(docDate).toLocaleDateString('fr-FR') : docDate)
-      if (docType === 'devis' && docValidity) drawInfo('Validité : ', `${docValidity} jours`)
-      if (docType === 'devis' && executionDelay) drawInfo("Délai d'exécution : ", executionDelay)
-      if (docType === 'devis' && prestationDate) drawInfo('Date prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
-      if (docType === 'facture' && paymentDue) drawInfo('Échéance : ', new Date(paymentDue).toLocaleDateString('fr-FR'))
+      // Date d'émission = TOUJOURS la date de création du document (aujourd'hui)
+      drawInfo("Date d'émission : ", docDate ? new Date(docDate).toLocaleDateString('fr-FR') : docDate)
+      if (docType === 'devis') {
+        if (docValidity) drawInfo('Validité : ', `${docValidity} jours`)
+        if (executionDelay) drawInfo("Délai d'exécution : ", executionDelay)
+        if (prestationDate) drawInfo('Date prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
+      }
+      if (docType === 'facture') {
+        // Date de prestation (quand les travaux ont été réalisés) — distincte de la date d'émission
+        if (prestationDate) drawInfo('Prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
+        if (paymentDue) drawInfo('Échéance : ', new Date(paymentDue).toLocaleDateString('fr-FR'))
+      }
       y += 12
 
       // ═══ 4. TABLEAU PRESTATIONS (autoTable) ═══
@@ -911,18 +929,51 @@ export default function DevisFactureForm({
         pdf.roundedRect(sigX, condStartY, sigW, condH, 1.5, 1.5, 'S')
 
         y = condStartY + condH + 6
-      } else if (paymentMode || paymentDue) {
+      } else if (docType === 'facture') {
+        // Section complète CONDITIONS DE RÈGLEMENT pour facture
+        const payLines: string[] = []
+        if (paymentCondition) payLines.push(paymentCondition)
+        if (paymentMode) payLines.push(`Mode de règlement : ${paymentMode}`)
+        if (paymentDue) payLines.push(`Date limite de paiement : ${new Date(paymentDue).toLocaleDateString('fr-FR')}`)
+        if (iban) payLines.push(`IBAN : ${iban}`)
+        payLines.push("Pénalités de retard : tout retard de paiement entraînera l'application de pénalités calculées au taux légal majoré de 10 points (art. L. 441-10 C. com.) ainsi qu'une indemnité forfaitaire de 40 € pour frais de recouvrement (art. D. 441-5 C. com.).")
+        if (discount) payLines.push(`Escompte pour paiement anticipé : ${discount}`)
+        else payLines.push("Pas d'escompte pour paiement anticipé, sauf accord préalable.")
+        // Référence au devis signé
+        if (notes && notes.includes('Réf. devis')) {
+          const devisRef = notes.match(/Réf\. devis\s*:\s*([^\n]+)/)?.[1]?.trim()
+          if (devisRef) payLines.push(`Travaux réalisés conformément au devis signé n° ${devisRef}.`)
+        }
+
+        // Calcul hauteur dynamique d'abord
+        const condStartY = y
+        const condCenterX = mL + contentW / 2
+        let measureY = condStartY + 10
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal')
+        payLines.forEach(line => {
+          const wrapped = pdf.splitTextToSize(line, contentW - 8)
+          measureY += wrapped.length * 3 + 0.5
+        })
+        const condH = Math.max(measureY - condStartY + 2, 20)
+
+        // Dessiner le fond en premier
         pdf.setFillColor('#EFF6FF'); pdf.setDrawColor('#BFDBFE'); pdf.setLineWidth(0.3)
-        pdf.roundedRect(mL, y, contentW, 12, 1.5, 1.5, 'FD')
+        pdf.roundedRect(mL, condStartY, contentW, condH, 1.5, 1.5, 'FD')
+
+        // Header
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
-        pdf.text('CONDITIONS DE RÈGLEMENT', mL + 4, y + 5)
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#1E40AF')
-        let payText = ''
-        if (paymentMode) payText += `Mode : ${paymentMode}`
-        if (paymentMode && paymentDue) payText += ' — '
-        if (paymentDue) payText += `Échéance : ${new Date(paymentDue).toLocaleDateString('fr-FR')}`
-        pdf.text(payText, mL + 4, y + 9)
-        y += 16
+        pdf.text('CONDITIONS DE RÈGLEMENT', condCenterX, condStartY + 4, { align: 'center' })
+        drawLine(condCenterX - 15, condStartY + 6, condCenterX + 15, '#BFDBFE', 0.2)
+
+        // Contenu
+        let cy = condStartY + 10
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#1E40AF')
+        payLines.forEach(line => {
+          const wrapped = pdf.splitTextToSize(line, contentW - 8)
+          pdf.text(wrapped, mL + 4, cy)
+          cy += wrapped.length * 3 + 0.5
+        })
+        y = condStartY + condH + 4
       }
 
       // ═══ 7. NOTES ═══
@@ -1679,6 +1730,7 @@ export default function DevisFactureForm({
                   <label className="block text-sm font-medium text-gray-600 mb-1">Date d&apos;émission <span className="text-red-500">*</span></label>
                   <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)}
                     className={normalFieldClass} />
+                  {docType === 'facture' && <p className="text-[10px] text-gray-400 mt-1">Date à laquelle la facture est créée (aujourd&apos;hui)</p>}
                 </div>
                 {docType === 'devis' && (
                   <div>
@@ -1692,6 +1744,7 @@ export default function DevisFactureForm({
                     <label className="block text-sm font-medium text-gray-600 mb-1">Date de prestation <span className="text-red-500">*</span></label>
                     <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
                       className={normalFieldClass} />
+                    <p className="text-[10px] text-gray-400 mt-1">Date à laquelle les travaux ont été réalisés (peut être différente)</p>
                   </div>
                 )}
               </div>
@@ -1886,7 +1939,22 @@ export default function DevisFactureForm({
                 <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
                   {'💳'} Conditions de Paiement (OBLIGATOIRE)
                 </h3>
+                <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg mb-4">
+                  <p className="text-xs text-amber-800">Ces mentions sont obligatoires sur toute facture (art. L. 441-3 Code de commerce). L&apos;absence de pénalités de retard ou d&apos;indemnité de recouvrement est automatiquement ajoutée.</p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Conditions de paiement <span className="text-red-500">*</span></label>
+                    <select value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)}
+                      className={`${normalFieldClass} bg-white`}>
+                      <option value="Paiement comptable à réception de facture">Paiement comptant à réception</option>
+                      <option value="Paiement à 30 jours fin de mois">30 jours fin de mois</option>
+                      <option value="Paiement à 30 jours date de facture">30 jours date de facture</option>
+                      <option value="Paiement à 45 jours fin de mois">45 jours fin de mois</option>
+                      <option value="Paiement à 60 jours date de facture">60 jours date de facture</option>
+                      <option value="Paiement en 2 fois : 50% à la commande, solde à la réception">50% / 50%</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Mode de règlement <span className="text-red-500">*</span></label>
                     <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}
@@ -1895,12 +1963,22 @@ export default function DevisFactureForm({
                       <option value="Carte bancaire">Carte bancaire</option>
                       <option value="Chèque">Chèque</option>
                       <option value="Espèces">Espèces</option>
+                      <option value="Virement bancaire + Chèque">Virement + Chèque</option>
                     </select>
                   </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Date limite de paiement <span className="text-red-500">*</span></label>
                     <input type="date" value={paymentDue} onChange={(e) => setPaymentDue(e.target.value)}
                       className={normalFieldClass} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">IBAN (coordonnées bancaires)</label>
+                    <input type="text" value={iban} onChange={(e) => setIban(e.target.value)}
+                      placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
+                      className={normalFieldClass} />
+                    <p className="text-[10px] text-gray-400 mt-1">Recommandé si paiement par virement — évite les retards</p>
                   </div>
                 </div>
                 <div>
