@@ -4966,11 +4966,12 @@ export default function SyndicDashboard() {
   const [msgInput, setMsgInput] = useState('')
   const [msgLoading, setMsgLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
-  const [iaMessages, setIaMessages] = useState<{ role: 'user' | 'assistant'; content: string; action?: any }[]>([
+  const [iaMessages, setIaMessages] = useState<{ role: 'user' | 'assistant'; content: string; action?: any; actionStatus?: 'pending' | 'confirmed' | 'cancelled' | 'error' }[]>([
     { role: 'assistant', content: 'Bonjour ! Je suis **Max**, votre assistant IA expert Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** : immeubles, artisans, missions, alertes, échéances réglementaires.\n\nJe peux aussi **agir directement** : créer une mission, naviguer vers une page, générer un courrier...\n\n🎙️ Vous pouvez me parler à voix haute en cliquant sur le micro !\n\nComment puis-je vous aider ?' }
   ])
   const [iaInput, setIaInput] = useState('')
   const [iaLoading, setIaLoading] = useState(false)
+  const [iaPendingAction, setIaPendingAction] = useState<{ action: any; iaToken: string } | null>(null)
   const iaEndRef = useRef<HTMLDivElement>(null)
   // ── Voice & Speech ─────────────────────────────────────────────────────────
   const [iaVoiceActive, setIaVoiceActive] = useState(false)
@@ -5845,6 +5846,42 @@ export default function SyndicDashboard() {
     },
   })
 
+  // ── Refresh missions depuis la DB (après mutation IA) ───────────────────────
+  const refreshMissionsFromDB = async () => {
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession()
+      if (!s?.access_token) return
+      const res = await fetch('/api/syndic/missions', {
+        headers: { Authorization: `Bearer ${s.access_token}` },
+      })
+      if (res.ok) {
+        const { missions: dbMissions } = await res.json()
+        if (dbMissions) {
+          setMissions(dbMissions)
+          try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(dbMissions)) } catch {}
+        }
+      }
+    } catch { /* silencieux */ }
+  }
+
+  // ── Journal d'audit actions IA ──────────────────────────────────────────────
+  const logAiAction = (actionType: string, actionData: any, result: 'success' | 'error' | 'cancelled', details?: string) => {
+    try {
+      const key = `fixit_syndic_audit_${user?.id}`
+      const existing = JSON.parse(localStorage.getItem(key) || '[]')
+      existing.unshift({
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        actionType, actionData, result,
+        details: details || '',
+        user: userName,
+      })
+      if (existing.length > 200) existing.length = 200
+      localStorage.setItem(key, JSON.stringify(existing))
+    } catch {}
+    console.info(`[Max AI Audit] ${result.toUpperCase()}: ${actionType}`, actionData)
+  }
+
   // ── Synthèse vocale ───────────────────────────────────────────────────────────
   const speakResponse = (text: string) => {
     if (!iaSpeechEnabled || typeof window === 'undefined' || !window.speechSynthesis) return
@@ -5933,6 +5970,219 @@ export default function SyndicDashboard() {
     recognition.start()
   }
 
+  // ── Exécution réelle des actions IA (écriture DB) ─────────────────────────────
+  const executeIaAction = async (action: any, iaToken: string) => {
+    try {
+      if (action.type === 'create_mission') {
+        // 1. Persister en base via POST /api/syndic/missions
+        const res = await fetch('/api/syndic/missions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+          body: JSON.stringify({
+            immeuble: action.immeuble || '',
+            artisan: action.artisan || '',
+            type: action.type_travaux || 'Divers',
+            description: action.description || '',
+            priorite: action.priorite || 'normale',
+            statut: 'en_attente',
+            dateCreation: new Date().toISOString().split('T')[0],
+            dateIntervention: action.date_intervention || null,
+          }),
+        })
+        if (!res.ok) throw new Error('Erreur création mission en base')
+        const { mission } = await res.json()
+
+        // 2. Si artisan email + date → assigner sur son agenda
+        if (action.date_intervention && action.artisan_email) {
+          const assignRes = await fetch('/api/syndic/assign-mission', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+            body: JSON.stringify({
+              artisan_email: action.artisan_email,
+              artisan_name: action.artisan,
+              description: action.description,
+              type_travaux: action.type_travaux,
+              date_intervention: action.date_intervention,
+              immeuble: action.immeuble,
+              priorite: action.priorite || 'normale',
+              notes: action.notes || '',
+            }),
+          })
+          const d = await assignRes.json()
+          if (d.success) {
+            setIaMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `✅ **Mission envoyée sur l'agenda de ${action.artisan}** — Il a reçu une notification et la mission apparaît dans son planning.`,
+            }])
+            speakResponse(`Mission envoyée sur l'agenda de ${action.artisan}.`)
+          }
+        }
+
+        // 3. Refresh depuis DB pour cohérence
+        await refreshMissionsFromDB()
+        logAiAction('create_mission', action, 'success', `Mission ${mission.id} créée`)
+
+        setIaMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `✅ **Mission créée en base** — ${action.type_travaux || 'Intervention'} à ${action.immeuble || 'N/A'}${action.artisan ? ` pour ${action.artisan}` : ''}`,
+        }])
+
+      } else if (action.type === 'assign_mission') {
+        // 1. D'abord créer la mission en DB
+        const missionRes = await fetch('/api/syndic/missions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+          body: JSON.stringify({
+            immeuble: action.immeuble || action.lieu || '',
+            artisan: action.artisan || '',
+            type: action.type_travaux || 'Intervention',
+            description: action.description || '',
+            priorite: action.priorite || 'normale',
+            statut: 'en_attente',
+            dateCreation: new Date().toISOString().split('T')[0],
+            dateIntervention: action.date_intervention || null,
+          }),
+        })
+        let dbMissionId = null
+        if (missionRes.ok) {
+          const { mission } = await missionRes.json()
+          dbMissionId = mission?.id
+        }
+
+        // 2. Puis assigner sur l'agenda artisan (booking + notification)
+        if (action.artisan_email && action.date_intervention) {
+          const assignRes = await fetch('/api/syndic/assign-mission', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+            body: JSON.stringify({
+              artisan_email: action.artisan_email,
+              artisan_name: action.artisan,
+              description: action.description,
+              type_travaux: action.type_travaux,
+              date_intervention: action.date_intervention,
+              immeuble: action.immeuble || action.lieu || '',
+              priorite: action.priorite || 'normale',
+              notes: action.notes || '',
+            }),
+          })
+          const d = await assignRes.json()
+          const msg = d.artisan_found
+            ? `✅ **Mission assignée !**\n\n📅 **${action.type_travaux || action.description}** — ${action.immeuble || action.lieu || ''}\n👤 **${action.artisan}** — ${new Date(action.date_intervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}\n\nNotification envoyée — la mission apparaît sur son agenda.`
+            : `⚠️ Mission créée en base mais **${action.artisan}** n'a pas de compte Vitfix. Ajoutez-le dans l'onglet Artisans pour la synchronisation agenda.`
+          setIaMessages(prev => [...prev, { role: 'assistant', content: msg }])
+          speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}` : `Mission créée. L'artisan n'est pas encore sur Vitfix.`)
+        }
+
+        // 3. Refresh
+        await refreshMissionsFromDB()
+        logAiAction('assign_mission', action, 'success', `Mission DB ${dbMissionId}, assignée à ${action.artisan}`)
+
+      } else if (action.type === 'update_mission') {
+        // Mise à jour d'une mission existante
+        if (!action.mission_id) {
+          // Chercher par artisan + immeuble si pas d'ID
+          const found = missions.find(m =>
+            (action.artisan && m.artisan?.toLowerCase().includes(action.artisan.toLowerCase())) ||
+            (action.immeuble && m.immeuble?.toLowerCase().includes(action.immeuble.toLowerCase()))
+          )
+          if (found) action.mission_id = found.id
+        }
+
+        if (!action.mission_id) {
+          setIaMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Impossible de mettre à jour : mission non trouvée. Précisez l\'artisan ou l\'immeuble.' }])
+          logAiAction('update_mission', action, 'error', 'mission_id non résolu')
+          return
+        }
+
+        const updatePayload: Record<string, any> = { id: action.mission_id }
+        if (action.statut) updatePayload.statut = action.statut
+        if (action.artisan) updatePayload.artisan = action.artisan
+        if (action.priorite) updatePayload.priorite = action.priorite
+        if (action.description) updatePayload.description = action.description
+        if (action.date_intervention) updatePayload.dateIntervention = action.date_intervention
+
+        const res = await fetch('/api/syndic/missions', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+          body: JSON.stringify(updatePayload),
+        })
+        if (!res.ok) throw new Error('Erreur mise à jour mission')
+
+        await refreshMissionsFromDB()
+
+        const statusLabels: Record<string, string> = { en_cours: 'en cours', terminee: 'terminée', annulee: 'annulée', acceptee: 'acceptée', en_attente: 'en attente' }
+        setIaMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `✅ **Mission mise à jour** — ${action.statut ? `Statut → ${statusLabels[action.statut] || action.statut}` : 'Modifiée avec succès'}`,
+        }])
+        logAiAction('update_mission', action, 'success', `Mission ${action.mission_id} mise à jour`)
+
+      } else if (action.type === 'create_alert') {
+        const newAlerte: Alerte = {
+          id: Date.now().toString(),
+          type: 'mission',
+          message: action.message || 'Alerte créée par Max',
+          urgence: action.urgence || 'moyenne',
+          date: new Date().toISOString().split('T')[0],
+        }
+        setAlertes(prev => [newAlerte, ...prev])
+        try {
+          const key = `fixit_syndic_alertes_${user?.id}`
+          const existing = JSON.parse(localStorage.getItem(key) || '[]')
+          existing.unshift(newAlerte)
+          localStorage.setItem(key, JSON.stringify(existing))
+        } catch {}
+
+        setIaMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `🔔 **Alerte créée** — [${newAlerte.urgence.toUpperCase()}] ${newAlerte.message}`,
+        }])
+        logAiAction('create_alert', action, 'success', `Alerte ${newAlerte.id}`)
+
+      } else if (action.type === 'navigate') {
+        if (action.page) setPage(action.page as Page)
+        logAiAction('navigate', action, 'success', `→ ${action.page}`)
+
+      } else if (action.type === 'send_message') {
+        const targetArtisan = artisans.find(a =>
+          a.nom.toLowerCase().includes((action.artisan || '').toLowerCase()) ||
+          (action.artisan || '').toLowerCase().includes(a.nom.toLowerCase())
+        )
+        if (targetArtisan?.artisan_user_id && action.content) {
+          await fetch('/api/syndic/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
+            body: JSON.stringify({
+              content: action.content,
+              artisan_user_id: targetArtisan.artisan_user_id,
+            }),
+          })
+          setIaMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `✅ **Message envoyé à ${action.artisan}**`,
+          }])
+        }
+        logAiAction('send_message', action, 'success', `→ ${action.artisan}`)
+
+      } else if (action.type === 'create_document') {
+        if (action.contenu) {
+          setIaMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `📄 **Document généré — ${action.type_doc || 'Courrier'}**\n\n---\n\n${action.contenu}`,
+          }])
+        }
+        logAiAction('create_document', action, 'success', `Type: ${action.type_doc}`)
+      }
+    } catch (err: any) {
+      console.error('[Max AI] Action execution error:', err)
+      logAiAction(action.type, action, 'error', err.message)
+      setIaMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ **Erreur lors de l'exécution** : ${err.message || 'Erreur inconnue'}. Réessayez ou créez la mission manuellement.`,
+      }])
+    }
+  }
+
   // ── Envoi message Max IA ─────────────────────────────────────────────────────
   const sendIaMessage = async (overrideText?: string) => {
     const msgText = overrideText || iaInput
@@ -5963,115 +6213,16 @@ export default function SyndicDashboard() {
 
       // ── Exécuter l'action si présente ─────────────────────────────────────
       if (action) {
-        if (action.type === 'create_mission') {
-          // Créer mission localement + assigner à l'artisan via API
-          const newMission: Mission = {
-            id: Date.now().toString(),
-            immeuble: action.immeuble || '',
-            artisan: action.artisan || '',
-            type: action.type_travaux || 'Divers',
-            description: action.description || '',
-            priorite: action.priorite || 'normale',
-            statut: 'en_attente',
-            dateCreation: new Date().toISOString().split('T')[0],
-            dateIntervention: action.date_intervention || undefined,
-          }
-          setMissions(prev => [newMission, ...prev])
-
-          // Si date et artisan fournis → assigner sur l'agenda artisan
-          if (action.date_intervention && action.artisan_email) {
-            fetch('/api/syndic/assign-mission', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
-              body: JSON.stringify({
-                artisan_email: action.artisan_email,
-                artisan_name: action.artisan,
-                description: action.description,
-                type_travaux: action.type_travaux,
-                date_intervention: action.date_intervention,
-                immeuble: action.immeuble,
-                priorite: action.priorite || 'normale',
-                notes: action.notes || '',
-              }),
-            }).then(r => r.json()).then(d => {
-              if (d.success) {
-                setIaMessages(prev => [...prev, {
-                  role: 'assistant',
-                  content: `✅ **Mission envoyée sur l'agenda de ${action.artisan}** — Il a reçu une notification et la mission apparaît dans son planning.`,
-                }])
-                speakResponse(`Mission envoyée sur l'agenda de ${action.artisan}.`)
-              }
-            }).catch(() => {})
-          }
-
-        } else if (action.type === 'assign_mission') {
-          // Attribution directe vocale : "Lepore Sebastien, intervention élagage, 10 mars, Parc Corot"
-          if (action.artisan_email && action.date_intervention) {
-            fetch('/api/syndic/assign-mission', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
-              body: JSON.stringify({
-                artisan_email: action.artisan_email,
-                artisan_name: action.artisan,
-                description: action.description,
-                type_travaux: action.type_travaux,
-                date_intervention: action.date_intervention,
-                immeuble: action.immeuble || action.lieu || '',
-                priorite: action.priorite || 'normale',
-                notes: action.notes || '',
-              }),
-            }).then(r => r.json()).then(d => {
-              const msg = d.artisan_found
-                ? `✅ **Mission assignée !**\n\n📅 **${action.type_travaux || action.description}** — ${action.immeuble || action.lieu || ''}\n👤 **${action.artisan}** — ${new Date(action.date_intervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}\n\nNotification envoyée — la mission apparaît sur son agenda.`
-                : `⚠️ Mission créée mais **${action.artisan}** n'a pas de compte Vitfix. Ajoutez-le dans l'onglet Artisans pour la synchronisation agenda.`
-              setIaMessages(prev => [...prev, { role: 'assistant', content: msg }])
-              speakResponse(d.artisan_found ? `Mission assignée à ${action.artisan}. Il a reçu la notification.` : `Mission créée. L'artisan n'est pas encore sur Vitfix.`)
-              // Ajouter à l'état local missions
-              setMissions(prev => [{
-                id: Date.now().toString(),
-                immeuble: action.immeuble || action.lieu || '',
-                artisan: action.artisan || '',
-                type: action.type_travaux || 'Intervention',
-                description: action.description || '',
-                priorite: action.priorite || 'normale',
-                statut: 'en_attente',
-                dateCreation: new Date().toISOString().split('T')[0],
-                dateIntervention: action.date_intervention,
-              } as Mission, ...prev])
-            }).catch(() => {})
-          }
-
-        } else if (action.type === 'navigate') {
-          if (action.page) setPage(action.page as Page)
-
-        } else if (action.type === 'create_alert') {
-          console.info('Max action — create_alert:', action)
-
-        } else if (action.type === 'send_message') {
-          // Envoyer message à un artisan via canal dédié
-          const targetArtisan = artisans.find(a =>
-            a.nom.toLowerCase().includes((action.artisan || '').toLowerCase()) ||
-            (action.artisan || '').toLowerCase().includes(a.nom.toLowerCase())
-          )
-          if (targetArtisan?.artisan_user_id && action.content) {
-            fetch('/api/syndic/messages', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
-              body: JSON.stringify({
-                content: action.content,
-                artisan_user_id: targetArtisan.artisan_user_id,
-              }),
-            }).catch(() => {})
-          }
-
-        } else if (action.type === 'create_document') {
-          // Afficher le document généré directement dans le chat
-          if (action.contenu) {
-            setIaMessages(prev => [...prev, {
-              role: 'assistant',
-              content: `📄 **Document généré — ${action.type_doc || 'Courrier'}**\n\n---\n\n${action.contenu}`,
-            }])
-          }
+        const CONFIRM_ACTIONS = ['create_mission', 'assign_mission', 'update_mission']
+        if (CONFIRM_ACTIONS.includes(action.type)) {
+          // Actions critiques → demander confirmation via carte interactive
+          setIaMessages(prev => prev.map((msg, idx) =>
+            idx === prev.length - 1 ? { ...msg, actionStatus: 'pending' as const } : msg
+          ))
+          setIaPendingAction({ action, iaToken: iaToken || '' })
+        } else {
+          // Actions non-destructives → exécuter immédiatement
+          executeIaAction(action, iaToken || '')
         }
       }
 
@@ -6081,6 +6232,31 @@ export default function SyndicDashboard() {
       setIaMessages(prev => [...prev, { role: 'assistant', content: 'Erreur de connexion. Vérifiez votre réseau et réessayez.' }])
     }
     setIaLoading(false)
+  }
+
+  // ── Confirmation / Annulation action IA ──────────────────────────────────────
+  const handleConfirmIaAction = async () => {
+    if (!iaPendingAction) return
+    const { action, iaToken } = iaPendingAction
+    setIaPendingAction(null)
+    setIaMessages(prev => prev.map(msg =>
+      msg.actionStatus === 'pending' ? { ...msg, actionStatus: 'confirmed' as const } : msg
+    ))
+    await executeIaAction(action, iaToken)
+  }
+
+  const handleCancelIaAction = () => {
+    if (!iaPendingAction) return
+    const { action } = iaPendingAction
+    setIaMessages(prev => prev.map(msg =>
+      msg.actionStatus === 'pending' ? { ...msg, actionStatus: 'cancelled' as const } : msg
+    ))
+    setIaMessages(prev => [...prev, {
+      role: 'assistant',
+      content: '🚫 Action annulée. Dites-moi si vous souhaitez faire autre chose.',
+    }])
+    logAiAction(action.type, action, 'cancelled', 'Annulé par l\'utilisateur')
+    setIaPendingAction(null)
   }
 
   const companyName = user?.user_metadata?.company_name || 'Mon Cabinet'
@@ -7422,15 +7598,60 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                             <div className="prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msg.content) }} />
                           ) : msg.content}
                         </div>
-                        {/* Badge action exécutée */}
+                        {/* Badge action / Carte de confirmation */}
                         {msg.action && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium flex items-center gap-1">
-                              ⚡ Action exécutée :
-                              {msg.action.type === 'create_mission' && ` Mission créée — ${msg.action.immeuble}`}
-                              {msg.action.type === 'navigate' && ` Navigation → ${msg.action.page}`}
-                              {msg.action.type === 'create_alert' && ` Alerte créée`}
-                            </span>
+                          <div className="mt-1">
+                            {msg.actionStatus === 'pending' ? (
+                              <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 space-y-2 max-w-sm">
+                                <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
+                                  ⚡ Action proposée :
+                                  {msg.action.type === 'create_mission' && ' Créer une mission'}
+                                  {msg.action.type === 'assign_mission' && ` Assigner à ${msg.action.artisan || 'un artisan'}`}
+                                  {msg.action.type === 'update_mission' && ' Mettre à jour une mission'}
+                                </p>
+                                <div className="text-xs text-amber-700 space-y-0.5">
+                                  {(msg.action.immeuble || msg.action.lieu) && <p>📍 {msg.action.immeuble || msg.action.lieu}</p>}
+                                  {msg.action.artisan && <p>👤 {msg.action.artisan}</p>}
+                                  {msg.action.description && <p>📋 {msg.action.description}</p>}
+                                  {msg.action.type_travaux && <p>🔧 {msg.action.type_travaux}</p>}
+                                  {msg.action.date_intervention && <p>📅 {new Date(msg.action.date_intervention).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>}
+                                  {msg.action.priorite && <p>⚡ Priorité : {msg.action.priorite}</p>}
+                                  {msg.action.statut && <p>📊 Statut → {msg.action.statut}</p>}
+                                </div>
+                                <div className="flex gap-2 mt-2">
+                                  <button onClick={handleConfirmIaAction} className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-semibold transition">
+                                    ✓ Confirmer
+                                  </button>
+                                  <button onClick={handleCancelIaAction} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm py-2 rounded-lg font-semibold transition">
+                                    ✕ Annuler
+                                  </button>
+                                </div>
+                              </div>
+                            ) : msg.actionStatus === 'confirmed' ? (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium inline-flex items-center gap-1">
+                                ✅ Action exécutée :
+                                {msg.action.type === 'create_mission' && ` Mission créée — ${msg.action.immeuble || ''}`}
+                                {msg.action.type === 'assign_mission' && ` Mission assignée — ${msg.action.artisan || ''}`}
+                                {msg.action.type === 'update_mission' && ` Mission mise à jour`}
+                              </span>
+                            ) : msg.actionStatus === 'cancelled' ? (
+                              <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium inline-flex items-center gap-1">
+                                🚫 Action annulée
+                              </span>
+                            ) : msg.actionStatus === 'error' ? (
+                              <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium inline-flex items-center gap-1">
+                                ❌ Erreur d&apos;exécution
+                              </span>
+                            ) : (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium inline-flex items-center gap-1">
+                                ⚡ Action exécutée :
+                                {msg.action.type === 'create_mission' && ` Mission créée — ${msg.action.immeuble || ''}`}
+                                {msg.action.type === 'navigate' && ` Navigation → ${msg.action.page}`}
+                                {msg.action.type === 'create_alert' && ` Alerte créée`}
+                                {msg.action.type === 'send_message' && ` Message envoyé`}
+                                {msg.action.type === 'create_document' && ` Document généré`}
+                              </span>
+                            )}
                           </div>
                         )}
                         {/* Bouton lecture voix */}
@@ -7511,7 +7732,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !iaLoading && sendIaMessage()}
                         placeholder={iaVoiceActive ? '🎙️ Parlez maintenant...' : 'Posez une question à Max ou dites une action...'}
                         className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-purple-400 focus:outline-none text-sm pr-10"
-                        disabled={iaLoading}
+                        disabled={iaLoading || !!iaPendingAction}
                       />
                       {iaInput && (
                         <button onClick={() => setIaInput('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 text-sm">×</button>
@@ -7520,7 +7741,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                     <button
                       id="ia-send-btn"
                       onClick={() => sendIaMessage()}
-                      disabled={iaLoading || !iaInput.trim()}
+                      disabled={iaLoading || !iaInput.trim() || !!iaPendingAction}
                       className="flex-shrink-0 w-11 h-11 bg-purple-600 hover:bg-purple-700 text-white rounded-xl flex items-center justify-center font-bold text-lg transition disabled:opacity-40"
                     >
                       {iaLoading ? (
