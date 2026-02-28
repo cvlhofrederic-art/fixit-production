@@ -45,8 +45,8 @@ const SYNDIC_MODULES = [
   { key: 'echéances', label: 'Échéances légales', icon: '📅', description: 'Rappels des échéances réglementaires', default: false },
   { key: 'recouvrement', label: 'Recouvrement auto', icon: '💸', description: 'Procédure automatisée de recouvrement', default: false },
   { key: 'preparateur_ag', label: 'Préparateur AG', icon: '📝', description: 'Préparer les assemblées générales', default: false },
-  { key: 'emails', label: 'Emails Max IA', icon: '📧', description: 'Gestion des emails avec IA', default: true },
-  { key: 'ia', label: 'Assistant Max IA', icon: '🤖', description: 'Assistant IA pour le syndic', default: true },
+  { key: 'emails', label: 'Emails Fixy', icon: '📧', description: 'Gestion des emails avec IA', default: true },
+  { key: 'ia', label: 'Assistant Fixy', icon: '🤖', description: 'Assistant IA pour le syndic', default: true },
 ] as const
 
 interface Immeuble {
@@ -2675,7 +2675,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
           <div className="text-5xl mb-3">📧</div>
           <h3 className="text-lg font-bold text-gray-900 mb-2">Connectez votre boîte Gmail</h3>
           <p className="text-gray-500 text-sm mb-4 max-w-md mx-auto">
-            Max analysera automatiquement tous vos emails entrants — urgences, types de demandes, suggestions d'actions et brouillons de réponse.
+            Fixy analysera automatiquement tous vos emails entrants — urgences, types de demandes, suggestions d'actions et brouillons de réponse.
           </p>
           <button onClick={onNavigateParams}
             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-semibold transition inline-flex items-center gap-2">
@@ -2937,7 +2937,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
             <div className="p-5 space-y-4">
               {/* Résumé IA */}
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-                <p className="text-xs font-bold text-purple-600 mb-1">🤖 Analyse de Max</p>
+                <p className="text-xs font-bold text-purple-600 mb-1">🤖 Analyse de Fixy</p>
                 <p className="text-sm text-purple-900 font-medium">{selectedEmail.resume_ia}</p>
                 {selectedEmail.immeuble_detecte && <p className="text-xs text-purple-600 mt-1">🏢 Immeuble : {selectedEmail.immeuble_detecte}</p>}
                 {selectedEmail.locataire_detecte && <p className="text-xs text-purple-600">👤 Résident : {selectedEmail.locataire_detecte}</p>}
@@ -2956,7 +2956,7 @@ function EmailsSection({ syndicId, onNavigateParams }: { syndicId: string; onNav
               {/* Réponse suggérée */}
               {selectedEmail.reponse_suggeree && (
                 <div>
-                  <p className="text-xs font-bold text-gray-500 mb-2">✉️ BROUILLON DE RÉPONSE (généré par Max)</p>
+                  <p className="text-xs font-bold text-gray-500 mb-2">✉️ BROUILLON DE RÉPONSE (généré par Fixy)</p>
                   <div className="bg-blue-50 rounded-xl p-4 text-sm text-gray-700 border border-blue-100">
                     <p className="whitespace-pre-wrap">{selectedEmail.reponse_suggeree}</p>
                     <button
@@ -4967,7 +4967,7 @@ export default function SyndicDashboard() {
   const [msgLoading, setMsgLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [iaMessages, setIaMessages] = useState<{ role: 'user' | 'assistant'; content: string; action?: any; actionStatus?: 'pending' | 'confirmed' | 'cancelled' | 'error' }[]>([
-    { role: 'assistant', content: 'Bonjour ! Je suis **Max**, votre assistant IA expert Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** : immeubles, artisans, missions, alertes, échéances réglementaires.\n\nJe peux aussi **agir directement** : créer une mission, naviguer vers une page, générer un courrier...\n\n🎙️ Vous pouvez me parler à voix haute en cliquant sur le micro !\n\nComment puis-je vous aider ?' }
+    { role: 'assistant', content: 'Bonjour ! Je suis **Fixy**, votre assistant IA expert Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** : immeubles, artisans, missions, alertes, échéances réglementaires.\n\nJe peux aussi **agir directement** : créer une mission, naviguer vers une page, générer un courrier...\n\n🎙️ Vous pouvez me parler à voix haute en cliquant sur le micro !\n\nComment puis-je vous aider ?' }
   ])
   const [iaInput, setIaInput] = useState('')
   const [iaLoading, setIaLoading] = useState(false)
@@ -5904,7 +5904,7 @@ export default function SyndicDashboard() {
       if (existing.length > 200) existing.length = 200
       localStorage.setItem(key, JSON.stringify(existing))
     } catch {}
-    console.info(`[Max AI Audit] ${result.toUpperCase()}: ${actionType}`, actionData)
+    console.info(`[Fixy Audit] ${result.toUpperCase()}: ${actionType}`, actionData)
   }
 
   // ── NLP Pré-traitement vocal — détection d'intention + normalisation ────────
@@ -6139,7 +6139,7 @@ export default function SyndicDashboard() {
               { role: 'assistant', content: `✅ Navigation vers **${processed.page}**`, action: { type: 'navigate', page: processed.page } },
             ])
           } else {
-            // Envoyer à Max via le trigger (évite les problèmes de closure)
+            // Envoyer à Fixy via le trigger (évite les problèmes de closure)
             setIaVoiceSendTrigger(processed.text)
           }
         }, 800)
@@ -6382,7 +6382,7 @@ export default function SyndicDashboard() {
         const newAlerte: Alerte = {
           id: Date.now().toString(),
           type: 'mission',
-          message: action.message || 'Alerte créée par Max',
+          message: action.message || 'Alerte créée par Fixy',
           urgence: action.urgence || 'moyenne',
           date: new Date().toISOString().split('T')[0],
         }
@@ -6435,7 +6435,7 @@ export default function SyndicDashboard() {
         logAiAction('create_document', action, 'success', `Type: ${action.type_doc}`)
       }
     } catch (err: any) {
-      console.error('[Max AI] Action execution error:', err)
+      console.error('[Fixy] Action execution error:', err)
       logAiAction(action.type, action, 'error', err.message)
       setIaMessages(prev => [...prev, {
         role: 'assistant',
@@ -6444,7 +6444,7 @@ export default function SyndicDashboard() {
     }
   }
 
-  // ── Envoi message Max IA ─────────────────────────────────────────────────────
+  // ── Envoi message Fixy ─────────────────────────────────────────────────────
   const sendIaMessage = async (overrideText?: string) => {
     const msgText = overrideText || iaInput
     if (!msgText.trim() || iaLoading) return
@@ -6457,7 +6457,7 @@ export default function SyndicDashboard() {
       const { data: { session: iaSession } } = await supabase.auth.getSession()
       const iaToken = iaSession?.access_token
 
-      const res = await fetch('/api/syndic/max-ai', {
+      const res = await fetch('/api/syndic/fixy-syndic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${iaToken}` },
         body: JSON.stringify({
@@ -6619,8 +6619,8 @@ export default function SyndicDashboard() {
     { id: 'recouvrement', emoji: '💸', label: 'Recouvrement auto' },
     { id: 'preparateur_ag', emoji: '📝', label: 'Préparateur AG' },
     { id: 'equipe', emoji: '👤', label: 'Mon Équipe' },
-    { id: 'emails', emoji: '📧', label: 'Emails Max IA' },
-    { id: 'ia', emoji: '🤖', label: 'Assistant Max IA' },
+    { id: 'emails', emoji: '📧', label: 'Emails Fixy' },
+    { id: 'ia', emoji: '🤖', label: 'Assistant Fixy' },
     { id: 'modules', emoji: '🧩', label: 'Mes Modules' },
     { id: 'parametres', emoji: '⚙️', label: 'Paramètres' },
   ]
@@ -7818,7 +7818,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
 
-                {/* ── Header Max IA ── */}
+                {/* ── Header Fixy ── */}
                 <div className="bg-gradient-to-r from-purple-700 to-purple-900 p-4 flex items-center gap-3">
                   <div className="relative flex-shrink-0">
                     <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">🤖</div>
@@ -7826,7 +7826,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-white font-bold text-base">Max — Expert Vitfix Pro</h2>
+                      <h2 className="text-white font-bold text-base">Fixy — Expert Vitfix Pro</h2>
                       {iaSpeaking && (
                         <span className="bg-green-400/20 text-green-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                           <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" /> Parle...
@@ -7839,7 +7839,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                     {/* Toggle synthèse vocale */}
                     <button
                       onClick={toggleSpeechEnabled}
-                      title={iaSpeechEnabled ? 'Désactiver voix Max' : 'Activer voix Max'}
+                      title={iaSpeechEnabled ? 'Désactiver voix Fixy' : 'Activer voix Fixy'}
                       className={`p-2 rounded-lg transition text-lg ${iaSpeechEnabled ? 'bg-white/20 text-white' : 'text-purple-400 hover:text-purple-200'}`}
                     >
                       {iaSpeechEnabled ? '🔊' : '🔇'}
@@ -7880,7 +7880,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-red-700 text-sm font-semibold">🎙️ Max vous écoute</span>
+                          <span className="text-red-700 text-sm font-semibold">🎙️ Fixy vous écoute</span>
                           <span className="text-red-400 text-xs font-mono bg-red-100 px-1.5 py-0.5 rounded">
                             {String(Math.floor(iaVoiceDuration / 60)).padStart(2, '0')}:{String(iaVoiceDuration % 60).padStart(2, '0')}
                           </span>
@@ -8017,7 +8017,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                           <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                           <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                           <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                          <span className="text-xs text-gray-500 ml-2">Max réfléchit...</span>
+                          <span className="text-xs text-gray-500 ml-2">Fixy réfléchit...</span>
                         </div>
                       </div>
                     </div>
@@ -8093,7 +8093,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                     {iaVoiceSupported && (
                       <button
                         onClick={startVoiceRecognition}
-                        title={iaVoiceActive ? 'Arrêter l\'écoute' : 'Parler à Max'}
+                        title={iaVoiceActive ? 'Arrêter l\'écoute' : 'Parler à Fixy'}
                         className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center transition-all text-lg relative ${
                           iaVoiceActive
                             ? 'bg-red-500 text-white shadow-lg shadow-red-200'
@@ -8117,7 +8117,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         onKeyDown={e => {
                           if (e.key === 'Enter' && !e.shiftKey && !iaLoading && !iaPendingAction) sendIaMessage()
                         }}
-                        placeholder={iaVoiceActive ? '🎙️ Parlez maintenant — envoi auto après silence...' : 'Posez une question à Max ou dites une action...'}
+                        placeholder={iaVoiceActive ? '🎙️ Parlez maintenant — envoi auto après silence...' : 'Posez une question à Fixy ou dites une action...'}
                         className={`w-full px-4 py-2.5 border-2 rounded-xl focus:outline-none text-sm pr-10 transition ${
                           iaVoiceActive
                             ? 'border-red-300 bg-red-50 text-red-800 focus:border-red-400'
@@ -8145,8 +8145,8 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                       {iaVoiceActive
                         ? '🔴 Enregistrement en cours — envoi automatique après 0.8s de silence'
                         : iaVoiceSupported
-                          ? '🎙️ Commande vocale disponible · Max exécute les actions en temps réel'
-                          : 'Max a accès à toutes vos données · Les actions sont exécutées en temps réel'}
+                          ? '🎙️ Commande vocale disponible · Fixy exécute les actions en temps réel'
+                          : 'Fixy a accès à toutes vos données · Les actions sont exécutées en temps réel'}
                     </p>
                     {iaVoiceSupported && !iaVoiceActive && (
                       <button
@@ -8397,8 +8397,8 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
               </div>
 
               <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">📧 Agent Email Max IA</h2>
-                <p className="text-sm text-gray-500 mb-4">Connectez votre boîte Gmail pour que Max analyse automatiquement vos emails : urgences, types de demandes, suggestions d'actions.</p>
+                <h2 className="text-lg font-bold text-gray-900 mb-4">📧 Agent Email Fixy</h2>
+                <p className="text-sm text-gray-500 mb-4">Connectez votre boîte Gmail pour que Fixy analyse automatiquement vos emails : urgences, types de demandes, suggestions d'actions.</p>
                 <GmailConnectButton syndicId={user?.id} userEmail={user?.email} />
               </div>
 

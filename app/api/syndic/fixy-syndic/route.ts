@@ -7,7 +7,7 @@ export const maxDuration = 30
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
-// ── Max IA — Assistant Expert Syndic Vitfix Pro ────────────────────────────────
+// ── Fixy — Assistant Expert Syndic Vitfix Pro ────────────────────────────────
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Capacités : contexte complet cabinet + actions directes + mémoire + multi-rôles
 
@@ -134,7 +134,7 @@ ${roleConfig.actions.includes('create_document') ? `**Créer un document** :
 ##ACTION##{"type":"create_document","type_doc":"convocation_ag|mise_en_demeure|courrier|rapport","destinataire":"nom ou copro","contenu":"texte complet"}##
 ` : ''}`
 
-  return `Tu es **Max ${roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${roleConfig.name}.
+  return `Tu es **Fixy ${roleConfig.emoji}**, l'assistant IA Vitfix Pro pour ${roleConfig.name}.
 
 📅 Aujourd'hui : ${today}
 👤 Rôle actif : **${roleConfig.name}** — Cabinet "${ctx.cabinet?.nom || 'Cabinet'}"
@@ -222,7 +222,7 @@ function generateFallback(message: string, ctx: any, userRole: string): string {
       : `✅ Tous les artisans ont une **RC Pro valide**.`
   }
 
-  return `🤖 **Max ${roleConfig.emoji} — ${roleConfig.name}**\n\nJe suis votre assistant IA Vitfix Pro. Configurez la clé GROQ_API_KEY pour activer l'IA complète.\n\nJe peux vous aider sur :\n- Vos missions et artisans\n- Vos budgets et alertes\n- La rédaction de courriers\n- La réglementation copropriété`
+  return `🤖 **Fixy ${roleConfig.emoji} — ${roleConfig.name}**\n\nJe suis votre assistant IA Vitfix Pro. Configurez la clé GROQ_API_KEY pour activer l'IA complète.\n\nJe peux vous aider sur :\n- Vos missions et artisans\n- Vos budgets et alertes\n- La rédaction de courriers\n- La réglementation copropriété`
 }
 
 // ── Route principale ──────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
         max_tokens: 4000,
       })
     } catch (err) {
-      console.error('Groq Max error:', err)
+      console.error('Groq Fixy error:', err)
       return NextResponse.json({
         response: generateFallback(message, syndic_context, userRole),
         fallback: true,
@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ response, action, role: userRole })
 
   } catch (err: any) {
-    console.error('Max AI error:', err)
+    console.error('Fixy Syndic error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
