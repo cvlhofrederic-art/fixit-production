@@ -140,6 +140,7 @@ export default function DevisFactureForm({
   const [insuranceNumber, setInsuranceNumber] = useState(initialData?.insuranceNumber || '')
   const [insuranceName, setInsuranceName] = useState(initialData?.insuranceName || '')
   const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || 'France métropolitaine')
+  const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(initialData?.insuranceType || 'rc_pro')
   // Médiateur de la consommation (obligatoire depuis 01/01/2016)
   const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
   const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
@@ -525,7 +526,10 @@ export default function DevisFactureForm({
     // 3. ASSURANCE — obligatoire BTP (Loi Pinel 2014, art. L. 241-1 C. assurances)
     // ══════════════════════════════════════════════
     if (insuranceNumber && insuranceName) {
-      mentions.push(`Assurance responsabilité civile décennale : ${insuranceName} — Contrat n° ${insuranceNumber} — Couverture : ${insuranceCoverage}`)
+      const insTypeLabel = insuranceType === 'rc_pro' ? 'Assurance Responsabilité Civile Professionnelle (RC Pro)'
+        : insuranceType === 'decennale' ? 'Assurance Responsabilité Civile Décennale'
+        : 'Assurance RC Professionnelle et Décennale'
+      mentions.push(`${insTypeLabel} : ${insuranceName} — Contrat n° ${insuranceNumber} — Couverture : ${insuranceCoverage}`)
     }
 
     // ══════════════════════════════════════════════
@@ -638,9 +642,14 @@ export default function DevisFactureForm({
       }
 
       // ═══ 1. TITRE ═══
-      centerText(`${docType === 'devis' ? 'DEVIS' : 'FACTURE'} ${docNumber}`, y, 16, 'bold')
-      y += 5
-      if (docTitle) { centerText(docTitle, y, 8, 'normal', colLight); y += 4 }
+      // Titre de l'intervention/projet en gros
+      if (docTitle) {
+        centerText(docTitle.toUpperCase(), y, 14, 'bold')
+        y += 5
+      }
+      // Numéro du document en dessous, plus petit
+      centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber}`, y, 8, 'normal', colLight)
+      y += 4
       // Petit trait centré
       drawLine(pageW / 2 - 15, y, pageW / 2 + 15, colAccent, 0.8)
       y += 6
@@ -653,10 +662,11 @@ export default function DevisFactureForm({
       // ── Émetteur box ──
       const emX = mL
       pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-      // Header
-      centerText('ÉMETTEUR', boxStartY + boxPad, 7, 'bold', col)
-      // petit trait centré sous le header
+      // Header — centré dans la box gauche (pas au milieu de la page)
       const emCenterX = emX + boxW / 2
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text('ÉMETTEUR', emCenterX, boxStartY + boxPad, { align: 'center' })
+      // petit trait centré sous le header
       drawLine(emCenterX - 8, boxStartY + boxPad + 2, emCenterX + 8, '#E2E8F0', 0.2)
       let ey = boxStartY + boxPad + 5
       const emMaxW = boxW - boxPad * 2
@@ -670,15 +680,18 @@ export default function DevisFactureForm({
       if (companyPhone) ey += labelValue('Tél : ', companyPhone, emLx, ey, emMaxW)
       if (companyEmail) ey += labelValue('Email : ', companyEmail, emLx, ey, emMaxW)
       if (tvaEnabled && tvaNumber) ey += labelValue('N° TVA : ', tvaNumber, emLx, ey, emMaxW)
-      if (insuranceName) { ey += 1; ey += labelValue('Assureur : ', insuranceName, emLx, ey, emMaxW) }
+      if (insuranceName) {
+        ey += 1
+        const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Déc.'
+        ey += labelValue(`${insLabel} : `, insuranceName, emLx, ey, emMaxW)
+      }
       if (insuranceNumber) ey += labelValue('N° contrat : ', insuranceNumber, emLx, ey, emMaxW)
       if (insuranceCoverage) ey += labelValue('Couverture : ', insuranceCoverage, emLx, ey, emMaxW)
 
       // ── Destinataire box ──
       const destX = emX + boxW + 6
       const destCenterX = destX + boxW / 2
-      centerText('DESTINATAIRE', boxStartY + boxPad, 7, 'bold', col)
-      // Need to re-center this text in the right box
+      // Header — centré dans la box droite
       pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
       pdf.text('DESTINATAIRE', destCenterX, boxStartY + boxPad, { align: 'center' })
       drawLine(destCenterX - 8, boxStartY + boxPad + 2, destCenterX + 8, '#E2E8F0', 0.2)
@@ -697,18 +710,7 @@ export default function DevisFactureForm({
       pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
       pdf.roundedRect(emX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
       pdf.roundedRect(destX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
-      // Fix ÉMETTEUR header (centered in left box, not page center)
-      pdf.setFillColor('#ffffff')
-      pdf.rect(emCenterX - 10, boxStartY + 0.5, 20, 5.5, 'F')
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text('ÉMETTEUR', emCenterX, boxStartY + boxPad, { align: 'center' })
-      drawLine(emCenterX - 8, boxStartY + boxPad + 2, emCenterX + 8, '#E2E8F0', 0.2)
-      // Fix DESTINATAIRE header
-      pdf.setFillColor('#ffffff')
-      pdf.rect(destCenterX - 12, boxStartY + 0.5, 24, 5.5, 'F')
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text('DESTINATAIRE', destCenterX, boxStartY + boxPad, { align: 'center' })
-      drawLine(destCenterX - 8, boxStartY + boxPad + 2, destCenterX + 8, '#E2E8F0', 0.2)
+      // Les headers ÉMETTEUR et DESTINATAIRE sont déjà correctement centrés dans leurs boxes respectives
 
       y = boxStartY + boxH + 6
 
@@ -740,7 +742,7 @@ export default function DevisFactureForm({
         : [['Désignation', 'Qté', 'Unité', `Prix U. ${priceLabel}`, `Total ${priceLabel}`]]
 
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
-        const unitStr = l.unit && l.unit !== 'u' ? l.unit : ''
+        const unitStr = l.unit ? (l.unit === 'u' ? 'u' : l.unit) : 'u'
         const row = [l.description, String(l.qty), unitStr, `${l.priceHT.toFixed(2)} €`]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
         row.push(`${l.totalHT.toFixed(2)} €`)
@@ -756,16 +758,30 @@ export default function DevisFactureForm({
 
       const colCount = tvaEnabled ? 6 : 5
       const colStyles: any = {
-        0: { cellWidth: contentW * 0.38, halign: 'left' },
-        1: { cellWidth: contentW * 0.08, halign: 'center' },
-        2: { cellWidth: contentW * 0.08, halign: 'center' },
-        3: { cellWidth: contentW * 0.16, halign: 'right' },
+        0: { cellWidth: contentW * 0.36, halign: 'left' },    // Désignation — aligné à gauche
+        1: { cellWidth: contentW * 0.08, halign: 'center' },  // Qté — centré
+        2: { cellWidth: contentW * 0.08, halign: 'center' },  // Unité — centré
+        3: { cellWidth: contentW * 0.16, halign: 'right' },   // Prix U.
       }
       if (tvaEnabled) {
-        colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
-        colStyles[5] = { cellWidth: contentW * 0.20, halign: 'right' }
+        colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }  // TVA
+        colStyles[5] = { cellWidth: contentW * 0.22, halign: 'right' }   // Total
       } else {
-        colStyles[4] = { cellWidth: contentW * 0.30, halign: 'right' }
+        colStyles[4] = { cellWidth: contentW * 0.32, halign: 'right' }   // Total
+      }
+
+      // Head styles par colonne — alignement identique header/body
+      const headColStyles: any = {
+        0: { halign: 'left' },     // Désignation
+        1: { halign: 'center' },   // Qté
+        2: { halign: 'center' },   // Unité
+        3: { halign: 'right' },    // Prix U.
+      }
+      if (tvaEnabled) {
+        headColStyles[4] = { halign: 'center' }  // TVA
+        headColStyles[5] = { halign: 'right' }   // Total
+      } else {
+        headColStyles[4] = { halign: 'right' }   // Total
       }
 
       autoTable(pdf, {
@@ -780,7 +796,7 @@ export default function DevisFactureForm({
           fontStyle: 'bold',
           fontSize: 7,
           cellPadding: 3,
-          halign: 'center',
+          halign: 'left',
         },
         bodyStyles: {
           fontSize: 8,
@@ -794,6 +810,12 @@ export default function DevisFactureForm({
         tableLineColor: [226, 232, 240],
         tableLineWidth: 0.3,
         didDrawPage: () => {},
+        didParseCell: (data: any) => {
+          // Appliquer l'alignement cohérent aux headers
+          if (data.section === 'head' && headColStyles[data.column.index]) {
+            data.cell.styles.halign = headColStyles[data.column.index].halign
+          }
+        },
       })
 
       y = (pdf as any).lastAutoTable.finalY + 6
@@ -1501,7 +1523,16 @@ export default function DevisFactureForm({
                 <p className="text-sm text-blue-800 font-semibold">{'🛡️'} OBLIGATOIRE : Assurance Décennale / RC Pro (Loi Pinel 2014)</p>
                 <p className="text-xs text-blue-600 mt-1">Mention obligatoire sur tous les devis et factures BTP — Absence sanctionnée jusqu&apos;à 75 000 €</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Type d&apos;assurance <span className="text-red-500">*</span></label>
+                  <select value={insuranceType} onChange={(e) => setInsuranceType(e.target.value as 'rc_pro' | 'decennale' | 'both')}
+                    className={normalFieldClass}>
+                    <option value="rc_pro">RC Professionnelle</option>
+                    <option value="decennale">Décennale</option>
+                    <option value="both">RC Pro + Décennale</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Nom assureur <span className="text-red-500">*</span></label>
                   <input type="text" value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)}
