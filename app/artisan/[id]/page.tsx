@@ -1147,7 +1147,7 @@ export default function ArtisanProfilePage() {
                                   <div className="flex items-center justify-between">
                                     {tag ? (
                                       tag.min === 0 && tag.max === 0 ? (
-                                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">Sur devis</span>
+                                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">{isPt ? 'Sob orçamento' : 'Sur devis'}</span>
                                       ) : tag.unit === 'm2' ? (
                                         <span className="text-sm font-semibold text-yellow">{tag.min} – {tag.max}€/m²</span>
                                       ) : tag.unit === 'ml' ? (
@@ -1162,7 +1162,7 @@ export default function ArtisanProfilePage() {
                                       )
                                     ) : (
                                       <>
-                                        {priceInfo.type === 'devis' && <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">Sur devis</span>}
+                                        {priceInfo.type === 'devis' && <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">{isPt ? 'Sob orçamento' : 'Sur devis'}</span>}
                                         {priceInfo.type === 'per_sqm' && <span className="text-sm font-semibold text-yellow">{priceInfo.label}</span>}
                                         {priceInfo.type === 'per_ml' && <span className="text-sm font-semibold text-yellow">{priceInfo.label}</span>}
                                         {priceInfo.type === 'hourly' && <span className="text-sm font-semibold text-yellow">{priceInfo.label}</span>}
@@ -1234,7 +1234,7 @@ export default function ArtisanProfilePage() {
                               )}
                               <div className="text-right mt-2">
                                 {isDevis ? (
-                                  <span className="text-blue-600 text-sm font-semibold">Sur devis</span>
+                                  <span className="text-blue-600 text-sm font-semibold">{isPt ? 'Sob orçamento' : 'Sur devis'}</span>
                                 ) : needsQty && !qty ? (
                                   <span className="text-gray-400 text-xs">Renseignez la quantité pour une estimation</span>
                                 ) : (
@@ -1352,27 +1352,27 @@ export default function ArtisanProfilePage() {
 
               {/* Info section */}
               <div>
-                <h2 className="text-2xl font-bold mb-4">Informations</h2>
+                <h2 className="text-2xl font-bold mb-4">{t('Informations', 'Informações')}</h2>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-sm text-gray-600 mb-1">Tarif horaire</div>
+                    <div className="text-sm text-gray-600 mb-1">{t('Tarif horaire', 'Tarifa horária')}</div>
                     <div className="text-lg font-semibold">
-                      {artisan.hourly_rate ? `${artisan.hourly_rate}\u20AC/h` : 'Sur devis'}
+                      {artisan.hourly_rate ? `${artisan.hourly_rate}\u20AC/h` : (isPt ? 'Sob orçamento' : 'Sur devis')}
                     </div>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-sm text-gray-600 mb-1">Zone d&apos;intervention</div>
+                    <div className="text-sm text-gray-600 mb-1">{t('Zone d\'intervention', 'Zona de atuação')}</div>
                     <div className="text-lg font-semibold">{artisan.zone_radius_km || 30} km</div>
                   </div>
                   {artisan.siret && (
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600 mb-1">SIRET</div>
+                      <div className="text-sm text-gray-600 mb-1">{t('SIRET', 'NIF')}</div>
                       <div className="text-lg font-semibold">{artisan.siret}</div>
                     </div>
                   )}
                   {availability.filter((a) => a.is_available).length > 0 && (
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600 mb-1">Horaires</div>
+                      <div className="text-sm text-gray-600 mb-1">{t('Horaires', 'Horários')}</div>
                       <div className="text-sm font-medium space-y-1">
                         {availability
                           .filter((a) => a.is_available)
@@ -1500,7 +1500,7 @@ export default function ArtisanProfilePage() {
                     <div className="pt-3 border-t border-gray-100">
                       {priceInfo.type === 'devis' && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">
-                          📋 Sur devis — nous vous contacterons
+                          📋 {isPt ? 'Sob orçamento — entraremos em contacto' : 'Sur devis — nous vous contacterons'}
                         </span>
                       )}
                       {priceInfo.type === 'per_sqm' && (
@@ -2010,7 +2010,7 @@ export default function ArtisanProfilePage() {
                                     </div>
                                     <div className="text-right flex-shrink-0">
                                       {isDevis ? (
-                                        <span className="text-blue-600 text-xs font-semibold">Sur devis</span>
+                                        <span className="text-blue-600 text-xs font-semibold">{isPt ? 'Sob orçamento' : 'Sur devis'}</span>
                                       ) : minVal === maxVal ? (
                                         <span className="text-yellow font-bold text-xs">{minVal.toLocaleString(dateFmtLocale)} &euro;</span>
                                       ) : (
@@ -2058,7 +2058,7 @@ export default function ArtisanProfilePage() {
                         return (
                           <div className="border-t border-border pt-3 flex justify-between items-center">
                             <span className="text-text-muted font-medium">Total</span>
-                            <span className="text-lg font-bold text-yellow">Sur devis</span>
+                            <span className="text-lg font-bold text-yellow">{isPt ? 'Sob orçamento' : 'Sur devis'}</span>
                           </div>
                         )
                       }
@@ -2066,7 +2066,7 @@ export default function ArtisanProfilePage() {
                         return (
                           <div className="border-t border-border pt-3 flex justify-between items-center">
                             <span className="text-text-muted font-medium">Total</span>
-                            <span className="text-lg font-bold text-yellow">Sur devis</span>
+                            <span className="text-lg font-bold text-yellow">{isPt ? 'Sob orçamento' : 'Sur devis'}</span>
                           </div>
                         )
                       }
@@ -2101,7 +2101,7 @@ export default function ArtisanProfilePage() {
                                   </p>
                                 </>
                               ) : (
-                                <p className="text-lg font-bold text-yellow">Sur devis</p>
+                                <p className="text-lg font-bold text-yellow">{isPt ? 'Sob orçamento' : 'Sur devis'}</p>
                               )}
                             </div>
                           </div>
