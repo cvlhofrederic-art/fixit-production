@@ -62,6 +62,7 @@ const nextConfig: NextConfig = {
         { source: '/fr/confirmation', destination: '/confirmation' },
         { source: '/fr/confirmation/', destination: '/confirmation/' },
         { source: '/fr/tracking/:path*', destination: '/tracking/:path*' },
+        { source: '/fr/marches/:path*', destination: '/marches/:path*' },
         // PT locale: rewrite /pt/... to /... (actual pages live at root)
         { source: '/pt', destination: '/' },
         { source: '/pt/:path*', destination: '/:path*' },
@@ -85,6 +86,10 @@ const nextConfig: NextConfig = {
       { source: '/precos/picheleiro/', destination: '/precos/canalizador/', permanent: true },
       // Common misspelling: marido de aluguer → faz-tudo
       { source: '/perto-de-mim/marido-de-aluguer/', destination: '/perto-de-mim/faz-tudo/', permanent: true },
+      // French marketplace URLs → redirect to PT equivalents
+      { source: '/pt/marches/publier/', destination: '/pt/mercados/publicar/', permanent: true },
+      { source: '/pt/marches/gerer/', destination: '/pt/mercados/gerir/', permanent: true },
+      { source: '/pt/marches/:path*', destination: '/pt/mercados/:path*', permanent: true },
       // Legacy Porto pages in French → redirect to PT equivalents
       { source: '/plombier-porto/', destination: '/pt/servicos/canalizador-porto/', permanent: true },
       { source: '/electricien-porto/', destination: '/pt/servicos/eletricista-porto/', permanent: true },

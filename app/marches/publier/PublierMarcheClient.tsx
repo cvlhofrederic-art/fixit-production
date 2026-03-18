@@ -904,7 +904,9 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
 
   // ── Success state ──
   if (success) {
-    const manageUrl = `/marches/gerer?id=${success.id}&token=${success.token}`
+    const manageUrl = isPt
+      ? `/pt/mercados/gerir?id=${success.id}&token=${success.token}`
+      : `/marches/gerer?id=${success.id}&token=${success.token}`
     return (
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-amber-50">
         <div className="mx-auto max-w-xl px-4 py-20">
@@ -964,596 +966,517 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
   }
 
   // ── Form ──
+  const stepCardCls = 'bg-white border-[1.5px] border-[#EFEFEF] rounded-2xl overflow-hidden mb-5 transition-shadow focus-within:shadow-[0_4px_24px_rgba(255,214,0,.12)] focus-within:border-[#FFD600]'
+  const stepHeaderCls = 'flex items-center gap-4 px-7 py-5 border-b border-[#F5F5F5] bg-[#FAFAFA]'
+  const stepNumCls = 'w-9 h-9 rounded-full bg-[#FFD600] text-[#0D0D0D] flex items-center justify-center text-[0.95rem] font-black shrink-0'
+  const stepBodyCls = 'p-7'
+  const subLabelCls = 'block text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em] mb-3'
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-amber-50">
-      {/* Hero */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,214,0,0.15),transparent_60%)]" />
-        <div className="relative mx-auto max-w-3xl px-4 py-16 text-center">
-          <Link
-            href="/"
-            className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition no-underline"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {t('Retour', 'Voltar')}
-          </Link>
-          <h1 className="mb-3 text-3xl font-bold tracking-tight sm:text-4xl">
-            {t('Publiez votre appel d\'offres', 'Publique o seu pedido de orçamento')}
+    <div className="min-h-screen bg-white">
+      {/* ── Page Header ── */}
+      <section className="bg-[#FFFDF0] border-b border-[#F0EDD0] px-[clamp(1.5rem,5%,5rem)] py-14 pb-12">
+        <div className="max-w-[680px]">
+          <span className="inline-block text-[0.75rem] font-bold text-[#FFD600] uppercase tracking-[0.14em] mb-3">
+            {t('⚡ Marketplace de travaux', '⚡ Marketplace de obras')}
+          </span>
+          <h1 className="text-[clamp(1.9rem,3.5vw,2.8rem)] font-black tracking-[-0.03em] leading-[1.1] mb-4">
+            {t('Publiez votre appel\nd\'offres', 'Publique o seu pedido\nde orçamento')}
           </h1>
-          <p className="mx-auto max-w-lg text-lg text-gray-300">
+          <p className="text-[0.95rem] text-[#666] leading-[1.65] max-w-[520px]">
             {t(
-              'Décrivez votre projet et recevez des devis d\'artisans qualifiés. C\'est gratuit et sans engagement.',
-              'Descreva o seu projeto e receba orçamentos de profissionais qualificados. É grátis e sem compromisso.',
+              'Décrivez votre projet et recevez des devis d\'artisans certifiés proches de vous. Totalement gratuit et sans engagement.',
+              'Descreva o seu projeto e receba propostas de profissionais certificados próximos de si. Totalmente gratuito e sem compromisso.',
             )}
           </p>
+          <div className="flex gap-2.5 flex-wrap mt-6">
+            <div className="inline-flex items-center gap-1.5 bg-white text-[#444] px-3.5 py-1.5 rounded-full text-[0.78rem] font-semibold border-[1.5px] border-[#EFEFEF]">
+              <span className="w-[7px] h-[7px] rounded-full bg-green-500" /> {t('Gratuit', 'Gratuito')}
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-white text-[#444] px-3.5 py-1.5 rounded-full text-[0.78rem] font-semibold border-[1.5px] border-[#EFEFEF]">
+              <span className="w-[7px] h-[7px] rounded-full bg-green-500" /> {t('Artisans vérifiés', 'Profissionais verificados')}
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-white text-[#444] px-3.5 py-1.5 rounded-full text-[0.78rem] font-semibold border-[1.5px] border-[#EFEFEF]">
+              <span className="w-[7px] h-[7px] rounded-full bg-green-500" /> {t('Réponse < 2h', 'Resposta < 2h')}
+            </div>
+            <div className="inline-flex items-center gap-1.5 bg-white text-[#444] px-3.5 py-1.5 rounded-full text-[0.78rem] font-semibold border-[1.5px] border-[#EFEFEF]">
+              {t('🔒 Données protégées', '🔒 Dados protegidos')}
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Form card */}
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xl sm:p-8">
+      {/* ── Body: 2-column ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 max-w-[1200px] mx-auto px-[clamp(1.5rem,5%,5rem)] py-10 items-start">
 
-          {/* ── Section: Templates ── */}
-          {showTemplates && (
-            <div className="mb-8">
-              <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900">
-                <LayoutGrid className="h-5 w-5 text-[#FFC107]" />
-                {t('Modèles de marchés', 'Modelos de mercados')}
-              </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                {t(
-                  'Choisissez un modèle pour pré-remplir le formulaire, ou partez de zéro.',
-                  'Escolha um modelo para pré-preencher o formulário, ou comece do zero.',
-                )}
-              </p>
+        {/* ═══ LEFT COLUMN — FORM ═══ */}
+        <form onSubmit={handleSubmit}>
 
-              {/* Filter */}
-              <input
-                type="text"
-                value={templateFilter}
-                onChange={e => setTemplateFilter(e.target.value)}
-                placeholder={t('Rechercher un modèle...', 'Pesquisar um modelo...')}
-                className="w-full mb-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100"
-              />
-
-              {/* Templates grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 max-h-[450px] overflow-y-auto pr-1">
-                {MARCHE_TEMPLATES
-                  .filter(tpl => {
-                    if (!templateFilter.trim()) return true
-                    const q = templateFilter.toLowerCase()
-                    return (
-                      tpl.title_fr.toLowerCase().includes(q) ||
-                      tpl.title_pt.toLowerCase().includes(q) ||
-                      tpl.category.toLowerCase().includes(q)
-                    )
-                  })
-                  .map(tpl => (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => applyTemplate(tpl)}
-                      className="text-left rounded-xl border border-gray-200 bg-white p-4 hover:border-yellow-400 hover:shadow-md transition-all group"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">{tpl.icon}</span>
-                        <span className="text-sm font-bold text-gray-900 group-hover:text-[#C9A84C] line-clamp-1">
-                          {isPt ? tpl.title_pt : tpl.title_fr}
-                        </span>
-                      </div>
-                      {(tpl.estimated_budget_min || tpl.estimated_budget_max) && (
-                        <p className="text-xs text-gray-500 mb-1">
-                          &#x1F4B0; {tpl.estimated_budget_min?.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}&#x20AC; - {tpl.estimated_budget_max?.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}&#x20AC;
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-400">
-                        &#x23F1; {tpl.typical_duration}
-                      </p>
-                    </button>
-                  ))}
-              </div>
-
-              {/* Skip templates */}
-              <button
-                type="button"
-                onClick={() => setShowTemplates(false)}
-                className="w-full text-center border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all"
-              >
-                {t('Partir de zéro', 'Começar do zero')} &#x2192;
-              </button>
-            </div>
-          )}
-
-          {!showTemplates && (
-            <button
-              type="button"
-              onClick={() => setShowTemplates(true)}
-              className="mb-6 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              {t('Voir les modèles', 'Ver os modelos')}
-            </button>
-          )}
-
-          {/* ── Section: Publisher type (2-step) ── */}
-          <div className="mb-8">
-            <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-gray-900">
-              <Building2 className="h-5 w-5 text-[#FFC107]" />
-              {t('Votre profil', 'O seu perfil')}
-            </h2>
-
-            {/* Step 1: Category cards */}
-            <p className="text-sm text-gray-500 mb-3">
-              {t('1. Choisissez votre catégorie', '1. Escolha a sua categoria')}
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-              {PUBLISHER_CATEGORIES.map(cat => (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => handleCategorySelect(cat.key)}
-                  className={`flex flex-col items-center gap-2 rounded-xl border-2 px-3 py-4 text-center transition-all cursor-pointer ${
-                    selectedCategory === cat.key
-                      ? 'border-[#FFC107] bg-yellow-50 shadow-sm'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="text-2xl">{cat.emoji}</span>
-                  <span className="text-xs font-semibold text-gray-700 leading-tight">
-                    {isPt ? cat.pt : cat.fr}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Step 2: Sub-profile selection */}
-            {selectedCategory && (
-              <div
-                className="transition-all duration-300 ease-in-out"
-                style={{ opacity: selectedCategory ? 1 : 0 }}
-              >
-                <p className="text-sm text-gray-500 mb-3">
-                  {t('2. Précisez votre profil', '2. Especifique o seu perfil')}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {PUBLISHER_CATEGORIES.find(c => c.key === selectedCategory)?.profiles.map(profile => (
-                    <button
-                      key={profile.value}
-                      type="button"
-                      onClick={() => handleProfileSelect(profile.value)}
-                      className={`rounded-full px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
-                        form.publisher_type === profile.value
-                          ? 'bg-[#FFC107] text-gray-900 shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isPt ? profile.pt : profile.fr}
-                    </button>
-                  ))}
-                </div>
-                {errors.publisher_type && <p className="mt-2 text-xs text-red-500">{errors.publisher_type}</p>}
-              </div>
-            )}
-
-            {/* Dynamic fields based on publisher_type */}
-            {renderDynamicFields()}
-          </div>
-
-          <hr className="mb-8 border-gray-100" />
-
-          {/* ── Section: Publisher info ── */}
-          <div className="mb-8">
-            <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-gray-900">
-              <User className="h-5 w-5 text-[#FFC107]" />
-              {t('Vos coordonnées', 'Os seus dados')}
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+          {/* STEP 1 — Templates */}
+          <div className={stepCardCls}>
+            <div className={stepHeaderCls}>
+              <div className={stepNumCls}>1</div>
               <div>
-                <label className={labelCls}>
-                  <User className="h-4 w-4 text-gray-400" />
-                  {t('Nom / Raison sociale', 'Nome / Empresa')} *
-                </label>
-                <input
-                  className={inputCls('publisher_name')}
-                  placeholder={t('Jean Dupont', 'João Silva')}
-                  value={form.publisher_name}
-                  onChange={e => update('publisher_name', e.target.value)}
-                />
-                {errors.publisher_name && <p className="mt-1 text-xs text-red-500">{errors.publisher_name}</p>}
-              </div>
-              <div>
-                <label className={labelCls}>
-                  <Mail className="h-4 w-4 text-gray-400" />
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  className={inputCls('publisher_email')}
-                  placeholder="email@example.com"
-                  value={form.publisher_email}
-                  onChange={e => update('publisher_email', e.target.value)}
-                />
-                {errors.publisher_email && <p className="mt-1 text-xs text-red-500">{errors.publisher_email}</p>}
-              </div>
-              <div>
-                <label className={labelCls}>
-                  <Phone className="h-4 w-4 text-gray-400" />
-                  {t('Téléphone (optionnel)', 'Telefone (opcional)')}
-                </label>
-                <input
-                  type="tel"
-                  className={inputCls('publisher_phone')}
-                  placeholder={t('+33 6 12 34 56 78', '+351 912 345 678')}
-                  value={form.publisher_phone}
-                  onChange={e => update('publisher_phone', e.target.value)}
-                />
+                <div className="text-base font-extrabold">{t('Choisissez un modèle', 'Escolha um modelo de projeto')}</div>
+                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Pré-remplit le formulaire automatiquement', 'Pré-preenche o formulário automaticamente')}</div>
               </div>
             </div>
-          </div>
-
-          <hr className="mb-8 border-gray-100" />
-
-          {/* ── Section: Project details ── */}
-          <div className="mb-8">
-            <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-gray-900">
-              <FileText className="h-5 w-5 text-[#FFC107]" />
-              {t('Détails du projet', 'Detalhes do projeto')}
-            </h2>
-            <div className="grid gap-4">
-              {/* Title */}
-              <div>
-                <label className={labelCls}>
-                  {t('Titre du projet', 'Título do projeto')} *
-                </label>
-                <input
-                  className={inputCls('title')}
-                  placeholder={t('Ex : Rénovation salle de bain 12m²', 'Ex: Renovação casa de banho 12m²')}
-                  value={form.title}
-                  onChange={e => update('title', e.target.value)}
-                  maxLength={200}
-                />
-                {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title}</p>}
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className={labelCls}>
-                  {t('Description détaillée', 'Descrição detalhada')} *
-                </label>
-                <textarea
-                  className={`${inputCls('description')} min-h-[120px] resize-y`}
-                  placeholder={t(
-                    'Décrivez les travaux à réaliser, les matériaux souhaités, les contraintes...',
-                    'Descreva os trabalhos a realizar, materiais desejados, restrições...',
-                  )}
-                  value={form.description}
-                  onChange={e => update('description', e.target.value)}
-                  maxLength={5000}
-                />
-                <div className="mt-1 flex justify-between">
-                  {errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
-                  <p className="ml-auto text-xs text-gray-400">{form.description.length}/5000</p>
-                </div>
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className={labelCls}>
-                  {t('Catégorie', 'Categoria')} *
-                </label>
-                <select
-                  className={inputCls('category')}
-                  value={form.category}
-                  onChange={e => update('category', e.target.value)}
-                >
-                  <option value="">{t('-- Choisir une catégorie --', '-- Escolher uma categoria --')}</option>
-                  {CATEGORIES.map(c => (
-                    <option key={c.value} value={c.value}>
-                      {isPt ? c.pt : c.fr}
-                    </option>
-                  ))}
-                </select>
-                {errors.category && <p className="mt-1 text-xs text-red-500">{errors.category}</p>}
-              </div>
-
-              {/* Location */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    {t('Ville', 'Cidade')} *
-                  </label>
-                  <input
-                    className={inputCls('location_city')}
-                    placeholder={t('Marseille', 'Porto')}
-                    value={form.location_city}
-                    onChange={e => update('location_city', e.target.value)}
-                  />
-                  {errors.location_city && <p className="mt-1 text-xs text-red-500">{errors.location_city}</p>}
-                </div>
-                <div>
-                  <label className={labelCls}>
-                    {t('Code postal (optionnel)', 'Código postal (opcional)')}
-                  </label>
-                  <input
-                    className={inputCls('location_postal')}
-                    placeholder={t('13001', '4000-001')}
-                    value={form.location_postal}
-                    onChange={e => update('location_postal', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Budget */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>
-                    <Euro className="h-4 w-4 text-gray-400" />
-                    {t('Budget min (optionnel)', 'Orçamento min (opcional)')}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className={inputCls('budget_min')}
-                    placeholder="500"
-                    value={form.budget_min}
-                    onChange={e => update('budget_min', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className={labelCls}>
-                    <Euro className="h-4 w-4 text-gray-400" />
-                    {t('Budget max (optionnel)', 'Orçamento max (opcional)')}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className={inputCls('budget_max')}
-                    placeholder="5000"
-                    value={form.budget_max}
-                    onChange={e => update('budget_max', e.target.value)}
-                  />
-                  {errors.budget_max && <p className="mt-1 text-xs text-red-500">{errors.budget_max}</p>}
-                </div>
-              </div>
-
-              {/* Deadline */}
-              <div>
-                <label className={labelCls}>
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  {t('Date limite de candidature', 'Prazo para candidaturas')} *
-                </label>
-                <input
-                  type="date"
-                  min={minDeadline}
-                  className={inputCls('deadline')}
-                  value={form.deadline}
-                  onChange={e => update('deadline', e.target.value)}
-                />
-                {errors.deadline && <p className="mt-1 text-xs text-red-500">{errors.deadline}</p>}
-              </div>
-
-              {/* Recurring market toggle */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsRecurring(!isRecurring)}
-                    className={`relative w-11 h-6 rounded-full transition-all shrink-0 ${isRecurring ? 'bg-green-500' : 'bg-gray-300'}`}
-                  >
-                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${isRecurring ? 'left-5.5' : 'left-0.5'}`} />
-                  </button>
-                  <div>
-                    <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                      <RefreshCw className="h-4 w-4 text-gray-400" />
-                      {t('Marché récurrent', 'Mercado recorrente')}
-                    </span>
-                  </div>
-                </div>
-
-                {isRecurring && (
-                  <div className="mt-3 ml-14">
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                      {t('Fréquence de republication', 'Frequência de republicação')}
-                    </label>
-                    <div className="flex gap-2">
-                      {([
-                        { value: 'mensuel' as const, fr: 'Mensuel', pt: 'Mensal' },
-                        { value: 'trimestriel' as const, fr: 'Trimestriel', pt: 'Trimestral' },
-                        { value: 'annuel' as const, fr: 'Annuel', pt: 'Anual' },
-                      ]).map(opt => (
+            <div className={stepBodyCls}>
+              {showTemplates ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 max-h-[450px] overflow-y-auto pr-1">
+                    {MARCHE_TEMPLATES
+                      .filter(tpl => {
+                        if (!templateFilter.trim()) return true
+                        const q = templateFilter.toLowerCase()
+                        return tpl.title_fr.toLowerCase().includes(q) || tpl.title_pt.toLowerCase().includes(q) || tpl.category.toLowerCase().includes(q)
+                      })
+                      .map(tpl => (
                         <button
-                          key={opt.value}
+                          key={tpl.id}
                           type="button"
-                          onClick={() => setRecurrenceInterval(opt.value)}
-                          className={`flex-1 rounded-lg border-2 px-3 py-2 text-xs font-medium transition cursor-pointer ${
-                            recurrenceInterval === opt.value
-                              ? 'border-[#FFC107] bg-yellow-50 text-gray-900'
-                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                          }`}
+                          onClick={() => applyTemplate(tpl)}
+                          className="text-left bg-[#FAFAFA] border-[1.5px] border-[#EFEFEF] rounded-xl p-4 cursor-pointer transition-all hover:border-[#FFD600] hover:-translate-y-0.5 hover:shadow-md hover:bg-white"
                         >
-                          {isPt ? opt.pt : opt.fr}
+                          <span className="text-2xl block mb-2">{tpl.icon}</span>
+                          <div className="text-[0.8rem] font-bold leading-tight mb-1.5">{isPt ? tpl.title_pt : tpl.title_fr}</div>
+                          {(tpl.estimated_budget_min || tpl.estimated_budget_max) && (
+                            <div className="text-[0.72rem] font-semibold text-[#555]">
+                              💰 {tpl.estimated_budget_min?.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}€ – {tpl.estimated_budget_max?.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')}€
+                            </div>
+                          )}
+                          <div className="text-[0.7rem] text-[#AAA] font-medium mt-0.5">⏱ {isPt ? tpl.typical_duration_pt : tpl.typical_duration}</div>
                         </button>
                       ))}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {t(
-                        'Ce marché sera automatiquement republié à chaque période',
-                        'Este mercado será automaticamente republicado a cada período',
-                      )}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(false)}
+                      className="flex flex-col items-center justify-center text-center text-[#AAA] gap-2 bg-[#FAFAFA] border-[1.5px] border-dashed border-[#DDD] rounded-xl p-4 cursor-pointer transition-all hover:border-[#0D0D0D] hover:text-[#0D0D0D] hover:bg-white"
+                    >
+                      <span className="text-xl">✏️</span>
+                      <span className="text-[0.8rem] font-semibold">{t('Partir de zéro', 'Começar do zero')}</span>
+                    </button>
                   </div>
-                )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowTemplates(true)}
+                  className="inline-flex items-center gap-2 text-sm text-[#999] hover:text-[#0D0D0D] transition-colors font-medium"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  {t('Voir les modèles', 'Ver os modelos')}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* STEP 2 — Profile */}
+          <div className={stepCardCls}>
+            <div className={stepHeaderCls}>
+              <div className={stepNumCls}>2</div>
+              <div>
+                <div className="text-base font-extrabold">{t('Votre profil', 'O seu perfil')}</div>
+                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Qui publie l\'appel d\'offres ?', 'Quem está a publicar o pedido?')}</div>
+              </div>
+            </div>
+            <div className={stepBodyCls}>
+              <div className="flex flex-wrap gap-2.5">
+                {PUBLISHER_CATEGORIES.map(cat => (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => handleCategorySelect(cat.key)}
+                    className={`flex items-center gap-2 border-[1.5px] rounded-lg px-4 py-2.5 cursor-pointer text-[0.85rem] font-semibold transition-all ${
+                      selectedCategory === cat.key
+                        ? 'border-[#FFD600] bg-[#FFFDF0] text-[#0D0D0D]'
+                        : 'border-[#EFEFEF] bg-[#FAFAFA] text-[#444] hover:border-[#FFD600] hover:bg-white hover:text-[#0D0D0D]'
+                    }`}
+                  >
+                    {cat.emoji} {isPt ? cat.pt : cat.fr}
+                  </button>
+                ))}
               </div>
 
-              {/* Urgency */}
-              <div>
-                <label className={labelCls}>
-                  {t('Niveau d\'urgence', 'Nível de urgência')}
-                </label>
-                <div className="flex gap-3">
-                  {URGENCY_OPTIONS.map(u => {
-                    const Icon = u.icon
-                    const selected = form.urgency === u.value
-                    return (
+              {selectedCategory && (
+                <div className="mt-4">
+                  <div className="flex flex-wrap gap-2">
+                    {PUBLISHER_CATEGORIES.find(c => c.key === selectedCategory)?.profiles.map(profile => (
                       <button
-                        key={u.value}
+                        key={profile.value}
                         type="button"
-                        onClick={() => update('urgency', u.value)}
-                        className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition cursor-pointer ${
-                          selected
-                            ? 'border-[#FFC107] bg-yellow-50 text-gray-900'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        onClick={() => handleProfileSelect(profile.value)}
+                        className={`rounded-full px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+                          form.publisher_type === profile.value
+                            ? 'bg-[#FFC107] text-gray-900 shadow-sm'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
-                        <Icon className={`h-4 w-4 ${selected ? u.color : 'text-gray-400'}`} />
-                        {isPt ? u.pt : u.fr}
+                        {isPt ? profile.pt : profile.fr}
                       </button>
-                    )
-                  })}
+                    ))}
+                  </div>
+                  {errors.publisher_type && <p className="mt-2 text-xs text-red-500">{errors.publisher_type}</p>}
+                </div>
+              )}
+
+              {renderDynamicFields()}
+            </div>
+          </div>
+
+          {/* STEP 3 — Contact */}
+          <div className={stepCardCls}>
+            <div className={stepHeaderCls}>
+              <div className={stepNumCls}>3</div>
+              <div>
+                <div className="text-base font-extrabold">{t('Vos coordonnées', 'Os seus dados')}</div>
+                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Pour recevoir les propositions', 'Para receber as propostas dos profissionais')}</div>
+              </div>
+            </div>
+            <div className={stepBodyCls}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    {t('Nom / Entreprise', 'Nome / Empresa')} <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <input className={inputCls('publisher_name')} placeholder={t('Jean Dupont', 'João Silva')} value={form.publisher_name} onChange={e => update('publisher_name', e.target.value)} />
+                  {errors.publisher_name && <p className="text-xs text-red-500">{errors.publisher_name}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    Email <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <input type="email" className={inputCls('publisher_email')} placeholder={t('nom@exemple.com', 'nome@exemplo.com')} value={form.publisher_email} onChange={e => update('publisher_email', e.target.value)} />
+                  {errors.publisher_email && <p className="text-xs text-red-500">{errors.publisher_email}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">{t('Téléphone', 'Telefone')}</label>
+                  <input type="tel" className={inputCls('publisher_phone')} placeholder={t('+33 6 12 34 56 78', '+351 9XX XXX XXX')} value={form.publisher_phone} onChange={e => update('publisher_phone', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    {t('Ville', 'Cidade')} <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <input className={inputCls('location_city')} placeholder={t('Ex: Marseille', 'Ex: Porto, Lisboa, Braga…')} value={form.location_city} onChange={e => update('location_city', e.target.value)} />
+                  {errors.location_city && <p className="text-xs text-red-500">{errors.location_city}</p>}
                 </div>
               </div>
             </div>
           </div>
 
-          <hr className="mb-8 border-gray-100" />
+          {/* STEP 4 — Project details */}
+          <div className={stepCardCls}>
+            <div className={stepHeaderCls}>
+              <div className={stepNumCls}>4</div>
+              <div>
+                <div className="text-base font-extrabold">{t('Détails du projet', 'Detalhes do projeto')}</div>
+                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Plus de détails = meilleures propositions', 'Quanto mais detalhes, melhores as propostas')}</div>
+              </div>
+            </div>
+            <div className={stepBodyCls}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    {t('Titre du projet', 'Título do projeto')} <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <input className={inputCls('title')} placeholder={t('Ex: Rénovation salle de bain 12m²', 'Ex: Renovação completa de casa de banho com substituição de canalização')} value={form.title} onChange={e => update('title', e.target.value)} maxLength={200} />
+                  {errors.title && <p className="text-xs text-red-500">{errors.title}</p>}
+                </div>
+                <div className="sm:col-span-2 flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    {t('Description détaillée', 'Descrição detalhada')} <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <textarea className={`${inputCls('description')} min-h-[130px] resize-y`} placeholder={t('Décrivez l\'état actuel, les travaux souhaités, les matériaux, la surface…', 'Descreva o estado atual, o que deseja realizar, materiais preferidos, superfície, número de divisões…')} value={form.description} onChange={e => update('description', e.target.value)} maxLength={5000} />
+                  <div className="text-right text-[0.72rem] text-[#CCC] font-medium">{form.description.length.toLocaleString(isPt ? 'pt-PT' : 'fr-FR')} / 5 000</div>
+                  {errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    {t('Catégorie', 'Categoria')} <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <select className={inputCls('category')} value={form.category} onChange={e => update('category', e.target.value)}>
+                    <option value="">{t('— Choisir —', '— Escolher —')}</option>
+                    {CATEGORIES.map(c => <option key={c.value} value={c.value}>{isPt ? c.pt : c.fr}</option>)}
+                  </select>
+                  {errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">{t('Code postal', 'Código postal')}</label>
+                  <input className={inputCls('location_postal')} placeholder={t('13001', '4100-007')} value={form.location_postal} onChange={e => update('location_postal', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">
+                    {t('Date limite', 'Prazo para candidaturas')} <span className="text-[#FFD600]">*</span>
+                  </label>
+                  <input type="date" min={minDeadline} className={inputCls('deadline')} value={form.deadline} onChange={e => update('deadline', e.target.value)} />
+                  {errors.deadline && <p className="text-xs text-red-500">{errors.deadline}</p>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.72rem] font-bold text-[#888] uppercase tracking-[0.08em]">{t('Mode de travail', 'Modo de trabalho preferido')}</label>
+                  <select className={inputCls('preferred_work_mode')} value={form.preferred_work_mode} onChange={e => setForm(prev => ({ ...prev, preferred_work_mode: e.target.value }))}>
+                    {WORK_MODE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{isPt ? opt.pt : opt.fr}</option>)}
+                  </select>
+                </div>
+              </div>
 
-          {/* ── Section: Exigences professionnelles ── */}
-          <div className="mb-8">
-            <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-gray-900">
-              <Shield className="h-5 w-5 text-[#FFC107]" />
-              {t('Exigences professionnelles', 'Requisitos profissionais')}
-            </h2>
+              <hr className="border-[#F0F0F0] my-6" />
 
-            {/* Max candidatures */}
-            <div className="mb-5">
-              <label className={labelCls}>
-                {t('Nombre max de candidatures', 'Número máximo de candidaturas')}
-              </label>
-              <p className="text-xs text-gray-400 mb-2">
-                {t('Limitez à quelques artisans pour des réponses de qualité', 'Limite a poucos profissionais para respostas de qualidade')}
-              </p>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={form.max_candidatures}
-                onChange={e => setForm(prev => ({ ...prev, max_candidatures: Math.max(1, Math.min(10, Number(e.target.value) || 3)) }))}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-[0.95rem] text-gray-900 outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100"
-              />
-              <div className="mt-2 flex items-center gap-2">
+              <span className={subLabelCls}>{t('Budget prévisionnel', 'Orçamento previsto')}</span>
+              <div className="flex items-center gap-3">
+                <input type="number" min="0" className={`${inputCls('budget_min')} w-40 shrink-0`} placeholder={t('Minimum (€)', 'Mínimo (€)')} value={form.budget_min} onChange={e => update('budget_min', e.target.value)} />
+                <div className="text-[#CCC] font-bold">—</div>
+                <input type="number" min="0" className={`${inputCls('budget_max')} w-40 shrink-0`} placeholder={t('Maximum (€)', 'Máximo (€)')} value={form.budget_max} onChange={e => update('budget_max', e.target.value)} />
+              </div>
+              {errors.budget_max && <p className="mt-1 text-xs text-red-500">{errors.budget_max}</p>}
+
+              <hr className="border-[#F0F0F0] my-6" />
+
+              <span className={subLabelCls}>{t('Niveau d\'urgence', 'Nível de urgência')}</span>
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { v: 'normal', label: 'Normal', desc: isPt ? 'Sem pressão' : 'Sans pression', icon: '🟢', active: 'border-green-500 bg-green-50' },
+                  { v: 'urgent', label: isPt ? 'Urgente' : 'Urgent', desc: isPt ? 'Dentro de 48h' : 'Sous 48h', icon: '🟡', active: 'border-amber-500 bg-amber-50' },
+                  { v: 'emergency', label: isPt ? 'Emergência' : 'Urgence', desc: isPt ? 'Intervenção imediata' : 'Intervention immédiate', icon: '🔴', active: 'border-red-500 bg-red-50' },
+                ] as const).map(u => (
+                  <button
+                    key={u.v}
+                    type="button"
+                    onClick={() => update('urgency', u.v)}
+                    className={`border-[1.5px] rounded-xl p-4 text-center cursor-pointer transition-all ${
+                      form.urgency === u.v ? u.active : 'border-[#EFEFEF] bg-[#FAFAFA] hover:border-[#FFD600] hover:bg-white'
+                    }`}
+                  >
+                    <span className="text-2xl block mb-1">{u.icon}</span>
+                    <div className="text-[0.85rem] font-bold">{u.label}</div>
+                    <div className="text-[0.72rem] text-[#999] mt-0.5 font-medium">{u.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 5 — Requirements */}
+          <div className={stepCardCls}>
+            <div className={stepHeaderCls}>
+              <div className={stepNumCls}>5</div>
+              <div>
+                <div className="text-base font-extrabold">{t('Exigences professionnelles', 'Requisitos profissionais')}</div>
+                <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Filtrez les meilleurs artisans', 'Filtre os profissionais mais qualificados')}</div>
+              </div>
+            </div>
+            <div className={stepBodyCls}>
+              <span className={subLabelCls}>{t('Maximum de candidatures', 'Máximo de candidaturas')}</span>
+              <div className="flex gap-2.5">
                 {[1, 3, 5, 10].map(n => (
                   <button
                     key={n}
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, max_candidatures: n }))}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition cursor-pointer ${
+                    className={`flex-1 py-2.5 border-[1.5px] rounded-lg text-[0.92rem] font-bold cursor-pointer transition-all text-center ${
                       form.max_candidatures === n
-                        ? 'bg-[#FFC107] text-gray-900'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'border-[#FFD600] bg-[#FFFDF0] text-[#0D0D0D]'
+                        : 'border-[#E0E0E0] bg-[#FAFAFA] text-[#555] hover:border-[#FFD600] hover:text-[#0D0D0D] hover:bg-white'
                     }`}
                   >
                     {n}
                   </button>
                 ))}
               </div>
-            </div>
+              <div className="flex gap-3 items-start bg-[#FFFDF0] border-[1.5px] border-[#F0EDD0] rounded-lg p-3.5 mt-3 text-[0.82rem] text-[#666] leading-relaxed font-medium">
+                <span className="shrink-0">💡</span>
+                {t(
+                  'Limiter à 3–5 candidatures garantit des propositions plus détaillées.',
+                  'Limitar a 3–5 candidaturas garante propostas mais detalhadas e atentas ao seu projeto.',
+                )}
+              </div>
 
-            {/* Compliance toggles */}
-            <div className="mb-5">
-              <label className={labelCls}>
-                {t('Certifications requises', 'Certificações obrigatórias')}
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <hr className="border-[#F0F0F0] my-6" />
+
+              <span className={subLabelCls}>{t('Certifications obligatoires', 'Certificações obrigatórias')}</span>
+              <div className="grid gap-2.5">
                 {([
-                  { key: 'require_rc_pro' as const, emoji: '\u{1F6E1}\uFE0F', fr: 'RC Pro requise', pt: 'RC Pro obrigatória' },
-                  { key: 'require_decennale' as const, emoji: '\u{1F3D7}\uFE0F', fr: 'Assurance décennale requise', pt: 'Seguro decenal obrigatório' },
-                  { key: 'require_rge' as const, emoji: '\u{1F33F}', fr: 'Certification RGE requise', pt: 'Certificação RGE obrigatória' },
-                  { key: 'require_qualibat' as const, emoji: '\u{1F3C5}', fr: 'QualiBAT requis', pt: 'QualiBAT obrigatório' },
-                ]).map(toggle => (
-                  <label
-                    key={toggle.key}
-                    className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 cursor-pointer transition-all ${
-                      form[toggle.key]
-                        ? 'border-[#FFC107] bg-yellow-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
+                  { key: 'require_rc_pro' as const, label: isPt ? '🛡️ Responsabilidade Civil Profissional (RC Pro)' : '🛡️ RC Pro obligatoire' },
+                  { key: 'require_decennale' as const, label: isPt ? '🏗️ Seguro Decenal obrigatório' : '🏗️ Assurance décennale obligatoire' },
+                  { key: 'require_rge' as const, label: isPt ? '🌿 Certificação RGE' : '🌿 Certification RGE' },
+                  { key: 'require_qualibat' as const, label: isPt ? '🏅 QualiBAT certificado' : '🏅 QualiBAT certifié' },
+                ]).map(cert => (
+                  <button
+                    key={cert.key}
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, [cert.key]: !prev[cert.key] }))}
+                    className={`flex items-center gap-3.5 border-[1.5px] rounded-lg px-4 py-3.5 cursor-pointer transition-all text-left ${
+                      form[cert.key]
+                        ? 'border-[#FFD600] bg-[#FFFDF0]'
+                        : 'border-[#EFEFEF] bg-[#FAFAFA] hover:border-[#FFD600] hover:bg-white'
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, [toggle.key]: !prev[toggle.key] }))}
-                      className={`relative w-11 h-6 rounded-full transition-all shrink-0 ${form[toggle.key] ? 'bg-green-500' : 'bg-gray-300'}`}
-                    >
-                      <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form[toggle.key] ? 'left-5.5' : 'left-0.5'}`} />
-                    </button>
-                    <span className="text-sm text-gray-700">
-                      {toggle.emoji} {isPt ? toggle.pt : toggle.fr}
-                    </span>
-                  </label>
+                    <div className={`w-[18px] h-[18px] rounded shrink-0 border-2 flex items-center justify-center text-[0.65rem] font-black transition-all ${
+                      form[cert.key] ? 'bg-[#FFD600] border-[#FFD600]' : 'border-[#DDD]'
+                    }`}>
+                      {form[cert.key] && '✓'}
+                    </div>
+                    <span className="text-[0.84rem] font-semibold text-[#333]">{cert.label}</span>
+                  </button>
                 ))}
               </div>
-            </div>
 
-            {/* Preferred work mode */}
-            <div className="mb-5">
-              <label className={labelCls}>
-                {t('Mode de travail préféré', 'Modo de trabalho preferido')}
-              </label>
-              <select
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-[0.95rem] text-gray-900 outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100"
-                value={form.preferred_work_mode}
-                onChange={e => setForm(prev => ({ ...prev, preferred_work_mode: e.target.value }))}
-              >
-                {WORK_MODE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>
-                    {isPt ? opt.pt : opt.fr}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <hr className="border-[#F0F0F0] my-6" />
 
-            {/* Info banner */}
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-start gap-2">
-              <Target className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-700">
-                {t(
-                  'Votre annonce sera automatiquement envoyée aux artisans qualifiés les plus proches de votre chantier',
-                  'O seu anúncio será automaticamente enviado aos profissionais qualificados mais próximos da sua obra',
-                )}
-              </p>
+              {/* Recurring toggle */}
+              <div className="flex items-center justify-between py-4">
+                <div>
+                  <div className="text-[0.9rem] font-bold">{t('Marché récurrent', 'Mercado recorrente')}</div>
+                  <div className="text-[0.78rem] text-[#999] mt-0.5 font-medium">{t('Travaux réguliers à long terme', 'Procuro trabalhos regulares a longo prazo')}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRecurring(!isRecurring)}
+                  className={`relative w-11 h-[25px] rounded-full cursor-pointer shrink-0 transition-colors ${isRecurring ? 'bg-[#FFD600]' : 'bg-[#E0E0E0]'}`}
+                >
+                  <div className={`absolute w-[19px] h-[19px] bg-white rounded-full top-[3px] shadow-sm transition-all ${isRecurring ? 'left-[22px]' : 'left-[3px]'}`} />
+                </button>
+              </div>
+
+              {isRecurring && (
+                <div className="ml-4 mb-4">
+                  <div className="flex gap-2">
+                    {([
+                      { value: 'mensuel' as const, fr: 'Mensuel', pt: 'Mensal' },
+                      { value: 'trimestriel' as const, fr: 'Trimestriel', pt: 'Trimestral' },
+                      { value: 'annuel' as const, fr: 'Annuel', pt: 'Anual' },
+                    ]).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setRecurrenceInterval(opt.value)}
+                        className={`flex-1 rounded-lg border-2 px-3 py-2 text-xs font-medium transition cursor-pointer ${
+                          recurrenceInterval === opt.value
+                            ? 'border-[#FFC107] bg-yellow-50 text-gray-900'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        {isPt ? opt.pt : opt.fr}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* API error */}
-          {apiError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {apiError}
+          {/* SUBMIT CARD */}
+          <div className={stepCardCls}>
+            <div className={stepBodyCls}>
+              {apiError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {apiError}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[#FFD600] text-[#0D0D0D] py-4 rounded-lg text-base font-extrabold cursor-pointer transition-all hover:bg-[#FFE030] hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border-none"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    {t('Publication en cours...', 'A publicar...')}
+                  </>
+                ) : (
+                  <>⚡ {t('Publier l\'appel d\'offres — Gratuit', 'Publicar pedido de orçamento — Grátis')}</>
+                )}
+              </button>
+              <div className="text-center text-[0.75rem] text-[#AAA] mt-3.5 font-medium flex items-center justify-center gap-1.5">
+                🔒 {t(
+                  'Vos données ne sont pas partagées publiquement. Seuls les artisans candidats y auront accès.',
+                  'Os seus dados não são partilhados publicamente. Apenas os profissionais candidatos terão acesso.',
+                )}
+              </div>
             </div>
-          )}
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full cursor-pointer rounded-full bg-[#FFC107] px-8 py-3.5 text-base font-bold text-gray-900 shadow-[0_6px_20px_rgba(255,214,0,0.3)] transition-all hover:bg-[#FFE84D] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                {t('Publication en cours...', 'A publicar...')}
-              </span>
-            ) : (
-              t('Publier l\'appel d\'offres', 'Publicar pedido de orçamento')
-            )}
-          </button>
-
-          <p className="mt-3 text-center text-xs text-gray-500">
-            {t(
-              'Gratuit et sans engagement. Vos coordonnées ne seront pas partagées publiquement.',
-              'Grátis e sem compromisso. Os seus dados não serão partilhados publicamente.',
-            )}
-          </p>
+          </div>
         </form>
+
+        {/* ═══ SIDEBAR ═══ */}
+        <aside className="hidden lg:flex flex-col gap-5 sticky top-[88px]">
+          {/* How it works */}
+          <div className="bg-[#FFFDF0] border-[1.5px] border-[#F0EDD0] rounded-2xl p-6">
+            <div className="text-[0.95rem] font-extrabold tracking-[-0.01em] mb-5 flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-[#FFD600] shrink-0" />
+              {t('Comment ça marche', 'Como funciona')}
+            </div>
+            <div className="flex flex-col gap-4">
+              {([
+                { n: '1', text: isPt ? '<strong>Publique o seu pedido</strong> — descreva o projeto gratuitamente em menos de 5 minutos.' : '<strong>Publiez votre appel</strong> — décrivez votre projet en moins de 5 minutes.' },
+                { n: '2', text: isPt ? '<strong>Receba propostas</strong> — profissionais qualificados próximos de si respondem em menos de 2h.' : '<strong>Recevez des devis</strong> — artisans qualifiés proches de vous répondent sous 2h.' },
+                { n: '3', text: isPt ? '<strong>Compare e escolha</strong> — analise preços, perfis e avaliações antes de decidir.' : '<strong>Comparez et choisissez</strong> — analysez prix, profils et avis.' },
+                { n: '4', text: isPt ? '<strong>Avalie a obra</strong> — partilhe a sua experiência com a comunidade.' : '<strong>Évaluez</strong> — partagez votre expérience avec la communauté.' },
+              ]).map(step => (
+                <div key={step.n} className="flex gap-3.5 items-start">
+                  <div className="w-[26px] h-[26px] rounded-full bg-[#FFD600] text-[#0D0D0D] text-[0.72rem] font-black flex items-center justify-center shrink-0 mt-px">{step.n}</div>
+                  <div className="text-[0.82rem] text-[#666] leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: step.text }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="bg-white border-[1.5px] border-[#EFEFEF] rounded-2xl p-6">
+            <div className="text-[0.95rem] font-extrabold tracking-[-0.01em] mb-5 flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-[#FFD600] shrink-0" />
+              {t('En chiffres', 'Em números')}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { num: '2', accent: '800', suffix: '+', label: isPt ? 'Profissionais certificados' : 'Artisans certifiés' },
+                { num: '<', accent: '2', suffix: 'h', label: isPt ? 'Tempo de resposta' : 'Temps de réponse' },
+                { num: '4.', accent: '9', suffix: '', label: isPt ? 'Nota média ⭐' : 'Note moyenne ⭐' },
+                { num: '48', accent: 'k', suffix: '', label: isPt ? 'Obras realizadas' : 'Chantiers réalisés' },
+              ]).map((s, i) => (
+                <div key={i} className="bg-[#FAFAFA] border-[1.5px] border-[#EFEFEF] rounded-xl p-4 text-center">
+                  <div className="text-2xl font-black tracking-[-0.02em] leading-none">{s.num}<span className="text-[#FFD600]">{s.accent}</span>{s.suffix}</div>
+                  <div className="text-[0.7rem] text-[#999] font-semibold mt-1">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Review */}
+          <div className="bg-white border-[1.5px] border-[#EFEFEF] rounded-2xl p-6">
+            <div className="text-[0.95rem] font-extrabold tracking-[-0.01em] mb-5 flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-[#FFD600] shrink-0" />
+              {t('Ils témoignent', 'O que dizem')}
+            </div>
+            <div className="text-[#FFD600] text-[0.9rem] tracking-wider mb-2.5">★★★★★</div>
+            <p className="text-[0.82rem] leading-relaxed text-[#555] italic font-medium">
+              {isPt
+                ? '"Publiquei de manhã e ao fim do dia já tinha três propostas detalhadas. Acabei por escolher um profissional que ficou dentro do orçamento."'
+                : '"J\'ai publié le matin et le soir j\'avais trois devis détaillés. J\'ai choisi un artisan dans mon budget."'}
+            </p>
+            <div className="flex items-center gap-2.5 mt-4">
+              <div className="w-[34px] h-[34px] rounded-full bg-[#FF9800] text-white text-[0.78rem] font-black flex items-center justify-center shrink-0">ML</div>
+              <div>
+                <div className="text-[0.82rem] font-bold not-italic">{isPt ? 'Maria Lourenço' : 'Marie Laurent'}</div>
+                <div className="text-[0.72rem] text-[#AAA] not-italic font-medium">{isPt ? 'Renovação casa de banho · Porto ✔ Verificado' : 'Rénovation SDB · Marseille ✔ Vérifié'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Trust */}
+          <div className="bg-white border-[1.5px] border-[#EFEFEF] rounded-2xl p-6">
+            <div className="flex gap-3 items-start bg-green-50 border-[1.5px] border-green-200 rounded-xl p-4">
+              <span className="text-xl shrink-0">🛡️</span>
+              <div>
+                <div className="text-[0.88rem] font-extrabold text-green-600 mb-1">{t('100% sûr et gratuit', '100% seguro e gratuito')}</div>
+                <div className="text-[0.76rem] text-[#555] leading-relaxed font-medium">
+                  {t(
+                    'Tous les artisans sont vérifiés avec attestations et assurances validées par VITFIX.',
+                    'Todos os profissionais são verificados com documentação e seguros validados pela VITFIX.',
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   )

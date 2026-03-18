@@ -1879,7 +1879,7 @@ export default function ClientDashboardPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <a
-                  href={locale === 'pt' ? '/pt/marches/publier' : '/marches/publier'}
+                  href={locale === 'pt' ? '/pt/mercados/publicar' : '/marches/publier'}
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all"
                   style={{ background: '#FFC107', color: '#1A1A1A', boxShadow: '0 4px 14px rgba(255,214,0,0.3)' }}
                 >

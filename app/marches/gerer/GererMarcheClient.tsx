@@ -549,7 +549,7 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
           {(marche.status === 'awarded' || marche.status === 'closed') && (
             <div className="mt-6 border-t border-gray-100 pt-6">
               <Link
-                href={`/marches/publier?clone=${id}&token=${token}`}
+                href={isPt ? `/pt/mercados/publicar?clone=${id}&token=${token}` : `/marches/publier?clone=${id}&token=${token}`}
                 className="inline-flex items-center gap-2 rounded-full bg-[#FFC107] px-6 py-3 text-sm font-bold text-gray-900 shadow-[0_4px_14px_rgba(255,214,0,0.3)] hover:bg-[#FFE84D] hover:-translate-y-0.5 transition-all no-underline"
               >
                 <RefreshCw className="h-4 w-4" />
