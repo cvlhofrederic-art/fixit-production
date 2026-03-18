@@ -5,10 +5,15 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { Calendar, Clock, MapPin, ArrowLeft, User, Phone, Mail } from 'lucide-react'
+import { useLocale } from '@/lib/i18n/context'
 
 function ReserverContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const locale = useLocale()
+  const isPt = locale === 'pt'
+  const t = (fr: string, pt: string) => (isPt ? pt : fr)
+
   const artisanId = searchParams.get('artisan')
   const serviceId = searchParams.get('service')
 
@@ -97,7 +102,7 @@ function ReserverContent() {
       }
 
       // Build notes with client info for artisan
-      const clientInfoNote = `Client: ${formData.clientName || 'N/C'} | Tél: ${formData.clientPhone || 'N/C'} | Email: ${formData.clientEmail || 'N/C'}`
+      const clientInfoNote = `Client: ${formData.clientName || 'N/C'} | ${t('Tél', 'Tel')}: ${formData.clientPhone || 'N/C'} | Email: ${formData.clientEmail || 'N/C'}`
       const fullNotes = formData.notes
         ? `${clientInfoNote}\n${formData.notes}`
         : clientInfoNote
@@ -114,7 +119,7 @@ function ReserverContent() {
           booking_date: formData.date,
           booking_time: formData.time,
           duration_minutes: service?.duration_minutes || 60,
-          address: formData.address || 'À définir',
+          address: formData.address || t('À définir', 'A definir'),
           notes: fullNotes,
           price_ht: service?.price_ht || 0,
           price_ttc: service?.price_ttc || 0,
@@ -125,7 +130,10 @@ function ReserverContent() {
       const result = await res.json()
 
       if (!res.ok) {
-        setError(result.error || 'Erreur lors de la réservation. Veuillez réessayer.')
+        setError(result.error || t(
+          'Erreur lors de la réservation. Veuillez réessayer.',
+          'Erro ao efetuar a reserva. Por favor tente novamente.',
+        ))
         setSubmitting(false)
         return
       }
@@ -133,7 +141,10 @@ function ReserverContent() {
       setBookingId(result.data?.id || null)
       setSuccess(true)
     } catch {
-      setError('Erreur de connexion. Vérifiez votre connexion internet et réessayez.')
+      setError(t(
+        'Erreur de connexion. Vérifiez votre connexion internet et réessayez.',
+        'Erro de ligação. Verifique a sua ligação à internet e tente novamente.',
+      ))
       setSubmitting(false)
     }
   }
@@ -152,9 +163,14 @@ function ReserverContent() {
         <div className="max-w-md w-full text-center">
           <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] p-8">
             <div className="text-6xl mb-4">✅</div>
-            <h2 className="font-display text-2xl font-black text-dark mb-2 tracking-[-0.03em]">Réservation envoyée !</h2>
+            <h2 className="font-display text-2xl font-black text-dark mb-2 tracking-[-0.03em]">
+              {t('Réservation envoyée !', 'Reserva enviada!')}
+            </h2>
             <p className="text-text-muted mb-6">
-              L&apos;artisan va confirmer votre réservation. Vous recevrez une notification.
+              {t(
+                'L\'artisan va confirmer votre réservation. Vous recevrez une notification.',
+                'O profissional vai confirmar a sua reserva. Receberá uma notificação.',
+              )}
             </p>
             <div className="flex flex-col gap-3">
               {bookingId && (
@@ -162,14 +178,14 @@ function ReserverContent() {
                   onClick={() => router.push(`/confirmation?id=${bookingId}`)}
                   className="bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-semibold transition hover:-translate-y-px"
                 >
-                  Voir ma réservation
+                  {t('Voir ma réservation', 'Ver a minha reserva')}
                 </button>
               )}
               <button
                 onClick={() => router.push('/')}
                 className="bg-warm-gray hover:bg-gray-200 text-mid px-8 py-3 rounded-xl font-semibold transition border-[1.5px] border-[#E0E0E0]"
               >
-                Retour à l&apos;accueil
+                {t('Retour à l\'accueil', 'Voltar ao início')}
               </button>
             </div>
           </div>
@@ -186,10 +202,12 @@ function ReserverContent() {
           className="flex items-center gap-2 text-text-muted hover:text-yellow transition mb-6"
         >
           <ArrowLeft className="w-5 h-5" />
-          Retour
+          {t('Retour', 'Voltar')}
         </button>
 
-        <h1 className="font-display text-3xl font-black text-dark mb-8 tracking-[-0.03em]">Réserver un service</h1>
+        <h1 className="font-display text-3xl font-black text-dark mb-8 tracking-[-0.03em]">
+          {t('Réserver un service', 'Reservar um serviço')}
+        </h1>
 
         <div className="grid md:grid-cols-3 gap-8">
           {/* Form */}
@@ -205,23 +223,25 @@ function ReserverContent() {
                 {/* Client info section */}
                 <div className="bg-warm-gray rounded-xl p-4 space-y-4">
                   <h3 className="font-semibold text-dark flex items-center gap-2">
-                    <User className="w-4 h-4" /> Vos informations
+                    <User className="w-4 h-4" /> {t('Vos informations', 'As suas informações')}
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Nom complet</label>
+                      <label className="block text-sm font-medium text-text-muted mb-1">
+                        {t('Nom complet', 'Nome completo')}
+                      </label>
                       <input
                         type="text"
                         value={formData.clientName}
                         onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
                         required
                         className="w-full px-4 py-3 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm"
-                        placeholder="Jean Dupont"
+                        placeholder={t('Jean Dupont', 'João Silva')}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-text-muted mb-1">
-                        <Phone className="w-3.5 h-3.5 inline mr-1" />Téléphone
+                        <Phone className="w-3.5 h-3.5 inline mr-1" />{t('Téléphone', 'Telefone')}
                       </label>
                       <input
                         type="tel"
@@ -229,7 +249,7 @@ function ReserverContent() {
                         onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
                         required
                         className="w-full px-4 py-3 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm"
-                        placeholder="06 12 34 56 78"
+                        placeholder={t('06 12 34 56 78', '+351 912 345 678')}
                       />
                     </div>
                   </div>
@@ -250,7 +270,7 @@ function ReserverContent() {
                 <div>
                   <label className="block text-sm font-medium text-mid mb-2">
                     <Calendar className="w-4 h-4 inline mr-1" />
-                    Date souhaitée
+                    {t('Date souhaitée', 'Data pretendida')}
                   </label>
                   <input
                     type="date"
@@ -265,7 +285,7 @@ function ReserverContent() {
                 <div>
                   <label className="block text-sm font-medium text-mid mb-2">
                     <Clock className="w-4 h-4 inline mr-1" />
-                    Heure souhaitée
+                    {t('Heure souhaitée', 'Hora pretendida')}
                   </label>
                   <select
                     value={formData.time}
@@ -273,7 +293,7 @@ function ReserverContent() {
                     required
                     className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                   >
-                    <option value="">Choisir une heure</option>
+                    <option value="">{t('Choisir une heure', 'Escolher uma hora')}</option>
                     {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((time) => (
                       <option key={time} value={time}>{time}</option>
                     ))}
@@ -283,7 +303,7 @@ function ReserverContent() {
                 <div>
                   <label className="block text-sm font-medium text-mid mb-2">
                     <MapPin className="w-4 h-4 inline mr-1" />
-                    Adresse d&apos;intervention
+                    {t('Adresse d\'intervention', 'Morada de intervenção')}
                   </label>
                   <input
                     type="text"
@@ -291,20 +311,20 @@ function ReserverContent() {
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     required
                     className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
-                    placeholder="123 rue de la Paix, 75001 Paris"
+                    placeholder={t('123 rue de la Paix, 75001 Paris', 'Rua da Liberdade 123, 4000 Porto')}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-mid mb-2">
-                    Notes (optionnel)
+                    {t('Notes (optionnel)', 'Notas (opcional)')}
                   </label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                     className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none resize-none"
-                    placeholder="Détails supplémentaires, accès, digicode..."
+                    placeholder={t('Détails supplémentaires, accès, digicode...', 'Detalhes adicionais, acesso, código da porta...')}
                   />
                 </div>
 
@@ -313,7 +333,10 @@ function ReserverContent() {
                   disabled={submitting}
                   className="w-full bg-yellow hover:bg-yellow-light text-dark py-3 rounded-xl font-semibold transition disabled:opacity-60 hover:-translate-y-px"
                 >
-                  {submitting ? '⏳ Envoi en cours...' : 'Confirmer la réservation'}
+                  {submitting
+                    ? t('⏳ Envoi en cours...', '⏳ A enviar...')
+                    : t('Confirmer la réservation', 'Confirmar a reserva')
+                  }
                 </button>
               </form>
             </div>
@@ -322,12 +345,14 @@ function ReserverContent() {
           {/* Summary */}
           <div>
             <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] p-6 sticky top-24">
-              <h3 className="font-display font-bold text-lg text-dark mb-4">Récapitulatif</h3>
+              <h3 className="font-display font-bold text-lg text-dark mb-4">
+                {t('Récapitulatif', 'Resumo')}
+              </h3>
 
               {artisan && (
                 <div className="mb-4 pb-4 border-b border-border">
                   <p className="font-semibold text-dark">{artisan.company_name}</p>
-                  <p className="text-sm text-text-muted">Artisan</p>
+                  <p className="text-sm text-text-muted">{t('Artisan', 'Profissional')}</p>
                 </div>
               )}
 
@@ -346,7 +371,7 @@ function ReserverContent() {
 
               {service && (
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold text-dark">Total TTC</span>
+                  <span className="font-semibold text-dark">{t('Total TTC', 'Total c/ IVA')}</span>
                   <span className="text-2xl font-bold text-yellow">
                     {formatPrice(service.price_ttc)}
                   </span>
@@ -355,7 +380,7 @@ function ReserverContent() {
 
               {formData.clientName && (
                 <div className="mt-4 pt-4 border-t border-border text-sm text-text-muted">
-                  <p>📍 {formData.address || 'Adresse non renseignée'}</p>
+                  <p>📍 {formData.address || t('Adresse non renseignée', 'Morada não indicada')}</p>
                   <p>👤 {formData.clientName}</p>
                   {formData.clientPhone && <p>📞 {formData.clientPhone}</p>}
                 </div>

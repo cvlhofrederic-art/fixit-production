@@ -11,7 +11,7 @@ export function getUiLocale(locale: Locale): FullLocale {
   return locale as FullLocale
 }
 
-export const DEFAULT_LOCALE: Locale = 'fr'
+export const DEFAULT_LOCALE: Locale = 'pt'
 
 export const LOCALE_NAMES: Record<Locale, string> = {
   fr: 'Fran\u00e7ais',

@@ -90,6 +90,17 @@ const nextConfig: NextConfig = {
       { source: '/pt/marches/publier/', destination: '/pt/mercados/publicar/', permanent: true },
       { source: '/pt/marches/gerer/', destination: '/pt/mercados/gerir/', permanent: true },
       { source: '/pt/marches/:path*', destination: '/pt/mercados/:path*', permanent: true },
+      // French root routes → redirect PT users to PT equivalents
+      // Legal & info pages
+      { source: '/pt/confidentialite/', destination: '/pt/privacidade/', permanent: true },
+      { source: '/pt/confidentialite/mes-donnees/', destination: '/pt/privacidade/meus-dados/', permanent: true },
+      { source: '/pt/cgu/', destination: '/pt/termos/', permanent: true },
+      { source: '/pt/mentions-legales/', destination: '/pt/avisos-legais/', permanent: true },
+      { source: '/pt/a-propos/', destination: '/pt/sobre/', permanent: true },
+      { source: '/pt/tarifs/', destination: '/pt/precos/', permanent: true },
+      { source: '/pt/reserver/', destination: '/pt/reservar/', permanent: true },
+      { source: '/pt/recherche/', destination: '/pt/pesquisar/', permanent: true },
+      { source: '/pt/avis/', destination: '/pt/avaliacoes/', permanent: true },
       // Legacy Porto pages in French → redirect to PT equivalents
       { source: '/plombier-porto/', destination: '/pt/servicos/canalizador-porto/', permanent: true },
       { source: '/electricien-porto/', destination: '/pt/servicos/eletricista-porto/', permanent: true },
