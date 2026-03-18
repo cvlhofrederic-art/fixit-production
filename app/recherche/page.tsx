@@ -1259,7 +1259,8 @@ function RechercheContent() {
       e.preventDefault()
       if (catHighlight >= 0 && filteredSpecialtySuggestions[catHighlight]) {
         const s = filteredSpecialtySuggestions[catHighlight]
-        setCategoryInput(s.label); setCatDropOpen(false); setCatHighlight(-1)
+        const localLabel = siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.label) : s.label
+        setCategoryInput(localLabel); setCatDropOpen(false); setCatHighlight(-1)
       } else { setCatDropOpen(false); handleSearch() }
     }
     else if (e.key === 'Escape') { setCatDropOpen(false); setCatHighlight(-1) }
@@ -1579,12 +1580,12 @@ function RechercheContent() {
                     <button
                       key={s.label}
                       className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition text-sm cursor-pointer border-none ${i === catHighlight ? 'bg-amber-50' : 'hover:bg-[#F5F5F0]'}`}
-                      onMouseDown={(e) => { e.preventDefault(); setCategoryInput(s.label); setCatDropOpen(false); setCatHighlight(-1) }}
+                      onMouseDown={(e) => { e.preventDefault(); const ll = siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.label) : s.label; setCategoryInput(ll); setCatDropOpen(false); setCatHighlight(-1) }}
                     >
                       <span className="text-base w-6 text-center flex-shrink-0">{s.icon}</span>
                       <div className="min-w-0">
-                        <p className="font-medium text-dark truncate">{s.label}</p>
-                        {s.subtitle && <p className="text-xs text-text-muted">{s.subtitle}</p>}
+                        <p className="font-medium text-dark truncate">{siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.label) : s.label}</p>
+                        {s.subtitle && <p className="text-xs text-text-muted">{siteLocale === 'pt' ? (CATEGORY_LABELS_PT[s.category] || s.subtitle) : s.subtitle}</p>}
                       </div>
                     </button>
                   ))}
