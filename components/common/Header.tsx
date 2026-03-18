@@ -77,19 +77,19 @@ export default function Header() {
               href={SIMULATEUR_HREF[locale] || '/simulateur-devis'}
               className="px-[18px] py-2 text-dark text-[0.88rem] font-medium no-underline hover:text-yellow transition-all"
             >
-              {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.fr}
+              {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.pt}
             </LocaleLink>
             <LocaleLink
               href="/auth/login"
               className="px-[18px] py-2 border-[1.5px] border-dark rounded-full bg-transparent text-dark text-[0.88rem] font-medium no-underline hover:bg-dark hover:text-white transition-all"
             >
-              {t('nav.login') || 'Se connecter'}
+              {t('nav.login') || (locale === 'pt' ? 'Iniciar sessão' : 'Se connecter')}
             </LocaleLink>
             <LocaleLink
               href="/recherche"
               className="px-5 py-2.5 rounded-full bg-yellow text-dark text-[0.88rem] font-semibold no-underline hover:bg-yellow-light hover:-translate-y-px transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
-              {t('nav.findArtisan') || 'Trouver un artisan'} →
+              {t('nav.findArtisan') || (locale === 'pt' ? 'Encontrar um profissional' : 'Trouver un artisan')} →
             </LocaleLink>
           </>
         ) : (
@@ -125,7 +125,7 @@ export default function Header() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                     </svg>
-                    {t('nav.mySpace') || 'Mon espace'}
+                    {t('nav.mySpace') || (locale === 'pt' ? 'O meu espaço' : 'Mon espace')}
                   </LocaleLink>
                   <div className="border-t border-border mt-1 pt-1">
                     <button
@@ -136,7 +136,7 @@ export default function Header() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
-                      {t('nav.logout') || 'Déconnexion'}
+                      {t('nav.logout') || (locale === 'pt' ? 'Terminar sessão' : 'Déconnexion')}
                     </button>
                   </div>
                 </div>
@@ -173,25 +173,25 @@ export default function Header() {
             {!user ? (
               <>
                 <LocaleLink href="/auth/login" className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
-                  {t('nav.login') || 'Se connecter'}
+                  {t('nav.login') || (locale === 'pt' ? 'Iniciar sessão' : 'Se connecter')}
                 </LocaleLink>
                 <LocaleLink href={SIMULATEUR_HREF[locale] || '/simulateur-devis'} className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
-                  {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.fr}
+                  {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.pt}
                 </LocaleLink>
                 <LocaleLink href="/recherche" className="block text-center bg-yellow text-dark rounded-full py-3 font-semibold no-underline mt-2" onClick={() => setMenuOpen(false)}>
-                  {t('nav.findArtisan') || 'Trouver un artisan'} →
+                  {t('nav.findArtisan') || (locale === 'pt' ? 'Encontrar um profissional' : 'Trouver un artisan')} →
                 </LocaleLink>
               </>
             ) : (
               <>
                 <LocaleLink href={dashboardUrl} className="block text-mid hover:text-yellow transition font-medium py-2.5 no-underline" onClick={() => setMenuOpen(false)}>
-                  {t('nav.mySpace') || 'Mon espace'}
+                  {t('nav.mySpace') || (locale === 'pt' ? 'O meu espaço' : 'Mon espace')}
                 </LocaleLink>
                 <button
                   onClick={() => { handleLogout(); setMenuOpen(false) }}
                   className="block w-full text-left text-red-600 hover:text-red-700 transition font-medium py-2.5 cursor-pointer border-none bg-transparent"
                 >
-                  {t('nav.logout') || 'Déconnexion'}
+                  {t('nav.logout') || (locale === 'pt' ? 'Terminar sessão' : 'Déconnexion')}
                 </button>
               </>
             )}
