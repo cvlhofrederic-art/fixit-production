@@ -2799,10 +2799,10 @@ export default function SyndicDashboard() {
     { key: 'suivi', label: locale === 'pt' ? 'Acompanhamento' : 'Suivi' },
     { key: 'copropriete', label: locale === 'pt' ? 'Condomínio' : 'Copropriété' },
     { key: 'obrigacoes', label: locale === 'pt' ? 'Obrigações Legais' : 'Obligations PT' },
-    { key: 'copropriete_fr', label: locale === 'pt' ? 'Gestão Copropriétaires' : 'Gestion Copropriétaires' },
-    { key: 'outils_fr', label: locale === 'pt' ? 'Ferramentas FR' : 'Outils FR' },
-    { key: 'condominios_pt', label: locale === 'pt' ? 'Gestão Condóminos' : 'Gestion Condóminos' },
-    { key: 'ferramentas_pt', label: locale === 'pt' ? 'Ferramentas PT' : 'Outils PT' },
+    { key: 'copropriete_fr', label: 'Gestion Copropriétaires' },
+    { key: 'outils_fr', label: 'Outils Avancés' },
+    { key: 'condominios_pt', label: 'Gestão Condóminos' },
+    { key: 'ferramentas_pt', label: 'Ferramentas Avançadas' },
     { key: 'outils_ia', label: locale === 'pt' ? 'Ferramentas IA' : 'Outils IA' },
     { key: 'compte', label: locale === 'pt' ? 'Conta' : 'Compte' },
   ]
@@ -2911,6 +2911,9 @@ export default function SyndicDashboard() {
 
   const navItems = allNavItems
     .filter(item => {
+      // Locale-based filtering: hide FR-only modules for PT users and vice-versa
+      if (locale === 'pt' && (item.category === 'copropriete_fr' || item.category === 'outils_fr')) return false
+      if (locale === 'fr' && (item.category === 'condominios_pt' || item.category === 'ferramentas_pt' || item.category === 'obrigacoes')) return false
       if (!allowedPages.includes(item.id)) return false
       if (ALWAYS_VISIBLE.includes(item.id)) return true
       return isModuleEnabled(item.id)

@@ -17,15 +17,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
-        // FR investor pages (Porto-focused, served from root-level routes)
-        { source: '/fr/plombier-porto', destination: '/plombier-porto' },
-        { source: '/fr/plombier-porto/', destination: '/plombier-porto/' },
-        { source: '/fr/electricien-porto', destination: '/electricien-porto' },
-        { source: '/fr/electricien-porto/', destination: '/electricien-porto/' },
-        { source: '/fr/travaux-appartement-porto', destination: '/travaux-appartement-porto' },
-        { source: '/fr/travaux-appartement-porto/', destination: '/travaux-appartement-porto/' },
-        { source: '/fr/entretien-appartement-porto', destination: '/entretien-appartement-porto' },
-        { source: '/fr/entretien-appartement-porto/', destination: '/entretien-appartement-porto/' },
+        // FR investor pages now live under app/fr/ — no rewrite needed
         // FR shared pages: root-level pages that should also work under /fr/ prefix
         // (auth, pro, client, syndic, contact, avis, etc.)
         { source: '/fr/auth/:path*', destination: '/auth/:path*' },
