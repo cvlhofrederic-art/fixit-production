@@ -101,6 +101,7 @@ const nextConfig: NextConfig = {
       { source: '/pt/reserver/', destination: '/pt/reservar/', permanent: true },
       { source: '/pt/recherche/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/pt/avis/', destination: '/pt/avaliacoes/', permanent: true },
+      { source: '/pt/artisan/:slug/', destination: '/pt/profissional/:slug/', permanent: true },
       // Legacy Porto pages in French → redirect to PT equivalents
       { source: '/plombier-porto/', destination: '/pt/servicos/canalizador-porto/', permanent: true },
       { source: '/electricien-porto/', destination: '/pt/servicos/eletricista-porto/', permanent: true },

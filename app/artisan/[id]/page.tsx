@@ -309,7 +309,7 @@ function getServiceEstimate(service: any, qty: string): { minVal: number; maxVal
 // ──────────────────────────────────────────────────────────────────
 
 // Group services by detected category
-const SERVICE_CATEGORIES: { key: string; label: string; emoji: string; keywords: string[] }[] = [
+const SERVICE_CATEGORIES_FR: { key: string; label: string; emoji: string; keywords: string[] }[] = [
   { key: 'elagage', label: 'Élagage', emoji: '🌳', keywords: ['élagage', 'elagage'] },
   { key: 'traitement', label: 'Traitements', emoji: '💊', keywords: ['traitement', 'phytosanitaire', 'charançon'] },
   { key: 'abattage', label: 'Abattage & Dessouchage', emoji: '🪓', keywords: ['abattage', 'dessouchage', 'rognage', 'souche'] },
@@ -319,30 +319,42 @@ const SERVICE_CATEGORIES: { key: string; label: string; emoji: string; keywords:
   { key: 'amenagement', label: 'Aménagement', emoji: '🏡', keywords: ['aménagement', 'amenagement', 'création', 'creation', 'plantation', 'massif', 'allée', 'allee', 'bordure', 'arrosage'] },
   { key: 'evacuation', label: 'Évacuation & Nettoyage', emoji: '♻️', keywords: ['broyage', 'évacuation', 'evacuation', 'nettoyage de terrain', 'déchet'] },
 ]
+const SERVICE_CATEGORIES_PT: { key: string; label: string; emoji: string; keywords: string[] }[] = [
+  { key: 'elagage', label: 'Poda', emoji: '🌳', keywords: ['poda', 'élagage', 'elagage'] },
+  { key: 'traitement', label: 'Tratamentos', emoji: '💊', keywords: ['tratamento', 'traitement', 'fitossanitário', 'charançon'] },
+  { key: 'abattage', label: 'Abate & Remoção de tocos', emoji: '🪓', keywords: ['abate', 'abattage', 'dessouchage', 'rognage', 'toco'] },
+  { key: 'taille', label: 'Poda & Sebes', emoji: '✂️', keywords: ['sebe', 'taille', 'arbusto', 'roseira', 'fruteira'] },
+  { key: 'pelouse', label: 'Relva & Relvado', emoji: '🌿', keywords: ['corte', 'relva', 'relvado', 'escarificação', 'tonte', 'pelouse', 'gazon'] },
+  { key: 'entretien', label: 'Manutenção', emoji: '🧹', keywords: ['manutenção', 'entretien', 'desmatação', 'ervas', 'limpeza', 'folhas'] },
+  { key: 'amenagement', label: 'Paisagismo', emoji: '🏡', keywords: ['paisagismo', 'aménagement', 'criação', 'plantação', 'canteiro', 'caminho', 'rega'] },
+  { key: 'evacuation', label: 'Evacuação & Limpeza', emoji: '♻️', keywords: ['trituração', 'evacuação', 'evacuation', 'limpeza de terreno', 'resíduos'] },
+]
+function getServiceCategories(loc: string) { return loc === 'pt' ? SERVICE_CATEGORIES_PT : SERVICE_CATEGORIES_FR }
 
-function getServiceCategory(name: string): string {
+function getServiceCategory(name: string, loc: string): string {
   const lower = name.toLowerCase()
-  for (const cat of SERVICE_CATEGORIES) {
+  for (const cat of getServiceCategories(loc)) {
     if (cat.keywords.some(kw => lower.includes(kw))) return cat.key
   }
   return 'autres'
 }
 
-function groupServicesByCategory(servicesList: any[]): { key: string; label: string; emoji: string; services: any[] }[] {
+function groupServicesByCategory(servicesList: any[], loc: string): { key: string; label: string; emoji: string; services: any[] }[] {
+  const cats = getServiceCategories(loc)
   const grouped: Record<string, any[]> = {}
   for (const svc of servicesList) {
-    const cat = getServiceCategory(svc.name)
+    const cat = getServiceCategory(svc.name, loc)
     if (!grouped[cat]) grouped[cat] = []
     grouped[cat].push(svc)
   }
   const result: { key: string; label: string; emoji: string; services: any[] }[] = []
-  for (const cat of SERVICE_CATEGORIES) {
+  for (const cat of cats) {
     if (grouped[cat.key]?.length) {
       result.push({ key: cat.key, label: cat.label, emoji: cat.emoji, services: grouped[cat.key] })
     }
   }
   if (grouped['autres']?.length) {
-    result.push({ key: 'autres', label: 'Autres services', emoji: '🔧', services: grouped['autres'] })
+    result.push({ key: 'autres', label: loc === 'pt' ? 'Outros serviços' : 'Autres services', emoji: '🔧', services: grouped['autres'] })
   }
   return result
 }
@@ -379,7 +391,9 @@ export default function ArtisanProfilePage() {
   const params = useParams()
   const router = useRouter()
   const locale = useLocale()
-  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const t = (fr: string, pt: string) => (isPt ? pt : fr)
+  const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
   const [artisan, setArtisan] = useState<any>(null)
   const [services, setServices] = useState<any[]>([])
   const [availability, setAvailability] = useState<any[]>([])
@@ -863,18 +877,18 @@ export default function ArtisanProfilePage() {
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-white" />
                       <span className="text-xl font-semibold">{artisan.rating_avg || '5.0'}</span>
-                      <span className="opacity-90">({artisan.rating_count || 0} avis)</span>
+                      <span className="opacity-90">({artisan.rating_count || 0} {t('avis', 'avaliações')})</span>
                     </div>
                     {artisan.verified && (
                       <span className="bg-white text-yellow px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
-                        <Check className="w-4 h-4" /> V&eacute;rifi&eacute;
+                        <Check className="w-4 h-4" /> {t('Vérifié', 'Verificado')}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 opacity-90">
                     <MapPin className="w-4 h-4" />
                     <span>
-                      {artisan.city || 'La Ciotat'} - {artisan.zone_radius_km || 30} km de rayon d&apos;intervention
+                      {artisan.city || (isPt ? 'Porto' : 'La Ciotat')} - {artisan.zone_radius_km || 30} {t('km de rayon d\'intervention', 'km de raio de atuação')}
                     </span>
                   </div>
                 </div>
@@ -884,9 +898,9 @@ export default function ArtisanProfilePage() {
             <div className="p-8">
               {/* About */}
               <div className="mb-8">
-                <h2 className="font-display text-2xl font-black text-dark mb-4 tracking-[-0.02em]">&Agrave; propos</h2>
+                <h2 className="font-display text-2xl font-black text-dark mb-4 tracking-[-0.02em]">{t('À propos', 'Sobre')}</h2>
                 <p className="text-mid leading-relaxed">
-                  {cleanBio(artisan.bio) || 'Artisan professionnel disponible pour vos projets.'}
+                  {cleanBio(artisan.bio) || t('Artisan professionnel disponible pour vos projets.', 'Profissional disponível para os seus projetos.')}
                 </p>
               </div>
 
@@ -900,7 +914,7 @@ export default function ArtisanProfilePage() {
                     <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
                       <FileText className="w-5 h-5 text-yellow" />
                     </div>
-                    <h2 className="font-display text-2xl font-black text-dark tracking-[-0.02em] group-hover:text-yellow transition">Carnet de visite</h2>
+                    <h2 className="font-display text-2xl font-black text-dark tracking-[-0.02em] group-hover:text-yellow transition">{t('Carnet de visite', 'Cartão de visita')}</h2>
                   </div>
                   <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showBusinessCard ? 'rotate-180' : ''}`} />
                 </button>
@@ -915,7 +929,7 @@ export default function ArtisanProfilePage() {
                             <Building2 className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Entreprise</div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Entreprise', 'Empresa')}</div>
                             <div className="font-semibold text-gray-900">{artisan.company_name}</div>
                           </div>
                         </div>
@@ -928,7 +942,7 @@ export default function ArtisanProfilePage() {
                             <FileText className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Forme juridique</div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Forme juridique', 'Forma jurídica')}</div>
                             <div className="font-semibold text-gray-900">{artisan.legal_form}</div>
                           </div>
                         </div>
@@ -941,7 +955,7 @@ export default function ArtisanProfilePage() {
                             <Shield className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">SIRET</div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('SIRET', 'NIF')}</div>
                             <div className="font-semibold text-gray-900 font-mono text-sm">{artisan.siret}</div>
                           </div>
                         </div>
@@ -954,7 +968,7 @@ export default function ArtisanProfilePage() {
                             <FileText className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Code NAF</div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Code NAF', 'Código CAE')}</div>
                             <div className="font-semibold text-gray-900">{artisan.naf_code}{artisan.naf_label ? ` — ${artisan.naf_label}` : ''}</div>
                           </div>
                         </div>
@@ -967,7 +981,7 @@ export default function ArtisanProfilePage() {
                             <MapPin className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Adresse</div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Adresse', 'Morada')}</div>
                             <div className="font-semibold text-gray-900 text-sm">
                               {artisan.company_address && <span>{artisan.company_address}<br /></span>}
                               {artisan.company_postal_code && <span>{artisan.company_postal_code} </span>}
@@ -984,7 +998,7 @@ export default function ArtisanProfilePage() {
                             <Phone className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Téléphone</div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Téléphone', 'Telefone')}</div>
                             <a href={`tel:${artisan.phone.replace(/\s/g, '')}`} className="font-semibold text-gray-900 hover:text-yellow transition">
                               {artisan.phone}
                             </a>
@@ -1013,8 +1027,8 @@ export default function ArtisanProfilePage() {
                           <Search className="w-4.5 h-4.5 text-yellow" />
                         </div>
                         <div>
-                          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Zone d&apos;intervention</div>
-                          <div className="font-semibold text-gray-900">{artisan.company_city || artisan.city || 'La Ciotat'} — rayon {artisan.zone_radius_km || 30} km</div>
+                          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">{t('Zone d\'intervention', 'Zona de atuação')}</div>
+                          <div className="font-semibold text-gray-900">{artisan.company_city || artisan.city || (isPt ? 'Porto' : 'La Ciotat')} — {t('rayon', 'raio')} {artisan.zone_radius_km || 30} km</div>
                         </div>
                       </div>
                     </div>
@@ -1023,7 +1037,7 @@ export default function ArtisanProfilePage() {
                     {artisan.portfolio_photos && Array.isArray(artisan.portfolio_photos) && artisan.portfolio_photos.length > 0 && (
                       <div className="mt-6 pt-5 border-t border-gray-200/60">
                         <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                          📸 Réalisations
+                          📸 {t('Réalisations', 'Realizações')}
                           <span className="text-xs text-gray-500 font-normal">({artisan.portfolio_photos.length} photo{artisan.portfolio_photos.length > 1 ? 's' : ''})</span>
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -1049,7 +1063,7 @@ export default function ArtisanProfilePage() {
                           ))}
                         </div>
                         {artisan.portfolio_photos.length > 6 && (
-                          <p className="text-sm text-gray-500 mt-2.5 text-center">+ {artisan.portfolio_photos.length - 6} autres réalisations</p>
+                          <p className="text-sm text-gray-500 mt-2.5 text-center">+ {artisan.portfolio_photos.length - 6} {t('autres réalisations', 'outras realizações')}</p>
                         )}
                       </div>
                     )}
@@ -1060,21 +1074,21 @@ export default function ArtisanProfilePage() {
               {/* Services */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="font-display text-2xl font-black text-dark tracking-[-0.02em]">Services propos&eacute;s</h2>
+                  <h2 className="font-display text-2xl font-black text-dark tracking-[-0.02em]">{t('Services proposés', 'Serviços oferecidos')}</h2>
                   {selectedServices.length > 0 && (
                     <span className="bg-yellow text-gray-900 text-xs font-bold px-3 py-1 rounded-full">
-                      {selectedServices.length} s&eacute;lectionn&eacute;{selectedServices.length > 1 ? 's' : ''}
+                      {selectedServices.length} {t('sélectionné', 'selecionado')}{selectedServices.length > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
                 <p className="text-gray-500 text-sm mb-4">
-                  Cliquez sur <strong>+</strong> pour combiner plusieurs services dans une m&ecirc;me intervention
+                  {t('Clique em', 'Clique em')} <strong>+</strong> {t('pour combiner plusieurs services dans une même intervention', 'para combinar vários serviços na mesma intervenção')}
                 </p>
                 {services.length === 0 ? (
-                  <p className="text-gray-600">Aucun service disponible pour le moment.</p>
+                  <p className="text-gray-600">{t('Aucun service disponible pour le moment.', 'Nenhum serviço disponível de momento.')}</p>
                 ) : (
                   <div className="space-y-6">
-                    {groupServicesByCategory(services).map((group) => (
+                    {groupServicesByCategory(services, locale).map((group) => (
                       <div key={group.key}>
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-xl">{group.emoji}</span>
@@ -1156,7 +1170,7 @@ export default function ArtisanProfilePage() {
                                         {priceInfo.type === 'fixed' && <span className="text-lg font-bold text-yellow">{priceInfo.label}</span>}
                                       </>
                                     )}
-                                    <span className="text-xs text-gray-500">{isInCart ? '✓ Sélectionné' : 'Cliquez pour sélectionner'}</span>
+                                    <span className="text-xs text-gray-500">{isInCart ? t('✓ Sélectionné', '✓ Selecionado') : t('Cliquez pour sélectionner', 'Clique para selecionar')}</span>
                                   </div>
                                 </div>
                               </div>
