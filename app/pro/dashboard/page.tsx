@@ -1037,7 +1037,8 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push(`/${locale}/`)
+    // Hard navigation — router.push triggers middleware which redirects to /pro/login before / loads
+    window.location.href = `/${locale}/`
   }
 
   // ═══ NOTIFICATIONS TEMPS RÉEL ═══
@@ -1301,7 +1302,7 @@ export default function DashboardPage() {
                     <span>⚙️</span> {t('proDash.myProfile')}
                   </button>
                   <div className="border-t border-gray-100" />
-                  <button onClick={async () => { setShowProfileMenu(false); await supabase.auth.signOut(); router.push(`/${locale}/`) }}
+                  <button onClick={async () => { setShowProfileMenu(false); await supabase.auth.signOut(); window.location.href = `/${locale}/` }}
                     className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition">
                     <span>🚪</span> {t('proDash.logout')}
                   </button>

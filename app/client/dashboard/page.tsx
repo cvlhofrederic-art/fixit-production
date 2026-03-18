@@ -284,7 +284,7 @@ export default function ClientDashboardPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push(`/${locale}/`)
+    window.location.href = `/${locale}/`
   }
 
   // ── Annuler un RDV ──

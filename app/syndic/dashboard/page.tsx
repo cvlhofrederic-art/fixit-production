@@ -1155,7 +1155,7 @@ export default function SyndicDashboard() {
   const handleLogout = async () => {
     setMaxMessages([])
     await supabase.auth.signOut()
-    window.location.href = '/syndic/login'
+    window.location.href = '/'
   }
 
   const sendCanalInterne = async () => {

@@ -1375,7 +1375,7 @@ export default function MobileDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push(`/${locale}/`)
+    window.location.href = `/${locale}/`
   }
 
   // ── Messagerie artisan ──
