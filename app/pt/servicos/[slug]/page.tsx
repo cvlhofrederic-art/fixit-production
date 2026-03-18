@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: {
-      canonical: `https://vitfix.io/pt/services/${slug}/`,
+      canonical: `https://vitfix.io/pt/servicos/${slug}/`,
     },
   }
 }
@@ -57,7 +57,7 @@ export default async function PtServiceCityPage({ params }: { params: Promise<{ 
         '@type': 'HomeAndConstructionBusiness',
         name: `VITFIX — ${service.name} em ${city.name}`,
         description: service.metaDesc.replace('{city}', city.name),
-        url: `https://vitfix.io/pt/services/${slug}/`,
+        url: `https://vitfix.io/pt/servicos/${slug}/`,
         areaServed: {
           '@type': 'City',
           name: city.name,
@@ -99,8 +99,8 @@ export default async function PtServiceCityPage({ params }: { params: Promise<{ 
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Serviços', item: 'https://vitfix.io/pt/services/' },
-          { '@type': 'ListItem', position: 3, name: `${service.name} em ${city.name}`, item: `https://vitfix.io/pt/services/${slug}/` },
+          { '@type': 'ListItem', position: 2, name: 'Serviços', item: 'https://vitfix.io/pt/servicos/' },
+          { '@type': 'ListItem', position: 3, name: `${service.name} em ${city.name}`, item: `https://vitfix.io/pt/servicos/${slug}/` },
         ],
       },
       {
@@ -125,7 +125,7 @@ export default async function PtServiceCityPage({ params }: { params: Promise<{ 
           <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
             <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
-            <Link href="/pt/services/" className="hover:text-yellow transition">Serviços</Link>
+            <Link href="/pt/servicos/" className="hover:text-yellow transition">Serviços</Link>
             <span className="mx-2">/</span>
             <span className="text-dark font-medium">{service.name} {city.name}</span>
           </nav>
@@ -155,7 +155,7 @@ export default async function PtServiceCityPage({ params }: { params: Promise<{ 
               Orçamento WhatsApp grátis
             </a>
             <Link
-              href="/pt/services/"
+              href="/pt/servicos/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
               Ver todos os serviços
@@ -280,7 +280,7 @@ export default async function PtServiceCityPage({ params }: { params: Promise<{ 
                 {nearbyCities.map(nc => (
                   <Link
                     key={nc.slug}
-                    href={`/pt/services/${service.slug}-${nc.slug}/`}
+                    href={`/pt/servicos/${service.slug}-${nc.slug}/`}
                     className="flex items-center gap-3 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
                   >
                     <span className="text-xl">{service.icon}</span>
@@ -306,7 +306,7 @@ export default async function PtServiceCityPage({ params }: { params: Promise<{ 
             {otherServices.map(os => (
               <Link
                 key={os.slug}
-                href={`/pt/services/${os.slug}-${city.slug}/`}
+                href={`/pt/servicos/${os.slug}-${city.slug}/`}
                 className="p-6 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group text-center"
               >
                 <span className="text-3xl block mb-3">{os.icon}</span>

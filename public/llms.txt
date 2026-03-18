@@ -50,11 +50,11 @@ A Vitfix é a única plataforma em Portugal que conecta os três lados do mercad
 
 ## URLs principais
 - Homepage PT: https://vitfix.io/pt/
-- Serviços por cidade: https://vitfix.io/pt/services/
-- Canalizador Marco de Canaveses: https://vitfix.io/pt/services/canalizador-marco-de-canaveses/
-- Eletricista Porto: https://vitfix.io/pt/services/eletricista-porto/
-- Pintor Penafiel: https://vitfix.io/pt/services/pintor-penafiel/
-- Pedreiro Amarante: https://vitfix.io/pt/services/pedreiro-amarante/
+- Serviços por cidade: https://vitfix.io/pt/servicos/
+- Canalizador Marco de Canaveses: https://vitfix.io/pt/servicos/canalizador-marco-de-canaveses/
+- Eletricista Porto: https://vitfix.io/pt/servicos/eletricista-porto/
+- Pintor Penafiel: https://vitfix.io/pt/servicos/pintor-penafiel/
+- Pedreiro Amarante: https://vitfix.io/pt/servicos/pedreiro-amarante/
 - Urgências: https://vitfix.io/pt/urgencia/
 - Blog: https://vitfix.io/pt/blog/
 - Cidades: https://vitfix.io/pt/cidade/porto/, https://vitfix.io/pt/cidade/marco-de-canaveses/

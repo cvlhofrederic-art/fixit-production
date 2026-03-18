@@ -72,7 +72,7 @@ export default async function PtCidadePage({ params }: { params: Promise<{ slug:
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Serviços', item: 'https://vitfix.io/pt/services/' },
+          { '@type': 'ListItem', position: 2, name: 'Serviços', item: 'https://vitfix.io/pt/servicos/' },
           { '@type': 'ListItem', position: 3, name: city.name, item: `https://vitfix.io/pt/cidade/${slug}/` },
         ],
       },
@@ -89,7 +89,7 @@ export default async function PtCidadePage({ params }: { params: Promise<{ slug:
           <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
             <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
-            <Link href="/pt/services/" className="hover:text-yellow transition">Serviços</Link>
+            <Link href="/pt/servicos/" className="hover:text-yellow transition">Serviços</Link>
             <span className="mx-2">/</span>
             <span className="text-dark font-medium">{city.name}</span>
           </nav>
@@ -127,7 +127,7 @@ export default async function PtCidadePage({ params }: { params: Promise<{ slug:
             {SERVICES.map(service => (
               <Link
                 key={service.slug}
-                href={`/pt/services/${service.slug}-${city.slug}/`}
+                href={`/pt/servicos/${service.slug}-${city.slug}/`}
                 className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
               >
                 <span className="text-3xl flex-shrink-0">{service.icon}</span>

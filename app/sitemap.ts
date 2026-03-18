@@ -25,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Hub pages PT
   const seoHubPages: MetadataRoute.Sitemap = [
     {
-      url: `${baseUrl}/pt/services/`,
+      url: `${baseUrl}/pt/servicos/`,
       lastModified: new Date('2026-03-18'),
       changeFrequency: 'weekly' as const,
       priority: 0.9,
@@ -71,7 +71,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Pages SEO programmatiques — services x villes (9 services x 8 cities = 72 pages)
   const seoServicePages: MetadataRoute.Sitemap = getAllPageCombos().map(combo => ({
-    url: `${baseUrl}/pt/services/${combo.slug}/`,
+    url: `${baseUrl}/pt/servicos/${combo.slug}/`,
     lastModified: new Date('2026-03-18'),
     changeFrequency: 'weekly' as const,
     priority: 0.85,

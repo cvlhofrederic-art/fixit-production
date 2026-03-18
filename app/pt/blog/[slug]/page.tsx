@@ -165,7 +165,7 @@ export default async function PtBlogArticlePage({ params }: { params: Promise<{ 
                 return (
                   <Link
                     key={sSlug}
-                    href={`/pt/services/${sSlug}-marco-de-canaveses/`}
+                    href={`/pt/servicos/${sSlug}-marco-de-canaveses/`}
                     className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-6 py-3 text-[0.9rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
                   >
                     {svc.icon} {svc.name} em Marco de Canaveses
@@ -178,7 +178,7 @@ export default async function PtBlogArticlePage({ params }: { params: Promise<{ 
               {['Porto', 'Penafiel', 'Amarante', 'Vila Nova de Gaia'].map((c, i) => (
                 <span key={c}>
                   {i > 0 && ', '}
-                  <Link href={`/pt/services/${article.relatedServices[0]}-${c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ /g, '-')}/`} className="text-yellow hover:underline">
+                  <Link href={`/pt/servicos/${article.relatedServices[0]}-${c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ /g, '-')}/`} className="text-yellow hover:underline">
                     {c}
                   </Link>
                 </span>
@@ -198,7 +198,7 @@ export default async function PtBlogArticlePage({ params }: { params: Promise<{ 
                   return (
                     <Link
                       key={`${sSlug}-${citySlug}`}
-                      href={`/pt/services/${sSlug}-${citySlug}/`}
+                      href={`/pt/servicos/${sSlug}-${citySlug}/`}
                       className="text-sm text-text-muted hover:text-yellow transition p-2 rounded-lg hover:bg-yellow/5"
                     >
                       {svc.icon} {svc.name} {cityName}
