@@ -818,8 +818,8 @@ export default function ClientDashboardPage() {
     { key: 'dashboard', icon: <LayoutDashboard className="w-[18px] h-[18px]" />, label: 'Dashboard' },
     { key: 'upcoming', icon: <Calendar className="w-[18px] h-[18px]" />, label: t('clientDash.stats.reservations'), badge: upcomingBookings.length, activeKeys: ['upcoming', 'past'] },
     { key: 'logement', icon: <Home className="w-[18px] h-[18px]" />, label: t('clientDash.tabs.logement') },
-    { key: 'messages', icon: <MessageSquare className="w-[18px] h-[18px]" />, label: 'Messages', badge: totalUnread > 0 ? totalUnread : undefined, badgeRed: totalUnread > 0 },
-    { key: 'documents', icon: <FileText className="w-[18px] h-[18px]" />, label: 'Documents' },
+    { key: 'messages', icon: <MessageSquare className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Mensagens' : 'Messages', badge: totalUnread > 0 ? totalUnread : undefined, badgeRed: totalUnread > 0 },
+    { key: 'documents', icon: <FileText className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Documentos' : 'Documents' },
     { key: 'analyse', icon: <FileSearch className="w-[18px] h-[18px]" />, label: t('clientDash.tabs.analyseDevis') },
     { key: 'simulateur', icon: <Calculator className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Simulador' : 'Simulateur devis' },
     { key: 'marches', icon: <Hammer className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Bolsa de Mercados' : 'Bourse aux Marchés' },
@@ -1124,12 +1124,12 @@ export default function ClientDashboardPage() {
                 <div className="space-y-6">
                   {/* Quick actions */}
                   <div className="bg-white" style={{ borderRadius: 16, padding: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', marginBottom: 16 }}>Actions rapides</p>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', marginBottom: 16 }}>{locale === 'pt' ? 'Ações rápidas' : 'Actions rapides'}</p>
                     <div className="space-y-2">
                       {[
                         { label: t('clientDash.findArtisan'), icon: <Search className="w-4 h-4" />, onClick: () => {}, href: '/recherche' },
-                        { label: 'Messages', icon: <MessageSquare className="w-4 h-4" />, onClick: () => setActiveTab('messages'), badge: totalUnread },
-                        { label: 'Documents', icon: <FileText className="w-4 h-4" />, onClick: () => setActiveTab('documents') },
+                        { label: locale === 'pt' ? 'Mensagens' : 'Messages', icon: <MessageSquare className="w-4 h-4" />, onClick: () => setActiveTab('messages'), badge: totalUnread },
+                        { label: locale === 'pt' ? 'Documentos' : 'Documents', icon: <FileText className="w-4 h-4" />, onClick: () => setActiveTab('documents') },
                         { label: t('clientDash.tabs.analyseDevis'), icon: <FileSearch className="w-4 h-4" />, onClick: () => setActiveTab('analyse') },
                         { label: locale === 'pt' ? 'Simulador de orçamento' : 'Simulateur de devis', icon: <Calculator className="w-4 h-4" />, onClick: () => setActiveTab('simulateur') },
                       ].map((action, i) => (
@@ -1208,7 +1208,7 @@ export default function ClientDashboardPage() {
                 disabled={conversationsLoading}
                 className="text-xs text-text-muted hover:text-[#FFC107] transition"
               >
-                {conversationsLoading ? 'Chargement...' : 'Actualiser'}
+                {conversationsLoading ? (locale === 'pt' ? 'A carregar...' : 'Chargement...') : (locale === 'pt' ? 'Atualizar' : 'Actualiser')}
               </button>
             </div>
 
@@ -1229,9 +1229,9 @@ export default function ClientDashboardPage() {
             ) : conversations.length === 0 ? (
               <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-[0_4px_30px_rgba(0,0,0,0.08)] p-12 text-center">
                 <div className="text-5xl mb-4">💬</div>
-                <h3 className="text-lg font-display font-bold text-dark mb-2">Aucune conversation</h3>
-                <p className="text-text-muted mb-4">Vos échanges avec les artisans apparaîtront ici.</p>
-                <p className="text-sm text-gray-400">Cliquez sur le bouton &quot;Messages&quot; sur une réservation pour démarrer une conversation.</p>
+                <h3 className="text-lg font-display font-bold text-dark mb-2">{locale === 'pt' ? 'Nenhuma conversa' : 'Aucune conversation'}</h3>
+                <p className="text-text-muted mb-4">{locale === 'pt' ? 'As suas trocas com os profissionais aparecerão aqui.' : 'Vos échanges avec les artisans apparaîtront ici.'}</p>
+                <p className="text-sm text-gray-400">{locale === 'pt' ? 'Clique no botão "Mensagens" numa reserva para iniciar uma conversa.' : 'Cliquez sur le bouton "Messages" sur une réservation pour démarrer une conversation.'}</p>
               </div>
             ) : (
               conversations.map(conv => {
@@ -1288,7 +1288,7 @@ export default function ClientDashboardPage() {
                 disabled={documentsLoading}
                 className="text-xs text-text-muted hover:text-[#FFC107] transition"
               >
-                {documentsLoading ? 'Chargement...' : 'Actualiser'}
+                {documentsLoading ? (locale === 'pt' ? 'A carregar...' : 'Chargement...') : (locale === 'pt' ? 'Atualizar' : 'Actualiser')}
               </button>
             </div>
 
@@ -1309,9 +1309,9 @@ export default function ClientDashboardPage() {
             ) : documents.length === 0 ? (
               <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-[0_4px_30px_rgba(0,0,0,0.08)] p-12 text-center">
                 <div className="text-5xl mb-4">📄</div>
-                <h3 className="text-lg font-display font-bold text-dark mb-2">Aucun document</h3>
-                <p className="text-text-muted mb-4">Les devis et factures reçus de vos artisans apparaîtront ici.</p>
-                <p className="text-sm text-gray-400">Quand un artisan vous envoie un devis via la messagerie, il sera listé ici.</p>
+                <h3 className="text-lg font-display font-bold text-dark mb-2">{locale === 'pt' ? 'Nenhum documento' : 'Aucun document'}</h3>
+                <p className="text-text-muted mb-4">{locale === 'pt' ? 'Os orçamentos e faturas recebidos dos seus profissionais aparecerão aqui.' : 'Les devis et factures reçus de vos artisans apparaîtront ici.'}</p>
+                <p className="text-sm text-gray-400">{locale === 'pt' ? 'Quando um profissional lhe envia um orçamento via mensagens, aparecerá aqui.' : 'Quand un artisan vous envoie un devis via la messagerie, il sera listé ici.'}</p>
               </div>
             ) : (
               documents.map((doc: any) => {
@@ -2438,7 +2438,7 @@ export default function ClientDashboardPage() {
         {[
           { key: 'dashboard' as const, icon: <LayoutDashboard className="w-5 h-5" />, label: 'Home' },
           { key: 'upcoming' as const, icon: <Calendar className="w-5 h-5" />, label: t('clientDash.stats.reservations') },
-          { key: 'messages' as const, icon: <MessageSquare className="w-5 h-5" />, label: 'Messages', badge: totalUnread },
+          { key: 'messages' as const, icon: <MessageSquare className="w-5 h-5" />, label: locale === 'pt' ? 'Mensagens' : 'Messages', badge: totalUnread },
           { key: 'logement' as const, icon: <Home className="w-5 h-5" />, label: t('clientDash.tabs.logement') },
           { key: 'marches' as const, icon: <Hammer className="w-5 h-5" />, label: locale === 'pt' ? 'Mercados' : 'Marchés' },
           { key: 'profile' as const, icon: <User className="w-5 h-5" />, label: 'Profil' },

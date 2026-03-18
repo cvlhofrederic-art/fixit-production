@@ -33,6 +33,7 @@ import { fr } from 'date-fns/locale'
 
 interface Artisan {
   id: string
+  user_id?: string | null
   slug?: string | null
   company_name: string | null
   bio: string | null
@@ -998,7 +999,9 @@ function RechercheContent() {
           ...a,
           city: extractedCity,
           distance_km: dist,
-          source: 'registered' as const,
+          // Only real subscribers (user_id != null) get the booking button
+          source: a.user_id ? 'registered' as const : 'catalogue' as const,
+          telephone_pro: a.user_id ? null : (a.phone || null),
         }
       })
 

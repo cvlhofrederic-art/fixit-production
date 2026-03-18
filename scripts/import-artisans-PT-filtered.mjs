@@ -83,8 +83,6 @@ function toSupabaseRecord(profile) {
     active: autoActive,
     verified: false,
     profile_photo_url: null,
-    source: profile.source_name || 'google_maps',
-    website: profile.website || null,
   }
 }
 

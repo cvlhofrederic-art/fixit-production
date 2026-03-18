@@ -504,6 +504,47 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ══════ VILLES PT ══════ */}
+      {isPt && (
+        <section style={{ padding: '4rem 0', background: '#F5F3EF' }}>
+          <div style={{ maxWidth: '72rem', margin: '0 auto', padding: '0 1rem' }}>
+            <h2 className="font-display" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 800, textAlign: 'center', color: '#1a1a1a', marginBottom: '0.5rem' }}>
+              Disponível nestas cidades
+            </h2>
+            <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem' }}>
+              Profissionais verificados em toda a região do Porto e Tâmega e Sousa
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
+              {[
+                { name: 'Marco de Canaveses', slug: 'marco-de-canaveses', pop: '53450' },
+                { name: 'Penafiel', slug: 'penafiel', pop: '72265' },
+                { name: 'Amarante', slug: 'amarante', pop: '56264' },
+                { name: 'Baião', slug: 'baiao', pop: '20522' },
+                { name: 'Felgueiras', slug: 'felgueiras', pop: '58065' },
+                { name: 'Lousada', slug: 'lousada', pop: '47387' },
+                { name: 'Paços de Ferreira', slug: 'pacos-de-ferreira', pop: '56340' },
+                { name: 'Paredes', slug: 'paredes', pop: '86854' },
+                { name: 'Porto', slug: 'porto', pop: '231800' },
+                { name: 'Vila Nova de Gaia', slug: 'vila-nova-de-gaia', pop: '302296' },
+                { name: 'Braga', slug: 'braga', pop: '193324' },
+                { name: 'Maia', slug: 'maia', pop: '135306' },
+              ].map(city => (
+                <Link
+                  key={city.slug}
+                  href={`/pt/cidade/${city.slug}/`}
+                  style={{ background: '#fff', borderRadius: '0.75rem', padding: '1rem', border: '1px solid rgba(0,0,0,0.06)', textAlign: 'center', textDecoration: 'none', transition: 'all 0.2s' }}
+                >
+                  <span className="font-display" style={{ fontWeight: 700, color: '#1a1a1a', display: 'block' }}>{city.name}</span>
+                  <span style={{ fontSize: '0.8rem', color: '#6b7280', display: 'block', marginTop: '0.25rem' }}>
+                    {parseInt(city.pop).toLocaleString('pt-PT')} hab.
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ══════ CTA ══════ */}
       <section className={s.cta}>
         <h2>

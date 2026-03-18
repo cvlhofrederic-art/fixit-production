@@ -629,7 +629,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       setMessages([{
         id: 'welcome',
         role: 'assistant',
-        content: `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?`
+        content: locale === 'pt'
+          ? `Olá! Sou o Fixy, o seu assistente pessoal! 🔧\n\nGiro **tudo** na sua conta:\n\n📅 **Marcações** : "Marcação terça 14h Sr. Silva"\n⏰ **Disponibilidades** : "Ativa segunda a sexta 9h-18h"\n🔧 **Motivos** : "Ativa todos os meus motivos"\n📄 **Orçamentos/Faturas** : "Orçamento poda 150€ Silva"\n👥 **Clientes** : "A minha lista de clientes"\n💰 **Receitas** : "Quanto ganhei este mês?"\n📊 **Declaração** : "A minha declaração trimestral"\n💬 **Mensagens** : "Mensagens da marcação de Silva"\n🏢 **Empresa** : "O meu NIF"\n🧭 **Navegação** : "Abre a contabilidade"\n\n💡 Escreva como quiser, mesmo com erros, eu percebo!\n\nO que fazemos?`
+          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?`
       }])
       setTimeout(() => inputRef.current?.focus(), 300)
     }
@@ -762,7 +764,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       return true
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        addMessage('assistant', "⏱️ Fixy met trop de temps à répondre. Réessayez avec une demande plus simple.")
+        addMessage('assistant', locale === 'pt' ? "⏱️ O Fixy está a demorar demasiado. Tente com um pedido mais simples." : "⏱️ Fixy met trop de temps à répondre. Réessayez avec une demande plus simple.")
         return true
       }
       console.error('AI processing error:', err)
@@ -900,12 +902,16 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       }
 
       case 'help': {
-        addMessage('assistant', `C'est Fixy ! Voici tout ce que je sais faire 💪\n\n🗓️ **Créer un RDV** :\n• "RDV mardi 14h Mme Dupont"\n• "Rendez-vous demain 10h chez M. Martin"\n\n📄 **Créer un devis** :\n• "Devis élagage 150€ pour Frédéric Neiva Carvalho"\n• "Crée le devis motif plomberie prix 250€ pour le client Dupont"\n\n🧾 **Créer une facture** :\n• "Facture intervention Mme Legrand 180€"\n\n📋 **Voir le planning** :\n• "Mes prochains RDV"\n• "Mon agenda"\n\n💡 **Base clients** : Je retrouve automatiquement vos clients et pré-remplis leurs infos !\n\nParlez-moi naturellement, je comprends !`)
+        addMessage('assistant', locale === 'pt'
+          ? `É o Fixy! Aqui está tudo o que sei fazer 💪\n\n🗓️ **Criar marcação** :\n• "Marcação terça 14h Sr. Silva"\n• "Visita amanhã 10h casa do Sr. Costa"\n\n📄 **Criar orçamento** :\n• "Orçamento poda 150€ para Carlos Silva"\n• "Cria orçamento motivo canalização preço 250€ cliente Ferreira"\n\n🧾 **Criar fatura** :\n• "Fatura intervenção Sra. Santos 180€"\n\n📋 **Ver agenda** :\n• "As minhas próximas marcações"\n• "A minha agenda"\n\n💡 **Base de clientes** : Encontro automaticamente os seus clientes e preencho as informações!\n\nFale comigo naturalmente, percebo tudo!`
+          : `C'est Fixy ! Voici tout ce que je sais faire 💪\n\n🗓️ **Créer un RDV** :\n• "RDV mardi 14h Mme Dupont"\n• "Rendez-vous demain 10h chez M. Martin"\n\n📄 **Créer un devis** :\n• "Devis élagage 150€ pour Frédéric Neiva Carvalho"\n• "Crée le devis motif plomberie prix 250€ pour le client Dupont"\n\n🧾 **Créer une facture** :\n• "Facture intervention Mme Legrand 180€"\n\n📋 **Voir le planning** :\n• "Mes prochains RDV"\n• "Mon agenda"\n\n💡 **Base clients** : Je retrouve automatiquement vos clients et pré-remplis leurs infos !\n\nParlez-moi naturellement, je comprends !`)
         break
       }
 
       default: {
-        addMessage('assistant', "Je n'ai pas bien compris. Pouvez-vous reformuler ?\n\nExemples :\n• **RDV mardi 15h Mme Dupont**\n• **Devis plomberie 200€ M. Martin**\n• **Mes prochains RDV**\n\nDites **aide** pour voir toutes les commandes.")
+        addMessage('assistant', locale === 'pt'
+          ? "Não percebi bem. Pode reformular?\n\nExemplos :\n• **Marcação terça 15h Sr. Silva**\n• **Orçamento canalização 200€ Sr. Costa**\n• **As minhas próximas marcações**\n\nEscreva **ajuda** para ver todos os comandos."
+          : "Je n'ai pas bien compris. Pouvez-vous reformuler ?\n\nExemples :\n• **RDV mardi 15h Mme Dupont**\n• **Devis plomberie 200€ M. Martin**\n• **Mes prochains RDV**\n\nDites **aide** pour voir toutes les commandes.")
       }
     }
   }
@@ -938,7 +944,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
     if (pendingAction.pendingConfirmation) {
       const pc = pendingAction.pendingConfirmation
       if (!confirmed) {
-        addMessage('assistant', "Pas de problème, c'est annulé ! Que puis-je faire d'autre ?")
+        addMessage('assistant', locale === 'pt' ? "Sem problema, cancelado! O que posso fazer mais?" : "Pas de problème, c'est annulé ! Que puis-je faire d'autre ?")
         setPendingAction(null)
         return
       }
@@ -964,7 +970,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         }
       } catch (error) {
         console.error('[AiChatBot] Confirmation request failed:', error instanceof Error ? error.message : error)
-        addMessage('assistant', "❌ Erreur de connexion. Réessayez.")
+        addMessage('assistant', locale === 'pt' ? "❌ Erro de ligação. Tente novamente." : "❌ Erreur de connexion. Réessayez.")
       }
       setProcessing(false)
       setPendingAction(null)
@@ -975,7 +981,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
     if (!pendingAction.action) return
 
     if (!confirmed) {
-      addMessage('assistant', "Pas de problème, c'est annulé ! Que puis-je faire d'autre ?")
+      addMessage('assistant', locale === 'pt' ? "Sem problema, cancelado! O que posso fazer mais?" : "Pas de problème, c'est annulé ! Que puis-je faire d'autre ?")
       setPendingAction(null)
       return
     }
@@ -988,10 +994,12 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         try {
           if (!rdvData) throw new Error('Missing data')
           onCreateRdv(rdvData)
-          addMessage('assistant', `✅ **RDV créé avec succès !**\n\n${formatDateFr(rdvData.date, dateFmtLocale)} à ${rdvData.time} avec ${rdvData.client_name}.\n\nLe rendez-vous a été ajouté à votre agenda.`)
+          addMessage('assistant', locale === 'pt'
+            ? `✅ **Marcação criada com sucesso!**\n\n${formatDateFr(rdvData.date, dateFmtLocale)} às ${rdvData.time} com ${rdvData.client_name}.\n\nA marcação foi adicionada à sua agenda.`
+            : `✅ **RDV créé avec succès !**\n\n${formatDateFr(rdvData.date, dateFmtLocale)} à ${rdvData.time} avec ${rdvData.client_name}.\n\nLe rendez-vous a été ajouté à votre agenda.`)
         } catch (error) {
           console.error('[AiChatBot] RDV creation failed:', error instanceof Error ? error.message : error)
-          addMessage('assistant', "❌ Une erreur est survenue lors de la création du RDV. Veuillez réessayer.")
+          addMessage('assistant', locale === 'pt' ? "❌ Ocorreu um erro ao criar a marcação. Por favor tente novamente." : "❌ Une erreur est survenue lors de la création du RDV. Veuillez réessayer.")
         }
         break
       }
@@ -999,7 +1007,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       case 'create_devis':
       case 'create_facture': {
         onCreateDevis(rdvData || {})
-        addMessage('assistant', `✅ **Formulaire de ${rdvData?.docType || type} ouvert !**\n\nLes informations ont été pré-remplies. Complétez les détails et validez.`)
+        addMessage('assistant', locale === 'pt'
+          ? `✅ **Formulário de ${rdvData?.docType || type} aberto!**\n\nAs informações foram pré-preenchidas. Complete os detalhes e valide.`
+          : `✅ **Formulaire de ${rdvData?.docType || type} ouvert !**\n\nLes informations ont été pré-remplies. Complétez les détails et validez.`)
         setTimeout(() => setIsOpen(false), 1500)
         break
       }

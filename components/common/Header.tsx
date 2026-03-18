@@ -13,8 +13,8 @@ const SIMULATEUR_LABEL: Record<string, string> = {
   en: '🧮 Quote calculator',
 }
 const SIMULATEUR_HREF: Record<string, string> = {
-  fr: '/recherche',
-  pt: '/recherche',
+  fr: '/simulateur-devis',
+  pt: '/simulador-orcamento',
   en: '/recherche',
 }
 

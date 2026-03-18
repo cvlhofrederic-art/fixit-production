@@ -67,6 +67,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly' as const,
       priority: 0.85,
     },
+    {
+      url: `${baseUrl}/pt/especialidades/`,
+      lastModified: new Date('2026-03-18'),
+      changeFrequency: 'monthly' as const,
+      priority: 0.85,
+    },
+    {
+      url: `${baseUrl}/pt/condominio/`,
+      lastModified: new Date('2026-03-18'),
+      changeFrequency: 'monthly' as const,
+      priority: 0.85,
+    },
+    {
+      url: `${baseUrl}/pt/simulador-orcamento/`,
+      lastModified: new Date('2026-03-18'),
+      changeFrequency: 'monthly' as const,
+      priority: 0.85,
+    },
   ]
 
   // Pages SEO programmatiques — services x villes (9 services x 8 cities = 72 pages)
