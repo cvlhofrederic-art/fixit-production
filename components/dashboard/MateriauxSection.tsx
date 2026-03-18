@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { supabase } from '@/lib/supabase'
 
 /* ══════════ MATÉRIAUX & PRIX SECTION ══════════ */
 
@@ -161,9 +162,15 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     setIsLoading(true)
 
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+
       const res = await fetch('/api/materiaux-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           query: text.trim(),
           city: userCity,
@@ -178,7 +185,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
       if (!res.ok || data.error) {
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `❌ ${data.error || 'Erreur serveur. Veuillez réessayer.'}`,
+          content: `❌ ${data.error || (locale === 'pt' ? 'Erro do servidor. Tente novamente.' : 'Erreur serveur. Veuillez réessayer.')}`,
         }])
         setIsLoading(false)
         setTimeout(() => inputRef.current?.focus(), 100)
@@ -235,7 +242,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: '❌ Erreur de connexion. Veuillez réessayer.',
+        content: locale === 'pt' ? '❌ Erro de ligação. Tente novamente.' : '❌ Erreur de connexion. Veuillez réessayer.',
       }])
     }
     setIsLoading(false)
