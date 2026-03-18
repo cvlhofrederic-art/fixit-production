@@ -54,26 +54,29 @@ type Props = {
 
 // ═══ CONFIG ═══
 
-const URGENCE_CONFIG: Record<string, { bg: string; text: string; label: string; dot: string }> = {
-  basse:   { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Basse',   dot: 'bg-gray-400' },
-  normale: { bg: 'bg-blue-100',   text: 'text-blue-700',   label: 'Normale', dot: 'bg-blue-500' },
-  haute:   { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Haute',   dot: 'bg-orange-500' },
-  urgente: { bg: 'bg-red-100',    text: 'text-red-700',    label: 'Urgente', dot: 'bg-red-500' },
-}
+const getUrgenceConfig = (isPt: boolean): Record<string, { bg: string; text: string; label: string; dot: string }> => ({
+  basse:   { bg: 'bg-gray-100',   text: 'text-gray-600',   label: isPt ? 'Baixa' : 'Basse',     dot: 'bg-gray-400' },
+  normale: { bg: 'bg-blue-100',   text: 'text-blue-700',   label: isPt ? 'Normal' : 'Normale',   dot: 'bg-blue-500' },
+  haute:   { bg: 'bg-orange-100', text: 'text-orange-700', label: isPt ? 'Alta' : 'Haute',       dot: 'bg-orange-500' },
+  urgente: { bg: 'bg-red-100',    text: 'text-red-700',    label: isPt ? 'Urgente' : 'Urgente',  dot: 'bg-red-500' },
+})
 
-const STATUT_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  en_attente: { bg: 'bg-amber-100',   text: 'text-amber-800',   label: 'En attente' },
-  accepte:    { bg: 'bg-green-100',   text: 'text-green-800',   label: 'Accept\u00e9' },
-  refuse:     { bg: 'bg-red-100',     text: 'text-red-800',     label: 'Refus\u00e9' },
-  en_cours:   { bg: 'bg-blue-100',    text: 'text-blue-800',    label: 'En cours' },
-  termine:    { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Termin\u00e9' },
-}
+const getStatutConfig = (isPt: boolean): Record<string, { bg: string; text: string; label: string }> => ({
+  en_attente: { bg: 'bg-amber-100',   text: 'text-amber-800',   label: isPt ? 'Pendente' : 'En attente' },
+  accepte:    { bg: 'bg-green-100',   text: 'text-green-800',   label: isPt ? 'Aceite' : 'Accept\u00e9' },
+  refuse:     { bg: 'bg-red-100',     text: 'text-red-800',     label: isPt ? 'Recusado' : 'Refus\u00e9' },
+  en_cours:   { bg: 'bg-blue-100',    text: 'text-blue-800',    label: isPt ? 'Em curso' : 'En cours' },
+  termine:    { bg: 'bg-emerald-100', text: 'text-emerald-800', label: isPt ? 'Terminado' : 'Termin\u00e9' },
+})
 
 // ═══ COMPOSANT PRINCIPAL ═══
 
 export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
   const locale = useLocale()
-  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
+  const URGENCE_CONFIG = getUrgenceConfig(isPt)
+  const STATUT_CONFIG = getStatutConfig(isPt)
   const CONV_CACHE_KEY = `fixit_messagerie_convs_${artisan.id}`
   const MSG_CACHE_KEY_PREFIX = `fixit_messagerie_msgs_${artisan.id}_`
 
@@ -333,8 +336,12 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
 
   // Quick templates
   const quickTemplates = tab === 'clients'
-    ? ['\uD83D\uDCCD En route', '\u2705 Terminé', '\u26A0\uFE0F Problème rencontré', '\uD83D\uDD11 Accès requis']
-    : ['\uD83D\uDCCD En route', '\u2705 Terminé', '\uD83D\uDCC4 Devis envoyé', '\uD83D\uDCF8 Photos envoyées']
+    ? isPt
+      ? ['📍 A caminho', '✅ Terminado', '⚠️ Problema encontrado', '🔑 Acesso necessário']
+      : ['📍 En route', '✅ Terminé', '⚠️ Problème rencontré', '🔑 Accès requis']
+    : isPt
+      ? ['📍 A caminho', '✅ Terminado', '📄 Orçamento enviado', '📸 Fotos enviadas']
+      : ['📍 En route', '✅ Terminé', '📄 Devis envoyé', '📸 Photos envoyées']
 
   // ═══ RENDER ═══
   return (
