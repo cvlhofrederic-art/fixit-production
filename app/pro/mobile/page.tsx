@@ -2327,9 +2327,9 @@ export default function MobileDashboard() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="text-sm font-bold text-gray-700">🪪 Documents pro</div>
+                  <div className="text-sm font-bold text-gray-700">🪪 {locale === 'pt' ? 'Documentos pro' : 'Documents pro'}</div>
                   {expiringCount > 0 && (
-                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{expiringCount} alerte{expiringCount > 1 ? 's' : ''}</span>
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{expiringCount} {locale === 'pt' ? 'alerta' : 'alerte'}{expiringCount > 1 ? 's' : ''}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -2358,13 +2358,13 @@ export default function MobileDashboard() {
                 return (
                   <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm mb-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-600">Score compliance</span>
+                      <span className="text-xs font-semibold text-gray-600">{locale === 'pt' ? 'Pontuação conformidade' : 'Score compliance'}</span>
                       <span className={`text-lg font-black ${healthColor}`}>{healthScore}%</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
                       <div className={`${healthBg} h-2 rounded-full transition-all duration-500`} style={{ width: `${healthScore}%` }} />
                     </div>
-                    <div className="text-[10px] text-gray-500 mt-1.5">{validCount}/{requiredTypes.length} documents valides</div>
+                    <div className="text-[10px] text-gray-500 mt-1.5">{validCount}/{requiredTypes.length} {locale === 'pt' ? 'documentos válidos' : 'documents valides'}</div>
                   </div>
                 )
               })()}
@@ -2375,13 +2375,13 @@ export default function MobileDashboard() {
                   <div className="flex items-start gap-2">
                     <span className="text-lg">🎓</span>
                     <div className="flex-1">
-                      <div className="text-xs font-bold text-purple-800">Passeport Prevention obligatoire</div>
-                      <div className="text-[10px] text-purple-600 mt-0.5">Obligatoire depuis mars 2026 pour tous les artisans du BTP. Ajoutez-le maintenant.</div>
+                      <div className="text-xs font-bold text-purple-800">{locale === 'pt' ? 'Certificado de Atividade em falta' : 'Passeport Prevention obligatoire'}</div>
+                      <div className="text-[10px] text-purple-600 mt-0.5">{locale === 'pt' ? 'Adicione o seu certificado de atividade profissional para completar o seu dossiê.' : 'Obligatoire depuis mars 2026 pour tous les artisans du BTP. Ajoutez-le maintenant.'}</div>
                       <button
                         onClick={() => { setOcrResult(null); setComplianceForm(f => ({ ...f, type: 'passeport_prev' })); setShowComplianceModal(true) }}
                         className="mt-2 bg-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-lg"
                       >
-                        + Ajouter mon Passeport
+                        {locale === 'pt' ? '+ Adicionar certificado' : '+ Ajouter mon Passeport'}
                       </button>
                     </div>
                   </div>
@@ -2391,13 +2391,13 @@ export default function MobileDashboard() {
               {complianceDocs.length === 0 ? (
                 <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
                   <div className="text-3xl mb-2">🪪</div>
-                  <div className="text-sm font-semibold text-gray-700 mb-1">Portefeuille vide</div>
-                  <div className="text-xs text-gray-500 mb-3">Scannez ou ajoutez vos documents pro pour ne jamais rater une echeance</div>
+                  <div className="text-sm font-semibold text-gray-700 mb-1">{locale === 'pt' ? 'Carteira vazia' : 'Portefeuille vide'}</div>
+                  <div className="text-xs text-gray-500 mb-3">{locale === 'pt' ? 'Digitalize ou adicione os seus documentos profissionais' : 'Scannez ou ajoutez vos documents pro pour ne jamais rater une echeance'}</div>
                   <div className="flex gap-2 justify-center">
                     <button onClick={() => { setOcrResult(null); setShowComplianceModal(true); setTimeout(() => ocrInputRef.current?.click(), 300) }} className="bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1">
-                      📷 Scanner un document
+                      📷 {locale === 'pt' ? 'Digitalizar' : 'Scanner un document'}
                     </button>
-                    <button onClick={() => { setOcrResult(null); setShowComplianceModal(true) }} className="text-[#FFC107] text-xs font-bold px-4 py-2 border border-amber-200 rounded-xl">+ Manuel</button>
+                    <button onClick={() => { setOcrResult(null); setShowComplianceModal(true) }} className="text-[#FFC107] text-xs font-bold px-4 py-2 border border-amber-200 rounded-xl">{locale === 'pt' ? '+ Manual' : '+ Manuel'}</button>
                   </div>
                 </div>
               ) : (
