@@ -1,20 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 
 const startedAt = Date.now()
 
 // GET /api/health — Health check endpoint pour monitoring
 export async function GET() {
-  const checks: Record<string, any> = {}
+  const checks: Record<string, { status: string; latency_ms?: number; error?: string | null; missing?: string[] }> = {}
 
   // Check Supabase connection
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
     const start = Date.now()
-    const { error } = await supabase.from('profiles_artisan').select('id').limit(1)
+    const { error } = await supabaseAdmin.from('profiles_artisan').select('id').limit(1)
     const latency = Date.now() - start
 
     checks.database = {
@@ -22,23 +18,23 @@ export async function GET() {
       latency_ms: latency,
       error: error?.message || null,
     }
-  } catch (err: any) {
-    checks.database = { status: 'unhealthy', error: err.message }
+  } catch (err: unknown) {
+    checks.database = { status: 'unhealthy', error: err instanceof Error ? err.message : String(err) }
   }
 
-  // Check env vars critiques
+  // Check env vars critiques (ne pas exposer les noms)
   const requiredEnvVars = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   ]
-  const missingEnv = requiredEnvVars.filter(k => !process.env[k])
+  const missingCount = requiredEnvVars.filter(k => !process.env[k]).length
   checks.environment = {
-    status: missingEnv.length === 0 ? 'healthy' : 'unhealthy',
-    missing: missingEnv.length > 0 ? missingEnv : undefined,
+    status: missingCount === 0 ? 'healthy' : 'unhealthy',
+    ...(missingCount > 0 ? { error: `${missingCount} required env var(s) missing` } : {}),
   }
 
-  const isHealthy = Object.values(checks).every((c: any) => c.status === 'healthy')
+  const isHealthy = Object.values(checks).every((c) => c.status === 'healthy')
 
   return NextResponse.json({
     status: isHealthy ? 'healthy' : 'degraded',

@@ -1,21 +1,28 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { syndicMissionSchema, validateBody } from '@/lib/validation'
+import { parsePagination, logger } from '@/lib/logger'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // GET /api/syndic/missions — récupérer les missions du cabinet
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`missions_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  const { from, to } = parsePagination(new URL(request.url))
 
   const { data, error } = await supabaseAdmin
     .from('syndic_missions')
-    .select('*')
+    .select('id, cabinet_id, immeuble, artisan, type, description, priorite, statut, date_creation, date_intervention, montant_devis, montant_facture, batiment, etage, num_lot, locataire, telephone_locataire, acces_logement, demandeur_nom, demandeur_role, demandeur_email, est_partie_commune, zone_signalee, canal_messages, demandeur_messages, rapport_artisan, travail_effectue, materiaux_utilises, problemes_constates, recommandations, date_rapport, duree_intervention, created_at')
     .eq('cabinet_id', cabinetId)
     .order('created_at', { ascending: false })
+    .range(from, to)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   // Adapter les champs snake_case → camelCase pour le frontend
   const missions = (data || []).map(m => ({
@@ -52,49 +59,63 @@ export async function GET(request: NextRequest) {
     dureeIntervention: m.duree_intervention,
   }))
 
-  return NextResponse.json({ missions })
+  const response = NextResponse.json({ missions })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  return response
 }
 
 // POST /api/syndic/missions — créer une mission
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`missions_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
+
+  // Validation Zod — empêche l'injection de champs arbitraires
+  const validation = validateBody(syndicMissionSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
+  }
+  const v = validation.data
 
   const { data, error } = await supabaseAdmin
     .from('syndic_missions')
     .insert({
       cabinet_id: cabinetId,
-      signalement_id: body.signalementId || null,
-      immeuble: body.immeuble || '',
-      artisan: body.artisan || '',
-      type: body.type || '',
-      description: body.description || '',
-      priorite: body.priorite || 'normale',
-      statut: body.statut || 'en_attente',
-      date_creation: body.dateCreation || new Date().toISOString().split('T')[0],
-      date_intervention: body.dateIntervention || null,
-      montant_devis: body.montantDevis || null,
-      batiment: body.batiment || null,
-      etage: body.etage || null,
-      num_lot: body.numLot || null,
-      locataire: body.locataire || null,
-      telephone_locataire: body.telephoneLocataire || null,
-      acces_logement: body.accesLogement || null,
-      demandeur_nom: body.demandeurNom || null,
-      demandeur_role: body.demandeurRole || null,
-      demandeur_email: body.demandeurEmail || null,
-      est_partie_commune: body.estPartieCommune || false,
-      zone_signalee: body.zoneSignalee || null,
-      canal_messages: body.canalMessages || [],
-      demandeur_messages: body.demandeurMessages || [],
+      signalement_id: v.signalementId || null,
+      immeuble: v.immeuble || '',
+      artisan: v.artisan || '',
+      type: v.type || '',
+      description: v.description || '',
+      priorite: v.priorite || 'normale',
+      statut: v.statut || 'en_attente',
+      date_creation: v.dateCreation || new Date().toISOString().split('T')[0],
+      date_intervention: v.dateIntervention || null,
+      montant_devis: v.montantDevis || null,
+      batiment: v.batiment || null,
+      etage: v.etage || null,
+      num_lot: v.numLot || null,
+      locataire: v.locataire || null,
+      telephone_locataire: v.telephoneLocataire || null,
+      acces_logement: v.accesLogement || null,
+      demandeur_nom: v.demandeurNom || null,
+      demandeur_role: v.demandeurRole || null,
+      demandeur_email: v.demandeurEmail || null,
+      est_partie_commune: v.estPartieCommune || false,
+      zone_signalee: v.zoneSignalee || null,
+      canal_messages: v.canalMessages || [],
+      demandeur_messages: v.demandeurMessages || [],
     })
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    logger.error('[syndic/missions] POST insert error:', error.message)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  }
   return NextResponse.json({ mission: data })
 }
 
@@ -102,8 +123,10 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`missions_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
   const { id, ...updates } = body
 
@@ -136,7 +159,7 @@ export async function PATCH(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ mission: data })
 }
 
@@ -144,8 +167,10 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`missions_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
@@ -157,6 +182,6 @@ export async function DELETE(request: NextRequest) {
     .eq('id', id)
     .eq('cabinet_id', cabinetId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

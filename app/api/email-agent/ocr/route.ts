@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry } from '@/lib/groq'
+import { logger } from '@/lib/logger'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limiting — 10 req/min (OCR = appel vision coûteux)
     const ip = getClientIP(request)
-    if (!checkRateLimit(ip, 10, 60_000)) return rateLimitResponse()
+    if (!(await checkRateLimit(ip, 10, 60_000))) return rateLimitResponse()
 
     // Auth — doit être syndic ou artisan authentifié
     const user = await getAuthUser(request)
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
         response_format: { type: 'json_object' },
       }, { fallbackModel: 'meta-llama/llama-4-scout-17b-16e-instruct' })
     } catch (groqErr: any) {
-      console.error('Groq Vision error:', groqErr.message)
+      logger.error('Groq Vision error:', groqErr.message)
       return NextResponse.json({
         result: { confidence: 'basse' } as OCRResult,
         error: 'Analyse vision échouée',
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ result })
 
   } catch (err: any) {
-    console.error('OCR route error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error('OCR route error:', err)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }

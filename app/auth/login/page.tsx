@@ -1,30 +1,60 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
+import LocaleLink from '@/components/common/LocaleLink'
 
 type Espace = 'particulier' | 'artisan' | 'syndic'
 
+const SPACES = [
+  { id: 'particulier' as Espace, emoji: '🏠', labelKey: 'auth.espaceParticulier', descKey: 'auth.espaceParticulierDesc', registerHref: '/auth/register' },
+  { id: 'artisan' as Espace, emoji: '🔧', labelKey: 'auth.espaceArtisan', descKey: 'auth.espaceArtisanDesc', registerHref: '/pro/register' },
+  { id: 'syndic' as Espace, emoji: '🏢', labelKey: 'auth.espacePro', descKey: 'auth.espaceProDesc', registerHref: '/pro/register' },
+]
+
 export default function LoginPage() {
+  const { t } = useTranslation()
+  const locale = useLocale()
+  const [step, setStep] = useState<'select' | 'form'>('select')
   const [espace, setEspace] = useState<Espace | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+  const emailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = session.user.user_metadata?.role
-        if (role === 'artisan') window.location.href = '/pro/dashboard'
-        else if (role === 'syndic') window.location.href = '/syndic/dashboard'
-        else window.location.href = '/client/dashboard'
+        if (role === 'artisan') window.location.href = `/${locale}/pro/dashboard`
+        else if (role === 'syndic') window.location.href = `/${locale}/syndic/dashboard`
+        else window.location.href = `/${locale}/client/dashboard`
       }
     }
     checkAuth()
-  }, [])
+  }, [locale])
+
+  const selectSpace = (space: Espace) => {
+    setEspace(space)
+    setError('')
+    if (space === 'syndic') {
+      setStep('form')
+      return
+    }
+    setTimeout(() => {
+      setStep('form')
+      setTimeout(() => emailRef.current?.focus(), 100)
+    }, 200)
+  }
+
+  const goBack = () => {
+    setStep('select')
+    setError('')
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,168 +62,573 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
+      if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
       const role = data.user?.user_metadata?.role
-      if (role === 'artisan') window.location.href = '/pro/dashboard'
-      else if (role === 'syndic') window.location.href = '/syndic/dashboard'
-      else window.location.href = '/client/dashboard'
+      if (role === 'artisan') window.location.href = `/${locale}/pro/dashboard`
+      else if (role === 'syndic') window.location.href = `/${locale}/syndic/dashboard`
+      else window.location.href = `/${locale}/client/dashboard`
     } catch {
-      setError('Une erreur est survenue.')
+      setError(t('auth.genericError'))
       setLoading(false)
     }
   }
 
-  const espaces = [
-    {
-      id: 'particulier' as Espace,
-      emoji: '🏠',
-      titre: 'Particulier',
-      desc: 'Trouvez et réservez un artisan',
-      couleur: 'border-blue-300 bg-blue-50',
-      couleurActif: 'border-blue-500 bg-blue-50 ring-2 ring-blue-300',
-      registerHref: '/auth/register',
-    },
-    {
-      id: 'artisan' as Espace,
-      emoji: '🔧',
-      titre: 'Artisan',
-      desc: 'Gérez vos interventions',
-      couleur: 'border-amber-300 bg-amber-50',
-      couleurActif: 'border-amber-500 bg-amber-50 ring-2 ring-amber-300',
-      registerHref: '/pro/register',
-    },
-    {
-      id: 'syndic' as Espace,
-      emoji: '🏢',
-      titre: 'Pro',
-      desc: 'Syndics, gestionnaires, entreprises',
-      couleur: 'border-purple-300 bg-purple-50',
-      couleurActif: 'border-purple-500 bg-purple-50 ring-2 ring-purple-300',
-      registerHref: '/pro/register',
-    },
-  ]
+  const handleGoogleLogin = async () => {
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/${locale}/client/dashboard`,
+        },
+      })
+    } catch {
+      setError(t('auth.genericError'))
+    }
+  }
 
-  const espaceActif = espaces.find(e => e.id === espace)
+  const espaceActif = SPACES.find(s => s.id === espace)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center py-12 px-4">
-      <div className="max-w-lg w-full">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <span className="text-4xl">⚡</span>
-            <span className="text-3xl font-bold text-[#FFC107]">Vitfix</span>
-          </Link>
-          <p className="text-gray-500 mt-2 text-sm">Choisissez votre espace pour vous connecter</p>
-        </div>
+    <div className="min-h-screen flex flex-col font-display" style={{ background: '#F0EFE9', fontFamily: "'Montserrat', sans-serif" }}>
 
-        {/* Sélecteur d'espace */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {espaces.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => { setEspace(e.id); setError('') }}
-              className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center ${
-                espace === e.id ? e.couleurActif : e.couleur + ' hover:opacity-80'
-              }`}
-            >
-              <span className="text-3xl mb-2">{e.emoji}</span>
-              <span className="font-bold text-gray-900 text-sm">{e.titre}</span>
-              <span className="text-gray-500 text-xs mt-1">{e.desc}</span>
-            </button>
-          ))}
-        </div>
+      {/* ── Keyframes ── */}
+      <style>{`
+        @keyframes loginFadeUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
 
-        {/* Formulaire — Particulier ou Artisan */}
-        {espace && espaceActif && espace !== 'syndic' && (
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-              <span className="text-3xl">{espaceActif.emoji}</span>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Connexion — {espaceActif.titre}</h2>
-                <p className="text-gray-500 text-sm">{espaceActif.desc}</p>
-              </div>
+      {/* ── NAV ── */}
+      <nav style={{
+        background: '#fff',
+        borderBottom: '1px solid #E8E8E8',
+        padding: '0 48px',
+        height: '64px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}>
+        <LocaleLink href="/" style={{
+          fontWeight: 900,
+          fontSize: '22px',
+          letterSpacing: '-1px',
+          color: '#1A1A1A',
+          textDecoration: 'none',
+          fontFamily: "'Montserrat', sans-serif",
+        }}>
+          VIT<span style={{ color: '#FFC107' }}>FIX</span>
+        </LocaleLink>
+        <LocaleLink href="/" style={{
+          background: 'transparent',
+          border: '1.5px solid #DCDCDC',
+          color: '#1A1A1A',
+          padding: '8px 20px',
+          borderRadius: '50px',
+          fontSize: '13.5px',
+          fontWeight: 600,
+          textDecoration: 'none',
+          fontFamily: "'Montserrat', sans-serif",
+          transition: 'all 0.2s',
+        }}>
+          ← Retour à l&apos;accueil
+        </LocaleLink>
+      </nav>
+
+      {/* ── PAGE BODY ── */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '48px 24px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Background decorations */}
+        <div style={{
+          position: 'absolute', top: '-120px', left: '-120px',
+          width: '400px', height: '400px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(245,196,0,0.12) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: '-80px', right: '-80px',
+          width: '320px', height: '320px', borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(245,196,0,0.10) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── LOGIN CARD ── */}
+        <div style={{
+          background: '#fff',
+          borderRadius: '24px',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
+          padding: '48px 40px 40px',
+          width: '100%',
+          maxWidth: '560px',
+          position: 'relative',
+          zIndex: 1,
+          animation: 'loginFadeUp 0.45s ease both',
+        }}>
+
+          {/* Logo */}
+          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+            <div style={{
+              fontSize: '32px',
+              fontWeight: 900,
+              letterSpacing: '-1.5px',
+              color: '#1A1A1A',
+              lineHeight: 1,
+              fontFamily: "'Montserrat', sans-serif",
+            }}>
+              VIT<span style={{ color: '#FFC107' }}>FIX</span>
             </div>
+          </div>
+          <p style={{
+            textAlign: 'center',
+            fontSize: '14px',
+            color: '#999',
+            marginTop: '10px',
+            marginBottom: '32px',
+            fontWeight: 500,
+          }}>
+            {t('auth.chooseSpace')}
+          </p>
 
-            <form onSubmit={handleLogin} className="space-y-4">
+          {/* ── STEP 1: Space Selector ── */}
+          {step === 'select' && (
+            <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '12px',
+                marginBottom: '28px',
+              }}>
+                {SPACES.map((space) => {
+                  const sel = espace === space.id
+                  return (
+                    <button
+                      key={space.id}
+                      onClick={() => selectSpace(space.id)}
+                      style={{
+                        border: `2px solid ${sel ? '#FFC107' : '#EBEBEB'}`,
+                        borderRadius: '16px',
+                        padding: '22px 12px 18px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '10px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: sel ? '#FFF9D6' : '#FAFAFA',
+                        position: 'relative',
+                        textAlign: 'center',
+                        fontFamily: "'Montserrat', sans-serif",
+                        boxShadow: sel ? '0 8px 24px rgba(245,196,0,0.2)' : 'none',
+                        transform: sel ? 'translateY(-2px)' : 'none',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!sel) {
+                          const t = e.currentTarget
+                          t.style.borderColor = '#FFC107'
+                          t.style.background = '#FFF9D6'
+                          t.style.transform = 'translateY(-2px)'
+                          t.style.boxShadow = '0 8px 24px rgba(245,196,0,0.2)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!sel) {
+                          const t = e.currentTarget
+                          t.style.borderColor = '#EBEBEB'
+                          t.style.background = '#FAFAFA'
+                          t.style.transform = 'none'
+                          t.style.boxShadow = 'none'
+                        }
+                      }}
+                    >
+                      {/* Check mark */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '10px', right: '10px',
+                        width: '20px', height: '20px',
+                        background: '#FFC107',
+                        borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        opacity: sel ? 1 : 0,
+                        transition: 'opacity 0.2s',
+                        color: '#1A1A1A',
+                      }}>
+                        ✓
+                      </div>
+
+                      {/* Icon box */}
+                      <div style={{
+                        width: '52px', height: '52px',
+                        borderRadius: '14px',
+                        background: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '26px',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+                        transition: 'transform 0.2s',
+                        transform: sel ? 'scale(1.08)' : 'scale(1)',
+                      }}>
+                        {space.emoji}
+                      </div>
+
+                      {/* Name */}
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: '#1A1A1A',
+                      }}>
+                        {t(space.labelKey)}
+                      </div>
+
+                      {/* Description */}
+                      <div style={{
+                        fontSize: '11.5px',
+                        color: '#999',
+                        lineHeight: 1.4,
+                      }}>
+                        {t(space.descKey)}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              <p style={{
+                textAlign: 'center',
+                fontSize: '13px',
+                color: '#999',
+                fontWeight: 500,
+              }}>
+                {t('auth.selectSpaceAbove')}
+              </p>
+            </div>
+          )}
+
+          {/* ── STEP 2: Login Form ── */}
+          {step === 'form' && espace && espace !== 'syndic' && espaceActif && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              animation: 'loginFadeUp 0.3s ease both',
+            }}>
+              {/* Form Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                <button
+                  onClick={goBack}
+                  style={{
+                    width: '32px', height: '32px',
+                    borderRadius: '50%',
+                    background: '#F5F5F5',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '16px',
+                    flexShrink: 0,
+                    fontFamily: "'Montserrat', sans-serif",
+                  }}
+                >
+                  ←
+                </button>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>{t('auth.connectionDash')}</h2>
+                <span style={{
+                  marginLeft: 'auto',
+                  background: '#FFF9D6',
+                  color: '#D4A900',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  padding: '4px 12px',
+                  borderRadius: '50px',
+                }}>
+                  {t(espaceActif.labelKey)}
+                </span>
+              </div>
+
+              {/* Error */}
               {error && (
-                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+                <div style={{
+                  background: '#FEF2F2', color: '#DC2626',
+                  padding: '12px 16px', borderRadius: '10px',
+                  fontSize: '14px', border: '1px solid #FECACA',
+                }}>
                   {error}
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+
+              {/* Email */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{
+                  fontSize: '11.5px', fontWeight: 700, color: '#444',
+                  textTransform: 'uppercase', letterSpacing: '0.06em',
+                }}>
+                  Adresse email
+                </label>
                 <input
+                  ref={emailRef}
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
-                  placeholder="votre@email.com"
+                  placeholder="vous@exemple.com"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '1.5px solid #E0E0E0',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    fontFamily: "'Montserrat', sans-serif",
+                    background: '#FAFAFA',
+                    color: '#1A1A1A',
+                    outline: 'none',
+                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                  }}
+                  onFocus={e => {
+                    e.target.style.borderColor = '#FFC107'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(245,196,0,0.15)'
+                    e.target.style.background = '#fff'
+                  }}
+                  onBlur={e => {
+                    e.target.style.borderColor = '#E0E0E0'
+                    e.target.style.boxShadow = 'none'
+                    e.target.style.background = '#FAFAFA'
+                  }}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Mot de passe</label>
+
+              {/* Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{
+                  fontSize: '11.5px', fontWeight: 700, color: '#444',
+                  textTransform: 'uppercase', letterSpacing: '0.06em',
+                }}>
+                  Mot de passe
+                </label>
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
                   placeholder="••••••••"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '1.5px solid #E0E0E0',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    fontFamily: "'Montserrat', sans-serif",
+                    background: '#FAFAFA',
+                    color: '#1A1A1A',
+                    outline: 'none',
+                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                  }}
+                  onFocus={e => {
+                    e.target.style.borderColor = '#FFC107'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(245,196,0,0.15)'
+                    e.target.style.background = '#fff'
+                  }}
+                  onBlur={e => {
+                    e.target.style.borderColor = '#E0E0E0'
+                    e.target.style.boxShadow = 'none'
+                    e.target.style.background = '#FAFAFA'
+                  }}
                 />
               </div>
+
+              {/* Remember me + Forgot password */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 500, color: '#444' }}>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    style={{ width: '16px', height: '16px', accentColor: '#FFC107', cursor: 'pointer' }}
+                  />
+                  Se souvenir de moi
+                </label>
+                <LocaleLink href="/auth/reset-password" style={{
+                  color: '#999', textDecoration: 'none', fontWeight: 600,
+                  fontSize: '12.5px', transition: 'color 0.2s',
+                }}>
+                  {t('auth.forgotPassword')}
+                </LocaleLink>
+              </div>
+
+              {/* Login button */}
+              <form onSubmit={handleLogin}>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    background: '#FFC107',
+                    color: '#1A1A1A',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Montserrat', sans-serif",
+                    transition: 'filter 0.2s, transform 0.2s',
+                    marginTop: '4px',
+                    opacity: loading ? 0.6 : 1,
+                  }}
+                >
+                  {loading ? t('auth.connecting') : `${t('auth.loginButton')} · ${t(espaceActif.labelKey)}`}
+                </button>
+              </form>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#999', fontSize: '12px', fontWeight: 500 }}>
+                <div style={{ flex: 1, height: '1px', background: '#EBEBEB' }} />
+                ou
+                <div style={{ flex: 1, height: '1px', background: '#EBEBEB' }} />
+              </div>
+
+              {/* Google button */}
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed text-lg mt-2 shadow-sm hover:shadow-md"
+                onClick={handleGoogleLogin}
+                type="button"
+                style={{
+                  width: '100%',
+                  background: '#fff',
+                  color: '#1A1A1A',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  border: '1.5px solid #DCDCDC',
+                  cursor: 'pointer',
+                  fontFamily: "'Montserrat', sans-serif",
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                }}
               >
-                {loading ? 'Connexion...' : `Se connecter`}
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continuer avec Google
               </button>
-            </form>
 
-            <div className="mt-5 pt-4 border-t border-gray-100 text-center text-sm text-gray-500">
-              Pas encore de compte ?{' '}
-              <Link href={espaceActif.registerHref} className="text-[#FFC107] hover:underline font-semibold">
-                Créer un compte {espaceActif.titre}
-              </Link>
+              {/* Sign up link */}
+              <p style={{ textAlign: 'center', fontSize: '13px', color: '#999', marginTop: '4px' }}>
+                {t('auth.noAccount')}{' '}
+                <LocaleLink href={espaceActif.registerHref} style={{
+                  color: '#1A1A1A', fontWeight: 700, textDecoration: 'none',
+                  borderBottom: '1.5px solid #FFC107',
+                }}>
+                  {t('auth.createAccountFor')}
+                </LocaleLink>
+              </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Espace Pro → vitfix.pro */}
-        {espace === 'syndic' && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="text-5xl mb-4">🚀</div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Bient&ocirc;t disponible</h2>
-            <p className="text-gray-600 mb-4">
-              L&apos;espace de connexion pour les professionnels (syndics, gestionnaires, conciergeries, entreprises BTP) sera accessible sur notre plateforme d&eacute;di&eacute;e.
-            </p>
-            <div className="inline-flex items-center gap-2 bg-gray-50 border-2 border-purple-300 rounded-xl px-5 py-3 mb-4">
-              <span className="text-lg">🌐</span>
-              <span className="font-bold text-purple-600 text-lg">vitfix.pro</span>
-              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-semibold">BIENT&Ocirc;T</span>
-            </div>
-            <p className="text-sm text-gray-500 mb-4">
-              Ce site est d&eacute;di&eacute; aux particuliers et artisans ind&eacute;pendants.
-            </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-gray-700">
-              <strong>🔧 Vous &ecirc;tes artisan ind&eacute;pendant ?</strong>{' '}
-              <button onClick={() => setEspace('artisan')} className="text-[#FFC107] hover:underline font-semibold">
-                Connectez-vous ici &rarr;
-              </button>
-            </div>
-          </div>
-        )}
+          {/* ── STEP 2: Syndic Coming Soon ── */}
+          {step === 'form' && espace === 'syndic' && (
+            <div style={{
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', textAlign: 'center',
+              animation: 'loginFadeUp 0.3s ease both',
+            }}>
+              {/* Back button */}
+              <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+                <button
+                  onClick={goBack}
+                  style={{
+                    width: '32px', height: '32px',
+                    borderRadius: '50%', background: '#F5F5F5',
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '16px', flexShrink: 0,
+                  }}
+                >
+                  ←
+                </button>
+                <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>Espace Pro</h2>
+                <span style={{
+                  marginLeft: 'auto', background: '#FFF9D6', color: '#D4A900',
+                  fontSize: '11.5px', fontWeight: 700, padding: '4px 12px', borderRadius: '50px',
+                }}>
+                  Pro
+                </span>
+              </div>
 
-        {!espace && (
-          <p className="text-center text-gray-500 text-sm py-4">
-            Sélectionnez votre espace ci-dessus
-          </p>
-        )}
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚀</div>
+              <h3 style={{
+                fontSize: '20px', fontWeight: 900, color: '#1A1A1A',
+                letterSpacing: '-0.02em', marginBottom: '8px',
+                fontFamily: "'Montserrat', sans-serif",
+              }}>
+                {t('auth.comingSoon')}
+              </h3>
+              <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px', maxWidth: '400px' }}>
+                {t('auth.proSpaceDesc')}
+              </p>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                background: '#F5F5F5', border: '1.5px solid #D8B4FE',
+                borderRadius: '10px', padding: '12px 20px', marginBottom: '20px',
+              }}>
+                <span style={{ fontSize: '18px' }}>🌐</span>
+                <span style={{ fontWeight: 700, color: '#9333EA', fontSize: '18px' }}>vitfix.pro</span>
+                <span style={{
+                  fontSize: '11px', background: '#F3E8FF', color: '#9333EA',
+                  padding: '2px 8px', borderRadius: '50px', fontWeight: 600,
+                }}>
+                  {t('auth.comingSoon').toUpperCase()}
+                </span>
+              </div>
+              <p style={{ fontSize: '14px', color: '#999', marginBottom: '20px' }}>
+                {t('auth.thisIsForIndividuals')}
+              </p>
+              <div style={{
+                width: '100%', background: '#FFFBEB', border: '1px solid #FDE68A',
+                borderRadius: '10px', padding: '12px', fontSize: '14px', color: '#444',
+              }}>
+                <strong>🔧 {t('auth.areYouArtisan')}</strong>{' '}
+                <button
+                  onClick={() => { setEspace('artisan'); setStep('form'); setTimeout(() => emailRef.current?.focus(), 100) }}
+                  style={{
+                    color: '#FFC107', fontWeight: 600, background: 'none',
+                    border: 'none', cursor: 'pointer', fontSize: '14px',
+                    fontFamily: "'Montserrat', sans-serif",
+                    textDecoration: 'none',
+                  }}
+                >
+                  {t('auth.connectHere')} →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#999' }}>
+        © 2026 VITFIX ·{' '}
+        <LocaleLink href="/mentions-legales" style={{ color: '#999', textDecoration: 'none' }}>Mentions légales</LocaleLink>
+        {' '}·{' '}
+        <LocaleLink href="/confidentialite" style={{ color: '#999', textDecoration: 'none' }}>Confidentialité</LocaleLink>
+        {' '}·{' '}
+        <LocaleLink href="/contact" style={{ color: '#999', textDecoration: 'none' }}>Contact</LocaleLink>
+      </footer>
     </div>
   )
 }

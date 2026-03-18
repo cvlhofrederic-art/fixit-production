@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n/context'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Tab = 'home' | 'agenda' | 'interventions' | 'documents' | 'settings'
@@ -11,14 +13,14 @@ type ProofStep = 'before' | 'during' | 'after' | 'signature'
 
 // ─── Compliance Wallet ───────────────────────────────────────────────────────
 const COMPLIANCE_TYPES = [
-  { key: 'decennale',  label: 'RC Décennale',         icon: '🛡️', renewYears: 1 },
-  { key: 'kbis',       label: 'Extrait KBIS',          icon: '📋', renewYears: 0 },
-  { key: 'urssaf',     label: 'Attestation URSSAF',    icon: '🏛️', renewYears: 0 },
-  { key: 'rge',        label: 'Certificat RGE',         icon: '♻️', renewYears: 4 },
-  { key: 'carte_pro',      label: 'Carte Pro BTP',          icon: '🪪', renewYears: 5 },
-  { key: 'passeport_prev', label: 'Passeport Prévention',   icon: '🎓', renewYears: 0 },
-  { key: 'assurance_pro',  label: 'Assurance Pro (RC)',      icon: '🔒', renewYears: 1 },
-  { key: 'autre',          label: 'Autre document',          icon: '📄', renewYears: 0 },
+  { key: 'decennale',      label: 'RC Décennale',         labelKey: 'proDash.wallet.assuranceDecennale', icon: '🛡️', renewYears: 1 },
+  { key: 'kbis',           label: 'Extrait KBIS',         labelKey: 'proDash.wallet.kbis',              icon: '📋', renewYears: 0 },
+  { key: 'urssaf',         label: 'Attestation URSSAF',   labelKey: 'proDash.wallet.urssaf',            icon: '🏛️', renewYears: 0 },
+  { key: 'rge',            label: 'Certificat RGE',       labelKey: 'proDash.wallet.rge',               icon: '♻️', renewYears: 4 },
+  { key: 'carte_pro',      label: 'Carte Pro BTP',        labelKey: 'proDash.wallet.carteProBtp',       icon: '🪪', renewYears: 5 },
+  { key: 'passeport_prev', label: 'Passeport Prévention', labelKey: 'proDash.wallet.passeportPrevention', icon: '🎓', renewYears: 0 },
+  { key: 'assurance_pro',  label: 'Assurance Pro (RC)',   labelKey: 'proDash.wallet.rcPro',             icon: '🔒', renewYears: 1 },
+  { key: 'autre',          label: 'Autre document',       labelKey: 'mob.compliance.other',             icon: '📄', renewYears: 0 },
 ] as const
 type ComplianceType = typeof COMPLIANCE_TYPES[number]['key']
 
@@ -85,30 +87,32 @@ const getStatusColor = (status: string) => {
   }
 }
 
-const getStatusLabel = (status: string) => {
+const getStatusLabel = (status: string, t: (k: string) => string) => {
   switch (status) {
-    case 'confirmed': return 'Confirmé'
-    case 'pending': return 'En attente'
-    case 'completed': return 'Terminé'
-    case 'cancelled': return 'Annulé'
+    case 'confirmed': return t('mob.confirmed')
+    case 'pending': return t('mob.pending')
+    case 'completed': return t('mob.completed')
+    case 'cancelled': return t('mob.cancelled')
     default: return status
   }
 }
 
-const formatDateFR = (dateStr: string) => {
+const formatDateLocale = (dateStr: string, locale: string) => {
   if (!dateStr) return ''
   const d = new Date(dateStr)
-  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+  const loc = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  return d.toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 // ─── Bottom Nav Component ──────────────────────────────────────────────────────
 function BottomNav({ active, onChange, pendingCount, notifCount }: { active: Tab; onChange: (t: Tab) => void; pendingCount: number; notifCount?: number }) {
+  const { t } = useTranslation()
   const items: { tab: Tab; icon: string; label: string; badge?: number }[] = [
-    { tab: 'home', icon: '🏠', label: 'Accueil', badge: notifCount && notifCount > 0 ? notifCount : undefined },
-    { tab: 'agenda', icon: '📅', label: 'Agenda' },
-    { tab: 'interventions', icon: '🔧', label: 'RDV', badge: pendingCount },
-    { tab: 'documents', icon: '📄', label: 'Docs' },
-    { tab: 'settings', icon: '⚙️', label: 'Compte' },
+    { tab: 'home', icon: '🏠', label: t('mob.nav.home'), badge: notifCount && notifCount > 0 ? notifCount : undefined },
+    { tab: 'agenda', icon: '📅', label: t('mob.nav.agenda') },
+    { tab: 'interventions', icon: '🔧', label: t('mob.nav.rdv'), badge: pendingCount },
+    { tab: 'documents', icon: '📄', label: t('mob.nav.docs') },
+    { tab: 'settings', icon: '⚙️', label: t('mob.nav.account') },
   ]
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
@@ -147,6 +151,8 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
   onClose: () => void
   onComplete: (proof: InterventionProof) => void
 }) {
+  const { t, locale } = useTranslation()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [step, setStep] = useState<ProofStep>('before')
   const [proof, setProof] = useState<InterventionProof>({
     bookingId: booking.id,
@@ -194,7 +200,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
           timestamp: new Date().toISOString(),
           lat: gpsCoords?.lat,
           lng: gpsCoords?.lng,
-          label: step === 'before' ? 'Photo avant' : step === 'during' ? 'Étape' : 'Photo après',
+          label: step === 'before' ? t('mob.pow.photoBefore') : step === 'during' ? t('mob.pow.step') : t('mob.pow.photoAfter'),
         }
         setProof(p => {
           if (step === 'before') return { ...p, beforePhotos: [...p.beforePhotos, photo] }
@@ -241,17 +247,16 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
       <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col items-center justify-center p-8">
         <div className="text-7xl mb-5">📱</div>
         <h2 className="text-white text-xl font-bold text-center mb-3">
-          Fonctionnalité mobile uniquement
+          {t('mob.pow.mobileOnly')}
         </h2>
         <p className="text-gray-500 text-sm text-center leading-relaxed">
-          Le Proof of Work nécessite l'application mobile Vitfix Pro pour accéder à la caméra native et au GPS.
-          <br />Cette fonctionnalité est conçue pour éviter les fraudes.
+          {t('mob.pow.mobileOnlyDesc')}
         </p>
         <button
           onClick={onClose}
           className="mt-8 bg-[#FFC107] text-gray-900 px-8 py-3 rounded-xl font-bold text-sm"
         >
-          Fermer
+          {t('mob.pow.close')}
         </button>
       </div>
     )
@@ -315,10 +320,10 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
   }
 
   const steps: { key: ProofStep; label: string; icon: string }[] = [
-    { key: 'before', label: 'Avant', icon: '📸' },
-    { key: 'during', label: 'Pendant', icon: '⚙️' },
-    { key: 'after', label: 'Après', icon: '✅' },
-    { key: 'signature', label: 'Signature', icon: '✍️' },
+    { key: 'before', label: t('mob.pow.before'), icon: '📸' },
+    { key: 'during', label: t('mob.pow.during'), icon: '⚙️' },
+    { key: 'after', label: t('mob.pow.after'), icon: '✅' },
+    { key: 'signature', label: t('mob.pow.signature'), icon: '✍️' },
   ]
 
   const currentStepIdx = steps.findIndex(s => s.key === step)
@@ -368,14 +373,14 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
           <div className="p-4">
             <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
               <h2 className="font-bold text-gray-900 mb-1">
-                {step === 'before' ? '📸 Photos AVANT intervention' :
-                 step === 'during' ? '⚙️ Photos pendant (optionnel)' :
-                 '✅ Photos APRÈS intervention'}
+                {step === 'before' ? `📸 ${t('mob.pow.photosBefore')}` :
+                 step === 'during' ? `⚙️ ${t('mob.pow.photosDuring')}` :
+                 `✅ ${t('mob.pow.photosAfter')}`}
               </h2>
               <p className="text-xs text-gray-500 mb-3">
-                {step === 'before' ? `Minimum 3 photos requises (${currentPhotos.length}/3) — zone générale, problème, compteur` :
-                 step === 'during' ? 'Photos d\'étapes importantes (optionnel)' :
-                 `Minimum 3 photos requises (${currentPhotos.length}/3) — résultat final`}
+                {step === 'before' ? `${t('mob.pow.min3Photos')} (${currentPhotos.length}/3)` :
+                 step === 'during' ? t('mob.pow.photosSteps') :
+                 `${t('mob.pow.min3Photos')} (${currentPhotos.length}/3)`}
               </p>
 
               {/* GPS Info */}
@@ -385,7 +390,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                   <span className="text-[11px] text-green-700 font-medium">
                     GPS : {gpsCoords.lat.toFixed(5)}, {gpsCoords.lng.toFixed(5)}
                   </span>
-                  <span className="text-[10px] text-green-600 ml-auto">Horodatage auto ✓</span>
+                  <span className="text-[10px] text-green-600 ml-auto">{t('mob.pow.autoTimestamp')} ✓</span>
                 </div>
               )}
 
@@ -393,9 +398,9 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
               <div className="grid grid-cols-3 gap-2 mb-3">
                 {currentPhotos.map((photo, idx) => (
                   <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-gray-200">
-                    <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-cover" />
+                    <Image src={photo.dataUrl} alt={photo.label} width={200} height={200} className="w-full h-full object-cover" unoptimized />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
-                      <div className="text-[8px] text-white">{new Date(photo.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                      <div className="text-[8px] text-white">{new Date(photo.timestamp).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}</div>
                     </div>
                     <button
                       onClick={() => setProof(p => {
@@ -414,7 +419,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                   className="aspect-square rounded-xl border-2 border-dashed border-[#FFC107] bg-amber-50 flex flex-col items-center justify-center gap-1"
                 >
                   <span className="text-2xl">📷</span>
-                  <span className="text-[10px] text-amber-600 font-medium">Ajouter</span>
+                  <span className="text-[10px] text-amber-600 font-medium">{t('mob.pow.add')}</span>
                 </button>
               </div>
 
@@ -430,12 +435,12 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
 
               {step === 'after' && (
                 <div className="mt-3">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Description des travaux effectués *</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">{t('mob.pow.workDescription')} *</label>
                   <textarea
                     value={proof.description}
                     onChange={e => setProof(p => ({ ...p, description: e.target.value }))}
                     rows={3}
-                    placeholder="Décrivez brièvement les travaux réalisés..."
+                    placeholder={t('mob.pow.workDescPlaceholder')}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
                   />
                 </div>
@@ -449,7 +454,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                   onClick={() => setStep(steps[currentStepIdx - 1].key)}
                   className="flex-1 border border-gray-300 text-gray-700 py-3 rounded-xl font-semibold text-sm"
                 >
-                  ← Retour
+                  ← {t('mob.pow.back')}
                 </button>
               )}
               <button
@@ -467,30 +472,30 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {step === 'after' ? 'Signature client →' : 'Suivant →'}
+                {step === 'after' ? `${t('mob.pow.clientSignature')} →` : `${t('mob.pow.next')} →`}
               </button>
             </div>
 
             {!canProceed && minPhotos > 0 && currentPhotos.length < minPhotos && (
               <p className="text-center text-[11px] text-red-500 mt-2">
-                {minPhotos - currentPhotos.length} photo(s) manquante(s)
+                {minPhotos - currentPhotos.length} {t('mob.pow.photosMissing')}
               </p>
             )}
             {gpsStatus === 'error' && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center mt-3">
-                <p className="text-xs text-red-600 font-semibold">⚠️ GPS requis pour valider l&apos;intervention</p>
-                <p className="text-[10px] text-red-400 mt-1">Activez la localisation dans vos réglages téléphone</p>
+                <p className="text-xs text-red-600 font-semibold">⚠️ {t('mob.pow.gpsRequired')}</p>
+                <p className="text-[10px] text-red-400 mt-1">{t('mob.pow.enableGps')}</p>
                 <button
                   onClick={retryGps}
                   className="mt-2 text-red-600 text-xs font-semibold underline"
                 >
-                  Réessayer la géolocalisation
+                  {t('mob.pow.retryGps')}
                 </button>
               </div>
             )}
             {gpsStatus === 'loading' && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center mt-3">
-                <p className="text-xs text-amber-600 font-semibold">📍 Acquisition GPS en cours...</p>
+                <p className="text-xs text-amber-600 font-semibold">📍 {t('mob.pow.gpsAcquiring')}</p>
               </div>
             )}
           </div>
@@ -500,36 +505,36 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
         {step === 'signature' && (
           <div className="p-4">
             <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
-              <h2 className="font-bold text-gray-900 mb-1">✍️ Signature du client</h2>
+              <h2 className="font-bold text-gray-900 mb-1">✍️ {t('mob.pow.clientSignatureTitle')}</h2>
               <p className="text-xs text-gray-500 mb-4">
-                Le client confirme que les travaux sont terminés et conformes à la demande.
+                {t('mob.pow.clientSignatureDesc')}
               </p>
 
               {/* Summary */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs space-y-1">
-                <div className="font-semibold text-amber-800">📋 Récapitulatif</div>
-                <div className="text-amber-700">📸 {proof.beforePhotos.length} photos avant</div>
-                {proof.duringPhotos.length > 0 && <div className="text-amber-700">📸 {proof.duringPhotos.length} photos pendant</div>}
-                <div className="text-amber-700">📸 {proof.afterPhotos.length} photos après</div>
-                {proof.description && <div className="text-amber-700">📝 Description : {proof.description.substring(0, 60)}...</div>}
-                {gpsCoords && <div className="text-amber-700">📍 GPS enregistré</div>}
+                <div className="font-semibold text-amber-800">📋 {t('mob.pow.summary')}</div>
+                <div className="text-amber-700">📸 {proof.beforePhotos.length} {t('mob.pow.photosBefore').toLowerCase()}</div>
+                {proof.duringPhotos.length > 0 && <div className="text-amber-700">📸 {proof.duringPhotos.length} {t('mob.pow.photosDuring').toLowerCase()}</div>}
+                <div className="text-amber-700">📸 {proof.afterPhotos.length} {t('mob.pow.photosAfter').toLowerCase()}</div>
+                {proof.description && <div className="text-amber-700">📝 {t('mob.pow.descLabel')} : {proof.description.substring(0, 60)}...</div>}
+                {gpsCoords && <div className="text-amber-700">📍 {t('mob.pow.gpsRecorded')}</div>}
               </div>
 
               {/* Client declaration */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
                 <p className="text-xs text-gray-700 leading-relaxed">
-                  <strong>Déclaration :</strong> Je soussigné(e) certifie que les travaux effectués par{' '}
-                  <strong>{artisan?.company_name}</strong> sont terminés et conformes à ma demande.
+                  <strong>{t('mob.pow.declaration')} :</strong> {t('mob.pow.declarationText')}{' '}
+                  <strong>{artisan?.company_name}</strong> {t('mob.pow.declarationEnd')}
                   <br />
-                  <span className="text-gray-500">Date : {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-gray-500">{t('mob.pow.date')} : {new Date().toLocaleDateString(dateFmtLocale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                 </p>
               </div>
 
               {/* Signature area */}
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-gray-700">Signature ici :</span>
-                  <button onClick={clearSignature} className="text-[11px] text-red-500 underline">Effacer</button>
+                  <span className="text-xs font-semibold text-gray-700">{t('mob.pow.signHere')} :</span>
+                  <button onClick={clearSignature} className="text-[11px] text-red-500 underline">{t('mob.pow.clear')}</button>
                 </div>
                 <div className="border-2 border-gray-300 rounded-xl overflow-hidden bg-white" style={{ touchAction: 'none' }}>
                   <svg
@@ -546,7 +551,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                   >
                     {signaturePoints.length === 0 && (
                       <text x="50%" y="50%" textAnchor="middle" fill="#D1D5DB" fontSize="13" dy="0.3em">
-                        Signez ici avec le doigt
+                        {t('mob.pow.signWithFinger')}
                       </text>
                     )}
                     {signaturePoints.map((d, i) => (
@@ -557,7 +562,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
               </div>
 
               <div className="text-[10px] text-gray-500 text-center mb-4">
-                🔒 Signature horodatée et archivée — Valeur légale
+                🔒 {t('mob.pow.signLegal')}
               </div>
             </div>
 
@@ -566,7 +571,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                 onClick={() => setStep('after')}
                 className="flex-1 border border-gray-300 text-gray-700 py-3 rounded-xl font-semibold text-sm"
               >
-                ← Retour
+                ← {t('mob.pow.back')}
               </button>
               <button
                 disabled={signaturePoints.length < 3 || saving}
@@ -577,7 +582,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {saving ? 'Enregistrement...' : '✅ Valider & Terminer'}
+                {saving ? t('mob.pow.saving') : `✅ ${t('mob.pow.validateFinish')}`}
               </button>
             </div>
           </div>
@@ -599,6 +604,7 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
   onCopyLink?: () => void
   linkCopied?: boolean
 }) {
+  const { t, locale } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const clientName = booking.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
 
@@ -618,11 +624,11 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-gray-900 text-sm truncate">{clientName}</div>
           <div className="text-xs text-gray-500 truncate">{booking.services?.name || 'Service'}</div>
-          <div className="text-xs text-gray-500 mt-0.5">{formatDateFR(booking.booking_date)} · {booking.booking_time?.substring(0, 5)}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{formatDateLocale(booking.booking_date, locale)} · {booking.booking_time?.substring(0, 5)}</div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getStatusColor(booking.status)}`}>
-            {getStatusLabel(booking.status)}
+            {getStatusLabel(booking.status, t)}
           </span>
           {booking.price_ttc && <span className="text-xs font-bold text-green-600">{formatPrice(booking.price_ttc)}</span>}
           <span className="text-gray-500 text-sm">{expanded ? '▲' : '▼'}</span>
@@ -649,7 +655,7 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
             <div className="flex items-center gap-2 mb-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
               <span className="text-xs">⏳</span>
               <span className="text-xs text-amber-700 font-medium">
-                Expire le {new Date(booking.expires_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {t('mob.expiresOn')} {new Date(booking.expires_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           )}
@@ -671,13 +677,13 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
                   onClick={() => onStatusChange(booking.id, 'confirmed')}
                   className="flex-1 bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold"
                 >
-                  ✓ Confirmer
+                  ✓ {t('mob.confirm')}
                 </button>
                 <button
                   onClick={() => onStatusChange(booking.id, 'cancelled')}
                   className="flex-1 bg-red-100 text-red-600 py-2 rounded-xl text-xs font-semibold"
                 >
-                  ✕ Refuser
+                  ✕ {t('mob.refuse')}
                 </button>
               </>
             )}
@@ -686,13 +692,13 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
                 onClick={onProof}
                 className="flex-1 bg-[#FFC107] text-gray-900 py-2.5 rounded-xl text-xs font-bold shadow-sm"
               >
-                📸 Commencer intervention (Proof of Work)
+                📸 {t('mob.startIntervention')}
               </button>
             )}
             {booking.status === 'completed' && (
               <div className="flex items-center gap-2 text-green-600 text-xs font-semibold">
                 <span>✅</span>
-                <span>Intervention terminée avec preuve archivée</span>
+                <span>{t('mob.completedWithProof')}</span>
               </div>
             )}
           </div>
@@ -707,19 +713,19 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
                   className="w-full bg-blue-50 border border-blue-200 text-blue-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform"
                 >
                   <span className="w-2 h-2 bg-blue-500 rounded-full" />
-                  📍 Démarrer le suivi GPS client
+                  📍 {t('mob.startGpsTracking')}
                 </button>
               ) : (
                 /* Tracking actif */
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
                     <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
-                    <span className="text-xs font-semibold text-blue-700 flex-1">Suivi actif — position partagée</span>
+                    <span className="text-xs font-semibold text-blue-700 flex-1">{t('mob.trackingActive')}</span>
                     <button
                       onClick={onStopTracking}
                       className="text-xs text-red-500 font-semibold hover:text-red-700"
                     >
-                      Arrêter
+                      {t('mob.stop')}
                     </button>
                   </div>
                   <button
@@ -730,7 +736,7 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
                         : 'bg-white border-gray-200 text-gray-700'
                     }`}
                   >
-                    {linkCopied ? '✅ Lien copié !' : '🔗 Copier le lien de suivi (client)'}
+                    {linkCopied ? `✅ ${t('mob.linkCopied')}` : `🔗 ${t('mob.copyTrackingLink')}`}
                   </button>
                 </div>
               )}
@@ -757,21 +763,85 @@ function QuickBtn({ icon, label, onClick, color = 'bg-white' }: { icon: string; 
 
 // ─── Artisan Modules ──────────────────────────────────────────────────────────
 const ARTISAN_MODULES = [
-  { key: 'ponctualite', label: 'Score de ponctualité', icon: '⏱️', description: 'Affiche votre taux de réalisation sur l\'accueil', default: true },
-  { key: 'revenus', label: 'Dashboard revenus', icon: '💰', description: 'Suivi mensuel du CA et top services', default: true },
-  { key: 'devis_rapide', label: 'Devis rapide', icon: '📝', description: 'Générer et envoyer des devis en 30 secondes', default: true },
-  { key: 'export_fec', label: 'Export FEC comptable', icon: '📊', description: 'Export des écritures au format fiscal', default: false },
-  { key: 'compliance_wallet', label: 'Compliance Wallet', icon: '🪪', description: 'Portefeuille de documents professionnels', default: true },
-  { key: 'proof_of_work', label: 'Proof of Work', icon: '📸', description: 'Photos avant/après + signature client', default: true },
-  { key: 'gps_tracking', label: 'GPS Tracking', icon: '📍', description: 'Partagez votre position en temps réel', default: false },
-  { key: 'rapport_pdf', label: 'Rapport PDF fin de chantier', icon: '📄', description: 'Générer un rapport PDF probatoire', default: false },
-  { key: 'notifications', label: 'Notifications syndic', icon: '📣', description: 'Recevoir les notifications du syndic', default: true },
+  { key: 'ponctualite',     label: 'Score de ponctualité',           labelKey: 'mob.modules.ponctualite',     icon: '⏱️', description: 'Affiche votre taux de réalisation sur l\'accueil',    descriptionKey: 'mob.modules.ponctualiteDesc',     default: true  },
+  { key: 'revenus',         label: 'Dashboard revenus',              labelKey: 'mob.modules.revenus',         icon: '💰', description: 'Suivi mensuel du CA et top services',                 descriptionKey: 'mob.modules.revenusDesc',         default: true  },
+  { key: 'devis_rapide',    label: 'Devis rapide',                   labelKey: 'mob.modules.devisRapide',     icon: '📝', description: 'Générer et envoyer des devis en 30 secondes',          descriptionKey: 'mob.modules.devisRapideDesc',     default: true  },
+  { key: 'export_fec',      label: 'Export FEC comptable',           labelKey: 'mob.modules.exportFec',       icon: '📊', description: 'Export des écritures au format fiscal',                descriptionKey: 'mob.modules.exportFecDesc',       default: false },
+  { key: 'compliance_wallet', label: 'Compliance Wallet',            labelKey: 'mob.modules.complianceWallet', icon: '🪪', description: 'Portefeuille de documents professionnels',           descriptionKey: 'mob.modules.complianceWalletDesc', default: true },
+  { key: 'proof_of_work',   label: 'Proof of Work',                  labelKey: 'mob.modules.proofOfWork',     icon: '📸', description: 'Photos avant/après + signature client',               descriptionKey: 'mob.modules.proofOfWorkDesc',     default: true  },
+  { key: 'gps_tracking',    label: 'GPS Tracking',                   labelKey: 'mob.modules.gpsTracking',     icon: '📍', description: 'Partagez votre position en temps réel',               descriptionKey: 'mob.modules.gpsTrackingDesc',     default: false },
+  { key: 'rapport_pdf',     label: 'Rapport PDF fin de chantier',    labelKey: 'mob.modules.rapportPdf',      icon: '📄', description: 'Générer un rapport PDF probatoire',                   descriptionKey: 'mob.modules.rapportPdfDesc',      default: false },
+  { key: 'notifications',   label: 'Notifications syndic',           labelKey: 'mob.modules.notifications',   icon: '📣', description: 'Recevoir les notifications du syndic',                descriptionKey: 'mob.modules.notificationsDesc',   default: true  },
 ] as const
 type ArtisanModuleKey = typeof ARTISAN_MODULES[number]['key']
+
+// ─── Password Change (mobile) ─────────────────────────────────────────────────
+function MobilePasswordChange() {
+  const { t } = useTranslation()
+  const [newPwd, setNewPwd] = useState('')
+  const [confirmPwd, setConfirmPwd] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const [expanded, setExpanded] = useState(false)
+
+  const handleChange = async () => {
+    setMsg(null)
+    if (newPwd.length < 6) { setMsg({ text: t('proDash.settings.pwdTooShort'), type: 'error' }); return }
+    if (newPwd !== confirmPwd) { setMsg({ text: t('proDash.settings.pwdMismatch'), type: 'error' }); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPwd })
+      if (error) { setMsg({ text: error.message, type: 'error' }) }
+      else { setMsg({ text: t('proDash.settings.pwdSuccess'), type: 'success' }); setNewPwd(''); setConfirmPwd('') }
+    } catch { setMsg({ text: t('proDash.settings.pwdError'), type: 'error' }) }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">🔒</span>
+          <div className="text-left">
+            <div className="font-semibold text-sm text-gray-900">{t('proDash.settings.securityTitle')}</div>
+            <div className="text-[10px] text-gray-500">{t('proDash.settings.securityDesc')}</div>
+          </div>
+        </div>
+        <span className={`text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3">
+          {msg && (
+            <div className={`px-3 py-2 rounded-xl text-xs font-medium ${msg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {msg.text}
+            </div>
+          )}
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{t('proDash.settings.newPassword')}</label>
+            <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="••••••••" autoComplete="new-password"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{t('proDash.settings.confirmPassword')}</label>
+            <input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} placeholder="••••••••" autoComplete="new-password"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+            <p className="text-[10px] text-gray-500 mt-1">{t('proDash.settings.pwdMinLength')}</p>
+          </div>
+          <button onClick={handleChange} disabled={saving || !newPwd || !confirmPwd}
+            className="w-full bg-[#FFC107] text-gray-900 py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+            {saving ? t('proDash.settings.pwdSaving') : t('proDash.settings.pwdUpdate')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function MobileDashboard() {
   const router = useRouter()
+  const { t, locale } = useTranslation()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<Tab>('home')
   const [artisan, setArtisan] = useState<any>(null)
   const [bookings, setBookings] = useState<any[]>([])
@@ -819,7 +889,7 @@ export default function MobileDashboard() {
   const [devisGenere, setDevisGenere] = useState<string | null>(null)
   const [devisCopied, setDevisCopied] = useState(false)
 
-  const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+  const DAY_NAMES = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
 
   useEffect(() => {
     const init = async () => {
@@ -834,11 +904,22 @@ export default function MobileDashboard() {
   useEffect(() => {
     if (!artisan?.user_id) return
 
-    // Charger les notifs existantes
-    fetch(`/api/syndic/notify-artisan?artisan_id=${artisan.user_id}&limit=20`)
-      .then(r => r.json())
-      .then(d => { if (d.notifications) setArtisanNotifs(d.notifications) })
-      .catch(() => {})
+    // Charger les notifs existantes (avec auth)
+    const loadNotifs = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (!token) return
+        const res = await fetch(`/api/syndic/notify-artisan?artisan_id=${artisan.user_id}&limit=20`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const d = await res.json()
+          if (d.notifications) setArtisanNotifs(d.notifications)
+        }
+      } catch {}
+    }
+    loadNotifs()
 
     const channel = supabase
       .channel(`artisan_notifs_${artisan.user_id}`)
@@ -856,7 +937,11 @@ export default function MobileDashboard() {
           setTimeout(() => setNotifToast(null), 5000)
         }
       })
-      .subscribe()
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[pro/mobile] Realtime channel error:', err?.message)
+        }
+      })
 
     return () => { supabase.removeChannel(channel) }
   }, [artisan?.user_id])
@@ -1072,14 +1157,14 @@ export default function MobileDashboard() {
 
   const copyComplianceProfile = () => {
     const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
-    const lines = [`📋 Profil compliance — ${nom}`, `Date : ${new Date().toLocaleDateString('fr-FR')}`, '']
+    const lines = [`📋 Profil compliance — ${nom}`, `Date : ${new Date().toLocaleDateString(dateFmtLocale)}`, '']
     COMPLIANCE_TYPES.forEach(ct => {
       const doc = complianceDocs.find(d => d.type === ct.key)
       if (doc) {
         const status = getComplianceStatus(doc)
         const icon = status === 'valid' ? '✅' : status === 'expiring' ? '⚠️' : '❌'
-        const expiry = doc.dateExpiration ? `Exp. ${new Date(doc.dateExpiration).toLocaleDateString('fr-FR')}` : 'Sans date'
-        lines.push(`${icon} ${ct.icon} ${ct.label} — ${expiry}`)
+        const expiry = doc.dateExpiration ? `Exp. ${new Date(doc.dateExpiration).toLocaleDateString(dateFmtLocale)}` : 'Sans date'
+        lines.push(`${icon} ${ct.icon} ${t(ct.labelKey, ct.label)} — ${expiry}`)
       }
     })
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -1290,7 +1375,7 @@ export default function MobileDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/pro/login')
+    router.push(`/${locale}/`)
   }
 
   // ── Messagerie artisan ──
@@ -1371,7 +1456,7 @@ export default function MobileDashboard() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#FFC107]">
         <div className="text-4xl font-black text-gray-900 mb-6">FIXIT</div>
         <div className="animate-spin w-10 h-10 border-4 border-gray-900 border-t-transparent rounded-full" />
-        <p className="text-gray-900 font-medium mt-4 text-sm">Chargement...</p>
+        <p className="text-gray-900 font-medium mt-4 text-sm">{t('mob.loading')}</p>
       </div>
     )
   }
@@ -1401,7 +1486,7 @@ export default function MobileDashboard() {
                   }}
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl font-bold text-sm transition"
                 >
-                  Confirmer
+                  {t('mob.confirm')}
                 </button>
                 <button
                   onClick={async () => {
@@ -1411,7 +1496,7 @@ export default function MobileDashboard() {
                   }}
                   className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl font-bold text-sm transition"
                 >
-                  Refuser
+                  {t('mob.refuse')}
                 </button>
               </div>
             )}
@@ -1473,20 +1558,20 @@ export default function MobileDashboard() {
         <div className="fixed inset-0 bg-black/50 z-40 flex items-end">
           <div className="bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold">Nouveau RDV</h2>
+              <h2 className="text-lg font-bold">{t('mob.newRdv')}</h2>
               <button onClick={() => setShowNewRdv(false)} className="text-gray-500 text-xl">✕</button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Client</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.client')}</label>
                 <input value={newRdv.client_name} onChange={e => setNewRdv(p => ({ ...p, client_name: e.target.value }))}
-                  placeholder="Nom du client" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                  placeholder={t('mob.clientName')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Motif *</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.motif')} *</label>
                 <select value={newRdv.service_id} onChange={e => setNewRdv(p => ({ ...p, service_id: e.target.value }))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]">
-                  <option value="">Choisir un motif</option>
+                  <option value="">{t('mob.chooseMotif')}</option>
                   {services.filter(s => s.active).map(s => (
                     <option key={s.id} value={s.id}>{s.name} — {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}</option>
                   ))}
@@ -1494,29 +1579,29 @@ export default function MobileDashboard() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Date *</label>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.date')} *</label>
                   <input type="date" value={newRdv.date} onChange={e => setNewRdv(p => ({ ...p, date: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Heure *</label>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.hour')} *</label>
                   <input type="time" value={newRdv.time} onChange={e => setNewRdv(p => ({ ...p, time: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Adresse</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.address')}</label>
                 <input value={newRdv.address} onChange={e => setNewRdv(p => ({ ...p, address: e.target.value }))}
-                  placeholder="Adresse d'intervention" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                  placeholder={t('mob.interventionAddress')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Notes</label>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.notes')}</label>
                 <textarea value={newRdv.notes} onChange={e => setNewRdv(p => ({ ...p, notes: e.target.value }))}
-                  rows={2} placeholder="Notes additionnelles" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
+                  rows={2} placeholder={t('mob.additionalNotes')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
               </div>
               <button disabled={savingRdv || !newRdv.date || !newRdv.time || !newRdv.service_id} onClick={createRdv}
                 className="w-full bg-[#FFC107] text-gray-900 py-4 rounded-xl font-bold text-sm disabled:opacity-50">
-                {savingRdv ? 'Création...' : '+ Créer le RDV'}
+                {savingRdv ? t('mob.creating') : `+ ${t('mob.createRdv')}`}
               </button>
             </div>
           </div>
@@ -1528,7 +1613,7 @@ export default function MobileDashboard() {
         <div className="fixed inset-0 bg-black/50 z-40 flex items-end">
           <div className="bg-white w-full rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold">Nouveau motif</h2>
+              <h2 className="text-lg font-bold">{t('mob.newMotif')}</h2>
               <button onClick={() => setMotifModal(false)} className="text-gray-500 text-xl">✕</button>
             </div>
             <div className="space-y-4">
@@ -1566,7 +1651,7 @@ export default function MobileDashboard() {
               </div>
               <button disabled={savingMotif || !motifForm.name} onClick={saveMotif}
                 className="w-full bg-[#FFC107] text-gray-900 py-4 rounded-xl font-bold text-sm disabled:opacity-50">
-                {savingMotif ? 'Création...' : '+ Créer le motif'}
+                {savingMotif ? t('mob.creating') : `+ ${t('mob.createMotif')}`}
               </button>
             </div>
           </div>
@@ -1581,7 +1666,7 @@ export default function MobileDashboard() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="text-2xl font-black text-gray-900">FIXIT <span className="text-sm font-bold bg-gray-900 text-[#FFC107] px-2 py-0.5 rounded-full ml-1">PRO</span></div>
-                <div className="text-sm font-medium text-gray-800 mt-0.5">Bonjour, {artisan?.company_name?.split(' ')[0]} 👋</div>
+                <div className="text-sm font-medium text-gray-800 mt-0.5">{t('mob.hello')}, {artisan?.company_name?.split(' ')[0]} 👋</div>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center text-[#FFC107] font-bold text-lg shadow-lg">
                 {initials}
@@ -1593,8 +1678,8 @@ export default function MobileDashboard() {
               <div className="bg-white/80 backdrop-blur rounded-2xl px-4 py-3 flex items-center gap-3">
                 <span className="text-2xl">📅</span>
                 <div>
-                  <div className="font-bold text-gray-900 text-sm">{todayBookings.length} RDV aujourd&apos;hui</div>
-                  <div className="text-xs text-gray-600">Prochain : {todayBookings[0]?.booking_time?.substring(0, 5)} — {todayBookings[0]?.services?.name}</div>
+                  <div className="font-bold text-gray-900 text-sm">{todayBookings.length} {t('mob.rdvToday')}</div>
+                  <div className="text-xs text-gray-600">{t('mob.next')} : {todayBookings[0]?.booking_time?.substring(0, 5)} — {todayBookings[0]?.services?.name}</div>
                 </div>
               </div>
             )}
@@ -1605,22 +1690,22 @@ export default function MobileDashboard() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-gray-900">{pendingBookings.length}</div>
-                <div className="text-xs text-gray-500 mt-0.5">RDV en attente</div>
-                {pendingBookings.length > 0 && <div className="text-[10px] text-red-500 font-semibold mt-1">Action requise</div>}
+                <div className="text-xs text-gray-500 mt-0.5">{t('mob.pendingRdv')}</div>
+                {pendingBookings.length > 0 && <div className="text-[10px] text-red-500 font-semibold mt-1">{t('mob.actionRequired')}</div>}
               </div>
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-green-600">{formatPrice(totalRevenue)}</div>
-                <div className="text-xs text-gray-500 mt-0.5">Chiffre d&apos;affaires</div>
-                <div className="text-[10px] text-gray-500 mt-1">{completedBookings.length} terminées</div>
+                <div className="text-xs text-gray-500 mt-0.5">{t('mob.revenue')}</div>
+                <div className="text-[10px] text-gray-500 mt-1">{completedBookings.length} {t('mob.completedPlural')}</div>
               </div>
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-blue-600">{confirmedBookings.length}</div>
-                <div className="text-xs text-gray-500 mt-0.5">Confirmés</div>
+                <div className="text-xs text-gray-500 mt-0.5">{t('mob.confirmedPlural')}</div>
               </div>
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
                 <div className="text-2xl font-black text-amber-500">⭐ {artisan?.rating_avg || '5.0'}</div>
-                <div className="text-xs text-gray-500 mt-0.5">Note moyenne</div>
-                <div className="text-[10px] text-gray-500 mt-1">{artisan?.rating_count || 0} avis</div>
+                <div className="text-xs text-gray-500 mt-0.5">{t('mob.averageRating')}</div>
+                <div className="text-[10px] text-gray-500 mt-1">{artisan?.rating_count || 0} {t('mob.reviews')}</div>
               </div>
             </div>
 
@@ -1637,11 +1722,11 @@ export default function MobileDashboard() {
                     <span className={`text-2xl font-black ${isGood ? 'text-green-700' : isMedium ? 'text-amber-700' : 'text-red-700'}`}>{rate}%</span>
                   </div>
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-gray-800">⏱️ Score de ponctualité</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{completedBookings.length}/{total} interventions réalisées</div>
-                    {isGood && <div className="text-[10px] text-green-600 font-semibold mt-1">🏅 Excellent — Badge visible par vos clients</div>}
-                    {isMedium && <div className="text-[10px] text-amber-600 font-semibold mt-1">⚡ Bon score — Continuez ainsi !</div>}
-                    {!isGood && !isMedium && <div className="text-[10px] text-red-600 font-semibold mt-1">⚠️ À améliorer pour fidéliser vos clients</div>}
+                    <div className="text-sm font-bold text-gray-800">⏱️ {t('mob.punctualityScore')}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{completedBookings.length}/{total} {t('mob.interventionsDone')}</div>
+                    {isGood && <div className="text-[10px] text-green-600 font-semibold mt-1">🏅 {t('mob.excellent')}</div>}
+                    {isMedium && <div className="text-[10px] text-amber-600 font-semibold mt-1">⚡ {t('mob.goodScore')}</div>}
+                    {!isGood && !isMedium && <div className="text-[10px] text-red-600 font-semibold mt-1">⚠️ {t('mob.toImprove')}</div>}
                   </div>
                 </div>
               )
@@ -1649,12 +1734,12 @@ export default function MobileDashboard() {
 
             {/* Quick actions */}
             <div>
-              <div className="text-sm font-bold text-gray-700 mb-3">Actions rapides</div>
+              <div className="text-sm font-bold text-gray-700 mb-3">{t('mob.quickActions')}</div>
               <div className="grid grid-cols-4 gap-2">
-                <QuickBtn icon="📅" label="Nouveau RDV" onClick={() => setShowNewRdv(true)} />
-                <QuickBtn icon="🔧" label="Motif" onClick={() => setMotifModal(true)} />
-                <QuickBtn icon="📝" label="Devis" onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }} />
-                <QuickBtn icon="💬" label="Demandes" onClick={() => setActiveTab('interventions')} />
+                <QuickBtn icon="📅" label={t('mob.newRdv')} onClick={() => setShowNewRdv(true)} />
+                <QuickBtn icon="🔧" label={t('mob.motif')} onClick={() => setMotifModal(true)} />
+                <QuickBtn icon="📝" label={t('mob.quote')} onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }} />
+                <QuickBtn icon="💬" label={t('mob.requests')} onClick={() => setActiveTab('interventions')} />
               </div>
             </div>
 
@@ -1677,26 +1762,26 @@ export default function MobileDashboard() {
               return (
                 <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-bold text-gray-700">💰 Revenus</div>
+                    <div className="text-sm font-bold text-gray-700">💰 {t('mob.revenueTitle')}</div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                      {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs mois préc.
+                      {diff >= 0 ? '↑' : '↓'} {Math.abs(diff)}% vs {t('mob.prevMonth')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div className="bg-green-50 rounded-xl p-3">
-                      <div className="text-xs text-gray-500 mb-0.5">Ce mois</div>
+                      <div className="text-xs text-gray-500 mb-0.5">{t('mob.thisMonth')}</div>
                       <div className="text-xl font-black text-green-600">{formatPrice(revThisMonth)}</div>
                       <div className="text-[10px] text-gray-500">{completedThisMonth.length} interv.</div>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
-                      <div className="text-xs text-gray-500 mb-0.5">Mois préc.</div>
+                      <div className="text-xs text-gray-500 mb-0.5">{t('mob.prevMonth')}</div>
                       <div className="text-xl font-black text-gray-600">{formatPrice(revLastMonth)}</div>
                       <div className="text-[10px] text-gray-500">{completedLastMonth.length} interv.</div>
                     </div>
                   </div>
                   {topServices.length > 0 && (
                     <div>
-                      <div className="text-xs text-gray-500 font-medium mb-2">Top services</div>
+                      <div className="text-xs text-gray-500 font-medium mb-2">{t('mob.topServices')}</div>
                       <div className="space-y-1.5">
                         {topServices.map((s, i) => (
                           <div key={s.id} className="flex items-center gap-2">
@@ -1712,7 +1797,7 @@ export default function MobileDashboard() {
                   )}
                   {topServices.length === 0 && (
                     <div className="text-xs text-gray-500 text-center py-2">
-                      Complétez des interventions pour voir vos stats
+                      {t('mob.completeForStats')}
                     </div>
                   )}
                 </div>
@@ -1724,7 +1809,7 @@ export default function MobileDashboard() {
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-lg">⏳</span>
-                  <span className="font-bold text-amber-800 text-sm">{pendingBookings.length} demande(s) en attente</span>
+                  <span className="font-bold text-amber-800 text-sm">{pendingBookings.length} {t('mob.pendingRequests')}</span>
                 </div>
                 {pendingBookings.slice(0, 2).map(b => {
                   const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
@@ -1732,7 +1817,7 @@ export default function MobileDashboard() {
                     <div key={b.id} className="bg-white rounded-xl p-3 mb-2 border border-amber-100 flex items-center gap-3">
                       <div className="flex-1">
                         <div className="font-semibold text-sm text-gray-900">{clientName}</div>
-                        <div className="text-xs text-gray-500">{b.services?.name} · {formatDateFR(b.booking_date)}</div>
+                        <div className="text-xs text-gray-500">{b.services?.name} · {formatDateLocale(b.booking_date, locale)}</div>
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✓</button>
@@ -1743,7 +1828,7 @@ export default function MobileDashboard() {
                 })}
                 {pendingBookings.length > 2 && (
                   <button onClick={() => setActiveTab('interventions')} className="text-amber-600 text-xs font-semibold mt-1">
-                    Voir tout ({pendingBookings.length}) →
+                    {t('mob.seeAll')} ({pendingBookings.length}) →
                   </button>
                 )}
               </div>
@@ -1752,7 +1837,7 @@ export default function MobileDashboard() {
             {/* Today's bookings */}
             {todayBookings.length > 0 && (
               <div>
-                <div className="text-sm font-bold text-gray-700 mb-3">Aujourd&apos;hui</div>
+                <div className="text-sm font-bold text-gray-700 mb-3">{t('mob.today')}</div>
                 <div className="space-y-2">
                   {todayBookings.map(b => (
                     <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
@@ -1764,7 +1849,7 @@ export default function MobileDashboard() {
             {/* Tomorrow */}
             {tomorrowBookings.length > 0 && (
               <div>
-                <div className="text-sm font-bold text-gray-700 mb-3">Demain</div>
+                <div className="text-sm font-bold text-gray-700 mb-3">{t('mob.tomorrow')}</div>
                 <div className="space-y-2">
                   {tomorrowBookings.map(b => (
                     <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
@@ -1790,7 +1875,7 @@ export default function MobileDashboard() {
                   setSelectedDate(d.toISOString().split('T')[0])
                 }} className="text-gray-500 text-lg p-1">◀</button>
                 <span className="text-sm font-semibold text-gray-700 capitalize">
-                  {new Date(selectedDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                  {new Date(selectedDate).toLocaleDateString(dateFmtLocale, { month: 'long', year: 'numeric' })}
                 </span>
                 <button onClick={() => {
                   const d = new Date(selectedDate); d.setMonth(d.getMonth() + 1)
@@ -1833,7 +1918,7 @@ export default function MobileDashboard() {
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-bold text-gray-700 capitalize">
-                {new Date(selectedDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {new Date(selectedDate).toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long' })}
               </div>
               <button onClick={() => setShowNewRdv(true)} className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1.5 rounded-xl">
                 + RDV
@@ -1843,8 +1928,8 @@ export default function MobileDashboard() {
             {selectedDateBookings.length === 0 ? (
               <div className="text-center py-10">
                 <div className="text-4xl mb-2">📭</div>
-                <div className="text-sm text-gray-500">Aucun RDV ce jour</div>
-                <button onClick={() => setShowNewRdv(true)} className="mt-3 text-[#FFC107] text-sm font-semibold">+ Créer un RDV</button>
+                <div className="text-sm text-gray-500">{t('mob.noRdvDay')}</div>
+                <button onClick={() => setShowNewRdv(true)} className="mt-3 text-[#FFC107] text-sm font-semibold">+ {t('mob.createRdv')}</button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1861,42 +1946,36 @@ export default function MobileDashboard() {
       {activeTab === 'interventions' && (
         <div>
           <div className="bg-white px-4 pt-12 pb-4 safe-area-pt border-b border-gray-100">
-            <div className="text-lg font-bold text-gray-900">🔧 Interventions</div>
-            <div className="text-xs text-gray-500 mt-0.5">{bookings.length} au total</div>
+            <div className="text-lg font-bold text-gray-900">🔧 {t('mob.interventions')}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{bookings.length} {t('mob.total')}</div>
           </div>
 
           <div className="p-4">
             {/* Filter tabs */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-              {['Tous', 'En attente', 'Confirmés', 'Terminés'].map((f) => {
-                const count = f === 'Tous' ? bookings.length :
-                  f === 'En attente' ? pendingBookings.length :
-                  f === 'Confirmés' ? confirmedBookings.length :
-                  completedBookings.length
-                return (
-                  <button key={f} className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm">
-                    {f}
+              {[{ label: t('mob.filterAll'), count: bookings.length }, { label: t('mob.filterPending'), count: pendingBookings.length }, { label: t('mob.filterConfirmed'), count: confirmedBookings.length }, { label: t('mob.filterCompleted'), count: completedBookings.length }].map(({ label, count }) => (
+                  <button key={label} className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm">
+                    {label}
                     {count > 0 && <span className="bg-[#FFC107] text-gray-900 rounded-full w-4 h-4 flex items-center justify-center text-[9px] font-bold">{count}</span>}
                   </button>
-                )
-              })}
+                ))}
             </div>
 
             {/* Proof of work info banner */}
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 mb-4 flex items-start gap-3">
               <span className="text-lg">📸</span>
               <div>
-                <div className="font-semibold text-blue-800 text-xs">Proof of Work activé</div>
-                <div className="text-[11px] text-blue-600 mt-0.5">Pour chaque intervention confirmée, documentez avant/après avec photos + signature client</div>
+                <div className="font-semibold text-blue-800 text-xs">{t('mob.powEnabled')}</div>
+                <div className="text-[11px] text-blue-600 mt-0.5">{t('mob.powEnabledDesc')}</div>
               </div>
             </div>
 
             {bookings.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-5xl mb-3">📭</div>
-                <div className="text-sm font-medium text-gray-500">Aucune intervention</div>
+                <div className="text-sm font-medium text-gray-500">{t('mob.noIntervention')}</div>
                 <button onClick={() => setShowNewRdv(true)} className="mt-4 bg-[#FFC107] text-gray-900 px-5 py-2.5 rounded-xl text-sm font-bold">
-                  + Créer un RDV
+                  + {t('mob.createRdv')}
                 </button>
               </div>
             ) : (
@@ -1914,21 +1993,21 @@ export default function MobileDashboard() {
       {activeTab === 'documents' && (
         <div>
           <div className="bg-white px-4 pt-12 pb-4 safe-area-pt border-b border-gray-100">
-            <div className="text-lg font-bold text-gray-900">📄 Documents & Preuves</div>
+            <div className="text-lg font-bold text-gray-900">📄 {t('mob.docsAndProofs')}</div>
           </div>
 
           <div className="p-4 space-y-4">
             {/* Proof of work section */}
             <div>
-              <div className="text-sm font-bold text-gray-700 mb-3">📸 Preuves d&apos;intervention</div>
+              <div className="text-sm font-bold text-gray-700 mb-3">📸 {t('mob.interventionProofs')}</div>
               {(() => {
                 const proofs = JSON.parse(localStorage.getItem('fixit_proofs') || '[]') as InterventionProof[]
                 if (proofs.length === 0) {
                   return (
                     <div className="bg-white rounded-2xl p-6 text-center border border-gray-100 shadow-sm">
                       <div className="text-4xl mb-2">📸</div>
-                      <div className="text-sm text-gray-500">Aucune preuve archivée</div>
-                      <div className="text-xs text-gray-300 mt-1">Les preuves apparaîtront après vos interventions</div>
+                      <div className="text-sm text-gray-500">{t('mob.noArchivedProof')}</div>
+                      <div className="text-xs text-gray-300 mt-1">{t('mob.proofsAppearAfter')}</div>
                     </div>
                   )
                 }
@@ -1940,7 +2019,7 @@ export default function MobileDashboard() {
                         <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-lg">✅</div>
                         <div>
                           <div className="font-semibold text-sm text-gray-900">{booking?.services?.name || 'Intervention'}</div>
-                          <div className="text-xs text-gray-500">{p.completedAt ? new Date(p.completedAt).toLocaleDateString('fr-FR') : ''}</div>
+                          <div className="text-xs text-gray-500">{p.completedAt ? new Date(p.completedAt).toLocaleDateString(dateFmtLocale) : ''}</div>
                         </div>
                         <div className="ml-auto">
                           <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Archivé</span>
@@ -1955,7 +2034,7 @@ export default function MobileDashboard() {
                       {p.beforePhotos.length > 0 && (
                         <div className="flex gap-1.5 mt-2 overflow-x-auto">
                           {[...p.beforePhotos, ...p.afterPhotos].slice(0, 4).map((ph, j) => (
-                            <img key={j} src={ph.dataUrl} alt="" className="w-14 h-14 object-cover rounded-xl flex-shrink-0" />
+                            <Image key={j} src={ph.dataUrl} alt="" width={56} height={56} className="w-14 h-14 object-cover rounded-xl flex-shrink-0" unoptimized />
                           ))}
                         </div>
                       )}
@@ -1977,7 +2056,7 @@ export default function MobileDashboard() {
                             doc.setFontSize(10)
                             doc.setTextColor(100, 100, 100)
                             doc.text(`Artisan : ${nom}`, 15, 40)
-                            doc.text(`Date : ${p.completedAt ? new Date(p.completedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}`, 15, 47)
+                            doc.text(`Date : ${p.completedAt ? new Date(p.completedAt).toLocaleDateString(dateFmtLocale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}`, 15, 47)
                             doc.text(`Service : ${bk?.services?.name || 'Intervention'}`, 15, 54)
                             doc.text(`Adresse : ${bk?.address || 'N/A'}`, 15, 61)
                             if (p.gpsLat && p.gpsLng) doc.text(`GPS : ${p.gpsLat.toFixed(5)}, ${p.gpsLng.toFixed(5)}`, 15, 68)
@@ -2012,7 +2091,7 @@ export default function MobileDashboard() {
                                 doc.addImage(photo.dataUrl, 'JPEG', 15, y, 80, 60)
                                 doc.setFontSize(8)
                                 doc.setTextColor(120, 120, 120)
-                                doc.text(`${photo.label} \u2014 ${new Date(photo.timestamp).toLocaleString('fr-FR')}`, 15, y + 63)
+                                doc.text(`${photo.label} \u2014 ${new Date(photo.timestamp).toLocaleString(dateFmtLocale)}`, 15, y + 63)
                                 y += 70
                               } catch { /* image format non supporté */ }
                             }
@@ -2030,7 +2109,7 @@ export default function MobileDashboard() {
                             // Footer
                             doc.setFontSize(8)
                             doc.setTextColor(150, 150, 150)
-                            doc.text(`G\u00E9n\u00E9r\u00E9 par Vitfix Pro \u2014 ${new Date().toLocaleString('fr-FR')}`, 15, 285)
+                            doc.text(`G\u00E9n\u00E9r\u00E9 par Vitfix Pro \u2014 ${new Date().toLocaleString(dateFmtLocale)}`, 15, 285)
                             doc.text('Document \u00E0 valeur probante \u2014 GPS + horodatage + signature client', 15, 290)
                             doc.save(`Rapport_${bk?.services?.name?.replace(/\s+/g, '_') || 'chantier'}_${p.completedAt ? new Date(p.completedAt).toISOString().split('T')[0] : 'date'}.pdf`)
                           }).catch(() => alert('Erreur lors de la g\u00E9n\u00E9ration du PDF'))
@@ -2339,21 +2418,21 @@ export default function MobileDashboard() {
                       <div key={ct.key} className={`rounded-2xl p-3.5 border ${statusCfg.bg} flex items-center gap-3`}>
                         {doc.photoDataUrl ? (
                           <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                            <img src={doc.photoDataUrl} alt="" className="w-full h-full object-cover" />
+                            <Image src={doc.photoDataUrl} alt="" width={40} height={40} className="w-full h-full object-cover" unoptimized />
                           </div>
                         ) : (
                           <span className="text-xl flex-shrink-0">{ct.icon}</span>
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-gray-800 flex items-center gap-1">
-                            {ct.label}
+                            {t(ct.labelKey, ct.label)}
                             {doc.ocrData && (
                               <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">OCR</span>
                             )}
                           </div>
                           {doc.dateExpiration && (
                             <div className="text-xs text-gray-500 mt-0.5">
-                              Exp : {new Date(doc.dateExpiration).toLocaleDateString('fr-FR')}
+                              Exp : {new Date(doc.dateExpiration).toLocaleDateString(dateFmtLocale)}
                             </div>
                           )}
                           {doc.verificationStatus && (
@@ -2445,7 +2524,7 @@ export default function MobileDashboard() {
                   <div className="flex gap-3 items-start">
                     {ocrResult.photoDataUrl && (
                       <div className="w-16 h-20 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
-                        <img src={ocrResult.photoDataUrl} alt="Document scanne" className="w-full h-full object-cover" />
+                        <Image src={ocrResult.photoDataUrl} alt="Document scanne" width={64} height={80} className="w-full h-full object-cover" unoptimized />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -2454,7 +2533,7 @@ export default function MobileDashboard() {
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-xs font-bold text-gray-700">Type detecte :</span>
                             <span className="text-xs font-bold text-blue-600">
-                              {COMPLIANCE_TYPES.find(ct => ct.key === ocrResult.detectedType)?.label || ocrResult.detectedType}
+                              {(() => { const ct = COMPLIANCE_TYPES.find(c => c.key === ocrResult.detectedType); return ct ? t(ct.labelKey, ct.label) : ocrResult.detectedType })()}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 mb-1">
@@ -2469,7 +2548,7 @@ export default function MobileDashboard() {
                           </div>
                           {ocrResult.suggestedExpiration && (
                             <div className="text-[10px] text-gray-500">
-                              Expiration suggeree : {new Date(ocrResult.suggestedExpiration).toLocaleDateString('fr-FR')}
+                              Expiration suggeree : {new Date(ocrResult.suggestedExpiration).toLocaleDateString(dateFmtLocale)}
                             </div>
                           )}
                         </>
@@ -2495,7 +2574,7 @@ export default function MobileDashboard() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
                 >
                   {COMPLIANCE_TYPES.map(ct => (
-                    <option key={ct.key} value={ct.key}>{ct.icon} {ct.label}</option>
+                    <option key={ct.key} value={ct.key}>{ct.icon} {t(ct.labelKey, ct.label)}</option>
                   ))}
                 </select>
               </div>
@@ -2557,8 +2636,8 @@ export default function MobileDashboard() {
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-sm text-gray-900">Acceptation automatique</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Confirme les RDV automatiquement</div>
+                  <div className="font-semibold text-sm text-gray-900">{t('mob.autoAccept')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('mob.autoAcceptDesc')}</div>
                 </div>
                 <button
                   onClick={toggleAutoAccept}
@@ -2572,7 +2651,7 @@ export default function MobileDashboard() {
             {/* Auto-accept sub-settings */}
             {autoAccept && (
               <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-3">
-                <div className="text-xs font-semibold text-amber-700">⚙️ Options d'acceptation auto</div>
+                <div className="text-xs font-semibold text-amber-700">⚙️ {t('mob.autoAcceptOptions')}</div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">Durée de blocage par RDV</label>
                   <select
@@ -2594,8 +2673,8 @@ export default function MobileDashboard() {
 
             {/* Auto-reply message */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="font-semibold text-sm text-gray-900 mb-1">💬 Réponse automatique</div>
-              <p className="text-[10px] text-gray-500 mb-3">Envoyée au client dès la prise de RDV</p>
+              <div className="font-semibold text-sm text-gray-900 mb-1">💬 {t('mob.autoReply')}</div>
+              <p className="text-[10px] text-gray-500 mb-3">{t('mob.autoReplyDesc')}</p>
               <textarea
                 value={settingsForm.auto_reply_message}
                 onChange={e => setSettingsForm(p => ({ ...p, auto_reply_message: e.target.value }))}
@@ -2607,8 +2686,8 @@ export default function MobileDashboard() {
 
             {/* Zone radius */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="font-semibold text-sm text-gray-900 mb-1">📍 Périmètre d'intervention</div>
-              <p className="text-[10px] text-gray-500 mb-3">Rayon autour de votre adresse</p>
+              <div className="font-semibold text-sm text-gray-900 mb-1">📍 {t('mob.interventionRadius')}</div>
+              <p className="text-[10px] text-gray-500 mb-3">{t('mob.radiusDesc')}</p>
               <div className="flex items-center gap-3">
                 <input
                   type="range"
@@ -2626,10 +2705,10 @@ export default function MobileDashboard() {
             {/* Modules personnalisables */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-center justify-between mb-1">
-                <div className="font-semibold text-sm text-gray-900">🧩 Mes modules</div>
-                <span className="text-[10px] text-gray-500">{ARTISAN_MODULES.filter(m => isModuleEnabled(m.key)).length}/{ARTISAN_MODULES.length} actifs</span>
+                <div className="font-semibold text-sm text-gray-900">🧩 {t('mob.myModules')}</div>
+                <span className="text-[10px] text-gray-500">{ARTISAN_MODULES.filter(m => isModuleEnabled(m.key)).length}/{ARTISAN_MODULES.length} {t('mob.modules.active', 'actifs')}</span>
               </div>
-              <p className="text-[11px] text-gray-500 mb-4">Activez uniquement les fonctionnalités dont vous avez besoin</p>
+              <p className="text-[11px] text-gray-500 mb-4">{t('mob.modulesDesc')}</p>
               <div className="space-y-2">
                 {ARTISAN_MODULES.map(mod => {
                   const enabled = isModuleEnabled(mod.key)
@@ -2637,8 +2716,8 @@ export default function MobileDashboard() {
                     <div key={mod.key} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${enabled ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
                       <span className="text-xl flex-shrink-0">{mod.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-gray-800">{mod.label}</div>
-                        <div className="text-[10px] text-gray-500 mt-0.5">{mod.description}</div>
+                        <div className="text-sm font-semibold text-gray-800">{t(mod.labelKey, mod.label)}</div>
+                        <div className="text-[10px] text-gray-500 mt-0.5">{t(mod.descriptionKey, mod.description)}</div>
                       </div>
                       <button
                         onClick={() => toggleModule(mod.key)}
@@ -2654,7 +2733,7 @@ export default function MobileDashboard() {
 
             {/* Availability */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="font-semibold text-sm text-gray-900 mb-3">🕐 Jours travaillés</div>
+              <div className="font-semibold text-sm text-gray-900 mb-3">🕐 {t('mob.workingDays')}</div>
               <div className="flex gap-2 flex-wrap">
                 {[1, 2, 3, 4, 5, 6, 0].map(day => {
                   const isActive = availability.some(a => a.day_of_week === day)
@@ -2672,34 +2751,37 @@ export default function MobileDashboard() {
 
             {/* Profile form */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <div className="font-semibold text-sm text-gray-900 mb-3">⚙️ Informations</div>
+              <div className="font-semibold text-sm text-gray-900 mb-3">⚙️ {t('mob.information')}</div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Nom de l&apos;entreprise</label>
+                  <label className="text-xs text-gray-500 block mb-1">{t('mob.companyName')}</label>
                   <input value={settingsForm.company_name} onChange={e => setSettingsForm(p => ({ ...p, company_name: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Téléphone</label>
+                  <label className="text-xs text-gray-500 block mb-1">{t('mob.phone')}</label>
                   <input value={settingsForm.phone} onChange={e => setSettingsForm(p => ({ ...p, phone: e.target.value }))}
                     type="tel" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Bio / Description</label>
+                  <label className="text-xs text-gray-500 block mb-1">{t('mob.bio')}</label>
                   <textarea value={settingsForm.bio} onChange={e => setSettingsForm(p => ({ ...p, bio: e.target.value }))}
                     rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
                 </div>
                 <button disabled={savingSettings} onClick={saveSettings}
                   className="w-full bg-[#FFC107] text-gray-900 py-3 rounded-xl font-bold text-sm disabled:opacity-50">
-                  {savingSettings ? 'Enregistrement...' : 'Sauvegarder'}
+                  {savingSettings ? t('mob.saving') : t('mob.save')}
                 </button>
               </div>
             </div>
 
+            {/* Password change */}
+            <MobilePasswordChange />
+
             {/* Logout */}
             <button onClick={handleLogout}
               className="w-full border border-red-200 text-red-500 py-3 rounded-2xl font-semibold text-sm bg-red-50">
-              🚪 Déconnexion
+              🚪 {t('mob.logout')}
             </button>
 
             <div className="text-center text-[10px] text-gray-300 pb-2">
@@ -2726,7 +2808,7 @@ export default function MobileDashboard() {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
               {msgList.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-500">
-                  Aucun message pour ce RDV
+                  {t('mob.noMessage')}
                 </div>
               ) : (
                 msgList.map((msg: any) => (
@@ -2739,14 +2821,14 @@ export default function MobileDashboard() {
                         : 'bg-gray-100 text-gray-800'
                     }`}>
                       {msg.type === 'auto_reply' && (
-                        <div className="text-[10px] font-semibold opacity-70 mb-1">Réponse automatique</div>
+                        <div className="text-[10px] font-semibold opacity-70 mb-1">{t('mob.autoReplyLabel')}</div>
                       )}
                       {msg.sender_role === 'client' && (
                         <div className="text-[10px] font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>
                       )}
                       <p className="text-sm">{msg.content}</p>
                       <p className={`text-[10px] mt-1 ${msg.sender_role === 'artisan' ? 'text-gray-700' : 'text-gray-500'}`}>
-                        {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>
@@ -2760,7 +2842,7 @@ export default function MobileDashboard() {
                   value={msgText}
                   onChange={e => setMsgText(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendArtisanMessage()}
-                  placeholder="Votre message..."
+                  placeholder={t('mob.yourMessage')}
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]"
                 />
                 <button
@@ -2884,8 +2966,8 @@ export default function MobileDashboard() {
                     const ht = parseFloat(devisForm.montantHT)
                     const tva = parseFloat(devisForm.tva)
                     const ttc = ht * (1 + tva / 100)
-                    const dateDevis = new Date().toLocaleDateString('fr-FR')
-                    const dateValidite = new Date(Date.now() + parseInt(devisForm.validite) * 86400000).toLocaleDateString('fr-FR')
+                    const dateDevis = new Date().toLocaleDateString(dateFmtLocale)
+                    const dateValidite = new Date(Date.now() + parseInt(devisForm.validite) * 86400000).toLocaleDateString(dateFmtLocale)
                     const num = `DEV-${Date.now().toString().slice(-6)}`
                     const texte = `📋 DEVIS ${num}
 ━━━━━━━━━━━━━━━━━━━━━

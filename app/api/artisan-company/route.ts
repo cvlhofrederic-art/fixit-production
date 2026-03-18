@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // Map nature_juridique codes to labels
 const NATURE_JURIDIQUE_MAP: Record<string, string> = {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_company_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`artisan_company_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const artisanId = request.nextUrl.searchParams.get('artisan_id')
 
@@ -55,15 +56,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'artisan_id requis' }, { status: 400 })
   }
 
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
   // Get artisan profile
   const { data: artisan, error } = await supabaseAdmin
     .from('profiles_artisan')
-    .select('*')
+    .select('id, user_id, company_name, siret, siren, legal_form, naf_code, naf_label, company_address, company_city, company_postal_code, phone, email')
     .eq('id', artisanId)
     .single()
 
@@ -84,8 +80,8 @@ export async function GET(request: NextRequest) {
       const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(artisan.user_id)
       userMeta = user?.user_metadata || {}
       authEmail = user?.email || ''
-    } catch {
-      // Ignore
+    } catch (authErr) {
+      logger.warn('[artisan-company] getUserById failed:', authErr instanceof Error ? authErr.message : authErr)
     }
   }
 
@@ -222,8 +218,8 @@ export async function GET(request: NextRequest) {
           company_postal_code: companyData.postalCode,
         })
         .eq('id', artisanId)
-    } catch {
-      // Ignore errors (columns may not exist yet)
+    } catch (updateErr) {
+      logger.warn('[artisan-company] Profile update failed (columns may not exist):', updateErr instanceof Error ? updateErr.message : updateErr)
     }
 
     // Ajouter les infos d'assurance depuis user_metadata

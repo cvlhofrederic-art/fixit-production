@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // Codes NAF typiques pour les artisans du bâtiment et services
 const ARTISAN_NAF_PREFIXES = [
@@ -50,7 +51,7 @@ function validateSiretFormat(siret: string): { valid: boolean; message?: string 
 export async function GET(request: NextRequest) {
   // Rate limit anti-énumération SIRET : 10 req/min par IP
   const ip = getClientIP(request)
-  if (!checkRateLimit(`verify_siret_${ip}`, 10, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`verify_siret_${ip}`, 10, 60_000))) return rateLimitResponse()
 
   const siret = request.nextUrl.searchParams.get('siret')
 
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
           }
         )
         if (response.ok || response.status < 500) break
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (attempt === 2) throw err
         await new Promise(r => setTimeout(r, (attempt + 1) * 1000))
       }
@@ -177,8 +178,8 @@ export async function GET(request: NextRequest) {
       warning: !isArtisan ? 'Le code NAF de cette entreprise ne correspond pas à une activité artisanale classique. Vérifiez que vous êtes bien artisan.' : null,
     })
 
-  } catch (error: any) {
-    console.error('SIRET verification error:', error)
+  } catch (error: unknown) {
+    logger.error('[verify-siret] Error:', error)
     return NextResponse.json({
       verified: false,
       error: 'Erreur lors de la vérification. Veuillez réessayer.',

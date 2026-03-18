@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // GET: Fetch availability for an artisan (public — nécessaire pour la réservation)
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`availability_get_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`availability_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
@@ -17,16 +18,18 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('availability')
-    .select('*')
+    .select('id, artisan_id, day_of_week, start_time, end_time, is_available')
     .eq('artisan_id', artisanId)
     .order('day_of_week')
 
   if (error) {
-    console.error('Error fetching availability:', error)
+    logger.error('Error fetching availability:', error)
     return NextResponse.json({ error: 'Failed to fetch availability' }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  const response = NextResponse.json({ data })
+  response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  return response
 }
 
 // POST: Toggle day availability (create or toggle is_available)
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`availability_post_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`availability_post_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   try {
     const body = await request.json()
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Check if row exists
     const { data: existing } = await supabaseAdmin
       .from('availability')
-      .select('*')
+      .select('id, artisan_id, day_of_week, is_available, start_time, end_time')
       .eq('artisan_id', artisan_id)
       .eq('day_of_week', day_of_week)
       .single()
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (error) {
-        console.error('Error toggling availability:', error)
+        logger.error('Error toggling availability:', error)
         return NextResponse.json({ error: 'Failed to toggle availability' }, { status: 500 })
       }
       return NextResponse.json({ data, action: 'toggled' })
@@ -100,13 +103,13 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (error) {
-        console.error('Error creating availability:', error)
+        logger.error('Error creating availability:', error)
         return NextResponse.json({ error: 'Failed to create availability' }, { status: 500 })
       }
       return NextResponse.json({ data, action: 'created' })
     }
   } catch (e: unknown) {
-    console.error('Server error in availability POST:', e)
+    logger.error('Server error in availability POST:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -119,7 +122,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`availability_put_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`availability_put_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   try {
     const body = await request.json()
@@ -167,13 +170,13 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error updating availability:', error)
+      logger.error('Error updating availability:', error)
       return NextResponse.json({ error: 'Failed to update availability' }, { status: 500 })
     }
 
     return NextResponse.json({ data })
   } catch (e: unknown) {
-    console.error('Server error in availability PUT:', e)
+    logger.error('Server error in availability PUT:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

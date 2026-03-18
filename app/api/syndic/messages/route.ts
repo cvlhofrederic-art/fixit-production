@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { syndicMessageSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // ── GET /api/syndic/messages?artisan_id=xxx — Canal de communication ──────────
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`syndic_msg_get_${ip}`, 60, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`syndic_msg_get_${ip}`, 60, 60_000))) return rateLimitResponse()
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -15,8 +17,8 @@ export async function GET(request: NextRequest) {
   const artisanId = searchParams.get('artisan_id') // user_id de l'artisan
   const missionId = searchParams.get('mission_id')
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
-  const isSyndic = isSyndicRole(user.user_metadata?.role)
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+  const isSyndic = isSyndicRole(user)
   const isArtisan = user.user_metadata?.role === 'artisan'
 
   if (!isSyndic && !isArtisan) {
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('syndic_messages')
-    .select('*')
+    .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, message_type, mission_id, read_at, read, created_at')
     .order('created_at', { ascending: true })
     .limit(100)
 
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   // Marquer comme lu
   if (data && data.length > 0) {
@@ -62,12 +64,12 @@ export async function GET(request: NextRequest) {
 // ── POST /api/syndic/messages — Envoyer un message ───────────────────────────
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`syndic_msg_post_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`syndic_msg_post_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-  const isSyndic = isSyndicRole(user.user_metadata?.role)
+  const isSyndic = isSyndicRole(user)
   const isArtisan = user.user_metadata?.role === 'artisan'
 
   if (!isSyndic && !isArtisan) {
@@ -75,13 +77,17 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { content, artisan_user_id, cabinet_id, mission_id, type } = body
+  const msgValidation = validateBody(syndicMessageSchema, body)
+  if (!msgValidation.success) {
+    return NextResponse.json({ error: 'Donn\u00e9es invalides', details: msgValidation.error }, { status: 400 })
+  }
+  const { content, artisan_user_id, cabinet_id, mission_id, type } = msgValidation.data
 
   if (!content?.trim()) {
     return NextResponse.json({ error: 'Message vide' }, { status: 400 })
   }
 
-  const cabinetId = isSyndic ? (user.user_metadata?.cabinet_id || user.id) : cabinet_id
+  const cabinetId = isSyndic ? await resolveCabinetId(user, supabaseAdmin) : cabinet_id
   const artisanUserId = isSyndic ? artisan_user_id : user.id
 
   if (!cabinetId || !artisanUserId) {
@@ -105,21 +111,34 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
-    console.error('[MESSAGES POST]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    logger.error('[MESSAGES POST]', error)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  // Notifier l'autre partie (via syndic_notifications existant) — fire and forget
-  supabaseAdmin.from('syndic_notifications').insert({
-    syndic_id: cabinetId,
-    artisan_id: artisanUserId,
-    type: 'message',
-    title: isSyndic ? 'Nouveau message du syndic' : 'Nouveau message de l\'artisan',
-    message: content.trim().substring(0, 100),
-    read: false,
-    created_at: new Date().toISOString(),
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  })
+  // Notifier l'autre partie — fire and forget
+  if (isSyndic) {
+    // Syndic envoie → notifier l'artisan
+    void supabaseAdmin.from('artisan_notifications').insert({
+      artisan_id: artisanUserId,
+      type: 'message',
+      title: 'Nouveau message du syndic',
+      body: content.trim().substring(0, 100),
+      read: false,
+      data_json: { cabinet_id: cabinetId, sender_id: user.id },
+      created_at: new Date().toISOString(),
+    })
+  } else {
+    // Artisan envoie → notifier le syndic
+    void supabaseAdmin.from('syndic_notifications').insert({
+      syndic_id: cabinetId,
+      type: 'message',
+      title: 'Nouveau message de l\'artisan',
+      body: content.trim().substring(0, 100),
+      read: false,
+      data_json: { artisan_id: artisanUserId, sender_id: user.id },
+      created_at: new Date().toISOString(),
+    })
+  }
 
   return NextResponse.json({ success: true, message: data })
 }

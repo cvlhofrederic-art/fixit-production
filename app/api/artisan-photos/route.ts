@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/artisan-photos?artisan_id=X&booking_id=Y
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_photos_get_${ip}`, 60, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`artisan_photos_get_${ip}`, 60, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('artisan_photos')
-    .select('*')
+    .select('id, artisan_id, booking_id, url, label, lat, lng, taken_at, source, created_at')
     .eq('artisan_id', artisanId)
     .order('taken_at', { ascending: false })
 
@@ -40,11 +41,13 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query.limit(200)
 
   if (error) {
-    console.error('Error fetching artisan photos:', error)
+    logger.error('Error fetching artisan photos:', error)
     return NextResponse.json({ error: 'Erreur récupération photos' }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  const response = NextResponse.json({ data })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=60, stale-while-revalidate=120')
+  return response
 }
 
 /**
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_photos_post_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`artisan_photos_post_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   try {
     const formData = await request.formData()
@@ -111,12 +114,16 @@ export async function POST(request: NextRequest) {
       })
 
     if (uploadError) {
-      console.error('[ARTISAN_PHOTOS] Upload error:', uploadError)
-      return NextResponse.json({ error: `Erreur upload: ${uploadError.message}` }, { status: 500 })
+      logger.error('[ARTISAN_PHOTOS] Upload error:', uploadError)
+      return NextResponse.json({ error: 'Erreur lors de l\'upload du fichier' }, { status: 500 })
     }
 
-    const { data: urlData } = supabaseAdmin.storage.from('artisan-photos').getPublicUrl(uploadData.path)
-    const publicUrl = urlData.publicUrl
+    // Utiliser signed URL (7 jours) au lieu de public URL pour la sécurité
+    // Les photos artisan portfolio sont accessibles via signed URLs renouvelables
+    const { data: signedData, error: signError } = await supabaseAdmin.storage
+      .from('artisan-photos')
+      .createSignedUrl(uploadData.path, 60 * 60 * 24 * 7) // 7 jours
+    const publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from('artisan-photos').getPublicUrl(uploadData.path).data.publicUrl
 
     // Insérer dans la table
     const { data: photo, error: insertError } = await supabaseAdmin
@@ -135,13 +142,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      console.error('[ARTISAN_PHOTOS] Insert error:', insertError)
+      logger.error('[ARTISAN_PHOTOS] Insert error:', insertError)
       return NextResponse.json({ error: 'Erreur enregistrement' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: photo })
   } catch (e: unknown) {
-    console.error('[ARTISAN_PHOTOS] Server error:', e)
+    logger.error('[ARTISAN_PHOTOS] Server error:', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -157,7 +164,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_photos_patch_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`artisan_photos_patch_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   try {
     const body = await request.json()
@@ -197,13 +204,13 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('[ARTISAN_PHOTOS] Update error:', error)
+      logger.error('[ARTISAN_PHOTOS] Update error:', error)
       return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data })
   } catch (e: unknown) {
-    console.error('[ARTISAN_PHOTOS] Server error:', e)
+    logger.error('[ARTISAN_PHOTOS] Server error:', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -218,7 +225,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_photos_delete_${ip}`, 20, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`artisan_photos_delete_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
@@ -259,7 +266,7 @@ export async function DELETE(request: NextRequest) {
     .eq('id', id)
 
   if (error) {
-    console.error('[ARTISAN_PHOTOS] Delete error:', error)
+    logger.error('[ARTISAN_PHOTOS] Delete error:', error)
     return NextResponse.json({ error: 'Erreur suppression' }, { status: 500 })
   }
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { planningEventSchema, validateBody } from '@/lib/validation'
 
 // ── Planning Events partagés — table syndic_planning_events
 // SQL pour créer la table (à exécuter une fois dans Supabase SQL Editor) :
@@ -27,24 +29,28 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_date ON syndic_planning_events(da
 
 // GET /api/syndic/planning-events — récupérer les événements du cabinet
 export async function GET(request: NextRequest) {
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`planning_events_get_${ip}`, 60, 60_000))) return rateLimitResponse()
+
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { data, error } = await supabaseAdmin
     .from('syndic_planning_events')
-    .select('*')
+    .select('id, titre, type, date, heure, duree_min, assigne_a, assigne_role, description, cree_par, statut')
     .eq('cabinet_id', cabinetId)
     .order('date', { ascending: true })
     .order('heure', { ascending: true })
+    .limit(200)
 
   // Si la table n'existe pas encore, retourner tableau vide (pas d'erreur)
   if (error) {
     if (error.code === '42P01') return NextResponse.json({ events: [], needsMigration: true })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
   const events = (data || []).map(e => ({
@@ -61,21 +67,27 @@ export async function GET(request: NextRequest) {
     statut: e.statut,
   }))
 
-  return NextResponse.json({ events })
+  const response = NextResponse.json({ events })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  return response
 }
 
 // POST /api/syndic/planning-events — créer un événement
 export async function POST(request: NextRequest) {
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`planning_events_post_${ip}`, 20, 60_000))) return rateLimitResponse()
+
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
 
-  if (!body.titre?.trim() || !body.date) {
-    return NextResponse.json({ error: 'titre et date requis' }, { status: 400 })
+  const eventValidation = validateBody(planningEventSchema, body)
+  if (!eventValidation.success) {
+    return NextResponse.json({ error: 'Donn\u00e9es invalides', details: eventValidation.error }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin
@@ -98,7 +110,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     if (error.code === '42P01') return NextResponse.json({ error: 'needsMigration' }, { status: 503 })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
   return NextResponse.json({
@@ -120,12 +132,15 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/syndic/planning-events?id=xxx
 export async function DELETE(request: NextRequest) {
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`planning_events_del_${ip}`, 10, 60_000))) return rateLimitResponse()
+
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 
@@ -137,6 +152,6 @@ export async function DELETE(request: NextRequest) {
     .eq('id', id)
     .eq('cabinet_id', cabinetId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

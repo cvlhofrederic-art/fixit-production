@@ -1,15 +1,15 @@
 const { createClient } = require('@supabase/supabase-js')
 
 const supabase = createClient(
-  'https://irluhepekbqgquveaett.supabase.co',
-  'sb_secret_lDcyzgFqQMUE65_bCpzuAg_rlTsd6tB'
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 async function seedClient() {
   console.log('👤 Création du compte client...\n')
 
-  const email = 'hdncarvalho@gmail.com'
-  const password = 'Fixit2024!'
+  const email = process.env.SEED_CLIENT_EMAIL || 'test@example.com'
+  const password = process.env.SEED_CLIENT_PASSWORD || 'ChangeMe123!'
 
   // Check if user already exists
   const { data: existingUsers } = await supabase.auth.admin.listUsers()
@@ -41,7 +41,7 @@ async function seedClient() {
   console.log('   Email:', email)
   console.log('   ID:', data.user.id)
   console.log('   Rôle: client')
-  console.log('\n🔐 Connexion: hdncarvalho@gmail.com / Fixit2024!')
+  console.log(`\n🔐 Connexion: ${email} / [voir .env.local]`)
 }
 
 seedClient().catch(console.error)

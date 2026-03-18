@@ -1,41 +1,18 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { TOOLS, buildToolDescriptions, type ToolResult } from './tools'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import crypto from 'crypto'
 import { getAuthUser, unauthorizedResponse, verifyArtisanOwnership } from '@/lib/auth-helpers'
+import { checkRateLimit as checkRL } from '@/lib/rate-limit'
 import { fixyAiSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 30
 
 // ── Fixy AI v2 — Assistant IA avec exécution d'actions serveur ────────────────
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
-// ── Rate limiting (in-memory, per artisan) ───────────────────────────────────
-const rateLimits = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT = 30 // max requests per window
-const RATE_WINDOW = 60_000 // 1 minute
-
-function checkRateLimit(artisanId: string): boolean {
-  const now = Date.now()
-  const entry = rateLimits.get(artisanId)
-  if (!entry || entry.resetAt < now) {
-    rateLimits.set(artisanId, { count: 1, resetAt: now + RATE_WINDOW })
-    return true
-  }
-  if (entry.count >= RATE_LIMIT) return false
-  entry.count++
-  return true
-}
-
-// Cleanup rate limits every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of rateLimits) {
-    if (entry.resetAt < now) rateLimits.delete(key)
-  }
-}, 300_000)
 
 // ── Pending confirmations (in-memory, TTL 5min) ─────────────────────────────
 const pendingConfirmations = new Map<string, {
@@ -55,12 +32,27 @@ setInterval(() => {
 
 // ── Day names for prompt ────────────────────────────────────────────────────
 const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const JOUR_NOMS_LC = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
 // ── Build system prompt ─────────────────────────────────────────────────────
-function buildSystemPrompt(context: any): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Artisan context from frontend with dynamic shape
+function buildSystemPrompt(context: Record<string, any>, locale?: string): string {
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
   const dayName = DAY_NAMES[today.getDay()]
+
+  // Pré-calculer les dates relatives
+  const dateMapping: string[] = []
+  dateMapping.push(`  - "aujourd'hui" = ${todayStr} (${JOUR_NOMS_LC[today.getDay()]})`)
+  const demain = new Date(today); demain.setDate(demain.getDate() + 1)
+  dateMapping.push(`  - "demain" = ${demain.toISOString().split('T')[0]} (${JOUR_NOMS_LC[demain.getDay()]})`)
+  const apDemain = new Date(today); apDemain.setDate(apDemain.getDate() + 2)
+  dateMapping.push(`  - "après-demain" = ${apDemain.toISOString().split('T')[0]} (${JOUR_NOMS_LC[apDemain.getDay()]})`)
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i)
+    dateMapping.push(`  - "${JOUR_NOMS_LC[d.getDay()]}" = ${d.toISOString().split('T')[0]}`)
+  }
+  const dateMappingStr = dateMapping.join('\n')
 
   // Services
   const serviceLines = (context.services || []).map((s: any) =>
@@ -94,16 +86,26 @@ function buildSystemPrompt(context: any): string {
   // Tool descriptions
   const toolDesc = buildToolDescriptions()
 
-  return `Tu es Fixy, l'assistant IA de ${context.artisan_name || "l'artisan"} sur Vitfix.
-Tu es un robot efficace 🔧, amical et HONNÊTE. Tu parles français.
+  let systemPrompt = `Tu es **Fixy 🔧**, l'assistant IA expert de ${context.artisan_name || "l'artisan"} sur Vitfix.
+Tu es un assistant efficace, proactif, amical et HONNÊTE. Tu parles français.
 
 📅 Aujourd'hui : ${dayName} ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} (${todayStr})
+
+## Compréhension vocale avancée
+Tu comprends et traites parfaitement :
+- Les **dictées vocales** (phrases longues, avec hésitations, reformulations)
+- Les **abréviations orales** : "met", "mets", "rajoute", "enlève", "supprime", "active", "désactive"
+- Le **langage naturel parlé** : "bloque-moi la semaine prochaine", "j'suis pas dispo mardi", "met une absence"
+- Les **fautes d'orthographe** et le langage SMS : "ajd", "demain mat", "g pas dispo", "c bon"
+- Les **demandes enchaînées** : "active tous mes motifs ET mets une absence du 5 au 10 mars"
+- Les **termes approximatifs** : "mes vacances" = absence, "mes congés" = absence, "indispo" = absence
 
 ═══ MODULES ACCESSIBLES ═══
 Tu as accès à TOUS les modules du dashboard artisan :
 - 📅 RDV/Agenda : créer, confirmer, annuler, reprogrammer, détails
 - ⏰ Disponibilités : jours, horaires, services liés
 - 🔧 Motifs/Services : créer, modifier, activer/désactiver, supprimer, lier aux jours
+- 🗓️ Absences/Congés : créer, lister, supprimer des périodes d'indisponibilité
 - 👥 Clients : liste complète, détails, historique RDV, CA par client
 - 💬 Messages : lire et envoyer des messages dans les RDV
 - 💰 Comptabilité : CA par période, données URSSAF, déclaration trimestrielle
@@ -122,6 +124,17 @@ ${availLines}
 
 PROCHAINS RDV :
 ${bookingLines}
+
+ABSENCES/CONGÉS :
+${(() => {
+    const abs = (context.absences || [])
+    if (abs.length === 0) return '(Aucune absence planifiée)'
+    return abs.map((a: any) => {
+      const s = new Date(a.start_date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      const e = new Date(a.end_date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      return `- ID:${a.id} | Du ${s} au ${e}${a.reason ? ` (${a.reason})` : ''}${a.label ? ` — ${a.label}` : ''}`
+    }).join('\n')
+  })()}
 
 CLIENTS :
 ${clientLines}
@@ -153,7 +166,9 @@ ${toolDesc}
 
 5. IDs : Utilise les vrais IDs du contexte ci-dessus. JAMAIS inventer un ID.
 
-6. DATES RELATIVES : "demain" = jour après ${todayStr}. "lundi" = prochain lundi.
+6. DATES RELATIVES — **UTILISE OBLIGATOIREMENT** cette table de conversion :
+${dateMappingStr}
+   ⚠️ UTILISE TOUJOURS les dates de cette table. Ne calcule JAMAIS une date toi-même.
    "la semaine prochaine" = semaine qui commence lundi prochain.
 
 7. create_devis / create_facture : retourne-les dans "client_actions" car c'est le client qui ouvre le formulaire.
@@ -200,8 +215,55 @@ EXEMPLES :
 - "ma déclaration URSSAF" → actions: [{ "tool": "get_quarterly_data" }]
 - "mon SIRET" → actions: [{ "tool": "get_company_info" }]
 - "ouvre la comptabilité" → actions: [{ "tool": "navigate_to", "params": { "page": "comptabilite" } }]
+- "met une absence du 5 au 10 mars" → actions: [{ "tool": "create_absence", "params": { "start_date": "2026-03-05", "end_date": "2026-03-10", "reason": "Vacances" } }]
+- "je suis en vacances la semaine prochaine" → actions: [{ "tool": "create_absence", "params": { "start_date": "(lundi prochain)", "end_date": "(vendredi prochain)", "reason": "Vacances" } }]
+- "bloque-moi mardi" → actions: [{ "tool": "create_absence", "params": { "start_date": "(mardi date)", "end_date": "(mardi date)", "reason": "Personnel" } }]
+- "j'suis pas dispo demain" → actions: [{ "tool": "create_absence", "params": { "start_date": "(demain date)", "end_date": "(demain date)", "reason": "Personnel" } }]
+- "mes absences" → actions: [{ "tool": "list_absences" }]
+- "supprime mon absence" → pending_confirmation avec delete_absence
 
 NE JAMAIS inclure de texte avant ou après le JSON.`
+
+  if (locale === 'pt') {
+    // Prepend Portuguese context to the system prompt
+    const ptContext = `
+LÍNGUA: Comunicas exclusivamente em português europeu (PT-PT). Nunca uses termos brasileiros.
+
+VOCABULÁRIO OBRIGATÓRIO:
+- "profissional" (nunca "artesão" — artesão = artisan d'art em Portugal)
+- "orçamento" para devis (nunca "cotação")
+- "obras" para travaux
+- "remodelação" para rénovation (nunca "renovação")
+- "casa de banho" (nunca "banheiro")
+- "canalizador" para plombier
+- "eletricista" para électricien
+- "pedreiro" para maçon
+- "registar-se" (nunca "cadastrar-se")
+
+CONTEXTO LOCAL PORTUGAL:
+- Cidades e distritos: Lisboa, Porto, Braga, Coimbra, Faro, Setúbal, Aveiro, Viseu, Leiria, Évora, Guimarães
+- Códigos postais: XXXX-XXX (ex: 4710-057)
+- Telefones: +351 XXX XXX XXX (9 dígitos após indicativo)
+- NIF (Número de Identificação Fiscal) em vez de SIRET
+- Moeda: Euro (€)
+- Formato data: "1 de março de 2026" ou "01/03/2026"
+
+REGRAS PROFISSIONAIS PORTUGAL:
+- Horários obras com ruído: dias úteis, 8h00-20h00 (DL 9/2007)
+- Fins de semana: trabalhos ruidosos proibidos em condomínios
+- Eletricistas: certificação DGEG obrigatória
+- Empreiteiros: alvará IMPIC obrigatório
+- Seguro RC obrigatório para profissionais
+- IVA: 23% standard, 6% reabilitação urbana
+
+EMAILS em PT:
+- Abertura: "Exmo(a) Sr(a) [Nome]," ou "Caro(a) [Nome],"
+- Fecho: "Com os melhores cumprimentos,"
+`
+    systemPrompt = ptContext + '\n\n' + systemPrompt.replace(/Tu es \*\*Fixy 🔧\*\*/, 'Tu és o **Fixy 🔧**')
+  }
+
+  return systemPrompt
 }
 
 // ── Main POST handler ───────────────────────────────────────────────────────
@@ -212,7 +274,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { message, artisan_id, context, conversation_history } = validation.data
+    const { message, artisan_id, context, conversation_history, locale } = validation.data
 
     // ── Auth: verify Bearer token and artisan ownership ──
     const user = await getAuthUser(request)
@@ -223,7 +285,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: artisan_id mismatch' }, { status: 403 })
     }
 
-    if (!checkRateLimit(artisan_id)) {
+    if (!(await checkRL(`fixy_ai_${artisan_id}`, 30, 60_000))) {
       return NextResponse.json({ success: false, response: 'Tu vas trop vite ! Attends un peu avant de renvoyer un message.', actions_executed: [], client_actions: [] })
     }
 
@@ -232,7 +294,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build system prompt with full context
-    const systemPrompt = buildSystemPrompt(context || {})
+    const systemPrompt = buildSystemPrompt(context || {}, locale)
 
     // Build conversation messages
     const messages: Array<{ role: string; content: string }> = [
@@ -247,7 +309,7 @@ export async function POST(request: NextRequest) {
     messages.push({ role: 'user', content: message })
 
     // Call Groq API with retry
-    let groqData: any
+    let groqData: GroqResponse
     try {
       groqData = await callGroqWithRetry({
         messages,
@@ -260,9 +322,10 @@ export async function POST(request: NextRequest) {
     }
     const content = groqData.choices?.[0]?.message?.content || ''
 
-    let parsed: any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Dynamic AI JSON response
+    let parsed: Record<string, any>
     try { parsed = JSON.parse(content) } catch {
-      console.error('Failed to parse Groq response:', content)
+      logger.error('[fixy-ai] Failed to parse Groq response:', content.substring(0, 200))
       return NextResponse.json({ success: false, response: 'Je n\'ai pas bien compris. Reformule ?', actions_executed: [], client_actions: [] })
     }
 
@@ -330,11 +393,12 @@ export async function POST(request: NextRequest) {
           result: result.success ? 'success' : 'error',
           detail: result.detail,
         })
-      } catch (execErr: any) {
+      } catch (execErr: unknown) {
+        const errMsg = execErr instanceof Error ? execErr.message : 'inconnue'
         actionsExecuted.push({
           tool: toolName,
           result: 'error',
-          detail: `Erreur d'exécution : ${execErr.message || 'inconnue'}`,
+          detail: `Erreur d'exécution : ${errMsg}`,
         })
       }
     }
@@ -376,8 +440,8 @@ export async function POST(request: NextRequest) {
       client_actions: clientActions,
     })
 
-  } catch (error: any) {
-    console.error('Fixy AI error:', error)
+  } catch (error: unknown) {
+    logger.error('[fixy-ai] Error:', error)
     return NextResponse.json({
       success: false,
       response: 'Oups, une erreur est survenue. Réessaie !',
@@ -435,8 +499,8 @@ export async function PUT(request: NextRequest) {
       tool: pending.tool,
     })
 
-  } catch (error: any) {
-    console.error('Fixy confirm error:', error)
+  } catch (error: unknown) {
+    logger.error('[fixy-ai] Confirm error:', error)
     return NextResponse.json({ success: false, detail: 'Erreur serveur' }, { status: 500 })
   }
 }

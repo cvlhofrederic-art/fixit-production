@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 /**
  * POST /api/upload
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limit : 20 uploads/min par IP
   const ip = getClientIP(request)
-  if (!checkRateLimit(`upload_${ip}`, 20, 60_000)) {
+  if (!(await checkRateLimit(`upload_${ip}`, 20, 60_000))) {
     return rateLimitResponse()
   }
 
@@ -108,20 +109,19 @@ export async function POST(request: NextRequest) {
       })
 
     if (uploadError) {
-      console.error('[UPLOAD] Erreur Supabase Storage:', uploadError)
+      logger.error('[UPLOAD] Erreur Supabase Storage:', uploadError)
       return NextResponse.json(
         { error: `Erreur upload: ${uploadError.message}` },
         { status: 500 }
       )
     }
 
-    // Récupérer l'URL publique
-    const { data: urlData } = supabaseAdmin
+    // Signed URL (7 jours) au lieu de public URL pour sécurité
+    const { data: signedData } = await supabaseAdmin
       .storage
       .from(bucket)
-      .getPublicUrl(uploadData.path)
-
-    const publicUrl = urlData.publicUrl
+      .createSignedUrl(uploadData.path, 60 * 60 * 24 * 7)
+    const publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from(bucket).getPublicUrl(uploadData.path).data.publicUrl
 
     // Si artisan_id + field fournis, mettre à jour le profil
     if (artisanId && field) {
@@ -142,8 +142,8 @@ export async function POST(request: NextRequest) {
           const photoMeta = formData.get('photo_meta') as string | null
           const photoUrl = formData.get('photo_url') as string | null
           const targetUrl = photoUrl || publicUrl
-          let meta: any = {}
-          try { meta = photoMeta ? JSON.parse(photoMeta) : {} } catch { /* ignore */ }
+          let meta: Record<string, unknown> = {}
+          try { meta = photoMeta ? JSON.parse(photoMeta) : {} } catch { /* invalid JSON, use empty */ }
           const newEntry = {
             url: targetUrl,
             title: meta.title || 'Réalisation',
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
             uploadedAt: new Date().toISOString(),
             id: Date.now().toString(),
           }
-          const existing: any[] = artisanRow.portfolio_photos || []
+          const existing: Array<Record<string, unknown>> = artisanRow.portfolio_photos || []
           const { error: updateError } = await supabaseAdmin
             .from('profiles_artisan')
             .update({
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', artisanId)
           if (updateError) {
-            console.error('[UPLOAD] Erreur portfolio_photos:', updateError)
+            logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
           }
         } else {
           const { error: updateError } = await supabaseAdmin
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
             .update({ [field]: publicUrl, updated_at: new Date().toISOString() })
             .eq('id', artisanId)
           if (updateError) {
-            console.error('[UPLOAD] Erreur mise à jour profil:', updateError)
+            logger.error('[UPLOAD] Erreur mise à jour profil:', updateError)
             // On retourne quand même l'URL car l'upload a réussi
           }
         }
@@ -180,8 +180,8 @@ export async function POST(request: NextRequest) {
       url: publicUrl,
       path: uploadData.path,
     })
-  } catch (err: any) {
-    console.error('[UPLOAD] Erreur:', err)
+  } catch (err: unknown) {
+    logger.error('[UPLOAD] Error:', err)
     return NextResponse.json(
       { error: 'Erreur serveur lors de l\'upload' },
       { status: 500 }

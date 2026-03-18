@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { coproSignalementSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // POST /api/coproprietaire/signalement — créer un signalement
 // Rate-limité pour éviter le spam (pas d'auth car copropriétaires non-inscrits)
@@ -8,23 +10,29 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limiting strict
     const ip = getClientIP(request)
-    if (!checkRateLimit(`copro_signalement_post_${ip}`, 5, 60_000)) return rateLimitResponse()
+    if (!(await checkRateLimit(`copro_signalement_post_${ip}`, 5, 60_000))) return rateLimitResponse()
 
     const body = await request.json()
 
-    // Validation des champs obligatoires
+    // Zod schema validation
+    const coproValidation = validateBody(coproSignalementSchema, body)
+    if (!coproValidation.success) {
+      return NextResponse.json({ error: 'Donn\u00e9es invalides', details: coproValidation.error }, { status: 400 })
+    }
+
+    // Validation des champs obligatoires (kept for backward compatibility with flexible field names)
     const description = (body.description || '').trim()
     const demandeurNom = (body.demandeurNom || body.nom || '').trim()
     const immeuble = (body.immeuble || body.immeubleNom || '').trim()
 
     if (!description || description.length < 10) {
-      return NextResponse.json({ error: 'Description requise (minimum 10 caractères)' }, { status: 400 })
+      return NextResponse.json({ error: 'Description requise (minimum 10 caract\u00e8res)' }, { status: 400 })
     }
     if (!demandeurNom || demandeurNom.length < 2) {
       return NextResponse.json({ error: 'Nom du demandeur requis' }, { status: 400 })
     }
     if (description.length > 5000) {
-      return NextResponse.json({ error: 'Description trop longue (max 5000 caractères)' }, { status: 400 })
+      return NextResponse.json({ error: 'Description trop longue (max 5000 caract\u00e8res)' }, { status: 400 })
     }
 
     // Résoudre le cabinet_id depuis le nom de l'immeuble si possible
@@ -68,10 +76,11 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ signalement: data })
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    logger.error('[COPRO SIGNALEMENT]', e)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 
@@ -79,7 +88,7 @@ export async function POST(request: NextRequest) {
 // Requiert email exact (pas de wildcard) + rate limiting
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request as any)
-  if (!checkRateLimit(`copro_signalement_get_${ip}`, 15, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`copro_signalement_get_${ip}`, 15, 60_000))) return rateLimitResponse()
 
   const url = new URL(request.url)
   const email = (url.searchParams.get('email') || '').trim().toLowerCase()
@@ -96,13 +105,13 @@ export async function GET(request: NextRequest) {
 
   // Stricter per-email rate limit to prevent email enumeration attacks
   // Max 5 unique email lookups per IP per minute
-  if (email && !checkRateLimit(`copro_signalement_email_${ip}`, 5, 60_000)) {
+  if (email && !(await checkRateLimit(`copro_signalement_email_${ip}`, 5, 60_000))) {
     return rateLimitResponse()
   }
 
   let query = supabaseAdmin
     .from('syndic_signalements')
-    .select('*')
+    .select('id, immeuble_nom, demandeur_nom, demandeur_role, type_intervention, description, priorite, statut, batiment, etage, num_lot, est_partie_commune, zone_signalee, artisan_assigne, created_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -112,7 +121,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   const signalements = (data || []).map(s => ({
     id: s.id,

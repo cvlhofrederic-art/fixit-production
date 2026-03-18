@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { canalInterneSchema, validateBody } from '@/lib/validation'
 
 // ── Canal Interne équipe — réutilise la table syndic_messages avec message_type='canal_interne'
 
 // GET /api/syndic/canal-interne — récupérer les messages internes du cabinet
 export async function GET(request: NextRequest) {
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`canal_interne_get_${ip}`, 60, 60_000))) return rateLimitResponse()
+
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { data, error } = await supabaseAdmin
     .from('syndic_messages')
-    .select('*')
+    .select('id, sender_role, content, mission_id, read, created_at')
     .eq('cabinet_id', cabinetId)
     .eq('message_type', 'canal_interne')
     .order('created_at', { ascending: true })
     .limit(200)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   const messages = (data || []).map(m => ({
     id: m.id,
@@ -39,16 +44,20 @@ export async function GET(request: NextRequest) {
 
 // POST /api/syndic/canal-interne — envoyer un message interne
 export async function POST(request: NextRequest) {
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`canal_interne_post_${ip}`, 20, 60_000))) return rateLimitResponse()
+
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
 
-  if (!body.texte?.trim()) {
-    return NextResponse.json({ error: 'texte requis' }, { status: 400 })
+  const validationResult = validateBody(canalInterneSchema, body)
+  if (!validationResult.success) {
+    return NextResponse.json({ error: 'Donn\u00e9es invalides', details: validationResult.error }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin
@@ -67,7 +76,7 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   return NextResponse.json({
     message: {
@@ -86,11 +95,11 @@ export async function POST(request: NextRequest) {
 // PATCH /api/syndic/canal-interne — marquer tout comme lu
 export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
-  if (!user || !isSyndicRole(user.user_metadata?.role)) {
+  if (!user || !isSyndicRole(user)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { error } = await supabaseAdmin
     .from('syndic_messages')
@@ -99,6 +108,6 @@ export async function PATCH(request: NextRequest) {
     .eq('message_type', 'canal_interne')
     .eq('read', false)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

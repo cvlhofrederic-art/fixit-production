@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { logger } from '@/lib/logger'
 
 // GET: Fetch dayServices config from artisan's bio marker
 export async function GET(request: NextRequest) {
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (error) {
-    console.error('Error fetching artisan bio:', error)
+    logger.error('Error fetching artisan bio:', error)
     return NextResponse.json({ error: 'Failed to fetch artisan data' }, { status: 500 })
   }
 
@@ -28,22 +30,35 @@ export async function GET(request: NextRequest) {
       try {
         dayServices = JSON.parse(match[1])
       } catch (parseError) {
-        console.error('Failed to parse dayServices JSON:', parseError)
+        logger.error('Failed to parse dayServices JSON:', parseError)
       }
     }
   }
 
-  return NextResponse.json({ data: dayServices })
+  const response = NextResponse.json({ data: dayServices })
+  response.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200')
+  return response
 }
 
 // POST: Save dayServices config into artisan's bio marker
 export async function POST(request: NextRequest) {
   try {
+    // ── Auth: seul l'artisan propriétaire peut modifier sa config ──
+    const user = await getAuthUser(request)
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { artisan_id, dayServices } = body
 
     if (!artisan_id || !dayServices) {
       return NextResponse.json({ error: 'artisan_id and dayServices are required' }, { status: 400 })
+    }
+
+    // Vérifier que l'utilisateur connecté est bien cet artisan
+    if (user.id !== artisan_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Get current bio
@@ -54,7 +69,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (fetchError) {
-      console.error('Error fetching artisan bio:', fetchError)
+      logger.error('Error fetching artisan bio:', fetchError)
       return NextResponse.json({ error: 'Failed to fetch artisan data' }, { status: 500 })
     }
 
@@ -70,13 +85,13 @@ export async function POST(request: NextRequest) {
       .eq('id', artisan_id)
 
     if (updateError) {
-      console.error('Error updating artisan bio:', updateError)
+      logger.error('Error updating artisan bio:', updateError)
       return NextResponse.json({ error: 'Failed to update artisan data' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, bio: newBio })
   } catch (e: unknown) {
-    console.error('Server error in availability-services POST:', e)
+    logger.error('Server error in availability-services POST:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

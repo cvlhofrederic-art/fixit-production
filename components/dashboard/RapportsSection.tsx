@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { useLocale } from '@/lib/i18n/context'
 
 /* ══════════ RAPPORTS D'INTERVENTION ══════════ */
 
@@ -10,6 +12,7 @@ interface RapportIntervention {
   rapportNumber: string
   createdAt: string
   linkedBookingId: string | null
+  linkedPhotoIds?: string[]
   refDevisFact: string
   // Artisan
   artisanName: string
@@ -35,6 +38,8 @@ interface RapportIntervention {
   observations: string
   recommendations: string
   status: 'termine' | 'en_cours' | 'a_reprendre' | 'sous_garantie'
+  sentStatus?: 'envoye' | 'non_envoye'
+  sentAt?: string
 }
 
 const RAPPORT_STATUS_MAP = {
@@ -45,13 +50,21 @@ const RAPPORT_STATUS_MAP = {
 }
 
 export default function RapportsSection({ artisan, bookings, services }: { artisan: any; bookings: any[]; services: any[] }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_rapports_${artisan?.id}`
   const pdfRef = useRef<HTMLDivElement>(null)
 
-  const [rapports, setRapports] = useState<RapportIntervention[]>(() => {
-    if (typeof window === 'undefined') return []
-    try { return JSON.parse(localStorage.getItem(`fixit_rapports_${artisan?.id}`) || '[]') } catch { return [] }
-  })
+  const [rapports, setRapports] = useState<RapportIntervention[]>([])
+
+  // Charger les rapports quand l'artisan est disponible
+  useEffect(() => {
+    if (!artisan?.id) return
+    try {
+      const stored = localStorage.getItem(`fixit_rapports_${artisan.id}`)
+      if (stored) setRapports(JSON.parse(stored))
+    } catch { /* ignore */ }
+  }, [artisan?.id])
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState<string | null>(null)
@@ -60,6 +73,12 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
 
   const [form, setForm] = useState<Partial<RapportIntervention>>({})
   const [importSource, setImportSource] = useState<'intervention' | 'mission'>('intervention')
+
+  // Photos chantier pour liaison
+  const [availablePhotos, setAvailablePhotos] = useState<any[]>([])
+  const [photosLoading, setPhotosLoading] = useState(false)
+  const [linkedPhotos, setLinkedPhotos] = useState<string[]>([])
+  const [showPhotoPicker, setShowPhotoPicker] = useState(false)
 
   // Load missions from localStorage (syndic + gestionnaire)
   const [availableMissions, setAvailableMissions] = useState<any[]>([])
@@ -94,6 +113,22 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
     return {}
   }
 
+  // Load available photos chantier for linking
+  const loadAvailablePhotos = async () => {
+    if (!artisan?.id) return
+    setPhotosLoading(true)
+    try {
+      const headers = await getAuthHeaders()
+      const res = await fetch(`/api/artisan-photos?artisan_id=${artisan.id}`, { headers })
+      const json = await res.json()
+      if (json.data) setAvailablePhotos(json.data)
+    } catch (e) {
+      console.error('Error loading photos for rapport:', e)
+    } finally {
+      setPhotosLoading(false)
+    }
+  }
+
   // Fetch artisan company data once (with auth)
   useEffect(() => {
     if (!artisan?.id) return
@@ -123,10 +158,12 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
     const a = artisan || {}
     const c = companyData || {}
     setEditingId(null)
+    setLinkedPhotos([])
     setForm({
       rapportNumber: nextNumber(),
       createdAt: new Date().toISOString(),
       linkedBookingId: null,
+      linkedPhotoIds: [],
       refDevisFact: '',
       artisanName: c.name || a.company_name || '',
       artisanAddress: c.address || a.company_address || a.address || '',
@@ -148,13 +185,17 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
       observations: '',
       recommendations: '',
       status: 'termine',
+      sentStatus: 'non_envoye',
     })
+    loadAvailablePhotos()
     setShowForm(true)
   }
 
   const openEdit = (r: RapportIntervention) => {
     setEditingId(r.id)
+    setLinkedPhotos(r.linkedPhotoIds || [])
     setForm({ ...r })
+    loadAvailablePhotos()
     setShowForm(true)
   }
 
@@ -244,6 +285,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
       ...form as RapportIntervention,
       travaux: (form.travaux || ['']).filter(t => t.trim()),
       materiaux: (form.materiaux || ['']).filter(m => m.trim()),
+      linkedPhotoIds: linkedPhotos,
     }
     if (editingId) {
       saveRapports(rapports.map(r => r.id === editingId ? { ...rapport, id: editingId } : r))
@@ -253,46 +295,319 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
     setShowForm(false)
   }
 
+  // Toggle photo link
+  const togglePhotoLink = (photoId: string) => {
+    setLinkedPhotos(prev =>
+      prev.includes(photoId)
+        ? prev.filter(id => id !== photoId)
+        : [...prev, photoId]
+    )
+  }
+
   const deleteRapport = (id: string) => {
     if (!confirm('Supprimer ce rapport ?')) return
     saveRapports(rapports.filter(r => r.id !== id))
   }
 
-  // PDF generation
+  // ═══ PDF generation — jsPDF vectoriel haute qualité (comme devis/factures) ═══
   const generatePDF = async (r: RapportIntervention) => {
     setPdfLoading(r.id)
     try {
-      const { default: jsPDF } = await import('jspdf')
-      const { default: html2canvas } = await import('html2canvas')
-      setPreviewRapport(r)
-      await new Promise(res => setTimeout(res, 200))
-      if (!pdfRef.current) return
-      const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
-      const imgData = canvas.toDataURL('image/jpeg', 0.95)
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
-      const imgW = pageW - 20
-      const imgH = (canvas.height * imgW) / canvas.width
-      let y = 10
-      if (imgH <= pageH - 20) {
-        pdf.addImage(imgData, 'JPEG', 10, y, imgW, imgH)
-      } else {
-        let remaining = imgH
-        let srcY = 0
-        while (remaining > 0) {
-          const sliceH = Math.min(pageH - 20, remaining)
-          const sliceCanvas = document.createElement('canvas')
-          sliceCanvas.width = canvas.width
-          sliceCanvas.height = (sliceH / imgH) * canvas.height
-          const ctx = sliceCanvas.getContext('2d')!
-          ctx.drawImage(canvas, 0, srcY * canvas.height / imgH, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height)
-          pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', 10, 10, imgW, sliceH)
-          remaining -= sliceH
-          srcY += sliceH
-          if (remaining > 0) pdf.addPage()
-        }
+      // Load photos if rapport has linked photos
+      if (r.linkedPhotoIds?.length && availablePhotos.length === 0) {
+        await loadAvailablePhotos()
       }
+      const { jsPDF } = await import('jspdf')
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()  // 210mm
+      const pageH = pdf.internal.pageSize.getHeight() // 297mm
+      const mL = 18, mR = 18
+      const contentW = pageW - mL - mR
+      const col = '#1E293B', colLight = '#64748B', colAccent = '#FFC107'
+
+      // ─── Helper functions ───
+      const drawLine = (x1: number, yPos: number, x2: number, color = '#E2E8F0', width = 0.3) => {
+        pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
+      }
+      const checkPage = (need: number, currentY: number): number => {
+        if (currentY + need > pageH - 15) { pdf.addPage(); return 18 }
+        return currentY
+      }
+      const sectionHeader = (text: string, yPos: number, bgColor = '#1E293B'): number => {
+        yPos = checkPage(12, yPos)
+        pdf.setFillColor(bgColor)
+        pdf.roundedRect(mL, yPos, contentW, 7, 1.5, 1.5, 'F')
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
+        pdf.text(text.toUpperCase(), mL + 4, yPos + 4.8)
+        return yPos + 8
+      }
+      const sectionBody = (yStart: number, render: (x: number, y: number, w: number) => number): number => {
+        pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+        const bodyY = yStart
+        const endY = render(mL + 4, bodyY + 4, contentW - 8)
+        pdf.roundedRect(mL, yStart - 0.5, contentW, endY - yStart + 2, 0, 0, 'S')
+        return endY + 4
+      }
+      let y = 0
+
+      // ═══ 1. EN-TÊTE BANDEAU SOMBRE ═══
+      pdf.setFillColor('#1E293B')
+      pdf.rect(0, 0, pageW, 32, 'F')
+      // Titre
+      pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
+      pdf.text("RAPPORT D'INTERVENTION", mL, 14)
+      // Numéro
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#FFC107')
+      pdf.text(r.rapportNumber, mL, 21)
+      // Date
+      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#94A3B8')
+      pdf.text(`Établi le ${new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}`, mL, 27)
+      // Référence devis/facture à droite
+      if (r.refDevisFact) {
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#94A3B8')
+        pdf.text(`Réf : ${r.refDevisFact}`, pageW - mR, 21, { align: 'right' })
+      }
+      // Bande jaune
+      pdf.setFillColor('#FFC107')
+      pdf.rect(0, 32, pageW, 1.5, 'F')
+      y = 40
+
+      // ═══ 2. ÉMETTEUR + CLIENT (2 colonnes) ═══
+      const boxW = (contentW - 6) / 2
+      const boxStartY = y
+
+      // Émetteur
+      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
+      pdf.setFillColor('#F8FAFC')
+      pdf.roundedRect(mL, boxStartY, boxW, 36, 2, 2, 'FD')
+      let ey = boxStartY + 4
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(colLight)
+      pdf.text('PRESTATAIRE', mL + 4, ey); ey += 5
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text(r.artisanName || '', mL + 4, ey); ey += 4
+      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
+      if (r.artisanAddress) { pdf.text(r.artisanAddress, mL + 4, ey); ey += 3.2 }
+      if (r.artisanPhone) { pdf.text(r.artisanPhone, mL + 4, ey); ey += 3.2 }
+      if (r.artisanEmail) { pdf.text(r.artisanEmail, mL + 4, ey); ey += 3.2 }
+      if (r.artisanSiret) { pdf.setFontSize(6.5); pdf.setTextColor('#94A3B8'); pdf.text(`SIRET : ${r.artisanSiret}`, mL + 4, ey); ey += 3 }
+      if (r.artisanInsurance) { pdf.text(r.artisanInsurance, mL + 4, ey) }
+
+      // Client
+      const destX = mL + boxW + 6
+      pdf.setFillColor('#FFFBF0')
+      pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
+      pdf.roundedRect(destX, boxStartY, boxW, 36, 2, 2, 'FD')
+      // Bord jaune gauche
+      pdf.setFillColor('#FFC107')
+      pdf.rect(destX, boxStartY + 2, 1.5, 32, 'F')
+      let dy = boxStartY + 4
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#B45309')
+      pdf.text('CLIENT', destX + 6, dy); dy += 5
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+      pdf.text(r.clientName || '', destX + 6, dy); dy += 4
+      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
+      if (r.clientAddress) { pdf.text(r.clientAddress, destX + 6, dy); dy += 3.2 }
+      if (r.clientPhone) { pdf.text(r.clientPhone, destX + 6, dy); dy += 3.2 }
+      if (r.clientEmail) { pdf.text(r.clientEmail, destX + 6, dy) }
+
+      y = boxStartY + 38
+
+      // ═══ 3. DÉTAILS INTERVENTION ═══
+      pdf.setFillColor('#FFFBEB'); pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
+      pdf.roundedRect(mL, y, contentW, 18, 2, 2, 'FD')
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#92400E')
+      pdf.text("DÉTAILS DE L'INTERVENTION", mL + 4, y + 4)
+      // 4 colonnes
+      const colW4 = contentW / 4
+      const detY = y + 9
+      const detailCol = (label: string, value: string, cx: number) => {
+        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+        pdf.text(label, cx, detY)
+        pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        pdf.text(value || '—', cx, detY + 4)
+      }
+      detailCol('Date', r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : '—', mL + 4)
+      detailCol('Heure début', r.startTime || '—', mL + 4 + colW4)
+      detailCol('Heure fin', r.endTime || '—', mL + 4 + colW4 * 2)
+      // Durée calculée
+      let durationStr = '—'
+      if (r.startTime && r.endTime) {
+        const [sh, sm] = r.startTime.split(':').map(Number)
+        const [eh, em] = r.endTime.split(':').map(Number)
+        const mins = (eh * 60 + em) - (sh * 60 + sm)
+        if (mins > 0) durationStr = `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : '00'}`
+      }
+      detailCol('Durée', durationStr, mL + 4 + colW4 * 3)
+      // Adresse chantier
+      if (r.siteAddress) {
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+        pdf.text('Adresse chantier : ', mL + 4, y + 16)
+        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+        pdf.text(r.siteAddress, mL + 4 + pdf.getTextWidth('Adresse chantier : '), y + 16)
+      }
+      y += 22
+
+      // ═══ 4. MOTIF D'INTERVENTION ═══
+      if (r.motif) {
+        y = sectionHeader("Motif d'intervention", y)
+        y = sectionBody(y, (x, sy, w) => {
+          pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
+          const lines = pdf.splitTextToSize(r.motif, w)
+          pdf.text(lines, x, sy)
+          return sy + lines.length * 3.5 + 1
+        })
+      }
+
+      // ═══ 5. TRAVAUX RÉALISÉS ═══
+      const travaux = r.travaux?.filter(t => t) || []
+      if (travaux.length > 0) {
+        y = sectionHeader('Travaux réalisés', y)
+        y = sectionBody(y, (x, sy, w) => {
+          let ty = sy
+          travaux.forEach(t => {
+            ty = checkPage(5, ty)
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#059669')
+            pdf.text('✓', x, ty)
+            pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
+            const tLines = pdf.splitTextToSize(t, w - 6)
+            pdf.text(tLines, x + 5, ty)
+            ty += tLines.length * 3.5 + 1
+          })
+          return ty
+        })
+      }
+
+      // ═══ 6. MATÉRIAUX UTILISÉS ═══
+      const materiaux = r.materiaux?.filter(m => m) || []
+      if (materiaux.length > 0) {
+        y = sectionHeader('Matériaux utilisés', y)
+        y = sectionBody(y, (x, sy, w) => {
+          let my = sy
+          materiaux.forEach(m => {
+            my = checkPage(5, my)
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
+            pdf.text('•', x, my)
+            pdf.setTextColor(col)
+            const mLines = pdf.splitTextToSize(m, w - 6)
+            pdf.text(mLines, x + 5, my)
+            my += mLines.length * 3.5 + 1
+          })
+          return my
+        })
+      }
+
+      // ═══ 7. OBSERVATIONS + RECOMMANDATIONS ═══
+      if (r.observations || r.recommendations) {
+        y = checkPage(25, y)
+        const hasObs = !!r.observations
+        const hasRec = !!r.recommendations
+        const splitW = hasObs && hasRec ? (contentW - 4) / 2 : contentW
+
+        if (hasObs) {
+          // Observations
+          pdf.setFillColor('#475569')
+          pdf.roundedRect(mL, y, splitW, 7, 1.5, 1.5, 'F')
+          pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
+          pdf.text('OBSERVATIONS', mL + 4, y + 4.8)
+          pdf.setDrawColor('#E2E8F0'); pdf.setFillColor('#F8FAFC')
+          pdf.roundedRect(mL, y + 7, splitW, 20, 0, 0, 'FD')
+          pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
+          const obsLines = pdf.splitTextToSize(r.observations, splitW - 8)
+          pdf.text(obsLines, mL + 4, y + 12)
+        }
+
+        if (hasRec) {
+          const recX = hasObs ? mL + splitW + 4 : mL
+          pdf.setFillColor('#2563EB')
+          pdf.roundedRect(recX, y, splitW, 7, 1.5, 1.5, 'F')
+          pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
+          pdf.text('RECOMMANDATIONS', recX + 4, y + 4.8)
+          pdf.setDrawColor('#E2E8F0'); pdf.setFillColor('#EFF6FF')
+          pdf.roundedRect(recX, y + 7, splitW, 20, 0, 0, 'FD')
+          pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
+          const recLines = pdf.splitTextToSize(r.recommendations, splitW - 8)
+          pdf.text(recLines, recX + 4, y + 12)
+        }
+        y += 30
+      }
+
+      // ═══ 8. PHOTOS CHANTIER ═══
+      const linkedPhotosList = r.linkedPhotoIds?.length
+        ? availablePhotos.filter(p => r.linkedPhotoIds?.includes(p.id))
+        : []
+      if (linkedPhotosList.length > 0) {
+        y = checkPage(20, y)
+        y = sectionHeader(`Photos chantier (${linkedPhotosList.length})`, y)
+        y += 2
+
+        const photoW = (contentW - 6) / 2
+        const photoH = 50
+        let photoCol = 0
+
+        const loadImage = (url: string): Promise<HTMLImageElement> => {
+          return new Promise((resolve, reject) => {
+            const img = new window.Image()
+            img.crossOrigin = 'anonymous'
+            img.onload = () => resolve(img)
+            img.onerror = () => reject(new Error('Image load failed'))
+            img.src = url
+          })
+        }
+
+        for (let i = 0; i < linkedPhotosList.length; i++) {
+          const photo = linkedPhotosList[i]
+          if (photoCol === 0) y = checkPage(photoH + 16, y)
+          const x = mL + photoCol * (photoW + 6)
+
+          try {
+            const img = await loadImage(photo.url)
+            pdf.setDrawColor('#E5E7EB'); pdf.setLineWidth(0.3)
+            pdf.roundedRect(x, y, photoW, photoH + 10, 1.5, 1.5, 'S')
+
+            const imgRatio = img.width / img.height
+            let drawW = photoW - 4, drawH = photoH - 2
+            if (imgRatio > drawW / drawH) { drawH = drawW / imgRatio } else { drawW = drawH * imgRatio }
+            const imgX = x + (photoW - drawW) / 2
+            const imgY = y + 1 + (photoH - 2 - drawH) / 2
+
+            // Haute résolution 2400px
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.min(img.width, 2400)
+            canvas.height = Math.round(canvas.width / imgRatio)
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true
+              ctx.imageSmoothingQuality = 'high'
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+              const imgData = canvas.toDataURL('image/jpeg', 0.92)
+              pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
+            }
+
+            // Info photo
+            pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+            const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString(dateFmtLocale) : ''
+            if (dateStr) pdf.text(dateStr, x + 2, y + photoH + 3)
+            if (photo.lat && photo.lng) {
+              pdf.text(`GPS ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, y + photoH + 6.5)
+            }
+          } catch {
+            pdf.setFillColor('#F3F4F6')
+            pdf.roundedRect(x, y, photoW, photoH + 10, 1.5, 1.5, 'FD')
+            pdf.setFontSize(7); pdf.setTextColor('#9CA3AF')
+            pdf.text('Photo non disponible', x + photoW / 2, y + photoH / 2, { align: 'center' })
+          }
+
+          photoCol++
+          if (photoCol >= 2) { photoCol = 0; y += photoH + 14 }
+        }
+        if (photoCol > 0) y += photoH + 14
+      }
+
+      // ═══ FOOTER ═══
+      pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#94A3B8')
+      const footerText = `${r.artisanName}${r.artisanSiret ? ` — SIRET ${r.artisanSiret}` : ''} — Document généré par Vitfix Pro — ${new Date().toLocaleDateString(dateFmtLocale)}`
+      pdf.text(footerText, pageW / 2, pageH - 8, { align: 'center' })
+
       pdf.save(`${r.rapportNumber}.pdf`)
     } catch (e) {
       console.error('PDF error:', e)
@@ -307,11 +622,11 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
   return (
     <div className="animate-fadeIn">
       {/* ── Header ── */}
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
+        <div className="flex items-center justify-between flex-wrap gap-4 w-full">
           <div>
-            <h1 className="text-2xl font-semibold">📋 Rapports d'Intervention</h1>
-            <p className="text-gray-500 text-sm mt-1">Compte-rendus BTP — liés à vos interventions, devis et factures</p>
+            <h1 className="text-xl font-semibold leading-tight">📋 Rapports d'Intervention</h1>
+            <p className="text-xs text-gray-400 mt-0.5">Compte-rendus BTP — liés à vos interventions</p>
           </div>
           <button onClick={openNew} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2">
             ➕ Nouveau rapport
@@ -547,6 +862,97 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                     className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
                 </div>
               </div>
+
+              {/* 📸 Photos Chantier liées */}
+              <div className="border border-gray-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">📸 Photos Chantier</h4>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPhotoPicker(!showPhotoPicker); if (!showPhotoPicker && availablePhotos.length === 0) loadAvailablePhotos() }}
+                    className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition font-semibold"
+                  >
+                    {showPhotoPicker ? (locale === 'pt' ? '✕ Fechar' : '✕ Fermer') : (locale === 'pt' ? '+ Adicionar fotos' : '+ Ajouter des photos')}
+                  </button>
+                </div>
+
+                {/* Photos déjà liées */}
+                {linkedPhotos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {linkedPhotos.map(photoId => {
+                      const photo = availablePhotos.find(p => p.id === photoId)
+                      return (
+                        <div key={photoId} className="relative group">
+                          {photo ? (
+                            <Image src={photo.url} alt="Photo chantier" width={80} height={80} className="w-20 h-20 object-cover rounded-lg border-2 border-green-400" unoptimized />
+                          ) : (
+                            <div className="w-20 h-20 bg-gray-100 rounded-lg border-2 border-green-400 flex items-center justify-center text-xs text-gray-400">📸</div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => togglePhotoLink(photoId)}
+                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                          >
+                            ✕
+                          </button>
+                          {photo?.lat && photo?.lng && (
+                            <div className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[8px] px-1 rounded">📍 GPS</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {linkedPhotos.length === 0 && !showPhotoPicker && (
+                  <p className="text-xs text-gray-400 italic">Aucune photo liée. Ajoutez des photos chantier pour les inclure dans le rapport.</p>
+                )}
+
+                {/* Picker — grille de photos disponibles */}
+                {showPhotoPicker && (
+                  <div className="bg-gray-50 rounded-xl p-3 mt-2">
+                    {photosLoading ? (
+                      <div className="text-center py-4 text-xs text-gray-400">Chargement des photos...</div>
+                    ) : availablePhotos.length === 0 ? (
+                      <div className="text-center py-4">
+                        <div className="text-2xl mb-1">📸</div>
+                        <p className="text-xs text-gray-500">Aucune photo chantier disponible</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Prenez des photos depuis l&apos;app mobile</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-gray-500 mb-2 font-medium">Cliquez pour sélectionner / désélectionner :</p>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
+                          {availablePhotos.map(photo => {
+                            const isLinked = linkedPhotos.includes(photo.id)
+                            return (
+                              <button
+                                type="button"
+                                key={photo.id}
+                                onClick={() => togglePhotoLink(photo.id)}
+                                className={`relative rounded-lg overflow-hidden border-2 transition ${
+                                  isLinked ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200 hover:border-amber-300'
+                                }`}
+                              >
+                                <Image src={photo.url} alt="" width={100} height={64} className="w-full h-16 object-cover" unoptimized />
+                                {isLinked && (
+                                  <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+                                    <span className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">✓</span>
+                                  </div>
+                                )}
+                                <div className="text-[8px] text-gray-500 px-1 py-0.5 truncate">
+                                  {new Date(photo.taken_at).toLocaleDateString(dateFmtLocale)}
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2 text-right">{linkedPhotos.length} photo{linkedPhotos.length > 1 ? 's' : ''} sélectionnée{linkedPhotos.length > 1 ? 's' : ''}</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-5 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white rounded-b-2xl">
@@ -557,6 +963,26 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                 className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl py-3 font-bold text-sm transition disabled:opacity-50">
                 {editingId ? '💾 Mettre à jour' : '✅ Créer le rapport'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Compteurs ── */}
+      {rapports.length > 0 && (
+        <div className="px-6 lg:px-8 pt-6">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+              <div className="text-2xl font-black text-[#2C3E50]">{rapports.length}</div>
+              <div className="text-xs text-gray-500">Total rapports</div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+              <div className="text-2xl font-black text-green-600">{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
+              <div className="text-xs text-gray-500">Envoyés</div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm text-center">
+              <div className="text-2xl font-black text-amber-600">{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
+              <div className="text-xs text-gray-500">Non envoyés</div>
             </div>
           </div>
         </div>
@@ -598,11 +1024,19 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <span className="font-bold text-gray-900">{r.clientName || 'Client non défini'}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${r.sentStatus === 'envoye' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                              {r.sentStatus === 'envoye' ? '✅ Envoyé' : '⏳ Non envoyé'}
+                            </span>
                             {r.refDevisFact && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">📎 {r.refDevisFact}</span>}
                           </div>
+                          {r.sentAt && (
+                            <div className="text-[10px] text-gray-400 mb-0.5">
+                              📧 Envoyé le {new Date(r.sentAt).toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short', year: 'numeric' })} à {new Date(r.sentAt).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          )}
                           <div className="text-sm text-gray-600 font-medium">{r.motif}</div>
                           <div className="flex items-center gap-4 mt-1 flex-wrap text-xs text-gray-500">
-                            <span>📅 {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span>
+                            <span>📅 {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span>
                             {r.startTime && <span>🕐 {r.startTime}{r.endTime ? ` → ${r.endTime}` : ''}{duration ? ` (${duration})` : ''}</span>}
                             {r.siteAddress && <span>📍 {r.siteAddress}</span>}
                           </div>
@@ -612,20 +1046,52 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                               {r.travaux.filter(t => t).length > 2 && <span className="text-gray-500">+{r.travaux.filter(t => t).length - 2} autres</span>}
                             </div>
                           )}
+                          {(r.linkedPhotoIds?.length || 0) > 0 && (
+                            <div className="mt-1.5">
+                              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
+                                📸 {r.linkedPhotoIds!.length} photo{r.linkedPhotoIds!.length > 1 ? 's' : ''} chantier
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => generatePDF(r)}
-                          disabled={pdfLoading === r.id}
-                          className="bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 px-3 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1"
-                        >
-                          {pdfLoading === r.id ? '⏳' : '📥 PDF'}
-                        </button>
-                        <button onClick={() => openEdit(r)} className="bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-xl text-sm font-semibold transition">✏️</button>
-                        <button onClick={() => deleteRapport(r.id)} className="bg-red-50 border border-red-200 text-red-400 hover:bg-red-100 px-3 py-2 rounded-xl text-sm transition">🗑️</button>
+                      <div className="flex flex-col gap-2 flex-shrink-0">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => generatePDF(r)}
+                            disabled={pdfLoading === r.id}
+                            className="bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 px-3 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1"
+                          >
+                            {pdfLoading === r.id ? '⏳' : '📥 PDF'}
+                          </button>
+                          <button onClick={() => openEdit(r)} className="bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-xl text-sm font-semibold transition">✏️</button>
+                          <button onClick={() => deleteRapport(r.id)} className="bg-red-50 border border-red-200 text-red-400 hover:bg-red-100 px-3 py-2 rounded-xl text-sm transition">🗑️</button>
+                        </div>
+                        <div className="flex gap-2">
+                          {r.sentStatus !== 'envoye' && (
+                            <button onClick={() => {
+                              const now = new Date().toISOString()
+                              saveRapports(rapports.map(x => x.id === r.id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
+                            }}
+                              className="bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                              ✅ Marquer envoyé
+                            </button>
+                          )}
+                          {r.clientEmail && (
+                            <button onClick={() => {
+                              const subject = encodeURIComponent(`Rapport ${r.rapportNumber} — ${r.artisanName || 'Fixit'}`)
+                              const body = encodeURIComponent(`Bonjour ${r.clientName || ''},\n\nVeuillez trouver ci-joint le rapport d'intervention ${r.rapportNumber} du ${r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : ''}.\n\nCordialement,\n${r.artisanName || ''}${r.artisanPhone ? '\n' + r.artisanPhone : ''}`)
+                              window.open(`mailto:${r.clientEmail}?subject=${subject}&body=${body}`)
+                              const now = new Date().toISOString()
+                              saveRapports(rapports.map(x => x.id === r.id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
+                            }}
+                              className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                              📧 Email
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -646,19 +1112,14 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                 <div style={{ fontSize: '24px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.3px' }}>RAPPORT D&apos;INTERVENTION</div>
                 <div style={{ fontSize: '13px', color: '#FFC107', fontWeight: '700', marginTop: '6px', letterSpacing: '1px' }}>{previewRapport.rapportNumber}</div>
                 <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '4px' }}>
-                  Établi le {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  Établi le {new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ padding: '8px 16px', background: previewRapport.status === 'termine' ? '#059669' : previewRapport.status === 'en_cours' ? '#2563EB' : previewRapport.status === 'a_reprendre' ? '#D97706' : '#7C3AED', borderRadius: '20px', display: 'inline-block' }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '11px', color: '#ffffff' }}>
-                    {RAPPORT_STATUS_MAP[previewRapport.status]?.label || 'Terminé'}
-                  </span>
-                </div>
-                {previewRapport.refDevisFact && (
+              {previewRapport.refDevisFact && (
+                <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>Réf : {previewRapport.refDevisFact}</div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
             {/* Bande jaune décorative */}
             <div style={{ height: '4px', background: 'linear-gradient(90deg, #FFC107 0%, #FFD54F 50%, #FFC107 100%)', margin: '0 -48px 28px -48px' }}></div>
@@ -689,7 +1150,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                 <div>
                   <div style={{ fontSize: '9px', color: '#6b7280' }}>Date</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.interventionDate ? new Date(previewRapport.interventionDate + 'T12:00:00').toLocaleDateString('fr-FR') : '—'}</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.interventionDate ? new Date(previewRapport.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : '—'}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure début</div>
@@ -781,23 +1242,33 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
               </div>
             )}
 
-            {/* Signatures */}
-            <div style={{ marginTop: '28px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', borderTop: '2px solid #E2E8F0', paddingTop: '20px' }}>
-              <div style={{ padding: '14px', border: '1px solid #E2E8F0', borderRadius: '10px', background: '#F8FAFC' }}>
-                <div style={{ fontSize: '9px', color: '#64748B', marginBottom: '6px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Signature prestataire</div>
-                <div style={{ fontWeight: '700', fontSize: '12px', color: '#1E293B', marginBottom: '30px' }}>{previewRapport.artisanName}</div>
-                <div style={{ borderTop: '1px dotted #CBD5E1', width: '180px', paddingTop: '4px', fontSize: '9px', color: '#94A3B8' }}>Signature</div>
-              </div>
-              <div style={{ padding: '14px', border: '1px solid #E2E8F0', borderRadius: '10px', background: '#F8FAFC' }}>
-                <div style={{ fontSize: '9px', color: '#64748B', marginBottom: '6px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Signature client <span style={{ fontStyle: 'italic', fontWeight: '400' }}>&quot;Bon pour accord&quot;</span></div>
-                <div style={{ fontWeight: '700', fontSize: '12px', color: '#1E293B', marginBottom: '30px' }}>{previewRapport.clientName}</div>
-                <div style={{ borderTop: '1px dotted #CBD5E1', width: '180px', paddingTop: '4px', fontSize: '9px', color: '#94A3B8' }}>Signature</div>
-              </div>
-            </div>
+            {/* Photos chantier */}
+            {(previewRapport.linkedPhotoIds?.length || 0) > 0 && (() => {
+              const photos = availablePhotos.filter(p => previewRapport.linkedPhotoIds?.includes(p.id))
+              return photos.length > 0 ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Photos chantier ({photos.length})
+                  </div>
+                  <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {photos.map(photo => (
+                      <div key={photo.id} style={{ width: '140px' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- Used for html2canvas PDF capture, requires native img */}
+                        <img src={photo.url} alt="Photo chantier" style={{ width: '140px', height: '100px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} crossOrigin="anonymous" />
+                        <div style={{ fontSize: '8px', color: '#6b7280', marginTop: '3px' }}>
+                          {new Date(photo.taken_at).toLocaleDateString(dateFmtLocale)} {new Date(photo.taken_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
+                          {photo.lat && photo.lng ? ` · GPS ${photo.lat.toFixed(4)}, ${photo.lng.toFixed(4)}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null
+            })()}
 
             {/* Footer */}
             <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '2px solid #E2E8F0', textAlign: 'center', fontSize: '8px', color: '#94A3B8' }}>
-              {previewRapport.artisanName} — {previewRapport.artisanSiret ? `SIRET ${previewRapport.artisanSiret}` : ''} — Document généré par Vitfix Pro — {new Date().toLocaleDateString('fr-FR')}
+              {previewRapport.artisanName} — {previewRapport.artisanSiret ? `SIRET ${previewRapport.artisanSiret}` : ''} — Document généré par Vitfix Pro — {new Date().toLocaleDateString(dateFmtLocale)}
             </div>
           </div>
         </div>

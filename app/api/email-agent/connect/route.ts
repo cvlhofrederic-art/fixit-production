@@ -37,8 +37,20 @@ export async function GET(request: NextRequest) {
   googleOAuthUrl.searchParams.set('access_type', 'offline')
   googleOAuthUrl.searchParams.set('prompt', 'consent') // Force refresh_token
   // CSRF protection: state = syndic_id:random_nonce
-  const nonce = Math.random().toString(36).substring(2) + Date.now().toString(36)
+  // Generate a cryptographically stronger nonce
+  const nonce = crypto.randomUUID()
   googleOAuthUrl.searchParams.set('state', `${user.id}:${nonce}`)
+
+  // Store the nonce in Supabase so the callback can verify it
+  await supabaseAdmin
+    .from('syndic_oauth_tokens')
+    .upsert({
+      syndic_id: user.id,
+      provider: 'gmail',
+      oauth_nonce: nonce,
+      oauth_nonce_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 min expiry
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'syndic_id' })
 
   return NextResponse.redirect(googleOAuthUrl)
 }

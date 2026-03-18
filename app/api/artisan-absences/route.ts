@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { artisanAbsenceSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // GET: Fetch absences for an artisan (public — needed for client booking availability check)
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`absences_get_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`absences_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
@@ -17,16 +19,19 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('artisan_absences')
-    .select('*')
+    .select('id, artisan_id, start_date, end_date, reason, label, source, created_at')
     .eq('artisan_id', artisanId)
     .order('start_date')
+    .limit(100)
 
   if (error) {
-    console.error('Error fetching absences:', error)
+    logger.error('Error fetching absences:', error)
     return NextResponse.json({ error: 'Failed to fetch absences' }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  const response = NextResponse.json({ data })
+  response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  return response
 }
 
 // POST: Create a new absence period
@@ -37,21 +42,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`absences_post_${ip}`, 20, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`absences_post_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   try {
     const body = await request.json()
-    const { artisan_id, start_date, end_date, reason, label, source } = body
+    const { artisan_id, source } = body
 
-    if (!artisan_id || !start_date || !end_date) {
-      return NextResponse.json({ error: 'artisan_id, start_date, and end_date are required' }, { status: 400 })
+    if (!artisan_id) {
+      return NextResponse.json({ error: 'artisan_id is required' }, { status: 400 })
     }
 
-    // Validate date format YYYY-MM-DD
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (!dateRegex.test(start_date) || !dateRegex.test(end_date)) {
-      return NextResponse.json({ error: 'Dates must be in YYYY-MM-DD format' }, { status: 400 })
+    // Validate body with Zod schema
+    const validation = validateBody(artisanAbsenceSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
+    const { start_date, end_date, reason, label } = validation.data
 
     // Validate end_date >= start_date
     if (end_date < start_date) {
@@ -82,13 +88,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error creating absence:', error)
+      logger.error('Error creating absence:', error)
       return NextResponse.json({ error: 'Failed to create absence' }, { status: 500 })
     }
 
     return NextResponse.json({ data })
   } catch (e: unknown) {
-    console.error('Server error in absences POST:', e)
+    logger.error('Server error in absences POST:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -101,7 +107,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`absences_delete_${ip}`, 20, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`absences_delete_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
@@ -137,13 +143,13 @@ export async function DELETE(request: NextRequest) {
       .eq('id', id)
 
     if (error) {
-      console.error('Error deleting absence:', error)
+      logger.error('Error deleting absence:', error)
       return NextResponse.json({ error: 'Failed to delete absence' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (e: unknown) {
-    console.error('Server error in absences DELETE:', e)
+    logger.error('Server error in absences DELETE:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

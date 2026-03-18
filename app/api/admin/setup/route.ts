@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   // ── Rate limit strict pour endpoint admin ──────────────────────────────
   const ip = getClientIP(request)
-  if (!checkRateLimit(`admin_setup_${ip}`, 5, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`admin_setup_${ip}`, 5, 60_000))) return rateLimitResponse()
 
   // ── Vérification authentification ────────────────────────────────────────
   const user = await getAuthUser(request as any)

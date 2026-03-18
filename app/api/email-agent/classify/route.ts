@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { callGroqWithRetry } from '@/lib/groq'
+import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -53,6 +56,14 @@ Actions suggérées possibles :
 - "Envoyer un accusé de réception"`
 
 export async function POST(request: NextRequest) {
+  // ── Sécurité : auth syndic + rate limit ──
+  const user = await getAuthUser(request)
+  if (!user || !isSyndicRole(user)) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  }
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`classify_${ip}`, 20, 60_000))) return rateLimitResponse()
+
   try {
     const { from, subject, body } = await request.json()
 
@@ -103,8 +114,8 @@ ${(body || '').substring(0, 800)}`
     return NextResponse.json({ classification })
 
   } catch (err: any) {
-    console.error('Classify error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error('Classify error:', err)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 

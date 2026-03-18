@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { logger } from '@/lib/logger'
 
 // ── Applique une action sur un email analysé ──────────────────────────────────
 // Actions : 'archiver' | 'marquer_traite' | 'creer_mission' | 'ajouter_note'
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email non trouvé' }, { status: 404 })
     }
 
-    let updateData: Record<string, any> = { updated_at: new Date().toISOString() }
+    let updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
     switch (action) {
       case 'archiver':
@@ -84,14 +85,14 @@ export async function POST(request: NextRequest) {
       .eq('id', email_id)
 
     if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, action, email_id, new_statut: updateData.statut })
 
-  } catch (err: any) {
-    console.error('Action error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err: unknown) {
+    logger.error('[email-agent/action] Error:', err)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 

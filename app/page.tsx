@@ -1,364 +1,575 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
+import s from './landing-v2.module.css'
 
-const services = [
-  {
-    icon: '🔧',
-    title: 'Plomberie',
-    slug: 'plomberie',
-    description: 'Fuites, installations sanitaires, débouchage et réparations',
-  },
-  {
-    icon: '⚡',
-    title: 'Électricité',
-    slug: 'electricite',
-    description: 'Installations, dépannages, mises aux normes électriques',
-  },
-  {
-    icon: '🔑',
-    title: 'Serrurerie',
-    slug: 'serrurerie',
-    description: 'Ouverture de portes, changement de serrures, blindage',
-  },
-  {
-    icon: '🔥',
-    title: 'Chauffage',
-    slug: 'chauffage',
-    description: 'Installation, entretien et réparation de chauffages',
-  },
-  {
-    icon: '🎨',
-    title: 'Peinture',
-    slug: 'peinture',
-    description: 'Peinture intérieure et extérieure, ravalement de façade',
-  },
-  {
-    icon: '🧱',
-    title: 'Maçonnerie',
-    slug: 'maconnerie',
-    description: 'Construction, rénovation, carrelage, enduits et dalles',
-  },
-  {
-    icon: '🪚',
-    title: 'Menuiserie',
-    slug: 'menuiserie',
-    description: 'Portes, fenêtres, parquet, dressing et aménagements bois',
-  },
-  {
-    icon: '🏚️',
-    title: 'Toiture',
-    slug: 'toiture',
-    description: 'Réparation de toits, zinguerie, couverture et étanchéité',
-  },
-  {
-    icon: '❄️',
-    title: 'Climatisation',
-    slug: 'climatisation',
-    description: 'Installation, entretien et réparation de climatiseurs',
-  },
-  {
-    icon: '🚚',
-    title: 'Déménagement',
-    slug: 'demenagement',
-    description: 'Déménagement particuliers et entreprises, emballage',
-  },
-  {
-    icon: '🏡',
-    title: 'Rénovation',
-    slug: 'renovation',
-    description: 'Rénovation complète, second œuvre, transformation de locaux',
-  },
-  {
-    icon: '🪟',
-    title: 'Vitrerie',
-    slug: 'vitrerie',
-    description: 'Remplacement de vitres, double vitrage, miroirs',
-  },
-  {
-    icon: '🛠️',
-    title: 'Petits travaux',
-    slug: 'petits-travaux',
-    description: 'Montage de meubles, fixations, petites réparations',
-  },
-  {
-    icon: '🌳',
-    title: 'Espaces verts',
-    slug: 'espaces-verts',
-    description: 'Entretien de jardins, tonte, taille de haies, paysagisme',
-  },
-  {
-    icon: '🧹',
-    title: 'Nettoyage',
-    slug: 'nettoyage',
-    description: 'Nettoyage professionnel, fin de chantier, vitrerie',
-  },
-  {
-    icon: '🐛',
-    title: 'Traitement nuisibles',
-    slug: 'traitement-nuisibles',
-    description: 'Dératisation, désinsectisation, punaises de lit, termites, guêpes',
-  },
+const SERVICE_KEYS = [
+  { icon: '🔧', key: 'plumbing', slug: 'plomberie' },
+  { icon: '⚡', key: 'electricity', slug: 'electricite' },
+  { icon: '🔑', key: 'locksmith', slug: 'serrurerie' },
+  { icon: '🔥', key: 'heating', slug: 'chauffage' },
+  { icon: '🎨', key: 'painting', slug: 'peinture' },
+  { icon: '🧱', key: 'masonry', slug: 'maconnerie' },
+  { icon: '🪚', key: 'carpentry', slug: 'menuiserie' },
+  { icon: '🏚️', key: 'roofing', slug: 'toiture' },
+]
+
+const SERVICE_KEYS_EXTRA = [
+  { icon: '❄️', key: 'airConditioning', slug: 'climatisation' },
+  { icon: '🚚', key: 'moving', slug: 'demenagement' },
+  { icon: '🏡', key: 'renovation', slug: 'renovation' },
+  { icon: '🪟', key: 'glazing', slug: 'vitrerie' },
+  { icon: '🛠️', key: 'smallJobs', slug: 'petits-travaux' },
+  { icon: '🌳', key: 'greenSpaces', slug: 'espaces-verts' },
+  { icon: '🧹', key: 'cleaning', slug: 'nettoyage' },
+  { icon: '🐛', key: 'pestControl', slug: 'traitement-nuisibles' },
+  // DB-only categories — need translation keys
+  { icon: '🏡', key: 'exteriorDesign', slug: 'amenagement-exterieur' },
+  { icon: '🧱', key: 'tiling', slug: 'carrelage' },
+  { icon: '🌳', key: 'gardening', slug: 'jardinage' },
+  { icon: '🌿', key: 'landscaping', slug: 'paysagiste' },
+  { icon: '🔍', key: 'diagnostic', slug: 'diagnostic' },
+  { icon: '🧹', key: 'postWorkCleaning', slug: 'nettoyage-travaux' },
+  { icon: '🏢', key: 'condoCleaning', slug: 'nettoyage-copro' },
+  { icon: '🏭', key: 'industrialCleaning', slug: 'nettoyage-industriel' },
 ]
 
 export default function HomePage() {
   const router = useRouter()
+  const { t } = useTranslation()
+  const locale = useLocale()
+
   const [categories, setCategories] = useState<any[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
   const [location, setLocation] = useState('')
-  const [showSuggestions, setShowSuggestions] = useState(false)
   const [user, setUser] = useState<any>(null)
-  const comboRef = useRef<HTMLDivElement>(null)
+  const [showAllServices, setShowAllServices] = useState(false)
+  const [revealedEls, setRevealedEls] = useState<Set<string>>(new Set())
+
+  const searchPath = locale === 'pt' ? '/pesquisar' : '/recherche'
+  const registerPath = '/pro/register'
+  const tariffsPath = '/pro/tarifs'
+  const consumerPricingPath = '/pro/tarifs'
 
   useEffect(() => {
-    fetchCategories()
+    supabase.from('categories').select('*').eq('active', true).order('name')
+      .then(({ data }) => setCategories(data || []))
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user || null))
     return () => subscription.unsubscribe()
   }, [])
 
-  const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('active', true)
-      .order('name')
-
-    if (error) console.error('Error fetching categories:', error)
-    setCategories(data || [])
-  }
-
-  // Close suggestions dropdown on outside click
+  // Scroll reveal — reveals elements entering viewport OR already scrolled past
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false)
-      }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(e => {
+          // Reveal if intersecting OR if element has been scrolled past (above viewport)
+          if (e.isIntersecting || e.boundingClientRect.bottom < 0) {
+            const id = (e.target as HTMLElement).dataset.revealId
+            if (id) setRevealedEls(prev => new Set(prev).add(id))
+            observer.unobserve(e.target)
+          }
+        })
+      },
+      { threshold: 0.01, rootMargin: '0px 0px 150px 0px' }
+    )
+    const raf = requestAnimationFrame(() => {
+      document.querySelectorAll('[data-reveal-id]').forEach(el => observer.observe(el))
+    })
+    // Fallback: on scroll, check for elements scrolled past that observer may have missed
+    const onScroll = () => {
+      document.querySelectorAll('[data-reveal-id]').forEach(el => {
+        const rect = el.getBoundingClientRect()
+        const id = (el as HTMLElement).dataset.revealId
+        if (id && (rect.top < window.innerHeight + 150)) {
+          setRevealedEls(prev => {
+            if (prev.has(id)) return prev
+            const next = new Set(prev)
+            next.add(id)
+            return next
+          })
+        }
+      })
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { cancelAnimationFrame(raf); observer.disconnect(); window.removeEventListener('scroll', onScroll) }
   }, [])
 
-  // Override Supabase icons/names with "Nos services" values for consistency
-  const serviceOverrides = Object.fromEntries(services.map(s => [s.slug, { icon: s.icon, name: s.title }]))
-
-  // Filter suggestions based on input
-  const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-  const filteredSuggestions = categories.map((cat) => {
-    const override = serviceOverrides[cat.slug]
-    return override ? { ...cat, icon: override.icon, name: override.name } : cat
-  }).filter((cat) => {
-    if (!selectedCategory) return true // show all when empty
-    const norm = normalizeText(selectedCategory)
-    const catName = normalizeText(cat.name || '')
-    const catSlug = normalizeText(cat.slug || '')
-    return catName.includes(norm) || catSlug.includes(norm) || norm.includes(catSlug)
-  })
+  const revealClass = (id: string) =>
+    `${s.reveal}${revealedEls.has(id) ? ` ${s.visible}` : ''}`
 
   const handleSearch = () => {
-    if (!user) {
-      router.push('/auth/login')
-      return
-    }
+    if (!user) { router.push('/auth/login'); return }
     const params = new URLSearchParams()
     if (selectedCategory) params.set('category', selectedCategory)
     if (location) params.set('loc', location)
-    router.push(`/recherche?${params.toString()}`)
+    router.push(`${searchPath}?${params.toString()}`)
   }
 
+  // Map DB categories to localized names
+  const serviceOverrides = Object.fromEntries(
+    [...SERVICE_KEYS, ...SERVICE_KEYS_EXTRA].map(s => [
+      s.slug, { icon: s.icon, name: t(`services.${s.key}.title`) }
+    ])
+  )
+  const allCategories = categories.map(cat => {
+    const ov = serviceOverrides[cat.slug]
+    return ov ? { ...cat, icon: ov.icon, name: ov.name } : cat
+  })
+
+  const isPt = locale === 'pt'
+
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#FFF9E6] to-white py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
-            {/* Left side - Text + CTA */}
-            <div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 leading-tight tracking-tight">
-                Trouvez l&apos;artisan pr&egrave;s de chez vous, <span className="text-[#FFC107]">en 2 clics</span>
-              </h1>
-              <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed">
-                R&eacute;servez en quelques clics un artisan v&eacute;rifi&eacute; pr&egrave;s de chez vous.
-                Tous nos professionnels sont certifi&eacute;s et assur&eacute;s pour votre tranquillit&eacute;.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/recherche"
-                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3.5 rounded-xl font-semibold transition-all text-center text-lg shadow-sm hover:shadow-md"
-                >
-                  Trouver un artisan
-                </Link>
-                <Link
-                  href="/pro/register"
-                  className="border-2 border-[#FFC107] text-[#FFC107] hover:bg-[#FFF9E6] px-8 py-3.5 rounded-xl font-semibold transition-all text-center text-lg"
-                >
-                  Vous &ecirc;tes artisan ?
-                </Link>
-              </div>
-            </div>
+    <div className={s.landingPage}>
 
-            {/* Right side - Search Box */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">
-                Rechercher un artisan
-              </h2>
-
-              <div className="space-y-4">
-                <div ref={comboRef} className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sp&eacute;cialit&eacute; ou motif
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedCategory}
-                    onChange={(e) => {
-                      setSelectedCategory(e.target.value)
-                      setShowSuggestions(true)
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { setShowSuggestions(false); handleSearch() } }}
-                    placeholder="Ex: plombier, fuite, taille haie..."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none bg-white text-gray-900"
-                  />
-                  {showSuggestions && filteredSuggestions.length > 0 && (
-                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {filteredSuggestions.map((cat) => (
-                        <button
-                          key={cat.id}
-                          onClick={() => {
-                            setSelectedCategory(cat.slug)
-                            setShowSuggestions(false)
-                          }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-[#FFF9E6] transition flex items-center gap-2 text-sm"
-                        >
-                          <span className="text-lg">{cat.icon}</span>
-                          <span className="text-gray-900">{cat.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    O&ugrave; ?
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Paris, Lyon, Marseille..."
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none text-gray-900"
-                  />
-                </div>
-
-                <button
-                  onClick={handleSearch}
-                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition-all text-lg shadow-sm hover:shadow-md"
-                >
-                  Rechercher
-                </button>
-              </div>
-            </div>
+      {/* ══════ NAV ══════ */}
+      <nav className={s.nav}>
+        <div className={s.navInner}>
+          <Link href="/" className={s.navLogo}>
+            <span className={s.logoText}>
+              <span className={s.logoVit}>VIT</span><span className={s.logoFix}>FIX</span>
+            </span>
+          </Link>
+          <ul className={s.navLinks}>
+            <li><a href="#services">{isPt ? 'Serviços' : 'Services'}</a></li>
+            <li><a href="#how">{isPt ? 'Como funciona' : 'Comment ça marche'}</a></li>
+            <li><a href="#espace-pro">{isPt ? 'Espaço Profissional' : 'Espace Artisan'}</a></li>
+            <li><a href="#pricing">{isPt ? 'Preços' : 'Tarifs'}</a></li>
+          </ul>
+          <div className={s.navRight}>
+            <Link href="/auth/login" className={s.btnConnect}>
+              {isPt ? 'Entrar' : 'Se connecter'}
+            </Link>
           </div>
         </div>
-      </section>
+      </nav>
 
-      {/* Services Grid */}
-      <section id="services" className="py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-            Nos services
-          </h2>
-          <p className="text-gray-600 text-center mb-12 text-lg">
-            D&eacute;couvrez tous les services propos&eacute;s par nos artisans
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {services.map((service) => (
-              <Link
-                key={service.slug}
-                href={`/recherche?category=${service.slug}`}
-                className="group bg-white border-2 border-gray-100 rounded-xl p-6 text-center transition-all duration-300 hover:border-[#FFC107] hover:shadow-lg hover:-translate-y-1"
-              >
-                <div className="text-5xl mb-4">{service.icon}</div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  {service.title}
-                </h3>
-                <p className="text-gray-600 text-sm">{service.description}</p>
+      {/* ══════ HERO ══════ */}
+      <section className={s.hero}>
+        <div className={s.heroInner}>
+          <div className={s.heroLeft}>
+            <div className={s.heroBadge}>
+              ⚡ {isPt ? 'Profissionais verificados · Resposta em 2h' : 'Artisans vérifiés · Réponse en 2h'}
+            </div>
+            <h1>
+              {isPt
+                ? <>Encontre e reserve o seu<br />profissional <span className={s.yellow}>online</span></>
+                : <>Trouvez et réservez votre<br />artisan <span className={s.yellow}>en ligne</span></>
+              }
+            </h1>
+            <p className={s.heroSub}>
+              {t('home.heroDesc') || 'Prenez rendez-vous en quelques clics avec des artisans certifiés près de chez vous. Disponibilités en temps réel, confirmations instantanées.'}
+            </p>
+            <div className={s.heroButtons}>
+              <Link href={searchPath} className={s.btnPrimary}>
+                {t('home.findArtisanBtn') || 'Trouver un artisan'}
               </Link>
-            ))}
+              <Link href={registerPath} className={s.btnSecondary}>
+                {t('home.isArtisan') || 'Vous êtes artisan ?'}
+              </Link>
+            </div>
+            <div className={s.heroTrustTags}>
+              <span className={s.trustTag}>✅ {isPt ? 'Profissionais verificados' : 'Artisans vérifiés'}</span>
+              <span className={s.trustTag}>⚡ {isPt ? 'Resposta em 2h' : 'Réponse en 2h'}</span>
+              <span className={s.trustTag}>⭐ 4.9/5 {isPt ? 'satisfação' : 'satisfaction'}</span>
+              <span className={s.trustTag}>📅 {isPt ? 'Agenda em tempo real' : 'Agenda en temps réel'}</span>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Comment ca marche */}
-      <section id="comment" className="bg-[#FFF9E6] py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-            Comment &ccedil;a marche ?
-          </h2>
-          <p className="text-gray-600 text-center mb-12 text-lg">
-            R&eacute;servez votre artisan en 3 &eacute;tapes simples
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#FFC107] rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto mb-6 shadow-md">
-                1
+          <div className={`${s.heroRight} ${revealClass('hero-card')}`} data-reveal-id="hero-card">
+            <div className={s.heroCard}>
+              <div className={s.heroCardTitle}>🔍 {isPt ? 'Reserve a sua intervenção' : 'Réservez votre intervention'}</div>
+              <div className={s.formGroup}>
+                <label>{isPt ? 'TIPO DE SERVIÇO' : "TYPE D'INTERVENTION"}</label>
+                <select
+                  value={selectedCategory}
+                  onChange={e => setSelectedCategory(e.target.value)}
+                >
+                  <option value="">{isPt ? 'Selecione...' : 'Sélectionnez...'}</option>
+                  {allCategories.map(cat => (
+                    <option key={cat.id} value={cat.slug}>{cat.name}</option>
+                  ))}
+                </select>
               </div>
-              <h3 className="text-xl font-bold mb-3">Cherchez</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Indiquez le type d&apos;intervention souhait&eacute;e et votre localisation.
-                Parcourez les profils d&apos;artisans v&eacute;rifi&eacute;s pr&egrave;s de chez vous.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#FFC107] rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto mb-6">
-                2
+              <div className={s.formGroup}>
+                <label>{isPt ? 'ONDE?' : 'OÙ ?'}</label>
+                <input
+                  type="text"
+                  placeholder={isPt ? 'Cidade ou código postal' : 'Code postal ou ville'}
+                  value={location}
+                  onChange={e => setLocation(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSearch() }}
+                />
               </div>
-              <h3 className="text-xl font-bold mb-3">R&eacute;servez</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Choisissez votre artisan, s&eacute;lectionnez un cr&eacute;neau disponible
-                et confirmez votre r&eacute;servation en quelques clics.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#FFC107] rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto mb-6">
-                3
-              </div>
-              <h3 className="text-xl font-bold mb-3">Recevez</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Votre artisan intervient au cr&eacute;neau pr&eacute;vu. Vous recevez une
-                confirmation et pouvez laisser un avis apr&egrave;s l&apos;intervention.
-              </p>
+              <button className={s.btnSearch} onClick={handleSearch}>
+                {isPt ? 'Pesquisar profissionais disponíveis' : 'Rechercher les artisans disponibles'}
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Banner */}
-      <section className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] py-16 md:py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Pr&ecirc;t &agrave; trouver votre artisan ?
-          </h2>
-          <p className="text-lg text-gray-800 mb-8">
-            Rejoignez des milliers de clients satisfaits et trouvez le professionnel qu&apos;il vous faut.
-          </p>
-          <Link
-            href="/recherche"
-            className="inline-block bg-gray-900 hover:bg-gray-800 text-white px-8 py-4 rounded-xl font-semibold transition-all text-lg shadow-lg hover:shadow-xl"
-          >
-            Trouver un artisan maintenant
+      {/* ══════ STATS BAR ══════ */}
+      <div className={`${s.statsBar} ${revealClass('stats')}`} data-reveal-id="stats">
+        <div className={s.statsBarInner}>
+          <div className={s.statItem}>
+            <div className={s.statNumber}>2 800+</div>
+            <div className={s.statLabel}>{isPt ? 'Profissionais certificados' : 'Artisans certifiés'}</div>
+          </div>
+          <div className={s.statItem}>
+            <div className={s.statNumber}>48 000+</div>
+            <div className={s.statLabel}>{isPt ? 'Intervenções realizadas' : 'Interventions réalisées'}</div>
+          </div>
+          <div className={s.statItem}>
+            <div className={s.statNumber}>4.9 / 5</div>
+            <div className={s.statLabel}>{isPt ? 'Nota média dos clientes' : 'Note moyenne clients'}</div>
+          </div>
+          <div className={s.statItem}>
+            <div className={s.statNumber}>&lt; 2h</div>
+            <div className={s.statLabel}>{isPt ? 'Tempo de resposta médio' : 'Délai de réponse moyen'}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════ SERVICES ══════ */}
+      <section className={s.services} id="services">
+        <div className={`${s.sectionCenter} ${revealClass('services-header')}`} data-reveal-id="services-header">
+          <span className={s.sectionEyebrow}>{isPt ? 'OS NOSSOS SERVIÇOS' : 'NOS PRESTATIONS'}</span>
+          <h2 className={s.sectionTitle}>{isPt ? 'Todas as suas reparações cobertas' : 'Tous vos dépannages couverts'}</h2>
+          <p className={s.sectionDesc}>{isPt ? 'Profissionais qualificados para cada tipo de intervenção' : "Des professionnels qualifiés pour chaque type d'intervention"}</p>
+        </div>
+
+        <div className={`${s.servicesGrid} ${revealClass('services-grid')}`} data-reveal-id="services-grid">
+          {SERVICE_KEYS.map(service => (
+            <Link key={service.slug} href={`${searchPath}?category=${service.slug}`} className={s.serviceCard}>
+              <span className={s.serviceIcon}>{service.icon}</span>
+              <h4>{t(`services.${service.key}.title`)}</h4>
+              <p>{t(`services.${service.key}.desc`)}</p>
+            </Link>
+          ))}
+        </div>
+
+        {showAllServices && (
+          <div className={s.extraServices}>
+            <div className={s.servicesGrid}>
+              {SERVICE_KEYS_EXTRA.map(service => (
+                <Link key={service.slug} href={`${searchPath}?category=${service.slug}`} className={s.serviceCard}>
+                  <span className={s.serviceIcon}>{service.icon}</span>
+                  <h4>{t(`services.${service.key}.title`)}</h4>
+                  <p>{t(`services.${service.key}.desc`)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={s.servicesToggle}>
+          <button onClick={() => setShowAllServices(p => !p)}>
+            {showAllServices
+              ? (isPt ? 'Ver menos ↑' : 'Voir moins ↑')
+              : (isPt ? 'Ver os 16 serviços →' : 'Voir les 16 services →')
+            }
+          </button>
+        </div>
+      </section>
+
+      {/* ══════ HOW IT WORKS ══════ */}
+      <section className={s.how} id="how">
+        <div className={`${s.sectionCenter} ${revealClass('how-header')}`} data-reveal-id="how-header">
+          <span className={s.sectionEyebrow}>{isPt ? 'SIMPLES & RÁPIDO' : 'SIMPLE & RAPIDE'}</span>
+          <h2 className={s.sectionTitle}>{t('home.howItWorksTitle') || 'Comment ça marche ?'}</h2>
+          <p className={s.sectionDesc}>{isPt ? '3 passos para uma intervenção bem-sucedida' : "3 étapes pour une intervention réussie"}</p>
+        </div>
+        <div className={`${s.howGrid} ${revealClass('how-grid')}`} data-reveal-id="how-grid">
+          <div className={s.howStep}>
+            <div className={s.stepNum}>1</div>
+            <h4>{t('home.step1Name') || 'Cherchez'}</h4>
+            <p>{t('home.step1Detail') || "Sélectionnez le type d'intervention, votre localisation et consultez les artisans disponibles près de chez vous."}</p>
+          </div>
+          <div className={s.howStep}>
+            <div className={s.stepNum}>2</div>
+            <h4>{t('home.step2Name') || 'Réservez'}</h4>
+            <p>{t('home.step2Detail') || "Choisissez un créneau dans l'agenda en temps réel de l'artisan. Confirmation immédiate par SMS et email."}</p>
+          </div>
+          <div className={s.howStep}>
+            <div className={s.stepNum}>3</div>
+            <h4>{t('home.step3Name') || 'Recevez'}</h4>
+            <p>{t('home.step3Detail') || "L'artisan intervient au créneau choisi. Vous recevez un rappel 24h avant. Payez et notez après l'intervention."}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════ REVIEWS ══════ */}
+      <section className={s.reviews}>
+        <div className={`${s.sectionCenter} ${revealClass('reviews-header')}`} data-reveal-id="reviews-header">
+          <span className={s.sectionEyebrow}>{isPt ? 'O QUE DIZEM' : "CE QU'ILS EN DISENT"}</span>
+          <h2 className={s.sectionTitle}>{isPt ? 'Avaliações dos nossos utilizadores' : 'Avis de nos utilisateurs'}</h2>
+          <p className={s.reviewsSubtitle}>{isPt ? 'Mais de 2 300 avaliações verificadas · Nota média ' : 'Plus de 12 000 avis vérifiés · Note moyenne '}<strong>4.9 / 5</strong></p>
+        </div>
+        <div className={`${s.reviewsGrid} ${revealClass('reviews-grid')}`} data-reveal-id="reviews-grid">
+          <div className={s.reviewCard}>
+            <div className={s.reviewStars}>★★★★★</div>
+            <p className={s.reviewText}>{`« ${t('home.review1Text') || "Super rapide, j'ai trouvé un plombier en 30 minutes pour une fuite urgente. L'artisan était ponctuel, professionnel et le prix correspondait exactement au devis."} »`}</p>
+            <div className={s.reviewAuthor}>
+              <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>ML</div>
+              <div>
+                <div className={s.reviewName}>Marie L.</div>
+                <div className={s.reviewMeta}>{isPt ? 'Canalização — Porto' : 'Plomberie — Marseille 13006'}</div>
+                <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
+              </div>
+            </div>
+          </div>
+          <div className={s.reviewCard}>
+            <div className={s.reviewStars}>★★★★★</div>
+            <p className={s.reviewText}>{`« ${t('home.review2Text') || "J'utilise Vitfix depuis 6 mois pour tous mes travaux. La réservation en ligne c'est vraiment pratique, plus besoin de courir après les artisans par téléphone."} »`}</p>
+            <div className={s.reviewAuthor}>
+              <div className={s.reviewAvatar} style={{ background: '#80DEEA' }}>TC</div>
+              <div>
+                <div className={s.reviewName}>Thomas C.</div>
+                <div className={s.reviewMeta}>{isPt ? 'Eletricidade — Lisboa' : 'Électricité — Lyon 69003'}</div>
+                <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
+              </div>
+            </div>
+          </div>
+          <div className={`${s.reviewCard} ${s.highlighted}`}>
+            <div className={s.reviewStars}>★★★★★</div>
+            <p className={s.reviewText}>{`« ${t('home.review3Text') || "L'espace artisan est top. Mon agenda est géré automatiquement, je reçois mes rendez-vous sans décrocher le téléphone. Mon CA a augmenté de 40% en 3 mois."} »`}</p>
+            <div className={s.reviewAuthor}>
+              <div className={s.reviewAvatar} style={{ background: '#FFCC80' }}>KD</div>
+              <div>
+                <div className={s.reviewName}>Karim D.</div>
+                <div className={s.reviewMeta}>{isPt ? 'Profissional Serralheiro — Porto' : 'Artisan Serrurier — Paris'}</div>
+                <div className={s.reviewVerified}>✔ {isPt ? 'Avaliação verificada' : 'Avis vérifié'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════ ESPACE PRO ══════ */}
+      <section className={s.espacePro} id="espace-pro">
+        <div className={s.espaceProInner}>
+          <div className={`${s.proLeft} ${revealClass('pro-left')}`} data-reveal-id="pro-left">
+            <div className={s.proEyebrow}>{isPt ? 'ESPAÇO PROFISSIONAL' : 'ESPACE PROFESSIONNEL'}</div>
+            <h2 className={s.proTitle}>{t('home.proTitle') || 'Développez votre activité avec Vitfix'}</h2>
+            <p className={s.proDesc}>{t('home.proDesc') || 'Rejoignez les 2 800 artisans qui gèrent leur agenda, leurs devis et leur comptabilité depuis une seule application.'}</p>
+            <ul className={s.proFeatures}>
+              {[
+                isPt ? 'Agenda online com confirmações automáticas por SMS' : 'Agenda en ligne avec confirmations automatiques par SMS',
+                isPt ? 'Geração de orçamentos e faturas PDF em 30 segundos' : 'Génération de devis et factures PDF en 30 secondes',
+                isPt ? 'Proof of Work : fotos antes/depois + assinatura do cliente geolocalizada' : 'Proof of Work : photos avant/après + signature client géolocalisée',
+                isPt ? 'Contabilidade IA com declarações de IVA e balanço automatizado' : 'Comptabilité IA avec déclarations TVA et bilan automatisé',
+                isPt ? 'Aplicação móvel iOS & Android incluída' : 'Application mobile iOS & Android incluse',
+                isPt ? 'Visibilidade junto de milhares de clientes verificados' : 'Visibilité auprès de milliers de clients vérifiés',
+              ].map((feat, i) => (
+                <li key={i}><span className={s.proCheck}>✓</span> {feat}</li>
+              ))}
+            </ul>
+            <div className={s.proButtons}>
+              <Link href={registerPath} className={s.btnYellow}>
+                {isPt ? 'Criar o meu espaço pro gratuito' : 'Créer mon espace pro gratuit'}
+              </Link>
+              <a href="#pricing" className={s.btnOutlineYellow}>
+                {isPt ? 'Ver os preços' : 'Voir les tarifs'}
+              </a>
+            </div>
+          </div>
+          <div className={`${s.proRight} ${revealClass('pro-right')}`} data-reveal-id="pro-right">
+            <div className={s.artisanCard}>
+              <div className={s.artisanHeader}>
+                <div className={s.artisanAvatar}>KD</div>
+                <div>
+                  <div className={s.artisanName}>Karim Durrani</div>
+                  <div className={s.artisanJob}>{isPt ? 'Serralheiro — Porto' : 'Serrurier — Paris 75011'}</div>
+                </div>
+                <div className={s.artisanRating}>
+                  <div className={s.artisanStars}>★★★★★</div>
+                  <div className={s.artisanRatingSub}>4.9 · 127 {isPt ? 'avaliações' : 'avis'}</div>
+                </div>
+              </div>
+              <div className={s.artisanStats}>
+                <div className={s.artisanStat}>
+                  <div className={s.artisanStatVal}>38</div>
+                  <div className={s.artisanStatLabel}>{isPt ? 'Reservas este mês' : 'RDV ce mois'}</div>
+                </div>
+                <div className={s.artisanStat}>
+                  <div className={s.artisanStatVal}>6 240€</div>
+                  <div className={s.artisanStatLabel}>{isPt ? 'Faturação este mês' : 'CA ce mois'}</div>
+                </div>
+                <div className={s.artisanStat}>
+                  <div className={s.artisanStatVal}>98%</div>
+                  <div className={s.artisanStatLabel}>{isPt ? 'Pontualidade' : 'Ponctualité'}</div>
+                </div>
+              </div>
+              <div className={s.slotsLabel}>📅 {isPt ? 'Próximos horários disponíveis' : 'Prochains créneaux disponibles'}</div>
+              <div className={s.slotsWrap}>
+                <span className={s.slotAvailable}>{isPt ? 'Seg 09:00' : 'Lun 09:00'}</span>
+                <span className={s.slotTaken}>{isPt ? 'Seg 11:00' : 'Lun 11:00'}</span>
+                <span className={s.slotAvailable}>{isPt ? 'Ter 14:00' : 'Mar 14:00'}</span>
+                <span className={s.slotAvailable}>{isPt ? 'Ter 16:00' : 'Mar 16:00'}</span>
+                <span className={s.slotTaken}>{isPt ? 'Qua 09:00' : 'Mer 09:00'}</span>
+                <span className={s.slotAvailable}>{isPt ? 'Qui 10:00' : 'Jeu 10:00'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════ PRICING ══════ */}
+      <section className={s.pricing} id="pricing">
+        <div className={`${s.sectionCenter} ${revealClass('pricing-header')}`} data-reveal-id="pricing-header">
+          <span className={s.sectionEyebrow}>{isPt ? 'PREÇOS TRANSPARENTES' : 'TARIFS TRANSPARENTS'}</span>
+          <h2 className={s.sectionTitle}>{isPt ? 'Escolha a sua oferta' : 'Choisissez votre offre'}</h2>
+          <p className={s.sectionDesc}>{isPt ? 'Sem compromisso · Sem taxas ocultas · 14 dias de teste gratuito' : 'Sans engagement · Sans frais cachés · 14 jours d\'essai gratuit'}</p>
+        </div>
+        <div className={`${s.pricingGrid} ${revealClass('pricing-grid')}`} data-reveal-id="pricing-grid">
+          <div className={s.pricingCard}>
+            <div className={s.pricingTier}>STARTER</div>
+            <div className={s.pricingPrice}>{isPt ? 'Gratuito' : 'Gratuit'}</div>
+            <div className={s.pricingDesc}>{isPt ? 'Para começar e testar a plataforma' : 'Pour débuter et tester la plateforme'}</div>
+            <ul className={s.pricingFeatures}>
+              {[
+                isPt ? 'Perfil profissional visível' : 'Profil artisan visible',
+                isPt ? 'Até 5 reservas/mês' : "Jusqu'à 5 RDV/mois",
+                isPt ? 'Orçamento PDF básico' : 'Devis PDF basique',
+                isPt ? 'Suporte por email' : 'Support email',
+              ].map((f, i) => <li key={i}><span className={s.pfCheck}>✓</span> {f}</li>)}
+            </ul>
+            <Link href={registerPath} className={s.btnPricingOutline}>
+              {isPt ? 'Começar gratuitamente' : 'Commencer gratuitement'}
+            </Link>
+          </div>
+
+          <div className={`${s.pricingCard} ${s.featured}`}>
+            <div className={s.pricingBadge}>⭐ {isPt ? 'O mais popular' : 'Le plus populaire'}</div>
+            <div className={s.pricingTier}>PRO</div>
+            <div className={s.pricingPrice}>49€ <span className={s.per}>{isPt ? '/mês' : '/mois'}</span></div>
+            <div className={s.pricingDesc}>{isPt ? 'Para profissionais que querem aumentar o seu faturamento' : 'Pour les artisans qui veulent développer leur CA'}</div>
+            <ul className={s.pricingFeatures}>
+              {[
+                isPt ? 'Reservas ilimitadas' : 'RDV illimités',
+                isPt ? 'Orçamentos & faturas PDF' : 'Devis & factures PDF',
+                'Proof of Work',
+                isPt ? 'Contabilidade IA' : 'Comptabilité IA',
+                isPt ? 'App móvel iOS & Android' : 'App mobile iOS & Android',
+                isPt ? 'Suporte prioritário' : 'Support prioritaire',
+              ].map((f, i) => <li key={i}><span className={s.pfCheck}>✓</span> {f}</li>)}
+            </ul>
+            <Link href={registerPath} className={s.btnPricingFilled}>
+              {isPt ? 'Experimentar 14 dias grátis' : 'Essayer 14 jours gratuit'}
+            </Link>
+          </div>
+
+          <div className={s.pricingCard}>
+            <div className={s.pricingTier}>BUSINESS</div>
+            <div className={s.pricingPrice}>{isPt ? 'Personalizado' : 'Sur mesure'}</div>
+            <div className={s.pricingDesc}>{isPt ? 'Para equipas e empresas de construção' : 'Pour les équipes et entreprises du bâtiment'}</div>
+            <ul className={s.pricingFeatures}>
+              {[
+                isPt ? 'Multi-profissionais / agência' : 'Multi-artisans / agence',
+                isPt ? 'Painel de controlo centralizado' : 'Tableau de bord centralisé',
+                isPt ? 'API e integrações' : 'API & intégrations',
+                isPt ? 'Onboarding dedicado' : 'Onboarding dédié',
+                isPt ? 'SLA garantido' : 'SLA garanti',
+              ].map((f, i) => <li key={i}><span className={s.pfCheck}>✓</span> {f}</li>)}
+            </ul>
+            <Link href="/contact" className={s.btnPricingOutline}>
+              {isPt ? 'Pedir um orçamento' : 'Demander un devis'}
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════ CERTIFICATIONS ══════ */}
+      <section className={s.certs}>
+        <div className={s.certsLabel}>{isPt ? 'CERTIFICAÇÕES & PARCEIROS' : 'CERTIFICATIONS & PARTENAIRES'}</div>
+        <div className={`${s.certsRow} ${revealClass('certs')}`} data-reveal-id="certs">
+          {[
+            { icon: '🏛️', name: isPt ? 'Qualidade Certificada' : 'Qualibat' },
+            { icon: '🛡️', name: isPt ? 'Seguros & RCPro' : 'RGE Certifié' },
+            { icon: '🥇', name: isPt ? 'Profissionais de Excelência' : "Artisan du Goût" },
+            { icon: '📋', name: isPt ? 'Registo Comercial' : 'Registre des Métiers' },
+            { icon: '🔒', name: 'RGPD Conforme' },
+          ].map((cert, i) => (
+            <div key={i} className={s.certItem}>
+              <span className={s.certIcon}>{cert.icon}</span>
+              <span className={s.certName}>{cert.name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ══════ CTA ══════ */}
+      <section className={s.cta}>
+        <h2>
+          {t('home.ctaTitle') || 'Prêt à réserver votre artisan ?'}
+        </h2>
+        <p>
+          {t('home.ctaSubtitle') || "Rejoignez des milliers d'utilisateurs qui ont simplifié leurs dépannages"}
+        </p>
+        <div className={s.ctaButtons}>
+          <Link href={searchPath} className={s.btnCtaWhite}>
+            {t('home.findArtisanNow') || 'Trouver un artisan maintenant'}
+          </Link>
+          <Link href={registerPath} className={s.btnCtaOutline}>
+            {isPt ? 'Criar o meu espaço profissional' : 'Créer mon espace artisan'}
           </Link>
         </div>
       </section>
+
+      {/* ══════ FOOTER ══════ */}
+      <footer className={s.footer}>
+        <div className={s.footerGrid}>
+          <div className={s.footerBrand}>
+            <span className={s.logoText}><span className={s.logoVit}>VIT</span><span className={s.logoFix}>FIX</span></span>
+            <p>{isPt ? 'A ligação profissional-cliente, reinventada.' : 'La mise en relation artisan-client, réinventée.'}</p>
+          </div>
+          <div className={s.footerCol}>
+            <h5>Vitfix</h5>
+            <ul>
+              <li><Link href={isPt ? '/sobre' : '/a-propos'}>{isPt ? 'Sobre nós' : 'À propos'}</Link></li>
+              <li><Link href="/contact">{isPt ? 'Contacto' : 'Contact'}</Link></li>
+              <li><Link href={isPt ? '/pt/blog' : '/blog'}>Blog</Link></li>
+              <li><Link href={isPt ? '/pt/avis' : '/avis'}>{isPt ? 'Avaliações' : 'Avis'}</Link></li>
+            </ul>
+          </div>
+          <div className={s.footerCol}>
+            <h5>{isPt ? 'Para Particulares' : 'Pour les Particuliers'}</h5>
+            <ul>
+              <li><Link href={searchPath}>{isPt ? 'Encontrar um profissional' : 'Trouver un artisan'}</Link></li>
+              <li><a href="#how">{isPt ? 'Como funciona' : 'Comment ça marche'}</a></li>
+              <li><Link href={consumerPricingPath}>{isPt ? 'Preços' : 'Tarifs'}</Link></li>
+            </ul>
+          </div>
+          <div className={s.footerCol}>
+            <h5>{isPt ? 'Para Profissionais' : 'Pour les Artisans'}</h5>
+            <ul>
+              <li><Link href={registerPath}>{isPt ? 'Torne-se parceiro' : 'Devenir partenaire'}</Link></li>
+              <li><Link href={tariffsPath}>{isPt ? 'Preços profissionais' : 'Tarifs artisans'}</Link></li>
+              <li><Link href={isPt ? '/pro/faq' : '/pro/faq'}>FAQ</Link></li>
+            </ul>
+          </div>
+          <div className={s.footerCol}>
+            <h5>{isPt ? 'Legal' : 'Légal'}</h5>
+            <ul>
+              <li><Link href="/cgu">{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
+              <li><Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link></li>
+              <li><Link href="/mentions-legales">{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
+            </ul>
+          </div>
+        </div>
+        <div className={s.footerBottom}>
+          © 2026 Vitfix · {isPt ? 'Todos os direitos reservados' : 'Tous droits réservés'} ·{' '}
+          <Link href="/mentions-legales">{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
+          <Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link>
+        </div>
+      </footer>
+
     </div>
   )
 }

@@ -1,26 +1,30 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
-import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // GET /api/user/export-data
 // RGPD Art. 20 — Droit à la portabilité des données
-// Retourne toutes les données personnelles de l'utilisateur en JSON
+// Retourne TOUTES les données personnelles de l'utilisateur en JSON
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }
 
-  const ip = getClientIP(request)
-  if (!checkRateLimit(`export_data_${ip}`, 5, 60_000)) return rateLimitResponse()
-
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // Rate limit par user (pas IP) — un seul user ne peut exporter que 5x/min
+  if (!(await checkRateLimit(`export_data_${user.id}`, 5, 60_000))) return rateLimitResponse()
 
   const userId = user.id
+
+  // Helper : récupérer silencieusement (table peut ne pas exister)
+  const safeSelect = async (table: string, column: string, id: string): Promise<any[]> => {
+    try {
+      const { data } = await supabaseAdmin.from(table).select('*').eq(column, id)
+      return data || []
+    } catch { return [] }
+  }
 
   try {
     // 1. Données utilisateur (auth)
@@ -36,56 +40,106 @@ export async function GET(request: NextRequest) {
       .from('profiles_artisan')
       .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     // 3. Services artisan
     let services: any[] = []
     if (artisanProfile) {
-      const { data } = await supabaseAdmin
-        .from('services')
-        .select('*')
-        .eq('artisan_id', artisanProfile.id)
+      const { data } = await supabaseAdmin.from('services').select('*').eq('artisan_id', artisanProfile.id)
       services = data || []
     }
 
     // 4. Bookings (en tant que client)
-    const { data: clientBookings } = await supabaseAdmin
-      .from('bookings')
-      .select('*')
-      .eq('client_id', userId)
+    const clientBookings = await safeSelect('bookings', 'client_id', userId)
 
     // 5. Bookings (en tant qu'artisan)
     let artisanBookings: any[] = []
     if (artisanProfile) {
-      const { data } = await supabaseAdmin
-        .from('bookings')
-        .select('*')
-        .eq('artisan_id', artisanProfile.id)
-      artisanBookings = data || []
+      artisanBookings = await safeSelect('bookings', 'artisan_id', artisanProfile.id)
     }
 
     // 6. Messages de booking
-    const { data: messages } = await supabaseAdmin
-      .from('booking_messages')
-      .select('*')
-      .eq('sender_id', userId)
+    const messages = await safeSelect('booking_messages', 'sender_id', userId)
 
-    // 7. Emails analysés syndic
-    const { data: syndicEmails } = await supabaseAdmin
-      .from('syndic_emails_analysed')
+    // 7. Profil client
+    const { data: clientProfile } = await supabaseAdmin
+      .from('profiles_client')
       .select('*')
-      .eq('syndic_id', userId)
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    // 8. Devis et factures
+    const devis = await safeSelect('devis', 'artisan_user_id', userId)
+    const factures = await safeSelect('factures', 'artisan_user_id', userId)
+
+    // 9. Documents fiscaux PT
+    let ptFiscalSeries: any[] = []
+    let ptFiscalDocuments: any[] = []
+    if (artisanProfile) {
+      ptFiscalSeries = await safeSelect('pt_fiscal_series', 'artisan_id', artisanProfile.id)
+      ptFiscalDocuments = await safeSelect('pt_fiscal_documents', 'artisan_id', artisanProfile.id)
+    }
+
+    // 10. Photos artisan
+    let artisanPhotos: any[] = []
+    if (artisanProfile) {
+      artisanPhotos = await safeSelect('artisan_photos', 'artisan_id', artisanProfile.id)
+    }
+
+    // 11. Syndic data (si syndic)
+    const syndicEmails = await safeSelect('syndic_emails_analysed', 'syndic_id', userId)
+    const syndicMissions = await safeSelect('syndic_missions', 'cabinet_id', userId)
+    const syndicImmeubles = await safeSelect('syndic_immeubles', 'cabinet_id', userId)
+    const syndicArtisans = await safeSelect('syndic_artisans', 'cabinet_id', userId)
+    const syndicTeam = await safeSelect('syndic_team_members', 'cabinet_id', userId)
+    const syndicMessages = await safeSelect('syndic_messages', 'cabinet_id', userId)
+    const syndicSignalements = await safeSelect('syndic_signalements', 'cabinet_id', userId)
+    const syndicPlanningEvents = await safeSelect('syndic_planning_events', 'cabinet_id', userId)
+
+    // 12. Subscription
+    const { data: subscription } = await supabaseAdmin
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    // 13. Audit log export (RGPD transparency)
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        user_id: userId,
+        action: 'EXPORT_DATA',
+        table_name: 'all',
+        details: { rgpd_article: 'Art. 20' },
+        ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+      })
+    } catch { /* audit_logs may not exist yet */ }
 
     const exportData = {
       exported_at: new Date().toISOString(),
       rgpd_article: 'Art. 20 — Droit à la portabilité',
       user: userData,
+      client_profile: clientProfile || null,
       artisan_profile: artisanProfile || null,
       services,
-      bookings_as_client: clientBookings || [],
+      devis,
+      factures,
+      artisan_photos: artisanPhotos,
+      pt_fiscal_series: ptFiscalSeries,
+      pt_fiscal_documents: ptFiscalDocuments,
+      bookings_as_client: clientBookings,
       bookings_as_artisan: artisanBookings,
-      messages: messages || [],
-      syndic_emails: syndicEmails || [],
+      messages,
+      subscription: subscription || null,
+      syndic: {
+        emails: syndicEmails,
+        missions: syndicMissions,
+        immeubles: syndicImmeubles,
+        artisans: syndicArtisans,
+        team: syndicTeam,
+        messages: syndicMessages,
+        signalements: syndicSignalements,
+        planning_events: syndicPlanningEvents,
+      },
     }
 
     return new Response(JSON.stringify(exportData, null, 2), {
@@ -96,8 +150,8 @@ export async function GET(request: NextRequest) {
       },
     })
 
-  } catch (err: any) {
-    console.error('[EXPORT-DATA] Erreur:', err)
+  } catch (err: unknown) {
+    logger.error('[EXPORT-DATA] Error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

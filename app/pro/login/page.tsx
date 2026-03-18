@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -22,7 +21,6 @@ const modules = [
 ]
 
 export default function ProLoginPage() {
-  const router = useRouter()
   const [tab, setTab] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,6 +43,11 @@ export default function ProLoginPage() {
     checkAuth()
   }, [])
 
+  // Helper : log tentative de connexion pour audit sécurité
+  const logLoginAttempt = async (success: boolean, reason?: string) => {
+    try { await fetch('/api/auth/log-attempt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, success, role: 'artisan', reason }) }) } catch { /* non-bloquant */ }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -57,38 +60,41 @@ export default function ProLoginPage() {
       })
 
       if (signInError) {
+        await logLoginAttempt(false, 'invalid_credentials')
         setError(signInError.message)
         setLoading(false)
         return
       }
 
+      await logLoginAttempt(true)
       window.location.href = '/pro/dashboard'
     } catch {
+      await logLoginAttempt(false, 'exception')
       setError('Une erreur est survenue. Veuillez réessayer.')
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-warm-gray py-12 px-4">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">👷</div>
-          <h1 className="text-3xl font-bold text-gray-900">Espace Artisan</h1>
-          <p className="text-gray-600 mt-2">Gérez votre activité sur Vitfix</p>
+          <div className="font-display font-black text-[1.7rem] text-dark mb-4 tracking-[-0.03em] uppercase"><span className="text-yellow">VIT</span>FIX</div>
+          <h1 className="font-display text-3xl font-black text-dark tracking-[-0.03em]">Espace Artisan</h1>
+          <p className="text-text-muted mt-2">Gérez votre activité sur VITFIX</p>
         </div>
 
         {/* Tabs */}
         <div className="flex justify-center gap-2 mb-8">
           <button
             onClick={() => setTab('login')}
-            className={`min-w-[160px] px-6 py-2.5 rounded-lg text-sm font-semibold transition ${tab === 'login' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
+            className={`min-w-[160px] px-6 py-2.5 rounded-xl text-sm font-semibold transition ${tab === 'login' ? 'bg-yellow text-dark shadow-sm' : 'bg-white text-text-muted hover:bg-warm-gray border-[1.5px] border-[#E0E0E0]'}`}
           >
             Se connecter
           </button>
           <button
             onClick={() => setTab('register')}
-            className={`min-w-[160px] px-6 py-2.5 rounded-lg text-sm font-semibold transition ${tab === 'register' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-200'}`}
+            className={`min-w-[160px] px-6 py-2.5 rounded-xl text-sm font-semibold transition ${tab === 'register' ? 'bg-yellow text-dark shadow-sm' : 'bg-white text-text-muted hover:bg-warm-gray border-[1.5px] border-[#E0E0E0]'}`}
           >
             S&apos;inscrire
           </button>
@@ -97,34 +103,34 @@ export default function ProLoginPage() {
         {/* ── Onglet Se connecter ── */}
         {tab === 'login' && (
           <div className="max-w-md mx-auto">
-            <div className="bg-white rounded-2xl shadow-lg p-8">
+            <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] p-8">
               <form onSubmit={handleLogin} className="space-y-6">
                 {error && (
-                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
+                  <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-200">
                     {error}
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email professionnel</label>
+                  <label className="block text-sm font-medium text-mid mb-2">Email professionnel</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
+                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                     placeholder="pro@email.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+                  <label className="block text-sm font-medium text-mid mb-2">Mot de passe</label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 focus:outline-none"
+                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                     placeholder="Votre mot de passe"
                   />
                 </div>
@@ -132,16 +138,16 @@ export default function ProLoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-semibold transition disabled:opacity-60"
+                  className="w-full bg-yellow hover:bg-yellow-light text-dark py-3 rounded-xl font-semibold transition disabled:opacity-60 hover:-translate-y-px"
                 >
                   {loading ? 'Connexion...' : 'Se connecter'}
                 </button>
               </form>
 
               <div className="mt-6 text-center">
-                <p className="text-gray-600 text-sm">
+                <p className="text-text-muted text-sm">
                   Pas encore inscrit ?{' '}
-                  <button onClick={() => setTab('register')} className="text-[#FFC107] hover:underline font-semibold">
+                  <button onClick={() => setTab('register')} className="text-yellow hover:underline font-semibold">
                     Créer mon compte artisan
                   </button>
                 </p>
@@ -154,39 +160,39 @@ export default function ProLoginPage() {
         {tab === 'register' && (
           <div>
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Choisissez votre offre</h2>
-              <p className="text-gray-500 mt-2">Commencez gratuitement et évoluez selon vos besoins</p>
+              <h2 className="font-display text-2xl font-black text-dark tracking-[-0.03em]">Choisissez votre offre</h2>
+              <p className="text-text-muted mt-2">Commencez gratuitement et évoluez selon vos besoins</p>
             </div>
 
             {/* Pricing Cards */}
             <div className="grid md:grid-cols-2 gap-6 mb-8">
               {/* Freemium */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-200">
-                <h3 className="text-xl font-bold text-gray-900">Freemium</h3>
+              <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] p-8">
+                <h3 className="font-display text-xl font-black text-dark tracking-[-0.03em]">Freemium</h3>
                 <div className="mt-3 mb-1">
-                  <span className="text-4xl font-bold text-gray-900">0€</span>
+                  <span className="text-4xl font-bold text-dark">0€</span>
                 </div>
-                <p className="text-gray-500 text-sm mb-6">Pour démarrer sans risque</p>
+                <p className="text-text-muted text-sm mb-6">Pour démarrer sans risque</p>
                 <Link
                   href="/pro/register?plan=freemium"
-                  className="block w-full text-center border-2 border-[#FFC107] text-[#FFC107] hover:bg-[#FFF9E6] py-3 rounded-xl font-semibold transition"
+                  className="block w-full text-center border-[1.5px] border-yellow text-yellow hover:bg-warm-gray py-3 rounded-xl font-semibold transition hover:-translate-y-px"
                 >
                   Choisir Freemium
                 </Link>
               </div>
 
               {/* Pro */}
-              <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-[#FFC107] relative">
-                <span className="absolute -top-3 right-6 bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1 rounded-full">RECOMMANDÉ</span>
-                <h3 className="text-xl font-bold text-gray-900">Pro</h3>
+              <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] p-8 border-[2px] border-yellow relative">
+                <span className="absolute -top-3 right-6 bg-yellow text-dark text-xs font-bold px-3 py-1 rounded-full">RECOMMANDÉ</span>
+                <h3 className="font-display text-xl font-black text-dark tracking-[-0.03em]">Pro</h3>
                 <div className="mt-3 mb-1">
-                  <span className="text-4xl font-bold text-gray-900">49,99€</span>
-                  <span className="text-gray-500 text-sm ml-1">TTC / mois</span>
+                  <span className="text-4xl font-bold text-dark">49,99€</span>
+                  <span className="text-text-muted text-sm ml-1">TTC / mois</span>
                 </div>
-                <p className="text-gray-500 text-sm mb-6">Tous les modules débloqués</p>
+                <p className="text-text-muted text-sm mb-6">Tous les modules débloqués</p>
                 <Link
                   href="/pro/register?plan=pro"
-                  className="block w-full text-center bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-semibold transition"
+                  className="block w-full text-center bg-yellow hover:bg-yellow-light text-dark py-3 rounded-xl font-semibold transition hover:-translate-y-px"
                 >
                   Choisir Pro — 49,99€/mois
                 </Link>
@@ -194,19 +200,19 @@ export default function ProLoginPage() {
             </div>
 
             {/* Comparison Table */}
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left p-4 text-sm font-semibold text-gray-700">Module</th>
-                    <th className="text-center p-4 text-sm font-semibold text-gray-700 w-28">Freemium</th>
-                    <th className="text-center p-4 text-sm font-semibold text-[#FFC107] w-28">Pro</th>
+                  <tr className="bg-warm-gray border-b border-border">
+                    <th className="text-left p-4 text-sm font-semibold text-mid">Module</th>
+                    <th className="text-center p-4 text-sm font-semibold text-mid w-28">Freemium</th>
+                    <th className="text-center p-4 text-sm font-semibold text-yellow w-28">Pro</th>
                   </tr>
                 </thead>
                 <tbody>
                   {modules.map((mod, i) => (
-                    <tr key={mod.name} className={`border-b border-gray-100 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                      <td className="p-4 text-sm text-gray-900">{mod.name}</td>
+                    <tr key={mod.name} className={`border-b border-border ${i % 2 === 0 ? 'bg-white' : 'bg-warm-gray/50'}`}>
+                      <td className="p-4 text-sm text-dark">{mod.name}</td>
                       <td className="p-4 text-center">
                         {mod.free
                           ? <span className="text-green-500 text-lg font-bold">✓</span>
@@ -223,9 +229,9 @@ export default function ProLoginPage() {
             </div>
 
             <div className="text-center mt-6">
-              <p className="text-gray-500 text-sm">
+              <p className="text-text-muted text-sm">
                 Déjà un compte ?{' '}
-                <button onClick={() => setTab('login')} className="text-[#FFC107] hover:underline font-semibold">
+                <button onClick={() => setTab('login')} className="text-yellow hover:underline font-semibold">
                   Se connecter
                 </button>
               </p>

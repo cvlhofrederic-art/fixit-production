@@ -7,8 +7,9 @@ const { Pool } = require('pg')
 // Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
 // Or: postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres
 
-const PROJECT_REF = 'irluhepekbqgquveaett'
-const DB_PASSWORD = 'sb_secret_lDcyzgFqQMUE65_bCpzuAg_rlTsd6tB'
+require('dotenv').config({ path: '.env.local' })
+const PROJECT_REF = process.env.SUPABASE_PROJECT_REF || ''
+const DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || ''
 
 // Try multiple connection strings
 const connectionStrings = [
@@ -77,7 +78,7 @@ async function main() {
 
   console.log('\n❌ All connections failed.')
   console.log('\nPlease run this SQL in Supabase SQL Editor:')
-  console.log('https://supabase.com/dashboard/project/irluhepekbqgquveaett/sql/new')
+  console.log('https://supabase.com/dashboard/project/${PROJECT_REF}/sql/new')
   console.log(sql)
 }
 

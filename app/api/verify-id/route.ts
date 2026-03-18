@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import Tesseract from 'tesseract.js'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // Normalise un texte pour comparaison (minuscules, sans accents, sans ponctuation)
 function normalize(text: string): string {
@@ -74,7 +76,12 @@ function detectIdKeywords(text: string): { isId: boolean; type: string } {
   return { isId: false, type: '' }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // Rate limit: 2 requests per minute per IP (CPU-intensive OCR)
+  const ip = getClientIP(request)
+  const allowed = await checkRateLimit(`verify_id_${ip}`, 2, 60_000)
+  if (!allowed) return rateLimitResponse()
+
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -152,8 +159,8 @@ export async function POST(request: Request) {
       prenomFound: prenomResult.found,
     })
 
-  } catch (error: any) {
-    console.error('ID verification error:', error)
-    return NextResponse.json({ error: 'Erreur lors de la vérification : ' + error.message }, { status: 500 })
+  } catch (error: unknown) {
+    logger.error('[verify-id] Error:', error)
+    return NextResponse.json({ error: 'Erreur lors de la vérification' }, { status: 500 })
   }
 }

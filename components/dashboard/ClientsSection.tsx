@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 
 const EMPTY_CLIENT_FORM = {
   type: 'particulier' as 'particulier' | 'professionnel',
@@ -21,6 +22,9 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   onNewRdv: (clientName: string) => void
   onNewDevis: (clientName: string) => void
 }) {
+  const { t } = useTranslation()
+  const locale = useLocale()
+  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const manualStorageKey = `fixit_manual_clients_${artisan?.id}`
 
   const [authClients, setAuthClients] = useState<any[]>([])
@@ -152,7 +156,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   }
 
   const deleteManualClient = (id: string) => {
-    if (!confirm('Supprimer ce client ?')) return
+    if (!confirm(t('proDash.clients.supprimerClient'))) return
     saveManualClients(manualClients.filter(c => c.id !== id))
   }
 
@@ -164,26 +168,26 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-bold text-lg text-gray-900">
-                {editingId ? '✏️ Modifier le client' : '➕ Nouveau client'}
+                {editingId ? `✏️ ${t('proDash.clients.modifierClient')}` : `➕ ${t('proDash.clients.nouveauClient')}`}
               </h3>
               <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
             </div>
             <div className="p-5 space-y-4">
               {/* Type toggle */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Type de client</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">{t('proDash.clients.typeDeClient')}</label>
                 <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-                  {(['particulier', 'professionnel'] as const).map(t => (
+                  {(['particulier', 'professionnel'] as const).map(ct => (
                     <button
-                      key={t}
+                      key={ct}
                       onClick={() => setClientForm(prev => ({
                         ...prev,
-                        type: t,
-                        mainAddressLabel: t === 'professionnel' ? 'Siège social' : 'Domicile',
+                        type: ct,
+                        mainAddressLabel: ct === 'professionnel' ? t('proDash.clients.siegeSocial') : t('proDash.clients.domicile'),
                       }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${clientForm.type === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+                      className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${clientForm.type === ct ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
                     >
-                      {t === 'particulier' ? '👤 Particulier' : '🏢 Professionnel'}
+                      {ct === 'particulier' ? `👤 ${t('proDash.clients.particulierType')}` : `🏢 ${t('proDash.clients.professionnelType')}`}
                     </button>
                   ))}
                 </div>
@@ -192,7 +196,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               {/* Name */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  {clientForm.type === 'professionnel' ? 'Raison sociale *' : 'Nom complet *'}
+                  {clientForm.type === 'professionnel' ? `${t('proDash.clients.raisonSociale')} *` : `${t('proDash.clients.nomComplet')} *`}
                 </label>
                 <input
                   type="text"
@@ -206,7 +210,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               {/* Phone + Email */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Téléphone</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.telephone')}</label>
                   <input
                     type="tel"
                     value={clientForm.phone}
@@ -216,7 +220,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.email')}</label>
                   <input
                     type="email"
                     value={clientForm.email}
@@ -230,7 +234,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               {/* SIRET for pro */}
               {clientForm.type === 'professionnel' && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">SIRET</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.siret')}</label>
                   <input
                     type="text"
                     value={clientForm.siret}
@@ -244,7 +248,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               {/* Main address */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  {clientForm.mainAddressLabel} <span className="text-gray-500 font-normal">(adresse principale)</span>
+                  {clientForm.mainAddressLabel} <span className="text-gray-500 font-normal">({t('proDash.clients.adressePrincipale')})</span>
                 </label>
                 <div className="flex gap-2">
                   <select
@@ -253,8 +257,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     className="border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] bg-white flex-shrink-0"
                   >
                     {clientForm.type === 'particulier'
-                      ? ['Domicile', 'Résidence principale', 'Appartement', 'Maison', 'Autre'].map(l => <option key={l}>{l}</option>)
-                      : ['Siège social', 'Bureau principal', 'Autre'].map(l => <option key={l}>{l}</option>)}
+                      ? [t('proDash.clients.domicile'), t('proDash.clients.residencePrincipale'), t('proDash.clients.appartement'), t('proDash.clients.maison'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)
+                      : [t('proDash.clients.siegeSocial'), t('proDash.clients.bureauPrincipal'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)}
                   </select>
                   <input
                     type="text"
@@ -270,24 +274,24 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    📍 Lieux d'intervention
+                    {`📍 ${t('proDash.clients.lieuxIntervention')}`}
                     <span className="text-gray-500 font-normal ml-1">
-                      ({clientForm.type === 'professionnel' ? 'lots, résidences, sites...' : 'autres adresses'})
+                      ({clientForm.type === 'professionnel' ? t('proDash.clients.lotsResidencesSites') : t('proDash.clients.autresAdresses')})
                     </span>
                   </label>
                   <button
                     onClick={addInterventionAddress}
                     className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition font-medium"
                   >
-                    + Ajouter un lieu
+                    {t('proDash.clients.ajouterLieu')}
                   </button>
                 </div>
 
                 {clientForm.interventionAddresses.length === 0 ? (
                   <p className="text-xs text-gray-500 italic">
                     {clientForm.type === 'professionnel'
-                      ? 'Ex: "Parc Corot" → 5 allée des Chênes, "La Sauvagère" → 12 bd Victor Hugo...'
-                      : 'Ex: "Maison de vacances" → 3 rue de la Mer, 06400 Cannes'}
+                      ? t('proDash.clients.exempleProLieux')
+                      : t('proDash.clients.exemplePartLieux')}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -297,14 +301,14 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                           type="text"
                           value={addr.label}
                           onChange={e => updateInterventionAddress(addr.id, 'label', e.target.value)}
-                          placeholder={clientForm.type === 'professionnel' ? 'Ex: Parc Corot' : 'Ex: Maison vacances'}
+                          placeholder={clientForm.type === 'professionnel' ? t('proDash.clients.exempleProLabel') : t('proDash.clients.exemplePartLabel')}
                           className="w-36 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107] flex-shrink-0"
                         />
                         <input
                           type="text"
                           value={addr.address}
                           onChange={e => updateInterventionAddress(addr.id, 'address', e.target.value)}
-                          placeholder="Adresse complète..."
+                          placeholder={t('proDash.clients.adresseComplete')}
                           className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]"
                         />
                         <button
@@ -321,12 +325,12 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Notes internes</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.notesInternes')}</label>
                 <textarea
                   value={clientForm.notes}
                   onChange={e => setClientForm(prev => ({ ...prev, notes: e.target.value }))}
                   rows={2}
-                  placeholder="Informations utiles sur ce client..."
+                  placeholder={t('proDash.clients.notesPlaceholder')}
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
                 />
               </div>
@@ -337,14 +341,14 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 onClick={() => setShowModal(false)}
                 className="flex-1 border-2 border-gray-200 text-gray-600 rounded-xl py-3 font-semibold text-sm hover:bg-gray-50 transition"
               >
-                Annuler
+                {t('proDash.clients.annuler')}
               </button>
               <button
                 onClick={saveClient}
                 disabled={!clientForm.name.trim() || saving}
                 className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl py-3 font-bold text-sm transition disabled:opacity-50"
               >
-                {saving ? 'Sauvegarde...' : editingId ? '💾 Modifier' : '✅ Créer le client'}
+                {saving ? t('proDash.clients.sauvegardeEncours') : editingId ? `💾 ${t('proDash.motifs.modifier')}` : `✅ ${t('proDash.clients.creerClient')}`}
               </button>
             </div>
           </div>
@@ -352,24 +356,27 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       )}
 
       {/* Header */}
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <h1 className="text-2xl font-semibold">👥 Base Clients</h1>
+      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
+        <div className="flex items-center justify-between flex-wrap gap-4 w-full">
+          <div>
+            <h1 className="text-xl font-semibold leading-tight">👥 {t('proDash.clients.title')}</h1>
+            <p className="text-xs text-gray-400 mt-0.5">{t('proDash.clients.subtitle')}</p>
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <span className="bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold">
-              {allClients.length} client{allClients.length > 1 ? 's' : ''}
+              {allClients.length} {allClients.length > 1 ? t('proDash.clients.clients') : t('proDash.clients.client')}
             </span>
             <span className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
-              👤 {particuliersCount} particulier{particuliersCount > 1 ? 's' : ''}
+              {`👤 ${particuliersCount} ${particuliersCount > 1 ? t('proDash.clients.particuliers') : t('proDash.clients.particulier')}`}
             </span>
             <span className="bg-purple-50 border border-purple-200 text-purple-700 px-3 py-1 rounded-full text-sm font-semibold">
-              🏢 {entreprisesCount} pro
+              {`🏢 ${entreprisesCount} ${t('proDash.clients.pro')}`}
             </span>
             <button
               onClick={openNew}
               className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
             >
-              ➕ Nouveau client
+              ➕ {t('proDash.clients.nouveauClient')}
             </button>
           </div>
         </div>
@@ -382,7 +389,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">🔍</span>
             <input
               type="text"
-              placeholder="Rechercher par nom, email, téléphone, adresse..."
+              placeholder={t('proDash.clients.rechercherPlaceholder')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#FFC107] transition bg-white"
@@ -395,7 +402,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
-                {tab === 'tous' ? `Tous (${allClients.length})` : tab === 'particuliers' ? `👤 (${particuliersCount})` : `🏢 (${entreprisesCount})`}
+                {tab === 'tous' ? `${t('proDash.clients.tous')} (${allClients.length})` : tab === 'particuliers' ? `👤 (${particuliersCount})` : `🏢 (${entreprisesCount})`}
               </button>
             ))}
           </div>
@@ -405,7 +412,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
         {loading && (
           <div className="text-center py-20 text-gray-500">
             <div className="text-4xl mb-4 animate-pulse">👥</div>
-            <p>Chargement des clients...</p>
+            <p>{t('proDash.clients.chargement')}</p>
           </div>
         )}
 
@@ -414,17 +421,17 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
           <div className="text-center py-16">
             <div className="text-6xl mb-4">👥</div>
             <h3 className="text-xl font-bold text-gray-700 mb-2">
-              {search ? 'Aucun résultat' : 'Pas encore de clients'}
+              {search ? t('proDash.clients.aucunResultat') : t('proDash.clients.pasEncoreClients')}
             </h3>
             <p className="text-gray-500 text-sm mb-6">
-              {search ? 'Essayez un autre terme' : 'Ajoutez vos clients manuellement ou ils apparaîtront après leurs premières réservations.'}
+              {search ? t('proDash.clients.essayerAutreTerme') : t('proDash.clients.clientsApparaitront')}
             </p>
             {!search && (
               <button
                 onClick={openNew}
                 className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition-all"
               >
-                ➕ Créer mon premier client
+                ➕ {t('proDash.clients.creerPremierClient')}
               </button>
             )}
           </div>
@@ -454,26 +461,26 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-gray-900 text-base">{c.name}</span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isExp ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {isExp ? 'Professionnel' : 'Particulier'}
+                            {isExp ? t('proDash.clients.professionnelType') : t('proDash.clients.particulierType')}
                           </span>
-                          {c.source === 'auth' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Compte Fixit</span>}
-                          {isManual && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Ajouté manuellement</span>}
+                          {c.source === 'auth' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ {t('proDash.clients.compteFix')}</span>}
+                          {isManual && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{t('proDash.clients.ajouteManuellement')}</span>}
                           {hasInterventionAddresses && (
                             <span className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
-                              📍 {c.interventionAddresses.length} lieu{c.interventionAddresses.length > 1 ? 'x' : ''}
+                              {`📍 ${c.interventionAddresses.length} ${c.interventionAddresses.length > 1 ? t('proDash.clients.lieux') : t('proDash.clients.lieu')}`}
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1 flex-wrap">
                           {c.phone && <span className="text-sm text-gray-500">📞 {c.phone}</span>}
                           {c.email && <span className="text-sm text-gray-500 truncate">✉️ {c.email}</span>}
-                          {!c.phone && !c.email && <span className="text-sm text-gray-500 italic">Coordonnées non renseignées</span>}
+                          {!c.phone && !c.email && <span className="text-sm text-gray-500 italic">{t('proDash.clients.coordonneesNonRenseignees')}</span>}
                         </div>
                       </div>
                       <div className="hidden sm:flex flex-col items-end gap-1 flex-shrink-0">
                         <div className="text-lg font-bold text-green-600">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
-                        <div className="text-xs text-gray-500">{bks.length} intervention{bks.length > 1 ? 's' : ''}</div>
-                        {lastDate && <div className="text-xs text-gray-500">Dernier: {new Date(lastDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div>}
+                        <div className="text-xs text-gray-500">{bks.length} {bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
+                        {lastDate && <div className="text-xs text-gray-500">{t('proDash.clients.dernier')}: {new Date(lastDate).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}</div>}
                       </div>
                       <div className={`text-gray-500 text-lg transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}>▾</div>
                     </div>
@@ -485,35 +492,35 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                       <div className="grid sm:grid-cols-2 gap-6">
                         {/* Coordonnées + adresses */}
                         <div>
-                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">📋 Coordonnées</h4>
+                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">📋 {t('proDash.clients.coordonnees')}</h4>
                           <div className="space-y-2 text-sm">
                             {c.phone && (
                               <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">Téléphone</span>
+                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.telephone')}</span>
                                 <a href={`tel:${c.phone}`} className="text-blue-600 hover:underline font-medium">{c.phone}</a>
                               </div>
                             )}
                             {c.email && (
                               <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">Email</span>
+                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.email')}</span>
                                 <a href={`mailto:${c.email}`} className="text-blue-600 hover:underline font-medium truncate">{c.email}</a>
                               </div>
                             )}
                             {(c.mainAddress || c.address) && (
                               <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">{c.mainAddressLabel || 'Adresse'}</span>
+                                <span className="text-gray-500 w-20 flex-shrink-0">{c.mainAddressLabel || t('proDash.clients.adresse')}</span>
                                 <span className="text-gray-700">{c.mainAddress || c.address}</span>
                               </div>
                             )}
                             {c.siret && (
                               <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">SIRET</span>
+                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.siret')}</span>
                                 <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">{c.siret}</span>
                               </div>
                             )}
                             {c.notes && (
                               <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">Notes</span>
+                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.notes')}</span>
                                 <span className="text-gray-600 italic text-xs">{c.notes}</span>
                               </div>
                             )}
@@ -522,11 +529,11 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                           {/* Intervention addresses */}
                           {hasInterventionAddresses && (
                             <div className="mt-4">
-                              <h5 className="font-bold text-gray-600 text-xs uppercase tracking-wide mb-2">📍 Lieux d'intervention</h5>
+                              <h5 className="font-bold text-gray-600 text-xs uppercase tracking-wide mb-2">📍 {t('proDash.clients.lieuxIntervention')}</h5>
                               <div className="space-y-1.5">
                                 {c.interventionAddresses.map((addr: any) => (
                                   <div key={addr.id} className="flex items-start gap-2 bg-white border border-orange-100 rounded-lg px-3 py-2">
-                                    <span className="font-semibold text-orange-600 text-xs flex-shrink-0 min-w-[70px]">{addr.label || 'Lieu'}</span>
+                                    <span className="font-semibold text-orange-600 text-xs flex-shrink-0 min-w-[70px]">{addr.label || t('proDash.clients.lieu')}</span>
                                     <span className="text-gray-600 text-xs">{addr.address}</span>
                                   </div>
                                 ))}
@@ -537,10 +544,10 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                           {/* Actions */}
                           <div className="flex gap-2 mt-4 flex-wrap">
                             <button onClick={() => onNewRdv(c.name)} className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm">
-                              📅 RDV
+                              {`📅 ${t('proDash.clients.rdv')}`}
                             </button>
                             <button onClick={() => onNewDevis(c.name)} className="flex-1 bg-white border-2 border-gray-200 hover:border-[#FFC107] text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold transition-all">
-                              📄 Devis
+                              {`📄 ${t('proDash.devis.title')}`}
                             </button>
                             {isManual && (
                               <>
@@ -557,9 +564,9 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
                         {/* Booking history */}
                         <div>
-                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">🗂 Historique ({bks.length})</h4>
+                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">🗂 {t('proDash.clients.historique')} ({bks.length})</h4>
                           {bks.length === 0 ? (
-                            <p className="text-gray-500 text-sm italic">Aucune intervention enregistrée</p>
+                            <p className="text-gray-500 text-sm italic">{t('proDash.clients.aucuneIntervention')}</p>
                           ) : (
                             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                               {[...bks].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((bk: any) => (
@@ -568,10 +575,10 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                                   <div className="flex-1 min-w-0">
                                     <div className="text-sm font-medium text-gray-800 truncate">{bk.service || 'Intervention'}</div>
                                     {bk.address && <div className="text-xs text-gray-500 truncate">📍 {bk.address}</div>}
-                                    <div className="text-xs text-gray-500">{new Date(bk.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                                    <div className="text-xs text-gray-500">{new Date(bk.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                                   </div>
                                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${bk.status === 'completed' ? 'bg-green-100 text-green-700' : bk.status === 'confirmed' ? 'bg-blue-100 text-blue-700' : bk.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
-                                    {bk.status === 'completed' ? 'Terminé' : bk.status === 'confirmed' ? 'Confirmé' : bk.status === 'cancelled' ? 'Annulé' : 'En attente'}
+                                    {bk.status === 'completed' ? t('proDash.clients.termine') : bk.status === 'confirmed' ? t('proDash.clients.confirme') : bk.status === 'cancelled' ? t('proDash.clients.annuleStat') : t('proDash.clients.enAttente')}
                                   </span>
                                 </div>
                               ))}
@@ -580,11 +587,11 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                           <div className="mt-3 pt-3 border-t border-gray-200 flex gap-4 text-sm">
                             <div>
                               <div className="font-bold text-green-600 text-lg">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
-                              <div className="text-gray-500 text-xs">CA total TTC</div>
+                              <div className="text-gray-500 text-xs">{t('proDash.clients.caTotal')}</div>
                             </div>
                             <div>
                               <div className="font-bold text-gray-700 text-lg">{bks.length}</div>
-                              <div className="text-gray-500 text-xs">Intervention{bks.length > 1 ? 's' : ''}</div>
+                              <div className="text-gray-500 text-xs">{bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
                             </div>
                           </div>
                         </div>

@@ -1,26 +1,28 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { syndicSignalementMessageSchema, validateBody } from '@/lib/validation'
 
 // GET /api/syndic/signalements — récupérer les signalements du cabinet
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { data, error } = await supabaseAdmin
     .from('syndic_signalements')
     .select(`
-      *,
+      id, immeuble_nom, demandeur_nom, demandeur_role, demandeur_email, demandeur_telephone, type_intervention, description, priorite, statut, batiment, etage, num_lot, est_partie_commune, zone_signalee, artisan_assigne, created_at, updated_at,
       syndic_signalement_messages (
         id, auteur, role, texte, created_at
       )
     `)
     .eq('cabinet_id', cabinetId)
     .order('created_at', { ascending: false })
+    .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   const signalements = (data || []).map(s => ({
     id: s.id,
@@ -50,7 +52,9 @@ export async function GET(request: NextRequest) {
     })),
   }))
 
-  return NextResponse.json({ signalements })
+  const response = NextResponse.json({ signalements })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  return response
 }
 
 // PATCH /api/syndic/signalements — mettre à jour un signalement
@@ -58,7 +62,7 @@ export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
   const { id, ...updates } = body
 
@@ -79,7 +83,7 @@ export async function PATCH(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ signalement: data })
 }
 
@@ -89,11 +93,11 @@ export async function POST(request: NextRequest) {
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const body = await request.json()
-  const { signalementId, auteur, role, texte } = body
-
-  if (!signalementId || !texte) {
-    return NextResponse.json({ error: 'signalementId et texte requis' }, { status: 400 })
+  const validation = validateBody(syndicSignalementMessageSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Donn\u00e9es invalides', details: validation.error }, { status: 400 })
   }
+  const { signalementId, auteur, role, texte } = validation.data
 
   const { data, error } = await supabaseAdmin
     .from('syndic_signalement_messages')
@@ -106,6 +110,6 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ message: data })
 }

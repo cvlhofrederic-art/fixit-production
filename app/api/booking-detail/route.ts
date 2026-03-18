@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // GET: Fetch a single booking by ID
 export async function GET(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`booking_detail_${ip}`, 60, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`booking_detail_${ip}`, 60, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
@@ -26,12 +27,12 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select('*')
+    .select('id, artisan_id, client_id, service_id, booking_date, booking_time, duration_minutes, status, notes, address, price_ttc, price_ht, created_at')
     .eq('id', id)
     .single()
 
   if (error) {
-    console.error('Error fetching booking detail:', error)
+    logger.error('Error fetching booking detail:', error)
     return NextResponse.json({ error: 'Failed to fetch booking' }, { status: 500 })
   }
 
@@ -59,8 +60,10 @@ export async function GET(request: NextRequest) {
     if (artisanProfile) canAccess = true
   }
 
-  // 3. Vérifier si l'utilisateur est le syndic
-  if (!canAccess && data.syndic_id && data.syndic_id === user.id) {
+  // 3. Vérifier si l'utilisateur est un syndic qui a assigné cette mission
+  // Les missions syndic ont client_id = user.id du syndic (cf. assign-mission)
+  // et les notes commencent par "[Mission Syndic]"
+  if (!canAccess && data.client_id === user.id && data.notes?.includes('[Mission Syndic]')) {
     canAccess = true
   }
 
@@ -68,5 +71,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
-  return NextResponse.json({ data })
+  const response = NextResponse.json({ data })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  return response
 }

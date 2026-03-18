@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
+
+// Token format validation — UUID v4 strict (pas de path traversal ni injection)
+const VALID_TOKEN_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i
 
 export async function GET(
   request: NextRequest,
@@ -8,12 +12,12 @@ export async function GET(
   const { token } = await params
   if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 })
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // ── Validate token format to prevent path traversal / injection ──
+  if (!VALID_TOKEN_PATTERN.test(token)) {
+    return NextResponse.json({ error: 'Token invalide' }, { status: 400 })
+  }
 
-  const { data, error } = await supabase.storage
+  const { data, error } = await supabaseAdmin.storage
     .from('tracking')
     .download(`${token}.json`)
 
@@ -22,10 +26,15 @@ export async function GET(
   }
 
   const text = await data.text()
-  const tracking = JSON.parse(text)
+  let tracking: Record<string, unknown>
+  try {
+    tracking = JSON.parse(text)
+  } catch {
+    return NextResponse.json({ error: 'Données tracking corrompues' }, { status: 500 })
+  }
 
   // Expire après 24h
-  const updated = new Date(tracking.updated_at)
+  const updated = new Date(tracking.updated_at as string)
   if (Date.now() - updated.getTime() > 24 * 60 * 60 * 1000) {
     return NextResponse.json({ error: 'Session expirée' }, { status: 410 })
   }
@@ -33,18 +42,22 @@ export async function GET(
   return NextResponse.json(tracking)
 }
 
-// Suppression propre en fin de session (appelé par l'artisan)
+// Suppression propre en fin de session (appelé par l'artisan — auth requise)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  // ── Auth obligatoire pour la suppression ──
+  const user = await getAuthUser(request)
+  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+
   const { token } = await params
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // ── Validate token format ──
+  if (!VALID_TOKEN_PATTERN.test(token)) {
+    return NextResponse.json({ error: 'Token invalide' }, { status: 400 })
+  }
 
-  await supabase.storage.from('tracking').remove([`${token}.json`])
+  await supabaseAdmin.storage.from('tracking').remove([`${token}.json`])
   return NextResponse.json({ success: true })
 }

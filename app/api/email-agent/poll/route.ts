@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { callGroqWithRetry } from '@/lib/groq'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import type { EmailClassification } from '../classify/route'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
@@ -38,7 +39,7 @@ async function fetchGmailMessages(accessToken: string, maxResults = 20, firstRun
 
   if (!listRes.ok) {
     const err = await listRes.text()
-    console.error('Gmail list error:', listRes.status, err)
+    logger.error('Gmail list error:', listRes.status, err)
     return []
   }
 
@@ -72,6 +73,7 @@ function extractHeaders(headers: { name: string; value: string }[]) {
 }
 
 // ── Extrait le corps texte d'un message Gmail ─────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gmail API payload with dynamic nested structure
 function extractBody(payload: any): string {
   if (!payload) return ''
 
@@ -134,18 +136,26 @@ Urgence basse : information, AG planifiée, document admin, devis futur.`
       response_format: { type: 'json_object' },
     }, { fallbackModel: 'llama-3.1-8b-instant' })
 
-    const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}')
+    const rawContent = data.choices?.[0]?.message?.content || '{}'
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(rawContent)
+    } catch (parseErr) {
+      logger.error('[email-agent] JSON.parse failed on AI response:', rawContent.substring(0, 200), parseErr)
+      return getFallback(subject, body)
+    }
 
     return {
-      urgence: ['haute', 'moyenne', 'basse'].includes(parsed.urgence) ? parsed.urgence : 'basse',
-      type: ['signalement_panne', 'demande_devis', 'reclamation', 'ag', 'facturation', 'resiliation', 'information', 'autre'].includes(parsed.type) ? parsed.type : 'autre',
-      resume: parsed.resume || subject.substring(0, 80),
-      immeuble_detecte: parsed.immeuble_detecte || null,
-      locataire_detecte: parsed.locataire_detecte || null,
-      actions_suggerees: Array.isArray(parsed.actions_suggerees) ? parsed.actions_suggerees.slice(0, 3) : ['Répondre à l\'expéditeur'],
-      reponse_suggeree: parsed.reponse_suggeree || null,
+      urgence: (['haute', 'moyenne', 'basse'] as const).includes(parsed.urgence as 'haute' | 'moyenne' | 'basse') ? (parsed.urgence as 'haute' | 'moyenne' | 'basse') : 'basse',
+      type: (['signalement_panne', 'demande_devis', 'reclamation', 'ag', 'facturation', 'resiliation', 'information', 'autre'] as const).includes(parsed.type as 'autre') ? (parsed.type as 'autre') : 'autre',
+      resume: (parsed.resume as string) || subject.substring(0, 80),
+      immeuble_detecte: (parsed.immeuble_detecte as string) || null,
+      locataire_detecte: (parsed.locataire_detecte as string) || null,
+      actions_suggerees: Array.isArray(parsed.actions_suggerees) ? (parsed.actions_suggerees as string[]).slice(0, 3) : ['Répondre à l\'expéditeur'],
+      reponse_suggeree: (parsed.reponse_suggeree as string) || null,
     }
-  } catch {
+  } catch (classifyErr) {
+    logger.error('[email-agent] classifyEmail error for subject:', subject.substring(0, 60), classifyErr)
     return getFallback(subject, body)
   }
 }
@@ -170,7 +180,7 @@ function getFallback(subject: string, body: string): EmailClassification {
 // ── Route principale : appelée par Vercel Cron ou manuellement ────────────────
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}))
+    const body = await request.json().catch(err => { logger.warn('[email-agent/poll] Failed to parse request body:', err); return {}; })
     const { syndic_id, first_run = false } = body
 
     // Si syndic_id fourni → traiter seulement ce syndic
@@ -187,7 +197,7 @@ export async function POST(request: NextRequest) {
       if (!isSyndicRole(user) && user.user_metadata?.role !== 'super_admin') {
         return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
       }
-      const userCabinetId = user.user_metadata?.cabinet_id || user.id
+      const userCabinetId = await resolveCabinetId(user, supabaseAdmin)
       if (userCabinetId !== syndic_id && user.user_metadata?.role !== 'super_admin') {
         return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
       }
@@ -287,17 +297,17 @@ export async function POST(request: NextRequest) {
 
         results.push({ syndic_id: sid, emails_processed: messages.length, new_emails: newCount })
 
-      } catch (syndicErr: any) {
-        console.error(`Poll error for syndic ${sid}:`, syndicErr)
-        results.push({ syndic_id: sid, error: syndicErr.message })
+      } catch (syndicErr: unknown) {
+        logger.error(`[email-agent/poll] Error for syndic ${sid}:`, syndicErr)
+        results.push({ syndic_id: sid, error: 'Erreur de traitement' })
       }
     }
 
     return NextResponse.json({ success: true, results, polled_at: new Date().toISOString() })
 
-  } catch (err: any) {
-    console.error('Poll route error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err: unknown) {
+    logger.error('[email-agent/poll] Error:', err)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 
@@ -321,7 +331,7 @@ export async function GET(request: NextRequest) {
   if (!syndic_id) return NextResponse.json({ error: 'syndic_id requis' }, { status: 400 })
 
   // Vérifier que l'utilisateur a accès à ce syndic
-  const userCabinetId = user.user_metadata?.cabinet_id || user.id
+  const userCabinetId = await resolveCabinetId(user, supabaseAdmin)
   if (userCabinetId !== syndic_id && user.user_metadata?.role !== 'super_admin') {
     return NextResponse.json({ error: 'Accès non autorisé pour ce syndic' }, { status: 403 })
   }
@@ -338,7 +348,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   return NextResponse.json({ emails: data || [] })
 }

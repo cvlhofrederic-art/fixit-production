@@ -1,12 +1,21 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { getServerTranslation } from '@/lib/i18n/server'
 
-export const metadata: Metadata = {
-  title: 'FAQ Artisans - Vitfix',
-  description: 'Toutes les réponses à vos questions sur l\'inscription et l\'utilisation de Vitfix pour les artisans.',
+export async function generateMetadata(): Promise<Metadata> {
+  const { locale } = await getServerTranslation()
+  const isPt = locale === 'pt'
+
+  return isPt ? {
+    title: 'FAQ Profissionais - Vitfix',
+    description: 'Todas as respostas às suas perguntas sobre o registo e a utilização da Vitfix para profissionais.',
+  } : {
+    title: 'FAQ Artisans - Vitfix',
+    description: 'Toutes les réponses à vos questions sur l\'inscription et l\'utilisation de Vitfix pour les artisans.',
+  }
 }
 
-const faqs = [
+const faqsFR = [
   {
     categorie: 'Inscription',
     questions: [
@@ -77,19 +86,101 @@ const faqs = [
   },
 ]
 
-export default function ProFAQPage() {
+const faqsPT = [
+  {
+    categorie: 'Registo',
+    questions: [
+      {
+        q: 'Que documentos são necessários para me registar?',
+        r: 'O seu número de NIF válido e uma apólice de seguro de Responsabilidade Civil Profissional em vigor. Estes documentos são verificados pela nossa equipa antes da ativação do seu perfil.',
+      },
+      {
+        q: 'O registo é realmente gratuito?',
+        r: 'Sim, o registo e a oferta Freemium são completamente gratuitos. Beneficia de um perfil verificado e da criação de orçamentos e faturas em PDF. A oferta Pro a 49€/mês desbloqueia todos os módulos: agenda, reservas ilimitadas, mensagens, contabilidade IA, Proof of Work, app móvel e suporte prioritário.',
+      },
+      {
+        q: 'Quanto tempo demora a verificação do meu perfil?',
+        r: 'A verificação é feita em 24 a 48 horas úteis após o envio dos seus documentos. Receberá um email de confirmação.',
+      },
+    ],
+  },
+  {
+    categorie: 'Reservas',
+    questions: [
+      {
+        q: 'Como funcionam as reservas?',
+        r: 'Os clientes reservam diretamente um horário na sua agenda online. Recebe uma notificação e pode aceitar ou recusar o pedido. Após aceitação, o cliente recebe uma confirmação.',
+      },
+      {
+        q: 'Posso cancelar uma reserva?',
+        r: 'Sim, a partir do seu painel de controlo. Em caso de cancelamento, o cliente é informado automaticamente. Cancelamentos frequentes podem afetar a sua avaliação na plataforma.',
+      },
+      {
+        q: 'Como gerir a minha agenda de disponibilidades?',
+        r: 'No seu espaço de profissional, o separador "Agenda" permite-lhe definir os seus horários disponíveis, dias de folga e gerir os seus compromissos existentes.',
+      },
+    ],
+  },
+  {
+    categorie: 'Pagamentos',
+    questions: [
+      {
+        q: 'Como recebo o pagamento dos meus clientes?',
+        r: 'O pagamento é efetuado diretamente entre si e o cliente, de acordo com as modalidades que definir (cheque, transferência, numerário, cartão). A Vitfix não intervém na transação financeira.',
+      },
+      {
+        q: 'A Vitfix cobra comissão sobre as minhas intervenções?',
+        r: 'Não. Fica com a totalidade das suas receitas. A Vitfix remunera-se exclusivamente através das assinaturas das ofertas Pro e Empresa.',
+      },
+    ],
+  },
+  {
+    categorie: 'Funcionalidades',
+    questions: [
+      {
+        q: 'Como funciona o Proof of Work?',
+        r: 'Disponível com a oferta Pro, o Proof of Work permite-lhe tirar fotos antes/depois da intervenção com registo de data/hora e geolocalização GPS automáticos. O cliente pode assinar eletronicamente no seu telemóvel. Estas provas são guardadas no seu espaço e podem ser exportadas.',
+      },
+      {
+        q: 'Qual é a diferença entre Freemium e Pro?',
+        r: 'A oferta Freemium (gratuita) dá acesso apenas ao módulo Orçamentos & Faturas PDF e a um perfil de profissional verificado. A oferta Pro (49€/mês) desbloqueia todos os módulos: agenda online, reservas ilimitadas, mensagens com clientes, destaque nos resultados, contabilidade integrada com o agente IA Léa, Proof of Work, notificações push, aplicação móvel completa e suporte prioritário.',
+      },
+      {
+        q: 'Posso gerar orçamentos e faturas?',
+        r: 'Sim, a geração de orçamentos e faturas em PDF está disponível desde a oferta Freemium. Pode criar os seus documentos, enviá-los por email e converter um orçamento em fatura após a realização do serviço.',
+      },
+      {
+        q: 'A aplicação móvel está disponível?',
+        r: 'Sim, a Vitfix Pro está disponível no iOS e Android. A app móvel permite-lhe gerir as suas intervenções, receber notificações e efetuar o Proof of Work a partir do seu smartphone.',
+      },
+    ],
+  },
+]
+
+export default async function ProFAQPage() {
+  const { locale } = await getServerTranslation()
+  const isPt = locale === 'pt'
+
+  const faqs = isPt ? faqsPT : faqsFR
+  const contactPath = '/contact'
+  const registerPath = '/pro/register'
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">FAQ Artisans</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isPt ? 'FAQ Profissionais' : 'FAQ Artisans'}
+        </h1>
         <p className="text-gray-600 mb-10">
-          Tout ce que vous devez savoir pour démarrer et utiliser Vitfix en tant qu&apos;artisan.
+          {isPt
+            ? 'Tudo o que precisa de saber para começar a usar a Vitfix como profissional.'
+            : 'Tout ce que vous devez savoir pour démarrer et utiliser Vitfix en tant qu\'artisan.'}
         </p>
 
         <div className="space-y-10">
           {faqs.map((section) => (
             <div key={section.categorie}>
-              <h2 className="text-lg font-bold text-[#FFC107] mb-4 uppercase tracking-wide">
+              <h2 className="text-lg font-bold text-yellow mb-4 uppercase tracking-wide">
                 {section.categorie}
               </h2>
               <div className="space-y-4">
@@ -104,23 +195,25 @@ export default function ProFAQPage() {
           ))}
         </div>
 
-        <div className="mt-12 bg-gradient-to-r from-[#FFC107] to-[#FFD54F] rounded-2xl p-8 text-center">
+        <div className="mt-12 bg-gradient-to-r from-yellow to-yellow-light rounded-2xl p-8 text-center">
           <h2 className="text-xl font-bold text-gray-900 mb-3">
-            Vous n&apos;avez pas trouvé votre réponse ?
+            {isPt ? 'Não encontrou a sua resposta?' : 'Vous n\'avez pas trouvé votre réponse ?'}
           </h2>
-          <p className="text-gray-800 mb-4">Notre équipe est là pour vous aider.</p>
+          <p className="text-gray-800 mb-4">
+            {isPt ? 'A nossa equipa está aqui para ajudar.' : 'Notre équipe est là pour vous aider.'}
+          </p>
           <div className="flex gap-3 justify-center flex-wrap">
             <Link
-              href="/contact"
+              href={contactPath}
               className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-2.5 rounded-lg font-semibold transition"
             >
-              Contacter le support
+              {isPt ? 'Contactar o suporte' : 'Contacter le support'}
             </Link>
             <Link
-              href="/pro/register"
+              href={registerPath}
               className="bg-white hover:bg-gray-50 text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >
-              S&apos;inscrire maintenant
+              {isPt ? 'Registar agora' : 'S\'inscrire maintenant'}
             </Link>
           </div>
         </div>

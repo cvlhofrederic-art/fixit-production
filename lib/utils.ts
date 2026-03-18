@@ -5,10 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatPrice(price: number) {
+export function formatPrice(price: number, locale: string = 'fr') {
+  const intlLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   // Chiffres ronds : pas de décimales si le prix est entier (ex: 60 € au lieu de 60,00 €)
   const isRound = price === Math.floor(price)
-  return new Intl.NumberFormat('fr-FR', {
+  return new Intl.NumberFormat(intlLocale, {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: isRound ? 0 : 2,
@@ -16,8 +17,9 @@ export function formatPrice(price: number) {
   }).format(price)
 }
 
-export function formatDate(date: string) {
-  return new Intl.DateTimeFormat('fr-FR', {
+export function formatDate(date: string, locale: string = 'fr') {
+  const intlLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  return new Intl.DateTimeFormat(intlLocale, {
     dateStyle: 'long'
   }).format(new Date(date))
 }

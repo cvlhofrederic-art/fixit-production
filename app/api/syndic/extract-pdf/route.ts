@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── POST /api/syndic/extract-pdf ─────────────────────────────────────────────
 // Reçoit un fichier PDF en multipart/form-data
@@ -8,7 +9,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
-  const ok = await checkRateLimit(`extract-pdf:${ip}`, 15, 60)
+  const ok = await checkRateLimit(`extract-pdf:${ip}`, 15, 60_000)
   if (!ok) return rateLimitResponse()
 
   const user = await getAuthUser(req)
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Autres erreurs → probablement PDF scanné
-      console.error('[EXTRACT-PDF] Parse error:', parseErr?.message || parseErr)
+      logger.error('[EXTRACT-PDF] Parse error:', parseErr?.message || parseErr)
       return NextResponse.json({
         error: 'Impossible d\'extraire le texte. Ce PDF est peut-être scanné (image). Utilisez l\'onglet "Saisir le texte" pour saisir manuellement.',
         isScanned: true,
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (err: any) {
-    console.error('[EXTRACT-PDF] Unexpected error:', err?.message || err)
+    logger.error('[EXTRACT-PDF] Unexpected error:', err?.message || err)
     return NextResponse.json({
       error: 'Une erreur inattendue s\'est produite. Réessayez ou utilisez l\'onglet "Saisir le texte".',
     }, { status: 500 })

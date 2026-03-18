@@ -77,7 +77,7 @@ test.describe('SEO', () => {
     expect(localBusiness).toBeTruthy()
     expect(localBusiness['@context']).toBe('https://schema.org')
     expect(localBusiness.name).toBe('VITFIX')
-    expect(localBusiness.url).toBe('https://vitfix.fr')
+    expect(localBusiness.url).toBe('https://vitfix.io')
 
     // Find the WebSite entry with SearchAction
     const webSite = allJsonLd.find((d) => d['@type'] === 'WebSite')

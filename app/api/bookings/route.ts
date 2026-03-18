@@ -3,11 +3,12 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { createBookingSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 // GET: Fetch future bookings for an artisan (public — only slot data, no personal info)
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`bookings_get_${ip}`, 60, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`bookings_get_${ip}`, 60, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const artisanId = searchParams.get('artisan_id')
@@ -26,11 +27,13 @@ export async function GET(request: NextRequest) {
     .in('status', ['confirmed', 'pending'])
 
   if (error) {
-    console.error('Error fetching bookings:', error)
+    logger.error('Failed to fetch bookings', { module: 'api/bookings', artisanId }, error as Error)
     return NextResponse.json({ error: 'Failed to fetch bookings' }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
+  const response = NextResponse.json({ data })
+  response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  return response
 }
 
 // POST: Create a new booking
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
     const ip = getClientIP(request)
-    if (!checkRateLimit(`bookings_post_${ip}`, 20, 60_000)) return rateLimitResponse()
+    if (!(await checkRateLimit(`bookings_post_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const body = await request.json()
     const validation = validateBody(createBookingSchema, body)
@@ -109,12 +112,15 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error creating booking:', error)
+      logger.error('Error creating booking:', error)
       return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 })
     }
 
     // ── Notify artisan of new booking ─────────────────────────────────
     try {
+      if (!artisanProfile?.user_id) {
+        logger.warn(`[bookings] ⚠️ Cannot notify artisan: artisan_id=${artisan_id} has no user_id or profile not found`)
+      }
       if (artisanProfile?.user_id) {
         // Get service name for notification
         let serviceName = 'Intervention'
@@ -131,9 +137,10 @@ export async function POST(request: NextRequest) {
         const clientMatch = (notes || '').match(/Client:\s*([^|]+)/)
         const clientName = clientMatch ? clientMatch[1].trim() : 'Un client'
 
-        // Format date for notification
-        const dateObj = new Date(booking_date + 'T00:00:00')
-        const dateFormatted = dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+        // Format date for notification (locale-aware)
+        const dateObj = new Date(booking_date + 'T12:00:00')
+        const artisanCountry = artisanProfile?.company_name ? 'fr-FR' : 'fr-FR'
+        const dateFormatted = dateObj.toLocaleDateString(artisanCountry, { weekday: 'long', day: 'numeric', month: 'long' })
         const timeFormatted = booking_time.substring(0, 5)
 
         const notifTitle = isAutoAccept
@@ -165,12 +172,12 @@ export async function POST(request: NextRequest) {
       }
     } catch (notifErr) {
       // Don't fail booking creation if notification fails
-      console.error('Error sending artisan notification:', notifErr)
+      logger.error('Error sending artisan notification:', notifErr)
     }
 
     return NextResponse.json({ data })
   } catch (e: unknown) {
-    console.error('Server error creating booking:', e)
+    logger.error('Server error creating booking:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

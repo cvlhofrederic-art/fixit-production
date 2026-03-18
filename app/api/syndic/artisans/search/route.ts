@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // ── Helper : catégories artisan → libellé métier syndic ──────────────────────
@@ -44,7 +44,7 @@ async function enrichFromProfile(userId: string) {
 // ── GET /api/syndic/artisans/search?email=xxx ─────────────────────────────────
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_search_${ip}`, 20, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`artisan_search_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) {
@@ -56,6 +56,31 @@ export async function GET(request: NextRequest) {
 
   if (!email || !email.includes('@')) {
     return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
+  }
+
+  // ── Isolation multi-tenant : résoudre le cabinet_id du syndic ──
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+
+  // ── Stratégie 0 : vérifier d'abord dans syndic_artisans du cabinet ──
+  // Limite la recherche au périmètre du syndic connecté
+  const { data: existingArtisan } = await supabaseAdmin
+    .from('syndic_artisans')
+    .select('id, nom, email, artisan_user_id, metier, telephone, siret')
+    .eq('cabinet_id', cabinetId)
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existingArtisan) {
+    return NextResponse.json({
+      found: true,
+      name: existingArtisan.nom || email,
+      role: 'artisan',
+      userId: existingArtisan.artisan_user_id || null,
+      telephone: existingArtisan.telephone || '',
+      siret: existingArtisan.siret || '',
+      metier: existingArtisan.metier || '',
+      already_in_cabinet: true,
+    })
   }
 
   // ── Stratégie 1 : requête SQL directe via RPC (la plus fiable)

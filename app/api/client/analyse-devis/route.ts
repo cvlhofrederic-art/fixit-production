@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry } from '@/lib/groq'
+import { logger } from '@/lib/logger'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -138,7 +139,7 @@ TOITURE :
 ESPACES VERTS :
 - Tonte pelouse : 0.12-0.55€/m²
 - Taille haie : 35-90€/heure
-- Élagage arbre : 100-2000€/arbre selon hauteur
+- Élagage arbre : 100-2000€/u selon hauteur
 - Débroussaillage : 120-650€
 - Abattage arbre : 300-3000€ selon taille
 
@@ -327,7 +328,7 @@ async function callGroq(systemPrompt: string, userContent: string, opts: { tempe
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
-  const rateOk = await checkRateLimit(`analyse-devis-client:${ip}`, 8, 60)
+  const rateOk = await checkRateLimit(`analyse-devis-client:${ip}`, 8, 60_000)
   if (!rateOk) return rateLimitResponse()
 
   const user = await getAuthUser(req)
@@ -364,7 +365,7 @@ export async function POST(req: NextRequest) {
           preprocessed = true
         }
       } catch (ppErr) {
-        console.warn('Preprocessing failed (non-bloquant):', ppErr)
+        logger.warn('Preprocessing failed (non-bloquant):', ppErr)
         // Continue with original text
       }
     }
@@ -388,7 +389,7 @@ export async function POST(req: NextRequest) {
       const cleaned = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       extracted = JSON.parse(cleaned)
     } catch (e) {
-      console.warn('Extraction JSON failed (non-bloquant):', e)
+      logger.warn('Extraction JSON failed (non-bloquant):', e)
     }
 
     const totalTokens = (analyseData.usage?.total_tokens || 0) + (extractData.usage?.total_tokens || 0)
@@ -402,7 +403,7 @@ export async function POST(req: NextRequest) {
       tokens: totalTokens,
     })
   } catch (err) {
-    console.error('Analyse devis client error:', err)
+    logger.error('Analyse devis client error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

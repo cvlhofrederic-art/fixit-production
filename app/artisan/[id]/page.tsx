@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { formatPrice } from '@/lib/utils'
+import { useLocale } from '@/lib/i18n/context'
 import Link from 'next/link'
 import {
   Star,
   MapPin,
   Check,
-  Clock,
   ArrowLeft,
   Calendar,
   ChevronLeft,
@@ -27,8 +27,18 @@ import {
   ChevronDown,
 } from 'lucide-react'
 
-const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
-const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+// Locale-aware day/month name helpers (replaces static French arrays)
+// Jan 7, 2024 = Sunday (day 0), so dayIndex 0→Sun, 1→Mon, ...
+function getDayName(dayIndex: number, localeCode: string): string {
+  const date = new Date(2024, 0, 7 + dayIndex)
+  const name = date.toLocaleDateString(localeCode, { weekday: 'long' })
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+function getMonthName(monthIndex: number, localeCode: string): string {
+  const date = new Date(2024, monthIndex, 1)
+  const name = date.toLocaleDateString(localeCode, { month: 'long' })
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
 
 // ------------------------------------------------------------------
 // Smart price helper — returns meaningful price info based on service
@@ -43,21 +53,58 @@ type PriceInfo = {
 function getSmartPrice(serviceName: string, priceTTC: number): PriceInfo {
   const n = (serviceName || '').toLowerCase()
 
+  // ── PT: parseServiceTag a priorité — si [unit:x|min:y|max:z] présent, géré ailleurs ──
+
+  // ── Poda (PT) — même logique que Élagage (FR) ────────────────────
+  const isPoda = n.includes('poda')
+  const isAbate = n.includes('abate')
+  if (isPoda && n.includes('palmeira')) return { type: 'fixed', label: '150 – 450€/u' }
+  if (isPoda && (n.includes('pequena') || n.includes('< 5m') || n.includes('<5m'))) return { type: 'fixed', label: '150 – 350€/u' }
+  if (isPoda && (n.includes('média') || n.includes('media') || (n.includes('5') && n.includes('10m')))) return { type: 'fixed', label: '350 – 800€/u' }
+  if (isPoda && (n.includes('grande') && !n.includes('muito') || (n.includes('10') && n.includes('20m')))) return { type: 'fixed', label: '800 – 1 600€/u' }
+  if (isPoda && (n.includes('muito grande') || n.includes('> 20m') || n.includes('>20m'))) return { type: 'fixed', label: '1 600 – 3 000€/u' }
+  if (isPoda) return { type: 'tiered', label: 'Conforme altura da árvore', tiers: [
+    { label: '< 5 m', price: '150 – 350€' }, { label: '5 – 10 m', price: '350 – 800€' },
+    { label: '10 – 20 m', price: '800 – 1 600€' }, { label: '> 20 m', price: '1 600 – 3 000€' },
+  ]}
+  // ── Abate (PT) ───────────────────────────────────────────────────
+  if (isAbate && (n.includes('pequena') || n.includes('< 10m'))) return { type: 'fixed', label: '450 – 900€/u' }
+  if (isAbate && (n.includes('grande') || n.includes('> 10m'))) return { type: 'fixed', label: '900 – 3 500€/u' }
+  if (isAbate) return { type: 'devis', label: 'Orçamento no local' }
+  // ── Relva / Escarificação (PT) ───────────────────────────────────
+  if (n.includes('relva') || n.includes('relvado') || n.includes('corte de') ) {
+    if (n.includes('escarif') || n.includes('arejamento')) return { type: 'per_sqm', label: '0,80 – 1,50€/m²' }
+    return { type: 'per_sqm', label: '0,80 – 1,80€/m²' }
+  }
+  if (n.includes('escarif')) return { type: 'per_sqm', label: '0,80 – 1,50€/m²' }
+  // ── Sebes / Arbustos (PT) ─────────────────────────────────────────
+  if (n.includes('sebe') || n.includes('arbust')) return { type: 'per_ml', label: '8 – 20€/ml' }
+  // ── Rega / Irrigação (PT) ─────────────────────────────────────────
+  if (n.includes('rega') || n.includes('irrigaç')) return { type: 'per_sqm', label: '8 – 25€/m²' }
+  // ── Manutenção jardim (PT) ────────────────────────────────────────
+  if (n.includes('manutenção') || n.includes('manutencao') || n.includes('jardim')) return { type: 'hourly', label: '35 – 60€/h' }
+  // ── Desinfestação / Ervas (PT) ───────────────────────────────────
+  if (n.includes('desinfest') || n.includes('ervas') || n.includes('canteiros')) return { type: 'per_sqm', label: '3 – 8€/m²' }
+  // ── Criação relvado (PT) ──────────────────────────────────────────
+  if (n.includes('criação') || n.includes('sementeira') || n.includes('relvado natural')) return { type: 'per_sqm', label: '8 – 15€/m²' }
+  // ── Aménagement paysager (PT) ─────────────────────────────────────
+  if (n.includes('paisag') || n.includes('aménagement')) return { type: 'per_sqm', label: '80 – 300€/m²' }
+
   // ── Élagage spécifique par taille ────────────────────────────────
   if ((n.includes('élagage') || n.includes('elagage')) && n.includes('palmier')) {
     return { type: 'fixed', label: '150 – 450€/palmier' }
   }
   if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('petit') || n.includes('< 5m') || n.includes('<5m'))) {
-    return { type: 'fixed', label: '150 – 350€/arbre' }
+    return { type: 'fixed', label: '150 – 350€/u' }
   }
   if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('moyen') || (n.includes('5') && n.includes('10m')))) {
-    return { type: 'fixed', label: '350 – 800€/arbre' }
+    return { type: 'fixed', label: '350 – 800€/u' }
   }
   if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('grand') && !n.includes('très') && !n.includes('tres') || (n.includes('10') && n.includes('20m')))) {
-    return { type: 'fixed', label: '800 – 1 600€/arbre' }
+    return { type: 'fixed', label: '800 – 1 600€/u' }
   }
   if ((n.includes('élagage') || n.includes('elagage')) && (n.includes('très grand') || n.includes('tres grand') || n.includes('> 20m') || n.includes('>20m'))) {
-    return { type: 'fixed', label: '1 600 – 3 000€/arbre' }
+    return { type: 'fixed', label: '1 600 – 3 000€/u' }
   }
   // ── Élagage générique — paliers hauteur ──────────────────────────
   if (n.includes('élagage') || n.includes('elagage') || n.includes('elaguage')) {
@@ -75,13 +122,13 @@ function getSmartPrice(serviceName: string, priceTTC: number): PriceInfo {
 
   // ── Abattage par taille ───────────────────────────────────────────
   if (n.includes('abattage') && (n.includes('petit') || n.includes('< 10m') || n.includes('<10m'))) {
-    return { type: 'fixed', label: '450 – 900€/arbre' }
+    return { type: 'fixed', label: '450 – 900€/u' }
   }
   if (n.includes('abattage') && (n.includes('moyen') || (n.includes('10') && n.includes('20m')))) {
-    return { type: 'fixed', label: '900 – 1 800€/arbre' }
+    return { type: 'fixed', label: '900 – 1 800€/u' }
   }
   if (n.includes('abattage') && (n.includes('grand') || n.includes('> 20m') || n.includes('>20m'))) {
-    return { type: 'fixed', label: '1 800 – 3 500€/arbre' }
+    return { type: 'fixed', label: '1 800 – 3 500€/u' }
   }
   if (n.includes('abattage')) {
     return { type: 'devis', label: 'Sur devis' }
@@ -89,7 +136,7 @@ function getSmartPrice(serviceName: string, priceTTC: number): PriceInfo {
 
   // ── Taille fruitiers ──────────────────────────────────────────────
   if (n.includes('fruitier')) {
-    return { type: 'fixed', label: '180 – 500€/arbre' }
+    return { type: 'fixed', label: '180 – 500€/u' }
   }
 
   // ── Taille arbustes / rosiers ─────────────────────────────────────
@@ -224,7 +271,9 @@ function calculateEstimatedPrice(priceInfo: PriceInfo, qty: number): string {
 // ── Multi-service helpers ──────────────────────────────────────────
 function parseServiceTag(service: any): { unit: string; min: number; max: number } | null {
   const match = (service.description || '').match(/\[unit:([^|]+)\|min:([\d.]+)\|max:([\d.]+)\]/)
-  if (match) return { unit: match[1], min: parseFloat(match[2]), max: parseFloat(match[3]) }
+  if (match) {
+    return { unit: match[1], min: parseFloat(match[2]), max: parseFloat(match[3]) }
+  }
   return null
 }
 
@@ -235,12 +284,12 @@ function cleanServiceDesc(service: any): string {
     .trim()
 }
 
-const UNIT_LABELS: Record<string, string> = { m2: 'm²', ml: 'ml', arbre: 'arbre(s)', tonne: 'tonne(s)', heure: 'h', forfait: '', unite: 'unité(s)' }
+const UNIT_LABELS: Record<string, string> = { m2: 'm²', ml: 'ml', m3: 'm³', heure: 'h', forfait: '', unite: 'unité(s)', arbre: 'unité(s)', kg: 'kg', tonne: 't', lot: 'lot' }
 
 function getServiceEstimate(service: any, qty: string): { minVal: number; maxVal: number; needsQty: boolean; unit: string } {
   const tag = parseServiceTag(service)
   if (tag) {
-    const needsQty = ['m2', 'ml', 'arbre', 'tonne'].includes(tag.unit)
+    const needsQty = ['m2', 'ml', 'arbre', 'tonne', 'unite', 'm3', 'kg', 'lot'].includes(tag.unit)
     const q = parseFloat(qty) || 0
     if (needsQty && q > 0) return { minVal: Math.round(tag.min * q * 100) / 100, maxVal: Math.round(tag.max * q * 100) / 100, needsQty, unit: tag.unit }
     return { minVal: tag.min, maxVal: tag.max, needsQty, unit: tag.unit }
@@ -329,6 +378,8 @@ type Step = 'profile' | 'motif' | 'calendar'
 export default function ArtisanProfilePage() {
   const params = useParams()
   const router = useRouter()
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [artisan, setArtisan] = useState<any>(null)
   const [services, setServices] = useState<any[]>([])
   const [availability, setAvailability] = useState<any[]>([])
@@ -564,10 +615,6 @@ export default function ArtisanProfilePage() {
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
-    const lastDay = new Date(year, month + 1, 0).getDate()
-    const activeSet = new Set(activeDayIndices)
-    const numCols = activeDayIndices.length
-
     // Build week rows with only active day columns
     const rows: (Date | null)[][] = []
     const firstOfMonth = new Date(year, month, 1)
@@ -599,14 +646,6 @@ export default function ArtisanProfilePage() {
   }
 
   // ---- Actions ----
-
-  const goToMotif = () => {
-    setStep('motif')
-    setSelectedService(null)
-    setUseCustomMotif(false)
-    setCustomMotif('')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
 
   const selectMotif = (service: any) => {
     setUseCustomMotif(false)
@@ -695,16 +734,16 @@ export default function ArtisanProfilePage() {
         }).join(', ')}. ` : ''
     const singleNotes = `${useCustomMotif ? `Motif: ${customMotif}. ` : ''}${selectedPriceTier ? `Arbre hauteur ${selectedPriceTier.label}. ` : ''}${selectedService && (() => { const pi = getSmartPrice(selectedService.name, selectedService.price_ttc); if (pi.type !== 'per_sqm' && pi.type !== 'per_ml') return ''; const unit = pi.type === 'per_ml' ? 'ml' : 'm²'; return quantityKnown === false ? `Superficie à mesurer sur place. ` : quantityValue ? `${pi.type === 'per_ml' ? 'Linéaire' : 'Superficie'}: ${quantityValue}${unit}. ` : '' })() || ''}`
 
-    const estimNote = totalMax > 0 ? `Estimation: ${totalMin.toLocaleString('fr-FR')}–${totalMax.toLocaleString('fr-FR')}€. ` : ''
+    const estimNote = totalMax > 0 ? `Estimation: ${totalMin.toLocaleString(dateFmtLocale)}–${totalMax.toLocaleString(dateFmtLocale)}€. ` : ''
 
     const insertData: any = {
-      artisan_id: params.id,
+      artisan_id: artisan.id,
       status: 'pending',
       booking_date: dateStr,
       booking_time: selectedSlot,
-      duration_minutes: serviceList.reduce((sum, s) => sum + (s.duration_minutes || 60), 0) || 60,
+      duration_minutes: Math.min(serviceList.reduce((sum, s) => sum + (s.duration_minutes || 60), 0) || 60, 480),
       address: bookingForm.address || 'A definir',
-      notes: `${multiNote}${singleNotes}${estimNote}Client: ${bookingForm.name} | Tel: ${bookingForm.phone} | Email: ${bookingForm.email || '-'} | ${bookingForm.notes || ''}`,
+      notes: `${multiNote}${singleNotes}${estimNote}Client: ${bookingForm.name} | Tel: ${bookingForm.phone} | Email: ${bookingForm.email || '-'} | ${bookingForm.notes || ''}`.substring(0, 2000),
       price_ht: totalMin || mainService?.price_ht || 0,
       price_ttc: totalMax || mainService?.price_ttc || 0,
     }
@@ -740,7 +779,8 @@ export default function ArtisanProfilePage() {
     if (!bookingJson.error && bookingJson.data) {
       router.push(`/confirmation?id=${bookingJson.data.id}`)
     } else {
-      setBookingError('Erreur lors de la réservation. Veuillez réessayer.')
+      const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
+      setBookingError(errMsg)
     }
 
     setSubmitting(false)
@@ -762,7 +802,7 @@ export default function ArtisanProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow border-t-transparent mx-auto"></div>
           <p className="mt-4 text-gray-500">Chargement du profil...</p>
         </div>
       </div>
@@ -774,7 +814,7 @@ export default function ArtisanProfilePage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Artisan non trouv&eacute;</h1>
-          <a href="/recherche" className="text-[#FFC107] hover:underline">
+          <a href="/recherche" className="text-yellow hover:underline">
             Retour &agrave; la recherche
           </a>
         </div>
@@ -789,34 +829,36 @@ export default function ArtisanProfilePage() {
   // =============================================
   if (step === 'profile') {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-warm-gray py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Back button */}
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-600 hover:text-[#FFC107] transition mb-6"
+            className="flex items-center gap-2 text-text-muted hover:text-yellow transition mb-6"
           >
             <ArrowLeft className="w-5 h-5" />
             Retour
           </button>
 
           {/* Header Card with gradient banner */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-            <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-8">
+          <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] overflow-hidden mb-8">
+            <div className="bg-gradient-to-r from-yellow to-yellow-light p-8">
               <div className="flex flex-col sm:flex-row items-start gap-6">
                 {artisan.profile_photo_url ? (
-                  <img
+                  <Image
                     src={artisan.profile_photo_url}
                     alt={artisan.company_name}
+                    width={96}
+                    height={96}
                     className="w-24 h-24 rounded-full object-cover shadow-lg flex-shrink-0 border-4 border-white"
                   />
                 ) : (
-                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-3xl font-bold text-[#FFC107] shadow-lg flex-shrink-0">
+                  <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center text-3xl font-bold text-yellow shadow-lg flex-shrink-0">
                     {initials}
                   </div>
                 )}
                 <div className="flex-1 text-white">
-                  <h1 className="text-3xl font-bold mb-2">{artisan.company_name}</h1>
+                  <h1 className="font-display text-3xl font-black mb-2 tracking-[-0.03em]">{artisan.company_name}</h1>
                   <div className="flex flex-wrap items-center gap-4 mb-3">
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-white" />
@@ -824,7 +866,7 @@ export default function ArtisanProfilePage() {
                       <span className="opacity-90">({artisan.rating_count || 0} avis)</span>
                     </div>
                     {artisan.verified && (
-                      <span className="bg-white text-[#FFC107] px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
+                      <span className="bg-white text-yellow px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
                         <Check className="w-4 h-4" /> V&eacute;rifi&eacute;
                       </span>
                     )}
@@ -842,8 +884,8 @@ export default function ArtisanProfilePage() {
             <div className="p-8">
               {/* About */}
               <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4">&Agrave; propos</h2>
-                <p className="text-gray-600 leading-relaxed">
+                <h2 className="font-display text-2xl font-black text-dark mb-4 tracking-[-0.02em]">&Agrave; propos</h2>
+                <p className="text-mid leading-relaxed">
                   {cleanBio(artisan.bio) || 'Artisan professionnel disponible pour vos projets.'}
                 </p>
               </div>
@@ -856,9 +898,9 @@ export default function ArtisanProfilePage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-[#FFC107]" />
+                      <FileText className="w-5 h-5 text-yellow" />
                     </div>
-                    <h2 className="text-2xl font-bold group-hover:text-[#FFC107] transition">Carnet de visite</h2>
+                    <h2 className="font-display text-2xl font-black text-dark tracking-[-0.02em] group-hover:text-yellow transition">Carnet de visite</h2>
                   </div>
                   <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showBusinessCard ? 'rotate-180' : ''}`} />
                 </button>
@@ -870,7 +912,7 @@ export default function ArtisanProfilePage() {
                       {artisan.company_name && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <Building2 className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <Building2 className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Entreprise</div>
@@ -883,7 +925,7 @@ export default function ArtisanProfilePage() {
                       {artisan.legal_form && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <FileText className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <FileText className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Forme juridique</div>
@@ -896,7 +938,7 @@ export default function ArtisanProfilePage() {
                       {artisan.siret && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <Shield className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <Shield className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">SIRET</div>
@@ -909,7 +951,7 @@ export default function ArtisanProfilePage() {
                       {artisan.naf_code && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <FileText className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <FileText className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Code NAF</div>
@@ -922,7 +964,7 @@ export default function ArtisanProfilePage() {
                       {(artisan.company_address || artisan.company_city) && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <MapPin className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <MapPin className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Adresse</div>
@@ -939,11 +981,11 @@ export default function ArtisanProfilePage() {
                       {artisan.phone && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <Phone className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <Phone className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Téléphone</div>
-                            <a href={`tel:${artisan.phone.replace(/\s/g, '')}`} className="font-semibold text-gray-900 hover:text-[#FFC107] transition">
+                            <a href={`tel:${artisan.phone.replace(/\s/g, '')}`} className="font-semibold text-gray-900 hover:text-yellow transition">
                               {artisan.phone}
                             </a>
                           </div>
@@ -954,11 +996,11 @@ export default function ArtisanProfilePage() {
                       {artisan.email && (
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                            <Mail className="w-4.5 h-4.5 text-[#FFC107]" />
+                            <Mail className="w-4.5 h-4.5 text-yellow" />
                           </div>
                           <div>
                             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Email</div>
-                            <a href={`mailto:${artisan.email}`} className="font-semibold text-gray-900 hover:text-[#FFC107] transition text-sm break-all">
+                            <a href={`mailto:${artisan.email}`} className="font-semibold text-gray-900 hover:text-yellow transition text-sm break-all">
                               {artisan.email}
                             </a>
                           </div>
@@ -968,7 +1010,7 @@ export default function ArtisanProfilePage() {
                       {/* Zone d'intervention */}
                       <div className="flex items-start gap-3">
                         <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm flex-shrink-0 mt-0.5">
-                          <Search className="w-4.5 h-4.5 text-[#FFC107]" />
+                          <Search className="w-4.5 h-4.5 text-yellow" />
                         </div>
                         <div>
                           <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Zone d&apos;intervention</div>
@@ -991,10 +1033,12 @@ export default function ArtisanProfilePage() {
                               className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
                               onClick={() => window.open(photo.url, '_blank')}
                             >
-                              <img
+                              <Image
                                 src={photo.url}
                                 alt={photo.title || 'Réalisation'}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                fill
+                                sizes="(max-width: 768px) 50vw, 25vw"
+                                className="object-cover group-hover:scale-105 transition-transform duration-300"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 translate-y-full group-hover:translate-y-0 transition-transform">
@@ -1016,9 +1060,9 @@ export default function ArtisanProfilePage() {
               {/* Services */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-2xl font-bold">Services propos&eacute;s</h2>
+                  <h2 className="font-display text-2xl font-black text-dark tracking-[-0.02em]">Services propos&eacute;s</h2>
                   {selectedServices.length > 0 && (
-                    <span className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1 rounded-full">
+                    <span className="bg-yellow text-gray-900 text-xs font-bold px-3 py-1 rounded-full">
                       {selectedServices.length} s&eacute;lectionn&eacute;{selectedServices.length > 1 ? 's' : ''}
                     </span>
                   )}
@@ -1045,7 +1089,7 @@ export default function ArtisanProfilePage() {
                             return (
                               <div
                                 key={service.id}
-                                className={`relative border-2 rounded-xl p-5 transition hover:shadow-md hover:-translate-y-0.5 ${isInCart ? 'border-[#FFC107] bg-amber-50 shadow-md' : 'border-gray-200 hover:border-[#FFC107]'}`}
+                                className={`relative border-[1.5px] rounded-2xl p-5 transition hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 ${isInCart ? 'border-yellow bg-amber-50 shadow-md' : 'border-[#EFEFEF] hover:border-yellow'}`}
                               >
                                 {/* Toggle + / ✓ button */}
                                 <button
@@ -1062,7 +1106,7 @@ export default function ArtisanProfilePage() {
                                   }}
                                   title={isInCart ? 'Retirer du panier' : 'Ajouter au panier'}
                                   className={`absolute top-3 right-3 w-9 h-9 rounded-full border-2 flex items-center justify-center font-bold text-base transition z-10 ${
-                                    isInCart ? 'bg-[#FFC107] border-[#FFC107] text-gray-900' : 'border-gray-300 text-gray-500 hover:border-[#FFC107] hover:text-[#FFC107] bg-white'
+                                    isInCart ? 'bg-yellow border-yellow text-gray-900' : 'border-gray-300 text-gray-500 hover:border-yellow hover:text-yellow bg-white'
                                   }`}
                                 >
                                   {isInCart ? '✓' : '+'}
@@ -1083,7 +1127,7 @@ export default function ArtisanProfilePage() {
                                   }}
                                 >
                                   <div className="flex items-start gap-3 mb-2 pr-10">
-                                    <h3 className="font-bold text-base">{service.name}</h3>
+                                    <h3 className="font-display font-bold text-base tracking-[-0.02em]">{service.name}</h3>
                                   </div>
                                   <p className="text-gray-600 text-sm mb-3">{cleanServiceDesc(service)}</p>
                                   <div className="flex items-center justify-between">
@@ -1091,25 +1135,25 @@ export default function ArtisanProfilePage() {
                                       tag.min === 0 && tag.max === 0 ? (
                                         <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">Sur devis</span>
                                       ) : tag.unit === 'm2' ? (
-                                        <span className="text-sm font-semibold text-[#FFC107]">{tag.min} – {tag.max}€/m²</span>
+                                        <span className="text-sm font-semibold text-yellow">{tag.min} – {tag.max}€/m²</span>
                                       ) : tag.unit === 'ml' ? (
-                                        <span className="text-sm font-semibold text-[#FFC107]">{tag.min} – {tag.max}€/ml</span>
+                                        <span className="text-sm font-semibold text-yellow">{tag.min} – {tag.max}€/ml</span>
                                       ) : tag.unit === 'heure' ? (
-                                        <span className="text-sm font-semibold text-[#FFC107]">{tag.min} – {tag.max}€/h</span>
+                                        <span className="text-sm font-semibold text-yellow">{tag.min} – {tag.max}€/h</span>
                                       ) : (
-                                        <span className="text-sm font-bold text-[#FFC107]">
+                                        <span className="text-sm font-bold text-yellow">
                                           {tag.min === tag.max ? `${tag.min}€` : `${tag.min} – ${tag.max}€`}
-                                          {tag.unit === 'arbre' ? '/arbre' : tag.unit === 'tonne' ? '/t' : ''}
+                                          {tag.unit === 'arbre' ? '/u' : tag.unit === 'tonne' ? '/t' : ''}
                                         </span>
                                       )
                                     ) : (
                                       <>
                                         {priceInfo.type === 'devis' && <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">Sur devis</span>}
-                                        {priceInfo.type === 'per_sqm' && <span className="text-sm font-semibold text-[#FFC107]">{priceInfo.label}</span>}
-                                        {priceInfo.type === 'per_ml' && <span className="text-sm font-semibold text-[#FFC107]">{priceInfo.label}</span>}
-                                        {priceInfo.type === 'hourly' && <span className="text-sm font-semibold text-[#FFC107]">{priceInfo.label}</span>}
-                                        {priceInfo.type === 'tiered' && <span className="text-sm font-semibold text-[#FFC107]">Selon hauteur</span>}
-                                        {priceInfo.type === 'fixed' && <span className="text-lg font-bold text-[#FFC107]">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'per_sqm' && <span className="text-sm font-semibold text-yellow">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'per_ml' && <span className="text-sm font-semibold text-yellow">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'hourly' && <span className="text-sm font-semibold text-yellow">{priceInfo.label}</span>}
+                                        {priceInfo.type === 'tiered' && <span className="text-sm font-semibold text-yellow">Selon hauteur</span>}
+                                        {priceInfo.type === 'fixed' && <span className="text-lg font-bold text-yellow">{priceInfo.label}</span>}
                                       </>
                                     )}
                                     <span className="text-xs text-gray-500">{isInCart ? '✓ Sélectionné' : 'Cliquez pour sélectionner'}</span>
@@ -1143,7 +1187,7 @@ export default function ArtisanProfilePage() {
                       <div className="space-y-3 mb-5">
                         {selectedServices.map(svc => {
                           const t = parseServiceTag(svc)
-                          const needsQty = t ? ['m2', 'ml', 'arbre', 'tonne'].includes(t.unit) : false
+                          const needsQty = t ? ['m2', 'ml', 'arbre', 'tonne', 'unite', 'm3', 'kg', 'lot'].includes(t.unit) : false
                           const qty = serviceQuantities[svc.id] || ''
                           const { minVal, maxVal } = getServiceEstimate(svc, qty)
                           const unitLbl = t ? (UNIT_LABELS[t.unit] || t.unit) : ''
@@ -1158,28 +1202,31 @@ export default function ArtisanProfilePage() {
                                 >Retirer</button>
                               </div>
                               {needsQty && (
-                                <div className="flex items-center gap-2 mt-2">
-                                  <span className="text-xs text-gray-500">Quantité :</span>
-                                  <input
-                                    type="number"
-                                    value={qty}
-                                    onChange={e => setServiceQuantities(q => ({ ...q, [svc.id]: e.target.value }))}
-                                    placeholder={`en ${unitLbl}`}
-                                    min="1" step="1"
-                                    className="w-24 border-2 border-gray-200 rounded-lg px-2 py-1 text-sm focus:border-[#FFC107] focus:outline-none"
-                                  />
-                                  <span className="text-xs text-gray-500">{unitLbl}</span>
+                                <div className="mt-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-500">Quantité ({unitLbl}) :</span>
+                                    <input
+                                      type="number"
+                                      value={qty}
+                                      onChange={e => setServiceQuantities(q => ({ ...q, [svc.id]: e.target.value }))}
+                                      placeholder={`ex: ${t?.unit === 'arbre' ? '3' : t?.unit === 'tonne' ? '2' : '50'}`}
+                                      min="1" step="1"
+                                      className="w-24 border-2 border-gray-200 rounded-lg px-2 py-1 text-sm focus:border-yellow focus:outline-none"
+                                    />
+                                    <span className="text-xs text-gray-500">{unitLbl}</span>
+                                  </div>
+                                  <p className="text-[10px] text-gray-400 mt-1 italic">Facultatif — si vous ne savez pas, l&apos;artisan évaluera sur place</p>
                                 </div>
                               )}
                               <div className="text-right mt-2">
                                 {isDevis ? (
                                   <span className="text-blue-600 text-sm font-semibold">Sur devis</span>
                                 ) : needsQty && !qty ? (
-                                  <span className="text-gray-500 text-xs">Entrez la quantit&eacute; pour estimer</span>
+                                  <span className="text-gray-400 text-xs">Renseignez la quantité pour une estimation</span>
                                 ) : (
-                                  <span className="text-[#FFC107] font-bold text-sm">
+                                  <span className="text-yellow font-bold text-sm">
                                     {t && t.min === t.max ? `${t.min}€` : `${minVal} – ${maxVal}€`}
-                                    {t && t.unit !== 'forfait' && !needsQty ? `/${t.unit === 'arbre' ? 'arbre' : t.unit === 'tonne' ? 't' : t.unit}` : ''}
+                                    {t && t.unit !== 'forfait' && !needsQty ? `/${t.unit === 'arbre' ? 'u' : t.unit === 'tonne' ? 't' : t.unit}` : ''}
                                   </span>
                                 )}
                               </div>
@@ -1194,7 +1241,7 @@ export default function ArtisanProfilePage() {
                         for (const svc of selectedServices) {
                           const t = parseServiceTag(svc)
                           if (t && t.min === 0 && t.max === 0) { hasDevis = true; continue }
-                          const needsQty = t ? ['m2', 'ml', 'arbre', 'tonne'].includes(t.unit) : false
+                          const needsQty = t ? ['m2', 'ml', 'arbre', 'tonne', 'unite', 'm3', 'kg', 'lot'].includes(t.unit) : false
                           const qty = serviceQuantities[svc.id] || ''
                           if (needsQty && !qty) { hasUnknown = true; continue }
                           const { minVal, maxVal } = getServiceEstimate(svc, qty)
@@ -1203,14 +1250,14 @@ export default function ArtisanProfilePage() {
                         }
                         const hasTotal = totalMin > 0 || totalMax > 0
                         return (
-                          <div className="bg-amber-50 border-2 border-[#FFC107] rounded-xl p-4 mb-5">
+                          <div className="bg-amber-50 border-2 border-yellow rounded-xl p-4 mb-5">
                             {hasTotal ? (
                               <>
                                 <p className="text-gray-700 text-sm mb-1">
                                   {hasUnknown || hasDevis ? 'Estimation partielle (sans les éléments non renseignés) :' : 'Votre intervention est estimée entre :'}
                                 </p>
                                 <p className="text-2xl font-bold text-gray-900">
-                                  {totalMin.toLocaleString('fr-FR')} € – {totalMax.toLocaleString('fr-FR')} €
+                                  {totalMin.toLocaleString(dateFmtLocale)} € – {totalMax.toLocaleString(dateFmtLocale)} €
                                   <span className="text-sm font-normal text-gray-500 ml-2">TTC</span>
                                 </p>
                                 {(hasUnknown || hasDevis) && <p className="text-xs text-gray-500 mt-1">+ montants non estimés</p>}
@@ -1219,7 +1266,7 @@ export default function ArtisanProfilePage() {
                                 </p>
                               </>
                             ) : (
-                              <p className="text-gray-600 font-semibold">Renseignez les quantit&eacute;s ci-dessus pour obtenir une estimation</p>
+                              <p className="text-gray-600 text-sm">Renseignez les quantités ci-dessus pour obtenir une estimation, ou passez directement au rendez-vous.</p>
                             )}
                           </div>
                         )
@@ -1229,10 +1276,25 @@ export default function ArtisanProfilePage() {
                         onClick={() => {
                           setShowEstimateModal(false)
                           setSelectedService(selectedServices[0] || null)
+                          setSelectedDate(null)
+                          setSelectedSlot(null)
+                          // Pre-fill form with connected user data
+                          if (connectedUser) {
+                            const meta = connectedUser.user_metadata || {}
+                            const addressParts = [meta.address, meta.postal_code, meta.city].filter(Boolean)
+                            setBookingForm({
+                              name: meta.full_name || '',
+                              email: connectedUser.email || '',
+                              phone: meta.phone || '',
+                              address: addressParts.join(', '),
+                              notes: '',
+                              cgu: false,
+                            })
+                          }
                           setStep('calendar')
                           window.scrollTo({ top: 0, behavior: 'smooth' })
                         }}
-                        className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3.5 rounded-xl font-bold text-lg transition"
+                        className="w-full bg-yellow hover:bg-yellow-light text-gray-900 py-3.5 rounded-xl font-bold text-lg transition"
                       >
                         ✅ Oui, je prends rendez-vous
                       </button>
@@ -1259,42 +1321,13 @@ export default function ArtisanProfilePage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => setShowEstimateModal(true)}
-                        className="bg-[#FFC107] text-gray-900 px-4 py-2 rounded-lg font-bold text-sm"
+                        className="w-36 bg-white text-gray-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-100 transition text-center"
                       >
                         Estimation 🛒
                       </button>
                       <button
-                        onClick={() => {
-                          // Pre-select the first service as motif
-                          setSelectedService(selectedServices[0])
-                          setSelectedPriceTier(null)
-                          setSelectedTreeWidth(null)
-                          setQuantityKnown(null)
-                          setQuantityValue('')
-                          setUseCustomMotif(false)
-                          setCustomMotif('')
-                          // Go directly to calendar
-                          setStep('calendar')
-                          setSelectedDate(null)
-                          setSelectedSlot(null)
-                          // Pre-fill form with connected user data
-                          if (connectedUser) {
-                            const meta = connectedUser.user_metadata || {}
-                            const addressParts = [meta.address, meta.postal_code, meta.city].filter(Boolean)
-                            setBookingForm({
-                              name: meta.full_name || '',
-                              email: connectedUser.email || '',
-                              phone: meta.phone || '',
-                              address: addressParts.join(', '),
-                              notes: '',
-                              cgu: false,
-                            })
-                          } else {
-                            setBookingForm({ name: '', email: '', phone: '', address: '', notes: '', cgu: false })
-                          }
-                          window.scrollTo({ top: 0, behavior: 'smooth' })
-                        }}
-                        className="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold text-sm"
+                        onClick={() => setShowEstimateModal(true)}
+                        className="w-36 bg-yellow text-gray-900 px-4 py-2 rounded-lg font-bold text-sm text-center"
                       >
                         Prendre RDV 📅
                       </button>
@@ -1332,8 +1365,8 @@ export default function ArtisanProfilePage() {
                           .sort((a, b) => a.day_of_week - b.day_of_week)
                           .map((a) => (
                             <div key={a.day_of_week} className="flex justify-between">
-                              <span>{DAY_NAMES[a.day_of_week]}</span>
-                              <span className="text-[#FFC107] font-semibold">
+                              <span>{getDayName(a.day_of_week, dateFmtLocale)}</span>
+                              <span className="text-yellow font-semibold">
                                 {a.start_time?.substring(0, 5)} - {a.end_time?.substring(0, 5)}
                               </span>
                             </div>
@@ -1357,22 +1390,22 @@ export default function ArtisanProfilePage() {
     const hasSelection = selectedService !== null || (useCustomMotif && customMotif.trim() !== '')
 
     return (
-      <div className="min-h-screen bg-gray-50 pb-32">
+      <div className="min-h-screen bg-warm-gray pb-32">
         {/* Breadcrumb */}
-        <div className="bg-white border-b border-gray-200">
+        <div className="bg-white border-b border-border">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <nav className="flex items-center gap-2 text-sm text-gray-500">
-              <Link href="/" className="hover:text-[#FFC107] transition flex items-center gap-1">
+            <nav className="flex items-center gap-2 text-sm text-text-muted">
+              <Link href="/" className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
                 Accueil
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <Link href="/recherche" className="hover:text-[#FFC107] transition flex items-center gap-1">
+              <Link href="/recherche" className="hover:text-yellow transition flex items-center gap-1">
                 <Search className="w-3.5 h-3.5" />
                 Recherche
               </Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-gray-900 font-medium">Choisir le motif</span>
+              <span className="text-dark font-medium">Choisir le motif</span>
             </nav>
           </div>
         </div>
@@ -1380,27 +1413,27 @@ export default function ArtisanProfilePage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+            <h1 className="font-display text-3xl md:text-4xl font-black text-dark mb-2 tracking-[-0.03em]">
               {'\uD83D\uDD27'} Choisissez votre motif d&apos;intervention
             </h1>
-            <p className="text-gray-500 text-lg">
+            <p className="text-text-muted text-lg">
               S&eacute;lectionnez le service souhait&eacute; pour continuer votre r&eacute;servation
             </p>
           </div>
 
           {/* Artisan recap card */}
-          <div className="bg-white rounded-xl border-2 border-gray-100 p-4 mb-8 flex items-center gap-4 max-w-lg mx-auto">
-            <div className="w-14 h-14 bg-[#FFC107] rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0">
+          <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] p-4 mb-8 flex items-center gap-4 max-w-lg mx-auto">
+            <div className="w-14 h-14 bg-yellow rounded-full flex items-center justify-center text-lg font-bold text-white flex-shrink-0">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-gray-900 truncate">{artisan.company_name}</h3>
-              <p className="text-sm text-gray-500 truncate">
+              <h3 className="font-display font-bold text-dark truncate">{artisan.company_name}</h3>
+              <p className="text-sm text-text-muted truncate">
                 {artisan.categories?.[0] || 'Artisan professionnel'}
               </p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
-              <Star className="w-4 h-4 fill-[#FFC107] text-[#FFC107]" />
+              <Star className="w-4 h-4 fill-[#FFC107] text-yellow" />
               <span className="font-semibold text-sm">{artisan.rating_avg || '5.0'}</span>
             </div>
           </div>
@@ -1429,15 +1462,14 @@ export default function ArtisanProfilePage() {
               const priceInfo = getSmartPrice(service.name, service.price_ttc)
               const needsQty = priceInfo.type === 'per_sqm' || priceInfo.type === 'per_ml'
               const qtyUnit = priceInfo.type === 'per_ml' ? 'mètres linéaires' : 'm²'
-              const qtyUnitShort = priceInfo.type === 'per_ml' ? 'ml' : 'm²'
               return (
                 <div key={service.id} className="flex flex-col gap-2">
                   <div
                     onClick={() => selectMotif(service)}
-                    className={`relative bg-white rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 ${
+                    className={`relative bg-white rounded-2xl p-5 cursor-pointer transition-all duration-200 border-[1.5px] ${
                       isSelected
-                        ? 'border-[#FFC107] bg-[#FFF9E6] shadow-lg -translate-y-1'
-                        : 'border-gray-200 hover:border-[#FFC107] hover:shadow-md hover:-translate-y-0.5'
+                        ? 'border-yellow bg-warm-gray shadow-lg -translate-y-1'
+                        : 'border-[#EFEFEF] hover:border-yellow hover:shadow-[0_4px_20px_rgba(255,214,0,0.15)] hover:-translate-y-0.5'
                     }`}
                   >
                     {isSelected && (
@@ -1447,8 +1479,8 @@ export default function ArtisanProfilePage() {
                     )}
 
                     <div className="text-3xl mb-3">{getServiceEmoji(service.name)}</div>
-                    <h3 className="font-bold text-gray-900 mb-1">{service.name}</h3>
-                    <p className="text-sm text-gray-500 mb-4 line-clamp-2">{service.description}</p>
+                    <h3 className="font-bold text-dark mb-1">{service.name}</h3>
+                    <p className="text-sm text-text-muted mb-4 line-clamp-2">{service.description}</p>
 
                     {/* Smart price */}
                     <div className="pt-3 border-t border-gray-100">
@@ -1458,19 +1490,19 @@ export default function ArtisanProfilePage() {
                         </span>
                       )}
                       {priceInfo.type === 'per_sqm' && (
-                        <span className="text-sm font-semibold text-[#FFC107]">📐 {priceInfo.label}</span>
+                        <span className="text-sm font-semibold text-yellow">📐 {priceInfo.label}</span>
                       )}
                       {priceInfo.type === 'per_ml' && (
-                        <span className="text-sm font-semibold text-[#FFC107]">📏 {priceInfo.label}</span>
+                        <span className="text-sm font-semibold text-yellow">📏 {priceInfo.label}</span>
                       )}
                       {priceInfo.type === 'hourly' && (
-                        <span className="text-sm font-semibold text-[#FFC107]">⏱ {priceInfo.label}</span>
+                        <span className="text-sm font-semibold text-yellow">⏱ {priceInfo.label}</span>
                       )}
                       {priceInfo.type === 'tiered' && (
-                        <span className="text-sm font-semibold text-[#FFC107]">🌳 Tarif selon hauteur & envergure</span>
+                        <span className="text-sm font-semibold text-yellow">🌳 Tarif selon hauteur & envergure</span>
                       )}
                       {priceInfo.type === 'fixed' && (
-                        <span className="text-lg font-bold text-[#FFC107]">{priceInfo.label}</span>
+                        <span className="text-lg font-bold text-yellow">{priceInfo.label}</span>
                       )}
                     </div>
 
@@ -1495,7 +1527,7 @@ export default function ArtisanProfilePage() {
 
                   {/* Sélecteur hauteur × largeur (élagage) */}
                   {isSelected && priceInfo.type === 'tiered' && priceInfo.tiers && (
-                    <div className="bg-amber-50 border-2 border-[#FFC107] rounded-xl p-4 flex flex-col gap-4">
+                    <div className="bg-amber-50 border-2 border-yellow rounded-xl p-4 flex flex-col gap-4">
 
                       {/* ── Étape 1 : Hauteur ── */}
                       <div>
@@ -1507,8 +1539,8 @@ export default function ArtisanProfilePage() {
                               onClick={(e) => { e.stopPropagation(); setSelectedPriceTier(tier); setSelectedTreeWidth(null) }}
                               className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition text-sm font-semibold ${
                                 selectedPriceTier?.label === tier.label
-                                  ? 'border-[#FFC107] bg-[#FFC107] text-gray-900'
-                                  : 'border-gray-200 bg-white hover:border-[#FFC107] text-gray-700'
+                                  ? 'border-yellow bg-yellow text-gray-900'
+                                  : 'border-gray-200 bg-white hover:border-yellow text-gray-700'
                               }`}
                             >
                               <span>🌳 {tier.label}</span>
@@ -1534,12 +1566,12 @@ export default function ArtisanProfilePage() {
                                 onClick={(e) => { e.stopPropagation(); setSelectedTreeWidth(w) }}
                                 className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition text-sm font-semibold ${
                                   selectedTreeWidth?.label === w.label
-                                    ? 'border-[#FFC107] bg-[#FFC107] text-gray-900'
-                                    : 'border-gray-200 bg-white hover:border-[#FFC107] text-gray-700'
+                                    ? 'border-yellow bg-yellow text-gray-900'
+                                    : 'border-gray-200 bg-white hover:border-yellow text-gray-700'
                                 }`}
                               >
                                 <span>🌿 {w.label}</span>
-                                <span className={`font-bold ${selectedTreeWidth?.label === w.label ? 'text-gray-900' : 'text-[#FFC107]'}`}>
+                                <span className={`font-bold ${selectedTreeWidth?.label === w.label ? 'text-gray-900' : 'text-yellow'}`}>
                                   {w.price}
                                 </span>
                               </button>
@@ -1556,7 +1588,7 @@ export default function ArtisanProfilePage() {
 
                   {/* ── Widget superficie / mètres linéaires ── */}
                   {isSelected && needsQty && (
-                    <div className="bg-amber-50 border-2 border-[#FFC107] rounded-xl p-4 flex flex-col gap-3">
+                    <div className="bg-amber-50 border-2 border-yellow rounded-xl p-4 flex flex-col gap-3">
                       <p className="text-sm font-bold text-gray-900">
                         📐 Connaissez-vous la superficie à traiter ?
                       </p>
@@ -1565,8 +1597,8 @@ export default function ArtisanProfilePage() {
                           onClick={(e) => { e.stopPropagation(); setQuantityKnown(true) }}
                           className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition ${
                             quantityKnown === true
-                              ? 'border-[#FFC107] bg-[#FFC107] text-gray-900'
-                              : 'border-gray-200 bg-white hover:border-[#FFC107] text-gray-700'
+                              ? 'border-yellow bg-yellow text-gray-900'
+                              : 'border-gray-200 bg-white hover:border-yellow text-gray-700'
                           }`}
                         >
                           ✅ Oui, je connais
@@ -1592,14 +1624,14 @@ export default function ArtisanProfilePage() {
                             onChange={(e) => setQuantityValue(e.target.value)}
                             onClick={(e) => e.stopPropagation()}
                             placeholder="ex: 150"
-                            className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm"
+                            className="flex-1 px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-yellow focus:outline-none text-sm"
                           />
                           <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">{qtyUnit}</span>
                         </div>
                       )}
 
                       {quantityKnown === true && quantityValue && Number(quantityValue) > 0 && (
-                        <div className="bg-white border-2 border-[#FFC107] rounded-lg px-4 py-3">
+                        <div className="bg-white border-2 border-yellow rounded-lg px-4 py-3">
                           <p className="text-xs text-gray-500 mb-1">💰 Estimation du prix</p>
                           <p className="text-lg font-bold text-gray-900">
                             {calculateEstimatedPrice(priceInfo, Number(quantityValue))}
@@ -1628,8 +1660,8 @@ export default function ArtisanProfilePage() {
               onClick={toggleCustomMotif}
               className={`bg-white rounded-xl p-5 cursor-pointer transition-all duration-200 border-2 border-dashed flex flex-col ${
                 useCustomMotif
-                  ? 'border-[#FFC107] bg-[#FFF9E6] shadow-lg -translate-y-1'
-                  : 'border-gray-300 hover:border-[#FFC107] hover:shadow-md hover:-translate-y-0.5'
+                  ? 'border-yellow bg-warm-gray shadow-lg -translate-y-1'
+                  : 'border-gray-300 hover:border-yellow hover:shadow-md hover:-translate-y-0.5'
               }`}
             >
               {useCustomMotif && (
@@ -1647,7 +1679,7 @@ export default function ArtisanProfilePage() {
                   onClick={(e) => e.stopPropagation()}
                   placeholder="D&eacute;crivez votre probl&egrave;me ou le service souhait&eacute;..."
                   rows={3}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none transition resize-none text-sm mt-auto"
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-yellow focus:outline-none transition resize-none text-sm mt-auto"
                 />
               )}
             </div>
@@ -1681,7 +1713,7 @@ export default function ArtisanProfilePage() {
                     } else if (isQty && quantityKnown === false) {
                       label = `📐 ${pi.label} · superficie à mesurer sur place`
                     }
-                    return <p className="text-sm text-[#FFC107] font-semibold">{label}</p>
+                    return <p className="text-sm text-yellow font-semibold">{label}</p>
                   })()}
                 </div>
               ) : (
@@ -1701,7 +1733,7 @@ export default function ArtisanProfilePage() {
               <button
                 onClick={goToCalendar}
                 disabled={!hasSelection}
-                className="px-6 py-2.5 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-lg font-semibold transition text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2.5 bg-yellow hover:bg-yellow-light text-gray-900 rounded-lg font-semibold transition text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 Continuer vers le calendrier
                 <ChevronRight className="w-4 h-4" />
@@ -1718,12 +1750,12 @@ export default function ArtisanProfilePage() {
   // =============================================
   if (step === 'calendar') {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-warm-gray">
         {/* Breadcrumb */}
-        <div className="bg-white border-b border-gray-200">
+        <div className="bg-white border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <nav className="flex items-center gap-2 text-sm text-gray-500">
-              <Link href="/" className="hover:text-[#FFC107] transition flex items-center gap-1">
+            <nav className="flex items-center gap-2 text-sm text-text-muted">
+              <Link href="/" className="hover:text-yellow transition flex items-center gap-1">
                 <Home className="w-3.5 h-3.5" />
                 Accueil
               </Link>
@@ -1733,12 +1765,12 @@ export default function ArtisanProfilePage() {
                   setStep('motif')
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }}
-                className="hover:text-[#FFC107] transition"
+                className="hover:text-yellow transition"
               >
                 Choisir le motif
               </button>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-gray-900 font-medium">Calendrier</span>
+              <span className="text-dark font-medium">Calendrier</span>
             </nav>
           </div>
         </div>
@@ -1746,10 +1778,10 @@ export default function ArtisanProfilePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+            <h1 className="font-display text-3xl md:text-4xl font-black text-dark mb-2 tracking-[-0.03em]">
               {'📅'} Choisissez votre cr&eacute;neau
             </h1>
-            <p className="text-gray-500 text-lg">
+            <p className="text-text-muted text-lg">
               S&eacute;lectionnez une date et un horaire disponible
             </p>
           </div>
@@ -1758,7 +1790,7 @@ export default function ArtisanProfilePage() {
             {/* Left column: Calendar + Time slots (2/3) */}
             <div className="lg:col-span-2 space-y-6">
               {/* Calendar */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm">
+              <div className="bg-white rounded-2xl p-6 border-[1.5px] border-[#EFEFEF]">
                 <div className="flex items-center justify-between mb-6">
                   <button
                     onClick={() => changeMonth(-1)}
@@ -1766,8 +1798,8 @@ export default function ArtisanProfilePage() {
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <h3 className="font-bold text-xl">
-                    {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                  <h3 className="font-display font-bold text-xl text-dark">
+                    {getMonthName(currentMonth.getMonth(), dateFmtLocale)} {currentMonth.getFullYear()}
                   </h3>
                   <button
                     onClick={() => changeMonth(1)}
@@ -1801,10 +1833,10 @@ export default function ArtisanProfilePage() {
                         disabled={!available}
                         className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
                           isSelected
-                            ? 'bg-[#FFC107] text-gray-900 shadow-md font-bold'
+                            ? 'bg-yellow text-gray-900 shadow-md font-bold'
                             : available
                               ? isTodayDate
-                                ? 'bg-blue-100 text-blue-700 hover:bg-[#FFC107] hover:text-gray-900 font-semibold'
+                                ? 'bg-blue-100 text-blue-700 hover:bg-yellow hover:text-gray-900 font-semibold'
                                 : 'hover:bg-amber-100 text-gray-700'
                               : 'text-gray-300 cursor-not-allowed line-through'
                         }`}
@@ -1822,7 +1854,7 @@ export default function ArtisanProfilePage() {
                     Aujourd&apos;hui
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-[#FFC107]"></span>
+                    <span className="w-3 h-3 rounded bg-yellow"></span>
                     S&eacute;lectionn&eacute;
                   </span>
                   <span className="flex items-center gap-1.5">
@@ -1833,12 +1865,12 @@ export default function ArtisanProfilePage() {
               </div>
 
               {/* Time slots */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm">
+              <div className="bg-white rounded-2xl p-6 border-[1.5px] border-[#EFEFEF]">
                 {selectedDate ? (
                   <>
                     <h3 className="font-bold text-lg mb-1">
-                      Cr&eacute;neaux du {DAY_NAMES[selectedDate.getDay()]} {selectedDate.getDate()}{' '}
-                      {MONTH_NAMES[selectedDate.getMonth()]}
+                      Cr&eacute;neaux du {getDayName(selectedDate.getDay(), dateFmtLocale)} {selectedDate.getDate()}{' '}
+                      {getMonthName(selectedDate.getMonth(), dateFmtLocale)}
                     </h3>
                     {selectedPriceTier && (
                       <p className="text-sm text-amber-700 font-semibold mb-3">
@@ -1856,12 +1888,12 @@ export default function ArtisanProfilePage() {
                             key={slot.time}
                             onClick={() => slot.available && setSelectedSlot(slot.time)}
                             disabled={!slot.available}
-                            className={`p-3 rounded-lg text-center font-semibold text-sm transition-all ${
+                            className={`p-3 rounded-xl text-center font-semibold text-sm transition-all ${
                               !slot.available
-                                ? 'bg-gray-100 text-gray-500 cursor-not-allowed line-through'
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through'
                                 : selectedSlot === slot.time
-                                  ? 'bg-[#FFC107] text-gray-900 shadow-md'
-                                  : 'bg-gray-50 hover:bg-amber-100 text-gray-700 border border-gray-200 hover:border-[#FFC107]'
+                                  ? 'bg-yellow text-dark shadow-md'
+                                  : 'bg-warm-gray hover:bg-amber-100 text-mid border-[1.5px] border-[#E0E0E0] hover:border-yellow'
                             }`}
                           >
                             {slot.time}
@@ -1890,15 +1922,15 @@ export default function ArtisanProfilePage() {
             <div className="lg:col-span-1">
               <div className="sticky top-8 space-y-6">
                 {/* Artisan card */}
-                <div className="bg-white rounded-2xl border-2 border-[#FFC107] p-5 shadow-sm">
+                <div className="bg-white rounded-2xl border-[1.5px] border-yellow p-5">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-[#FFC107] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                    <div className="w-12 h-12 bg-yellow rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 truncate">{artisan.company_name}</h4>
+                      <h4 className="font-display font-bold text-dark truncate">{artisan.company_name}</h4>
                       <div className="flex items-center gap-1 text-sm">
-                        <Star className="w-3.5 h-3.5 fill-[#FFC107] text-[#FFC107]" />
+                        <Star className="w-3.5 h-3.5 fill-[#FFC107] text-yellow" />
                         <span className="font-medium">{artisan.rating_avg || '5.0'}</span>
                         <span className="text-gray-500">({artisan.rating_count || 0})</span>
                       </div>
@@ -1907,20 +1939,84 @@ export default function ArtisanProfilePage() {
                 </div>
 
                 {/* Summary card */}
-                <div className="bg-white rounded-2xl p-5 shadow-sm">
-                  <h4 className="font-bold text-gray-900 mb-4">R&eacute;capitulatif</h4>
+                <div className="bg-white rounded-2xl p-5 border-[1.5px] border-[#EFEFEF]">
+                  <h4 className="font-display font-bold text-dark mb-4">R&eacute;capitulatif</h4>
                   <div className="space-y-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Service</span>
-                      <span className="font-medium text-right max-w-[60%] truncate">
-                        {useCustomMotif ? 'Autre intervention' : selectedService?.name || '-'}
-                      </span>
-                    </div>
+
+                    {/* ── Services détaillés ── */}
+                    {(() => {
+                      const isMulti = selectedServices.length > 0
+                      const serviceList = isMulti ? selectedServices : (selectedService ? [selectedService] : [])
+                      if (serviceList.length === 0 && !useCustomMotif) {
+                        return (
+                          <div className="flex justify-between">
+                            <span className="text-text-muted">Service</span>
+                            <span className="font-medium">-</span>
+                          </div>
+                        )
+                      }
+                      if (useCustomMotif) {
+                        return (
+                          <div className="flex justify-between">
+                            <span className="text-text-muted">Service</span>
+                            <span className="font-medium text-right max-w-[65%]">Autre intervention{customMotif ? ` : ${customMotif}` : ''}</span>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div>
+                          <span className="text-text-muted text-xs uppercase tracking-wider font-semibold">Service{serviceList.length > 1 ? 's' : ''}</span>
+                          <div className="mt-2 space-y-2">
+                            {serviceList.map(svc => {
+                              const tag = parseServiceTag(svc)
+                              const needsQty = tag ? ['m2', 'ml', 'arbre', 'tonne', 'unite', 'm3', 'kg', 'lot'].includes(tag.unit) : false
+                              const qty = isMulti ? (serviceQuantities[svc.id] || '') : quantityValue
+                              const unitLbl = tag ? (UNIT_LABELS[tag.unit] || tag.unit) : ''
+                              const { minVal, maxVal } = getServiceEstimate(svc, qty)
+                              const isDevis = tag ? (tag.min === 0 && tag.max === 0) : false
+
+                              // Build detail text
+                              let detail = ''
+                              if (!isMulti && selectedPriceTier) {
+                                detail = `Hauteur ${selectedPriceTier.label}`
+                              } else if (!isMulti && selectedTreeWidth) {
+                                detail = selectedTreeWidth.label
+                              } else if (needsQty && qty) {
+                                detail = `${qty} ${unitLbl}`
+                              } else if (!isMulti && quantityKnown === false) {
+                                detail = 'À mesurer sur place'
+                              }
+
+                              return (
+                                <div key={svc.id} className="bg-[#FAFAFA] rounded-lg px-3 py-2">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-dark text-[13px] leading-tight">{getServiceEmoji(svc.name)} {svc.name}</p>
+                                      {detail && <p className="text-[11px] text-gray-500 mt-0.5">{detail}</p>}
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      {isDevis ? (
+                                        <span className="text-blue-600 text-xs font-semibold">Sur devis</span>
+                                      ) : minVal === maxVal ? (
+                                        <span className="text-yellow font-bold text-xs">{minVal.toLocaleString(dateFmtLocale)} &euro;</span>
+                                      ) : (
+                                        <span className="text-yellow font-bold text-xs">{minVal.toLocaleString(dateFmtLocale)} – {maxVal.toLocaleString(dateFmtLocale)} &euro;</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     <div className="flex justify-between">
                       <span className="text-gray-500">Date</span>
                       <span className="font-medium">
                         {selectedDate
-                          ? `${selectedDate.getDate()} ${MONTH_NAMES[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`
+                          ? `${selectedDate.getDate()} ${getMonthName(selectedDate.getMonth(), dateFmtLocale)} ${selectedDate.getFullYear()}`
                           : '-'}
                       </span>
                     </div>
@@ -1931,21 +2027,79 @@ export default function ArtisanProfilePage() {
                     <div className="flex justify-between">
                       <span className="text-gray-500">Dur&eacute;e</span>
                       <span className="font-medium">
-                        {selectedService ? formatDuration(selectedService.duration_minutes) : '~1h'}
+                        {(() => {
+                          const isMulti = selectedServices.length > 0
+                          const serviceList = isMulti ? selectedServices : (selectedService ? [selectedService] : [])
+                          const totalMin = serviceList.reduce((sum, s) => sum + (s.duration_minutes || 60), 0)
+                          return totalMin ? formatDuration(Math.min(totalMin, 480)) : '~1h'
+                        })()}
                       </span>
                     </div>
-                    <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
-                      <span className="text-gray-500 font-medium">Total</span>
-                      <span className="text-2xl font-bold text-[#FFC107]">
-                        {selectedService ? formatPrice(selectedService.price_ttc) : 'Sur devis'}
-                      </span>
-                    </div>
+
+                    {/* ── Total avec fourchette de prix ── */}
+                    {(() => {
+                      const isMulti = selectedServices.length > 0
+                      const serviceList = isMulti ? selectedServices : (selectedService ? [selectedService] : [])
+                      if (serviceList.length === 0 && !useCustomMotif) {
+                        return (
+                          <div className="border-t border-border pt-3 flex justify-between items-center">
+                            <span className="text-text-muted font-medium">Total</span>
+                            <span className="text-lg font-bold text-yellow">Sur devis</span>
+                          </div>
+                        )
+                      }
+                      if (useCustomMotif) {
+                        return (
+                          <div className="border-t border-border pt-3 flex justify-between items-center">
+                            <span className="text-text-muted font-medium">Total</span>
+                            <span className="text-lg font-bold text-yellow">Sur devis</span>
+                          </div>
+                        )
+                      }
+                      let totalMin = 0, totalMax = 0, hasDevis = false, hasUnknown = false
+                      for (const svc of serviceList) {
+                        const tag = parseServiceTag(svc)
+                        if (tag && tag.min === 0 && tag.max === 0) { hasDevis = true; continue }
+                        const needsQty = tag ? ['m2', 'ml', 'arbre', 'tonne', 'unite', 'm3', 'kg', 'lot'].includes(tag.unit) : false
+                        const qty = isMulti ? (serviceQuantities[svc.id] || '') : quantityValue
+                        if (needsQty && !qty) { hasUnknown = true; continue }
+                        const { minVal, maxVal } = getServiceEstimate(svc, qty)
+                        totalMin += minVal
+                        totalMax += maxVal
+                      }
+                      const hasTotal = totalMin > 0 || totalMax > 0
+                      return (
+                        <div className="border-t border-border pt-3">
+                          <div className="flex justify-between items-start">
+                            <span className="text-text-muted font-medium text-xs">Total TTC</span>
+                            <div className="text-right">
+                              {hasTotal ? (
+                                <>
+                                  {totalMin === totalMax ? (
+                                    <p className="text-xl font-bold text-yellow">{totalMin.toLocaleString(dateFmtLocale)} &euro;</p>
+                                  ) : (
+                                    <p className="text-lg font-bold text-yellow leading-tight">
+                                      {totalMin.toLocaleString(dateFmtLocale)} – {totalMax.toLocaleString(dateFmtLocale)} &euro;
+                                    </p>
+                                  )}
+                                  <p className="text-[10px] text-gray-400 mt-0.5">
+                                    {hasUnknown || hasDevis ? 'Estimation partielle' : 'Estimation indicative'}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-lg font-bold text-yellow">Sur devis</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
 
                 {/* Client info form */}
-                <div className="bg-white rounded-2xl p-5 shadow-sm">
-                  <h4 className="font-bold text-gray-900 mb-4">Vos informations</h4>
+                <div className="bg-white rounded-2xl p-5 border-[1.5px] border-[#EFEFEF]">
+                  <h4 className="font-display font-bold text-dark mb-4">Vos informations</h4>
 
                   {connectedUser && (
                     <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
@@ -1965,8 +2119,8 @@ export default function ArtisanProfilePage() {
                         value={bookingForm.name}
                         onChange={(e) => setBookingForm({ ...bookingForm, name: e.target.value })}
                         placeholder="Ex: Marie Dupont"
-                        className={`w-full p-2.5 border-2 rounded-lg focus:border-[#FFC107] focus:outline-none transition text-sm ${
-                          connectedUser && bookingForm.name ? 'border-green-200 bg-green-50/30' : 'border-gray-200'
+                        className={`w-full p-2.5 border-[1.5px] rounded-xl focus:border-yellow focus:outline-none transition text-sm ${
+                          connectedUser && bookingForm.name ? 'border-green-200 bg-green-50/30' : 'border-[#E0E0E0] bg-warm-gray focus:bg-white'
                         }`}
                         required
                       />
@@ -1981,8 +2135,8 @@ export default function ArtisanProfilePage() {
                         value={bookingForm.email}
                         onChange={(e) => setBookingForm({ ...bookingForm, email: e.target.value })}
                         placeholder="marie@exemple.com"
-                        className={`w-full p-2.5 border-2 rounded-lg focus:border-[#FFC107] focus:outline-none transition text-sm ${
-                          connectedUser && bookingForm.email ? 'border-green-200 bg-green-50/30' : 'border-gray-200'
+                        className={`w-full p-2.5 border-[1.5px] rounded-xl focus:border-yellow focus:outline-none transition text-sm ${
+                          connectedUser && bookingForm.email ? 'border-green-200 bg-green-50/30' : 'border-[#E0E0E0] bg-warm-gray focus:bg-white'
                         }`}
                       />
                     </div>
@@ -1996,8 +2150,8 @@ export default function ArtisanProfilePage() {
                         value={bookingForm.phone}
                         onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value })}
                         placeholder="06 12 34 56 78"
-                        className={`w-full p-2.5 border-2 rounded-lg focus:border-[#FFC107] focus:outline-none transition text-sm ${
-                          connectedUser && bookingForm.phone ? 'border-green-200 bg-green-50/30' : 'border-gray-200'
+                        className={`w-full p-2.5 border-[1.5px] rounded-xl focus:border-yellow focus:outline-none transition text-sm ${
+                          connectedUser && bookingForm.phone ? 'border-green-200 bg-green-50/30' : 'border-[#E0E0E0] bg-warm-gray focus:bg-white'
                         }`}
                         required
                       />
@@ -2012,7 +2166,7 @@ export default function ArtisanProfilePage() {
                         value={bookingForm.address}
                         onChange={(e) => setBookingForm({ ...bookingForm, address: e.target.value })}
                         placeholder="123 rue de la Paix, 13600 La Ciotat"
-                        className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none transition text-sm"
+                        className="w-full p-2.5 border-[1.5px] border-[#E0E0E0] bg-warm-gray rounded-xl focus:border-yellow focus:bg-white focus:outline-none transition text-sm"
                       />
                       {connectedUser && bookingForm.address && (
                         <p className="text-[11px] text-gray-500 mt-1">Adresse de votre profil par d&eacute;faut &mdash; modifiable si l&apos;intervention est ailleurs</p>
@@ -2028,7 +2182,7 @@ export default function ArtisanProfilePage() {
                         onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
                         rows={3}
                         placeholder="D&eacute;crivez votre besoin, posez une question, ou indiquez des infos d'acc&egrave;s (code porte, &eacute;tage, parking, etc.)"
-                        className="w-full p-2.5 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none transition resize-none text-sm"
+                        className="w-full p-2.5 border-[1.5px] border-[#E0E0E0] bg-warm-gray rounded-xl focus:border-yellow focus:bg-white focus:outline-none transition resize-none text-sm"
                       />
                       <p className="text-xs text-gray-500 mt-1">L&apos;artisan pourra vous r&eacute;pondre via la messagerie apr&egrave;s la r&eacute;servation</p>
                     </div>
@@ -2043,11 +2197,11 @@ export default function ArtisanProfilePage() {
                       />
                       <span className="text-xs text-gray-500 leading-snug">
                         J&apos;accepte les{' '}
-                        <span className="text-[#FFC107] underline cursor-pointer">
+                        <span className="text-yellow underline cursor-pointer">
                           conditions g&eacute;n&eacute;rales d&apos;utilisation
                         </span>{' '}
                         et la{' '}
-                        <span className="text-[#FFC107] underline cursor-pointer">
+                        <span className="text-yellow underline cursor-pointer">
                           politique de confidentialit&eacute;
                         </span>
                         . <span className="text-red-400">*</span>
@@ -2067,7 +2221,7 @@ export default function ArtisanProfilePage() {
                     <button
                       onClick={submitBooking}
                       disabled={!canSubmitBooking || submitting}
-                      className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-lg font-semibold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="w-full bg-yellow hover:bg-yellow-light text-dark py-3 rounded-xl font-semibold shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:-translate-y-px"
                     >
                       {submitting ? (
                         <>

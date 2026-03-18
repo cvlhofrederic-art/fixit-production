@@ -1,38 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-// Rate limiting simple
-const rateLimits = new Map<string, { count: number; reset: number }>()
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now()
-  const limit = rateLimits.get(ip)
-  if (!limit || limit.reset < now) {
-    rateLimits.set(ip, { count: 1, reset: now + 60_000 })
-    return true
-  }
-  if (limit.count >= 120) return false
-  limit.count++
-  return true
-}
+import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
-  if (!checkRateLimit(ip)) {
-    return NextResponse.json({ error: 'Rate limit dépassé' }, { status: 429 })
-  }
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`tracking_update_${ip}`, 120, 60_000))) return rateLimitResponse()
+
+  // ── Auth obligatoire ──
+  const user = await getAuthUser(request)
+  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const body = await request.json()
   const { token, lat, lng, status, artisanNom, artisanInitiales, missionTitre, missionAdresse, photos, startedAt } = body
 
   if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 })
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
   // Créer le bucket "tracking" s'il n'existe pas
-  await supabase.storage.createBucket('tracking', { public: false }).catch(() => {})
+  await supabaseAdmin.storage.createBucket('tracking', { public: false }).catch(err => logger.error('[tracking/update] Failed to create storage bucket:', err))
 
   const trackingData = {
     token,
@@ -49,7 +35,7 @@ export async function POST(request: NextRequest) {
   }
 
   const jsonStr = JSON.stringify(trackingData)
-  const { error } = await supabase.storage
+  const { error } = await supabaseAdmin.storage
     .from('tracking')
     .upload(`${token}.json`, Buffer.from(jsonStr), {
       contentType: 'application/json',
@@ -57,7 +43,7 @@ export async function POST(request: NextRequest) {
     })
 
   if (error) {
-    console.error('[Tracking] Storage error:', error.message)
+    logger.error('[Tracking] Storage error:', error.message)
     return NextResponse.json({ success: false, error: error.message }, { status: 200 })
   }
 

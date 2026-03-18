@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry } from '@/lib/groq'
+import { logger } from '@/lib/logger'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -79,7 +80,7 @@ TOITURE :
 
 ESPACES VERTS / ÉLAGAGE :
 - Taille haie : 30-80€ HT/h
-- Élagage arbre : 200-800€ HT/arbre selon taille
+- Élagage arbre : 200-800€ HT/u selon taille
 - Tonte pelouse : 0,10-0,30€ HT/m²
 - Entretien espaces verts mensuel : 200-800€ HT/mois selon surface
 
@@ -161,7 +162,7 @@ Réponds toujours en français, avec un ton professionnel et précis.`
 export async function POST(req: NextRequest) {
   // Rate limiting
   const ip = getClientIP(req)
-  const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60)
+  const rateOk = await checkRateLimit(`analyse-devis:${ip}`, 10, 60_000)
   if (!rateOk) return rateLimitResponse()
 
   // Auth
@@ -224,7 +225,7 @@ Champs à extraire :
         ],
         temperature: 0,
         max_tokens: 800,
-      }).catch(() => null),
+      }).catch(err => { logger.error('[syndic/analyse-devis] Extraction Groq call failed:', err); return null; }),
     ])
 
     const analysis = analyseData.choices?.[0]?.message?.content || ''
@@ -238,7 +239,7 @@ Champs à extraire :
         extracted = JSON.parse(cleaned)
       }
     } catch (e) {
-      console.warn('Extraction JSON failed (non-bloquant):', e)
+      logger.warn('Extraction JSON failed (non-bloquant):', e)
     }
 
     return NextResponse.json({
@@ -249,7 +250,7 @@ Champs à extraire :
       tokens: (analyseData.usage?.total_tokens || 0) + (extractData?.usage?.total_tokens || 0),
     })
   } catch (err) {
-    console.error('Analyse devis error:', err)
+    logger.error('Analyse devis error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

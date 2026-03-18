@@ -113,8 +113,7 @@ export default function SyndicRegisterPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <span className="text-3xl">⚡</span>
-            <span className="text-2xl font-bold text-[#FFC107]">Vitfix</span>
+            <span className="text-2xl font-display font-extrabold text-dark"><span className="text-yellow">VIT</span>FIX</span>
             <span className="text-purple-600 font-bold text-xl ml-1">Pro Syndic</span>
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Créer votre espace gestionnaire</h1>

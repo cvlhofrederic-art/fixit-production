@@ -7,13 +7,20 @@
 import { Capacitor } from '@capacitor/core'
 
 // Import dynamique pour éviter les erreurs SSR Next.js
-let LocalNotificationsPlugin: any = null
+// Type for the Capacitor LocalNotifications plugin (loaded dynamically)
+interface LocalNotificationsLike {
+  requestPermissions(): Promise<{ display: string }>
+  schedule(options: { notifications: Array<Record<string, unknown>> }): Promise<void>
+  cancel(options: { notifications: Array<{ id: number }> }): Promise<void>
+}
+
+let LocalNotificationsPlugin: LocalNotificationsLike | null = null
 
 async function getPlugin() {
   if (!Capacitor.isNativePlatform()) return null
   if (!LocalNotificationsPlugin) {
     const mod = await import('@capacitor/local-notifications')
-    LocalNotificationsPlugin = mod.LocalNotifications
+    LocalNotificationsPlugin = mod.LocalNotifications as unknown as LocalNotificationsLike
   }
   return LocalNotificationsPlugin
 }
@@ -28,7 +35,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
   try {
     const { display } = await plugin.requestPermissions()
     return display === 'granted'
-  } catch {
+  } catch (error) {
+    console.warn('[notifications] requestPermissions failed:', error instanceof Error ? error.message : error)
     return false
   }
 }

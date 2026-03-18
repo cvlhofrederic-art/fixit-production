@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useLocale } from '@/lib/i18n/context'
+import Image from 'next/image'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,8 @@ const ZONES_COMMUNES = [
 // ─── Composant principal ────────────────────────────────────────────────────
 
 export default function PortailCopropriétaire() {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   // Identification du demandeur
   const [profile, setProfile] = useState<DemandeurProfile | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
@@ -440,7 +444,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                     <div key={i} className="flex justify-center">
                       <div className={`${roleBgLight} border ${roleBorderColor} rounded-xl px-4 py-3 max-w-sm text-center`}>
                         <p className={`text-xs ${roleTextColor} leading-relaxed whitespace-pre-line`}>{msg.texte}</p>
-                        <p className="text-xs text-gray-500 mt-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-xs text-gray-500 mt-1">{new Date(msg.date).toLocaleString(dateFmtLocale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   )
@@ -456,7 +460,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                       <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line ${isMine ? `${roleBgColor} text-white rounded-tr-sm` : 'bg-white text-gray-900 border border-gray-200 rounded-tl-sm shadow-sm'}`}>
                         {msg.texte}
                       </div>
-                      <p className="text-xs text-gray-300 px-1">{new Date(msg.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-xs text-gray-300 px-1">{new Date(msg.date).toLocaleString(dateFmtLocale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
                 )
@@ -688,8 +692,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
                   <div className="border-2 border-dashed border-gray-200 rounded-xl p-4">
                     {photoPreview ? (
                       <div className="relative">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photoPreview} alt="Aperçu" className="w-full max-h-40 object-cover rounded-lg" />
+                        <Image src={photoPreview} alt="Aperçu" width={400} height={160} className="w-full max-h-40 object-cover rounded-lg" unoptimized />
                         <button
                           onClick={() => { setPhotoFile(null); setPhotoPreview(null) }}
                           className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"

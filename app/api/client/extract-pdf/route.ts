@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── POST /api/client/extract-pdf ────────────────────────────────────────────
 // Extraction de texte PDF côté client avec nettoyage post-extraction
@@ -53,7 +54,7 @@ function assessQuality(text: string): 'good' | 'mediocre' | 'poor' {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
-  const ok = await checkRateLimit(`extract-pdf-client:${ip}`, 10, 60)
+  const ok = await checkRateLimit(`extract-pdf-client:${ip}`, 10, 60_000)
   if (!ok) return rateLimitResponse()
 
   const user = await getAuthUser(req)
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
       isVitfix,
     })
   } catch (err: any) {
-    console.error('[EXTRACT-PDF-CLIENT] Error:', err?.message || err)
+    logger.error('[EXTRACT-PDF-CLIENT] Error:', err?.message || err)
     return NextResponse.json({ error: 'Erreur inattendue. Réessayez.' }, { status: 500 })
   }
 }

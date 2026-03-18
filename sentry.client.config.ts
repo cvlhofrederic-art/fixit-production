@@ -1,6 +1,8 @@
 // This file configures the initialization of Sentry on the client.
-// The config you add here will be used whenever a user loads a page in their browser.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
+//
+// Note: The pink/salmon overlay bug was caused by setTimeout(() => focus(), 50)
+// on Max Expert pill buttons, NOT by Sentry. Safe to keep Sentry client active.
 
 import * as Sentry from "@sentry/nextjs";
 
@@ -10,18 +12,9 @@ Sentry.init({
   // Performance Monitoring — 10% of transactions in production
   tracesSampleRate: 0.1,
 
-  // Session Replay
-  replaysSessionSampleRate: 0, // Disabled for normal sessions
-  replaysOnErrorSampleRate: 1.0, // Capture 100% of sessions with errors
+  // Session Replay disabled — not needed, adds ~50KB to bundle
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0,
 
-  // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
-
-  integrations: [
-    Sentry.replayIntegration({
-      // Mask all text and block all media in replays for privacy
-      maskAllText: true,
-      blockAllMedia: true,
-    }),
-  ],
 });

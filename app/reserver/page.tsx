@@ -84,8 +84,13 @@ function ReserverContent() {
     setSubmitting(true)
 
     try {
+      // Validate JWT with Supabase server before trusting the session
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) {
+        router.push('/auth/login')
+        return
+      }
       const { data: { session } } = await supabase.auth.getSession()
-
       if (!session?.access_token) {
         router.push('/auth/login')
         return
@@ -136,33 +141,33 @@ function ReserverContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow border-t-transparent"></div>
       </div>
     )
   }
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+      <div className="min-h-screen bg-warm-gray flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full text-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="bg-white rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.08)] border-[1.5px] border-[#EFEFEF] p-8">
             <div className="text-6xl mb-4">✅</div>
-            <h2 className="text-2xl font-bold mb-2">Réservation envoyée !</h2>
-            <p className="text-gray-600 mb-6">
+            <h2 className="font-display text-2xl font-black text-dark mb-2 tracking-[-0.03em]">Réservation envoyée !</h2>
+            <p className="text-text-muted mb-6">
               L&apos;artisan va confirmer votre réservation. Vous recevrez une notification.
             </p>
             <div className="flex flex-col gap-3">
               {bookingId && (
                 <button
                   onClick={() => router.push(`/confirmation?id=${bookingId}`)}
-                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
+                  className="bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-semibold transition hover:-translate-y-px"
                 >
                   Voir ma réservation
                 </button>
               )}
               <button
                 onClick={() => router.push('/')}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-xl font-semibold transition"
+                className="bg-warm-gray hover:bg-gray-200 text-mid px-8 py-3 rounded-xl font-semibold transition border-[1.5px] border-[#E0E0E0]"
               >
                 Retour à l&apos;accueil
               </button>
@@ -174,48 +179,48 @@ function ReserverContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-warm-gray py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-gray-600 hover:text-[#FFC107] transition mb-6"
+          className="flex items-center gap-2 text-text-muted hover:text-yellow transition mb-6"
         >
           <ArrowLeft className="w-5 h-5" />
           Retour
         </button>
 
-        <h1 className="text-3xl font-bold mb-8">Réserver un service</h1>
+        <h1 className="font-display text-3xl font-black text-dark mb-8 tracking-[-0.03em]">Réserver un service</h1>
 
         <div className="grid md:grid-cols-3 gap-8">
           {/* Form */}
           <div className="md:col-span-2">
-            <div className="bg-white rounded-2xl shadow-sm p-6">
+            <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] p-6">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {error && (
-                  <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm border border-red-200">
+                  <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-200">
                     ❌ {error}
                   </div>
                 )}
 
                 {/* Client info section */}
-                <div className="bg-gray-50 rounded-xl p-4 space-y-4">
-                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <div className="bg-warm-gray rounded-xl p-4 space-y-4">
+                  <h3 className="font-semibold text-dark flex items-center gap-2">
                     <User className="w-4 h-4" /> Vos informations
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Nom complet</label>
+                      <label className="block text-sm font-medium text-text-muted mb-1">Nom complet</label>
                       <input
                         type="text"
                         value={formData.clientName}
                         onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
                         required
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm"
+                        className="w-full px-4 py-3 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm"
                         placeholder="Jean Dupont"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
+                      <label className="block text-sm font-medium text-text-muted mb-1">
                         <Phone className="w-3.5 h-3.5 inline mr-1" />Téléphone
                       </label>
                       <input
@@ -223,27 +228,27 @@ function ReserverContent() {
                         value={formData.clientPhone}
                         onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
                         required
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm"
+                        className="w-full px-4 py-3 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm"
                         placeholder="06 12 34 56 78"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                    <label className="block text-sm font-medium text-text-muted mb-1">
                       <Mail className="w-3.5 h-3.5 inline mr-1" />Email
                     </label>
                     <input
                       type="email"
                       value={formData.clientEmail}
                       onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none text-sm bg-gray-100"
+                      className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:outline-none text-sm bg-warm-gray"
                       readOnly
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-mid mb-2">
                     <Calendar className="w-4 h-4 inline mr-1" />
                     Date souhaitée
                   </label>
@@ -253,12 +258,12 @@ function ReserverContent() {
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     required
                     min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none"
+                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-mid mb-2">
                     <Clock className="w-4 h-4 inline mr-1" />
                     Heure souhaitée
                   </label>
@@ -266,7 +271,7 @@ function ReserverContent() {
                     value={formData.time}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                     required
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none bg-white"
+                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                   >
                     <option value="">Choisir une heure</option>
                     {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((time) => (
@@ -276,7 +281,7 @@ function ReserverContent() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-mid mb-2">
                     <MapPin className="w-4 h-4 inline mr-1" />
                     Adresse d&apos;intervention
                   </label>
@@ -285,20 +290,20 @@ function ReserverContent() {
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     required
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none"
+                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                     placeholder="123 rue de la Paix, 75001 Paris"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-mid mb-2">
                     Notes (optionnel)
                   </label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none resize-none"
+                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none resize-none"
                     placeholder="Détails supplémentaires, accès, digicode..."
                   />
                 </div>
@@ -306,7 +311,7 @@ function ReserverContent() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 py-3 rounded-xl font-semibold transition disabled:opacity-60"
+                  className="w-full bg-yellow hover:bg-yellow-light text-dark py-3 rounded-xl font-semibold transition disabled:opacity-60 hover:-translate-y-px"
                 >
                   {submitting ? '⏳ Envoi en cours...' : 'Confirmer la réservation'}
                 </button>
@@ -316,22 +321,22 @@ function ReserverContent() {
 
           {/* Summary */}
           <div>
-            <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-24">
-              <h3 className="font-bold text-lg mb-4">Récapitulatif</h3>
+            <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] p-6 sticky top-24">
+              <h3 className="font-display font-bold text-lg text-dark mb-4">Récapitulatif</h3>
 
               {artisan && (
-                <div className="mb-4 pb-4 border-b border-gray-100">
-                  <p className="font-semibold">{artisan.company_name}</p>
-                  <p className="text-sm text-gray-600">Artisan</p>
+                <div className="mb-4 pb-4 border-b border-border">
+                  <p className="font-semibold text-dark">{artisan.company_name}</p>
+                  <p className="text-sm text-text-muted">Artisan</p>
                 </div>
               )}
 
               {service && (
-                <div className="mb-4 pb-4 border-b border-gray-100">
-                  <p className="font-semibold">{service.name}</p>
-                  <p className="text-sm text-gray-600">{service.description}</p>
+                <div className="mb-4 pb-4 border-b border-border">
+                  <p className="font-semibold text-dark">{service.name}</p>
+                  <p className="text-sm text-text-muted">{service.description}</p>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-text-muted">
                       {Math.floor(service.duration_minutes / 60)}h
                       {service.duration_minutes % 60 > 0 ? service.duration_minutes % 60 : ''}
                     </span>
@@ -341,15 +346,15 @@ function ReserverContent() {
 
               {service && (
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold">Total TTC</span>
-                  <span className="text-2xl font-bold text-[#FFC107]">
+                  <span className="font-semibold text-dark">Total TTC</span>
+                  <span className="text-2xl font-bold text-yellow">
                     {formatPrice(service.price_ttc)}
                   </span>
                 </div>
               )}
 
               {formData.clientName && (
-                <div className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500">
+                <div className="mt-4 pt-4 border-t border-border text-sm text-text-muted">
                   <p>📍 {formData.address || 'Adresse non renseignée'}</p>
                   <p>👤 {formData.clientName}</p>
                   {formData.clientPhone && <p>📞 {formData.clientPhone}</p>}
@@ -367,7 +372,7 @@ export default function ReserverPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow border-t-transparent"></div>
       </div>
     }>
       <ReserverContent />

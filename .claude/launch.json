@@ -5,7 +5,14 @@
       "name": "fixit-production",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "landing-html",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "/Users/elgato_fofo/Documents"],
+      "port": 8080
     }
   ]
 }

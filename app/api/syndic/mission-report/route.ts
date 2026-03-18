@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { logger } from '@/lib/logger'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
 // Stocke dans syndic_emails_analysed + syndic_notifications + Supabase Storage
@@ -53,13 +54,14 @@ export async function POST(request: NextRequest) {
           })
 
         if (uploadData) {
-          const { data: urlData } = supabaseAdmin.storage
+          // Signed URL (7 jours) au lieu de public URL
+          const { data: signedData } = await supabaseAdmin.storage
             .from('mission-reports')
-            .getPublicUrl(fileName)
-          photoUrls.push(urlData.publicUrl)
+            .createSignedUrl(fileName, 60 * 60 * 24 * 7)
+          photoUrls.push(signedData?.signedUrl || supabaseAdmin.storage.from('mission-reports').getPublicUrl(fileName).data.publicUrl)
         }
       } catch (photoErr) {
-        console.warn('Photo upload error:', photoErr)
+        logger.warn('Photo upload error:', photoErr)
       }
     }
 
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (reportError) {
-      console.warn('Report insert error (table may not exist):', reportError.message)
+      logger.warn('Report insert error (table may not exist):', reportError.message)
     }
 
     // 3. Notifier le syndic via syndic_notifications
@@ -125,7 +127,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (notifError) {
-      console.warn('Syndic notif insert error (table may not exist):', notifError.message)
+      logger.warn('Syndic notif insert error (table may not exist):', notifError.message)
     }
 
     // 4. Mettre à jour le booking si bookingId fourni
@@ -146,7 +148,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (err: any) {
-    console.error('mission-report error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error('mission-report error:', err)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }

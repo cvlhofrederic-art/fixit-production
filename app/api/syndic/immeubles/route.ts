@@ -1,21 +1,25 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // GET /api/syndic/immeubles — récupérer les immeubles du cabinet
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`immeubles_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { data, error } = await supabaseAdmin
     .from('syndic_immeubles')
-    .select('*')
+    .select('id, nom, adresse, ville, code_postal, nb_lots, annee_construction, type_immeuble, gestionnaire, prochain_controle, nb_interventions, budget_annuel, depenses_annee, latitude, longitude, geoloc_activee, rayon_detection, reglement_texte, reglement_pdf_nom, reglement_date_maj, reglement_charges_repartition, reglement_majorite_ag, reglement_fonds_travaux, reglement_fonds_roulement_pct, created_at')
     .eq('cabinet_id', cabinetId)
     .order('created_at', { ascending: false })
+    .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   const immeubles = (data || []).map(i => ({
     id: i.id,
@@ -44,15 +48,19 @@ export async function GET(request: NextRequest) {
     reglementFondsRoulementPct: i.reglement_fonds_roulement_pct || 0,
   }))
 
-  return NextResponse.json({ immeubles })
+  const response = NextResponse.json({ immeubles })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=60, stale-while-revalidate=120')
+  return response
 }
 
 // POST /api/syndic/immeubles — créer un immeuble
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`immeubles_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
 
   const { data, error } = await supabaseAdmin
@@ -86,7 +94,7 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ immeuble: data })
 }
 
@@ -94,8 +102,10 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`immeubles_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const body = await request.json()
   const { id, ...updates } = body
 
@@ -136,7 +146,7 @@ export async function PATCH(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ immeuble: data })
 }
 
@@ -144,8 +154,10 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`immeubles_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
   const url = new URL(request.url)
   const id = url.searchParams.get('id')
 
@@ -157,6 +169,6 @@ export async function DELETE(request: NextRequest) {
     .eq('id', id)
     .eq('cabinet_id', cabinetId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

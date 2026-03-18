@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import NextImage from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
 
 // ═══════════════════════════════════════════════
 // TYPES
@@ -33,6 +36,12 @@ interface DevisFactureData {
   companyEmail: string
   insuranceNumber: string
   insuranceName: string
+  insuranceCoverage: string
+  insuranceType: 'rc_pro' | 'decennale' | 'both'
+  // Médiateur
+  mediatorName: string
+  mediatorUrl: string
+  isHorsEtablissement: boolean
   // TVA
   tvaEnabled: boolean
   tvaNumber: string
@@ -48,22 +57,65 @@ interface DevisFactureData {
   docValidity: number
   prestationDate: string
   executionDelay: string
+  executionDelayDays: number
+  executionDelayType: 'ouvres' | 'calendaires'
   // Payment (facture only)
   paymentMode: string
   paymentDue: string
+  paymentCondition: string
   discount: string
+  iban: string
+  bic: string
   // Lines
   lines: ProductLine[]
   // Notes
   notes: string
 }
 
+interface ArtisanBasic {
+  id: string
+  company_name?: string
+  company_address?: string
+  address?: string
+  siret?: string
+  phone?: string
+  email?: string
+  city?: string
+  [key: string]: unknown
+}
+
+interface ServiceBasic {
+  id: string
+  name: string
+  price_ht?: number
+  price_ttc?: number
+  duration_minutes?: number
+  description?: string
+  [key: string]: unknown
+}
+
+interface BookingBasic {
+  id: string
+  booking_date: string
+  booking_time: string
+  status: string
+  client_id?: string
+  client_name?: string
+  address?: string
+  notes?: string
+  price_ht?: number
+  price_ttc?: number
+  service_id?: string
+  services?: { name: string }
+  [key: string]: unknown
+}
+
 interface DevisFactureFormProps {
-  artisan: any
-  services: any[]
-  bookings: any[]
+  artisan: ArtisanBasic
+  services: ServiceBasic[]
+  bookings: BookingBasic[]
   initialDocType?: 'devis' | 'facture'
-  initialData?: any // Données d'un devis à convertir en facture
+  initialData?: Partial<DevisFactureData>
   onBack: () => void
   onSave?: (data: DevisFactureData) => void
 }
@@ -89,16 +141,55 @@ function mapLegalFormToCode(legalForm: string): string {
   return 'ei'
 }
 
-// Map internal code back to display label
-function getStatusLabel(code: string): string {
+// Map internal code back to display label (locale-aware)
+function getStatusLabel(code: string, t?: (key: string, fallback?: string) => string): string {
+  if (t) {
+    const translated = t(`devis.statusLabels.${code}`)
+    if (translated !== `devis.statusLabels.${code}`) return translated
+  }
   const labels: Record<string, string> = {
     'ei': 'Entreprise Individuelle (EI)',
     'ae': 'Auto-Entrepreneur',
     'eurl': 'EURL',
     'sarl': 'SARL',
     'sas': 'SAS',
+    'eni': 'Empresário em Nome Individual (ENI)',
+    'unipessoal': 'Unipessoal Lda.',
+    'lda': 'Sociedade por Quotas (Lda.)',
+    'sa': 'Sociedade Anónima (SA)',
   }
   return labels[code] || code
+}
+
+// Get company statuses for current locale
+function getCompanyStatuses(locale: Locale): Array<{ value: string; label: string }> {
+  if (locale === 'pt') {
+    return [
+      { value: 'eni', label: 'Empresário em Nome Individual (ENI)' },
+      { value: 'unipessoal', label: 'Unipessoal Lda.' },
+      { value: 'lda', label: 'Sociedade por Quotas (Lda.)' },
+      { value: 'sa', label: 'Sociedade Anónima (SA)' },
+    ]
+  }
+  return [
+    { value: 'ei', label: 'Entreprise Individuelle (EI)' },
+    { value: 'ae', label: 'Auto-Entrepreneur' },
+    { value: 'eurl', label: 'EURL' },
+    { value: 'sarl', label: 'SARL' },
+    { value: 'sas', label: 'SAS' },
+  ]
+}
+
+// Check if status is a société-type (needing capital, RCS etc.)
+function isSocieteStatus(status: string, locale: Locale): boolean {
+  if (locale === 'pt') return ['lda', 'sa'].includes(status)
+  return ['sarl', 'eurl', 'sas'].includes(status)
+}
+
+// Check if status is AE/EI equivalent (VAT exempt by default)
+function isSmallBusinessStatus(status: string, locale: Locale): boolean {
+  if (locale === 'pt') return ['eni'].includes(status)
+  return ['ae', 'ei'].includes(status)
 }
 
 // ═══════════════════════════════════════════════
@@ -114,6 +205,10 @@ export default function DevisFactureForm({
   onBack,
   onSave,
 }: DevisFactureFormProps) {
+  const { t } = useTranslation()
+  const locale = useLocale()
+  const localeFormats = useMemo(() => getLocaleFormats(locale), [locale])
+
   const today = new Date().toISOString().split('T')[0]
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + 30)
@@ -139,7 +234,7 @@ export default function DevisFactureForm({
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
   const [insuranceNumber, setInsuranceNumber] = useState(initialData?.insuranceNumber || '')
   const [insuranceName, setInsuranceName] = useState(initialData?.insuranceName || '')
-  const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || 'France métropolitaine')
+  const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || (locale === 'pt' ? 'Portugal Continental' : 'France métropolitaine'))
   const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(initialData?.insuranceType || 'rc_pro')
   // Médiateur de la consommation (obligatoire depuis 01/01/2016)
   const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
@@ -166,21 +261,18 @@ export default function DevisFactureForm({
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<'ouvres' | 'calendaires'>(initialData?.executionDelayType || 'ouvres')
-  const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || 'Virement bancaire')
+  const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || t('devis.paymentModeOptions.transfer'))
   const [paymentDue, setPaymentDue] = useState(dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
   const [iban, setIban] = useState(initialData?.iban || '')
   const [bic, setBic] = useState(initialData?.bic || '')
-  const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || 'Paiement comptant à réception de facture')
+  const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
-  const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? `Réf. devis : ${initialData.docNumber}` : ''))
+  const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
-  const [saving, setSaving] = useState(false)
-
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
-  const [linkedClientId, setLinkedClientId] = useState<string | null>(null)
   const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
   const [sendingVitfix, setSendingVitfix] = useState(false)
 
@@ -189,7 +281,8 @@ export default function DevisFactureForm({
   const [availableRapports, setAvailableRapports] = useState<any[]>([])
 
   // ─── Attached Photos Chantier ───
-  const [availablePhotos, setAvailablePhotos] = useState<any[]>([])
+  const [availablePhotos, setAvailablePhotos] = useState<Array<{ id: string; url: string; label?: string; taken_at?: string; lat?: number; lng?: number; booking_id?: string }>>([])
+
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
   const [photosLoading, setPhotosLoading] = useState(false)
 
@@ -199,7 +292,7 @@ export default function DevisFactureForm({
     try {
       const rapports = JSON.parse(localStorage.getItem(`fixit_rapports_${artisan.id}`) || '[]')
       setAvailableRapports(rapports)
-    } catch { setAvailableRapports([]) }
+    } catch (e) { console.warn('[DevisFactureForm] Failed to load rapports:', e); setAvailableRapports([]) }
   }, [artisan?.id])
 
   // Load available photos from API
@@ -217,7 +310,7 @@ export default function DevisFactureForm({
           const json = await res.json()
           setAvailablePhotos(json.data || [])
         }
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('[DevisFactureForm] Failed to fetch photos:', e) }
       setPhotosLoading(false)
     }
     fetchPhotos()
@@ -240,17 +333,17 @@ export default function DevisFactureForm({
 
   const [devisCount] = useState(() => {
     try {
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
-      const devisDocs = docs.filter((d: any) => d.docType === 'devis')
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const devisDocs = docs.filter((d: Record<string, unknown>) => d.docType === 'devis')
       return devisDocs.length + 1
-    } catch { return 1 }
+    } catch (e) { console.warn('[DevisFactureForm] Failed to count devis:', e); return 1 }
   })
   const [factureCount] = useState(() => {
     try {
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
-      const factureDocs = docs.filter((d: any) => d.docType === 'facture')
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      const factureDocs = docs.filter((d: Record<string, unknown>) => d.docType === 'facture')
       return factureDocs.length + 1
-    } catch { return 1 }
+    } catch (e) { console.warn('[DevisFactureForm] Failed to count factures:', e); return 1 }
   })
 
   const docNumber = docType === 'devis'
@@ -267,7 +360,7 @@ export default function DevisFactureForm({
       if (session?.access_token) {
         return { 'Authorization': `Bearer ${session.access_token}` }
       }
-    } catch {}
+    } catch (e) { console.warn('[DevisFactureForm] Failed to get auth headers:', e) }
     return {}
   }
 
@@ -342,7 +435,7 @@ export default function DevisFactureForm({
           // Auto-entrepreneurs et EI : TVA désactivée par défaut
           // (franchise en base, art. 293 B du CGI)
           // Sauf si initialData force explicitement tvaEnabled=true (seuil dépassé)
-          if ((code === 'ae' || code === 'ei') && !initialData?.tvaEnabled) {
+          if (isSmallBusinessStatus(code, locale) && !initialData?.tvaEnabled) {
             setTvaEnabled(false)
             // Mettre les taux TVA des lignes existantes à 0%
             setLines(prev => prev.map(l => ({ ...l, tvaRate: 0 })))
@@ -371,7 +464,7 @@ export default function DevisFactureForm({
   }, [])
 
   // ─── Product Lines ───
-  const defaultTvaRate = tvaEnabled ? 20 : 0
+  const defaultTvaRate = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
 
   const addLine = () => {
     setLines(prev => [...prev, {
@@ -385,19 +478,7 @@ export default function DevisFactureForm({
     }])
   }
 
-  const addLineWithData = (desc: string, qty: number, price: number, tva: number) => {
-    setLines(prev => [...prev, {
-      id: Date.now() + Math.random(),
-      description: desc,
-      qty,
-      unit: 'u',
-      priceHT: price,
-      tvaRate: tva,
-      totalHT: qty * price,
-    }])
-  }
-
-  const updateLine = (id: number, field: keyof ProductLine, value: any) => {
+  const updateLine = (id: number, field: keyof ProductLine, value: string | number) => {
     setLines(prev => prev.map(line => {
       if (line.id !== id) return line
       const updated = { ...line, [field]: value }
@@ -410,18 +491,54 @@ export default function DevisFactureForm({
     setLines(prev => prev.filter(l => l.id !== id))
   }
 
+  // Déduire une unité par défaut à partir du nom du service/motif
+  const getDefaultUnitByServiceName = (name: string): string => {
+    const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    // Mapping mot-clé → unité par défaut
+    const keywordMap: [RegExp, string][] = [
+      [/plomberie|plombier|debouchage|fuite|robinet|chauffe[- ]?eau|ballon|cumulus|sanitaire|salle de bain|wc|toilette/, 'h'],
+      [/peinture|peintre|ravalement|enduit|revetement mural/, 'm²'],
+      [/electricite|electri(?:que|cien)|tableau|prise|interrupteur|eclairage|domotique/, 'forfait'],
+      [/carrelage|carreleur|faience|mosaique|sol|revetement de sol/, 'm²'],
+      [/maconnerie|macon|beton|dalle|fondation|agglo|parpaing|mur/, 'm²'],
+      [/menuiserie|menuisier|porte|fenetre|volet|placard|escalier|bois/, 'u'],
+      [/chauffage|chauffagiste|chaudiere|radiateur|clim|climatisation|pac|pompe a chaleur/, 'forfait'],
+      [/toiture|couvreur|couverture|toit|gouttiere|zinguerie|ardoise|tuile/, 'm²'],
+      [/nettoyage|menage|entretien|proprete|lavage|desinfection/, 'm²'],
+      [/serrurerie|serrurier|serrure|verrou|blindage|ouverture de porte/, 'forfait'],
+      [/vitrerie|vitrier|vitre|vitrage|double vitrage|miroir/, 'u'],
+      [/elagage|abattage|arbre|haie|taille de|souche/, 'u'],
+      [/jardinage|jardinier|espaces verts|tonte|debroussaillage|gazon|pelouse/, 'h'],
+      [/demenagement|demenageur/, 'forfait'],
+      [/isolation|isolant|combles|laine|polystyrene/, 'm²'],
+      [/platrerie|platrier|placo|placoplatre|cloison|faux plafond/, 'm²'],
+      [/terrassement|demolition|evacuation|deblai/, 'm³'],
+      [/diagnostic|expertise|audit|controle|inspection/, 'forfait'],
+      [/depannage|urgence|intervention/, 'forfait'],
+      [/metre lineaire|pose de|canalisation|conduit|goulotte|cable/, 'ml'],
+    ]
+    for (const [regex, unit] of keywordMap) {
+      if (regex.test(n)) return unit
+    }
+    return 'u'
+  }
+
   // Extraire l'unité du service (encodée dans description : [unit:m2|min:X|max:Y])
   // et la mapper au format ProductLine (m², m³, ml, h, forfait, u, kg, lot)
-  const parseServiceUnit = (service: any): string => {
+  // Fallback : déduire l'unité depuis le nom du service
+  const parseServiceUnit = (service: ServiceBasic | null): string => {
     const desc = service?.description || ''
     const match = desc.match(/\[unit:([^|]+)\|/)
-    if (!match) return 'u'
-    const unitMap: Record<string, string> = {
-      'm2': 'm²', 'ml': 'ml', 'm3': 'm³', 'heure': 'h',
-      'forfait': 'forfait', 'unite': 'u', 'arbre': 'u',
-      'tonne': 'kg', 'kg': 'kg', 'lot': 'lot',
+    if (match) {
+      const unitMap: Record<string, string> = {
+        'm2': 'm²', 'ml': 'ml', 'm3': 'm³', 'heure': 'h',
+        'forfait': 'forfait', 'unite': 'u', 'arbre': 'u',
+        'tonne': 'kg', 'kg': 'kg', 'lot': 'lot',
+      }
+      return unitMap[match[1]] || 'u'
     }
-    return unitMap[match[1]] || 'u'
+    // Pas d'unité encodée → déduire depuis le nom du service
+    return getDefaultUnitByServiceName(service?.name || '')
   }
 
   const selectMotif = (lineId: number, serviceId: string) => {
@@ -460,8 +577,6 @@ export default function DevisFactureForm({
 
     // Track linked booking for Vitfix channel sending
     setLinkedBookingId(bookingId)
-    setLinkedClientId(booking.client_id || null)
-
     setImportingBooking(true)
     try {
       // ── Step 1: pre-fill immediately from booking fields ──
@@ -473,11 +588,12 @@ export default function DevisFactureForm({
       // Pour un artisan avec TVA, price_ttc est le montant TTC → on calcule le HT
       const serviceName = booking.services?.name || 'Prestation'
       const bookingPrice = booking.price_ttc || booking.price_ht || 0
-      const linePrice = tvaEnabled ? Math.round((bookingPrice / 1.2) * 100) / 100 : bookingPrice
-      const lineTva = tvaEnabled ? 20 : 0
+      const mainTaxRate = locale === 'pt' ? 1.23 : 1.2
+      const linePrice = tvaEnabled ? Math.round((bookingPrice / mainTaxRate) * 100) / 100 : bookingPrice
+      const lineTva = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
       // Récupérer l'unité du service lié au booking
       const linkedService = services.find(s => s.id === booking.service_id)
-      const serviceUnit = parseServiceUnit(linkedService)
+      const serviceUnit = parseServiceUnit(linkedService ?? null)
       setLines([{
         id: Date.now(),
         description: serviceName,
@@ -551,8 +667,8 @@ export default function DevisFactureForm({
 
   // ─── Compliance Check ───
   // Adapté au statut : AE/EI n'ont pas besoin de capital social
-  // Sociétés (SARL, EURL, SAS) doivent avoir RCS + capital
-  const isSociete = ['sarl', 'eurl', 'sas'].includes(companyStatus)
+  // Sociétés (SARL, EURL, SAS / Lda, SA) doivent avoir RCS + capital
+  const isSociete = isSocieteStatus(companyStatus, locale)
   const compliance = {
     siret: companySiret.trim().length > 0,
     rcs: companyRCS.trim().length > 0,
@@ -565,113 +681,124 @@ export default function DevisFactureForm({
   const allCompliant = Object.values(compliance).every(Boolean)
 
   // ─── Legal Mentions ───
-  // Adaptées dynamiquement selon le statut juridique (AE, EI, EURL, SARL, SAS)
+  // Adaptées dynamiquement selon le statut juridique et la locale
   const getLegalMentions = () => {
     const mentions: string[] = []
-    const isSociete = ['sarl', 'eurl', 'sas'].includes(companyStatus)
+    const isSoc = isSocieteStatus(companyStatus, locale)
     const isClientPro = clientSiret.trim().length > 0
+    const rcsDefault = t('devis.legal.rcsDefault')
+    const capDefault = t('devis.legal.capitalDefault')
+    const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
 
     // ══════════════════════════════════════════════
     // 1. IDENTIFICATION — obligatoire sur tout document commercial
     // ══════════════════════════════════════════════
 
-    // ── Statut juridique spécifique ──
-    if (companyStatus === 'ae') {
-      mentions.push("Auto-entrepreneur — Dispensé d'immatriculation au RCS (art. L. 123-1-1 C. com.)")
-    } else if (companyStatus === 'ei') {
-      mentions.push('Entrepreneur individuel (EI) — Loi n°2022-172 du 14 février 2022 relative au statut de l\'entrepreneur individuel')
-    } else if (companyStatus === 'eurl') {
-      mentions.push(`EURL au capital de ${companyCapital || '—'} € — ${companyRCS || 'RCS non renseigné'}`)
-    } else if (companyStatus === 'sarl') {
-      mentions.push(`SARL au capital de ${companyCapital || '—'} € — ${companyRCS || 'RCS non renseigné'}`)
-    } else if (companyStatus === 'sas') {
-      mentions.push(`SAS au capital de ${companyCapital || '—'} € — ${companyRCS || 'RCS non renseigné'}`)
+    if (locale === 'pt') {
+      // Portuguese company statuses
+      if (companyStatus === 'eni') {
+        mentions.push(t('devis.legal.eiStatus'))
+      } else if (companyStatus === 'unipessoal') {
+        mentions.push(t('devis.legal.eurlCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      } else if (companyStatus === 'lda') {
+        mentions.push(t('devis.legal.sarlCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      } else if (companyStatus === 'sa') {
+        mentions.push(t('devis.legal.sasCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      }
+    } else {
+      // French company statuses
+      if (companyStatus === 'ae') {
+        mentions.push(t('devis.legal.aeDispensed'))
+      } else if (companyStatus === 'ei') {
+        mentions.push(t('devis.legal.eiStatus'))
+      } else if (companyStatus === 'eurl') {
+        mentions.push(t('devis.legal.eurlCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      } else if (companyStatus === 'sarl') {
+        mentions.push(t('devis.legal.sarlCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      } else if (companyStatus === 'sas') {
+        mentions.push(t('devis.legal.sasCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      }
     }
 
     // ══════════════════════════════════════════════
-    // 2. TVA
+    // 2. TVA / IVA
     // ══════════════════════════════════════════════
     if (!tvaEnabled) {
-      mentions.push('TVA non applicable, article 293 B du CGI (franchise en base de TVA)')
+      mentions.push(t('devis.legal.tvaExempt'))
     } else if (tvaNumber) {
-      mentions.push(`N° TVA intracommunautaire : ${tvaNumber}`)
+      mentions.push(t('devis.legal.tvaIntraNumber').replace('{number}', tvaNumber))
     }
 
     // ══════════════════════════════════════════════
-    // 3. ASSURANCE — obligatoire BTP (Loi Pinel 2014, art. L. 241-1 C. assurances)
+    // 3. ASSURANCE
     // ══════════════════════════════════════════════
     if (insuranceNumber && insuranceName) {
-      const insTypeLabel = insuranceType === 'rc_pro' ? 'Assurance Responsabilité Civile Professionnelle (RC Pro)'
-        : insuranceType === 'decennale' ? 'Assurance Responsabilité Civile Décennale'
-        : 'Assurance RC Professionnelle et Décennale'
-      mentions.push(`${insTypeLabel} : ${insuranceName} — Contrat n° ${insuranceNumber} — Couverture : ${insuranceCoverage}`)
+      const insTypeLabel = insuranceType === 'rc_pro' ? t('devis.legal.insuranceRcPro')
+        : insuranceType === 'decennale' ? t('devis.legal.insuranceDecennale')
+        : t('devis.legal.insuranceBoth')
+      mentions.push(t('devis.legal.insuranceLine').replace('{type}', insTypeLabel).replace('{name}', insuranceName).replace('{number}', insuranceNumber).replace('{coverage}', insuranceCoverage))
     }
 
     // ══════════════════════════════════════════════
     // 4. CONDITIONS DE PAIEMENT (facture)
     // ══════════════════════════════════════════════
     if (docType === 'facture') {
-      // Conditions de paiement
-      if (paymentCondition) mentions.push(`Conditions de paiement : ${paymentCondition}`)
-      mentions.push('Pénalités de retard exigibles sans rappel : taux légal majoré de 10 points (art. L. 441-10 C. com.)')
-      mentions.push('Indemnité forfaitaire pour frais de recouvrement : 40 € (art. D. 441-5 C. com.)')
-      if (!discount) mentions.push('Pas d\'escompte pour paiement anticipé, sauf accord préalable')
-      // Réserve de propriété (si fourniture de matériel)
-      mentions.push('Le matériel fourni reste la propriété de l\'entreprise jusqu\'au paiement intégral de la facture.')
-      // Référence au devis signé (lien juridique devis ↔ facture)
+      if (paymentCondition) mentions.push(t('devis.legal.paymentConditions').replace('{condition}', paymentCondition))
+      mentions.push(t('devis.legal.latePenalties'))
+      mentions.push(t('devis.legal.recoveryFee'))
+      if (!discount) mentions.push(t('devis.legal.noDiscount'))
+      mentions.push(t('devis.legal.retentionOfTitle'))
       if (sourceDevisRef) {
-        mentions.push(`Facture établie conformément au devis signé n° ${sourceDevisRef}${prestationDate ? ` en date du ${new Date(prestationDate).toLocaleDateString('fr-FR')}` : ''}.`)
-      } else if (notes && notes.includes('Réf. devis')) {
-        const devisRef = notes.match(/Réf\. devis\s*:\s*([^\n]+)/)?.[1]?.trim()
-        if (devisRef) mentions.push(`Facture établie conformément au devis signé n° ${devisRef}.`)
+        const datePart = prestationDate ? t('devis.legal.invoiceFromDevisDate').replace('{date}', new Date(prestationDate).toLocaleDateString(dateLocaleStr)) : ''
+        mentions.push(t('devis.legal.invoiceFromDevis').replace('{ref}', sourceDevisRef) + datePart + '.')
+      } else if (notes && (notes.includes('Réf. devis') || notes.includes('Ref. orçamento'))) {
+        const devisRef = notes.match(/(?:Réf\. devis|Ref\. orçamento)\s*:\s*([^\n]+)/)?.[1]?.trim()
+        if (devisRef) mentions.push(t('devis.legal.invoiceFromDevis').replace('{ref}', devisRef) + '.')
       }
-      // Clause de contestation
-      mentions.push('En cas de contestation, celle-ci devra être formulée par écrit dans un délai de 8 jours suivant réception de la facture.')
-      // Garantie — seulement pour clients particuliers (B2C)
+      mentions.push(t('devis.legal.contestation'))
       if (!isClientPro) {
-        mentions.push('Garantie légale de conformité : 2 ans minimum (art. L. 217-3 C. conso.)')
+        mentions.push(t('devis.legal.consumerGuarantee'))
       }
     }
 
     // ══════════════════════════════════════════════
-    // 5. DEVIS SPÉCIFIQUE
+    // 5. DEVIS / ORÇAMENTO SPÉCIFIQUE
     // ══════════════════════════════════════════════
     if (docType === 'devis') {
-      mentions.push("Devis gratuit — Conformément à l'article L. 111-1 du Code de la consommation")
+      mentions.push(t('devis.legal.freeQuote'))
       if (executionDelay) {
-        mentions.push(`Délai d'exécution prévu : ${executionDelay}`)
+        mentions.push(t('devis.legal.executionDelay').replace('{delay}', executionDelay))
       }
-      // Validité du devis
       if (docValidity) {
-        mentions.push(`Ce devis est valable ${docValidity} jours à compter de sa date d'émission`)
+        mentions.push(t('devis.legal.quoteValidity').replace('{days}', String(docValidity)))
       }
     }
 
     // ══════════════════════════════════════════════
-    // 6. DROIT DE RÉTRACTATION (contrat hors établissement — B2C uniquement)
+    // 6. DROIT DE RÉTRACTATION / DIREITO DE LIVRE RESOLUÇÃO
     // ══════════════════════════════════════════════
     if (docType === 'devis' && isHorsEtablissement && !isClientPro) {
-      mentions.push('DROIT DE RÉTRACTATION : Conformément à l\'article L. 221-18 du Code de la consommation, le client dispose d\'un délai de 14 jours à compter de la signature pour exercer son droit de rétractation, sans motif ni pénalité.')
-      mentions.push('Aucun paiement ne peut être exigé avant l\'expiration d\'un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents demandés expressément par le client.')
+      mentions.push(t('devis.legal.withdrawalRight'))
+      mentions.push(t('devis.legal.noPaymentBefore7Days'))
     }
 
     // ══════════════════════════════════════════════
-    // 7. MÉDIATEUR DE LA CONSOMMATION (obligatoire depuis 01/01/2016 — B2C)
+    // 7. MÉDIATEUR / ENTIDADE RAL
     // ══════════════════════════════════════════════
     if (!isClientPro) {
       if (mediatorName) {
-        mentions.push(`Médiation de la consommation (art. L. 612-1 C. conso.) : ${mediatorName}${mediatorUrl ? ' — ' + mediatorUrl : ''}`)
+        mentions.push(t('devis.legal.mediatorWithName').replace('{name}', mediatorName + (mediatorUrl ? ' — ' + mediatorUrl : '')))
       } else {
-        mentions.push('Médiation de la consommation (art. L. 612-1 C. conso.) : en cas de litige, le client peut recourir gratuitement à un médiateur de la consommation.')
+        mentions.push(t('devis.legal.mediatorGeneric'))
       }
     }
 
     // ══════════════════════════════════════════════
-    // 8. MENTIONS SPÉCIFIQUES SOCIÉTÉS (SARL, EURL, SAS)
+    // 8. MENTIONS SPÉCIFIQUES SOCIÉTÉS
     // ══════════════════════════════════════════════
-    if (isSociete) {
+    if (isSoc) {
       if (companyRCS) {
-        mentions.push(`Siège social : ${companyAddress || '—'} — ${companyRCS}`)
+        mentions.push(t('devis.legal.headOffice').replace('{address}', companyAddress || '—').replace('{rcs}', companyRCS))
       }
     }
 
@@ -682,10 +809,10 @@ export default function DevisFactureForm({
   const handleSaveDraft = () => {
     const data = buildData()
     // Save to localStorage as draft
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id || 'default'}`) || '[]')
+    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
     drafts.push({ ...data, savedAt: new Date().toISOString(), status: 'brouillon' })
-    localStorage.setItem(`fixit_drafts_${artisan?.id || 'default'}`, JSON.stringify(drafts))
-    alert('💾 Brouillon enregistré !')
+    localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
+    alert(`💾 ${t('devis.draftSaved')}`)
   }
 
   const handleGeneratePDF = async () => {
@@ -694,6 +821,48 @@ export default function DevisFactureForm({
       const { jsPDF } = await import('jspdf')
       const autoTableModule = await import('jspdf-autotable')
       const autoTable = autoTableModule.default
+
+      // ── PT Fiscal: Register document with AT engine (Portugal only) ──
+      let ptFiscalData: {
+        docNumber: string; hashDisplay: string; atcudDisplay: string;
+        qrCodeString: string; certNumber: string;
+      } | null = null
+
+      if (locale === 'pt' && docType === 'facture') {
+        try {
+          const headers = await getAuthHeaders()
+          const fiscalRes = await fetch('/api/portugal-fiscal/register-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...headers },
+            body: JSON.stringify({
+              docType,
+              issuerNIF: companySiret,
+              issuerName: companyName,
+              issuerAddress: companyAddress,
+              clientNIF: clientSiret || undefined,
+              clientName,
+              clientAddress,
+              fiscalSpace: 'PT',
+              lines: lines.filter(l => l.description.trim()).map(l => ({
+                description: l.description,
+                quantity: l.qty,
+                unitPrice: l.priceHT,
+                taxRate: l.tvaRate,
+                lineTotal: l.totalHT,
+              })),
+              issueDate: docDate,
+            }),
+          })
+          if (fiscalRes.ok) {
+            const { fiscal } = await fiscalRes.json()
+            ptFiscalData = fiscal
+          } else {
+            console.warn('[PT Fiscal] Registration failed, generating PDF without fiscal data')
+          }
+        } catch (e) {
+          console.warn('[PT Fiscal] Error registering document:', e)
+        }
+      }
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()  // 210mm
@@ -711,14 +880,6 @@ export default function DevisFactureForm({
         pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
         pdf.text(text, pageW / 2, yPos, { align: 'center' })
       }
-      const leftText = (text: string, x: number, yPos: number, size: number, style: string = 'normal', color: string = col) => {
-        pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
-        pdf.text(text, x, yPos)
-      }
-      const rightText = (text: string, x: number, yPos: number, size: number, style: string = 'normal', color: string = col) => {
-        pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
-        pdf.text(text, x, yPos, { align: 'right' })
-      }
       const labelValue = (label: string, value: string, x: number, yPos: number, maxW: number) => {
         pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
         pdf.text(label, x, yPos)
@@ -729,15 +890,27 @@ export default function DevisFactureForm({
         return valLines.length * 3.2
       }
 
+      const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+
       // ═══ 1. TITRE ═══
       // Titre de l'intervention/projet en gros
       if (docTitle) {
         centerText(docTitle.toUpperCase(), y, 14, 'bold')
         y += 5
       }
-      // Numéro du document — sans répéter "Devis" ou "Facture" si docTitle présent
-      centerText(docNumber, y, 8, 'normal', colLight)
+      // Numéro du document — pour PT afficher le numéro fiscal AT (ex: "FT VTF/1"), sinon numéro interne
+      const displayDocNumber = (ptFiscalData?.docNumber) ? ptFiscalData.docNumber : docNumber
+      centerText(displayDocNumber, y, 8, 'normal', colLight)
       y += 4
+
+      // ── PT Fiscal: ATCUD + Hash (Portugal invoices only) ──
+      if (ptFiscalData) {
+        centerText(ptFiscalData.atcudDisplay, y, 7, 'bold', '#1D4ED8')
+        y += 3.5
+        centerText(`Hash: ${ptFiscalData.hashDisplay}`, y, 6, 'normal', colLight)
+        y += 3.5
+      }
+
       // Petit trait centré
       drawLine(pageW / 2 - 15, y, pageW / 2 + 15, colAccent, 0.8)
       y += 6
@@ -753,45 +926,45 @@ export default function DevisFactureForm({
       // Header — centré dans la box gauche (pas au milieu de la page)
       const emCenterX = emX + boxW / 2
       pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text('ÉMETTEUR', emCenterX, boxStartY + boxPad, { align: 'center' })
+      pdf.text(t('devis.pdf.emitter'), emCenterX, boxStartY + boxPad, { align: 'center' })
       // petit trait centré sous le header
       drawLine(emCenterX - 8, boxStartY + boxPad + 2, emCenterX + 8, '#E2E8F0', 0.2)
       let ey = boxStartY + boxPad + 5
       const emMaxW = boxW - boxPad * 2
       // We need to position text within the left box
       const emLx = emX + boxPad
-      ey += labelValue('Société : ', companyName, emLx, ey, emMaxW)
-      if (companySiret) ey += labelValue('SIRET : ', companySiret, emLx, ey, emMaxW)
-      if (companyRCS) ey += labelValue('RCS/RM : ', companyRCS, emLx, ey, emMaxW)
-      if (companyCapital) ey += labelValue('Capital : ', `${companyCapital} €`, emLx, ey, emMaxW)
-      if (companyAddress) ey += labelValue('Adresse : ', companyAddress, emLx, ey, emMaxW)
-      if (companyPhone) ey += labelValue('Tél : ', companyPhone, emLx, ey, emMaxW)
-      if (companyEmail) ey += labelValue('Email : ', companyEmail, emLx, ey, emMaxW)
-      if (tvaEnabled && tvaNumber) ey += labelValue('N° TVA : ', tvaNumber, emLx, ey, emMaxW)
+      ey += labelValue(t('devis.pdf.company'), companyName, emLx, ey, emMaxW)
+      if (companySiret) ey += labelValue(t('devis.pdf.siret'), companySiret, emLx, ey, emMaxW)
+      if (companyRCS) ey += labelValue(t('devis.pdf.rcsRm'), companyRCS, emLx, ey, emMaxW)
+      if (companyCapital) ey += labelValue(t('devis.pdf.capital'), `${companyCapital} €`, emLx, ey, emMaxW)
+      if (companyAddress) ey += labelValue(t('devis.pdf.address'), companyAddress, emLx, ey, emMaxW)
+      if (companyPhone) ey += labelValue(t('devis.pdf.tel'), companyPhone, emLx, ey, emMaxW)
+      if (companyEmail) ey += labelValue(t('devis.pdf.email'), companyEmail, emLx, ey, emMaxW)
+      if (tvaEnabled && tvaNumber) ey += labelValue(t('devis.pdf.tvaNumber'), tvaNumber, emLx, ey, emMaxW)
       if (insuranceName) {
         ey += 1
-        const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Déc.'
+        const insLabel = insuranceType === 'rc_pro' ? t('devis.pdf.rcPro') : insuranceType === 'decennale' ? t('devis.pdf.decennale') : t('devis.pdf.rcProDec')
         ey += labelValue(`${insLabel} : `, insuranceName, emLx, ey, emMaxW)
       }
-      if (insuranceNumber) ey += labelValue('N° contrat : ', insuranceNumber, emLx, ey, emMaxW)
-      if (insuranceCoverage) ey += labelValue('Couverture : ', insuranceCoverage, emLx, ey, emMaxW)
+      if (insuranceNumber) ey += labelValue(t('devis.pdf.contractNumber'), insuranceNumber, emLx, ey, emMaxW)
+      if (insuranceCoverage) ey += labelValue(t('devis.pdf.coverage'), insuranceCoverage, emLx, ey, emMaxW)
 
       // ── Destinataire box ──
       const destX = emX + boxW + 6
       const destCenterX = destX + boxW / 2
       // Header — centré dans la box droite
       pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text('DESTINATAIRE', destCenterX, boxStartY + boxPad, { align: 'center' })
+      pdf.text(t('devis.pdf.recipient'), destCenterX, boxStartY + boxPad, { align: 'center' })
       drawLine(destCenterX - 8, boxStartY + boxPad + 2, destCenterX + 8, '#E2E8F0', 0.2)
       let dy = boxStartY + boxPad + 5
       const destLx = destX + boxPad
       const destMaxW = boxW - boxPad * 2
-      dy += labelValue('Nom : ', clientName, destLx, dy, destMaxW)
-      if (clientAddress) dy += labelValue('Adresse : ', clientAddress, destLx, dy, destMaxW)
-      if (interventionAddress) dy += labelValue('Lieu intervention : ', interventionAddress, destLx, dy, destMaxW)
-      if (clientPhone) dy += labelValue('Tél : ', clientPhone, destLx, dy, destMaxW)
-      if (clientEmail) dy += labelValue('Email : ', clientEmail, destLx, dy, destMaxW)
-      if (clientSiret) dy += labelValue('SIRET : ', clientSiret, destLx, dy, destMaxW)
+      dy += labelValue(t('devis.pdf.name'), clientName, destLx, dy, destMaxW)
+      if (clientAddress) dy += labelValue(t('devis.pdf.address'), clientAddress, destLx, dy, destMaxW)
+      if (interventionAddress) dy += labelValue(t('devis.pdf.interventionLocation'), interventionAddress, destLx, dy, destMaxW)
+      if (clientPhone) dy += labelValue(t('devis.pdf.tel'), clientPhone, destLx, dy, destMaxW)
+      if (clientEmail) dy += labelValue(t('devis.pdf.email'), clientEmail, destLx, dy, destMaxW)
+      if (clientSiret) dy += labelValue(t('devis.pdf.siret'), clientSiret, destLx, dy, destMaxW)
 
       const boxH = Math.max(ey, dy) - boxStartY + 2
       // Draw box borders
@@ -817,43 +990,40 @@ export default function DevisFactureForm({
         infoX += pdf.getTextWidth(val) + 6
       }
       // Date d'émission = TOUJOURS la date de création du document (aujourd'hui)
-      drawInfo("Date d'émission : ", docDate ? new Date(docDate).toLocaleDateString('fr-FR') : docDate)
+      drawInfo(t('devis.pdf.issueDate'), docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : docDate)
       if (docType === 'devis') {
-        if (docValidity) drawInfo('Validité : ', `${docValidity} jours`)
-        if (executionDelay) drawInfo("Délai d'exécution : ", executionDelay)
-        if (prestationDate) drawInfo('Date prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
+        if (docValidity) drawInfo(t('devis.pdf.validity'), `${docValidity} ${t('devis.pdf.days')}`)
+        if (executionDelay) drawInfo(t('devis.pdf.executionDelay'), executionDelay)
+        if (prestationDate) drawInfo(t('devis.pdf.prestationDate'), new Date(prestationDate).toLocaleDateString(dateLocaleStr))
       }
       if (docType === 'facture') {
-        // Date de prestation (quand les travaux ont été réalisés) — distincte de la date d'émission
-        if (prestationDate) drawInfo('Prestation : ', new Date(prestationDate).toLocaleDateString('fr-FR'))
-        if (paymentDue) drawInfo('Échéance : ', new Date(paymentDue).toLocaleDateString('fr-FR'))
-        // Référence au devis d'origine
-        if (sourceDevisRef) drawInfo('Réf. devis : ', sourceDevisRef)
+        if (prestationDate) drawInfo(t('devis.pdf.prestation'), new Date(prestationDate).toLocaleDateString(dateLocaleStr))
+        if (paymentDue) drawInfo(t('devis.pdf.dueDate'), new Date(paymentDue).toLocaleDateString(dateLocaleStr))
+        if (sourceDevisRef) drawInfo(t('devis.pdf.devisRef'), sourceDevisRef)
       }
       y += 12
 
       // ═══ 4. TABLEAU PRESTATIONS (autoTable) ═══
-      const priceLabel = tvaEnabled ? 'HT' : 'TTC'
+      const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
       const tableHead = tvaEnabled
-        ? [['Désignation', 'Qté', 'Unité', `Prix U. ${priceLabel}`, 'TVA', `Total ${priceLabel}`]]
-        : [['Désignation', 'Qté', 'Unité', `Prix U. ${priceLabel}`, `Total ${priceLabel}`]]
+        ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
+        : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
         const unitStr = l.unit ? (l.unit === 'u' ? 'u' : l.unit) : 'u'
-        const row = [l.description, String(l.qty), unitStr, `${l.priceHT.toFixed(2)} €`]
+        const row = [l.description, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
-        row.push(`${l.totalHT.toFixed(2)} €`)
+        row.push(localeFormats.currencyFormat(l.totalHT))
         return row
       })
 
       if (tableBody.length === 0) {
         tableBody.push(tvaEnabled
-          ? ['Aucune prestation renseignée', '', '', '', '', '']
-          : ['Aucune prestation renseignée', '', '', '', '']
+          ? [t('devis.noLinesMessage'), '', '', '', '', '']
+          : [t('devis.noLinesMessage'), '', '', '', '']
         )
       }
 
-      const colCount = tvaEnabled ? 6 : 5
       const colStyles: any = {
         0: { cellWidth: contentW * 0.36, halign: 'left' },    // Désignation — aligné à gauche
         1: { cellWidth: contentW * 0.08, halign: 'center' },  // Qté — centré
@@ -924,18 +1094,18 @@ export default function DevisFactureForm({
       pdf.setFillColor('#F8FAFC')
       pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-      pdf.text(tvaEnabled ? 'Sous-total HT' : 'Sous-total', totBoxX + 3, y + 5)
+      pdf.text(tvaEnabled ? t('devis.pdf.subtotalHT') : t('devis.pdf.subtotal'), totBoxX + 3, y + 5)
       pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(`${subtotalHT.toFixed(2)} €`, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
+      pdf.text(localeFormats.currencyFormat(subtotalHT), totBoxX + totBoxW - 3, y + 5, { align: 'right' })
       y += 7
 
       if (tvaEnabled) {
         pdf.setFillColor('#F8FAFC')
         pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
         pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-        pdf.text('TVA', totBoxX + 3, y + 5)
+        pdf.text(t('devis.pdf.tva'), totBoxX + 3, y + 5)
         pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(`${totalTVA.toFixed(2)} €`, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
+        pdf.text(localeFormats.currencyFormat(totalTVA), totBoxX + totBoxW - 3, y + 5, { align: 'right' })
         y += 7
       }
 
@@ -943,7 +1113,7 @@ export default function DevisFactureForm({
         pdf.setFillColor('#F8FAFC')
         pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
         pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-        pdf.text('Escompte', totBoxX + 3, y + 5)
+        pdf.text(t('devis.pdf.discount'), totBoxX + 3, y + 5)
         pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
         pdf.text(discount, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
         y += 7
@@ -954,8 +1124,8 @@ export default function DevisFactureForm({
       pdf.setFillColor(colAccent)
       pdf.rect(totBoxX, y, totBoxW, 10, 'F')
       pdf.setFontSize(11); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(tvaEnabled ? 'TOTAL TTC' : 'TOTAL NET', totBoxX + 3, y + 7)
-      pdf.text(`${totalVal.toFixed(2)} €`, totBoxX + totBoxW - 3, y + 7, { align: 'right' })
+      pdf.text(tvaEnabled ? t('devis.pdf.totalTTC') : t('devis.pdf.totalNet'), totBoxX + 3, y + 7)
+      pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
       y += 16
 
       // ═══ 6. CONDITIONS + SIGNATURE (devis) ou CONDITIONS DE PAIEMENT (facture) ═══
@@ -971,15 +1141,16 @@ export default function DevisFactureForm({
         pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
         const condCenterX = condX + condW / 2
-        pdf.text('CONDITIONS', condCenterX, condStartY + 4, { align: 'center' })
+        pdf.text(t('devis.pdf.conditions'), condCenterX, condStartY + 4, { align: 'center' })
         drawLine(condCenterX - 8, condStartY + 6, condCenterX + 8, '#E2E8F0', 0.2)
         let cy = condStartY + 10
         pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
+        const validityStr = docValidity ? `${docValidity} ${t('devis.pdf.days')}` : `30 ${t('devis.pdf.days')}`
         const condLines = [
-          `Validité du devis : ${docValidity ? `${docValidity} jours` : '30 jours'} à compter de la date d'émission.`,
-          ...(executionDelay ? [`Délai d'exécution : ${executionDelay}.`] : []),
-          "Toute modification des travaux fera l'objet d'un avenant signé par les deux parties.",
-          ...(paymentMode ? [`Mode de règlement : ${paymentMode}.`] : []),
+          t('devis.pdf.validityCondition').replace('{validity}', validityStr),
+          ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
+          t('devis.pdf.amendmentClause'),
+          ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
         ]
         condLines.forEach(line => {
           const wrapped = pdf.splitTextToSize(line, condW - 8)
@@ -992,19 +1163,19 @@ export default function DevisFactureForm({
         // Signature box
         const sigCenterX = sigX + sigW / 2
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text('BON POUR ACCORD', sigCenterX, condStartY + 4, { align: 'center' })
+        pdf.text(t('devis.pdf.approvalTitle'), sigCenterX, condStartY + 4, { align: 'center' })
         drawLine(sigCenterX - 10, condStartY + 6, sigCenterX + 10, '#E2E8F0', 0.2)
         pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-        pdf.text('Mention manuscrite :', sigX + 4, condStartY + 10)
+        pdf.text(t('devis.pdf.handwrittenMention'), sigX + 4, condStartY + 10)
         pdf.setFont('helvetica', 'italic'); pdf.setFontSize(5.5); pdf.setTextColor('#9CA3AF')
-        const mentionText = '"Devis reçu avant l\'exécution des travaux, lu et approuvé, bon pour accord"'
+        const mentionText = t('devis.pdf.approvalText')
         const mentionWrapped = pdf.splitTextToSize(mentionText, sigW - 8)
         pdf.text(mentionWrapped, sigX + 4, condStartY + 14)
         const mentionEndY = condStartY + 14 + mentionWrapped.length * 2.5
         drawLine(sigX + 4, mentionEndY + 3, sigX + sigW - 4, '#D1D5DB', 0.2)
         pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-        pdf.text('Date : ___/___/______', sigX + 4, mentionEndY + 7)
-        pdf.text('Signature :', sigX + 4, mentionEndY + 11)
+        pdf.text(t('devis.pdf.dateField'), sigX + 4, mentionEndY + 7)
+        pdf.text(t('devis.pdf.signatureField'), sigX + 4, mentionEndY + 11)
         pdf.roundedRect(sigX, condStartY, sigW, condH, 1.5, 1.5, 'S')
 
         y = condStartY + condH + 6
@@ -1012,21 +1183,20 @@ export default function DevisFactureForm({
         // Section complète CONDITIONS DE RÈGLEMENT pour facture
         const payLines: string[] = []
         if (paymentCondition) payLines.push(paymentCondition)
-        if (paymentMode) payLines.push(`Mode de règlement : ${paymentMode}`)
-        if (paymentDue) payLines.push(`Date limite de paiement : ${new Date(paymentDue).toLocaleDateString('fr-FR')}`)
-        if (iban) payLines.push(`IBAN : ${iban}${bic ? '  —  BIC : ' + bic : ''}`)
-        payLines.push("Pénalités de retard : tout retard de paiement entraînera l'application de pénalités calculées au taux légal majoré de 10 points (art. L. 441-10 C. com.) ainsi qu'une indemnité forfaitaire de 40 € pour frais de recouvrement (art. D. 441-5 C. com.).")
-        if (discount) payLines.push(`Escompte pour paiement anticipé : ${discount}`)
-        else payLines.push("Pas d'escompte pour paiement anticipé, sauf accord préalable.")
-        // Référence au devis signé (lien juridique)
+        if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
+        if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', new Date(paymentDue).toLocaleDateString(dateLocaleStr)))
+        if (iban) payLines.push(bic ? t('devis.pdf.ibanBicLabel').replace('{iban}', iban).replace('{bic}', bic) : t('devis.pdf.ibanLabel').replace('{iban}', iban))
+        payLines.push(t('devis.pdf.latePenalties'))
+        if (discount) payLines.push(t('devis.pdf.earlyDiscountYes').replace('{discount}', discount))
+        else payLines.push(t('devis.pdf.earlyDiscountNo'))
         if (sourceDevisRef) {
-          payLines.push(`Facture établie conformément au devis signé n° ${sourceDevisRef}${prestationDate ? ` en date du ${new Date(prestationDate).toLocaleDateString('fr-FR')}` : ''}.`)
-        } else if (notes && notes.includes('Réf. devis')) {
-          const devisRef = notes.match(/Réf\. devis\s*:\s*([^\n]+)/)?.[1]?.trim()
-          if (devisRef) payLines.push(`Facture établie conformément au devis signé n° ${devisRef}.`)
+          const datePart = prestationDate ? ` ${locale === 'pt' ? 'com data de' : 'en date du'} ${new Date(prestationDate).toLocaleDateString(dateLocaleStr)}` : ''
+          payLines.push(t('devis.pdf.invoiceFromDevis').replace('{ref}', sourceDevisRef).replace('{date}', datePart))
+        } else if (notes && (notes.includes('Réf. devis') || notes.includes('Ref. orçamento'))) {
+          const devisRef = notes.match(/(?:Réf\. devis|Ref\. orçamento)\s*:\s*([^\n]+)/)?.[1]?.trim()
+          if (devisRef) payLines.push(t('devis.pdf.invoiceFromDevis').replace('{ref}', devisRef).replace('{date}', ''))
         }
-        // Clause contestation
-        payLines.push("En cas de contestation, celle-ci devra être formulée par écrit dans un délai de 8 jours suivant réception de la facture.")
+        payLines.push(t('devis.pdf.contestationClause'))
 
         // Calcul hauteur dynamique d'abord
         const condStartY = y
@@ -1045,7 +1215,7 @@ export default function DevisFactureForm({
 
         // Header
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
-        pdf.text('CONDITIONS DE RÈGLEMENT', condCenterX, condStartY + 4, { align: 'center' })
+        pdf.text(t('devis.pdf.paymentConditionsTitle'), condCenterX, condStartY + 4, { align: 'center' })
         drawLine(condCenterX - 15, condStartY + 6, condCenterX + 15, '#BFDBFE', 0.2)
 
         // Contenu
@@ -1062,7 +1232,7 @@ export default function DevisFactureForm({
       // ═══ 7. NOTES ═══
       if (notes && y < pageH - 30) {
         pdf.setFillColor('#FFFBEB'); pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
-        const noteWrapped = pdf.splitTextToSize(`Notes : ${notes}`, contentW - 8)
+        const noteWrapped = pdf.splitTextToSize(t('devis.pdf.notes').replace('{notes}', notes), contentW - 8)
         const noteH = noteWrapped.length * 3.5 + 6
         pdf.roundedRect(mL, y, contentW, noteH, 1.5, 1.5, 'FD')
         pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#78350F')
@@ -1074,10 +1244,10 @@ export default function DevisFactureForm({
       if (attachedRapport && y < pageH - 25) {
         pdf.setFillColor('#FFF7ED'); pdf.setDrawColor('#FED7AA'); pdf.setLineWidth(0.3)
         const rapportLines: string[] = []
-        rapportLines.push(`Rapport d'intervention joint — ${attachedRapport.rapportNumber}`)
-        if (attachedRapport.interventionDate) rapportLines.push(`Date : ${new Date(attachedRapport.interventionDate).toLocaleDateString('fr-FR')}${attachedRapport.startTime ? ` de ${attachedRapport.startTime}` : ''}${attachedRapport.endTime ? ` à ${attachedRapport.endTime}` : ''}`)
-        if (attachedRapport.motif) rapportLines.push(`Motif : ${attachedRapport.motif}`)
-        if (attachedRapport.siteAddress) rapportLines.push(`Lieu : ${attachedRapport.siteAddress}`)
+        rapportLines.push(t('devis.pdf.attachedReport').replace('{number}', attachedRapport.rapportNumber))
+        if (attachedRapport.interventionDate) rapportLines.push(t('devis.pdf.reportDate').replace('{date}', new Date(attachedRapport.interventionDate).toLocaleDateString(dateLocaleStr)) + (attachedRapport.startTime ? ` ${locale === 'pt' ? 'das' : 'de'} ${attachedRapport.startTime}` : '') + (attachedRapport.endTime ? ` ${locale === 'pt' ? 'às' : 'à'} ${attachedRapport.endTime}` : ''))
+        if (attachedRapport.motif) rapportLines.push(t('devis.pdf.reportMotif').replace('{motif}', attachedRapport.motif))
+        if (attachedRapport.siteAddress) rapportLines.push(t('devis.pdf.reportLocation').replace('{location}', attachedRapport.siteAddress))
         const rapportH = rapportLines.length * 3.5 + 6
         pdf.roundedRect(mL, y, contentW, rapportH, 1.5, 1.5, 'FD')
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#9A3412')
@@ -1087,13 +1257,56 @@ export default function DevisFactureForm({
         y += rapportH + 4
       }
 
-      // ═══ 9. MENTIONS LÉGALES ═══
+      // ═══ 9. PT FISCAL: QR CODE + CERTIFICATION ═══
+      if (ptFiscalData) {
+        if (y > pageH - 55) { pdf.addPage(); y = 18 }
+
+        // QR Code — bottom right
+        const qrSize = 28 // 28mm QR code
+        const qrX = pageW - mR - qrSize
+        const qrY = y
+
+        try {
+          const QRCode = (await import('qrcode')).default
+          const qrDataUrl = await QRCode.toDataURL(ptFiscalData.qrCodeString, {
+            width: 200,
+            margin: 1,
+            errorCorrectionLevel: 'M',
+          })
+          pdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize)
+        } catch (qrErr) {
+          console.warn('[PT Fiscal] QR code generation failed:', qrErr)
+          // Fallback: draw placeholder
+          pdf.setDrawColor('#D1D5DB'); pdf.setLineWidth(0.3)
+          pdf.rect(qrX, qrY, qrSize, qrSize)
+          pdf.setFontSize(5); pdf.setTextColor('#9CA3AF')
+          pdf.text('QR Code', qrX + qrSize / 2, qrY + qrSize / 2, { align: 'center' })
+        }
+
+        // Certification mention — left of QR code
+        const certY = qrY + 2
+        pdf.setFontSize(6); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
+        pdf.text(ptFiscalData.atcudDisplay, mL, certY)
+
+        pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+        pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, mL, certY + 3.5)
+        pdf.text(`Processado por programa certificado n.º ${ptFiscalData.certNumber}`, mL, certY + 7)
+        pdf.text('Vitfix Pro — https://vitfix.pt', mL, certY + 10.5)
+
+        y = qrY + qrSize + 4
+      }
+
+      // ═══ 10. MENTIONS LÉGALES ═══
       if (y > pageH - 20) { pdf.addPage(); y = 18 }
       drawLine(mL, y, pageW - mR, '#E5E7EB', 0.2)
       y += 3
       pdf.setFontSize(5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#9CA3AF')
-      const legalText = `Mentions légales : ${getLegalMentions().join(' — ')}${tvaEnabled && tvaNumber ? ` — N° TVA intracommunautaire : ${tvaNumber}` : ''} — Document généré par Vitfix Pro le ${new Date().toLocaleDateString('fr-FR')} — Conformité : Code de commerce, Code de la consommation, Loi Pinel 2014.`
-      const legalWrapped = pdf.splitTextToSize(legalText, contentW)
+      const legalMentionsJoined = getLegalMentions().join(' — ')
+      const tvaIntraSuffix = tvaEnabled && tvaNumber ? ` — ${t('devis.legal.tvaIntraNumber').replace('{number}', tvaNumber)}` : ''
+      const legalText = t('devis.pdf.legalMentionsFull')
+        .replace('{mentions}', legalMentionsJoined + tvaIntraSuffix)
+        .replace('{date}', new Date().toLocaleDateString(dateLocaleStr))
+      const legalWrapped = pdf.splitTextToSize(legalText, ptFiscalData ? contentW - 32 : contentW)
       pdf.text(legalWrapped, mL, y)
 
       // ═══ PAGE 2 — RÉTRACTATION ═══
@@ -1102,7 +1315,8 @@ export default function DevisFactureForm({
         let ry = 18
         // Petit trait accent en haut
         drawLine(pageW / 2 - 15, ry - 4, pageW / 2 + 15, colAccent, 0.8)
-        centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ${companyName} — Page 2/2`, ry, 7, 'normal', colLight)
+        const docLabel = docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')
+        centerText(`${docLabel} ${docNumber} — ${companyName} — ${t('devis.pdf.page2of2')}`, ry, 7, 'normal', colLight)
         ry += 8
 
         // Encadré rétractation
@@ -1110,13 +1324,13 @@ export default function DevisFactureForm({
         const retBoxH = 110
         pdf.roundedRect(mL, ry, contentW, retBoxH, 2, 2, 'FD')
 
-        centerText('DROIT DE RÉTRACTATION — Article L. 221-18 du Code de la consommation', ry + 7, 9, 'bold', '#B45309')
+        centerText(t('devis.pdf.withdrawalTitle'), ry + 7, 9, 'bold', '#B45309')
         ry += 14
         pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#92400E')
         const retLines = [
-          "Le client dispose d'un délai de 14 jours calendaires à compter de la signature du présent devis pour exercer son droit de rétractation, sans avoir à justifier de motifs ni à payer de pénalités.",
+          t('devis.pdf.withdrawalText1'),
           "",
-          "Pour exercer ce droit, le client peut utiliser le formulaire de rétractation ci-dessous ou adresser toute déclaration dénuée d'ambiguïté exprimant sa volonté de se rétracter.",
+          t('devis.pdf.withdrawalText2'),
         ]
         retLines.forEach(rl => {
           if (rl === '') { ry += 2; return }
@@ -1126,7 +1340,7 @@ export default function DevisFactureForm({
         })
         ry += 2
         pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#92400E')
-        const urgentText = "Aucun paiement ne peut être exigé avant l'expiration d'un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents d'entretien ou de réparation demandés expressément par le client."
+        const urgentText = t('devis.pdf.withdrawalPayment')
         const urgentWrapped = pdf.splitTextToSize(urgentText, contentW - 12)
         pdf.text(urgentWrapped, mL + 6, ry)
         ry += urgentWrapped.length * 3.2 + 4
@@ -1134,12 +1348,12 @@ export default function DevisFactureForm({
         // Formulaire
         drawLine(mL + 10, ry, pageW - mR - 10, '#F59E0B', 0.3)
         ry += 5
-        centerText('FORMULAIRE DE RÉTRACTATION', ry, 8, 'bold', '#B45309')
+        centerText(t('devis.pdf.withdrawalFormTitle'), ry, 8, 'bold', '#B45309')
         ry += 5
         pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#92400E')
-        pdf.text(`À l'attention de : ${companyName}, ${companyAddress}`, mL + 6, ry); ry += 4
-        pdf.text("Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.", mL + 6, ry); ry += 6
-        const formFields = ['Commandé le / reçu le :', 'Nom du client :', 'Adresse du client :', 'Signature du client :', 'Date :']
+        pdf.text(t('devis.pdf.withdrawalFormTo').replace('{company}', companyName).replace('{address}', companyAddress), mL + 6, ry); ry += 4
+        pdf.text(t('devis.pdf.withdrawalFormNotice'), mL + 6, ry); ry += 6
+        const formFields = [t('devis.pdf.withdrawalFormOrderDate'), t('devis.pdf.withdrawalFormClientName'), t('devis.pdf.withdrawalFormClientAddress'), t('devis.pdf.withdrawalFormClientSignature'), t('devis.pdf.withdrawalFormDate')]
         formFields.forEach(f => {
           pdf.text(f, mL + 6, ry)
           const fw = pdf.getTextWidth(f) + 2
@@ -1165,9 +1379,9 @@ export default function DevisFactureForm({
         pdf.addPage()
         let py = 18
         drawLine(pageW / 2 - 15, py - 4, pageW / 2 + 15, colAccent, 0.8)
-        centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ANNEXE PHOTOS`, py, 9, 'bold', col)
+        centerText(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotos')}`, py, 9, 'bold', col)
         py += 5
-        centerText(`${selectedPhotos.length} photo${selectedPhotos.length > 1 ? 's' : ''} géolocalisée${selectedPhotos.length > 1 ? 's' : ''} et horodatée${selectedPhotos.length > 1 ? 's' : ''}`, py, 7, 'normal', colLight)
+        centerText(t('devis.pdf.photosGeotagged').replace('{count}', String(selectedPhotos.length)), py, 7, 'normal', colLight)
         py += 8
 
         // 2 columns layout, 3 rows per page max = 6 photos per page
@@ -1183,7 +1397,7 @@ export default function DevisFactureForm({
           if (py + photoH + 12 > pageH - 10 && col2 === 0) {
             pdf.addPage()
             py = 18
-            centerText(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ANNEXE PHOTOS (suite)`, py, 7, 'normal', colLight)
+            centerText(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotosSuite')}`, py, 7, 'normal', colLight)
             py += 8
           }
 
@@ -1207,21 +1421,27 @@ export default function DevisFactureForm({
             const imgX = x + (photoW - drawW) / 2
             const imgY = py + 1 + (photoH - 2 - drawH) / 2
 
-            // Convert image to canvas → base64
+            // Convert image to canvas → base64 (haute résolution professionnelle)
             const canvas = document.createElement('canvas')
-            canvas.width = Math.min(img.width, 1200) // limit resolution for PDF size
+            // Résolution max 2400px pour qualité professionnelle d'impression (300 DPI sur A4)
+            const maxRes = 2400
+            canvas.width = Math.min(img.width, maxRes)
             canvas.height = Math.round(canvas.width / imgRatio)
             const ctx = canvas.getContext('2d')
             if (ctx) {
+              // Anti-aliasing haute qualité
+              ctx.imageSmoothingEnabled = true
+              ctx.imageSmoothingQuality = 'high'
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-              const imgData = canvas.toDataURL('image/jpeg', 0.8)
+              // JPEG qualité 0.92 pour un rendu professionnel sans artefacts de compression
+              const imgData = canvas.toDataURL('image/jpeg', 0.92)
               pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
             }
 
             // Photo info below
             const infoY = py + photoH + 1
             pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-            const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString('fr-FR') : 'N/D'
+            const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString(dateLocaleStr) : 'N/D'
             pdf.text(`📅 ${dateStr}`, x + 2, infoY + 2)
             if (photo.lat && photo.lng) {
               pdf.text(`📍 ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, infoY + 5.5)
@@ -1236,7 +1456,7 @@ export default function DevisFactureForm({
             pdf.setFillColor('#F3F4F6')
             pdf.roundedRect(x, py, photoW, photoH + 10, 1.5, 1.5, 'FD')
             pdf.setFontSize(7); pdf.setTextColor('#9CA3AF')
-            pdf.text('Photo non disponible', x + photoW / 2, py + photoH / 2, { align: 'center' })
+            pdf.text(t('devis.pdf.photoNotAvailable'), x + photoW / 2, py + photoH / 2, { align: 'center' })
           }
 
           col2++
@@ -1248,21 +1468,26 @@ export default function DevisFactureForm({
       }
 
       const safeName = clientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_À-ÿ]/g, '') || 'Client'
-      const filename = `${docType === 'devis' ? 'Devis' : 'Facture'}_${docNumber}_${safeName}.pdf`
+      const fileLabel = docType === 'devis' ? (locale === 'pt' ? 'Orcamento' : 'Devis') : (locale === 'pt' ? 'Fatura' : 'Facture')
+      // PT: utiliser le numéro AT (ex: "FT VTF/1") sanitisé pour le nom de fichier; FR: numéro interne
+      const fileDocNumber = (locale === 'pt' && ptFiscalData?.docNumber)
+        ? ptFiscalData.docNumber.replace(/\s+/g, '_').replace(/\//g, '-')
+        : docNumber
+      const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
       pdf.save(filename)
 
       // Auto-sauvegarder le document dans l'historique à chaque génération PDF
       const data = buildData()
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       // Éviter les doublons : remplacer si même numéro existe déjà
-      const existingIdx = docs.findIndex((d: any) => d.docNumber === data.docNumber)
-      const docEntry = { ...data, savedAt: new Date().toISOString(), status: 'envoye' as const }
+      const existingIdx = docs.findIndex((d: Record<string, unknown>) => d.docNumber === data.docNumber)
+      const docEntry = { ...data, savedAt: new Date().toISOString(), status: 'envoye' as const, sentAt: new Date().toISOString() }
       if (existingIdx >= 0) {
         docs[existingIdx] = docEntry
       } else {
         docs.push(docEntry)
       }
-      localStorage.setItem(`fixit_documents_${artisan?.id || 'default'}`, JSON.stringify(docs))
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
       onSave?.(data)
 
       // Proposer envoi par email ou Vitfix si clientEmail ou booking lié
@@ -1273,7 +1498,7 @@ export default function DevisFactureForm({
       }
     } catch (err) {
       console.error('Erreur PDF:', err)
-      alert('❌ Erreur lors de la génération du PDF. Veuillez réessayer.')
+      alert(`❌ ${t('devis.pdfErrorTitle')}`)
     } finally {
       setPdfLoading(false)
     }
@@ -1282,14 +1507,14 @@ export default function DevisFactureForm({
   const handleValidateAndSend = () => {
     if (!allCompliant) {
       const missing: string[] = []
-      if (!compliance.siret) missing.push('SIRET')
-      if (!compliance.rcs) missing.push('RCS/RM')
-      if (!compliance.insurance) missing.push("N° assurance RC Pro")
-      if (!compliance.client) missing.push('Nom client')
-      if (!compliance.lines) missing.push('Au moins une prestation')
-      if ('capital' in compliance && !compliance.capital) missing.push('Capital social (obligatoire pour ' + getStatusLabel(companyStatus) + ')')
-      if ('tvaNumber' in compliance && !compliance.tvaNumber) missing.push('N° TVA intracommunautaire')
-      alert('❌ Informations manquantes :\n\n' + missing.join('\n'))
+      if (!compliance.siret) missing.push(t('devis.complianceSiret'))
+      if (!compliance.rcs) missing.push(t('devis.complianceRcs'))
+      if (!compliance.insurance) missing.push(t('devis.missingInsurance'))
+      if (!compliance.client) missing.push(t('devis.missingClientName'))
+      if (!compliance.lines) missing.push(t('devis.missingLines'))
+      if ('capital' in compliance && !compliance.capital) missing.push(`${t('devis.missingCapital')} ${getStatusLabel(companyStatus, t)})`)
+      if ('tvaNumber' in compliance && !compliance.tvaNumber) missing.push(t('devis.missingTvaNumber'))
+      alert(`❌ ${t('devis.missingInfo')} :\n\n` + missing.join('\n'))
       return
     }
     setShowSendModal('validate')
@@ -1299,9 +1524,9 @@ export default function DevisFactureForm({
   const saveAndFinalize = (mode: 'pdf' | 'validate' | null) => {
     if (mode === 'validate') {
       const data = buildData()
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id || 'default'}`) || '[]')
-      docs.push({ ...data, savedAt: new Date().toISOString(), status: 'envoye' })
-      localStorage.setItem(`fixit_documents_${artisan?.id || 'default'}`, JSON.stringify(docs))
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+      docs.push({ ...data, savedAt: new Date().toISOString(), status: 'envoye', sentAt: new Date().toISOString() })
+      localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(docs))
       onSave?.(data)
     }
     setShowSendModal(null)
@@ -1312,11 +1537,16 @@ export default function DevisFactureForm({
   const handleSendViaEmail = () => {
     const currentMode = showSendModal
     const totalVal = tvaEnabled ? totalTTC : subtotalHT
-    const totalStr = `${totalVal.toFixed(2)} € ${tvaEnabled ? 'TTC' : 'HT'}`
-    const subject = encodeURIComponent(`${docType === 'devis' ? 'Devis' : 'Facture'} ${docNumber} — ${companyName}`)
-    const body = encodeURIComponent(
-      `Bonjour ${clientName},\n\nVeuillez trouver en pièce jointe votre ${docType === 'devis' ? 'devis' : 'facture'} N°${docNumber} d'un montant de ${totalStr}.\n\nCordialement,\n${companyName}${companyPhone ? '\n' + companyPhone : ''}`
-    )
+    const totalStr = `${localeFormats.currencyFormat(totalVal)} ${tvaEnabled ? t('devis.ttc') : t('devis.ht')}`
+    const docTypeLabel = docType === 'devis' ? t('devis.emailSubjectDevis') : t('devis.emailSubjectFacture')
+    const subject = encodeURIComponent(`${docTypeLabel} ${docNumber} — ${companyName}`)
+    const emailBody = t('devis.emailBody')
+      .replace('{clientName}', clientName)
+      .replace('{docType}', docTypeLabel.toLowerCase())
+      .replace('{docNumber}', docNumber)
+      .replace('{total}', totalStr)
+      .replace('{companyName}', companyName + (companyPhone ? '\n' + companyPhone : ''))
+    const body = encodeURIComponent(emailBody)
     window.open(`mailto:${clientEmail}?subject=${subject}&body=${body}`)
     saveAndFinalize(currentMode)
   }
@@ -1324,7 +1554,7 @@ export default function DevisFactureForm({
   // ─── Send via Vitfix Channel ───
   const handleSendViaVitfix = async () => {
     if (!linkedBookingId) {
-      alert('Aucune intervention liée. Veuillez importer depuis une intervention pour utiliser le canal Vitfix.')
+      alert(t('devis.sendNoBooking'))
       return
     }
     const currentMode = showSendModal
@@ -1332,8 +1562,8 @@ export default function DevisFactureForm({
     try {
       const headers = await getAuthHeaders()
       const totalVal = tvaEnabled ? totalTTC : subtotalHT
-      const totalStr = `${totalVal.toFixed(2)} € ${tvaEnabled ? 'TTC' : 'HT'}`
-      const typeLabel = docType === 'devis' ? 'Devis' : 'Facture'
+      const totalStr = `${localeFormats.currencyFormat(totalVal)} ${tvaEnabled ? t('devis.ttc') : t('devis.ht')}`
+      const typeLabel = docType === 'devis' ? t('devis.emailSubjectDevis') : t('devis.emailSubjectFacture')
 
       const messageContent = `📄 ${typeLabel} N°${docNumber} — ${totalStr}`
 
@@ -1363,11 +1593,11 @@ export default function DevisFactureForm({
 
       if (!res.ok) throw new Error('Erreur envoi')
 
-      alert(`✅ ${typeLabel} envoyé via le canal Vitfix ! Le client recevra une notification.`)
+      alert(`✅ ${typeLabel} ${t('devis.sendSuccess')}`)
       saveAndFinalize(currentMode)
     } catch (err) {
       console.error('Erreur envoi Vitfix:', err)
-      alert('❌ Erreur lors de l\'envoi via Vitfix. Veuillez réessayer.')
+      alert(`❌ ${t('devis.sendError')}`)
     } finally {
       setSendingVitfix(false)
     }
@@ -1387,6 +1617,11 @@ export default function DevisFactureForm({
     companyEmail,
     insuranceNumber,
     insuranceName,
+    insuranceCoverage,
+    insuranceType,
+    mediatorName,
+    mediatorUrl,
+    isHorsEtablissement,
     tvaEnabled,
     tvaNumber,
     clientName,
@@ -1399,9 +1634,14 @@ export default function DevisFactureForm({
     docValidity,
     prestationDate,
     executionDelay,
+    executionDelayDays: typeof executionDelayDays === 'number' ? executionDelayDays : 0,
+    executionDelayType,
     paymentMode,
     paymentDue,
+    paymentCondition,
     discount,
+    iban,
+    bic,
     lines,
     notes,
   })
@@ -1421,14 +1661,14 @@ export default function DevisFactureForm({
   return (
     <div className="animate-fadeIn">
       {/* Top header */}
-      <div className="bg-white px-6 lg:px-10 py-4 border-b-2 border-[#FFC107] shadow-sm">
+      <div className="bg-white px-6 lg:px-10 py-4 border-b border-[#34495E]">
         <div className="flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="text-gray-500 hover:text-gray-700 font-semibold transition">
-              ← Retour
+              ← {t('devis.back')}
             </button>
             <h1 className="text-xl font-semibold">
-              {docType === 'devis' ? '📄 Nouveau Devis' : '🧾 Nouvelle Facture'}
+              {docType === 'devis' ? `📄 ${t('devis.newDevis')}` : `🧾 ${t('devis.newFacture')}`}
               {docTitle && <span className="text-gray-500 font-normal ml-2">— {docTitle}</span>}
             </h1>
           </div>
@@ -1437,19 +1677,20 @@ export default function DevisFactureForm({
             {docType === 'devis' && (
               <button
                 onClick={() => {
-                  if (confirm('Convertir ce devis en facture ? Toutes les informations seront conservées.')) {
+                  if (confirm(t('devis.convertConfirm'))) {
                     setDocType('facture')
                     // Pré-remplir la date de prestation avec aujourd'hui si vide
                     if (!prestationDate) setPrestationDate(today)
                     // Ajouter la référence devis dans les notes
-                    if (!notes.includes('Réf. devis')) {
-                      setNotes((prev: string) => `Réf. devis : ${docNumber}${prev ? '\n' + prev : ''}`)
+                    const devisRefLabel = locale === 'pt' ? 'Ref. orçamento' : 'Réf. devis'
+                    if (!notes.includes('Réf. devis') && !notes.includes('Ref. orçamento')) {
+                      setNotes((prev: string) => `${devisRefLabel}: ${docNumber}${prev ? '\n' + prev : ''}`)
                     }
                   }
                 }}
                 className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-sm"
               >
-                🧾 Passer en facture
+                🧾 {t('devis.convertToFacture')}
               </button>
             )}
             <div className="flex gap-1 bg-[#F8F9FA] p-1 rounded-lg">
@@ -1457,13 +1698,13 @@ export default function DevisFactureForm({
                 onClick={() => setDocType('devis')}
                 className={`px-4 py-2 rounded-md font-semibold text-sm transition ${docType === 'devis' ? 'bg-[#FFC107] text-gray-900' : 'text-gray-600 hover:bg-gray-200'}`}
               >
-                📄 Devis
+                📄 {t('devis.devisTab')}
               </button>
               <button
                 onClick={() => setDocType('facture')}
                 className={`px-4 py-2 rounded-md font-semibold text-sm transition ${docType === 'facture' ? 'bg-[#FFC107] text-gray-900' : 'text-gray-600 hover:bg-gray-200'}`}
               >
-                🧾 Facture
+                🧾 {t('devis.factureTab')}
               </button>
             </div>
           </div>
@@ -1480,7 +1721,7 @@ export default function DevisFactureForm({
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <div className="flex justify-between items-center mb-4 pb-4 border-b-[3px] border-[#FFC107]">
                 <h2 className="text-2xl font-bold text-[#2C3E50]">
-                  {docType === 'devis' ? 'Nouveau Devis' : 'Nouvelle Facture'}
+                  {docType === 'devis' ? t('devis.newDevis') : t('devis.newFacture')}
                 </h2>
                 <span className="text-lg text-gray-500 font-semibold">{docNumber}</span>
               </div>
@@ -1488,14 +1729,14 @@ export default function DevisFactureForm({
               {/* Titre / Objet du document */}
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  🏷️ Titre / Objet du {docType === 'devis' ? 'devis' : 'de la facture'}
-                  <span className="text-gray-500 font-normal ml-1">(ex : Nettoyage parc, Rénovation cuisine…)</span>
+                  🏷️ {t('devis.titleLabel')} {docType === 'devis' ? t('devis.titleLabelDevis') : t('devis.titleLabelFacture')}
+                  <span className="text-gray-500 font-normal ml-1">{t('devis.titleHint')}</span>
                 </label>
                 <input
                   type="text"
                   value={docTitle}
                   onChange={e => setDocTitle(e.target.value)}
-                  placeholder="Ex : Nettoyage parc résidence Les Acacias"
+                  placeholder={t('devis.titlePlaceholder')}
                   className="w-full p-3 border-2 border-[#FFC107] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFC107]/30 text-[#2C3E50] font-medium text-lg placeholder:text-gray-300 placeholder:font-normal placeholder:text-sm"
                 />
               </div>
@@ -1503,17 +1744,16 @@ export default function DevisFactureForm({
               {/* Legal warning */}
               <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mb-4">
                 <p className="text-sm text-red-800">
-                  <strong>{'⚠️'} CONFORMITÉ LÉGALE FRANÇAISE</strong><br />
-                  Ce document respecte les obligations légales françaises (Code de commerce, Code de la consommation).
-                  Toutes les mentions obligatoires sont incluses.
+                  <strong>{'⚠️'} {t('devis.legalComplianceTitle')}</strong><br />
+                  {t('devis.legalComplianceDesc')}
                 </p>
               </div>
 
               {/* Quick import */}
-              {recentBookings.length > 0 && (
-                <div className="bg-gradient-to-r from-[#FFF9E6] to-[#FFE082] p-4 rounded-xl border-2 border-[#FFC107]">
-                  <h3 className="font-semibold mb-1 flex items-center gap-2">{'⚡'} Import rapide depuis intervention</h3>
-                  <p className="text-xs text-amber-700 mb-3">Pré-remplit automatiquement vos infos, celles du client et le motif — tout reste modifiable</p>
+              <div className="bg-gradient-to-r from-[#FFF9E6] to-[#FFE082] p-4 rounded-xl border-2 border-[#FFC107]">
+                <h3 className="font-semibold mb-1 flex items-center gap-2">{'⚡'} {t('devis.quickImportTitle')}</h3>
+                <p className="text-xs text-amber-700 mb-3">{t('devis.quickImportDesc')}</p>
+                {recentBookings.length > 0 ? (
                   <div className="relative">
                     <select
                       onChange={(e) => importFromBooking(e.target.value)}
@@ -1521,51 +1761,54 @@ export default function DevisFactureForm({
                       className="w-full p-3 border-2 border-[#FFC107] rounded-lg bg-white text-sm cursor-pointer focus:outline-none disabled:opacity-60"
                       defaultValue=""
                     >
-                      <option value="">Sélectionner une intervention récente...</option>
+                      <option value="">{t('devis.quickImportPlaceholder')}</option>
                       {recentBookings.map((b) => (
                         <option key={b.id} value={b.id}>
-                          {b.booking_date} {b.booking_time?.substring(0, 5)} – {b.services?.name || 'Prestation'} – {formatPrice(b.price_ttc)}
+                          {b.booking_date} {b.booking_time?.substring(0, 5)} – {b.services?.name || 'Prestation'} – {formatPrice(b.price_ttc ?? 0)}
                         </option>
                       ))}
                     </select>
                     {importingBooking && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-700 text-xs font-medium">
                         <span className="inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                        Chargement…
+                        {t('devis.loading')}
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-white/60 rounded-lg p-3 text-center">
+                    <p className="text-sm text-amber-700">{t('devis.quickImportNone')}</p>
+                    <p className="text-xs text-amber-600 mt-1">{t('devis.quickImportNoneHint')}</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* ─── Section: Entreprise ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'🏢'} Informations Entreprise (Prestataire)
+                {'🏢'} {t('devis.companySection')}
               </h3>
 
               {/* Verified company banner */}
               {loadingCompany ? (
                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex items-center gap-3">
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-[#FFC107] border-t-transparent"></div>
-                  <span className="text-sm text-gray-500">Chargement des informations officielles...</span>
+                  <span className="text-sm text-gray-500">{t('devis.loadingCompanyInfo')}</span>
                 </div>
               ) : isLegalLocked ? (
                 <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg mb-4">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-green-600 font-bold text-sm flex items-center gap-1">
-                      {'✅'} DONNÉES VÉRIFIÉES — Registre officiel des entreprises
+                      {'✅'} {t('devis.verifiedDataTitle')}
                     </span>
                   </div>
                   <p className="text-xs text-green-700">
-                    Les informations ci-dessous sont issues du registre national des entreprises (INSEE/SIRENE).
-                    Le statut juridique, la raison sociale, le SIRET et l&apos;adresse du siège social ne sont pas modifiables
-                    pour garantir la conformité légale. Pour toute modification, veuillez mettre à jour votre KBIS.
+                    {t('devis.verifiedDataDesc')}
                   </p>
                   {officialLegalForm && (
                     <p className="text-xs text-green-600 mt-1 font-medium">
-                      {'📋'} Source : {officialLegalForm} — SIRET {companySiret}
+                      {'📋'} {t('devis.verifiedDataSource')} : {officialLegalForm} — {localeFormats.taxIdLabel} {companySiret}
                       {companyNafLabel && ` — ${companyNafLabel}`}
                     </p>
                   )}
@@ -1573,8 +1816,7 @@ export default function DevisFactureForm({
               ) : (
                 <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg mb-4">
                   <p className="text-sm text-amber-800">
-                    <strong>{'⚠️'} Données non vérifiées</strong> — Les informations entreprise n&apos;ont pas pu être confirmées
-                    via le registre officiel. Remplissez manuellement.
+                    <strong>{'⚠️'} {t('devis.unverifiedDataTitle')}</strong> — {t('devis.unverifiedDataDesc')}
                   </p>
                 </div>
               )}
@@ -1582,29 +1824,27 @@ export default function DevisFactureForm({
               {/* Statut juridique — LOCKED if verified */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                  Statut juridique <span className="text-red-500">*</span>
+                  {t('devis.legalStatus')} <span className="text-red-500">*</span>
                   {isLegalLocked && (
                     <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                      {'🔒'} Vérifié
+                      {'🔒'} {t('devis.verified')}
                     </span>
                   )}
                 </label>
                 {isLegalLocked ? (
                   <div className="relative">
                     <div className={`${lockedFieldClass} flex items-center justify-between`}>
-                      <span className="font-medium">{officialLegalForm || getStatusLabel(companyStatus)}</span>
-                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">{'🔒'} Non modifiable</span>
+                      <span className="font-medium">{officialLegalForm || getStatusLabel(companyStatus, t)}</span>
+                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">{'🔒'} {t('devis.notEditable')}</span>
                     </div>
                     <input type="hidden" value={companyStatus} />
                   </div>
                 ) : (
                   <select value={companyStatus} onChange={(e) => setCompanyStatus(e.target.value)}
                     className={`${normalFieldClass} bg-white`}>
-                    <option value="ei">Entreprise Individuelle (EI)</option>
-                    <option value="ae">Auto-Entrepreneur</option>
-                    <option value="eurl">EURL</option>
-                    <option value="sarl">SARL</option>
-                    <option value="sas">SAS</option>
+                    {getCompanyStatuses(locale).map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
                   </select>
                 )}
               </div>
@@ -1613,10 +1853,10 @@ export default function DevisFactureForm({
                 {/* Nom commercial — LOCKED if verified */}
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                    Raison sociale <span className="text-red-500">*</span>
+                    {t('devis.companyName')} <span className="text-red-500">*</span>
                     {isLegalLocked && (
                       <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                        {'🔒'} Vérifié
+                        {'🔒'} {t('devis.verified')}
                       </span>
                     )}
                   </label>
@@ -1628,17 +1868,17 @@ export default function DevisFactureForm({
                 {/* SIRET — LOCKED if verified */}
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                    SIRET <span className="text-red-500">*</span>
+                    {localeFormats.taxIdLabel} <span className="text-red-500">*</span>
                     {isLegalLocked && (
                       <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                        {'🔒'} Vérifié
+                        {'🔒'} {t('devis.verified')}
                       </span>
                     )}
                   </label>
                   <input type="text" value={companySiret}
                     onChange={isLegalLocked ? undefined : (e) => setCompanySiret(e.target.value)}
                     readOnly={isLegalLocked}
-                    placeholder="123 456 789 00012"
+                    placeholder={t('devis.taxIdPlaceholder')}
                     className={isLegalLocked ? lockedFieldClass : normalFieldClass} />
                 </div>
               </div>
@@ -1654,10 +1894,10 @@ export default function DevisFactureForm({
               {/* Adresse siège social — LOCKED if verified */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                  Adresse siège social <span className="text-red-500">*</span>
+                  {t('devis.headOfficeAddress')} <span className="text-red-500">*</span>
                   {isLegalLocked && (
                     <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                      {'🔒'} Vérifié
+                      {'🔒'} {t('devis.verified')}
                     </span>
                   )}
                 </label>
@@ -1669,16 +1909,16 @@ export default function DevisFactureForm({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">RCS / RM <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.registryNumber')} <span className="text-red-500">*</span></label>
                   <input type="text" value={companyRCS} onChange={(e) => setCompanyRCS(e.target.value)}
-                    placeholder="Ex: RM Marseille 953951589"
+                    placeholder={t('devis.registryPlaceholder')}
                     className={normalFieldClass} />
                 </div>
-                {(companyStatus === 'sarl' || companyStatus === 'eurl' || companyStatus === 'sas') && (
+                {isSocieteStatus(companyStatus, locale) && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Capital social</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.shareCapital')}</label>
                     <input type="text" value={companyCapital} onChange={(e) => setCompanyCapital(e.target.value)}
-                      placeholder="Ex: 10000"
+                      placeholder={t('devis.shareCapitalPlaceholder')}
                       className={normalFieldClass} />
                   </div>
                 )}
@@ -1686,12 +1926,12 @@ export default function DevisFactureForm({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Téléphone <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.phone')} <span className="text-red-500">*</span></label>
                   <input type="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)}
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Email <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.email')} <span className="text-red-500">*</span></label>
                   <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)}
                     className={normalFieldClass} />
                 </div>
@@ -1699,55 +1939,55 @@ export default function DevisFactureForm({
 
               {/* Assurance décennale / RC Pro */}
               <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-lg mb-4">
-                <p className="text-sm text-blue-800 font-semibold">{'🛡️'} OBLIGATOIRE : Assurance Décennale / RC Pro (Loi Pinel 2014)</p>
-                <p className="text-xs text-blue-600 mt-1">Mention obligatoire sur tous les devis et factures BTP — Absence sanctionnée jusqu&apos;à 75 000 €</p>
+                <p className="text-sm text-blue-800 font-semibold">{'🛡️'} {t('devis.insuranceMandatoryTitle')}</p>
+                <p className="text-xs text-blue-600 mt-1">{t('devis.insuranceMandatoryDesc')}</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Type d&apos;assurance <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceType')} <span className="text-red-500">*</span></label>
                   <select value={insuranceType} onChange={(e) => setInsuranceType(e.target.value as 'rc_pro' | 'decennale' | 'both')}
                     className={normalFieldClass}>
-                    <option value="rc_pro">RC Professionnelle</option>
-                    <option value="decennale">Décennale</option>
-                    <option value="both">RC Pro + Décennale</option>
+                    <option value="rc_pro">{t('devis.insuranceRcPro')}</option>
+                    <option value="decennale">{t('devis.insuranceDecennale')}</option>
+                    <option value="both">{t('devis.insuranceBoth')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Nom assureur <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceName')} <span className="text-red-500">*</span></label>
                   <input type="text" value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)}
-                    placeholder="Ex: MAAF Assurances"
+                    placeholder={t('devis.insuranceNamePlaceholder')}
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">N° contrat <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceContractNumber')} <span className="text-red-500">*</span></label>
                   <input type="text" value={insuranceNumber} onChange={(e) => setInsuranceNumber(e.target.value)}
-                    placeholder="Ex: RC-2024-123456"
+                    placeholder={t('devis.insuranceContractPlaceholder')}
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Couverture géographique <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceCoverage')} <span className="text-red-500">*</span></label>
                   <input type="text" value={insuranceCoverage} onChange={(e) => setInsuranceCoverage(e.target.value)}
-                    placeholder="France métropolitaine"
+                    placeholder={t('devis.insuranceCoveragePlaceholder')}
                     className={normalFieldClass} />
                 </div>
               </div>
 
               {/* Médiateur de la consommation */}
               <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded-r-lg mb-4 mt-6">
-                <p className="text-sm text-purple-800 font-semibold">{'⚖️'} OBLIGATOIRE : Médiateur de la consommation (depuis 01/01/2016)</p>
-                <p className="text-xs text-purple-600 mt-1">Tout professionnel doit communiquer les coordonnées de son médiateur — Absence sanctionnée jusqu&apos;à 15 000 €</p>
+                <p className="text-sm text-purple-800 font-semibold">{'⚖️'} {t('devis.mediatorTitle')}</p>
+                <p className="text-xs text-purple-600 mt-1">{t('devis.mediatorDesc')}</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Nom du médiateur</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.mediatorName')}</label>
                   <input type="text" value={mediatorName} onChange={(e) => setMediatorName(e.target.value)}
-                    placeholder="Ex: Médiation de la consommation — CNPM"
+                    placeholder={t('devis.mediatorNamePlaceholder')}
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Site web du médiateur</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.mediatorUrl')}</label>
                   <input type="text" value={mediatorUrl} onChange={(e) => setMediatorUrl(e.target.value)}
-                    placeholder="Ex: https://www.cnpm-mediation.fr"
+                    placeholder={t('devis.mediatorUrlPlaceholder')}
                     className={normalFieldClass} />
                 </div>
               </div>
@@ -1756,7 +1996,7 @@ export default function DevisFactureForm({
             {/* ─── Section: TVA ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'💶'} Configuration TVA
+                {'💶'} {t('devis.taxConfigSection')}
               </h3>
               <div className="flex items-center gap-4 p-4 bg-[#F8F9FA] rounded-xl mb-4">
                 <button
@@ -1764,31 +2004,32 @@ export default function DevisFactureForm({
                     const next = !tvaEnabled
                     setTvaEnabled(next)
                     // Mettre à jour le taux TVA de toutes les lignes existantes
-                    setLines(prev => prev.map(l => ({ ...l, tvaRate: next ? 20 : 0 })))
+                    const rate = locale === 'pt' ? 23 : 20
+                    setLines(prev => prev.map(l => ({ ...l, tvaRate: next ? rate : 0 })))
                   }}
                   className={`w-14 h-7 rounded-full relative transition-colors flex-shrink-0 ${tvaEnabled ? 'bg-green-400' : 'bg-gray-300'}`}
                 >
                   <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${tvaEnabled ? 'translate-x-7' : 'translate-x-0.5'}`} />
                 </button>
                 <div>
-                  <div className="font-semibold">{tvaEnabled ? 'TVA activée' : 'Entreprise sans TVA'}</div>
+                  <div className="font-semibold">{tvaEnabled ? t('devis.taxEnabled') : t('devis.taxDisabled')}</div>
                   <div className="text-sm text-gray-500">
-                    {tvaEnabled ? 'TVA applicable sur les prestations' : 'Auto-entrepreneur ou franchise en base (art. 293 B du CGI)'}
+                    {tvaEnabled ? t('devis.taxEnabledDesc') : t('devis.taxDisabledDesc')}
                   </div>
                 </div>
               </div>
-              {(companyStatus === 'ae' || companyStatus === 'ei') && (
+              {isSmallBusinessStatus(companyStatus, locale) && (
                 <div className={`text-xs p-3 rounded-lg mb-4 ${tvaEnabled ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
                   {tvaEnabled
-                    ? '⚠️ En tant qu\'auto-entrepreneur/EI, vous ne facturez TVA que si vous avez dépassé le seuil de franchise (37 500 € pour les services, 85 000 € pour la vente). Vérifiez votre situation.'
-                    : '✅ TVA non applicable — mention « TVA non applicable, art. 293 B du CGI » ajoutée automatiquement sur vos documents.'}
+                    ? `⚠️ ${t('devis.taxThresholdWarning')}`
+                    : `✅ ${t('devis.taxExemptInfo')}`}
                 </div>
               )}
               {tvaEnabled && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Numéro de TVA intracommunautaire <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.taxNumberLabel')} <span className="text-red-500">*</span></label>
                   <input type="text" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)}
-                    placeholder="Ex: FR12345678900"
+                    placeholder={t('devis.taxNumberPlaceholder')}
                     className={normalFieldClass} />
                 </div>
               )}
@@ -1797,52 +2038,52 @@ export default function DevisFactureForm({
             {/* ─── Section: Client ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'👤'} Informations Client
+                {'👤'} {t('devis.clientSection')}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Nom / Raison sociale <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientName')} <span className="text-red-500">*</span></label>
                   <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Ex: Marie Dubois"
+                    placeholder={t('devis.clientNamePlaceholder')}
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientEmail')}</label>
                   <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
-                    placeholder="marie.dubois@email.fr"
+                    placeholder={locale === 'pt' ? 'maria.silva@email.pt' : 'marie.dubois@email.fr'}
                     className={normalFieldClass} />
                 </div>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Adresse complète (siège / domicile) <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientAddress')} <span className="text-red-500">*</span></label>
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
-                  placeholder="12 rue de la Paix, 75002 Paris"
+                  placeholder={t('devis.clientAddressPlaceholder')}
                   className={normalFieldClass} />
               </div>
               {/* Adresse d'intervention — apparaît dès qu'un SIRET client est renseigné (pro/syndic) */}
               {clientSiret.trim().length > 0 && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                    📍 Adresse d&apos;intervention
-                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">Client pro</span>
+                    📍 {t('devis.interventionAddress')}
+                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">{t('devis.interventionAddressClientPro')}</span>
                   </label>
                   <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
-                    placeholder="Adresse du chantier / lieu d'intervention (si différent du siège)"
+                    placeholder={t('devis.interventionAddressPlaceholder')}
                     className={normalFieldClass} />
-                  <p className="text-xs text-gray-400 mt-1">Pour les syndics et professionnels, le lieu d&apos;intervention peut différer de l&apos;adresse du siège social</p>
+                  <p className="text-xs text-gray-400 mt-1">{t('devis.interventionAddressHint')}</p>
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Téléphone</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientPhone')}</label>
                   <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
-                    placeholder="06 12 34 56 78"
+                    placeholder={t('devis.clientPhonePlaceholder')}
                     className={normalFieldClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">SIRET (si pro / syndic)</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientTaxId')}</label>
                   <input type="text" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)}
-                    placeholder="Optionnel — renseigner pour afficher l'adresse d'intervention"
+                    placeholder={t('devis.clientTaxIdPlaceholder')}
                     className={normalFieldClass} />
                 </div>
               </div>
@@ -1851,34 +2092,34 @@ export default function DevisFactureForm({
             {/* ─── Section: Document Info ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📋'} Informations Document
+                {'📋'} {t('devis.docInfoSection')}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Date d&apos;émission <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.issueDate')} <span className="text-red-500">*</span></label>
                   <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)}
                     className={normalFieldClass} />
-                  {docType === 'facture' && <p className="text-[10px] text-gray-400 mt-1">Date à laquelle la facture est créée (aujourd&apos;hui)</p>}
+                  {docType === 'facture' && <p className="text-[10px] text-gray-400 mt-1">{t('devis.issueDateFactureHint')}</p>}
                 </div>
                 {docType === 'devis' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Validité (jours) <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.validityDays')} <span className="text-red-500">*</span></label>
                     <input type="number" value={docValidity} onChange={(e) => setDocValidity(parseInt(e.target.value) || 30)}
                       className={normalFieldClass} />
                   </div>
                 )}
                 {docType === 'facture' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Date de prestation <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.prestationDate')} <span className="text-red-500">*</span></label>
                     <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
                       className={normalFieldClass} />
-                    <p className="text-[10px] text-gray-400 mt-1">Date à laquelle les travaux ont été réalisés (peut être différente)</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{t('devis.prestationDateHint')}</p>
                   </div>
                 )}
               </div>
               {docType === 'devis' && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-600 mb-2">Délai d&apos;exécution <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">{t('devis.executionDelay')} <span className="text-red-500">*</span></label>
                   <div className="flex gap-3 items-center">
                     <input type="number" min="0" value={executionDelayDays || ''} onChange={(e) => {
                       const v = parseInt(e.target.value) || 0
@@ -1893,12 +2134,12 @@ export default function DevisFactureForm({
                       if (executionDelayDays > 0) setExecutionDelay(`${executionDelayDays} jour${executionDelayDays > 1 ? 's' : ''} ${t === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
                     }}
                       className="flex-1 p-3 border border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20">
-                      <option value="ouvres">jours ouvrés</option>
-                      <option value="calendaires">jours calendaires</option>
+                      <option value="ouvres">{t('devis.workingDays')}</option>
+                      <option value="calendaires">{t('devis.calendarDays')}</option>
                     </select>
                   </div>
                   {executionDelayDays > 0 && (
-                    <p className="text-xs text-gray-500 mt-1.5">→ {executionDelay} après acceptation du devis</p>
+                    <p className="text-xs text-gray-500 mt-1.5">→ {executionDelay} {t('devis.afterAcceptance')}</p>
                   )}
                 </div>
               )}
@@ -1916,12 +2157,12 @@ export default function DevisFactureForm({
                     </button>
                     <div>
                       <div className="font-semibold text-sm text-orange-900">
-                        {isHorsEtablissement ? '📋 Droit de rétractation 14 jours inclus' : 'Droit de rétractation désactivé'}
+                        {isHorsEtablissement ? `📋 ${t('devis.withdrawalRightEnabled')}` : t('devis.withdrawalRightDisabled')}
                       </div>
                       <div className="text-xs text-orange-700 mt-0.5">
                         {isHorsEtablissement
-                          ? 'Contrat hors établissement (domicile du client, chantier, démarchage, à distance) — Mention obligatoire art. L. 221-18 C. conso.'
-                          : 'Activez si le devis est signé hors de vos locaux professionnels. Attention : l\'absence de cette mention prolonge le délai de rétractation à 12 mois + 14 jours.'}
+                          ? t('devis.withdrawalRightEnabledDesc')
+                          : t('devis.withdrawalRightDisabledDesc')}
                       </div>
                     </div>
                   </div>
@@ -1932,7 +2173,7 @@ export default function DevisFactureForm({
             {/* ─── Section: Prestations ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'🔧'} Détail des Prestations
+                {'🔧'} {t('devis.prestationsSection')}
               </h3>
 
               {/* Table header */}
@@ -1940,12 +2181,12 @@ export default function DevisFactureForm({
                 <table className="w-full border-collapse min-w-[600px]">
                   <thead>
                     <tr className="bg-[#2C3E50] text-white">
-                      <th className="text-left p-3 font-semibold text-sm rounded-tl-lg" style={{ width: '30%' }}>Désignation</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '8%' }}>Qté</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>Unité</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '14%' }}>{tvaEnabled ? 'Prix U. HT' : 'Prix U. TTC'}</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>TVA %</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '18%' }}>{tvaEnabled ? 'Total HT' : 'Total TTC'}</th>
+                      <th className="text-left p-3 font-semibold text-sm rounded-tl-lg" style={{ width: '30%' }}>{t('devis.designation')}</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '8%' }}>{t('devis.qty')}</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>{t('devis.unit')}</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>{localeFormats.taxLabel} %</th>
+                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '18%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
                       <th className="p-3 rounded-tr-lg" style={{ width: '8%' }}></th>
                     </tr>
                   </thead>
@@ -1967,18 +2208,18 @@ export default function DevisFactureForm({
                                 className="w-full p-2 border border-gray-200 rounded-md text-sm focus:border-[#FFC107] focus:outline-none bg-white"
                                 defaultValue=""
                               >
-                                <option value="">Choisir un motif...</option>
+                                <option value="">{t('devis.selectMotif')}</option>
                                 {services.map((s) => (
                                   <option key={s.id} value={s.id}>
-                                    {s.name} - {formatPrice(s.price_ht)}
+                                    {s.name} - {formatPrice(s.price_ht ?? 0)}
                                   </option>
                                 ))}
-                                <option value="custom">{'➕'} Saisie libre</option>
+                                <option value="custom">{'➕'} {t('devis.freeEntry')}</option>
                               </select>
                               {line.description === '' && (
                                 <input
                                   type="text"
-                                  placeholder="Saisie libre..."
+                                  placeholder={t('devis.freeEntryPlaceholder')}
                                   onChange={(e) => updateLine(line.id, 'description', e.target.value)}
                                   className="w-full p-2 border border-gray-200 rounded-md text-sm mt-1 focus:border-[#FFC107] focus:outline-none"
                                   style={{ display: 'none' }}
@@ -2002,14 +2243,15 @@ export default function DevisFactureForm({
                             onChange={(e) => updateLine(line.id, 'unit', e.target.value)}
                             className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none"
                           >
-                            <option value="u">Unité</option>
-                            <option value="m²">m²</option>
-                            <option value="m³">m³</option>
-                            <option value="ml">ml</option>
-                            <option value="h">Heure</option>
-                            <option value="forfait">Forfait</option>
-                            <option value="kg">kg</option>
-                            <option value="lot">Lot</option>
+                            <option value="u">{t('devis.unitOptions.u')}</option>
+                            <option value="m²">{t('devis.unitOptions.m2')}</option>
+                            <option value="m³">{t('devis.unitOptions.m3')}</option>
+                            <option value="ml">{t('devis.unitOptions.ml')}</option>
+                            <option value="h">{t('devis.unitOptions.h')}</option>
+                            <option value="forfait">{t('devis.unitOptions.forfait')}</option>
+                            <option value="kg">{t('devis.unitOptions.kg')}</option>
+                            <option value="tonne">{t('devis.unitOptions.tonne')}</option>
+                            <option value="lot">{t('devis.unitOptions.lot')}</option>
                           </select>
                         </td>
                         <td className="p-2">
@@ -2028,15 +2270,26 @@ export default function DevisFactureForm({
                             disabled={!tvaEnabled}
                             className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none disabled:opacity-60"
                           >
-                            <option value={20}>20%</option>
-                            <option value={10}>10%</option>
-                            <option value={5.5}>5,5%</option>
-                            <option value={0}>0%</option>
+                            {locale === 'pt' ? (
+                              <>
+                                <option value={23}>23%</option>
+                                <option value={13}>13%</option>
+                                <option value={6}>6%</option>
+                                <option value={0}>0%</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value={20}>20%</option>
+                                <option value={10}>10%</option>
+                                <option value={5.5}>5,5%</option>
+                                <option value={0}>0%</option>
+                              </>
+                            )}
                           </select>
                         </td>
                         <td className="p-2">
                           <div className="p-2 bg-gray-50 rounded-md text-sm font-semibold text-right">
-                            {line.totalHT.toFixed(2)} €
+                            {localeFormats.currencyFormat(line.totalHT)}
                           </div>
                         </td>
                         <td className="p-2">
@@ -2057,7 +2310,7 @@ export default function DevisFactureForm({
                 onClick={addLine}
                 className="mt-4 w-full p-3 bg-white border-2 border-dashed border-gray-300 rounded-lg text-gray-500 font-semibold hover:border-[#FFC107] hover:text-[#FFC107] hover:bg-[#FFF9E6] transition"
               >
-                + Ajouter une ligne
+                {t('devis.addLine')}
               </button>
             </div>
 
@@ -2065,62 +2318,62 @@ export default function DevisFactureForm({
             {docType === 'facture' && (
               <div className="bg-white rounded-2xl p-6 shadow-sm">
                 <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                  {'💳'} Conditions de Paiement (OBLIGATOIRE)
+                  {'💳'} {t('devis.paymentSection')}
                 </h3>
                 <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg mb-4">
-                  <p className="text-xs text-amber-800">Ces mentions sont obligatoires sur toute facture (art. L. 441-3 Code de commerce). L&apos;absence de pénalités de retard ou d&apos;indemnité de recouvrement est automatiquement ajoutée.</p>
+                  <p className="text-xs text-amber-800">{t('devis.paymentSectionDesc')}</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Conditions de paiement <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.paymentCondition')} <span className="text-red-500">*</span></label>
                     <select value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)}
                       className={`${normalFieldClass} bg-white`}>
-                      <option value="Paiement comptable à réception de facture">Paiement comptant à réception</option>
-                      <option value="Paiement à 30 jours fin de mois">30 jours fin de mois</option>
-                      <option value="Paiement à 30 jours date de facture">30 jours date de facture</option>
-                      <option value="Paiement à 45 jours fin de mois">45 jours fin de mois</option>
-                      <option value="Paiement à 60 jours date de facture">60 jours date de facture</option>
-                      <option value="Paiement en 2 fois : 50% à la commande, solde à la réception">50% / 50%</option>
+                      <option value={t('devis.paymentCondValues.immediate')}>{t('devis.paymentCondOptions.immediate')}</option>
+                      <option value={t('devis.paymentCondValues.30end')}>{t('devis.paymentCondOptions.30end')}</option>
+                      <option value={t('devis.paymentCondValues.30date')}>{t('devis.paymentCondOptions.30date')}</option>
+                      <option value={t('devis.paymentCondValues.45end')}>{t('devis.paymentCondOptions.45end')}</option>
+                      <option value={t('devis.paymentCondValues.60date')}>{t('devis.paymentCondOptions.60date')}</option>
+                      <option value={t('devis.paymentCondValues.5050')}>{t('devis.paymentCondOptions.5050')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Mode de règlement <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.paymentMode')} <span className="text-red-500">*</span></label>
                     <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}
                       className={`${normalFieldClass} bg-white`}>
-                      <option value="Virement bancaire">Virement bancaire</option>
-                      <option value="Carte bancaire">Carte bancaire</option>
-                      <option value="Chèque">Chèque</option>
-                      <option value="Espèces">Espèces</option>
-                      <option value="Virement bancaire + Chèque">Virement + Chèque</option>
+                      <option value={t('devis.paymentModeOptions.transfer')}>{t('devis.paymentModeOptions.transfer')}</option>
+                      <option value={t('devis.paymentModeOptions.card')}>{t('devis.paymentModeOptions.card')}</option>
+                      <option value={t('devis.paymentModeOptions.cheque')}>{t('devis.paymentModeOptions.cheque')}</option>
+                      <option value={t('devis.paymentModeOptions.cash')}>{t('devis.paymentModeOptions.cash')}</option>
+                      <option value={`${t('devis.paymentModeOptions.transfer')} + ${t('devis.paymentModeOptions.cheque')}`}>{t('devis.paymentModeOptions.transferCheque')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Date limite de paiement <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.paymentDue')} <span className="text-red-500">*</span></label>
                     <input type="date" value={paymentDue} onChange={(e) => setPaymentDue(e.target.value)}
                       className={normalFieldClass} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">IBAN</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.iban')}</label>
                     <input type="text" value={iban} onChange={(e) => setIban(e.target.value)}
-                      placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
+                      placeholder={t('devis.ibanPlaceholder')}
                       className={normalFieldClass} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">BIC</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.bic')}</label>
                     <input type="text" value={bic} onChange={(e) => setBic(e.target.value)}
-                      placeholder="BNPAFRPP"
+                      placeholder={t('devis.bicPlaceholder')}
                       className={normalFieldClass} />
-                    <p className="text-[10px] text-gray-400 mt-1">IBAN + BIC recommandés si virement — évite les retards de paiement</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{t('devis.bicHint')}</p>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Escompte si paiement anticipé</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.discountLabel')}</label>
                   <input type="text" value={discount} onChange={(e) => setDiscount(e.target.value)}
-                    placeholder="Ex: 2% si paiement sous 8 jours"
+                    placeholder={t('devis.discountPlaceholder')}
                     className={normalFieldClass} />
                 </div>
               </div>
@@ -2129,13 +2382,13 @@ export default function DevisFactureForm({
             {/* ─── Section: Notes ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📝'} Notes complémentaires
+                {'📝'} {t('devis.notesSection')}
               </h3>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                placeholder="Notes optionnelles..."
+                placeholder={t('devis.notesPlaceholder')}
                 className={`${normalFieldClass} resize-none`}
               />
             </div>
@@ -2143,7 +2396,7 @@ export default function DevisFactureForm({
             {/* ─── Section: Joindre un rapport ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📋'} Joindre un rapport d&apos;intervention
+                {'📋'} {t('devis.attachReportSection')}
               </h3>
               {availableRapports.length > 0 ? (
                 <div className="space-y-3">
@@ -2152,10 +2405,10 @@ export default function DevisFactureForm({
                     onChange={(e) => setAttachedRapportId(e.target.value || null)}
                     className={normalFieldClass}
                   >
-                    <option value="">— Aucun rapport joint —</option>
+                    <option value="">{t('devis.noReportAttached')}</option>
                     {availableRapports.map(r => (
                       <option key={r.id} value={r.id}>
-                        {r.rapportNumber} — {r.interventionDate ? new Date(r.interventionDate).toLocaleDateString('fr-FR') : 'N/D'} — {r.motif || r.clientName || 'Intervention'}
+                        {r.rapportNumber} — {r.interventionDate ? new Date(r.interventionDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : 'N/D'} — {r.motif || r.clientName || 'Intervention'}
                       </option>
                     ))}
                   </select>
@@ -2169,9 +2422,9 @@ export default function DevisFactureForm({
                           attachedRapport.status === 'a_reprendre' ? 'bg-amber-100 text-amber-700' :
                           'bg-purple-100 text-purple-700'
                         }`}>
-                          {attachedRapport.status === 'termine' ? 'Terminé' :
-                           attachedRapport.status === 'en_cours' ? 'En cours' :
-                           attachedRapport.status === 'a_reprendre' ? 'À reprendre' : 'Sous garantie'}
+                          {attachedRapport.status === 'termine' ? t('devis.reportStatus.termine') :
+                           attachedRapport.status === 'en_cours' ? t('devis.reportStatus.en_cours') :
+                           attachedRapport.status === 'a_reprendre' ? t('devis.reportStatus.a_reprendre') : t('devis.reportStatus.sous_garantie')}
                         </span>
                       </div>
                       {attachedRapport.motif && (
@@ -2179,7 +2432,7 @@ export default function DevisFactureForm({
                       )}
                       <div className="text-xs text-amber-600 space-y-0.5">
                         {attachedRapport.interventionDate && (
-                          <p>{'📅'} {new Date(attachedRapport.interventionDate).toLocaleDateString('fr-FR')}
+                          <p>{'📅'} {new Date(attachedRapport.interventionDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
                             {attachedRapport.startTime && ` à ${attachedRapport.startTime}`}
                             {attachedRapport.endTime && ` → ${attachedRapport.endTime}`}
                           </p>
@@ -2193,14 +2446,14 @@ export default function DevisFactureForm({
                         onClick={() => setAttachedRapportId(null)}
                         className="text-xs text-red-500 hover:text-red-700 mt-1"
                       >
-                        Retirer le rapport
+                        {t('devis.removeReport')}
                       </button>
                     </div>
                   )}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 italic">
-                  Aucun rapport disponible. Créez d&apos;abord un rapport dans l&apos;onglet Rapports.
+                  {t('devis.noReportAvailable')}
                 </p>
               )}
             </div>
@@ -2208,13 +2461,13 @@ export default function DevisFactureForm({
             {/* ─── Section: Photos chantier ─── */}
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📸'} Joindre des photos chantier
+                {'📸'} {t('devis.attachPhotosSection')}
               </h3>
               <p className="text-xs text-gray-500 mb-3">
-                Photos géolocalisées et horodatées prises depuis l&apos;application mobile. Elles seront ajoutées en annexe du document PDF.
+                {t('devis.attachPhotosDesc')}
               </p>
               {photosLoading ? (
-                <p className="text-sm text-gray-400 italic">Chargement des photos...</p>
+                <p className="text-sm text-gray-400 italic">{t('devis.loadingPhotos')}</p>
               ) : availablePhotos.length > 0 ? (
                 <div className="space-y-3">
                   {/* Filter by booking if a linked booking exists */}
@@ -2224,7 +2477,7 @@ export default function DevisFactureForm({
                       onClick={() => setSelectedPhotoIds(new Set())}
                       className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
                     >
-                      Tout désélectionner ({selectedPhotoIds.size})
+                      {t('devis.deselectAll')} ({selectedPhotoIds.size})
                     </button>
                     {linkedBookingId && (
                       <button
@@ -2235,7 +2488,7 @@ export default function DevisFactureForm({
                         }}
                         className="text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition"
                       >
-                        Sélectionner photos du chantier lié
+                        {t('devis.selectLinkedPhotos')}
                       </button>
                     )}
                     <button
@@ -2243,7 +2496,7 @@ export default function DevisFactureForm({
                       onClick={() => setSelectedPhotoIds(new Set(availablePhotos.map(p => p.id)))}
                       className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition"
                     >
-                      Tout sélectionner
+                      {t('devis.selectAll')}
                     </button>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
@@ -2257,7 +2510,7 @@ export default function DevisFactureForm({
                             : 'border-gray-200 hover:border-gray-400'
                         }`}
                       >
-                        <img src={photo.url} alt={photo.label || 'Photo'} className="w-full h-20 object-cover" />
+                        <NextImage src={photo.url} alt={photo.label || 'Photo'} width={200} height={80} className="w-full h-20 object-cover" unoptimized />
                         {selectedPhotoIds.has(photo.id) && (
                           <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
                             <span className="text-white text-xs font-bold">✓</span>
@@ -2265,7 +2518,7 @@ export default function DevisFactureForm({
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1 py-0.5">
                           <p className="text-[9px] text-white truncate">
-                            {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString('fr-FR') : ''}
+                            {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : ''}
                             {photo.lat && photo.lng ? ' 📍' : ''}
                           </p>
                         </div>
@@ -2274,13 +2527,13 @@ export default function DevisFactureForm({
                   </div>
                   {selectedPhotoIds.size > 0 && (
                     <p className="text-sm text-amber-700 font-medium">
-                      {'📎'} {selectedPhotoIds.size} photo{selectedPhotoIds.size > 1 ? 's' : ''} sélectionnée{selectedPhotoIds.size > 1 ? 's' : ''} — sera{selectedPhotoIds.size > 1 ? 'ont' : ''} jointe{selectedPhotoIds.size > 1 ? 's' : ''} en annexe du PDF
+                      {'📎'} {selectedPhotoIds.size} {t('devis.photosSelected')}
                     </p>
                   )}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 italic">
-                  Aucune photo disponible. Prenez des photos depuis l&apos;application mobile (onglet Documents {'→'} Photos Chantier).
+                  {t('devis.noPhotos')}
                 </p>
               )}
             </div>
@@ -2288,7 +2541,7 @@ export default function DevisFactureForm({
             {/* ─── Legal Mentions ─── */}
             <div className="bg-[#F8F9FA] rounded-xl p-4">
               <p className="text-sm text-gray-600 leading-relaxed">
-                <strong className="text-gray-800">Mentions légales automatiques :</strong><br />
+                <strong className="text-gray-800">{t('devis.legalMentionsLabel')}</strong><br />
                 {getLegalMentions().map((m, i) => (
                   <span key={i}>{'📋'} {m}<br /></span>
                 ))}
@@ -2300,21 +2553,21 @@ export default function DevisFactureForm({
           <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
             {/* Totals */}
             <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4">Résumé</h3>
+              <h3 className="font-bold text-[#2C3E50] mb-4">{t('devis.summary')}</h3>
               <div className="space-y-3">
                 <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">{tvaEnabled ? 'Sous-total HT' : 'Sous-total'}</span>
-                  <span className="font-semibold">{subtotalHT.toFixed(2)} €</span>
+                  <span className="text-gray-600">{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
+                  <span className="font-semibold">{localeFormats.currencyFormat(subtotalHT)}</span>
                 </div>
                 {tvaEnabled && (
                   <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">TVA</span>
-                    <span className="font-semibold">{totalTVA.toFixed(2)} €</span>
+                    <span className="text-gray-600">{t('devis.taxLabel')}</span>
+                    <span className="font-semibold">{localeFormats.currencyFormat(totalTVA)}</span>
                   </div>
                 )}
                 <div className={`flex justify-between p-4 -mx-5 -mb-5 rounded-b-2xl text-lg font-bold ${tvaEnabled ? 'bg-green-500 text-white' : 'bg-[#FFC107] text-gray-900'}`}>
-                  <span>{tvaEnabled ? 'TOTAL TTC' : 'TOTAL NET'}</span>
-                  <span>{(tvaEnabled ? totalTTC : subtotalHT).toFixed(2)} €</span>
+                  <span>{tvaEnabled ? t('devis.totalTTC') : t('devis.totalNet')}</span>
+                  <span>{localeFormats.currencyFormat(tvaEnabled ? totalTTC : subtotalHT)}</span>
                 </div>
               </div>
             </div>
@@ -2323,19 +2576,19 @@ export default function DevisFactureForm({
             {isLegalLocked && (
               <div className="bg-white rounded-2xl p-5 shadow-sm">
                 <h3 className="font-bold text-[#2C3E50] mb-3 flex items-center gap-2">
-                  {'🏢'} Entreprise vérifiée
+                  {'🏢'} {t('devis.verifiedCompany')}
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 flex-shrink-0">{'📋'}</span>
                     <div>
                       <p className="font-semibold text-gray-800">{companyName}</p>
-                      <p className="text-gray-500 text-xs">{officialLegalForm || getStatusLabel(companyStatus)}</p>
+                      <p className="text-gray-500 text-xs">{officialLegalForm || getStatusLabel(companyStatus, t)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-gray-500">{'🆔'}</span>
-                    <span className="text-gray-600">SIRET: {companySiret}</span>
+                    <span className="text-gray-600">{localeFormats.taxIdLabel}: {companySiret}</span>
                   </div>
                   {companySiren && (
                     <div className="flex items-center gap-2">
@@ -2359,46 +2612,46 @@ export default function DevisFactureForm({
 
             {/* Compliance */}
             <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-3">Conformité légale</h3>
+              <h3 className="font-bold text-[#2C3E50] mb-3">{t('devis.legalCompliance')}</h3>
               <div className="text-xs text-gray-500 mb-3 bg-gray-50 px-3 py-1.5 rounded-lg">
-                Statut : <span className="font-semibold text-gray-700">{getStatusLabel(companyStatus)}</span>
+                {t('devis.statusLabel')} : <span className="font-semibold text-gray-700">{getStatusLabel(companyStatus, t)}</span>
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center">
-                  <span>SIRET</span>
+                  <span>{t('devis.complianceSiret')}</span>
                   <span className={compliance.siret ? 'text-green-500' : 'text-red-500'}>{compliance.siret ? '✅' : '❌'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>RCS/RM</span>
+                  <span>{t('devis.complianceRcs')}</span>
                   <span className={compliance.rcs ? 'text-green-500' : 'text-red-500'}>{compliance.rcs ? '✅' : '❌'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>Assurance RC Pro</span>
+                  <span>{t('devis.complianceInsurance')}</span>
                   <span className={compliance.insurance ? 'text-green-500' : 'text-red-500'}>{compliance.insurance ? '✅' : '❌'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>Client renseigné</span>
+                  <span>{t('devis.complianceClient')}</span>
                   <span className={compliance.client ? 'text-green-500' : 'text-red-500'}>{compliance.client ? '✅' : '❌'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>Prestations détaillées</span>
+                  <span>{t('devis.complianceLines')}</span>
                   <span className={compliance.lines ? 'text-green-500' : 'text-red-500'}>{compliance.lines ? '✅' : '❌'}</span>
                 </div>
                 {'capital' in compliance && (
                   <div className="flex justify-between items-center">
-                    <span>Capital social</span>
+                    <span>{t('devis.complianceCapital')}</span>
                     <span className={(compliance as any).capital ? 'text-green-500' : 'text-red-500'}>{(compliance as any).capital ? '✅' : '❌'}</span>
                   </div>
                 )}
                 {'tvaNumber' in compliance && (
                   <div className="flex justify-between items-center">
-                    <span>N° TVA intracom.</span>
+                    <span>{t('devis.complianceTva')}</span>
                     <span className={(compliance as any).tvaNumber ? 'text-green-500' : 'text-red-500'}>{(compliance as any).tvaNumber ? '✅' : '❌'}</span>
                   </div>
                 )}
                 {isLegalLocked && (
                   <div className="flex justify-between items-center">
-                    <span>Données entreprise vérifiées</span>
+                    <span>{t('devis.complianceVerified')}</span>
                     <span className="text-green-500">✅</span>
                   </div>
                 )}
@@ -2407,13 +2660,13 @@ export default function DevisFactureForm({
 
             {/* Actions */}
             <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4">Actions</h3>
+              <h3 className="font-bold text-[#2C3E50] mb-4">{t('devis.actions')}</h3>
               <div className="space-y-3">
                 <button
                   onClick={handleSaveDraft}
                   className="w-full p-3 bg-white text-gray-600 border-2 border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2"
                 >
-                  {'💾'} Enregistrer brouillon
+                  {'💾'} {t('devis.saveDraft')}
                 </button>
                 <button
                   onClick={handleGeneratePDF}
@@ -2421,9 +2674,9 @@ export default function DevisFactureForm({
                   className="w-full p-3 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
                 >
                   {pdfLoading ? (
-                    <><span className="inline-block animate-spin">⏳</span> Génération PDF...</>
+                    <><span className="inline-block animate-spin">⏳</span> {t('devis.generatingPdf')}</>
                   ) : (
-                    <><span>📄</span> Télécharger PDF</>
+                    <><span>📄</span> {t('devis.downloadPdf')}</>
                   )}
                 </button>
                 <button
@@ -2431,7 +2684,7 @@ export default function DevisFactureForm({
                   disabled={!allCompliant}
                   className="w-full p-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {'✉️'} Valider et envoyer
+                  {'✉️'} {t('devis.validateAndSend')}
                 </button>
               </div>
             </div>
@@ -2447,10 +2700,10 @@ export default function DevisFactureForm({
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-5">
               <h3 className="text-lg font-bold text-gray-900">
-                {showSendModal === 'pdf' ? '✅ PDF téléchargé !' : `✅ ${docType === 'devis' ? 'Devis' : 'Facture'} conforme`}
+                {showSendModal === 'pdf' ? `✅ ${t('devis.sendModalPdfTitle')}` : `✅ ${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${t('devis.sendModalValidateTitle')}`}
               </h3>
               <p className="text-gray-700 text-sm mt-1">
-                Comment souhaitez-vous envoyer ce document au client ?
+                {t('devis.sendModalQuestion')}
               </p>
             </div>
             <div className="p-5 space-y-3">
@@ -2464,7 +2717,7 @@ export default function DevisFactureForm({
                     <span className="text-white text-xl">{'✉️'}</span>
                   </div>
                   <div className="text-left">
-                    <div className="font-semibold text-blue-900">Envoyer par email</div>
+                    <div className="font-semibold text-blue-900">{t('devis.sendViaEmail')}</div>
                     <div className="text-xs text-blue-600 truncate max-w-[200px]">{clientEmail}</div>
                   </div>
                   <span className="ml-auto text-blue-400 group-hover:translate-x-1 transition-transform">{'→'}</span>
@@ -2492,12 +2745,12 @@ export default function DevisFactureForm({
                 </div>
                 <div className="text-left">
                   <div className={`font-semibold ${linkedBookingId ? 'text-amber-900' : 'text-gray-500'}`}>
-                    {sendingVitfix ? 'Envoi en cours...' : 'Envoyer via Vitfix'}
+                    {sendingVitfix ? t('devis.sending') : t('devis.sendViaVitfix')}
                   </div>
                   <div className={`text-xs ${linkedBookingId ? 'text-amber-600' : 'text-gray-500'}`}>
                     {linkedBookingId
-                      ? 'Message direct dans le canal client'
-                      : 'Importez depuis une intervention'}
+                      ? t('devis.sendViaVitfixDesc')
+                      : t('devis.sendViaVitfixImport')}
                   </div>
                 </div>
                 {linkedBookingId && !sendingVitfix && (
@@ -2510,7 +2763,7 @@ export default function DevisFactureForm({
                 onClick={() => setShowSendModal(null)}
                 className="w-full p-3 text-gray-500 hover:text-gray-700 text-sm font-medium transition"
               >
-                Annuler
+                {t('devis.cancel')}
               </button>
             </div>
           </div>

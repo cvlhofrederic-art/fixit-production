@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // GET /api/artisan-clients?client_id=xxx
 //   → Returns user info (name, phone, email) for a single client — used by artisan to pre-fill devis
@@ -12,12 +13,7 @@ export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const ip = getClientIP(request)
-  if (!checkRateLimit(`artisan_clients_${ip}`, 60, 60_000)) return rateLimitResponse()
-
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  if (!(await checkRateLimit(`artisan_clients_${ip}`, 60, 60_000))) return rateLimitResponse()
 
   // ── Mode 1: single client lookup for devis pre-fill ──
   // SÉCURITÉ : vérifier que le client a un booking avec l'artisan connecté (anti-IDOR)
@@ -86,6 +82,7 @@ export async function GET(request: NextRequest) {
       .eq('artisan_id', artisanId)
       .not('client_id', 'is', null)
       .order('booking_date', { ascending: false })
+      .limit(500)
 
     if (bookingsError) {
       return NextResponse.json({ error: 'Erreur bookings' }, { status: 500 })
@@ -99,40 +96,45 @@ export async function GET(request: NextRequest) {
       byClient.get(b.client_id)!.push(b)
     }
 
-    // Fetch user info for each unique client_id (batch)
+    // Fetch all client user info in parallel (avoids N+1 sequential queries)
+    const clientIds = Array.from(byClient.keys())
+    const userResults = await Promise.all(
+      clientIds.map(cId =>
+        supabaseAdmin.auth.admin.getUserById(cId)
+          .then(({ data }) => ({ cId, clientUser: data.user }))
+          .catch(() => ({ cId, clientUser: null }))
+      )
+    )
+
     const clients: any[] = []
-    for (const [cId, cBookings] of byClient.entries()) {
-      try {
-        const { data: { user: clientUser } } = await supabaseAdmin.auth.admin.getUserById(cId)
-        if (!clientUser) continue
-        const meta = clientUser.user_metadata || {}
-        const clientBookings = cBookings.map(b => ({
-          id: b.id,
-          date: b.booking_date,
-          service: (b.services as any)?.name || 'Intervention',
-          status: b.status,
-          address: b.address,
-          price: b.price_ttc,
-        }))
-        clients.push({
-          id: cId,
-          source: 'auth',
-          name: meta.full_name || meta.name || clientUser.email?.split('@')[0] || 'Client',
-          email: clientUser.email || '',
-          phone: meta.phone || '',
-          address: meta.address || '',
-          siret: '',
-          type: 'particulier',
-          bookings: clientBookings,
-        })
-      } catch {
-        // Skip unresolvable client
-      }
+    for (const { cId, clientUser } of userResults) {
+      if (!clientUser) continue
+      const cBookings = byClient.get(cId)!
+      const meta = clientUser.user_metadata || {}
+      const clientBookings = cBookings.map(b => ({
+        id: b.id,
+        date: b.booking_date,
+        service: (b.services as any)?.name || 'Intervention',
+        status: b.status,
+        address: b.address,
+        price: b.price_ttc,
+      }))
+      clients.push({
+        id: cId,
+        source: 'auth',
+        name: meta.full_name || meta.name || clientUser.email?.split('@')[0] || 'Client',
+        email: clientUser.email || '',
+        phone: meta.phone || '',
+        address: meta.address || '',
+        siret: '',
+        type: 'particulier',
+        bookings: clientBookings,
+      })
     }
 
     return NextResponse.json({ clients })
   } catch (err: any) {
-    console.error('[artisan-clients] Erreur:', err)
+    logger.error('[artisan-clients] Erreur:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

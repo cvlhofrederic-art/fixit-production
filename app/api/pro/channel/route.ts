@@ -8,7 +8,7 @@ const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnai
 // GET /api/pro/channel?contact_id=xxx
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`pro_ch_get_${ip}`, 60, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`pro_ch_get_${ip}`, 60, 60_000))) return rateLimitResponse()
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   // On réutilise la table syndic_messages avec cabinet_id = pro user_id
   let query = supabaseAdmin
     .from('syndic_messages')
-    .select('*')
+    .select('id, cabinet_id, artisan_user_id, sender_id, sender_role, sender_name, content, message_type, type, metadata, mission_id, read_at, created_at')
     .order('created_at', { ascending: true })
     .limit(200)
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   // Marquer comme lu
   if (data && data.length > 0) {
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 // POST /api/pro/channel
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`pro_ch_post_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`pro_ch_post_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data, error } = await supabaseAdmin.from('syndic_messages').insert(msgData).select().single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
 
   return NextResponse.json({ message: data })
 }

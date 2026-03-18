@@ -2,8 +2,8 @@ const { createClient } = require('@supabase/supabase-js')
 
 // Utilisation de la clé service_role pour bypass RLS
 const supabase = createClient(
-  'https://irluhepekbqgquveaett.supabase.co',
-  'sb_secret_lDcyzgFqQMUE65_bCpzuAg_rlTsd6tB'
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
 async function seed() {
@@ -44,7 +44,7 @@ async function seed() {
   console.log('\n2️⃣  Création du compte auth...')
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: 'leporesebastien.pro@gmail.com',
-    password: 'Fixit2024!',
+    password: 'ChangeMe123!',
     email_confirm: true,
     user_metadata: {
       full_name: 'Lepore Sebastien',
@@ -159,10 +159,10 @@ async function createProfile(userId: string, category: any) {
   console.log(`📍 Adresse     : Rés. L'Aurore Bât. B, 13600 La Ciotat`)
   console.log(`🌿 Métier      : Paysagiste`)
   console.log(`📋 Services    : Entretien jardin (90€) + Élagage (150€)`)
-  console.log(`🔐 Mot de passe: Fixit2024!`)
+  console.log(`🔐 Mot de passe: ChangeMe123!`)
   console.log(`🆔 ID Artisan  : ${artisan.id}`)
-  console.log(`🔗 Profil      : https://fixit-production.vercel.app/artisan/${artisan.id}`)
-  console.log(`🔗 Login       : https://fixit-production.vercel.app/pro/login`)
+  console.log(`🔗 Profil      : https://vitfix.io/artisan/${artisan.id}`)
+  console.log(`🔗 Login       : https://vitfix.io/pro/login`)
 }
 
 seed().catch(console.error)

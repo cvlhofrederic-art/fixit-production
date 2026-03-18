@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── Envoie une notification in-app à un artisan ───────────────────────────────
 // ⚠️ SÉCURISÉ : auth obligatoire + vérification rôle syndic
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`notify_artisan_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`notify_artisan_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   try {
     const {
@@ -53,15 +54,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       // Table n'existe pas encore — retourner succès silencieux
-      console.warn('artisan_notifications insert error (table may not exist):', error.message)
+      logger.warn('artisan_notifications insert error (table may not exist):', error.message)
       return NextResponse.json({ success: true, warning: 'table_not_ready' })
     }
 
     return NextResponse.json({ success: true, notification: data })
 
   } catch (err: any) {
-    console.error('notify-artisan error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    logger.error('notify-artisan error:', err)
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 
@@ -75,8 +76,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { notification_id, artisan_id, syndic_id, mark_all_read } = body
 
-    // Marquer toutes les notifs syndic comme lues
+    // Marquer toutes les notifs syndic comme lues — vérifier ownership
     if (mark_all_read && syndic_id) {
+      if (syndic_id !== user.id) {
+        return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
+      }
       await supabaseAdmin
         .from('syndic_notifications')
         .update({ read: true })
@@ -85,9 +89,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    // Marquer une notif artisan spécifique comme lue
+    // Marquer toutes les notifs artisan comme lues — vérifier ownership
+    if (mark_all_read && artisan_id) {
+      if (artisan_id !== user.id) {
+        return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
+      }
+      await supabaseAdmin
+        .from('artisan_notifications')
+        .update({ read: true })
+        .eq('artisan_id', artisan_id)
+        .eq('read', false)
+      return NextResponse.json({ success: true })
+    }
+
+    // Marquer une notif artisan spécifique comme lue — vérifier ownership
     if (!notification_id || !artisan_id) {
       return NextResponse.json({ error: 'notification_id et artisan_id requis' }, { status: 400 })
+    }
+    if (artisan_id !== user.id) {
+      return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
     }
 
     await supabaseAdmin
@@ -98,7 +118,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }
 
@@ -115,14 +135,17 @@ export async function GET(request: NextRequest) {
   const unread_only = searchParams.get('unread_only') === 'true'
   const limit = parseInt(searchParams.get('limit') || '50')
 
-  // Notifications syndic
+  // Notifications syndic — vérifier que l'utilisateur demande SES notifications
   if (syndic_id) {
+    if (syndic_id !== user.id) {
+      return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
+    }
     let query = supabaseAdmin
       .from('syndic_notifications')
-      .select('*')
+      .select('id, syndic_id, type, title, body, read, data_json, created_at')
       .eq('syndic_id', syndic_id)
       .order('created_at', { ascending: false })
-      .limit(limit)
+      .limit(Math.min(limit, 100))
 
     if (unread_only) query = query.eq('read', false)
 
@@ -131,17 +154,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ notifications: data || [] })
   }
 
-  // Notifications artisan
+  // Notifications artisan — vérifier que l'utilisateur demande SES notifications
   if (!artisan_id) {
     return NextResponse.json({ error: 'artisan_id ou syndic_id requis' }, { status: 400 })
+  }
+  if (artisan_id !== user.id) {
+    return NextResponse.json({ error: 'Accès interdit' }, { status: 403 })
   }
 
   let query = supabaseAdmin
     .from('artisan_notifications')
-    .select('*')
+    .select('id, artisan_id, type, title, body, read, data_json, created_at')
     .eq('artisan_id', artisan_id)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(Math.min(limit, 100))
 
   if (unread_only) query = query.eq('read', false)
 

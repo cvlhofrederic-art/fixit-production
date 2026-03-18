@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { logger } from '@/lib/logger'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export type ToolResult = {
@@ -43,7 +44,7 @@ export const TOOLS: Record<string, ToolDef> = {
     requiresConfirmation: false,
     execute: async (_p, artisanId) => {
       const { data } = await supabaseAdmin
-        .from('availability').select('*').eq('artisan_id', artisanId).order('day_of_week')
+        .from('availability').select('id, artisan_id, day_of_week, is_available, start_time, end_time').eq('artisan_id', artisanId).order('day_of_week')
       if (!data || data.length === 0) return { success: true, detail: 'Aucune disponibilité configurée.', data: [] }
       const lines = data.map(a =>
         `${DAY_NAMES[a.day_of_week]}: ${a.is_available ? `${a.start_time?.substring(0, 5)}-${a.end_time?.substring(0, 5)}` : 'FERMÉ'}`
@@ -64,7 +65,7 @@ export const TOOLS: Record<string, ToolDef> = {
       for (const day of days) {
         if (day < 0 || day > 6) continue
         const { data: existing } = await supabaseAdmin
-          .from('availability').select('*').eq('artisan_id', artisanId).eq('day_of_week', day).single()
+          .from('availability').select('id, artisan_id, day_of_week, is_available, start_time, end_time').eq('artisan_id', artisanId).eq('day_of_week', day).single()
 
         if (existing) {
           await supabaseAdmin.from('availability').update({ is_available: isAvail }).eq('id', existing.id)
@@ -132,7 +133,7 @@ export const TOOLS: Record<string, ToolDef> = {
     requiresConfirmation: false,
     execute: async (_p, artisanId) => {
       const { data } = await supabaseAdmin
-        .from('services').select('*').eq('artisan_id', artisanId).order('name')
+        .from('services').select('id, artisan_id, name, description, price_ht, price_ttc, duration_minutes, active').eq('artisan_id', artisanId).order('name')
       if (!data || data.length === 0) return { success: true, detail: 'Aucun service configuré.', data: [] }
       const lines = data.map(s =>
         `${s.active ? '✅' : '❌'} ${s.name} — ${s.price_ttc ? s.price_ttc + '€' : 'prix libre'} — ${s.duration_minutes || 60}min`
@@ -231,7 +232,7 @@ export const TOOLS: Record<string, ToolDef> = {
             const parsed = JSON.parse(match[1])
             if (parsed && typeof parsed === 'object') dayServices = parsed
           } catch (e) {
-            console.error('link_services_to_days: corrupted DS marker, starting fresh:', e)
+            logger.error('link_services_to_days: corrupted DS marker, starting fresh:', e)
             // Don't lose existing marker — keep dayServices empty and let the new operation create it
           }
         }
@@ -294,7 +295,7 @@ export const TOOLS: Record<string, ToolDef> = {
     execute: async (p, artisanId) => {
       const today = new Date().toISOString().split('T')[0]
       let query = supabaseAdmin
-        .from('bookings').select('*, services(name)').eq('artisan_id', artisanId)
+        .from('bookings').select('id, artisan_id, client_id, service_id, booking_date, booking_time, duration_minutes, status, notes, address, price_ht, price_ttc, confirmed_at, created_at, services(name)').eq('artisan_id', artisanId)
 
       const status = String(p.status || 'all')
       if (status !== 'all') query = query.eq('status', status)
@@ -314,7 +315,8 @@ export const TOOLS: Record<string, ToolDef> = {
       const lines = data.map(b => {
         const clientMatch = (b.notes || '').match(/Client:\s*([^|.]+)/)
         const client = clientMatch ? clientMatch[1].trim() : 'Client inconnu'
-        return `${b.booking_date} à ${(b.booking_time || '').substring(0, 5)} — ${b.services?.name || 'Intervention'} — ${client} (${b.status})`
+        const svcName = (b.services as unknown as { name: string } | null)?.name || 'Intervention'
+        return `${b.booking_date} à ${(b.booking_time || '').substring(0, 5)} — ${svcName} — ${client} (${b.status})`
       })
       return { success: true, detail: lines.join('\n'), data }
     },
@@ -491,7 +493,9 @@ export const TOOLS: Record<string, ToolDef> = {
             last_booking: cBookings[0]?.booking_date || '',
             total_ca: Math.round(cBookings.filter(b => b.status === 'completed').reduce((s, b) => s + (b.price_ttc || 0), 0) * 100) / 100,
           })
-        } catch { /* skip */ }
+        } catch (clientErr) {
+          logger.warn('[fixy-ai] Failed to resolve client:', clientErr instanceof Error ? clientErr.message : clientErr)
+        }
       }
 
       if (p.search) {
@@ -541,7 +545,9 @@ export const TOOLS: Record<string, ToolDef> = {
             matchedBookings = bookings.filter(b => b.client_id === cId)
             break
           }
-        } catch { /* skip */ }
+        } catch (lookupErr) {
+          logger.warn('[fixy-ai] Client lookup failed:', lookupErr instanceof Error ? lookupErr.message : lookupErr)
+        }
       }
 
       if (!matchedClient) return { success: true, detail: `Aucun client "${p.client_name}" trouve.` }
@@ -580,7 +586,7 @@ export const TOOLS: Record<string, ToolDef> = {
       if (!booking) return { success: false, detail: 'RDV introuvable ou non autorise.' }
 
       const { data: messages } = await supabaseAdmin
-        .from('booking_messages').select('*')
+        .from('booking_messages').select('id, booking_id, sender_id, sender_role, sender_name, content, type, created_at, read_at')
         .eq('booking_id', String(p.booking_id))
         .order('created_at', { ascending: true }).limit(50)
 
@@ -633,7 +639,7 @@ export const TOOLS: Record<string, ToolDef> = {
       if (!p.booking_id) return { success: false, detail: 'booking_id requis.' }
 
       const { data: booking } = await supabaseAdmin
-        .from('bookings').select('*, services(name, price_ttc)')
+        .from('bookings').select('id, artisan_id, client_id, service_id, booking_date, booking_time, duration_minutes, status, notes, address, price_ht, price_ttc, confirmed_at, created_at, services(name, price_ttc)')
         .eq('id', String(p.booking_id)).eq('artisan_id', artisanId).single()
       if (!booking) return { success: false, detail: 'RDV introuvable.' }
 
@@ -647,7 +653,7 @@ export const TOOLS: Record<string, ToolDef> = {
       const detail = [
         `Date : ${booking.booking_date} a ${(booking.booking_time || '').substring(0, 5)}`,
         `Client : ${clientName}`,
-        `Service : ${booking.services?.name || 'Intervention'}`,
+        `Service : ${(booking.services as unknown as { name: string; price_ttc: number } | null)?.name || 'Intervention'}`,
         `Adresse : ${booking.address || 'Non definie'}`,
         `Prix TTC : ${booking.price_ttc || 0}E`,
         `Statut : ${booking.status}`,
@@ -826,6 +832,81 @@ export const TOOLS: Record<string, ToolDef> = {
       if (!validPages.includes(page))
         return { success: false, detail: `Page "${page}" inconnue. Pages valides : ${validPages.join(', ')}` }
       return { success: true, detail: `Navigation vers ${page}`, data: { type: 'navigate', page } }
+    },
+  },
+
+  // ───────────── ABSENCES / CONGÉS ─────────────
+
+  create_absence: {
+    description: 'Créer une absence / congé / indisponibilité sur l\'agenda (vacances, arrêt maladie, formation, etc.)',
+    params: '{ start_date: "YYYY-MM-DD", end_date: "YYYY-MM-DD", reason?: "Vacances|Maladie|Formation|Personnel|Autre", label?: "texte libre" }',
+    requiresConfirmation: false,
+    execute: async (params, artisanId) => {
+      const startDate = validateDate(params.start_date)
+      const endDate = validateDate(params.end_date)
+      if (!startDate) return { success: false, detail: 'start_date invalide (YYYY-MM-DD)' }
+      if (!endDate) return { success: false, detail: 'end_date invalide (YYYY-MM-DD)' }
+      if (endDate < startDate) return { success: false, detail: 'end_date doit être >= start_date' }
+
+      const { data, error } = await supabaseAdmin
+        .from('artisan_absences')
+        .insert({
+          artisan_id: artisanId,
+          start_date: startDate,
+          end_date: endDate,
+          reason: String(params.reason || 'Autre'),
+          label: String(params.label || ''),
+          source: 'fixy',
+        })
+        .select()
+        .single()
+
+      if (error) return { success: false, detail: `Erreur : ${error.message}` }
+      const startFr = new Date(startDate + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      const endFr = new Date(endDate + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      return { success: true, detail: `Absence créée du ${startFr} au ${endFr}${params.reason ? ` (${params.reason})` : ''}`, data }
+    },
+  },
+
+  list_absences: {
+    description: 'Lister toutes les absences / congés de l\'artisan',
+    params: '{}',
+    requiresConfirmation: false,
+    execute: async (_params, artisanId) => {
+      const { data, error } = await supabaseAdmin
+        .from('artisan_absences')
+        .select('id, artisan_id, start_date, end_date, reason, label, source, created_at')
+        .eq('artisan_id', artisanId)
+        .order('start_date')
+
+      if (error) return { success: false, detail: `Erreur : ${error.message}` }
+      if (!data || data.length === 0) return { success: true, detail: 'Aucune absence enregistrée', data: [] }
+
+      const lines = data.map((a: any) => {
+        const s = new Date(a.start_date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+        const e = new Date(a.end_date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+        return `- Du ${s} au ${e}${a.reason ? ` (${a.reason})` : ''}${a.label ? ` — ${a.label}` : ''}`
+      }).join('\n')
+      return { success: true, detail: `${data.length} absence(s) :\n${lines}`, data }
+    },
+  },
+
+  delete_absence: {
+    description: 'Supprimer une absence ⚠️ CONFIRMATION REQUISE',
+    params: '{ absence_id: "uuid" }',
+    requiresConfirmation: true,
+    execute: async (params, artisanId) => {
+      const absenceId = String(params.absence_id || '')
+      if (!absenceId) return { success: false, detail: 'absence_id requis' }
+
+      const { error } = await supabaseAdmin
+        .from('artisan_absences')
+        .delete()
+        .eq('id', absenceId)
+        .eq('artisan_id', artisanId)
+
+      if (error) return { success: false, detail: `Erreur : ${error.message}` }
+      return { success: true, detail: 'Absence supprimée' }
     },
   },
 

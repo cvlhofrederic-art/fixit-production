@@ -272,8 +272,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-between mb-10">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <span className="text-3xl">⚡</span>
-              <h1 className="text-2xl font-bold text-yellow-400">Vitfix</h1>
+              <h1 className="text-2xl font-display font-extrabold"><span className="text-yellow">VIT</span><span className="text-white">FIX</span></h1>
               <span className="bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 text-xs font-bold px-3 py-1 rounded-full">SUPER ADMIN</span>
             </div>
             <p className="text-gray-500 text-sm">Bienvenue, {user?.user_metadata?.full_name || user?.email} — Sélectionnez le dashboard à visualiser</p>

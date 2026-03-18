@@ -1,7 +1,10 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { sendEmail, templateTeamInvite } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 // ── GET /api/syndic/team ──────────────────────────────────────────────────────
 // Retourne tous les membres de l'équipe du cabinet connecté
@@ -11,27 +14,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
   const ip = getClientIP(request)
-  if (!checkRateLimit(`team_get_${ip}`, 30, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`team_get_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   // Trouver le cabinet_id : si admin → son propre id, si employé → son cabinet_id
-  const cabinetId = user.user_metadata?.cabinet_id || user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { data, error } = await supabaseAdmin
     .from('syndic_team_members')
-    .select('id, email, full_name, role, invite_token, invite_sent_at, accepted_at, is_active, created_at')
+    .select('id, email, full_name, role, invite_sent_at, accepted_at, is_active, created_at, custom_modules')
     .eq('cabinet_id', cabinetId)
     .order('created_at', { ascending: true })
 
   if (error) {
-    console.error('[TEAM] GET error:', error)
+    logger.error('[TEAM] GET error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 
-  return NextResponse.json({ members: data || [] })
+  // Sécurité : ne pas exposer les invite_token dans la réponse GET
+  // Le token est uniquement retourné lors du POST (création)
+  const response = NextResponse.json({ members: data || [] })
+  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=60, stale-while-revalidate=120')
+  return response
 }
 
 // ── POST /api/syndic/team ─────────────────────────────────────────────────────
-// Crée un nouveau membre (invitation)
+// Crée un nouveau membre (invitation) avec modules personnalisés optionnels
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) {
@@ -44,16 +51,16 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = getClientIP(request)
-  if (!checkRateLimit(`team_post_${ip}`, 10, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`team_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
   const body = await request.json()
-  const { email, full_name, memberRole } = body
+  const { email, full_name, memberRole, customModules } = body
 
   if (!email || !full_name || !memberRole) {
     return NextResponse.json({ error: 'email, full_name et role sont requis' }, { status: 400 })
   }
 
-  const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable']
+  const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
   if (!validRoles.includes(memberRole)) {
     return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
   }
@@ -73,23 +80,30 @@ export async function POST(request: NextRequest) {
   }
 
   // Générer le token d'invitation
-  const inviteToken = Math.random().toString(36).substring(2) + Date.now().toString(36) + Math.random().toString(36).substring(2)
+  const inviteToken = crypto.randomBytes(24).toString('hex')
+
+  // Préparer l'insertion avec custom_modules optionnels
+  const insertData: Record<string, unknown> = {
+    cabinet_id: cabinetId,
+    email: email.toLowerCase().trim(),
+    full_name: full_name.trim(),
+    role: memberRole,
+    invite_token: inviteToken,
+    invite_sent_at: new Date().toISOString(),
+  }
+  // Si des modules personnalisés sont fournis, les stocker
+  if (Array.isArray(customModules) && customModules.length > 0) {
+    insertData.custom_modules = customModules
+  }
 
   const { data, error } = await supabaseAdmin
     .from('syndic_team_members')
-    .insert({
-      cabinet_id: cabinetId,
-      email: email.toLowerCase().trim(),
-      full_name: full_name.trim(),
-      role: memberRole,
-      invite_token: inviteToken,
-      invite_sent_at: new Date().toISOString(),
-    })
+    .insert(insertData)
     .select()
     .single()
 
   if (error) {
-    console.error('[TEAM] POST error:', error)
+    logger.error('[TEAM] POST error:', error)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
   }
 
@@ -97,15 +111,56 @@ export async function POST(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
   const inviteUrl = `${appUrl}/syndic/invite?token=${inviteToken}`
 
+  // ── Envoyer l'email d'invitation automatiquement ──────────────────
+  const cabinetName = user.user_metadata?.cabinet_name || user.user_metadata?.full_name || 'Cabinet'
+  const roleLabels: Record<string, string> = {
+    syndic_admin: 'Administrateur',
+    syndic_tech: 'Technicien',
+    syndic_secretaire: 'Secrétaire',
+    syndic_gestionnaire: 'Gestionnaire',
+    syndic_comptable: 'Comptable',
+    syndic_juriste: 'Juriste',
+  }
+  const roleName = roleLabels[memberRole] || memberRole
+
+  const emailTemplate = templateTeamInvite({
+    memberName: full_name,
+    roleName,
+    cabinetName,
+    inviteUrl,
+  })
+
+  let emailSent = false
+  try {
+    const emailResult = await sendEmail({
+      to: email.toLowerCase().trim(),
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      tags: [
+        { name: 'template', value: 'team_invite' },
+        { name: 'cabinet_id', value: user.id },
+      ],
+    })
+    emailSent = emailResult.success
+    if (!emailResult.success) {
+      logger.warn('[TEAM] Email invite failed:', emailResult.error)
+    }
+  } catch (emailErr: any) {
+    logger.warn('[TEAM] Email invite error:', emailErr?.message)
+  }
+
   return NextResponse.json({
     member: data,
     invite_url: inviteUrl,
-    message: `Invitation créée pour ${email}. Partagez ce lien : ${inviteUrl}`,
+    email_sent: emailSent,
+    message: emailSent
+      ? `Invitation envoyée par email à ${email}`
+      : `Invitation créée pour ${email}. Partagez ce lien : ${inviteUrl}`,
   })
 }
 
 // ── PATCH /api/syndic/team ────────────────────────────────────────────────────
-// Modifier un membre (rôle, statut actif)
+// Modifier un membre (rôle, statut actif, modules personnalisés)
 export async function PATCH(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user || !isSyndicRole(user)) {
@@ -117,21 +172,21 @@ export async function PATCH(request: NextRequest) {
   }
 
   const ip = getClientIP(request)
-  if (!checkRateLimit(`team_patch_${ip}`, 20, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`team_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const body = await request.json()
-  const { member_id, role, is_active } = body
+  const { member_id, role, is_active, customModules } = body
 
   if (!member_id) {
     return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
   }
 
-  const cabinetId = user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   // Vérifier que ce membre appartient bien à ce cabinet
   const { data: existing } = await supabaseAdmin
     .from('syndic_team_members')
-    .select('id')
+    .select('id, user_id')
     .eq('id', member_id)
     .eq('cabinet_id', cabinetId)
     .maybeSingle()
@@ -142,11 +197,15 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {}
   if (role !== undefined) {
-    const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable']
+    const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
     if (!validRoles.includes(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
     updates.role = role
   }
   if (is_active !== undefined) updates.is_active = Boolean(is_active)
+  // custom_modules : tableau de pages ou null pour réinitialiser aux défauts du rôle
+  if (customModules !== undefined) {
+    updates.custom_modules = customModules === null ? null : (Array.isArray(customModules) ? customModules : null)
+  }
 
   const { data, error } = await supabaseAdmin
     .from('syndic_team_members')
@@ -160,13 +219,13 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Si rôle modifié et membre a un compte, mettre à jour son user_metadata
-  if (role && data.user_id) {
+  if (role && existing.user_id) {
     try {
-      await supabaseAdmin.auth.admin.updateUserById(data.user_id, {
+      await supabaseAdmin.auth.admin.updateUserById(existing.user_id, {
         user_metadata: { role, cabinet_id: cabinetId },
       })
     } catch (e) {
-      console.error('[TEAM] Failed to update user_metadata:', e)
+      logger.error('[TEAM] Failed to update user_metadata:', e)
     }
   }
 
@@ -186,13 +245,13 @@ export async function DELETE(request: NextRequest) {
   }
 
   const ip = getClientIP(request)
-  if (!checkRateLimit(`team_delete_${ip}`, 10, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`team_delete_${ip}`, 10, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const memberId = searchParams.get('member_id')
   if (!memberId) return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
 
-  const cabinetId = user.id
+  const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
   const { error } = await supabaseAdmin
     .from('syndic_team_members')

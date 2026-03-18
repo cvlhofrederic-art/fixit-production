@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { generateSlug } from '@/lib/utils'
+import { artisanSettingsPostSchema, validateBody } from '@/lib/validation'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── Cache des colonnes existantes (évite de re-tester à chaque requête) ────────
 let knownColumns: Set<string> | null = null
@@ -29,7 +32,7 @@ async function getExistingColumns(supabaseAdmin: any): Promise<Set<string>> {
 
   knownColumns = existing
   columnsCheckedAt = Date.now()
-  console.log('artisan-settings: existing columns:', [...existing].join(', '))
+  // Columns discovered
   return existing
 }
 
@@ -39,10 +42,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
 
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // Rate limit: 15 requests per minute per user
+  const allowed = await checkRateLimit(`artisan_settings_${user.id}`, 15, 60_000)
+  if (!allowed) return rateLimitResponse()
 
   // Verify artisan ownership
   const { data: artisan, error: fetchError } = await supabaseAdmin
@@ -56,10 +58,14 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+  const settingsValidation = validateBody(artisanSettingsPostSchema, body)
+  if (!settingsValidation.success) {
+    return NextResponse.json({ error: 'Donn\u00e9es invalides', details: settingsValidation.error }, { status: 400 })
+  }
   const {
     company_name, bio, phone, email,
     auto_reply_message, auto_block_duration_minutes, zone_radius_km
-  } = body
+  } = settingsValidation.data
 
   // Déterminer quelles colonnes existent en base
   const existingCols = await getExistingColumns(supabaseAdmin)
@@ -104,7 +110,7 @@ export async function POST(request: NextRequest) {
     .eq('id', artisan.id)
 
   if (updateError) {
-    console.error('saveSettings error:', updateError)
+    logger.error('saveSettings error:', updateError)
 
     // Si erreur inattendue, invalider le cache des colonnes et réessayer
     knownColumns = null

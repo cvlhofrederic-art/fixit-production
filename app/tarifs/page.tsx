@@ -4,6 +4,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'Tarifs - Vitfix',
   description: 'Vitfix est gratuit pour les particuliers. Découvrez comment fonctionne notre service.',
+  alternates: { canonical: 'https://vitfix.io/tarifs/' },
 }
 
 export default function TarifsPage() {
@@ -21,7 +22,7 @@ export default function TarifsPage() {
         </div>
 
         {/* Particuliers */}
-        <div className="bg-white rounded-2xl shadow-sm p-8 mb-8 border-2 border-[#FFC107]">
+        <div className="bg-white rounded-2xl shadow-sm p-8 mb-8 border-2 border-yellow">
           <div className="flex items-center gap-3 mb-6">
             <div className="text-3xl">🏠</div>
             <div>
@@ -29,7 +30,7 @@ export default function TarifsPage() {
               <p className="text-gray-500">Accès complet, sans abonnement</p>
             </div>
             <div className="ml-auto">
-              <span className="bg-[#FFC107] text-gray-900 px-4 py-1 rounded-full font-bold text-lg">GRATUIT</span>
+              <span className="bg-yellow text-gray-900 px-4 py-1 rounded-full font-bold text-lg">GRATUIT</span>
             </div>
           </div>
           <ul className="space-y-3">
@@ -43,7 +44,7 @@ export default function TarifsPage() {
               'Aucune commission cachée — vous payez uniquement l\'artisan',
             ].map((item) => (
               <li key={item} className="flex items-center gap-3 text-gray-700">
-                <span className="text-[#FFC107] font-bold text-lg">✓</span>
+                <span className="text-yellow font-bold text-lg">✓</span>
                 {item}
               </li>
             ))}
@@ -51,7 +52,7 @@ export default function TarifsPage() {
           <div className="mt-6">
             <Link
               href="/recherche"
-              className="inline-block bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
+              className="inline-block bg-yellow hover:bg-yellow-light text-gray-900 px-8 py-3 rounded-xl font-semibold transition"
             >
               Trouver un artisan
             </Link>
@@ -81,13 +82,13 @@ export default function TarifsPage() {
                 <li className="flex items-center gap-2"><span className="text-red-400 font-bold">✗</span> <span className="text-gray-500">Compta IA, Proof of Work, app mobile</span></li>
               </ul>
             </div>
-            <div className="border-2 border-[#FFC107] rounded-xl p-4 bg-amber-50/50">
+            <div className="border-2 border-yellow rounded-xl p-4 bg-amber-50/50">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-gray-900">Pro</h3>
-                  <span className="text-xs bg-[#FFC107] text-gray-900 px-2 py-0.5 rounded-full font-bold">RECOMMANDÉ</span>
+                  <span className="text-xs bg-yellow text-gray-900 px-2 py-0.5 rounded-full font-bold">RECOMMANDÉ</span>
                 </div>
-                <div><span className="font-bold text-[#FFC107]">49€</span><span className="text-xs text-gray-500"> / mois</span></div>
+                <div><span className="font-bold text-yellow">49€</span><span className="text-xs text-gray-500"> / mois</span></div>
               </div>
               <ul className="space-y-1.5 text-sm text-gray-600">
                 <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✓</span> Tous les modules débloqués</li>
@@ -100,7 +101,7 @@ export default function TarifsPage() {
 
           <Link
             href="/pro/tarifs"
-            className="inline-block border-2 border-[#FFC107] text-[#FFC107] hover:bg-[#FFF9E6] px-6 py-2.5 rounded-xl font-semibold transition"
+            className="inline-block border-2 border-yellow text-yellow hover:bg-warm-gray px-6 py-2.5 rounded-xl font-semibold transition"
           >
             Voir le détail des offres artisans →
           </Link>

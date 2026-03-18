@@ -32,6 +32,7 @@ interface RateLimitEntry {
 }
 
 const requestCounts = new Map<string, RateLimitEntry>()
+const MAX_MAP_SIZE = 10_000 // Limite mémoire : max 10k entrées (évite fuite mémoire sur Vercel)
 
 // Nettoyer les entrées expirées toutes les 5 minutes
 if (typeof setInterval !== 'undefined') {
@@ -39,6 +40,13 @@ if (typeof setInterval !== 'undefined') {
     const now = Date.now()
     for (const [key, entry] of requestCounts.entries()) {
       if (now > entry.reset) requestCounts.delete(key)
+    }
+    // Sécurité anti fuite mémoire : si trop d'entrées, purger les plus anciennes
+    if (requestCounts.size > MAX_MAP_SIZE) {
+      const entries = Array.from(requestCounts.entries())
+        .sort((a, b) => a[1].reset - b[1].reset)
+      const toDelete = entries.slice(0, entries.length - MAX_MAP_SIZE / 2)
+      toDelete.forEach(([key]) => requestCounts.delete(key))
     }
   }, 5 * 60 * 1000)
 }
@@ -62,35 +70,45 @@ function checkRateLimitInMemory(identifier: string, limit: number, windowMs: num
 /**
  * Vérifie si la requête dépasse la limite.
  * Utilise Upstash Redis si configuré, sinon fallback en mémoire.
+ * Cette fonction est async et doit être appelée avec `await`.
  *
  * @param identifier - Clé unique (ex: `upload_${ip}`, `api_${userId}`)
  * @param limit - Nombre max de requêtes dans la fenêtre (défaut: 20)
  * @param windowMs - Fenêtre de temps en ms (défaut: 60 000 = 1 min)
  * @returns true si autorisé, false si rate limité
  */
-export async function checkRateLimitAsync(
+export async function checkRateLimit(
   identifier: string,
   limit = 20,
   windowMs = 60_000,
 ): Promise<boolean> {
   if (ratelimit) {
-    const { success } = await ratelimit.limit(identifier)
-    return success
+    try {
+      const { success } = await ratelimit.limit(identifier)
+      return success
+    } catch (e) {
+      // Redis down — fallback to in-memory
+      console.warn('[rate-limit] Redis error, falling back to in-memory:', e)
+      return checkRateLimitInMemory(identifier, limit, windowMs)
+    }
   }
   return checkRateLimitInMemory(identifier, limit, windowMs)
 }
 
 /**
- * Version synchrone (fallback uniquement — pour rétro-compatibilité).
- * En production avec Upstash, préférer checkRateLimitAsync().
- * Cette fonction utilise toujours le rate limiter en mémoire pour
- * maintenir la compatibilité avec le code existant qui appelle checkRateLimit()
- * de manière synchrone. Le rate limiting Redis est appliqué en complément
- * dans les routes qui utilisent checkRateLimitAsync().
+ * @deprecated Use checkRateLimit() (now async) instead.
+ * Version synchrone — utilise uniquement le rate limiter en mémoire.
+ * Gardée pour la transition progressive, mais ne bénéficie pas de Redis.
  */
-export function checkRateLimit(identifier: string, limit = 20, windowMs = 60_000): boolean {
+export function checkRateLimitLocal(identifier: string, limit = 20, windowMs = 60_000): boolean {
   return checkRateLimitInMemory(identifier, limit, windowMs)
 }
+
+/**
+ * Alias for backward compatibility during migration.
+ * @deprecated Use checkRateLimit() (async) instead.
+ */
+export const checkRateLimitAsync = checkRateLimit
 
 /**
  * Extrait l'IP de la requête Next.js

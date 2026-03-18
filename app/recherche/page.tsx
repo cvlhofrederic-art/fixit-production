@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from 'react'
+import Image from 'next/image'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import {
@@ -19,15 +20,10 @@ import {
   Calendar,
 } from 'lucide-react'
 import {
-  startOfWeek,
   addDays,
-  addWeeks,
-  subWeeks,
   format,
   isBefore,
   startOfDay,
-  isToday as isDateToday,
-  isSameDay,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -51,6 +47,10 @@ interface Artisan {
   experience_years?: number | null
   profile_photo_url?: string | null
   services?: Service[]
+  country?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  distance_km?: number | null
   // Catalogue fields
   source?: 'registered' | 'catalogue'
   telephone_pro?: string | null
@@ -90,8 +90,6 @@ interface Booking {
 // ------------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------------
-
-const SHORT_DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 
 function getInitials(name: string | null): string {
   if (!name) return '?'
@@ -149,33 +147,7 @@ function generateTimeSlots(
   return slots
 }
 
-function getWeekDays(weekStart: Date): Date[] {
-  // Returns Mon-Fri (5 days)
-  return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
-}
-
-// Retourne les N prochains jours ouvrés (lun-ven) à partir d'une date
-function getNextWorkingDays(startDate: Date, count: number): Date[] {
-  const days: Date[] = []
-  let current = startDate
-  while (days.length < count) {
-    const dow = current.getDay()
-    if (dow >= 1 && dow <= 5) { // Lun-Ven
-      days.push(current)
-    }
-    current = addDays(current, 1)
-  }
-  return days
-}
-
-function formatWeekRange(days: Date[]): string {
-  if (days.length === 0) return ''
-  const startStr = format(days[0], 'd MMM', { locale: fr })
-  const endStr = format(days[days.length - 1], 'd MMM', { locale: fr })
-  return `${startStr} - ${endStr}`
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
+const CATEGORY_LABELS_FR: Record<string, string> = {
   plomberie: 'Plombier',
   electricite: 'Électricien',
   peinture: 'Peintre',
@@ -195,32 +167,52 @@ const CATEGORY_LABELS: Record<string, string> = {
   'petits-travaux': 'Petits travaux',
 }
 
-function getCategoryLabel(cat: string): string {
-  // Try direct match first, then fuzzy resolve
-  const resolved = CATEGORY_LABELS[cat] ? cat : fuzzyMatchCategory(cat)
-  if (resolved && CATEGORY_LABELS[resolved]) return CATEGORY_LABELS[resolved]
+const CATEGORY_LABELS_PT: Record<string, string> = {
+  plomberie: 'Canalizador',
+  electricite: 'Eletricista',
+  peinture: 'Pintor',
+  maconnerie: 'Pedreiro',
+  menuiserie: 'Carpinteiro',
+  chauffage: 'Técnico de aquecimento',
+  climatisation: 'Técnico de ar condicionado',
+  serrurerie: 'Serralheiro',
+  carrelage: 'Ladrilhador',
+  toiture: 'Técnico de telhados',
+  'espaces-verts': 'Jardineiro',
+  demenagement: 'Empresa de mudanças',
+  nettoyage: 'Empresa de limpeza',
+  renovation: 'Empresa de remodelação',
+  vitrerie: 'Vidraceiro',
+  'traitement-nuisibles': 'Controlo de pragas',
+  'petits-travaux': 'Pequenos trabalhos',
+}
+
+function getCategoryLabel(cat: string, locale: 'fr' | 'pt' = 'fr'): string {
+  const labels = locale === 'pt' ? CATEGORY_LABELS_PT : CATEGORY_LABELS_FR
+  const resolved = labels[cat] ? cat : fuzzyMatchCategory(cat)
+  if (resolved && labels[resolved]) return labels[resolved]
   return cat.charAt(0).toUpperCase() + cat.slice(1)
 }
 
-// Mapping catégorie slug → métiers catalogue
+// Mapping catégorie slug → métiers catalogue (FR + PT)
 const CATEGORY_TO_METIERS: Record<string, string[]> = {
-  plomberie:     ['Plombier', 'Plomberie'],
-  electricite:   ['Électricien', 'Électricité'],
-  serrurerie:    ['Serrurier', 'Serrurerie'],
-  chauffage:     ['Chauffagiste', 'Chauffage'],
-  climatisation: ['Climatisation'],
-  peinture:      ['Peintre', 'Peinture'],
-  maconnerie:    ['Maçon', 'Maçonnerie'],
-  menuiserie:    ['Menuisier', 'Menuiserie'],
-  carrelage:     ['Carreleur', 'Carrelage'],
-  toiture:       ['Couvreur', 'Toiture'],
-  'espaces-verts': ['Espaces verts', 'Paysagiste', 'Jardinage', 'Jardinier'],
-  nettoyage:     ['Nettoyage'],
-  demenagement:  ['Déménageur', 'Déménagement'],
-  renovation:    ['Rénovation', 'Petits travaux'],
-  vitrerie:      ['Vitrier', 'Vitrerie'],
-  'traitement-nuisibles': ['Traitement nuisibles', 'Dératisation', 'Désinsectisation', '3D'],
-  'petits-travaux': ['Petits travaux', 'Bricolage'],
+  plomberie:     ['Plombier', 'Plomberie', 'Canalizador', 'Canalização', 'Explicações de canalização'],
+  electricite:   ['Électricien', 'Électricité', 'Eletricista', 'Eletricidade', 'Instalações elétricas'],
+  serrurerie:    ['Serrurier', 'Serrurerie', 'Serralheiro', 'Serralharia'],
+  chauffage:     ['Chauffagiste', 'Chauffage', 'Técnico de aquecimento', 'Aquecimento', 'Caldeira'],
+  climatisation: ['Climatisation', 'Ar condicionado', 'AVAC', 'Climatização'],
+  peinture:      ['Peintre', 'Peinture', 'Pintor', 'Pintura'],
+  maconnerie:    ['Maçon', 'Maçonnerie', 'Pedreiro', 'Construção civil', 'Alvenaria'],
+  menuiserie:    ['Menuisier', 'Menuiserie', 'Carpinteiro', 'Carpintaria'],
+  carrelage:     ['Carreleur', 'Carrelage', 'Ladrilhador', 'Ladrilhamento', 'Cerâmica'],
+  toiture:       ['Couvreur', 'Toiture', 'Telhador', 'Telhamento', 'Cobertura'],
+  'espaces-verts': ['Espaces verts', 'Paysagiste', 'Jardinage', 'Jardinier', 'Jardineiro', 'Jardinagem', 'Paisagismo'],
+  nettoyage:     ['Nettoyage', 'Limpeza', 'Serviços de limpeza'],
+  demenagement:  ['Déménageur', 'Déménagement', 'Mudanças', 'Transportes e mudanças'],
+  renovation:    ['Rénovation', 'Petits travaux', 'Remodelação', 'Obras e remodelações'],
+  vitrerie:      ['Vitrier', 'Vitrerie', 'Vidraceiro', 'Vidraçaria'],
+  'traitement-nuisibles': ['Traitement nuisibles', 'Dératisation', 'Désinsectisation', '3D', 'Controlo de pragas', 'Desratização', 'Desinfestação'],
+  'petits-travaux': ['Petits travaux', 'Bricolage', 'Bricolagem', 'Pequenos trabalhos', 'Reparações gerais'],
 }
 
 function metierToCategory(metier: string): string {
@@ -228,6 +220,37 @@ function metierToCategory(metier: string): string {
     if (metiers.includes(metier)) return cat
   }
   return metier.toLowerCase()
+}
+
+// ------------------------------------------------------------------
+// Algorithme de rotation équitable des artisans (anti-favoritisme)
+// ------------------------------------------------------------------
+
+/**
+ * Retourne un seed entier qui change toutes les 4h.
+ * Identique pour tous les utilisateurs → même ordre affiché pour tout le monde,
+ * rotation automatique toutes les 4 heures.
+ */
+function getTimeSlotSeed(): number {
+  const SLOT_MS = 4 * 60 * 60 * 1000 // 4 heures
+  return Math.floor(Date.now() / SLOT_MS)
+}
+
+/**
+ * Shuffle déterministe (Fisher-Yates + LCG seeded).
+ * Même seed → même ordre. Seed différent → ordre différent.
+ */
+function seededShuffle<T>(arr: T[], seed: number): T[] {
+  const shuffled = [...arr]
+  let s = (seed ^ 0xdeadbeef) >>> 0
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    // LCG: Numerical Recipes constants
+    s = Math.imul(s, 1664525) + 1013904223
+    s = s >>> 0
+    const j = s % (i + 1)
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
 }
 
 // ------------------------------------------------------------------
@@ -296,7 +319,100 @@ const KEYWORD_TO_CATEGORY: Record<string, string> = {
   frelon: 'traitement-nuisibles', frelons: 'traitement-nuisibles',
   rat: 'traitement-nuisibles', rats: 'traitement-nuisibles',
   souris: 'traitement-nuisibles',
+  // ── Mots-clés portugais (PT) ──────────────────────────────────────
+  // Plomberie PT
+  canalizador: 'plomberie', canalizadores: 'plomberie', canalizacao: 'plomberie',
+  explicacoes: 'plomberie', torneira: 'plomberie', sanita: 'plomberie',
+  // Electricité PT
+  eletricista: 'electricite', eletricistas: 'electricite', eletricidade: 'electricite',
+  instalacoes: 'electricite', tomada: 'electricite', disjuntor: 'electricite',
+  // Serrurerie PT
+  serralheiro: 'serrurerie', serralheiros: 'serrurerie', serralharia: 'serrurerie',
+  fechadura: 'serrurerie', porta: 'serrurerie', chave: 'serrurerie',
+  // Chauffage PT
+  aquecimento: 'chauffage', caldeira: 'chauffage', radiador: 'chauffage',
+  // Climatisation PT
+  'ar condicionado': 'climatisation', avac: 'climatisation', climatizacao: 'climatisation',
+  // Peinture PT
+  pintor: 'peinture', pintores: 'peinture', pintura: 'peinture',
+  // Maçonnerie PT
+  pedreiro: 'maconnerie', pedreiros: 'maconnerie', alvenaria: 'maconnerie',
+  construcao: 'maconnerie', betao: 'maconnerie',
+  // Menuiserie PT
+  carpinteiro: 'menuiserie', carpinteiros: 'menuiserie', carpintaria: 'menuiserie',
+  // Carrelage PT
+  ladrilhador: 'carrelage', ladrilhamento: 'carrelage', ceramica: 'carrelage',
+  azulejo: 'carrelage', mosaico: 'carrelage',
+  // Toiture PT
+  telhador: 'toiture', telhadores: 'toiture', telhamento: 'toiture', cobertura: 'toiture',
+  // Espaces verts PT
+  jardineiro: 'espaces-verts', jardineiros: 'espaces-verts', jardinagem: 'espaces-verts',
+  jardim: 'espaces-verts', podas: 'espaces-verts', paisagismo: 'espaces-verts',
+  // Nettoyage PT
+  limpeza: 'nettoyage', servicos: 'nettoyage',
+  // Déménagement PT
+  mudancas: 'demenagement', transporte: 'demenagement',
+  // Rénovation PT
+  remodelacao: 'renovation', obras: 'renovation', reparacoes: 'renovation',
+  // Vitrerie PT
+  vidraceiro: 'vitrerie', vidraceiros: 'vitrerie', vidracaria: 'vitrerie', vidro: 'vitrerie',
+  // Nuisibles PT
+  pragas: 'traitement-nuisibles', desratizacao: 'traitement-nuisibles',
+  desinfestacao: 'traitement-nuisibles', barata: 'traitement-nuisibles',
+  rato: 'traitement-nuisibles', ratos: 'traitement-nuisibles',
+  // Bricolage PT
+  bricolagem: 'petits-travaux', reparacoes2: 'petits-travaux',
 }
+
+// ------------------------------------------------------------------
+// Suggestions d'autocomplétion spécialités
+// ------------------------------------------------------------------
+interface SpecialtySuggestion { label: string; category: string; icon: string; subtitle?: string; type: 'primary' | 'intervention' }
+const SPECIALTY_SUGGESTIONS_FR: SpecialtySuggestion[] = [
+  // Métiers principaux
+  { label: 'Plombier', category: 'plomberie', icon: '🔧', type: 'primary' },
+  { label: 'Électricien', category: 'electricite', icon: '⚡', type: 'primary' },
+  { label: 'Serrurier', category: 'serrurerie', icon: '🔑', type: 'primary' },
+  { label: 'Chauffagiste', category: 'chauffage', icon: '🔥', type: 'primary' },
+  { label: 'Climaticien', category: 'climatisation', icon: '❄️', type: 'primary' },
+  { label: 'Peintre', category: 'peinture', icon: '🖌️', type: 'primary' },
+  { label: 'Maçon', category: 'maconnerie', icon: '🏗️', type: 'primary' },
+  { label: 'Menuisier', category: 'menuiserie', icon: '🪚', type: 'primary' },
+  { label: 'Carreleur', category: 'carrelage', icon: '🧱', type: 'primary' },
+  { label: 'Couvreur', category: 'toiture', icon: '🏠', type: 'primary' },
+  { label: 'Paysagiste', category: 'espaces-verts', icon: '🌿', type: 'primary' },
+  { label: 'Déménageur', category: 'demenagement', icon: '📦', type: 'primary' },
+  { label: 'Nettoyage', category: 'nettoyage', icon: '🧹', type: 'primary' },
+  { label: 'Rénovation', category: 'renovation', icon: '🔨', type: 'primary' },
+  { label: 'Vitrier', category: 'vitrerie', icon: '🪟', type: 'primary' },
+  { label: 'Traitement nuisibles', category: 'traitement-nuisibles', icon: '🐛', type: 'primary' },
+  { label: 'Petits travaux', category: 'petits-travaux', icon: '🔩', type: 'primary' },
+  // Types d'intervention courants
+  { label: 'Fuite d\'eau', category: 'plomberie', icon: '💧', subtitle: 'Plombier', type: 'intervention' },
+  { label: 'Débouchage WC', category: 'plomberie', icon: '🚽', subtitle: 'Plombier', type: 'intervention' },
+  { label: 'Robinet qui fuit', category: 'plomberie', icon: '🔧', subtitle: 'Plombier', type: 'intervention' },
+  { label: 'Chauffe-eau en panne', category: 'plomberie', icon: '🚿', subtitle: 'Plombier', type: 'intervention' },
+  { label: 'Serrure claquée', category: 'serrurerie', icon: '🔑', subtitle: 'Serrurier', type: 'intervention' },
+  { label: 'Porte blindée', category: 'serrurerie', icon: '🚪', subtitle: 'Serrurier', type: 'intervention' },
+  { label: 'Panne électrique', category: 'electricite', icon: '⚡', subtitle: 'Électricien', type: 'intervention' },
+  { label: 'Tableau électrique', category: 'electricite', icon: '🔌', subtitle: 'Électricien', type: 'intervention' },
+  { label: 'Chaudière en panne', category: 'chauffage', icon: '🔥', subtitle: 'Chauffagiste', type: 'intervention' },
+  { label: 'Radiateur froid', category: 'chauffage', icon: '🌡️', subtitle: 'Chauffagiste', type: 'intervention' },
+  { label: 'Taille de haies', category: 'espaces-verts', icon: '✂️', subtitle: 'Paysagiste', type: 'intervention' },
+  { label: 'Tonte de pelouse', category: 'espaces-verts', icon: '🌿', subtitle: 'Paysagiste', type: 'intervention' },
+  { label: 'Abattage d\'arbres', category: 'espaces-verts', icon: '🌳', subtitle: 'Paysagiste', type: 'intervention' },
+  { label: 'Élagage', category: 'espaces-verts', icon: '🌱', subtitle: 'Paysagiste', type: 'intervention' },
+  { label: 'Pose de parquet', category: 'menuiserie', icon: '🪵', subtitle: 'Menuisier', type: 'intervention' },
+  { label: 'Vitres cassées', category: 'vitrerie', icon: '🪟', subtitle: 'Vitrier', type: 'intervention' },
+  { label: 'Ravalement de façade', category: 'peinture', icon: '🖌️', subtitle: 'Peintre', type: 'intervention' },
+  { label: 'Dératisation', category: 'traitement-nuisibles', icon: '🐀', subtitle: 'Traitement nuisibles', type: 'intervention' },
+  { label: 'Punaises de lit', category: 'traitement-nuisibles', icon: '🐜', subtitle: 'Traitement nuisibles', type: 'intervention' },
+  { label: 'Nid de frelons', category: 'traitement-nuisibles', icon: '🐝', subtitle: 'Traitement nuisibles', type: 'intervention' },
+  { label: 'Montage de meubles', category: 'petits-travaux', icon: '🔩', subtitle: 'Petits travaux', type: 'intervention' },
+  { label: 'Bricolage à domicile', category: 'petits-travaux', icon: '🛠️', subtitle: 'Petits travaux', type: 'intervention' },
+  { label: 'Pose de carrelage', category: 'carrelage', icon: '🧱', subtitle: 'Carreleur', type: 'intervention' },
+  { label: 'Réparation de toiture', category: 'toiture', icon: '🏠', subtitle: 'Couvreur', type: 'intervention' },
+]
 
 function levenshtein(a: string, b: string): number {
   if (a.length === 0) return b.length
@@ -364,179 +480,6 @@ function fuzzyMatchCategory(input: string): string | null {
 }
 
 // ------------------------------------------------------------------
-// Mini Weekly Calendar Component
-// ------------------------------------------------------------------
-
-function MiniWeeklyCalendar({
-  artisanId,
-  availability,
-  bookings,
-}: {
-  artisanId: string
-  availability: Availability[]
-  bookings: Booking[]
-}) {
-  const today = startOfDay(new Date())
-  // Calendrier démarre à aujourd'hui (style Doctolib/Calendly), pas au lundi de la semaine
-  const [weekStart, setWeekStart] = useState<Date>(today)
-
-  // Fetch absences pour bloquer les jours sur le calendrier client
-  const [absences, setAbsences] = useState<{ start_date: string; end_date: string }[]>([])
-  useEffect(() => {
-    fetch(`/api/artisan-absences?artisan_id=${artisanId}`)
-      .then(r => r.json())
-      .then(res => setAbsences(res.data || []))
-      .catch(() => {})
-  }, [artisanId])
-
-  // Helper : est-ce qu'une date tombe dans une absence ?
-  const isAbsent = useCallback((dateStr: string) => {
-    return absences.some(a => dateStr >= a.start_date && dateStr <= a.end_date)
-  }, [absences])
-
-  // Affiche 5 jours ouvrés à partir de weekStart
-  const weekDays = useMemo(() => getNextWorkingDays(weekStart, 5), [weekStart])
-
-  // Impossible de reculer avant aujourd'hui
-  const canGoPrev = isBefore(today, weekStart)
-
-  // Avancer/reculer de 5 jours ouvrés
-  const goNextWeek = () => {
-    const lastDay = weekDays[weekDays.length - 1]
-    setWeekStart(addDays(lastDay, 1))
-  }
-  const goPrevWeek = () => {
-    if (!canGoPrev) return
-    // Reculer de 5 jours ouvrés, mais pas avant today
-    let candidate = addDays(weekStart, -1)
-    const prevDays: Date[] = []
-    while (prevDays.length < 5 && !isBefore(candidate, today)) {
-      const dow = candidate.getDay()
-      if (dow >= 1 && dow <= 5) prevDays.unshift(candidate)
-      candidate = addDays(candidate, -1)
-    }
-    setWeekStart(prevDays.length > 0 ? prevDays[0] : today)
-  }
-
-  // Build slots for each day — bloque les jours passés ET les jours d'absence
-  const daySlotsMap = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const day of weekDays) {
-      const dayOfWeek = day.getDay()
-      const dateStr = format(day, 'yyyy-MM-dd')
-      const avail = availability.find((a) => a.day_of_week === dayOfWeek && a.is_available)
-
-      if (isBefore(day, today) && !isSameDay(day, today)) {
-        map[dateStr] = []
-      } else if (isAbsent(dateStr)) {
-        // Jour d'absence → aucun créneau disponible
-        map[dateStr] = []
-      } else if (avail) {
-        map[dateStr] = generateTimeSlots(avail, dateStr, bookings)
-      } else {
-        map[dateStr] = []
-      }
-    }
-    return map
-  }, [weekDays, availability, bookings, today, isAbsent])
-
-  const MAX_VISIBLE_SLOTS = 3
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Week nav */}
-      <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={goPrevWeek}
-          disabled={!canGoPrev}
-          className="p-1 rounded hover:bg-gray-100 transition disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Semaine precedente"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <span className="text-xs font-semibold text-gray-600">
-          {formatWeekRange(weekDays)}
-        </span>
-        <button
-          onClick={goNextWeek}
-          className="p-1 rounded hover:bg-gray-100 transition"
-          aria-label="Semaine suivante"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Day columns */}
-      <div className="grid grid-cols-5 gap-1 flex-1">
-        {weekDays.map((day) => {
-          const dateStr = format(day, 'yyyy-MM-dd')
-          const slots = daySlotsMap[dateStr] || []
-          const dayNum = format(day, 'd')
-          const dayName = SHORT_DAY_NAMES[day.getDay()]
-          const isToday = isDateToday(day)
-
-          return (
-            <div key={dateStr} className="flex flex-col items-center">
-              {/* Day header */}
-              <div
-                className={`text-center mb-1.5 ${
-                  isToday ? 'text-amber-600 font-bold' : 'text-gray-500'
-                }`}
-              >
-                <div className="text-[10px] uppercase font-semibold leading-tight">
-                  {dayName}
-                </div>
-                <div
-                  className={`text-xs leading-tight ${
-                    isToday
-                      ? 'bg-[#FFC107] text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto'
-                      : ''
-                  }`}
-                >
-                  {dayNum}
-                </div>
-              </div>
-
-              {/* Time slots */}
-              <div className="flex flex-col gap-1 w-full">
-                {slots.length === 0 ? (
-                  <span className="text-[10px] text-gray-300 text-center">&mdash;</span>
-                ) : (
-                  <>
-                    {slots.slice(0, MAX_VISIBLE_SLOTS).map((slot) => (
-                      <Link
-                        key={slot}
-                        href={`/artisan/${artisanId}`}
-                        className="text-[10px] sm:text-xs bg-amber-50 hover:bg-[#FFC107] hover:text-gray-900 text-amber-700 font-semibold py-1 px-0.5 rounded text-center transition truncate"
-                      >
-                        {slot}
-                      </Link>
-                    ))}
-                    {slots.length > MAX_VISIBLE_SLOTS && (
-                      <span className="text-[9px] text-gray-500 text-center">
-                        +{slots.length - MAX_VISIBLE_SLOTS}
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* See more link */}
-      <Link
-        href={`/artisan/${artisanId}`}
-        className="mt-2 text-xs text-[#FFC107] hover:text-amber-600 font-semibold text-center transition"
-      >
-        Voir plus de creneaux &rarr;
-      </Link>
-    </div>
-  )
-}
-
-// ------------------------------------------------------------------
 // Filter Modal
 // ------------------------------------------------------------------
 
@@ -545,11 +488,13 @@ function FilterModal({
   onClose,
   filters,
   setFilters,
+  locale,
 }: {
   isOpen: boolean
   onClose: () => void
   filters: FilterState
   setFilters: (f: FilterState) => void
+  locale: 'fr' | 'pt'
 }) {
   const [local, setLocal] = useState<FilterState>(filters)
 
@@ -559,7 +504,13 @@ function FilterModal({
 
   if (!isOpen) return null
 
-  const dispoOptions = [
+  const dispoOptions = locale === 'pt' ? [
+    { value: 'all', label: 'Todas as disponibilidades' },
+    { value: 'today', label: 'Hoje' },
+    { value: '3days', label: 'Nos próximos 3 dias' },
+    { value: '7days', label: 'Nos próximos 7 dias' },
+    { value: '14days', label: 'Nos próximos 14 dias' },
+  ] : [
     { value: 'all', label: 'Toutes les disponibilités' },
     { value: 'today', label: "Aujourd'hui" },
     { value: '3days', label: 'Sous 3 jours' },
@@ -567,7 +518,11 @@ function FilterModal({
     { value: '14days', label: 'Sous 14 jours' },
   ]
 
-  const interventionOptions = [
+  const interventionOptions = locale === 'pt' ? [
+    { value: 'all', label: 'Todos os tipos' },
+    { value: 'urgence', label: 'Intervenção urgente' },
+    { value: 'planifie', label: 'Intervenção planeada' },
+  ] : [
     { value: 'all', label: 'Tous types' },
     { value: 'urgence', label: 'Intervention urgente' },
     { value: 'planifie', label: 'Intervention planifiée' },
@@ -579,9 +534,9 @@ function FilterModal({
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 z-10">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 z-10 border-[1.5px] border-[#EFEFEF]">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Filtres</h2>
+          <h2 className="font-display text-xl font-black text-dark tracking-[-0.02em]">{locale === 'pt' ? 'Filtros' : 'Filtres'}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition"
@@ -592,7 +547,7 @@ function FilterModal({
 
         {/* Disponibilites */}
         <div className="mb-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Disponibilites</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">{locale === 'pt' ? 'Disponibilidades' : 'Disponibilités'}</h3>
           <div className="space-y-2">
             {dispoOptions.map((opt) => (
               <label
@@ -615,7 +570,7 @@ function FilterModal({
         {/* Type d'intervention */}
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">
-            Type d&apos;intervention
+            {locale === 'pt' ? 'Tipo de intervenção' : "Type d'intervention"}
           </h3>
           <div className="space-y-2">
             {interventionOptions.map((opt) => (
@@ -645,7 +600,7 @@ function FilterModal({
               onChange={() => setLocal({ ...local, verifiedOnly: !local.verifiedOnly })}
               className="w-4 h-4 accent-[#FFC107] rounded"
             />
-            <span className="text-sm font-medium">Artisans certifies uniquement</span>
+            <span className="text-sm font-medium">{locale === 'pt' ? 'Apenas profissionais certificados' : 'Artisans certifiés uniquement'}</span>
           </label>
         </div>
 
@@ -661,16 +616,16 @@ function FilterModal({
             }}
             className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
           >
-            Reinitialiser
+            {locale === 'pt' ? 'Reiniciar' : 'Réinitialiser'}
           </button>
           <button
             onClick={() => {
               setFilters(local)
               onClose()
             }}
-            className="flex-1 bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 py-2.5 rounded-lg font-semibold transition"
+            className="flex-1 bg-yellow hover:bg-yellow-light text-dark py-2.5 rounded-xl font-semibold transition"
           >
-            Appliquer les filtres
+            {locale === 'pt' ? 'Aplicar filtros' : 'Appliquer les filtres'}
           </button>
         </div>
       </div>
@@ -692,7 +647,7 @@ interface FilterState {
 // Artisan Card
 // ------------------------------------------------------------------
 
-function StarsRow({ rating, reviewCount }: { rating: number; reviewCount: number }) {
+function StarsRow({ rating, reviewCount, locale = 'fr' }: { rating: number; reviewCount: number; locale?: 'fr' | 'pt' }) {
   const fullStars = Math.floor(rating)
   const hasHalf = rating - fullStars >= 0.5
   return (
@@ -703,16 +658,16 @@ function StarsRow({ rating, reviewCount }: { rating: number; reviewCount: number
             key={i}
             className={`w-3.5 h-3.5 ${
               i < fullStars
-                ? 'fill-[#FFC107] text-[#FFC107]'
+                ? 'fill-[#FFC107] text-yellow'
                 : i === fullStars && hasHalf
-                  ? 'fill-[#FFC107]/50 text-[#FFC107]'
+                  ? 'fill-[#FFC107]/50 text-yellow'
                   : 'fill-gray-200 text-gray-200'
             }`}
           />
         ))}
       </div>
       <span className="text-sm font-semibold">{rating.toFixed(1)}</span>
-      <span className="text-xs text-gray-500">({reviewCount} avis)</span>
+      <span className="text-xs text-gray-500">({reviewCount} {locale === 'pt' ? 'avaliações' : 'avis'})</span>
     </div>
   )
 }
@@ -721,23 +676,28 @@ function ArtisanCard({
   artisan,
   availability,
   bookings,
+  locale,
 }: {
   artisan: Artisan
   availability: Availability[]
   bookings: Booking[]
+  locale: 'fr' | 'pt'
 }) {
   const initials = getInitials(artisan.company_name)
   const primaryCategory = artisan.categories?.[0]
-  const rating = artisan.rating_avg || 5.0
+  // Only show rating if there are actual reviews (don't fabricate 5.0 for PT artisans)
+  const hasGoogleReviews = (artisan.rating_count || 0) > 0
+  const rating = artisan.rating_avg || 0
   const reviewCount = artisan.rating_count || 0
   const isCatalogue = artisan.source === 'catalogue'
 
   // Badges
   const badges: { icon: React.ReactNode; label: string; color: string }[] = []
-  if (artisan.verified) {
+  if (artisan.verified && !isCatalogue) {
+    // Badge certifié uniquement pour les artisans inscrits sur VITFIX
     badges.push({
       icon: <Award className="w-3 h-3" />,
-      label: isCatalogue ? 'Pappers vérifié' : 'Artisan certifie',
+      label: locale === 'pt' ? 'Profissional certificado' : 'Artisan certifié',
       color: 'bg-green-50 text-green-700 border-green-200',
     })
   }
@@ -748,33 +708,37 @@ function ArtisanCard({
     if (hasWeekendOrWideHours) {
       badges.push({
         icon: <Zap className="w-3 h-3" />,
-        label: 'Intervention rapide',
+        label: locale === 'pt' ? 'Intervenção rápida' : 'Intervention rapide',
         color: 'bg-amber-50 text-amber-700 border-amber-200',
       })
     }
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+    <div className="bg-white rounded-2xl hover:shadow-[0_4px_30px_rgba(0,0,0,0.08)] transition-shadow border-[1.5px] border-[#EFEFEF]">
       <div className="p-5 lg:p-6">
         <div className="flex flex-col lg:flex-row lg:gap-6">
           {/* Avatar */}
           <div className="flex lg:flex-col items-center lg:items-center gap-4 lg:gap-2 mb-4 lg:mb-0 lg:w-20 flex-shrink-0">
             {artisan.profile_photo_url ? (
-              <img
+              <Image
                 src={artisan.profile_photo_url}
                 alt={artisan.company_name || 'Artisan'}
+                width={64}
+                height={64}
                 className="w-14 h-14 lg:w-16 lg:h-16 rounded-full object-cover shadow-sm flex-shrink-0"
               />
             ) : (
-              <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFB300] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
+              <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-yellow to-[#FFE84D] flex items-center justify-center text-white font-bold text-lg lg:text-xl shadow-sm flex-shrink-0">
                 {initials}
               </div>
             )}
-            <div className="hidden lg:flex items-center gap-0.5 mt-1">
-              <Star className="w-3.5 h-3.5 fill-[#FFC107] text-[#FFC107]" />
-              <span className="text-xs font-semibold">{rating.toFixed(1)}</span>
-            </div>
+            {hasGoogleReviews && (
+              <div className="hidden lg:flex items-center gap-0.5 mt-1">
+                <Star className="w-3.5 h-3.5 fill-[#FFC107] text-yellow" />
+                <span className="text-xs font-semibold">{rating.toFixed(1)}</span>
+              </div>
+            )}
           </div>
 
           {/* Info */}
@@ -784,34 +748,50 @@ function ArtisanCard({
                 {isCatalogue ? (
                   <span className="font-bold text-lg">{artisan.company_name || 'Artisan'}</span>
                 ) : (
-                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-bold text-lg hover:text-[#FFC107] transition">
+                  <Link href={`/artisan/${artisan.slug || artisan.id}`} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
                     {artisan.company_name || 'Artisan'}
                   </Link>
                 )}
                 {primaryCategory && (
-                  <p className="text-sm text-gray-500">{getCategoryLabel(primaryCategory)}</p>
+                  <p className="text-sm text-gray-500">{getCategoryLabel(primaryCategory, locale)}</p>
                 )}
               </div>
             </div>
 
-            <div className="mt-1 lg:hidden">
-              <StarsRow rating={rating} reviewCount={reviewCount} />
-            </div>
-            <div className="hidden lg:block mt-1">
-              <StarsRow rating={rating} reviewCount={reviewCount} />
-            </div>
+            {hasGoogleReviews && (
+              <div className="mt-1 lg:hidden">
+                <StarsRow rating={rating} reviewCount={reviewCount} locale={locale} />
+              </div>
+            )}
+            {hasGoogleReviews && (
+              <div className="hidden lg:block mt-1">
+                <StarsRow rating={rating} reviewCount={reviewCount} locale={locale} />
+              </div>
+            )}
 
             <div className="mt-2 space-y-1">
               {artisan.experience_years && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                   <Clock className="w-3 h-3" />
-                  <span>{artisan.experience_years} ans d&apos;experience</span>
+                  <span>{artisan.experience_years} {locale === 'pt' ? 'anos de experiência' : 'ans d\'expérience'}</span>
                 </div>
               )}
-              {(artisan.adresse || artisan.city) && (
+              {(artisan.adresse || artisan.city || artisan.distance_km != null) && (
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                   <MapPin className="w-3 h-3" />
-                  <span>{artisan.adresse || artisan.city}</span>
+                  <span>
+                    {artisan.adresse || artisan.city}
+                    {artisan.distance_km != null && (
+                      <span className="ml-1 font-semibold text-yellow">
+                        ({artisan.distance_km < 1
+                          ? `${Math.round(artisan.distance_km * 1000)} m`
+                          : artisan.distance_km < 10
+                            ? `${artisan.distance_km.toFixed(1)} km`
+                            : `${Math.round(artisan.distance_km)} km`
+                        })
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
             </div>
@@ -829,46 +809,47 @@ function ArtisanCard({
           </div>
 
           {/* Colonne 3 : Calendrier (inscrit) ou Contact (catalogue) */}
-          <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-100 pt-4 lg:pt-0 lg:pl-5">
+          <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border pt-4 lg:pt-0 lg:pl-5">
             {isCatalogue ? (
               <div className="flex flex-col gap-3 h-full justify-center">
-                <p className="text-xs text-gray-500 font-medium">Artisan r&eacute;f&eacute;renc&eacute; &agrave; Marseille</p>
-                {artisan.telephone_pro && artisan.verified && (
-                  <a
-                    href={`tel:${artisan.telephone_pro}`}
-                    className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 font-bold py-2.5 px-4 rounded-lg transition text-sm"
-                  >
-                    📞 {artisan.telephone_pro}
-                  </a>
-                )}
+                {/* Numéro flouté — visible mais illisible */}
+                <div
+                  className="flex items-center justify-center gap-2 bg-yellow rounded-xl text-dark font-mono py-3 px-4 text-sm font-semibold"
+                  style={{ filter: 'blur(4px)', userSelect: 'none', pointerEvents: 'none', letterSpacing: '0.05em' }}
+                  aria-hidden="true"
+                >
+                  📞 {artisan.telephone_pro || (locale === 'pt' ? '+351 ••• ••• •••' : '06 •• •• •• ••')}
+                </div>
                 <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || 'Marseille'))}`}
+                  href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.adresse || artisan.city || (locale === 'pt' ? 'Porto' : 'Marseille')))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-yellow text-gray-700 hover:text-yellow font-semibold py-2 px-4 rounded-lg transition text-sm"
                 >
-                  🔍 Voir sur Google
+                  {locale === 'pt' ? '🔍 Ver no Google' : '🔍 Voir sur Google'}
                 </a>
-                <p className="text-[10px] text-gray-500 text-center">
-                  {reviewCount} avis Google • {rating.toFixed(1)}/5
-                </p>
+                {hasGoogleReviews && (
+                  <p className="text-[10px] text-gray-500 text-center">
+                    {reviewCount} {locale === 'pt' ? 'avaliações Google' : 'avis Google'} • {rating.toFixed(1)}/5
+                  </p>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-3 h-full justify-center">
                 <Link
                   href={`/artisan/${artisan.slug || artisan.id}`}
-                  className="flex items-center justify-center gap-2 bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 font-bold py-3 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 bg-yellow hover:bg-yellow-light text-dark font-bold py-3 px-4 rounded-xl transition text-sm hover:-translate-y-px"
                 >
                   <Calendar className="w-4 h-4" />
-                  Prendre rendez-vous
+                  {locale === 'pt' ? 'Agendar visita' : 'Prendre rendez-vous'}
                 </Link>
                 <a
                   href={`https://www.google.com/search?q=${encodeURIComponent((artisan.company_name || '') + ' ' + (artisan.city || ''))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-[#FFC107] text-gray-700 hover:text-[#FFC107] font-semibold py-2 px-4 rounded-lg transition text-sm"
+                  className="flex items-center justify-center gap-2 border border-gray-200 hover:border-yellow text-gray-700 hover:text-yellow font-semibold py-2 px-4 rounded-lg transition text-sm"
                 >
-                  🔍 Voir sur Google
+                  {locale === 'pt' ? '🔍 Ver no Google' : '🔍 Voir sur Google'}
                 </a>
               </div>
             )}
@@ -887,10 +868,17 @@ function RechercheContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  // Search inputs
-  const [categoryInput, setCategoryInput] = useState(
-    searchParams.get('category') || ''
-  )
+  // Détection locale depuis l'URL (/pt/... ou /fr/...) — fiable dès le 1er rendu
+  // Le middleware garde l'URL /pt/recherche/ dans le navigateur même si next.config rewrite sert /recherche/
+  const pathname = usePathname()
+  const siteLocale: 'fr' | 'pt' = pathname?.startsWith('/pt') ? 'pt' : 'fr'
+  const tp = (fr: string, pt: string) => siteLocale === 'pt' ? pt : fr
+
+  // Search inputs — PT: show localized label instead of raw slug (e.g. "Eletricista" not "electricite")
+  const [categoryInput, setCategoryInput] = useState(() => {
+    const raw = searchParams.get('category') || ''
+    return raw && siteLocale === 'pt' ? (CATEGORY_LABELS_PT[raw] || raw) : raw
+  })
   const [locationInput, setLocationInput] = useState(
     searchParams.get('loc') || ''
   )
@@ -899,6 +887,8 @@ function RechercheContent() {
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState('')
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
+  // Coordonnées de la ville saisie (geocodées) pour le tri par distance sans GPS
+  const [searchCoords, setSearchCoords] = useState<{ lat: number; lng: number } | null>(null)
 
   // Data
   const [artisans, setArtisans] = useState<Artisan[]>([])
@@ -922,6 +912,16 @@ function RechercheContent() {
     searchParams.get('loc') || ''
   )
 
+  // Autocomplete dropdowns
+  const [catDropOpen, setCatDropOpen] = useState(false)
+  const [locDropOpen, setLocDropOpen] = useState(false)
+  const [citySuggestions, setCitySuggestions] = useState<Array<{label: string}>>([])
+  const [citySuggestionsLoading, setCitySuggestionsLoading] = useState(false)
+  const [catHighlight, setCatHighlight] = useState(-1)
+  const [locHighlight, setLocHighlight] = useState(-1)
+  const catRef = useRef<HTMLDivElement>(null)
+  const locRef = useRef<HTMLDivElement>(null)
+
   // ------------------------------------------------------------------
   // Fetch data
   // ------------------------------------------------------------------
@@ -934,10 +934,36 @@ function RechercheContent() {
       const locNorm = normalizeForSearch(location)
 
       // ── 1. Artisans inscrits (profiles_artisan) ─────────────────────
+      // Détection du pays : GPS prioritaire (si "autour de moi") > locale cookie
+      const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
+      let detectedCountry: string = localeCookie === 'pt' ? 'PT' : 'FR'
+
+      // Si géolocalisation active, détecter le pays par coordonnées GPS
+      if (userCoords) {
+        const { lat, lng } = userCoords
+        // Bounding box Portugal continental
+        if (lat >= 36.9 && lat <= 42.2 && lng >= -9.6 && lng <= -6.1) {
+          detectedCountry = 'PT'
+        // Açores
+        } else if (lat >= 36.5 && lat <= 40.0 && lng >= -31.5 && lng <= -24.5) {
+          detectedCountry = 'PT'
+        // Madère
+        } else if (lat >= 32.0 && lat <= 33.5 && lng >= -17.5 && lng <= -15.5) {
+          detectedCountry = 'PT'
+        // France métropolitaine
+        } else if (lat >= 41.0 && lat <= 51.5 && lng >= -5.5 && lng <= 10.0) {
+          detectedCountry = 'FR'
+        }
+      }
+
+      // detectedCountry = 'FR' | 'PT' — mappe vers la colonne `language` qui existe dans profiles_artisan
+      const detectedLang = detectedCountry === 'PT' ? 'pt' : 'fr'
+
       let query = supabase
         .from('profiles_artisan')
         .select('*, services(*)')
         .eq('active', true)
+        .eq('language', detectedLang)
 
       // Don't filter registered artisans at DB level — do it client-side for better fuzzy matching
       const { data: artisanData, error } = await query
@@ -957,50 +983,59 @@ function RechercheContent() {
               ? simpleMatch[2] ? `${simpleMatch[1].trim()}, ${simpleMatch[2]}` : simpleMatch[1].trim()
               : null
         })()
+        // Calculer la distance si coords utilisateur disponibles
+        let dist: number | null = null
+        if (userCoords && a.latitude && a.longitude) {
+          const R = 6371
+          const dLat = (a.latitude - userCoords.lat) * Math.PI / 180
+          const dLon = (a.longitude - userCoords.lng) * Math.PI / 180
+          const sinLat = Math.sin(dLat / 2)
+          const sinLon = Math.sin(dLon / 2)
+          const h = sinLat * sinLat + Math.cos(userCoords.lat * Math.PI / 180) * Math.cos(a.latitude * Math.PI / 180) * sinLon * sinLon
+          dist = R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+        }
         return {
           ...a,
           city: extractedCity,
+          distance_km: dist,
           source: 'registered' as const,
         }
       })
 
       // Client-side category filter for registered artisans
       if (catNorm) {
-        // Build a set of all related slugs/keywords for the resolved category
-        const relatedTerms = new Set<string>()
         if (resolvedCategory) {
-          relatedTerms.add(resolvedCategory)
-          // Add all keywords that map to this category
-          for (const [kw, slug] of Object.entries(KEYWORD_TO_CATEGORY)) {
-            if (slug === resolvedCategory) relatedTerms.add(kw)
-          }
-          // Add metier names
+          // Strict category filter: only show artisans whose categories array contains
+          // the resolved slug OR a closely related slug. Do NOT search bio/services text
+          // to avoid false positives (e.g. "jardin" in an address matching a plumber).
+          const catSlugNorm = normalizeForSearch(resolvedCategory)
+          // Collect all slugs that are aliases for this category
+          const relatedSlugs = new Set<string>([catSlugNorm])
+          // Also accept artisans that have any keyword/metier of this category as their category value
           const metiers = CATEGORY_TO_METIERS[resolvedCategory] || []
-          for (const m of metiers) relatedTerms.add(normalizeForSearch(m))
-        }
+          for (const m of metiers) relatedSlugs.add(normalizeForSearch(m))
 
-        registeredList = registeredList.filter((a) => {
-          const artisanText = normalizeForSearch(
-            [
-              (a.categories || []).join(' '),
-              a.company_name || '',
-              a.bio || '',
-              (a.services || []).map((s: any) => s.name || '').join(' '),
-            ].join(' ')
-          )
-          // Check if any artisan category matches any related term
-          if (resolvedCategory) {
+          registeredList = registeredList.filter((a) => {
             const artisanCats = (a.categories || []).map((c: string) => normalizeForSearch(c))
-            const hasMatch = artisanCats.some((ac: string) =>
-              relatedTerms.has(ac) || [...relatedTerms].some(rt => ac.includes(rt) || rt.includes(ac))
+            // Exact slug match (most common case: categories = ['espaces-verts'])
+            if (artisanCats.includes(catSlugNorm)) return true
+            // Also match if the artisan category value is one of the metier names
+            return artisanCats.some(ac => relatedSlugs.has(ac))
+          })
+        } else {
+          // No resolved category — free text search across all artisan fields
+          registeredList = registeredList.filter((a) => {
+            const artisanText = normalizeForSearch(
+              [
+                (a.categories || []).join(' '),
+                a.company_name || '',
+                a.bio || '',
+                (a.services || []).map((s: any) => s.name || '').join(' '),
+              ].join(' ')
             )
-            if (hasMatch) return true
-            // Also check bio and services for related terms
-            return [...relatedTerms].some(rt => rt.length >= 3 && artisanText.includes(rt))
-          }
-          // No resolved category — free text search
-          return catNorm.split(/\s+/).some(w => w.length >= 2 && artisanText.includes(w))
-        })
+            return catNorm.split(/\s+/).some(w => w.length >= 2 && artisanText.includes(w))
+          })
+        }
       }
 
       // Client-side location filter for registered artisans
@@ -1019,10 +1054,17 @@ function RechercheContent() {
       }
 
       // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
+      // PT : uniquement Porto. FR : toutes les villes françaises (location filter affine).
       let catalogQuery = supabase
         .from('artisans_catalogue')
         .select('*')
-        .order('google_note', { ascending: false })
+        .order('google_note', { ascending: false, nullsFirst: false })
+
+      if (detectedCountry === 'PT') {
+        catalogQuery = catalogQuery.eq('ville', 'Porto')
+      } else {
+        catalogQuery = catalogQuery.neq('ville', 'Porto')
+      }
 
       if (resolvedCategory) {
         const metiers = CATEGORY_TO_METIERS[resolvedCategory]
@@ -1052,7 +1094,7 @@ function RechercheContent() {
         verified: c.pappers_verifie || false,
         active: true,
         zone_radius_km: 20,
-        city: c.arrondissement || c.ville || 'Marseille',
+        city: c.arrondissement || c.ville || (detectedCountry === 'PT' ? 'Porto' : 'France'),
         experience_years: null,
         source: 'catalogue' as const,
         telephone_pro: c.telephone_pro,
@@ -1111,6 +1153,32 @@ function RechercheContent() {
         setAllBookings([])
       }
 
+      // Geocoder la ville saisie pour activer le tri par distance (même sans GPS)
+      if (location) {
+        try {
+          if (detectedLang === 'pt') {
+            const geoRes = await fetch(
+              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&countrycodes=pt&format=json&limit=1`,
+              { headers: { 'User-Agent': 'Vitfix/1.0' } }
+            )
+            const geoData = await geoRes.json()
+            if (geoData?.[0]) setSearchCoords({ lat: parseFloat(geoData[0].lat), lng: parseFloat(geoData[0].lon) })
+            else setSearchCoords(null)
+          } else {
+            const geoRes = await fetch(
+              `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(location)}&type=municipality&limit=1`
+            )
+            const geoData = await geoRes.json()
+            if (geoData.features?.[0]) {
+              const [geoLng, geoLat] = geoData.features[0].geometry.coordinates
+              setSearchCoords({ lat: geoLat, lng: geoLng })
+            } else setSearchCoords(null)
+          }
+        } catch { setSearchCoords(null) }
+      } else {
+        setSearchCoords(null)
+      }
+
       setLoading(false)
     },
     []
@@ -1120,7 +1188,9 @@ function RechercheContent() {
   useEffect(() => {
     const cat = searchParams.get('category') || ''
     const loc = searchParams.get('loc') || ''
-    setCategoryInput(cat)
+    // PT: show localized label in the input (not the raw French slug)
+    const displayCat = cat && siteLocale === 'pt' ? (CATEGORY_LABELS_PT[cat] || cat) : cat
+    setCategoryInput(displayCat)
     setLocationInput(loc)
     setActiveCategory(cat)
     setActiveLocation(loc)
@@ -1131,6 +1201,89 @@ function RechercheContent() {
   // ------------------------------------------------------------------
   // Search handler
   // ------------------------------------------------------------------
+
+  // ------------------------------------------------------------------
+  // Autocomplete logic
+  // ------------------------------------------------------------------
+
+  // Filtered specialty suggestions
+  const filteredSpecialtySuggestions = useMemo(() => {
+    if (!categoryInput.trim()) return SPECIALTY_SUGGESTIONS_FR.filter(s => s.type === 'primary')
+    const norm = categoryInput.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    return SPECIALTY_SUGGESTIONS_FR.filter(s =>
+      s.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm) ||
+      (s.subtitle && s.subtitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(norm))
+    ).slice(0, 8)
+  }, [categoryInput])
+
+  // Fetch city suggestions from API (debounced via useEffect)
+  useEffect(() => {
+    if (!locDropOpen) return
+    if (locationInput.length < 2) { setCitySuggestions([]); return }
+    setCitySuggestionsLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        if (siteLocale === 'pt') {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationInput)}&countrycodes=pt&format=json&limit=6&addressdetails=1`, { headers: { 'User-Agent': 'Vitfix/1.0' } })
+          const data = await res.json()
+          setCitySuggestions((data || []).map((r: Record<string, unknown>) => ({ label: String(r.display_name).split(',')[0] })))
+        } else {
+          const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(locationInput)}&type=municipality&limit=6&autocomplete=1`)
+          const data = await res.json()
+          setCitySuggestions((data.features || []).map((f: { properties: { city?: string; label?: string; postcode?: string } }) => ({
+            label: `${f.properties.city || f.properties.label}${f.properties.postcode ? ' (' + f.properties.postcode + ')' : ''}`,
+          })))
+        }
+      } catch { setCitySuggestions([]) }
+      finally { setCitySuggestionsLoading(false) }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [locationInput, locDropOpen, siteLocale])
+
+  // Click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) { setCatDropOpen(false); setCatHighlight(-1) }
+      if (locRef.current && !locRef.current.contains(e.target as Node)) { setLocDropOpen(false); setLocHighlight(-1) }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Keyboard nav for specialty dropdown
+  const handleCategoryKeyDown = (e: React.KeyboardEvent) => {
+    if (!catDropOpen) { if (e.key === 'ArrowDown') setCatDropOpen(true); return }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setCatHighlight(h => Math.min(h + 1, filteredSpecialtySuggestions.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setCatHighlight(h => Math.max(h - 1, -1)) }
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (catHighlight >= 0 && filteredSpecialtySuggestions[catHighlight]) {
+        const s = filteredSpecialtySuggestions[catHighlight]
+        setCategoryInput(s.label); setCatDropOpen(false); setCatHighlight(-1)
+      } else { setCatDropOpen(false); handleSearch() }
+    }
+    else if (e.key === 'Escape') { setCatDropOpen(false); setCatHighlight(-1) }
+  }
+
+  // Keyboard nav for city dropdown (index 0 = "Autour de moi", 1+ = citySuggestions)
+  const allLocSuggestions = useMemo(() => [
+    { label: tp('Autour de moi', 'Perto de mim'), isGeo: true },
+    ...citySuggestions.map(s => ({ ...s, isGeo: false })),
+  ], [citySuggestions, siteLocale]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLocationKeyDown = (e: React.KeyboardEvent) => {
+    if (!locDropOpen) { if (e.key === 'ArrowDown') setLocDropOpen(true); return }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setLocHighlight(h => Math.min(h + 1, allLocSuggestions.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setLocHighlight(h => Math.max(h - 1, -1)) }
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (locHighlight === 0) { handleGeolocate(); setLocDropOpen(false) }
+      else if (locHighlight > 0 && allLocSuggestions[locHighlight]) {
+        setLocationInput(allLocSuggestions[locHighlight].label); setLocDropOpen(false); setLocHighlight(-1)
+      } else { setLocDropOpen(false); handleSearch() }
+    }
+    else if (e.key === 'Escape') { setLocDropOpen(false); setLocHighlight(-1) }
+  }
 
   const handleSearch = () => {
     setActiveCategory(categoryInput)
@@ -1145,9 +1298,6 @@ function RechercheContent() {
     fetchData(categoryInput, locationInput)
   }
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch()
-  }
 
   // ------------------------------------------------------------------
   // Géolocalisation "Autour de moi"
@@ -1166,21 +1316,37 @@ function RechercheContent() {
         const { latitude, longitude } = pos.coords
         setUserCoords({ lat: latitude, lng: longitude })
 
-        // Reverse geocoding via API publique
+        // Détecter le pays pour le reverse geocoding adaptatif
+        const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
+        const isPortugal = localeCookie === 'pt' ||
+          (latitude >= 36.9 && latitude <= 42.2 && longitude >= -9.6 && longitude <= -6.1)
+
         try {
-          const res = await fetch(
-            `https://api-adresse.data.gouv.fr/reverse/?lon=${longitude}&lat=${latitude}`
-          )
-          const data = await res.json()
-          const feature = data?.features?.[0]
-          if (feature) {
-            const city = feature.properties?.city || feature.properties?.municipality || ''
-            const postcode = feature.properties?.postcode || ''
-            const label = city ? `${city} (${postcode})` : postcode
-            setLocationInput(label)
+          let city = '', postcode = ''
+          if (isPortugal) {
+            // API Nominatim pour le Portugal
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=pt&countrycodes=pt`,
+              { headers: { 'User-Agent': 'Vitfix/1.0' } }
+            )
+            const data = await res.json()
+            city = data?.address?.city || data?.address?.town || data?.address?.village || ''
+            postcode = data?.address?.postcode || ''
           } else {
-            setLocationInput(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`)
+            // API adresse.data.gouv.fr pour la France
+            const res = await fetch(
+              `https://api-adresse.data.gouv.fr/reverse/?lon=${longitude}&lat=${latitude}`
+            )
+            const data = await res.json()
+            const feature = data?.features?.[0]
+            if (feature) {
+              city = feature.properties?.city || feature.properties?.municipality || ''
+              postcode = feature.properties?.postcode || ''
+            }
           }
+
+          const label = city ? `${city} (${postcode})` : postcode || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+          setLocationInput(label)
         } catch {
           setLocationInput(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`)
         }
@@ -1197,13 +1363,20 @@ function RechercheContent() {
       },
       (err) => {
         setGeoLoading(false)
+        const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         if (err.code === err.PERMISSION_DENIED) {
-          setGeoError('Accès à la localisation refusé. Autorisez la géolocalisation dans votre navigateur.')
+          setGeoError(localeCookie === 'pt'
+            ? 'Acesso à localização recusado. Autorize a geolocalização no seu navegador.'
+            : 'Accès à la localisation refusé. Autorisez la géolocalisation dans votre navigateur.'
+          )
         } else {
-          setGeoError('Impossible de récupérer votre position. Réessayez.')
+          setGeoError(localeCookie === 'pt'
+            ? 'Impossível obter a sua posição. Tente novamente.'
+            : 'Impossible de récupérer votre position. Réessayez.'
+          )
         }
       },
-      { timeout: 8000, maximumAge: 60000 }
+      { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
     )
   }
 
@@ -1212,11 +1385,11 @@ function RechercheContent() {
   // ------------------------------------------------------------------
 
   const filteredArtisans = useMemo(() => {
-    let result = [...artisans]
+    let filtered = [...artisans]
 
     // Verified filter
     if (filters.verifiedOnly) {
-      result = result.filter((a) => a.verified)
+      filtered = filtered.filter((a) => a.verified)
     }
 
     // Availability time filter
@@ -1241,7 +1414,7 @@ function RechercheContent() {
           maxDate = addDays(today, 365)
       }
 
-      result = result.filter((artisan) => {
+      filtered = filtered.filter((artisan) => {
         const artisanAvail = allAvailability.filter(
           (a) => a.artisan_id === artisan.id
         )
@@ -1268,15 +1441,57 @@ function RechercheContent() {
       })
     }
 
-    // Sort: inscrits d'abord, puis catalogue ; dans chaque groupe : vérifiés > note
-    result.sort((a, b) => {
-      if (a.source !== b.source) return a.source === 'catalogue' ? 1 : -1
-      if (a.verified !== b.verified) return a.verified ? -1 : 1
-      return (b.rating_avg || 0) - (a.rating_avg || 0)
-    })
+    // Filtrer par rayon si géolocalisation active (max 50 km)
+    if (userCoords) {
+      filtered = filtered.filter(a => {
+        if (a.distance_km == null) return true // Pas de coords → on garde quand même
+        return a.distance_km <= 50
+      })
+    }
 
-    return result
-  }, [artisans, filters, allAvailability, allBookings])
+    // ── Algorithme de présentation équitable ──────────────────────────
+    // Règle absolue : inscrits VITFIX toujours avant le catalogue.
+    // Au sein de chaque groupe : rotation toutes les 4h (seed temporel)
+    // pour éviter tout favoritisme permanent.
+    // Si géoloc active : les inscrits sont triés par distance (objectif),
+    // le catalogue reste en rotation.
+
+    const seed = getTimeSlotSeed()
+
+    // Séparer les deux groupes
+    const registeredArtisans = filtered.filter(a => a.source !== 'catalogue')
+    const catalogueArtisans  = filtered.filter(a => a.source === 'catalogue')
+
+    // Point de référence : GPS (autour de moi) ou coords de la ville saisie (geocodée)
+    const refCoords = userCoords || searchCoords
+
+    // Distance haversine inline (km)
+    const haversine = (a: Artisan): number => {
+      if (!refCoords || !a.latitude || !a.longitude) return 9999
+      const R = 6371
+      const dLat = (a.latitude - refCoords.lat) * Math.PI / 180
+      const dLon = (a.longitude - refCoords.lng) * Math.PI / 180
+      const s = Math.sin(dLat / 2) ** 2
+        + Math.cos(refCoords.lat * Math.PI / 180) * Math.cos(a.latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+      return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s))
+    }
+
+    // Groupe 1 — Inscrits VITFIX
+    let sortedRegistered: Artisan[]
+    if (refCoords) {
+      // Coordonnées disponibles (GPS ou ville geocodée) → tri par distance croissante
+      sortedRegistered = [...registeredArtisans].sort((a, b) => haversine(a) - haversine(b))
+    } else {
+      // Aucune localisation → rotation équitable toutes les 4h
+      sortedRegistered = seededShuffle(registeredArtisans, seed)
+    }
+
+    // Groupe 2 — Catalogue SIRENE (toujours après les inscrits)
+    // Rotation toutes les 4h, seed décalé pour varier indépendamment du groupe 1
+    const sortedCatalogue = seededShuffle(catalogueArtisans, seed + 1)
+
+    return [...sortedRegistered, ...sortedCatalogue]
+  }, [artisans, filters, allAvailability, allBookings, userCoords, searchCoords])
 
   // ------------------------------------------------------------------
   // Subtitle text
@@ -1284,24 +1499,32 @@ function RechercheContent() {
 
   const subtitleText = useMemo(() => {
     const parts: string[] = []
-    if (activeCategory) {
-      parts.push(`${getCategoryLabel(activeCategory)}s verifies`)
+    if (siteLocale === 'pt') {
+      if (activeCategory) {
+        parts.push(`${getCategoryLabel(activeCategory, 'pt')}s verificados`)
+      } else {
+        parts.push('Profissionais verificados')
+      }
+      if (activeLocation) parts.push(`em ${activeLocation}`)
+      parts.push('com disponibilidade em tempo real')
     } else {
-      parts.push('Artisans vérifiés')
+      if (activeCategory) {
+        parts.push(`${getCategoryLabel(activeCategory)}s verifies`)
+      } else {
+        parts.push('Artisans vérifiés')
+      }
+      if (activeLocation) parts.push(`a ${activeLocation}`)
+      parts.push('avec disponibilités en temps réel')
     }
-    if (activeLocation) {
-      parts.push(`a ${activeLocation}`)
-    }
-    parts.push('avec disponibilités en temps réel')
     return parts.join(' ')
-  }, [activeCategory, activeLocation])
+  }, [activeCategory, activeLocation, siteLocale])
 
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-warm-gray">
       <h1 className="sr-only">Rechercher un artisan près de chez vous</h1>
       <script
         type="application/ld+json"
@@ -1310,205 +1533,192 @@ function RechercheContent() {
             '@context': 'https://schema.org',
             '@type': 'BreadcrumbList',
             itemListElement: [
-              { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.fr/' },
-              { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.fr/recherche/' },
+              { '@type': 'ListItem', position: 1, name: 'Accueil', item: 'https://vitfix.io/' },
+              { '@type': 'ListItem', position: 2, name: 'Rechercher un artisan', item: 'https://vitfix.io/recherche/' },
             ],
           }),
         }}
       />
-      {/* Search Bar (in-page) */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-              <input
-                type="text"
-                value={categoryInput}
-                onChange={(e) => setCategoryInput(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Sp&eacute;cialit&eacute; ou motif (ex: plombier, fuite, taille haie...)"
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-[#FFC107] focus:ring-1 focus:ring-[#FFC107] transition text-sm"
-              />
-            </div>
-            <div className="relative flex-1 sm:max-w-xs">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-              <input
-                type="text"
-                value={locationInput}
-                onChange={(e) => { setLocationInput(e.target.value); setUserCoords(null) }}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Ville ou code postal"
-                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:border-[#FFC107] focus:ring-1 focus:ring-[#FFC107] transition text-sm ${
-                  userCoords ? 'border-[#FFC107] bg-amber-50' : 'border-gray-200'
-                }`}
-              />
-            </div>
-            {/* Bouton Autour de moi */}
-            <button
-              onClick={handleGeolocate}
-              disabled={geoLoading}
-              title="Rechercher les artisans autour de moi"
-              className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-[#FFC107] text-[#FFC107] hover:bg-amber-50 rounded-lg font-semibold transition disabled:opacity-60 whitespace-nowrap"
-            >
-              {geoLoading ? (
-                <span className="animate-spin text-base">⏳</span>
-              ) : (
-                <MapPin className="w-4 h-4" />
-              )}
-              <span className="hidden sm:inline">{geoLoading ? 'Localisation...' : 'Autour de moi'}</span>
-            </button>
-            <button
-              onClick={handleSearch}
-              className="bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 px-8 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
-            >
-              <Search className="w-4 h-4" />
-              Rechercher
-            </button>
-          </div>
-          {/* Erreur géoloc */}
-          {geoError && (
-            <div className="mt-2 flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              <span>⚠️</span>
-              <span>{geoError}</span>
-              <button onClick={() => setGeoError('')} className="ml-auto text-red-400 hover:text-red-600">✕</button>
-            </div>
-          )}
-          {/* Badge géoloc active */}
-          {userCoords && !geoError && (
-            <div className="mt-2 flex items-center gap-2 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              <MapPin className="w-3 h-3" />
-              <span>Recherche autour de votre position</span>
-              <button
-                onClick={() => { setUserCoords(null); setLocationInput('') }}
-                className="ml-auto text-amber-500 hover:text-amber-700"
-              >
-                ✕ Effacer
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Filter bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-6">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <button
-              onClick={() => setFilterModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:border-[#FFC107] hover:bg-amber-50 transition whitespace-nowrap"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              Filtres
-            </button>
 
-            {/* Chip Autour de moi */}
-            <button
-              onClick={() => {
-                if (userCoords) {
-                  setUserCoords(null)
-                  setLocationInput('')
-                } else {
-                  handleGeolocate()
-                }
-              }}
-              disabled={geoLoading}
-              title={userCoords ? 'Désactiver la localisation' : 'Rechercher autour de ma position'}
-              className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap disabled:opacity-60 ${
-                userCoords
-                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50 text-gray-700'
-              }`}
-            >
-              {geoLoading ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <MapPin className="w-4 h-4" />
-              )}
-              <span>{geoLoading ? 'Localisation...' : 'Autour de moi'}</span>
-              {userCoords && !geoLoading && <X className="w-3 h-3 ml-0.5 opacity-70" />}
-            </button>
-
-            <button
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  disponibilite: prev.disponibilite === '3days' ? 'all' : '3days',
-                }))
-              }
-              className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap ${
-                filters.disponibilite === '3days'
-                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              Disponibilites
-            </button>
-            <button
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  disponibilite: prev.disponibilite === 'today' ? 'all' : 'today',
-                }))
-              }
-              className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition whitespace-nowrap ${
-                filters.disponibilite === 'today'
-                  ? 'border-[#FFC107] bg-amber-50 text-amber-700'
-                  : 'border-gray-200 hover:border-[#FFC107] hover:bg-amber-50'
-              }`}
-            >
-              <Zap className="w-4 h-4" />
-              Intervention 24/7
-            </button>
-            {filters.verifiedOnly && (
-              <button
-                onClick={() =>
-                  setFilters((prev) => ({ ...prev, verifiedOnly: false }))
-                }
-                className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm font-medium transition whitespace-nowrap"
-              >
-                <Check className="w-3.5 h-3.5" />
-                Certifies
-                <X className="w-3.5 h-3.5 ml-1" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Results header */}
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+        {/* ── Titre résultats ── */}
+        <div className="mb-5">
+          <h1 className="font-display text-2xl sm:text-3xl font-black text-dark tracking-[-0.03em]">
             {loading ? (
-              'Recherche en cours...'
+              tp('Recherche en cours...', 'A pesquisar...')
             ) : (
-              <>{filteredArtisans.length} artisan{filteredArtisans.length !== 1 ? 's' : ''} disponible{filteredArtisans.length !== 1 ? 's' : ''}</>
+              siteLocale === 'pt'
+                ? <>{filteredArtisans.length} profissional{filteredArtisans.length !== 1 ? 'is' : ''} disponível{filteredArtisans.length !== 1 ? 'eis' : ''}</>
+                : <>{filteredArtisans.length} artisan{filteredArtisans.length !== 1 ? 's' : ''} disponible{filteredArtisans.length !== 1 ? 's' : ''}</>
             )}
           </h1>
           {!loading && (
-            <p className="text-gray-500 mt-1 text-sm sm:text-base">
-              {subtitleText}
-            </p>
+            <p className="text-gray-500 mt-1 text-sm sm:text-base">{subtitleText}</p>
+          )}
+        </div>
+
+        {/* ── Barre de recherche (fond gris, sans carte blanche) ── */}
+        <div className="mb-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Input spécialité avec autocomplete */}
+            <div ref={catRef} className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none z-10" />
+              <input
+                type="text"
+                value={categoryInput}
+                onChange={(e) => { setCategoryInput(e.target.value); setCatDropOpen(true); setCatHighlight(-1) }}
+                onFocus={() => setCatDropOpen(true)}
+                onKeyDown={handleCategoryKeyDown}
+                placeholder={tp('Spécialité ou motif (ex: plombier, fuite...)', 'Especialidade (ex: canalizador, fuga...)')}
+                className="w-full pl-9 pr-4 py-2.5 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:outline-none focus:border-yellow transition text-sm"
+                autoComplete="off"
+              />
+              {catDropOpen && filteredSpecialtySuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-border z-50 overflow-hidden max-h-72 overflow-y-auto">
+                  {filteredSpecialtySuggestions.map((s, i) => (
+                    <button
+                      key={s.label}
+                      className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition text-sm cursor-pointer border-none ${i === catHighlight ? 'bg-amber-50' : 'hover:bg-[#F5F5F0]'}`}
+                      onMouseDown={(e) => { e.preventDefault(); setCategoryInput(s.label); setCatDropOpen(false); setCatHighlight(-1) }}
+                    >
+                      <span className="text-base w-6 text-center flex-shrink-0">{s.icon}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-dark truncate">{s.label}</p>
+                        {s.subtitle && <p className="text-xs text-text-muted">{s.subtitle}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Input ville avec autocomplete */}
+            <div ref={locRef} className="relative flex-1 sm:max-w-[240px]">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none z-10" />
+              <input
+                type="text"
+                value={locationInput}
+                onChange={(e) => { setLocationInput(e.target.value); setUserCoords(null); setLocDropOpen(true); setLocHighlight(-1) }}
+                onFocus={() => setLocDropOpen(true)}
+                onKeyDown={handleLocationKeyDown}
+                placeholder={tp('Ville ou code postal', 'Cidade ou código postal')}
+                className={`w-full pl-9 pr-4 py-2.5 border-[1.5px] rounded-xl focus:outline-none focus:border-yellow transition text-sm ${userCoords ? 'border-yellow bg-amber-50' : 'bg-white border-[#E0E0E0]'}`}
+                autoComplete="off"
+              />
+              {locDropOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-border z-50 overflow-hidden">
+                  <button
+                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition text-sm cursor-pointer border-none ${locHighlight === 0 ? 'bg-amber-50' : 'hover:bg-[#F5F5F0]'}`}
+                    onMouseDown={(e) => { e.preventDefault(); handleGeolocate(); setLocDropOpen(false) }}
+                  >
+                    {geoLoading
+                      ? <svg className="w-4 h-4 animate-spin flex-shrink-0 text-yellow" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      : <MapPin className="w-4 h-4 text-yellow flex-shrink-0" />
+                    }
+                    <span className="font-semibold text-dark">{geoLoading ? tp('Localisation...', 'A localizar...') : tp('Autour de moi', 'Perto de mim')}</span>
+                    {userCoords && !geoLoading && <span className="ml-auto text-xs text-green-600 font-medium">✓ Actif</span>}
+                  </button>
+                  {citySuggestionsLoading && <div className="px-4 py-2 text-xs text-text-muted">Recherche des villes...</div>}
+                  {!citySuggestionsLoading && citySuggestions.map((s, i) => (
+                    <button
+                      key={s.label}
+                      className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition text-sm cursor-pointer border-none ${i + 1 === locHighlight ? 'bg-amber-50' : 'hover:bg-[#F5F5F0]'}`}
+                      onMouseDown={(e) => { e.preventDefault(); setLocationInput(s.label); setLocDropOpen(false); setLocHighlight(-1) }}
+                    >
+                      <MapPin className="w-4 h-4 text-text-muted flex-shrink-0" />
+                      <span className="text-dark">{s.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bouton Rechercher */}
+            <button
+              onClick={() => { setCatDropOpen(false); setLocDropOpen(false); handleSearch() }}
+              className="bg-yellow hover:bg-yellow-light text-dark px-6 py-2.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              <Search className="w-4 h-4" />
+              {tp('Rechercher', 'Pesquisar')}
+            </button>
+          </div>
+
+          {/* Géoloc feedback */}
+          {geoError && (
+            <div className="mt-2 flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <span>⚠️</span><span>{geoError}</span>
+              <button onClick={() => setGeoError('')} className="ml-auto text-red-400 hover:text-red-600">✕</button>
+            </div>
+          )}
+          {userCoords && !geoError && (
+            <div className="mt-2 flex items-center gap-2 text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <MapPin className="w-3 h-3" />
+              <span>{tp('Recherche autour de votre position', 'A pesquisar perto de si')}</span>
+              <button onClick={() => { setUserCoords(null); setLocationInput('') }} className="ml-auto text-amber-500 hover:text-amber-700">
+                ✕ {tp('Effacer', 'Limpar')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Chips filtres ── */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 mb-6">
+          <button
+            onClick={() => setFilterModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border-[1.5px] border-[#E0E0E0] rounded-full text-xs font-medium hover:border-yellow hover:bg-amber-50 transition whitespace-nowrap flex-shrink-0"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+            {tp('Filtres', 'Filtros')}
+          </button>
+          <button
+            onClick={() => { if (userCoords) { setUserCoords(null); setLocationInput('') } else { handleGeolocate() } }}
+            disabled={geoLoading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border-[1.5px] rounded-full text-xs font-medium transition whitespace-nowrap flex-shrink-0 disabled:opacity-60 ${userCoords ? 'border-yellow bg-amber-50 text-amber-700' : 'bg-white border-[#E0E0E0] hover:border-yellow hover:bg-amber-50 text-dark'}`}
+          >
+            <MapPin className="w-3 h-3" />
+            {geoLoading ? tp('Localisation...', 'A localizar...') : tp('Autour de moi', 'Perto de mim')}
+            {userCoords && !geoLoading && <X className="w-2.5 h-2.5 ml-0.5" />}
+          </button>
+          <button
+            onClick={() => setFilters(prev => ({ ...prev, disponibilite: prev.disponibilite === '3days' ? 'all' : '3days' }))}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border-[1.5px] rounded-full text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${filters.disponibilite === '3days' ? 'border-yellow bg-amber-50 text-amber-700' : 'bg-white border-gray-200 hover:border-yellow hover:bg-amber-50'}`}
+          >
+            <Calendar className="w-3 h-3" />
+            {tp('Disponibilités', 'Disponibilidades')}
+          </button>
+          <button
+            onClick={() => setFilters(prev => ({ ...prev, disponibilite: prev.disponibilite === 'today' ? 'all' : 'today' }))}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border-[1.5px] rounded-full text-xs font-medium transition whitespace-nowrap flex-shrink-0 ${filters.disponibilite === 'today' ? 'border-yellow bg-amber-50 text-amber-700' : 'bg-white border-gray-200 hover:border-yellow hover:bg-amber-50'}`}
+          >
+            <Zap className="w-3 h-3" />
+            {tp('Intervention 24/7', 'Intervenção 24/7')}
+          </button>
+          {filters.verifiedOnly && (
+            <button
+              onClick={() => setFilters(prev => ({ ...prev, verifiedOnly: false }))}
+              className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-full text-xs font-medium transition whitespace-nowrap flex-shrink-0"
+            >
+              <Check className="w-3 h-3" />
+              {tp('Certifiés', 'Certificados')}
+              <X className="w-3 h-3 ml-0.5" />
+            </button>
           )}
         </div>
 
         {/* Results */}
         {loading ? (
           <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
-            <p className="mt-4 text-gray-500">Recherche en cours...</p>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-yellow border-t-transparent"></div>
+            <p className="mt-4 text-gray-500">{tp('Recherche en cours...', 'A pesquisar...')}</p>
           </div>
         ) : filteredArtisans.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-xl border border-gray-100">
+          <div className="text-center py-20 bg-white rounded-2xl border-[1.5px] border-[#EFEFEF]">
             <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold mb-2 text-gray-700">
-              Aucun artisan trouve
+            <h3 className="font-display text-2xl font-black tracking-[-0.03em] mb-2 text-dark">
+              {tp('Aucun artisan trouvé', 'Nenhum profissional encontrado')}
             </h3>
             <p className="text-gray-500 mb-6">
-              Essayez de modifier vos criteres de recherche ou vos filtres
+              {tp('Essayez de modifier vos critères de recherche ou vos filtres', 'Tente modificar os seus critérios de pesquisa ou filtros')}
             </p>
             <button
               onClick={() => {
@@ -1524,9 +1734,9 @@ function RechercheContent() {
                 fetchData('', '')
                 router.push('/recherche')
               }}
-              className="bg-[#FFC107] hover:bg-[#FFB300] text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
+              className="bg-yellow hover:bg-yellow-light text-gray-900 px-6 py-2.5 rounded-lg font-semibold transition"
             >
-              Reinitialiser la recherche
+              {tp('Réinitialiser la recherche', 'Reiniciar a pesquisa')}
             </button>
           </div>
         ) : (
@@ -1541,6 +1751,7 @@ function RechercheContent() {
                 bookings={allBookings.filter(
                   (b) => b.artisan_id === artisan.id
                 )}
+                locale={siteLocale}
               />
             ))}
           </div>
@@ -1553,6 +1764,7 @@ function RechercheContent() {
         onClose={() => setFilterModalOpen(false)}
         filters={filters}
         setFilters={setFilters}
+        locale={siteLocale}
       />
     </div>
   )
@@ -1567,7 +1779,7 @@ export default function RecherchePage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#FFC107] border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow border-t-transparent"></div>
         </div>
       }
     >

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── GET /api/syndic/invite?token=xxx ─────────────────────────────────────────
 // Valider un token d'invitation (pour afficher la page d'accueil)
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`invite_get_${ip}`, 20, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`invite_get_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
@@ -15,13 +16,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Token manquant' }, { status: 400 })
   }
 
+  // Sécurité : token doit avoir un format valide (48 hex chars) pour éviter énumération
+  if (!/^[a-f0-9]{48}$/i.test(token)) {
+    return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
+  }
+
   const { data, error } = await supabaseAdmin
     .from('syndic_team_members')
-    .select('id, email, full_name, role, cabinet_id, accepted_at')
+    .select('id, email, full_name, role, cabinet_id, accepted_at, created_at')
     .eq('invite_token', token)
     .maybeSingle()
 
   if (error || !data) {
+    // Réponse générique pour ne pas révéler si le token existe
     return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
   }
 
@@ -29,9 +36,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invitation déjà utilisée' }, { status: 409 })
   }
 
+  // Expiration : 7 jours après création
+  const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
+  if (data.created_at && Date.now() - new Date(data.created_at).getTime() > INVITE_EXPIRY_MS) {
+    return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
+  }
+
+  // Retourner uniquement les infos minimales (masquer l'email complet)
+  const maskedEmail = data.email
+    ? data.email.replace(/^(.{2})(.*)(@.*)$/, '$1***$3')
+    : ''
+
   return NextResponse.json({
     valid: true,
-    email: data.email,
+    email: maskedEmail,
     full_name: data.full_name,
     role: data.role,
   })
@@ -41,7 +59,7 @@ export async function GET(request: NextRequest) {
 // Accepter une invitation (crée le compte ou lie un compte existant)
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
-  if (!checkRateLimit(`invite_post_${ip}`, 5, 60_000)) return rateLimitResponse()
+  if (!(await checkRateLimit(`invite_post_${ip}`, 5, 60_000))) return rateLimitResponse()
 
   const body = await request.json()
   const { token, password } = body
@@ -65,6 +83,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invitation déjà utilisée' }, { status: 409 })
   }
 
+  // Expiration : 7 jours après création
+  const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
+  if (invite.created_at && Date.now() - new Date(invite.created_at).getTime() > INVITE_EXPIRY_MS) {
+    return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
+  }
+
   // Créer le compte utilisateur Supabase
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: invite.email,
@@ -80,9 +104,17 @@ export async function POST(request: NextRequest) {
   if (authError) {
     // Si le compte existe déjà, on le lie
     if (authError.message?.includes('already')) {
-      // Récupérer le compte existant
-      const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-      const existingUser = !listError ? users.find(u => u.email === invite.email) : null
+      // Récupérer le compte existant (pagination pour éviter de charger tous les users en mémoire)
+      let existingUser: any = null
+      let page = 1
+      const perPage = 100
+      while (!existingUser) {
+        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
+        if (listError || !users || users.length === 0) break
+        existingUser = users.find(u => u.email === invite.email) || null
+        if (users.length < perPage) break // dernière page
+        page++
+      }
 
       if (existingUser) {
         // Mettre à jour les metadata
@@ -111,8 +143,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.error('[INVITE] Auth error:', authError)
-    return NextResponse.json({ error: `Erreur création de compte : ${authError.message}` }, { status: 500 })
+    logger.error('[INVITE] Auth error:', authError)
+    return NextResponse.json({ error: 'Erreur lors de la création du compte' }, { status: 500 })
   }
 
   const newUser = authData.user
@@ -131,7 +163,14 @@ export async function POST(request: NextRequest) {
     .eq('id', invite.id)
 
   if (updateError) {
-    console.error('[INVITE] Update error:', updateError)
+    logger.error('[INVITE] Update error:', updateError)
+    // Le compte a été créé mais l'invitation n'a pas été marquée comme acceptée
+    // → retourner une erreur partielle pour que l'admin sache qu'il faut vérifier
+    return NextResponse.json({
+      success: false,
+      message: 'Le compte a été créé mais l\'invitation n\'a pas pu être validée. Contactez le support.',
+      email: invite.email,
+    }, { status: 207 })
   }
 
   return NextResponse.json({

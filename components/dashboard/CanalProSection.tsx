@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 
 type CanalContact = { id: string; nom: string; role: string; lastSeen?: string }
 type CanalMsg = {
@@ -16,6 +17,8 @@ type CanalMsg = {
 }
 
 export default function CanalProSection({ artisan, orgRole }: { artisan: any; orgRole: string }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `fixit_canal_contacts_${artisan?.id}`
   const [contacts, setContacts] = useState<CanalContact[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
@@ -115,7 +118,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
     if (!voiceSupported) return
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     const recognition = new SpeechRecognition()
-    recognition.lang = 'fr-FR'
+    recognition.lang = locale === 'pt' ? 'pt-PT' : 'fr-FR'
     recognition.continuous = false
     recognition.interimResults = false
     recognitionRef.current = recognition
@@ -202,10 +205,10 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
 
   return (
     <div className="animate-fadeIn h-full flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
-      <div className="bg-white px-6 lg:px-10 py-5 border-b-2 border-[#FFC107] shadow-sm flex justify-between items-center flex-shrink-0">
+      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex justify-between items-center flex-shrink-0">
         <div>
-          <h1 className="text-2xl font-semibold">📡 Canal Pro</h1>
-          <p className="text-sm text-gray-500">Communication directe gestionnaire ↔ artisan</p>
+          <h1 className="text-xl font-semibold leading-tight">📡 Canal Pro</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Communication directe gestionnaire ↔ artisan</p>
         </div>
         <button onClick={() => setShowAddContact(true)} className="bg-[#FFC107] text-gray-900 px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#FFD54F] transition">+ Contact</button>
       </div>
@@ -329,7 +332,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
                             return null
                           })()}
                           <div className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>
-                            {new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
                             {msg.read_at && isMe && ' · Lu'}
                           </div>
                         </div>

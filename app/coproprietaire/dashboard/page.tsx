@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatPrice, formatDate } from '@/lib/utils'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -209,7 +210,7 @@ const AG_DEMO: AssembleeGenerale[] = [
       { id: 'r4', titre: 'Remplacement chaudière collective', description: 'Approbation du remplacement de la chaudière collective vétuste (installée en 1998) par une chaudière à condensation, montant 32 000 € TTC.', majorite: 'art25', votePour: 0, voteContre: 0, voteAbstention: 0, statut: 'ouverte' },
       { id: 'r5', titre: 'Désignation du syndic', description: 'Renouvellement du mandat du Cabinet Dupont en qualité de syndic de la copropriété pour une durée de 3 ans (2026-2029), aux conditions du contrat joint.', majorite: 'art25', votePour: 0, voteContre: 0, voteAbstention: 0, statut: 'ouverte' },
     ],
-    lienVisio: 'https://meet.example.com/ag-acacias-2026',
+    lienVisio: '',
   },
   {
     id: '2',
@@ -304,7 +305,7 @@ const HISTORIQUE_TYPE_EMOJI: Record<string, string> = {
 
 const MAJORITE_LABELS: Record<string, { label: string; color: string }> = {
   art24: { label: 'Art. 24', color: 'bg-blue-100 text-blue-700' },
-  art25: { label: 'Art. 25', color: 'bg-purple-100 text-purple-700' },
+  art25: { label: 'Art. 25', color: 'bg-[rgba(201,168,76,0.15)] text-[#A8842A]' },
   art26: { label: 'Art. 26', color: 'bg-orange-100 text-orange-700' },
   unanimite: { label: 'Unanimité', color: 'bg-red-100 text-red-700' },
 }
@@ -445,6 +446,10 @@ const POSTES_CHARGES: PosteCharge[] = [
 // ─── Composant MesInterventionsSection ────────────────────────────────────────
 
 function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const L = locale === 'pt'
+
   const [interventions, setInterventions] = useState<SuiviIntervention[]>(() => {
     if (typeof window === 'undefined') return INTERVENTIONS_DEMO
     const saved = localStorage.getItem(`fixit_interventions_copro_${profile.id}`)
@@ -470,11 +475,11 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
   }
 
   const statutCfg: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
-    planifie:  { label: 'Planifié',   color: 'text-blue-700',  bg: 'bg-blue-100',   emoji: '📅' },
-    en_route:  { label: 'En route',   color: 'text-amber-700', bg: 'bg-amber-100',  emoji: '🚗' },
-    sur_place: { label: 'Sur place',  color: 'text-purple-700',bg: 'bg-purple-100', emoji: '🔧' },
-    termine:   { label: 'Terminé',    color: 'text-green-700', bg: 'bg-green-100',  emoji: '✅' },
-    annule:    { label: 'Annulé',     color: 'text-red-700',   bg: 'bg-red-100',    emoji: '❌' },
+    planifie:  { label: L ? 'Planeado' : 'Planifié',   color: 'text-blue-700',  bg: 'bg-blue-100',   emoji: '📅' },
+    en_route:  { label: L ? 'A caminho' : 'En route',   color: 'text-amber-700', bg: 'bg-amber-100',  emoji: '🚗' },
+    sur_place: { label: L ? 'No local' : 'Sur place',  color: 'text-[#A8842A]',bg: 'bg-[rgba(201,168,76,0.15)]', emoji: '🔧' },
+    termine:   { label: L ? 'Concluído' : 'Terminé',    color: 'text-green-700', bg: 'bg-green-100',  emoji: '✅' },
+    annule:    { label: L ? 'Cancelado' : 'Annulé',     color: 'text-red-700',   bg: 'bg-red-100',    emoji: '❌' },
   }
 
   const filtered = filterStatut === 'all' ? interventions : interventions.filter(i => i.statut === filterStatut)
@@ -487,29 +492,29 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
-            <span className="font-bold text-amber-800 text-sm">{enCours.length} intervention{enCours.length > 1 ? 's' : ''} en cours</span>
+            <span className="font-bold text-amber-800 text-sm">{enCours.length} {L ? (enCours.length > 1 ? 'intervenções em curso' : 'intervenção em curso') : `intervention${enCours.length > 1 ? 's' : ''} en cours`}</span>
           </div>
           {enCours.map(i => (
             <div key={i.id} onClick={() => setSelected(i)} className="mt-2 bg-white border border-amber-200 rounded-xl p-3 cursor-pointer hover:bg-amber-50 transition">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-sm text-gray-900">{i.type} — {i.artisan.split('—')[0].trim()}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{i.description}</div>
+                  <div className="font-semibold text-sm text-[#0D1B2E]">{i.type} — {i.artisan.split('—')[0].trim()}</div>
+                  <div className="text-xs text-[#8A9BB0] mt-0.5">{i.description}</div>
                 </div>
                 <div className="text-right">
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${statutCfg[i.statut].bg} ${statutCfg[i.statut].color}`}>
                     {statutCfg[i.statut].emoji} {statutCfg[i.statut].label}
                   </span>
-                  {i.gpsEta && <div className="text-[10px] text-gray-500 mt-1">ETA : ~{i.gpsEta} min</div>}
+                  {i.gpsEta && <div className="text-[10px] text-[#8A9BB0] mt-1">ETA : ~{i.gpsEta} min</div>}
                 </div>
               </div>
               {/* Progress bar */}
               <div className="mt-3">
-                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                  <span>Progression</span>
+                <div className="flex justify-between text-[10px] text-[#8A9BB0] mb-1">
+                  <span>{L ? 'Progresso' : 'Progression'}</span>
                   <span>{i.progression}%</span>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-[#F7F4EE] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-amber-500 rounded-full transition-all"
                     style={{ width: `${i.progression}%` }}
@@ -523,12 +528,12 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
 
       {/* Filtres */}
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {[['all', 'Toutes'], ['planifie', '📅 Planifiées'], ['en_route', '🚗 En route'], ['sur_place', '🔧 Sur place'], ['termine', '✅ Terminées']].map(([v, l]) => (
+        {([['all', L ? 'Todas' : 'Toutes'], ['planifie', L ? '📅 Planeadas' : '📅 Planifiées'], ['en_route', L ? '🚗 A caminho' : '🚗 En route'], ['sur_place', L ? '🔧 No local' : '🔧 Sur place'], ['termine', L ? '✅ Concluídas' : '✅ Terminées']] as [string, string][]).map(([v, l]) => (
           <button
             key={v}
             onClick={() => setFilterStatut(v)}
             className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition ${
-              filterStatut === v ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+              filterStatut === v ? 'bg-[#0D1B2E] text-white border-[#C9A84C]' : 'bg-white text-[#4A5E78] border-[#E4DDD0] hover:border-[#C9A84C]'
             }`}
           >{l}</button>
         ))}
@@ -537,9 +542,9 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
       {/* Liste interventions */}
       <div className="space-y-3">
         {filtered.length === 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <div className="bg-white rounded-xl border border-[#E4DDD0] p-12 text-center">
             <div className="text-5xl mb-3">🔧</div>
-            <div className="text-sm text-gray-600 font-medium">Aucune intervention pour ce filtre</div>
+            <div className="text-sm text-[#4A5E78] font-medium">{L ? 'Nenhuma intervenção para este filtro' : 'Aucune intervention pour ce filtre'}</div>
           </div>
         )}
         {filtered.map(i => {
@@ -548,17 +553,17 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
             <div
               key={i.id}
               onClick={() => setSelected(i)}
-              className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:border-purple-300 hover:shadow-md cursor-pointer transition-all"
+              className="bg-white rounded-xl border border-[#E4DDD0] p-5 shadow-sm hover:border-[#C9A84C] hover:shadow-md cursor-pointer transition-all"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.emoji} {cfg.label}</span>
-                    <span className="text-xs text-gray-500">{new Date(i.dateRdv).toLocaleDateString('fr-FR')} · {i.heureRdv}</span>
+                    <span className="text-xs text-[#8A9BB0]">{new Date(i.dateRdv).toLocaleDateString(dateFmtLocale)} · {i.heureRdv}</span>
                   </div>
-                  <div className="font-semibold text-gray-900">{i.type}</div>
-                  <div className="text-sm text-gray-500 truncate">{i.description}</div>
-                  <div className="text-xs text-gray-500 mt-1">👷 {i.artisan}</div>
+                  <div className="font-semibold text-[#0D1B2E]">{i.type}</div>
+                  <div className="text-sm text-[#8A9BB0] truncate">{i.description}</div>
+                  <div className="text-xs text-[#8A9BB0] mt-1">👷 {i.artisan}</div>
                 </div>
                 <div className="flex-shrink-0 flex flex-col items-end gap-2">
                   {i.note && (
@@ -567,14 +572,14 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
                   {i.statut === 'termine' && !i.note && (
                     <button
                       onClick={e => { e.stopPropagation(); setNoteModal(i); setNoteVal(5); setNoteComment('') }}
-                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-full font-semibold transition"
+                      className="text-xs bg-[#0D1B2E] hover:bg-[#152338] text-white px-3 py-1 rounded-full font-semibold transition"
                     >
-                      ✍️ Noter
+                      {L ? '✍️ Avaliar' : '✍️ Noter'}
                     </button>
                   )}
                   {i.preuve && (
                     <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                      ✅ Preuve {i.preuve.signee ? '+ signé' : ''}
+                      {L ? '✅ Prova' : '✅ Preuve'} {i.preuve.signee ? (L ? '+ assinado' : '+ signé') : ''}
                     </span>
                   )}
                 </div>
@@ -583,8 +588,8 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
               {/* Progress bar pour interventions non terminées */}
               {!['termine', 'annule', 'planifie'].includes(i.statut) && (
                 <div className="mt-3">
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${i.progression}%` }} />
+                  <div className="h-1.5 bg-[#F7F4EE] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#C9A84C] rounded-full transition-all" style={{ width: `${i.progression}%` }} />
                   </div>
                 </div>
               )}
@@ -597,12 +602,12 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
       {selected && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4DDD0]">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">{selected.type}</h3>
-                <p className="text-sm text-gray-500">{selected.description}</p>
+                <h3 className="text-lg font-bold text-[#0D1B2E]">{selected.type}</h3>
+                <p className="text-sm text-[#8A9BB0]">{selected.description}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setSelected(null)} className="text-[#8A9BB0] hover:text-[#4A5E78] text-xl">✕</button>
             </div>
             <div className="p-6 space-y-4">
               {/* Statut */}
@@ -611,35 +616,35 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
                   {statutCfg[selected.statut].emoji} {statutCfg[selected.statut].label}
                 </span>
                 {selected.gpsEta && (
-                  <span className="text-sm text-amber-600 font-semibold">🛣️ ETA ~{selected.gpsEta} min</span>
+                  <span className="text-sm text-amber-600 font-semibold">🛣️ ETA ~{selected.gpsEta} {L ? 'min' : 'min'}</span>
                 )}
               </div>
 
               {/* Artisan */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xs text-gray-500 mb-1 font-medium">ARTISAN</div>
-                <div className="font-semibold text-gray-900">{selected.artisan}</div>
-                <a href={`tel:${selected.artisanPhone.replace(/\s/g, '')}`} className="text-sm text-purple-600 hover:text-purple-800 font-medium mt-1 inline-block">
+              <div className="bg-[#F7F4EE] rounded-xl p-4">
+                <div className="text-xs text-[#8A9BB0] mb-1 font-medium">{L ? 'TÉCNICO' : 'ARTISAN'}</div>
+                <div className="font-semibold text-[#0D1B2E]">{selected.artisan}</div>
+                <a href={`tel:${selected.artisanPhone.replace(/\s/g, '')}`} className="text-sm text-[#C9A84C] hover:text-[#A8842A] font-medium mt-1 inline-block">
                   📞 {selected.artisanPhone}
                 </a>
               </div>
 
               {/* RDV */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xs text-gray-500 mb-1 font-medium">RDV</div>
-                <div className="font-semibold text-gray-900">
-                  {new Date(selected.dateRdv).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} à {selected.heureRdv}
+              <div className="bg-[#F7F4EE] rounded-xl p-4">
+                <div className="text-xs text-[#8A9BB0] mb-1 font-medium">{L ? 'MARCAÇÃO' : 'RDV'}</div>
+                <div className="font-semibold text-[#0D1B2E]">
+                  {new Date(selected.dateRdv).toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} {L ? 'às' : 'à'} {selected.heureRdv}
                 </div>
               </div>
 
               {/* GPS live */}
               {['en_route', 'sur_place'].includes(selected.statut) && selected.gpsLat && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <div className="text-xs text-amber-700 font-bold mb-1">📍 POSITION EN TEMPS RÉEL</div>
+                  <div className="text-xs text-amber-700 font-bold mb-1">{L ? '📍 POSIÇÃO EM TEMPO REAL' : '📍 POSITION EN TEMPS RÉEL'}</div>
                   <div className="text-sm text-amber-800">Lat: {selected.gpsLat.toFixed(4)}, Lng: {selected.gpsLng?.toFixed(4)}</div>
                   <div className="flex items-center gap-1 mt-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-xs text-green-700 font-medium">Signal GPS actif</span>
+                    <span className="text-xs text-green-700 font-medium">{L ? 'Sinal GPS ativo' : 'Signal GPS actif'}</span>
                   </div>
                 </div>
               )}
@@ -647,20 +652,20 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
               {/* Progression */}
               {selected.statut !== 'annule' && (
                 <div>
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span className="font-medium">Progression</span>
+                  <div className="flex justify-between text-sm text-[#4A5E78] mb-2">
+                    <span className="font-medium">{L ? 'Progresso' : 'Progression'}</span>
                     <span className="font-bold">{selected.progression}%</span>
                   </div>
-                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-3 bg-[#F7F4EE] rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{ width: `${selected.progression}%`, backgroundColor: selected.progression === 100 ? '#10b981' : '#8b5cf6' }}
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>Démarrage</span>
-                    <span>En cours</span>
-                    <span>Terminé</span>
+                  <div className="flex justify-between text-xs text-[#8A9BB0] mt-1">
+                    <span>{L ? 'Início' : 'Démarrage'}</span>
+                    <span>{L ? 'Em curso' : 'En cours'}</span>
+                    <span>{L ? 'Concluído' : 'Terminé'}</span>
                   </div>
                 </div>
               )}
@@ -668,11 +673,11 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
               {/* Preuve */}
               {selected.preuve && (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="text-xs text-green-700 font-bold mb-2">📸 PREUVE D&apos;INTERVENTION</div>
+                  <div className="text-xs text-green-700 font-bold mb-2">{L ? '📸 PROVA DE INTERVENÇÃO' : '📸 PREUVE D\'INTERVENTION'}</div>
                   <div className="flex gap-4 text-sm text-green-800">
-                    <span>📷 {selected.preuve.avantPhotos} photo{selected.preuve.avantPhotos > 1 ? 's' : ''} avant</span>
-                    <span>📷 {selected.preuve.apresPhotos} photo{selected.preuve.apresPhotos > 1 ? 's' : ''} après</span>
-                    {selected.preuve.signee && <span>✍️ Signé</span>}
+                    <span>📷 {selected.preuve.avantPhotos} {L ? (selected.preuve.avantPhotos > 1 ? 'fotos antes' : 'foto antes') : `photo${selected.preuve.avantPhotos > 1 ? 's' : ''} avant`}</span>
+                    <span>📷 {selected.preuve.apresPhotos} {L ? (selected.preuve.apresPhotos > 1 ? 'fotos depois' : 'foto depois') : `photo${selected.preuve.apresPhotos > 1 ? 's' : ''} après`}</span>
+                    {selected.preuve.signee && <span>{L ? '✍️ Assinado' : '✍️ Signé'}</span>}
                   </div>
                 </div>
               )}
@@ -680,9 +685,9 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
               {/* Note */}
               {selected.note && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <div className="text-xs text-amber-700 font-bold mb-1">VOTRE AVIS</div>
+                  <div className="text-xs text-amber-700 font-bold mb-1">{L ? 'A SUA AVALIAÇÃO' : 'VOTRE AVIS'}</div>
                   <div className="text-xl">{'⭐'.repeat(selected.note)}</div>
-                  {selected.commentaire && <p className="text-sm text-gray-600 mt-1 italic">&ldquo;{selected.commentaire}&rdquo;</p>}
+                  {selected.commentaire && <p className="text-sm text-[#4A5E78] mt-1 italic">&ldquo;{selected.commentaire}&rdquo;</p>}
                 </div>
               )}
 
@@ -690,9 +695,9 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
               {selected.statut === 'termine' && !selected.note && (
                 <button
                   onClick={() => { setNoteModal(selected); setSelected(null); setNoteVal(5); setNoteComment('') }}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition"
+                  className="w-full bg-[#0D1B2E] hover:bg-[#152338] text-white font-bold py-3 rounded-xl transition"
                 >
-                  ⭐ Donner mon avis sur cette intervention
+                  {L ? '⭐ Avaliar esta intervenção' : '⭐ Donner mon avis sur cette intervention'}
                 </button>
               )}
             </div>
@@ -704,14 +709,14 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
       {noteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setNoteModal(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">⭐ Évaluer l&apos;intervention</h3>
-              <p className="text-sm text-gray-500 mt-1">{noteModal.artisan.split('—')[0].trim()} — {noteModal.type}</p>
+            <div className="px-6 pt-6 pb-4 border-b border-[#E4DDD0]">
+              <h3 className="text-lg font-bold text-[#0D1B2E]">{L ? '⭐ Avaliar a intervenção' : '⭐ Évaluer l\'intervention'}</h3>
+              <p className="text-sm text-[#8A9BB0] mt-1">{noteModal.artisan.split('—')[0].trim()} — {noteModal.type}</p>
             </div>
             <div className="p-6 space-y-4">
               {/* Stars */}
               <div>
-                <div className="text-sm font-medium text-gray-700 mb-2">Votre note</div>
+                <div className="text-sm font-medium text-[#4A5E78] mb-2">{L ? 'A sua nota' : 'Votre note'}</div>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map(n => (
                     <button
@@ -723,27 +728,27 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
                     </button>
                   ))}
                 </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  {noteVal === 1 ? 'Très insatisfait' : noteVal === 2 ? 'Insatisfait' : noteVal === 3 ? 'Correct' : noteVal === 4 ? 'Satisfait' : 'Très satisfait'}
+                <div className="text-sm text-[#8A9BB0] mt-1">
+                  {noteVal === 1 ? (L ? 'Muito insatisfeito' : 'Très insatisfait') : noteVal === 2 ? (L ? 'Insatisfeito' : 'Insatisfait') : noteVal === 3 ? (L ? 'Razoável' : 'Correct') : noteVal === 4 ? (L ? 'Satisfeito' : 'Satisfait') : (L ? 'Muito satisfeito' : 'Très satisfait')}
                 </div>
               </div>
               {/* Commentaire */}
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Commentaire (optionnel)</label>
+                <label className="text-sm font-medium text-[#4A5E78] block mb-1">{L ? 'Comentário (opcional)' : 'Commentaire (optionnel)'}</label>
                 <textarea
                   value={noteComment}
                   onChange={e => setNoteComment(e.target.value)}
                   rows={3}
-                  placeholder="Décrivez votre expérience..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-400 resize-none"
+                  placeholder={L ? 'Descreva a sua experiência...' : 'Décrivez votre expérience...'}
+                  className="w-full border border-[#E4DDD0] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#C9A84C] resize-none"
                 />
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setNoteModal(null)} className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
-                  Annuler
+                <button onClick={() => setNoteModal(null)} className="flex-1 border border-[#E4DDD0] text-[#4A5E78] py-2.5 rounded-xl text-sm font-medium hover:bg-[#F7F4EE] transition">
+                  {L ? 'Cancelar' : 'Annuler'}
                 </button>
-                <button onClick={submitNote} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-xl text-sm font-bold transition">
-                  Envoyer l&apos;avis
+                <button onClick={submitNote} className="flex-1 bg-[#0D1B2E] hover:bg-[#152338] text-white py-2.5 rounded-xl text-sm font-bold transition">
+                  {L ? 'Enviar avaliação' : 'Envoyer l\'avis'}
                 </button>
               </div>
             </div>
@@ -757,6 +762,10 @@ function MesInterventionsSection({ profile }: { profile: CoproProfile }) {
 // ─── Composant MesChargesSection ───────────────────────────────────────────────
 
 function MesChargesSection({ profile, paiements, charges }: { profile: CoproProfile; paiements: Paiement[]; charges: ChargesMensuelles[] }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const L = locale === 'pt'
+
   const [anneeSelect, setAnneeSelect] = useState(2026)
   const [onglet, setOnglet] = useState<'dashboard' | 'postes' | 'calendrier'>('dashboard')
 
@@ -768,7 +777,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
   const totalReelAnnee = POSTES_CHARGES.reduce((s, p) => s + p.montantAnnuel, 0)
   const totalAnnee = totalPayeAnnee + totalEnAttenteAnnee
 
-  const moisLabels = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+  const moisLabels = L ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] : ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
   const chargesParMois = moisLabels.map((m, idx) => {
     const moisStr = `${anneeSelect}-${String(idx + 1).padStart(2, '0')}`
     const c = charges.find(ch => ch.mois === moisStr)
@@ -780,13 +789,13 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
     <div className="space-y-6">
       {/* Header année */}
       <div className="flex items-center gap-3">
-        <div className="text-sm font-medium text-gray-600">Année :</div>
+        <div className="text-sm font-medium text-[#4A5E78]">{L ? 'Ano :' : 'Année :'}</div>
         <div className="flex gap-1">
           {annees.map(a => (
             <button
               key={a}
               onClick={() => setAnneeSelect(a)}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${anneeSelect === a ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${anneeSelect === a ? 'bg-[#0D1B2E] text-white' : 'bg-[#F7F4EE] text-[#4A5E78] hover:bg-[#F7F4EE]'}`}
             >{a}</button>
           ))}
         </div>
@@ -794,35 +803,35 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs text-gray-500 font-medium mb-1">Total payé {anneeSelect}</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">{L ? 'Total pago' : 'Total payé'} {anneeSelect}</div>
           <div className="text-2xl font-black text-green-600">{formatPrice(totalPayeAnnee)}</div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs text-gray-500 font-medium mb-1">Reste à payer</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">{L ? 'Por pagar' : 'Reste à payer'}</div>
           <div className={`text-2xl font-black ${totalEnAttenteAnnee > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatPrice(totalEnAttenteAnnee)}</div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs text-gray-500 font-medium mb-1">Budget annuel</div>
-          <div className="text-2xl font-black text-gray-900">{formatPrice(totalBudgetAnnee)}</div>
-          <div className="text-xs text-gray-500 mt-1">Quote-part {profile.quotePart}%</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">{L ? 'Orçamento anual' : 'Budget annuel'}</div>
+          <div className="text-2xl font-black text-[#0D1B2E]">{formatPrice(totalBudgetAnnee)}</div>
+          <div className="text-xs text-[#8A9BB0] mt-1">{L ? 'Quota-parte' : 'Quote-part'} {profile.quotePart}%</div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs text-gray-500 font-medium mb-1">Réalisé / Budget</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">{L ? 'Realizado / Orçamento' : 'Réalisé / Budget'}</div>
           <div className={`text-2xl font-black ${totalReelAnnee > totalBudgetAnnee ? 'text-red-600' : 'text-green-600'}`}>
             {Math.round((totalReelAnnee / totalBudgetAnnee) * 100)}%
           </div>
-          <div className="text-xs text-gray-500 mt-1">{formatPrice(totalReelAnnee)} réel</div>
+          <div className="text-xs text-[#8A9BB0] mt-1">{formatPrice(totalReelAnnee)} {L ? 'real' : 'réel'}</div>
         </div>
       </div>
 
       {/* Onglets */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-        {([['dashboard', '📊 Dashboard'], ['postes', '📋 Postes'], ['calendrier', '📅 Calendrier']] as [typeof onglet, string][]).map(([v, l]) => (
+      <div className="flex gap-1 bg-[#F7F4EE] rounded-xl p-1">
+        {([['dashboard', '📊 Dashboard'], ['postes', L ? '📋 Rubricas' : '📋 Postes'], ['calendrier', L ? '📅 Calendário' : '📅 Calendrier']] as [typeof onglet, string][]).map(([v, l]) => (
           <button
             key={v}
             onClick={() => setOnglet(v)}
-            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${onglet === v ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition ${onglet === v ? 'bg-white shadow text-[#A8842A]' : 'text-[#8A9BB0] hover:text-[#4A5E78]'}`}
           >{l}</button>
         ))}
       </div>
@@ -831,8 +840,8 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
       {onglet === 'dashboard' && (
         <div className="space-y-4">
           {/* Graphe barres mensuel */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div className="text-sm font-bold text-gray-700 mb-4">📊 Charges mensuelles {anneeSelect}</div>
+          <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+            <div className="text-sm font-bold text-[#4A5E78] mb-4">{L ? '📊 Quotas mensais' : '📊 Charges mensuelles'} {anneeSelect}</div>
             <div className="flex items-end gap-1 h-32">
               {chargesParMois.map((m) => {
                 const h = m.montant > 0 ? Math.max((m.montant / maxMontant) * 100, 5) : 5
@@ -844,38 +853,38 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                       style={{ height: `${h}%`, backgroundColor: color }}
                       title={`${m.mois}: ${formatPrice(m.montant)}`}
                     />
-                    <div className="text-[9px] text-gray-500 font-medium">{m.mois}</div>
+                    <div className="text-[9px] text-[#8A9BB0] font-medium">{m.mois}</div>
                   </div>
                 )
               })}
             </div>
             <div className="flex gap-4 mt-3 text-xs">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />Payée</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />En attente</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />En retard</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />{L ? 'Paga' : 'Payée'}</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" />{L ? 'Pendente' : 'En attente'}</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />{L ? 'Em atraso' : 'En retard'}</span>
             </div>
           </div>
 
           {/* Répartition */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div className="text-sm font-bold text-gray-700 mb-3">🥧 Répartition budget</div>
+          <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+            <div className="text-sm font-bold text-[#4A5E78] mb-3">{L ? '🥧 Distribuição orçamento' : '🥧 Répartition budget'}</div>
             <div className="space-y-2">
               {POSTES_CHARGES.sort((a, b) => b.montantAnnuel - a.montantAnnuel).map(p => (
                 <div key={p.label} className="flex items-center gap-3">
                   <div className="flex-shrink-0 w-6 text-center">{p.emoji}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between text-xs text-gray-600 mb-0.5">
+                    <div className="flex justify-between text-xs text-[#4A5E78] mb-0.5">
                       <span className="truncate">{p.label}</span>
                       <span className="font-semibold flex-shrink-0 ml-2">{formatPrice(p.montantAnnuel)}</span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-[#F7F4EE] rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full"
                         style={{ width: `${(p.montantAnnuel / totalReelAnnee) * 100}%`, backgroundColor: p.couleur }}
                       />
                     </div>
                   </div>
-                  <div className="text-[10px] text-gray-500 flex-shrink-0 w-8 text-right">
+                  <div className="text-[10px] text-[#8A9BB0] flex-shrink-0 w-8 text-right">
                     {Math.round((p.montantAnnuel / totalReelAnnee) * 100)}%
                   </div>
                 </div>
@@ -891,13 +900,13 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
           {POSTES_CHARGES.map(p => {
             const over = p.montantAnnuel > p.budget
             return (
-              <div key={p.label} className={`bg-white rounded-xl border p-4 shadow-sm ${over ? 'border-red-200' : 'border-gray-200'}`}>
+              <div key={p.label} className={`bg-white rounded-xl border p-4 shadow-sm ${over ? 'border-red-200' : 'border-[#E4DDD0]'}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{p.emoji}</span>
                     <div>
-                      <div className="font-semibold text-gray-900 text-sm">{p.label}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">Budget : {formatPrice(p.budget)} · Réel : {formatPrice(p.montantAnnuel)}</div>
+                      <div className="font-semibold text-[#0D1B2E] text-sm">{p.label}</div>
+                      <div className="text-xs text-[#8A9BB0] mt-0.5">{L ? 'Orçamento' : 'Budget'} : {formatPrice(p.budget)} · {L ? 'Real' : 'Réel'} : {formatPrice(p.montantAnnuel)}</div>
                     </div>
                   </div>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${over ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
@@ -905,7 +914,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                   </span>
                 </div>
                 <div className="mt-3">
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-[#F7F4EE] rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
@@ -914,7 +923,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
                       }}
                     />
                   </div>
-                  <div className="text-[10px] text-gray-500 mt-1">{Math.round((p.montantAnnuel / p.budget) * 100)}% du budget consommé</div>
+                  <div className="text-[10px] text-[#8A9BB0] mt-1">{Math.round((p.montantAnnuel / p.budget) * 100)}% {L ? 'do orçamento consumido' : 'du budget consommé'}</div>
                 </div>
               </div>
             )
@@ -925,7 +934,7 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
       {/* Calendrier paiements */}
       {onglet === 'calendrier' && (
         <div className="space-y-3">
-          <div className="text-xs text-gray-500 font-medium">Prochaines échéances</div>
+          <div className="text-xs text-[#8A9BB0] font-medium">{L ? 'Próximos vencimentos' : 'Prochaines échéances'}</div>
           {paiements
             .filter(p => p.statut !== 'payee' && new Date(p.dateEcheance) >= new Date())
             .sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime())
@@ -933,15 +942,15 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
               const daysLeft = Math.ceil((new Date(p.dateEcheance).getTime() - Date.now()) / 86400000)
               const urgent = daysLeft <= 14
               return (
-                <div key={p.id} className={`bg-white rounded-xl border p-4 shadow-sm ${urgent ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
+                <div key={p.id} className={`bg-white rounded-xl border p-4 shadow-sm ${urgent ? 'border-red-200 bg-red-50' : 'border-[#E4DDD0]'}`}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-gray-900 text-sm">{p.description}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{p.reference} · Éch. {new Date(p.dateEcheance).toLocaleDateString('fr-FR')}</div>
+                      <div className="font-semibold text-[#0D1B2E] text-sm">{p.description}</div>
+                      <div className="text-xs text-[#8A9BB0] mt-0.5">{p.reference} · {L ? 'Venc.' : 'Éch.'} {new Date(p.dateEcheance).toLocaleDateString(dateFmtLocale)}</div>
                     </div>
                     <div className="text-right">
-                      <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatPrice(Math.abs(p.montant))}</div>
-                      <div className={`text-[10px] font-bold mt-0.5 ${urgent ? 'text-red-600' : 'text-gray-500'}`}>
+                      <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-[#0D1B2E]'}`}>{formatPrice(Math.abs(p.montant))}</div>
+                      <div className={`text-[10px] font-bold mt-0.5 ${urgent ? 'text-red-600' : 'text-[#8A9BB0]'}`}>
                         {urgent ? `⚠️ J-${daysLeft}` : `J-${daysLeft}`}
                       </div>
                     </div>
@@ -950,20 +959,20 @@ function MesChargesSection({ profile, paiements, charges }: { profile: CoproProf
               )
             })}
 
-          <div className="text-xs text-gray-500 font-medium mt-4">Paiements effectués</div>
+          <div className="text-xs text-[#8A9BB0] font-medium mt-4">{L ? 'Pagamentos efetuados' : 'Paiements effectués'}</div>
           {paiements
             .filter(p => p.statut === 'payee')
             .sort((a, b) => new Date(b.datePaiement!).getTime() - new Date(a.datePaiement!).getTime())
             .map(p => (
-              <div key={p.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm opacity-70">
+              <div key={p.id} className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm opacity-70">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold text-gray-900 text-sm">{p.description}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Payé le {new Date(p.datePaiement!).toLocaleDateString('fr-FR')}</div>
+                    <div className="font-semibold text-[#0D1B2E] text-sm">{p.description}</div>
+                    <div className="text-xs text-[#8A9BB0] mt-0.5">{L ? 'Pago em' : 'Payé le'} {new Date(p.datePaiement!).toLocaleDateString(dateFmtLocale)}</div>
                   </div>
                   <div className="text-right">
-                    <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>{formatPrice(Math.abs(p.montant))}</div>
-                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Payé</span>
+                    <div className={`font-black text-lg ${p.montant < 0 ? 'text-green-600' : 'text-[#0D1B2E]'}`}>{formatPrice(Math.abs(p.montant))}</div>
+                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{L ? '✓ Pago' : '✓ Payé'}</span>
                   </div>
                 </div>
               </div>
@@ -1051,6 +1060,10 @@ const BAIL_DEMO: Bail = {
 // ─── Composant QuittancesSection ──────────────────────────────────────────────
 
 function QuittancesSection({ profile }: { profile: CoproProfile }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const L = locale === 'pt'
+
   const [quittances] = React.useState<Quittance[]>(QUITTANCES_DEMO)
   const [downloaded, setDownloaded] = React.useState<Set<string>>(new Set())
   const [anneeFilter, setAnneeFilter] = React.useState<string>('2026')
@@ -1061,12 +1074,30 @@ function QuittancesSection({ profile }: { profile: CoproProfile }) {
   const moisLabel = (mois: string) => {
     const [y, m] = mois.split('-')
     const d = new Date(Number(y), Number(m) - 1, 1)
-    return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    return d.toLocaleDateString(dateFmtLocale, { month: 'long', year: 'numeric' })
   }
 
   const handleDownload = (q: Quittance) => {
-    // Génère une quittance texte et déclenche un téléchargement CSV/TXT fictif
-    const texte = `QUITTANCE DE LOYER — ${q.reference}
+    const texte = L ? `RECIBO DE RENDA — ${q.reference}
+══════════════════════════════════════════
+Senhorio : ${BAIL_DEMO.bailleur}
+Inquilino : ${profile.prenom} ${profile.nom}
+Alojamento : ${BAIL_DEMO.logement}
+Período : ${moisLabel(q.mois)}
+══════════════════════════════════════════
+Renda base          : ${formatPrice(BAIL_DEMO.loyerBase)}
+Encargos            : ${formatPrice(BAIL_DEMO.charges)}
+──────────────────────────────────────────
+TOTAL               : ${formatPrice(q.montant)}
+══════════════════════════════════════════
+Data de emissão : ${new Date(q.dateEmission).toLocaleDateString(dateFmtLocale)}
+Referência : ${q.reference}
+
+Este recibo atesta que a renda do mês de ${moisLabel(q.mois)}
+foi devidamente recebida.
+
+Feito em Lisboa, a ${new Date().toLocaleDateString(dateFmtLocale)}
+Assinatura do senhorio : ${BAIL_DEMO.bailleur}` : `QUITTANCE DE LOYER — ${q.reference}
 ══════════════════════════════════════════
 Bailleur : ${BAIL_DEMO.bailleur}
 Locataire : ${profile.prenom} ${profile.nom}
@@ -1078,13 +1109,13 @@ Charges             : ${formatPrice(BAIL_DEMO.charges)}
 ─────────────────────────────────────────
 TOTAL               : ${formatPrice(q.montant)}
 ══════════════════════════════════════════
-Date d'émission : ${new Date(q.dateEmission).toLocaleDateString('fr-FR')}
+Date d'émission : ${new Date(q.dateEmission).toLocaleDateString(dateFmtLocale)}
 Référence : ${q.reference}
 
 Cette quittance atteste que le loyer du mois de ${moisLabel(q.mois)}
 a bien été reçu.
 
-Fait à Paris, le ${new Date().toLocaleDateString('fr-FR')}
+Fait à Paris, le ${new Date().toLocaleDateString(dateFmtLocale)}
 Signature du bailleur : ${BAIL_DEMO.bailleur}`
 
     const blob = new Blob([texte], { type: 'text/plain;charset=utf-8' })
@@ -1103,32 +1134,33 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs text-gray-500 font-medium mb-1">Loyer mensuel</div>
-          <div className="text-2xl font-black text-gray-900">{formatPrice(BAIL_DEMO.loyerBase + BAIL_DEMO.charges)}</div>
-          <div className="text-xs text-gray-500 mt-1">{formatPrice(BAIL_DEMO.loyerBase)} + {formatPrice(BAIL_DEMO.charges)} charges</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">{L ? 'Renda mensal' : 'Loyer mensuel'}</div>
+          <div className="text-2xl font-black text-[#0D1B2E]">{formatPrice(BAIL_DEMO.loyerBase + BAIL_DEMO.charges)}</div>
+          <div className="text-xs text-[#8A9BB0] mt-1">{formatPrice(BAIL_DEMO.loyerBase)} + {formatPrice(BAIL_DEMO.charges)} {L ? 'encargos' : 'charges'}</div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-          <div className="text-xs text-gray-500 font-medium mb-1">Total {anneeFilter}</div>
-          <div className="text-2xl font-black text-purple-600">{formatPrice(totalAnnee)}</div>
-          <div className="text-xs text-gray-500 mt-1">{filtered.length} quittance{filtered.length > 1 ? 's' : ''}</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">Total {anneeFilter}</div>
+
+          <div className="text-2xl font-black text-[#C9A84C]">{formatPrice(totalAnnee)}</div>
+          <div className="text-xs text-[#8A9BB0] mt-1">{filtered.length} {L ? (filtered.length > 1 ? 'recibos' : 'recibo') : `quittance${filtered.length > 1 ? 's' : ''}`}</div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm col-span-2 md:col-span-1">
-          <div className="text-xs text-gray-500 font-medium mb-1">Prochaine révision</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm col-span-2 md:col-span-1">
+          <div className="text-xs text-[#8A9BB0] font-medium mb-1">{L ? 'Próxima revisão' : 'Prochaine révision'}</div>
           <div className="text-xl font-black text-amber-600">
-            {new Date(BAIL_DEMO.prochaineRevision).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+            {new Date(BAIL_DEMO.prochaineRevision).toLocaleDateString(dateFmtLocale, { month: 'short', year: 'numeric' })}
           </div>
-          <div className="text-xs text-gray-500 mt-1">Indice IRL</div>
+          <div className="text-xs text-[#8A9BB0] mt-1">{L ? 'Índice IRL' : 'Indice IRL'}</div>
         </div>
       </div>
 
       {/* Filtre année */}
       <div className="flex items-center gap-3">
-        <div className="text-sm font-medium text-gray-600">Année :</div>
+        <div className="text-sm font-medium text-[#4A5E78]">{L ? 'Ano :' : 'Année :'}</div>
         <div className="flex gap-1">
           {annees.map(a => (
             <button key={a} onClick={() => setAnneeFilter(a)}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${anneeFilter === a ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition ${anneeFilter === a ? 'bg-[#0D1B2E] text-white' : 'bg-[#F7F4EE] text-[#4A5E78] hover:bg-[#F7F4EE]'}`}
             >{a}</button>
           ))}
         </div>
@@ -1137,21 +1169,21 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
       {/* Liste quittances */}
       <div className="space-y-3">
         {filtered.map(q => (
-          <div key={q.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex items-center justify-between gap-4">
+          <div key={q.id} className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-[rgba(201,168,76,0.15)] rounded-xl flex items-center justify-center flex-shrink-0">
                 <span className="text-lg">🧾</span>
               </div>
               <div className="min-w-0">
-                <div className="font-semibold text-gray-900">{moisLabel(q.mois)}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{q.reference} · Émise le {new Date(q.dateEmission).toLocaleDateString('fr-FR')}</div>
+                <div className="font-semibold text-[#0D1B2E]">{moisLabel(q.mois)}</div>
+                <div className="text-xs text-[#8A9BB0] mt-0.5">{q.reference} · {L ? 'Emitido em' : 'Émise le'} {new Date(q.dateEmission).toLocaleDateString(dateFmtLocale)}</div>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="text-right">
-                <div className="font-black text-gray-900">{formatPrice(q.montant)}</div>
+                <div className="font-black text-[#0D1B2E]">{formatPrice(q.montant)}</div>
                 {downloaded.has(q.id) && (
-                  <div className="text-[10px] text-green-600 font-medium mt-0.5">✓ Téléchargée</div>
+                  <div className="text-[10px] text-green-600 font-medium mt-0.5">{L ? '✓ Descarregado' : '✓ Téléchargée'}</div>
                 )}
               </div>
               <button
@@ -1159,10 +1191,10 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition ${
                   downloaded.has(q.id)
                     ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                    : 'bg-[rgba(201,168,76,0.08)] border-[#C9A84C] text-[#A8842A] hover:bg-[rgba(201,168,76,0.15)]'
                 }`}
               >
-                {downloaded.has(q.id) ? '✓ OK' : '⬇ Télécharger'}
+                {downloaded.has(q.id) ? '✓ OK' : (L ? '⬇ Descarregar' : '⬇ Télécharger')}
               </button>
             </div>
           </div>
@@ -1170,13 +1202,13 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
       </div>
 
       {/* Demande quittance */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-        <div className="text-sm text-gray-600 mb-2">Vous ne trouvez pas une quittance ?</div>
+      <div className="bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl p-4 text-center">
+        <div className="text-sm text-[#4A5E78] mb-2">{L ? 'Não encontra um recibo?' : 'Vous ne trouvez pas une quittance ?'}</div>
         <a
-          href="mailto:cabinet@dupont-immobilier.fr?subject=Demande quittance de loyer"
-          className="text-sm text-purple-600 hover:text-purple-800 font-semibold"
+          href={`mailto:cabinet@dupont-immobilier.fr?subject=${L ? 'Pedido de recibo de renda' : 'Demande quittance de loyer'}`}
+          className="text-sm text-[#C9A84C] hover:text-[#A8842A] font-semibold"
         >
-          📧 Contacter le gestionnaire
+          {L ? '📧 Contactar o gestor' : '📧 Contacter le gestionnaire'}
         </a>
       </div>
     </div>
@@ -1186,6 +1218,9 @@ Signature du bailleur : ${BAIL_DEMO.bailleur}`
 // ─── Composant MonBailSection ──────────────────────────────────────────────────
 
 function MonBailSection({ profile }: { profile: CoproProfile }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const L = locale === 'pt'
   const bail = BAIL_DEMO
 
   const dureeRestante = () => {
@@ -1198,8 +1233,8 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
     const months = Math.floor((Date.now() - new Date(bail.dateDebut).getTime()) / (30.44 * 86400000))
     const years = Math.floor(months / 12)
     const rem = months % 12
-    if (years === 0) return `${months} mois`
-    return `${years} an${years > 1 ? 's' : ''}${rem > 0 ? ` ${rem} mois` : ''}`
+    if (years === 0) return `${months} ${L ? 'meses' : 'mois'}`
+    return `${years} ${L ? (years > 1 ? 'anos' : 'ano') : `an${years > 1 ? 's' : ''}`}${rem > 0 ? ` ${rem} ${L ? 'meses' : 'mois'}` : ''}`
   }
 
   const loyerRevise = () => {
@@ -1220,10 +1255,10 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <span className="text-2xl">⚠️</span>
           <div>
-            <div className="font-bold text-amber-800">Révision de loyer dans {daysToRevision} jours</div>
+            <div className="font-bold text-amber-800">{L ? `Revisão de renda em ${daysToRevision} dias` : `Révision de loyer dans ${daysToRevision} jours`}</div>
             <div className="text-sm text-amber-700 mt-0.5">
-              Révision prévue le {new Date(bail.prochaineRevision).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.
-              Nouveau loyer estimé : <span className="font-bold">{formatPrice(loyerRevise())}</span> (+{formatPrice(hausse)} / +{pctHausse}%)
+              {L ? 'Revisão prevista em' : 'Révision prévue le'} {new Date(bail.prochaineRevision).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}.
+              {L ? 'Nova renda estimada :' : 'Nouveau loyer estimé :'} <span className="font-bold">{formatPrice(loyerRevise())}</span> (+{formatPrice(hausse)} / +{pctHausse}%)
             </div>
           </div>
         </div>
@@ -1232,79 +1267,79 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
       {/* Infos bail */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Données clés */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-          <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">📜 Informations bail</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-5 shadow-sm space-y-4">
+          <div className="font-bold text-[#0D1B2E] text-sm border-b border-[#E4DDD0] pb-2">{L ? '📜 Informações do contrato' : '📜 Informations bail'}</div>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Date de début</span>
-              <span className="font-semibold">{new Date(bail.dateDebut).toLocaleDateString('fr-FR')}</span>
+              <span className="text-[#8A9BB0]">{L ? 'Data de início' : 'Date de début'}</span>
+              <span className="font-semibold">{new Date(bail.dateDebut).toLocaleDateString(dateFmtLocale)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Durée / Type</span>
-              <span className="font-semibold">{bail.duree} mois · Bail résidentiel</span>
+              <span className="text-[#8A9BB0]">{L ? 'Duração / Tipo' : 'Durée / Type'}</span>
+              <span className="font-semibold">{bail.duree} {L ? 'meses · Contrato residencial' : 'mois · Bail résidentiel'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Ancienneté</span>
-              <span className="font-semibold text-purple-600">{anciennete()}</span>
+              <span className="text-[#8A9BB0]">{L ? 'Antiguidade' : 'Ancienneté'}</span>
+              <span className="font-semibold text-[#C9A84C]">{anciennete()}</span>
             </div>
             {bail.dateFin && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Fin de bail</span>
-                <span className="font-semibold">{new Date(bail.dateFin).toLocaleDateString('fr-FR')}</span>
+                <span className="text-[#8A9BB0]">{L ? 'Fim do contrato' : 'Fin de bail'}</span>
+                <span className="font-semibold">{new Date(bail.dateFin).toLocaleDateString(dateFmtLocale)}</span>
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-gray-500">Préavis</span>
-              <span className="font-semibold">{bail.preavis} mois</span>
+              <span className="text-[#8A9BB0]">{L ? 'Pré-aviso' : 'Préavis'}</span>
+              <span className="font-semibold">{bail.preavis} {L ? 'meses' : 'mois'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Surface</span>
+              <span className="text-[#8A9BB0]">{L ? 'Área' : 'Surface'}</span>
               <span className="font-semibold">{bail.surface} m²</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Logement</span>
+              <span className="text-[#8A9BB0]">{L ? 'Alojamento' : 'Logement'}</span>
               <span className="font-semibold text-right max-w-[55%]">{bail.logement}</span>
             </div>
           </div>
         </div>
 
         {/* Financier */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-          <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2">💶 Financier</div>
+        <div className="bg-white rounded-xl border border-[#E4DDD0] p-5 shadow-sm space-y-4">
+          <div className="font-bold text-[#0D1B2E] text-sm border-b border-[#E4DDD0] pb-2">{L ? '💶 Financeiro' : '💶 Financier'}</div>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Loyer hors charges</span>
+              <span className="text-[#8A9BB0]">{L ? 'Renda sem encargos' : 'Loyer hors charges'}</span>
               <span className="font-semibold">{formatPrice(bail.loyerBase)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Charges forfaitaires</span>
+              <span className="text-[#8A9BB0]">{L ? 'Encargos forfetários' : 'Charges forfaitaires'}</span>
               <span className="font-semibold">{formatPrice(bail.charges)}</span>
             </div>
-            <div className="flex justify-between border-t border-gray-100 pt-2">
-              <span className="font-bold text-gray-700">Total mensuel</span>
-              <span className="font-black text-gray-900">{formatPrice(bail.loyerBase + bail.charges)}</span>
+            <div className="flex justify-between border-t border-[#E4DDD0] pt-2">
+              <span className="font-bold text-[#4A5E78]">{L ? 'Total mensal' : 'Total mensuel'}</span>
+              <span className="font-black text-[#0D1B2E]">{formatPrice(bail.loyerBase + bail.charges)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Dépôt de garantie</span>
+              <span className="text-[#8A9BB0]">{L ? 'Caução' : 'Dépôt de garantie'}</span>
               <span className="font-semibold">{formatPrice(bail.depot)}</span>
             </div>
           </div>
 
           {/* Révision IRL */}
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mt-2">
-            <div className="text-xs font-bold text-purple-700 mb-2">📊 Révision {bail.indexation.toUpperCase()}</div>
-            <div className="space-y-1.5 text-xs text-purple-800">
+          <div className="bg-[rgba(201,168,76,0.08)] border border-[#C9A84C] rounded-xl p-3 mt-2">
+            <div className="text-xs font-bold text-[#A8842A] mb-2">{L ? '📊 Revisão' : '📊 Révision'} {bail.indexation.toUpperCase()}</div>
+            <div className="space-y-1.5 text-xs text-[#A8842A]">
               <div className="flex justify-between">
-                <span>Indice de référence</span>
+                <span>{L ? 'Índice de referência' : 'Indice de référence'}</span>
                 <span className="font-bold">{bail.indiceRef}</span>
               </div>
               <div className="flex justify-between">
-                <span>Indice actuel</span>
+                <span>{L ? 'Índice atual' : 'Indice actuel'}</span>
                 <span className="font-bold">{bail.indiceActuel}</span>
               </div>
-              <div className="flex justify-between border-t border-purple-200 pt-1.5">
-                <span className="font-bold">Loyer révisé estimé</span>
-                <span className="font-black text-purple-900">{formatPrice(loyerRevise())} <span className="text-[10px]">(+{pctHausse}%)</span></span>
+              <div className="flex justify-between border-t border-[#C9A84C] pt-1.5">
+                <span className="font-bold">{L ? 'Renda revista estimada' : 'Loyer révisé estimé'}</span>
+                <span className="font-black text-[#0D1B2E]">{formatPrice(loyerRevise())} <span className="text-[10px]">(+{pctHausse}%)</span></span>
               </div>
             </div>
           </div>
@@ -1312,31 +1347,31 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
       </div>
 
       {/* Bailleur */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-        <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2 mb-4">🏢 Bailleur / Gestionnaire</div>
+      <div className="bg-white rounded-xl border border-[#E4DDD0] p-5 shadow-sm">
+        <div className="font-bold text-[#0D1B2E] text-sm border-b border-[#E4DDD0] pb-2 mb-4">{L ? '🏢 Senhorio / Gestor' : '🏢 Bailleur / Gestionnaire'}</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div className="space-y-2">
             <div className="flex items-start gap-2">
-              <span className="text-gray-500 w-5 flex-shrink-0">🏢</span>
-              <div><div className="text-xs text-gray-500">Bailleur</div><div className="font-semibold">{bail.bailleur}</div></div>
+              <span className="text-[#8A9BB0] w-5 flex-shrink-0">🏢</span>
+              <div><div className="text-xs text-[#8A9BB0]">{L ? 'Senhorio' : 'Bailleur'}</div><div className="font-semibold">{bail.bailleur}</div></div>
             </div>
             <div className="flex items-start gap-2">
-              <span className="text-gray-500 w-5 flex-shrink-0">📍</span>
-              <div><div className="text-xs text-gray-500">Adresse</div><div className="font-semibold">{bail.bailleurAdresse}</div></div>
+              <span className="text-[#8A9BB0] w-5 flex-shrink-0">📍</span>
+              <div><div className="text-xs text-[#8A9BB0]">{L ? 'Morada' : 'Adresse'}</div><div className="font-semibold">{bail.bailleurAdresse}</div></div>
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-start gap-2">
-              <span className="text-gray-500 w-5 flex-shrink-0">📞</span>
+              <span className="text-[#8A9BB0] w-5 flex-shrink-0">📞</span>
               <div>
-                <div className="text-xs text-gray-500">Téléphone</div>
-                <a href={`tel:${bail.bailleurPhone.replace(/\s/g, '')}`} className="font-semibold text-purple-600 hover:text-purple-800">{bail.bailleurPhone}</a>
+                <div className="text-xs text-[#8A9BB0]">{L ? 'Telefone' : 'Téléphone'}</div>
+                <a href={`tel:${bail.bailleurPhone.replace(/\s/g, '')}`} className="font-semibold text-[#C9A84C] hover:text-[#A8842A]">{bail.bailleurPhone}</a>
               </div>
             </div>
             {bail.agence && (
               <div className="flex items-start gap-2">
-                <span className="text-gray-500 w-5 flex-shrink-0">🏪</span>
-                <div><div className="text-xs text-gray-500">Agence</div><div className="font-semibold">{bail.agence}</div></div>
+                <span className="text-[#8A9BB0] w-5 flex-shrink-0">🏪</span>
+                <div><div className="text-xs text-[#8A9BB0]">{L ? 'Agência' : 'Agence'}</div><div className="font-semibold">{bail.agence}</div></div>
               </div>
             )}
           </div>
@@ -1344,46 +1379,46 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
       </div>
 
       {/* Calendrier bail */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-        <div className="font-bold text-gray-900 text-sm border-b border-gray-100 pb-2 mb-4">📅 Échéances importantes</div>
+      <div className="bg-white rounded-xl border border-[#E4DDD0] p-5 shadow-sm">
+        <div className="font-bold text-[#0D1B2E] text-sm border-b border-[#E4DDD0] pb-2 mb-4">{L ? '📅 Datas importantes' : '📅 Échéances importantes'}</div>
         <div className="space-y-3">
           {[
-            { label: 'Dernière révision loyer', date: bail.derniereRevision, icon: '✅', color: 'text-green-600' },
-            { label: 'Prochaine révision IRL', date: bail.prochaineRevision, icon: daysToRevision <= 90 ? '⚠️' : '📅', color: daysToRevision <= 90 ? 'text-amber-600' : 'text-gray-600' },
+            { label: L ? 'Última revisão de renda' : 'Dernière révision loyer', date: bail.derniereRevision, icon: '✅', color: 'text-green-600' },
+            { label: L ? 'Próxima revisão IRL' : 'Prochaine révision IRL', date: bail.prochaineRevision, icon: daysToRevision <= 90 ? '⚠️' : '📅', color: daysToRevision <= 90 ? 'text-amber-600' : 'text-[#4A5E78]' },
           ].map((item, i) => (
             <div key={i} className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <span>{item.icon}</span>
-                <span className="text-gray-600">{item.label}</span>
+                <span className="text-[#4A5E78]">{item.label}</span>
               </div>
               <span className={`text-sm font-bold ${item.color}`}>
-                {new Date(item.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {new Date(item.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
           ))}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
               <span>📋</span>
-              <span className="text-gray-600">Date préavis (si départ)</span>
+              <span className="text-[#4A5E78]">{L ? 'Data de pré-aviso (em caso de saída)' : 'Date préavis (si départ)'}</span>
             </div>
-            <span className="text-sm font-bold text-gray-600">
-              {bail.preavis} mois avant la fin
+            <span className="text-sm font-bold text-[#4A5E78]">
+              {bail.preavis} {L ? 'meses antes do fim' : 'mois avant la fin'}
             </span>
           </div>
         </div>
       </div>
 
       {/* Signalement locataire */}
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-        <div className="font-bold text-purple-900 mb-2">🔧 Signaler un problème au bailleur</div>
-        <p className="text-sm text-purple-700 mb-3">Fuite, panne, travaux urgents — contactez directement votre gestionnaire.</p>
+      <div className="bg-[rgba(201,168,76,0.08)] border border-[#C9A84C] rounded-xl p-4">
+        <div className="font-bold text-[#0D1B2E] mb-2">{L ? '🔧 Reportar um problema ao senhorio' : '🔧 Signaler un problème au bailleur'}</div>
+        <p className="text-sm text-[#A8842A] mb-3">{L ? 'Fuga, avaria, obras urgentes — contacte diretamente o seu gestor.' : 'Fuite, panne, travaux urgents — contactez directement votre gestionnaire.'}</p>
         <div className="flex gap-2">
           <a href={`tel:${bail.bailleurPhone.replace(/\s/g, '')}`}
-            className="flex-1 text-center py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition">
-            📞 Appeler
+            className="flex-1 text-center py-2.5 bg-[#0D1B2E] hover:bg-[#152338] text-white text-sm font-bold rounded-xl transition">
+            {L ? '📞 Ligar' : '📞 Appeler'}
           </a>
-          <a href="mailto:cabinet@dupont-immobilier.fr?subject=Signalement - Problème logement"
-            className="flex-1 text-center py-2.5 bg-white border border-purple-300 text-purple-700 text-sm font-bold rounded-xl hover:bg-purple-50 transition">
+          <a href={`mailto:cabinet@dupont-immobilier.fr?subject=${L ? 'Ocorrência - Problema no alojamento' : 'Signalement - Problème logement'}`}
+            className="flex-1 text-center py-2.5 bg-white border border-[#C9A84C] text-[#A8842A] text-sm font-bold rounded-xl hover:bg-[rgba(201,168,76,0.08)] transition">
             📧 Email
           </a>
         </div>
@@ -1392,7 +1427,704 @@ function MonBailSection({ profile }: { profile: CoproProfile }) {
   )
 }
 
-// ─── Modules configurables ─────────────────────────────────────────────────────
+// ─── Traductions FR / PT ────────────────────────────────────────────────────────
+
+const T = {
+  fr: {
+    // Nav items
+    nav_accueil: 'Tableau de bord',
+    nav_documents: 'Documents',
+    nav_paiements: 'Paiements',
+    nav_mes_charges: 'Mes Charges',
+    nav_quittances: 'Quittances loyer',
+    nav_mon_bail: 'Mon Bail',
+    nav_interventions: 'Mes Interventions',
+    nav_annonces: 'Annonces',
+    nav_signalement: 'Signalement',
+    nav_assemblees: 'Assemblées & Votes',
+    nav_historique: 'Historique',
+    nav_modules: 'Modules',
+    nav_parametres: 'Paramètres',
+    nav_assistant: 'Assistant Fixy',
+    // Sidebar categories
+    cat_general: 'GÉNÉRAL',
+    cat_financier: 'FINANCIER',
+    cat_gestion: 'GESTION',
+    cat_juridique: 'JURIDIQUE',
+    cat_outils: 'OUTILS',
+    // Module descriptions
+    mod_documents: 'Accès aux PV, comptes et documents copro',
+    mod_paiements: 'Suivi et historique de vos paiements',
+    mod_mes_charges: 'Détail mensuel de vos charges',
+    mod_quittances: 'Vos quittances de loyer mensuelles',
+    mod_mon_bail: 'Informations de votre bail et renouvellement',
+    mod_interventions: 'Suivi des travaux dans votre immeuble',
+    mod_annonces: 'Annonces du syndic et de la copro',
+    mod_signalement: 'Signaler un problème dans l\'immeuble',
+    mod_assemblees: 'AG, résolutions et votes en ligne',
+    mod_historique: 'Historique de toutes vos actions',
+    mod_assistant: 'Posez vos questions à Fixy',
+    // Header / loading
+    loading: 'Chargement de votre espace...',
+    retourAdmin: '⚡ Retour Admin',
+    deconnexion: 'Déconnexion',
+    reduire: 'Réduire',
+    developper: 'Développer',
+    coproLot: 'Copropriétaire · Lot',
+    notifications: 'Notifications',
+    bat: 'Bât.',
+    lot: 'Lot',
+    etage: 'Étage',
+    // Accueil
+    chargesDuMois: 'Charges du mois',
+    payee: '✓ Payée',
+    enAttente: 'En attente',
+    soldeAPayer: 'Solde à payer',
+    paiementsEnAttente: 'paiement(s) en attente',
+    tantiemes: 'Tantièmes',
+    quotePart: 'Quote-part',
+    nonLues: 'non lue(s)',
+    faireSignalement: '🔔 Faire un signalement',
+    mesPaiements: '💶 Mes paiements',
+    mesDocuments: '📁 Mes documents',
+    voterAG: '🗳️ Voter en AG',
+    prochainesEcheances: '📅 Prochaines échéances',
+    urgent: 'Urgent',
+    toutMarquerLu: 'Tout marquer lu',
+    dernieresAnnonces: '📢 Dernières annonces',
+    voirTout: 'Voir tout →',
+    info: 'Info',
+    important: 'Important',
+    // Documents
+    tousLesTypes: 'Tous les types',
+    toutesLesAnnees: 'Toutes les années',
+    rechercherDoc: '🔍 Rechercher un document...',
+    nouveau: 'Nouveau',
+    publique: 'Public',
+    personnel: 'Personnel',
+    ajouteLe: 'Ajouté le',
+    consulteLe: '✓ Consulté le',
+    telecharger: '📥 Télécharger',
+    marquerLu: '👁️ Marquer comme lu',
+    derniersConsultes: '👁️ Derniers documents consultés',
+    // Paiements
+    totalPaye: 'Total payé (année en cours)',
+    enRetard: 'En retard',
+    aPayer: 'À payer',
+    historiquePaiements: 'Historique',
+    reference: 'Référence',
+    description: 'Description',
+    montant: 'Montant',
+    echeance: 'Échéance',
+    statut: 'Statut',
+    actions: 'Actions',
+    statutPaye: '✓ Payé',
+    statutEnRetard: '⚠ En retard',
+    statutEnAttente: '⏳ En attente',
+    recu: '📥 Reçu',
+    // Annonces (badge)
+    urgentLabel: '🔴 Urgent',
+    importantLabel: '🟠 Important',
+    infoLabel: '🔵 Info',
+    par: 'Par',
+    // Signalement
+    nouveauSignalement: '🔔 Nouveau signalement',
+    signalerProbleme: 'Signalez un problème à votre gestionnaire de copropriété',
+    signalementEnvoye: 'Signalement envoyé !',
+    signalementConfirm: 'Votre gestionnaire a été notifié. Un suivi apparaîtra dans votre historique.',
+    voirHistorique: 'Voir l\'historique →',
+    localisationAuto: '📍 Votre localisation (auto-remplie)',
+    partieCommune: 'Partie commune ?',
+    partieCommuneDesc: 'Cave, couloir, ascenseur, toiture, hall…',
+    zoneConcernee: 'Zone concernée',
+    selectionnerZone: 'Sélectionner une zone…',
+    autrePreciser: 'Autre (préciser dans la description)',
+    typeIntervention: 'Type d\'intervention *',
+    choisirType: 'Choisir le type…',
+    descriptionProbleme: 'Description du problème *',
+    decrivezProbleme: 'Décrivez précisément le problème constaté...',
+    niveauUrgence: 'Niveau d\'urgence',
+    urgenceNormale: '🟡 Normale',
+    urgenceNormaleDesc: 'Sous 48h',
+    urgenceUrgent: '🔴 Urgent',
+    urgenceUrgentDesc: 'Immédiat',
+    urgencePlanifiee: '🟢 Planifiée',
+    urgencePlanifieeDesc: 'À programmer',
+    envoyerSignalement: '📤 Envoyer le signalement au syndic',
+    signalementTransmis: 'Votre signalement sera transmis à votre gestionnaire de copropriété.',
+    // AG
+    agOrdinaire: 'AG Ordinaire',
+    agExtraordinaire: 'AG Extraordinaire',
+    cloturee: '✓ Clôturée',
+    enCours: '● En cours',
+    convoquee: '📩 Convoquée',
+    planifiee: '📅 Planifiée',
+    resolutions: 'résolution(s) · Cliquer pour détails',
+    infosPratiques: '📋 Informations pratiques',
+    date: 'Date',
+    lieu: 'Lieu',
+    type: 'Type',
+    visioconference: 'Visioconférence',
+    lienDispo: '🎥 Lien disponible',
+    ordreDuJour: '📝 Ordre du jour',
+    resolutionsTitle: '🗳️ Résolutions',
+    vosTantiemes: 'Vos tantièmes',
+    votezCliquant: '— Votez en cliquant sur votre choix',
+    monVote: 'Mon vote :',
+    votePour: '✓ POUR',
+    voteContre: '✗ CONTRE',
+    voteAbstention: '○ ABSTENTION',
+    pour: 'Pour',
+    contre: 'Contre',
+    abstention: 'Abstention',
+    totalExprime: 'tantièmes exprimés',
+    adoptee: '✓ Adoptée',
+    rejetee: '✗ Rejetée',
+    contestationAG: 'Contestation de l\'AG',
+    joursRestants: 'jour(s) restant(s)',
+    contestationDelai: 'pour contester (délai légal : 2 mois après l\'AG, art. 42 loi du 10/07/1965)',
+    contestationEcoulee: 'Le délai de contestation de 2 mois est écoulé.',
+    rappelJuridique: 'Rappel juridique :',
+    rappelJuridiqueTexte: 'Tout copropriétaire opposant ou défaillant peut contester une décision d\'AG dans un délai de 2 mois à compter de la notification du PV (article 42 de la loi du 10 juillet 1965). La contestation doit être faite par LRAR au syndic, puis si nécessaire devant le Tribunal judiciaire.',
+    copierTemplate: '📋 Copier le template de mise en demeure',
+    deadline: 'Deadline',
+    envoiLRAR: '· Envoi par LRAR recommandé',
+    // Historique
+    totalPaye2025: 'Total payé 2025',
+    evenements: 'Événements',
+    enregistres: 'enregistrés',
+    evolutionCharges: '📊 Évolution des charges (12 derniers mois)',
+    chartPayee: 'Payée',
+    chartEnAttente: 'En attente',
+    tous: 'Tous',
+    desCharges: 'des charges',
+    // Modules
+    mesModules: '🧩 Mes modules',
+    mesModulesDesc: 'Personnalisez votre espace en activant les fonctionnalités utiles',
+    actifs: 'actifs',
+    astuce: 'Astuce',
+    astuceTexte: 'Désactivez les modules que vous n\'utilisez pas pour simplifier votre espace. Les données ne sont pas supprimées — vous pouvez les réactiver à tout moment.',
+    // Paramètres
+    monProfil: '👤 Mon profil',
+    modifier: '✏️ Modifier',
+    nomComplet: 'Nom complet',
+    email: 'Email',
+    telephone: 'Téléphone',
+    immeuble: 'Immeuble',
+    localisation: 'Localisation',
+    tantièmesQuotePart: 'Tantièmes / Quote-part',
+    prenom: 'Prénom',
+    nom: 'Nom',
+    enregistrer: 'Enregistrer',
+    annuler: 'Annuler',
+    prefsNotif: '🔔 Préférences de notification',
+    notifEmail: 'Notifications par email',
+    notifEmailDesc: 'Recevoir les alertes et rappels par email',
+    notifPush: 'Notifications push',
+    notifPushDesc: 'Recevoir les alertes sur votre téléphone',
+    mailingAG: 'Convocations AG',
+    mailingAGDesc: 'Recevoir les convocations d\'assemblée générale',
+    alertesPaiement: 'Alertes paiement',
+    alertesPaiementDesc: 'Rappels d\'échéances de paiement',
+    alertesTravaux: 'Alertes travaux',
+    alertesTravauxDesc: 'Informations sur les travaux en cours',
+    resumeHebdo: 'Résumé hebdomadaire',
+    resumeHebdoDesc: 'Synthèse des événements de la semaine',
+    exportTelecharge: '📥 Export & téléchargements',
+    recapAnnuel: 'Récapitulatif annuel',
+    recapAnnuelDesc: 'Synthèse charges et paiements',
+    mesVotesAG: 'Mes votes AG',
+    mesVotesAGDesc: 'Historique de tous vos votes',
+    attestationCopro: 'Attestation copropriété',
+    portailSignalements: 'Portail signalements',
+    portailSignalementsDesc: 'Accéder au portail de signalement',
+    // Assistant
+    assistantTitre: 'Fixy — Assistant IA',
+    assistantDesc: 'Je connais toute votre copropriété. Posez-moi n\'importe quelle question !',
+    nouvelleConversation: 'Nouvelle conversation',
+    bonjourPrenom: 'Bonjour',
+    assistantIntro: 'Je suis Fixy, votre assistant personnel pour la copropriété',
+    assistantIntro2: '. Je peux répondre à toutes vos questions — même si vous n\'êtes pas à l\'aise avec la technologie !',
+    questionsFréquentes: 'Questions fréquentes :',
+    assistantQ1: 'Combien je dois payer ce mois ?',
+    assistantQ2: 'Quelle est la prochaine assemblée générale ?',
+    assistantQ3: 'Quels documents puis-je télécharger ?',
+    assistantQ4: 'Quel est mon solde actuel ?',
+    assistantQ5: 'Comment voter pour une résolution ?',
+    assistantQ6: 'Y a-t-il des travaux prévus ?',
+    assistantQ7: 'Quand est la prochaine coupure d\'eau ?',
+    assistantQ8: 'C\'est quoi les tantièmes ?',
+    suggestionQ1: 'Mes paiements en attente',
+    suggestionQ2: 'Prochaine AG',
+    suggestionQ3: 'Mes documents',
+    suggestionQ4: 'Mon solde',
+    placeholderInput: 'Posez votre question à Fixy…',
+    assistantPied: 'Fixy peut répondre à toutes vos questions sur votre copropriété',
+    // Interventions
+    interventionsEnCours: 'intervention(s) en cours',
+    aucuneIntervention: 'Aucune intervention pour ce filtre',
+    toutes: 'Toutes',
+    planifiees: '📅 Planifiées',
+    enRoute: '🚗 En route',
+    surPlace: '🔧 Sur place',
+    terminees: '✅ Terminées',
+    noter: '✍️ Noter',
+    preuve: '✅ Preuve',
+    signe: '+ signé',
+    progression: 'Progression',
+    demarrage: 'Démarrage',
+    enCoursLabel: 'En cours',
+    termine: 'Terminé',
+    positionTempsReel: '📍 POSITION EN TEMPS RÉEL',
+    signalGPS: 'Signal GPS actif',
+    preuveIntervention: '📸 PREUVE D\'INTERVENTION',
+    photosAvant: 'photo(s) avant',
+    photosApres: 'photo(s) après',
+    votreAvis: 'VOTRE AVIS',
+    donnerAvis: '⭐ Donner mon avis sur cette intervention',
+    evaluerIntervention: '⭐ Évaluer l\'intervention',
+    votreNote: 'Votre note',
+    tresSatisfait: 'Très satisfait',
+    satisfait: 'Satisfait',
+    correct: 'Correct',
+    insatisfait: 'Insatisfait',
+    tresInsatisfait: 'Très insatisfait',
+    commentaireOpt: 'Commentaire (optionnel)',
+    decrivezExperience: 'Décrivez votre expérience...',
+    envoyerAvis: 'Envoyer l\'avis',
+    // Doc types
+    docPvAg: 'PV Assemblée',
+    docCompteAnnuel: 'Comptes annuels',
+    docBudget: 'Budget',
+    docContrat: 'Contrat',
+    docReglement: 'Règlement',
+    docAppelCharges: 'Appel de charges',
+    docAutre: 'Autre',
+    // Majorité
+    unanimite: 'Unanimité',
+    // Statuts intervention
+    statutPlanifie: 'Planifié',
+    statutEnRoute: 'En route',
+    statutSurPlace: 'Sur place',
+    statutTermine: 'Terminé',
+    statutAnnule: 'Annulé',
+    // Date locale
+    dateLocale: 'fr-FR',
+  },
+  pt: {
+    // Nav items
+    nav_accueil: 'Painel',
+    nav_documents: 'Documentos',
+    nav_paiements: 'Pagamentos',
+    nav_mes_charges: 'Minhas Quotas',
+    nav_quittances: 'Recibos de renda',
+    nav_mon_bail: 'Meu Contrato',
+    nav_interventions: 'Minhas Intervenções',
+    nav_annonces: 'Avisos',
+    nav_signalement: 'Ocorrência',
+    nav_assemblees: 'Assembleias & Votos',
+    nav_historique: 'Histórico',
+    nav_modules: 'Módulos',
+    nav_parametres: 'Definições',
+    nav_assistant: 'Assistente Fixy',
+    // Sidebar categories
+    cat_general: 'GERAL',
+    cat_financier: 'FINANCEIRO',
+    cat_gestion: 'GESTÃO',
+    cat_juridique: 'JURÍDICO',
+    cat_outils: 'FERRAMENTAS',
+    // Module descriptions
+    mod_documents: 'Acesso às atas, contas e documentos do condomínio',
+    mod_paiements: 'Acompanhamento e histórico dos seus pagamentos',
+    mod_mes_charges: 'Detalhe mensal das suas quotas',
+    mod_quittances: 'Os seus recibos de renda mensais',
+    mod_mon_bail: 'Informações do seu contrato e renovação',
+    mod_interventions: 'Acompanhamento das obras no seu edifício',
+    mod_annonces: 'Avisos do administrador e do condomínio',
+    mod_signalement: 'Reportar um problema no edifício',
+    mod_assemblees: 'Assembleias, deliberações e votações online',
+    mod_historique: 'Histórico de todas as suas ações',
+    mod_assistant: 'Faça as suas perguntas ao Fixy',
+    // Header / loading
+    loading: 'A carregar o seu espaço...',
+    retourAdmin: '⚡ Voltar Admin',
+    deconnexion: 'Terminar sessão',
+    reduire: 'Minimizar',
+    developper: 'Expandir',
+    coproLot: 'Condómino · Fração',
+    notifications: 'Notificações',
+    bat: 'Bloco',
+    lot: 'Fração',
+    etage: 'Piso',
+    // Accueil
+    chargesDuMois: 'Quotas do mês',
+    payee: '✓ Paga',
+    enAttente: 'Pendente',
+    soldeAPayer: 'Saldo a pagar',
+    paiementsEnAttente: 'pagamento(s) pendente(s)',
+    tantiemes: 'Permilagem',
+    quotePart: 'Quota-parte',
+    nonLues: 'não lida(s)',
+    faireSignalement: '🔔 Reportar ocorrência',
+    mesPaiements: '💶 Meus pagamentos',
+    mesDocuments: '📁 Meus documentos',
+    voterAG: '🗳️ Votar em Assembleia',
+    prochainesEcheances: '📅 Próximos vencimentos',
+    urgent: 'Urgente',
+    toutMarquerLu: 'Marcar tudo como lido',
+    dernieresAnnonces: '📢 Últimos avisos',
+    voirTout: 'Ver tudo →',
+    info: 'Info',
+    important: 'Importante',
+    // Documents
+    tousLesTypes: 'Todos os tipos',
+    toutesLesAnnees: 'Todos os anos',
+    rechercherDoc: '🔍 Pesquisar documento...',
+    nouveau: 'Novo',
+    publique: 'Público',
+    personnel: 'Pessoal',
+    ajouteLe: 'Adicionado em',
+    consulteLe: '✓ Consultado em',
+    telecharger: '📥 Descarregar',
+    marquerLu: '👁️ Marcar como lido',
+    derniersConsultes: '👁️ Últimos documentos consultados',
+    // Paiements
+    totalPaye: 'Total pago (ano corrente)',
+    enRetard: 'Em atraso',
+    aPayer: 'A pagar',
+    historiquePaiements: 'Histórico',
+    reference: 'Referência',
+    description: 'Descrição',
+    montant: 'Valor',
+    echeance: 'Vencimento',
+    statut: 'Estado',
+    actions: 'Ações',
+    statutPaye: '✓ Pago',
+    statutEnRetard: '⚠ Em atraso',
+    statutEnAttente: '⏳ Pendente',
+    recu: '📥 Recibo',
+    // Annonces (badge)
+    urgentLabel: '🔴 Urgente',
+    importantLabel: '🟠 Importante',
+    infoLabel: '🔵 Info',
+    par: 'Por',
+    // Signalement
+    nouveauSignalement: '🔔 Nova ocorrência',
+    signalerProbleme: 'Reporte um problema ao administrador do condomínio',
+    signalementEnvoye: 'Ocorrência enviada!',
+    signalementConfirm: 'O administrador foi notificado. O acompanhamento aparecerá no seu histórico.',
+    voirHistorique: 'Ver histórico →',
+    localisationAuto: '📍 A sua localização (preenchimento automático)',
+    partieCommune: 'Parte comum?',
+    partieCommuneDesc: 'Cave, corredor, elevador, cobertura, hall…',
+    zoneConcernee: 'Zona em causa',
+    selectionnerZone: 'Selecionar uma zona…',
+    autrePreciser: 'Outra (especificar na descrição)',
+    typeIntervention: 'Tipo de intervenção *',
+    choisirType: 'Escolher o tipo…',
+    descriptionProbleme: 'Descrição do problema *',
+    decrivezProbleme: 'Descreva com precisão o problema constatado...',
+    niveauUrgence: 'Nível de urgência',
+    urgenceNormale: '🟡 Normal',
+    urgenceNormaleDesc: 'Em 48h',
+    urgenceUrgent: '🔴 Urgente',
+    urgenceUrgentDesc: 'Imediato',
+    urgencePlanifiee: '🟢 Planeada',
+    urgencePlanifieeDesc: 'A programar',
+    envoyerSignalement: '📤 Enviar ocorrência ao administrador',
+    signalementTransmis: 'A sua ocorrência será transmitida ao administrador do condomínio.',
+    // AG
+    agOrdinaire: 'Assembleia Ordinária',
+    agExtraordinaire: 'Assembleia Extraordinária',
+    cloturee: '✓ Encerrada',
+    enCours: '● Em curso',
+    convoquee: '📩 Convocada',
+    planifiee: '📅 Planeada',
+    resolutions: 'deliberação(ões) · Clique para detalhes',
+    infosPratiques: '📋 Informações práticas',
+    date: 'Data',
+    lieu: 'Local',
+    type: 'Tipo',
+    visioconference: 'Videoconferência',
+    lienDispo: '🎥 Link disponível',
+    ordreDuJour: '📝 Ordem do dia',
+    resolutionsTitle: '🗳️ Deliberações',
+    vosTantiemes: 'A sua permilagem',
+    votezCliquant: '— Vote clicando na sua escolha',
+    monVote: 'Meu voto:',
+    votePour: '✓ A FAVOR',
+    voteContre: '✗ CONTRA',
+    voteAbstention: '○ ABSTENÇÃO',
+    pour: 'A favor',
+    contre: 'Contra',
+    abstention: 'Abstenção',
+    totalExprime: 'permilagens expressas',
+    adoptee: '✓ Aprovada',
+    rejetee: '✗ Rejeitada',
+    contestationAG: 'Impugnação da Assembleia',
+    joursRestants: 'dia(s) restante(s)',
+    contestationDelai: 'para impugnar (prazo legal: 60 dias após a assembleia, art. 1433.º CC)',
+    contestationEcoulee: 'O prazo de impugnação de 60 dias expirou.',
+    rappelJuridique: 'Nota jurídica:',
+    rappelJuridiqueTexte: 'Qualquer condómino que tenha ficado vencido pode impugnar as deliberações da assembleia no prazo de 60 dias a contar da deliberação (para os presentes) ou da comunicação (para os ausentes), nos termos do art. 1433.º do Código Civil.',
+    copierTemplate: '📋 Copiar modelo de impugnação',
+    deadline: 'Prazo limite',
+    envoiLRAR: '· Envio por carta registada com AR',
+    // Historique
+    totalPaye2025: 'Total pago 2025',
+    evenements: 'Eventos',
+    enregistres: 'registados',
+    evolutionCharges: '📊 Evolução das quotas (últimos 12 meses)',
+    chartPayee: 'Paga',
+    chartEnAttente: 'Pendente',
+    tous: 'Todos',
+    desCharges: 'das quotas',
+    // Modules
+    mesModules: '🧩 Meus módulos',
+    mesModulesDesc: 'Personalize o seu espaço ativando as funcionalidades úteis',
+    actifs: 'ativos',
+    astuce: 'Dica',
+    astuceTexte: 'Desative os módulos que não utiliza para simplificar o seu espaço. Os dados não são apagados — pode reativá-los a qualquer momento.',
+    // Paramètres
+    monProfil: '👤 Meu perfil',
+    modifier: '✏️ Editar',
+    nomComplet: 'Nome completo',
+    email: 'Email',
+    telephone: 'Telefone',
+    immeuble: 'Edifício',
+    localisation: 'Localização',
+    tantièmesQuotePart: 'Permilagem / Quota-parte',
+    prenom: 'Nome próprio',
+    nom: 'Apelido',
+    enregistrer: 'Guardar',
+    annuler: 'Cancelar',
+    prefsNotif: '🔔 Preferências de notificação',
+    notifEmail: 'Notificações por email',
+    notifEmailDesc: 'Receber alertas e lembretes por email',
+    notifPush: 'Notificações push',
+    notifPushDesc: 'Receber alertas no seu telemóvel',
+    mailingAG: 'Convocatórias de assembleia',
+    mailingAGDesc: 'Receber convocatórias de assembleia geral',
+    alertesPaiement: 'Alertas de pagamento',
+    alertesPaiementDesc: 'Lembretes de vencimento de pagamento',
+    alertesTravaux: 'Alertas de obras',
+    alertesTravauxDesc: 'Informações sobre obras em curso',
+    resumeHebdo: 'Resumo semanal',
+    resumeHebdoDesc: 'Síntese dos eventos da semana',
+    exportTelecharge: '📥 Exportar & descarregar',
+    recapAnnuel: 'Resumo anual',
+    recapAnnuelDesc: 'Síntese de quotas e pagamentos',
+    mesVotesAG: 'Meus votos AG',
+    mesVotesAGDesc: 'Histórico de todos os seus votos',
+    attestationCopro: 'Declaração de condomínio',
+    portailSignalements: 'Portal de ocorrências',
+    portailSignalementsDesc: 'Aceder ao portal de ocorrências',
+    // Assistant
+    assistantTitre: 'Fixy — Assistente IA',
+    assistantDesc: 'Conheço todo o seu condomínio. Faça-me qualquer pergunta!',
+    nouvelleConversation: 'Nova conversa',
+    bonjourPrenom: 'Olá',
+    assistantIntro: 'Sou o Fixy, o seu assistente pessoal do condomínio',
+    assistantIntro2: '. Posso responder a todas as suas perguntas — mesmo que não esteja à vontade com a tecnologia!',
+    questionsFréquentes: 'Perguntas frequentes:',
+    assistantQ1: 'Quanto tenho de pagar este mês?',
+    assistantQ2: 'Quando é a próxima assembleia?',
+    assistantQ3: 'Que documentos posso descarregar?',
+    assistantQ4: 'Qual é o meu saldo atual?',
+    assistantQ5: 'Como votar numa deliberação?',
+    assistantQ6: 'Há obras previstas?',
+    assistantQ7: 'Quando é o próximo corte de água?',
+    assistantQ8: 'O que é a permilagem?',
+    suggestionQ1: 'Meus pagamentos pendentes',
+    suggestionQ2: 'Próxima assembleia',
+    suggestionQ3: 'Meus documentos',
+    suggestionQ4: 'Meu saldo',
+    placeholderInput: 'Faça a sua pergunta ao Fixy…',
+    assistantPied: 'O Fixy pode responder a todas as perguntas sobre o seu condomínio',
+    // Interventions
+    interventionsEnCours: 'intervenção(ões) em curso',
+    aucuneIntervention: 'Nenhuma intervenção para este filtro',
+    toutes: 'Todas',
+    planifiees: '📅 Planeadas',
+    enRoute: '🚗 A caminho',
+    surPlace: '🔧 No local',
+    terminees: '✅ Concluídas',
+    noter: '✍️ Avaliar',
+    preuve: '✅ Prova',
+    signe: '+ assinado',
+    progression: 'Progresso',
+    demarrage: 'Início',
+    enCoursLabel: 'Em curso',
+    termine: 'Concluído',
+    positionTempsReel: '📍 POSIÇÃO EM TEMPO REAL',
+    signalGPS: 'Sinal GPS ativo',
+    preuveIntervention: '📸 PROVA DE INTERVENÇÃO',
+    photosAvant: 'foto(s) antes',
+    photosApres: 'foto(s) depois',
+    votreAvis: 'A SUA AVALIAÇÃO',
+    donnerAvis: '⭐ Avaliar esta intervenção',
+    evaluerIntervention: '⭐ Avaliar a intervenção',
+    votreNote: 'A sua nota',
+    tresSatisfait: 'Muito satisfeito',
+    satisfait: 'Satisfeito',
+    correct: 'Razoável',
+    insatisfait: 'Insatisfeito',
+    tresInsatisfait: 'Muito insatisfeito',
+    commentaireOpt: 'Comentário (opcional)',
+    decrivezExperience: 'Descreva a sua experiência...',
+    envoyerAvis: 'Enviar avaliação',
+    // Doc types
+    docPvAg: 'Ata da Assembleia',
+    docCompteAnnuel: 'Contas anuais',
+    docBudget: 'Orçamento',
+    docContrat: 'Contrato',
+    docReglement: 'Regulamento',
+    docAppelCharges: 'Aviso de quotas',
+    docAutre: 'Outro',
+    // Majorité
+    unanimite: 'Unanimidade',
+    // Statuts intervention
+    statutPlanifie: 'Planeado',
+    statutEnRoute: 'A caminho',
+    statutSurPlace: 'No local',
+    statutTermine: 'Concluído',
+    statutAnnule: 'Cancelado',
+    // Date locale
+    dateLocale: 'pt-PT',
+  },
+} as const
+
+type TKey = keyof typeof T['fr']
+type TDict = Record<TKey, string>
+
+// ─── Helper : get translation function based on locale ──────────────────────────
+
+function getT(locale: string): TDict {
+  return (locale === 'pt' ? T.pt : T.fr) as TDict
+}
+
+// ─── Signalement data (locale-aware) ─────────────────────────────────────────
+
+function getTypesIntervention(locale: string): string[] {
+  if (locale === 'pt') return [
+    '🔧 Canalização (fuga, coluna, torneira)',
+    '⚡ Eletricidade (avaria, quadro, tomada)',
+    '🪟 Carpintaria (porta, janela, fechadura)',
+    '🎨 Pintura / revestimento',
+    '🏗️ Obra pesada (fissura, infiltração)',
+    '🌡️ Aquecimento / climatização',
+    '🛗 Elevador',
+    '🧹 Limpeza / manutenção',
+    '🔥 Sinistro (inundação, incêndio)',
+    '🚨 Urgência de segurança',
+    '🌿 Espaços verdes',
+    '💡 Iluminação partes comuns',
+    '🚪 Intercomunicador / código',
+    '📦 Outro',
+  ]
+  return TYPES_INTERVENTION
+}
+
+function getZonesCommunes(locale: string): string[] {
+  if (locale === 'pt') return [
+    'Entrada / hall',
+    'Corredor / patamar',
+    'Escadas',
+    'Cave / subsolo',
+    'Estacionamento / garagem',
+    'Cobertura / terraço',
+    'Jardim / espaço verde',
+    'Sala do lixo',
+    'Sala de bicicletas',
+    'Fachada exterior',
+    'Caixas de correio',
+    'Elevador',
+    'Central térmica',
+    'Contadores comuns',
+  ]
+  return ZONES_COMMUNES
+}
+
+// ─── Sidebar categories ──────────────────────────────────────────────────────
+
+type NavCategory = { label: string; items: CoproPage[] }
+
+function getNavCategories(t: TDict): NavCategory[] {
+  return [
+    { label: t.cat_general, items: ['accueil'] },
+    { label: t.cat_financier, items: ['paiements', 'mes_charges', 'quittances'] },
+    { label: t.cat_gestion, items: ['documents', 'mon_bail', 'interventions_suivi', 'annonces', 'signalement'] },
+    { label: t.cat_juridique, items: ['assemblees', 'historique'] },
+    { label: t.cat_outils, items: ['modules', 'parametres', 'assistant'] },
+  ]
+}
+
+// ─── Doc type labels (locale-aware) ──────────────────────────────────────────
+
+function getDocTypeLabels(t: TDict): Record<string, { label: string; emoji: string }> {
+  return {
+    pv_ag: { label: t.docPvAg, emoji: '📋' },
+    compte_annuel: { label: t.docCompteAnnuel, emoji: '📊' },
+    budget: { label: t.docBudget, emoji: '💰' },
+    contrat: { label: t.docContrat, emoji: '📑' },
+    reglement: { label: t.docReglement, emoji: '📜' },
+    appel_charges: { label: t.docAppelCharges, emoji: '🧾' },
+    autre: { label: t.docAutre, emoji: '📄' },
+  }
+}
+
+// ─── Majorité labels (locale-aware) ──────────────────────────────────────────
+
+function getMajoriteLabels(locale: string): Record<string, { label: string; color: string }> {
+  if (locale === 'pt') return {
+    art24: { label: 'Maioria simples', color: 'bg-blue-100 text-blue-700' },
+    art25: { label: '2/3 do valor', color: 'bg-[rgba(201,168,76,0.15)] text-[#A8842A]' },
+    art26: { label: 'Dupla maioria', color: 'bg-orange-100 text-orange-700' },
+    unanimite: { label: 'Unanimidade', color: 'bg-red-100 text-red-700' },
+  }
+  return MAJORITE_LABELS
+}
+
+// ─── Modules configurables (locale-aware) ─────────────────────────────────────
+
+function getCoproModules(t: TDict) {
+  return [
+    { key: 'documents' as const, label: t.nav_documents, icon: '📁', description: t.mod_documents, default: true },
+    { key: 'paiements' as const, label: t.nav_paiements, icon: '💶', description: t.mod_paiements, default: true },
+    { key: 'mes_charges' as const, label: t.nav_mes_charges, icon: '💰', description: t.mod_mes_charges, default: true },
+    { key: 'quittances' as const, label: t.nav_quittances, icon: '🧾', description: t.mod_quittances, default: false },
+    { key: 'mon_bail' as const, label: t.nav_mon_bail, icon: '📜', description: t.mod_mon_bail, default: false },
+    { key: 'interventions_suivi' as const, label: t.nav_interventions, icon: '🔧', description: t.mod_interventions, default: true },
+    { key: 'annonces' as const, label: t.nav_annonces, icon: '📢', description: t.mod_annonces, default: true },
+    { key: 'signalement' as const, label: t.nav_signalement, icon: '🔔', description: t.mod_signalement, default: true },
+    { key: 'assemblees' as const, label: t.nav_assemblees, icon: '🏛️', description: t.mod_assemblees, default: true },
+    { key: 'historique' as const, label: t.nav_historique, icon: '📈', description: t.mod_historique, default: false },
+    { key: 'assistant' as const, label: t.nav_assistant, icon: '🤖', description: t.mod_assistant, default: true },
+  ]
+}
+
+// ─── Navigation items (locale-aware) ────────────────────────────────────────
+
+function getNavItems(t: TDict): { id: CoproPage; emoji: string; label: string }[] {
+  return [
+    { id: 'accueil', emoji: '📊', label: t.nav_accueil },
+    { id: 'documents', emoji: '📁', label: t.nav_documents },
+    { id: 'paiements', emoji: '💶', label: t.nav_paiements },
+    { id: 'mes_charges', emoji: '💰', label: t.nav_mes_charges },
+    { id: 'quittances', emoji: '🧾', label: t.nav_quittances },
+    { id: 'mon_bail', emoji: '📜', label: t.nav_mon_bail },
+    { id: 'interventions_suivi', emoji: '🔧', label: t.nav_interventions },
+    { id: 'annonces', emoji: '📢', label: t.nav_annonces },
+    { id: 'signalement', emoji: '🔔', label: t.nav_signalement },
+    { id: 'assemblees', emoji: '🏛️', label: t.nav_assemblees },
+    { id: 'historique', emoji: '📈', label: t.nav_historique },
+    { id: 'modules', emoji: '🧩', label: t.nav_modules },
+    { id: 'parametres', emoji: '⚙️', label: t.nav_parametres },
+    { id: 'assistant', emoji: '🤖', label: t.nav_assistant },
+  ]
+}
+
+// ─── Modules configurables (static, for default loading) ─────────────────────
 
 const COPRO_MODULES = [
   { key: 'documents', label: 'Documents', icon: '📁', description: 'Accès aux PV, comptes et documents copro', default: true },
@@ -1409,7 +2141,7 @@ const COPRO_MODULES = [
 ] as const
 type CoproModuleKey = typeof COPRO_MODULES[number]['key']
 
-// ─── Navigation ────────────────────────────────────────────────────────────────
+// ─── Navigation (static, for reference) ────────────────────────────────────────
 
 const NAV_ITEMS: { id: CoproPage; emoji: string; label: string }[] = [
   { id: 'accueil', emoji: '📊', label: 'Tableau de bord' },
@@ -1431,6 +2163,18 @@ const NAV_ITEMS: { id: CoproPage; emoji: string; label: string }[] = [
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function CoproprietaireDashboard() {
+  // ── Locale ──
+  const locale = useLocale()
+  const t = useMemo(() => getT(locale), [locale])
+  const navItems = useMemo(() => getNavItems(t), [t])
+  const navCategories = useMemo(() => getNavCategories(t), [t])
+  const coproModules = useMemo(() => getCoproModules(t), [t])
+  const docTypeLabels = useMemo(() => getDocTypeLabels(t), [t])
+  const majoriteLabels = useMemo(() => getMajoriteLabels(locale), [locale])
+  const typesIntervention = useMemo(() => getTypesIntervention(locale), [locale])
+  const zonesCommunes = useMemo(() => getZonesCommunes(locale), [locale])
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+
   // Auth
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -1692,8 +2436,52 @@ export default function CoproprietaireDashboard() {
   // ── Assistant IA ──
   const buildCoproSystemPrompt = () => {
     const paiementsAttente = paiements.filter(p => p.statut === 'en_attente')
-    const docsListe = documents.map(d => `- ${d.nom} (${d.annee}, ${DOC_TYPE_LABELS[d.type]?.label || d.type})`).join('\n')
-    return `Tu es Fixy, l'assistant IA personnel de ${profile.prenom} ${profile.nom}, copropriétaire au ${profile.immeuble}, bâtiment ${profile.batiment}, étage ${profile.etage}, lot n°${profile.numLot}. Tu as accès à toutes les informations de sa copropriété. Réponds de façon claire, conviviale et accessible — certaines personnes ne sont pas à l'aise avec la technologie. Réponds toujours en français.
+    const docsListe = documents.map(d => `- ${d.nom} (${d.annee}, ${docTypeLabels[d.type]?.label || d.type})`).join('\n')
+    const isPT = locale === 'pt'
+    return isPT
+      ? `Tu és o Fixy, o assistente IA pessoal de ${profile.prenom} ${profile.nom}, condómino no ${profile.immeuble}, bloco ${profile.batiment}, piso ${profile.etage}, fração n.º ${profile.numLot}. Tens acesso a todas as informações do condomínio. Responde de forma clara, simpática e acessível — algumas pessoas não estão à vontade com a tecnologia. Responde sempre em português.
+
+=== PERFIL DO CONDÓMINO ===
+Nome: ${profile.prenom} ${profile.nom}
+Email: ${profile.email} | Telefone: ${profile.telephone}
+Edifício: ${profile.immeuble} | Bloco: ${profile.batiment} | Piso: ${profile.etage} | Fração: ${profile.numLot}
+Permilagem: ${profile.tantiemes}/10 000 | Quota-parte: ${profile.quotePart}%
+
+=== SITUAÇÃO FINANCEIRA ===
+Quotas do mês: ${chargesDuMois?.montant || 285}€ — ${chargesDuMois?.statut === 'payee' ? 'PAGA' : 'PENDENTE'}
+Saldo total a pagar: ${solde}€ (${paiementsAttente.length} pagamento(s) pendente(s))
+Detalhe pagamentos pendentes:
+${paiementsAttente.map(p => `- ${p.description}: ${p.montant}€ (vencimento ${formatDate(p.dateEcheance)}, ref: ${p.reference})`).join('\n') || '- Nenhum pagamento pendente'}
+
+=== PRÓXIMOS VENCIMENTOS ===
+${echeances.sort((a, b) => a.date.localeCompare(b.date)).map(e => `- [${formatDate(e.date)}] ${e.titre}: ${e.description}${e.urgent ? ' ⚠️ URGENTE' : ''}`).join('\n')}
+
+=== DOCUMENTOS DISPONÍVEIS (separador Documentos) ===
+${docsListe}
+
+=== AVISOS DO ADMINISTRADOR ===
+${annonces.map(a => `- [${a.date}] ${a.importance.toUpperCase()} — ${a.titre}: ${a.contenu}`).join('\n')}
+
+=== ASSEMBLEIAS GERAIS ===
+${ags.map(ag => {
+  const resLines = ag.resolutions.map(r =>
+    `  • ${r.titre}: ${r.description.slice(0, 120)} | Meu voto: ${r.monVote || 'ainda não votou'} | Resultado: ${r.resultat || (r.statut === 'ouverte' ? 'votação em curso' : 'N/A')} | A favor: ${r.votePour} permilagens, Contra: ${r.voteContre}, Abstenção: ${r.voteAbstention}`
+  ).join('\n')
+  return `AG: ${ag.titre} — ${formatDate(ag.date)}, ${ag.lieu}\nEstado: ${ag.statut}\nOrdem do dia:${ag.ordreDuJour.map(o => `\n  • ${o}`).join('')}\nDeliberações:\n${resLines}`
+}).join('\n\n---\n\n')}
+
+=== HISTÓRICO RECENTE ===
+${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${h.montant !== undefined ? ` (${h.montant >= 0 ? '+' : ''}${h.montant}€)` : ''}`).join('\n')}
+
+=== REGRAS DE RESPOSTA ===
+- Sê preciso com os números e datas dos dados acima.
+- Para descarregar um documento → direcionar para o separador "Documentos" do menu.
+- Para votar em AG → separador "Assembleias & Votos".
+- Para pagar → separador "Pagamentos".
+- Para uma ocorrência → separador "Ocorrência".
+- Ajuda as pessoas menos à vontade com a tecnologia com explicações simples e acolhedoras.
+- Podes responder a TODAS as perguntas: finanças, regulamento do condomínio, obras, votos, contabilidade, direitos do condómino, etc.`
+      : `Tu es Fixy, l'assistant IA personnel de ${profile.prenom} ${profile.nom}, copropriétaire au ${profile.immeuble}, bâtiment ${profile.batiment}, étage ${profile.etage}, lot n°${profile.numLot}. Tu as accès à toutes les informations de sa copropriété. Réponds de façon claire, conviviale et accessible — certaines personnes ne sont pas à l'aise avec la technologie. Réponds toujours en français.
 
 === PROFIL COPROPRIÉTAIRE ===
 Nom: ${profile.prenom} ${profile.nom}
@@ -1745,15 +2533,76 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
     setAssistantInput('')
     setAssistantLoading(true)
     setTimeout(() => assistantEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+    // Get auth token
+    const session = await supabase.auth.getSession()
+    const token = session.data.session?.access_token || ''
+
     try {
       const res = await fetch('/api/copro-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, systemPrompt: buildCoproSystemPrompt() }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ messages: newMessages, systemPrompt: buildCoproSystemPrompt(), stream: true }),
       })
-      const data = await res.json()
-      const reply = data.reply || data.response || data.message || 'Désolée, je n\'ai pas pu répondre pour le moment.'
-      setAssistantMessages(prev => [...prev, { role: 'assistant', content: reply }])
+
+      if (!res.ok || !res.body) {
+        // Fallback to non-streaming
+        const data = await res.json().catch(() => ({}))
+        const reply = data.reply || data.response || 'Désolée, je n\'ai pas pu répondre pour le moment.'
+        setAssistantMessages(prev => [...prev, { role: 'assistant', content: reply }])
+        setAssistantLoading(false)
+        return
+      }
+
+      // Streaming: read SSE chunks
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let fullText = ''
+      // Add empty assistant message that we'll update progressively
+      setAssistantMessages(prev => [...prev, { role: 'assistant', content: '' }])
+      setAssistantLoading(false)
+
+      let buffer = ''
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed || !trimmed.startsWith('data: ')) continue
+          const payload = trimmed.slice(6)
+          if (payload === '[DONE]') break
+          try {
+            const json = JSON.parse(payload)
+            if (json.text) {
+              fullText += json.text
+              const currentText = fullText
+              setAssistantMessages(prev => {
+                const updated = [...prev]
+                updated[updated.length - 1] = { role: 'assistant', content: currentText }
+                return updated
+              })
+              assistantEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      // Ensure final text is set
+      if (fullText) {
+        setAssistantMessages(prev => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: fullText }
+          return updated
+        })
+      }
     } catch {
       setAssistantMessages(prev => [...prev, { role: 'assistant', content: 'Une erreur est survenue. Veuillez réessayer.' }])
     } finally {
@@ -1779,10 +2628,10 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
   // ── Loading ──
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F4EE]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Chargement de votre espace...</p>
+          <div className="w-12 h-12 border-4 border-[#C9A84C] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#4A5E78] font-medium">{t.loading}</p>
         </div>
       </div>
     )
@@ -1790,7 +2639,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
 
   // ── Rendu ──
   return (
-    <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
+    <div id="copro-dashboard" className="flex h-screen bg-[#F7F4EE] overflow-hidden">
 
       {/* ── BOUTON RETOUR ADMIN ── */}
       {isAdminOverride && (
@@ -1801,79 +2650,114 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               await supabase.auth.refreshSession()
               window.location.href = '/admin/dashboard'
             }}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg transition"
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-[#0D1B2E] font-bold text-xs px-4 py-2 rounded-full shadow-lg transition"
           >
-            ⚡ Retour Admin
+            {t.retourAdmin}
           </button>
         </div>
       )}
 
       {/* ── SIDEBAR ── */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gray-900 text-white flex flex-col transition-all duration-300 flex-shrink-0`}>
+      <aside
+        style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', transition: 'width 0.25s ease', borderRight: '1px solid var(--sd-border-dark)', position: 'relative', overflowY: 'auto' }}
+      >
+        {/* Grid texture overlay */}
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)', backgroundSize: '32px 32px', pointerEvents: 'none' }} />
+
         {/* Logo */}
-        <div className="p-4 border-b border-gray-800 flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-white transition flex-shrink-0">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+        <div style={{ padding: '0 20px', height: 80, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--sd-border-dark)', position: 'relative', gap: 12, flexShrink: 0 }}>
+          <div
+            style={{ width: 36, height: 36, background: 'linear-gradient(135deg,var(--sd-gold),#A8842A)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display',serif", color: 'var(--sd-navy)', fontSize: 17, fontWeight: 600, boxShadow: '0 4px 12px rgba(201,168,76,0.3)', flexShrink: 0, cursor: 'pointer' }}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            title={sidebarOpen ? t.reduire : t.developper}
+          >V</div>
           {sidebarOpen && (
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-lg">⚡</span>
-                <span className="font-bold text-[#FFC107] text-sm">Vitfix</span>
-                <span className="text-purple-400 font-bold text-sm">Copro</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: "'Playfair Display',serif", color: '#fff', fontSize: 16, lineHeight: 1.1, letterSpacing: '0.5px' }}>VitFix Copro</div>
+              <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '2.5px', textTransform: 'uppercase' as const, color: 'var(--sd-gold)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                {profile.immeuble}
               </div>
-              <p className="text-xs text-gray-500 truncate">{profile.immeuble}</p>
             </div>
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {NAV_ITEMS.filter(item => ['accueil', 'parametres', 'modules'].includes(item.id) || isModuleEnabled(item.id)).map(item => {
-            const badge = item.id === 'annonces' ? annoncesNonLues : item.id === 'accueil' ? notifNonLues : 0
+        {/* Nav — categorized */}
+        <nav style={{ flex: 1, paddingTop: 8, paddingBottom: 8, overflowY: 'auto', position: 'relative' }}>
+          {navCategories.map((cat, ci) => {
+            const visibleItems = navItems.filter(item => cat.items.includes(item.id) && (['accueil', 'parametres', 'modules'].includes(item.id) || isModuleEnabled(item.id)))
+            if (visibleItems.length === 0) return null
             return (
-              <button
-                key={item.id}
-                onClick={() => setPage(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
-                  page === item.id
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-500 hover:bg-gray-800 hover:text-white'
-                }`}
-              >
-                <span className="text-lg flex-shrink-0">{item.emoji}</span>
+              <div key={ci}>
+                {/* Category label */}
                 {sidebarOpen && (
-                  <div className="flex items-center justify-between flex-1 min-w-0">
-                    <span className="text-sm font-medium truncate">{item.label}</span>
-                    {badge > 0 && (
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0 ${page === item.id ? 'bg-white/20 text-white' : 'bg-purple-600 text-white'}`}>
-                        {badge}
-                      </span>
-                    )}
+                  <div style={{ padding: '10px 24px 4px', fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'rgba(255,255,255,0.25)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif", marginTop: ci > 0 ? 8 : 0 }}>
+                    {cat.label}
                   </div>
                 )}
-              </button>
+                {!sidebarOpen && ci > 0 && (
+                  <div style={{ margin: '6px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
+                )}
+                {visibleItems.map(item => {
+                  const isActive = page === item.id
+                  const badge = item.id === 'annonces' ? annoncesNonLues : item.id === 'accueil' ? notifNonLues : 0
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setPage(item.id)}
+                      style={{
+                        width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11,
+                        padding: '10px 16px', margin: '1px 8px',
+                        borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: isActive ? 500 : 400,
+                        fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
+                        transition: 'all 0.18s ease', border: isActive ? '1px solid rgba(201,168,76,0.2)' : '1px solid transparent', textAlign: 'left' as const,
+                        background: isActive ? 'var(--sd-gold-dim)' : 'transparent',
+                        color: isActive ? 'var(--sd-gold-light)' : 'rgba(255,255,255,0.45)',
+                        position: 'relative' as const,
+                      }}
+                      onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)' } }}
+                      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' } }}
+                    >
+                      {isActive && <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 3, height: 18, background: 'var(--sd-gold)', borderRadius: '0 3px 3px 0' }} />}
+                      <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0, filter: isActive ? 'none' : 'grayscale(30%)' }}>{item.emoji}</span>
+                      {sidebarOpen && (
+                        <>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{item.label}</span>
+                          {badge > 0 && (
+                            <span style={{ marginLeft: 'auto', background: isActive ? 'rgba(201,168,76,0.25)' : 'rgba(255,255,255,0.1)', color: isActive ? 'var(--sd-gold-light)' : 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20 }}>
+                              {badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             )
           })}
+          <button
+            onClick={handleLogout}
+            style={{ width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', margin: '1px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13, background: 'transparent', border: '1px solid transparent', color: 'rgba(255,255,255,0.45)', textAlign: 'left' as const, transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(192,57,43,0.15)'; (e.currentTarget as HTMLElement).style.color = '#e74c3c' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' }}
+          >
+            <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>🚪</span>
+            {sidebarOpen && <span>{t.deconnexion}</span>}
+          </button>
         </nav>
 
-        {/* User */}
-        <div className="p-4 border-t border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+        {/* User footer */}
+        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--sd-border-dark)', position: 'relative', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'default' }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,var(--sd-gold),#A8842A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sd-navy)', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
               {initials}
             </div>
             {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{userName}</p>
-                <p className="text-xs text-purple-400 truncate">
-                  Copropriétaire · Lot {profile.numLot}
-                </p>
-                <button onClick={handleLogout} className="text-xs text-gray-500 hover:text-red-400 transition">
-                  Déconnexion
-                </button>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{userName}</div>
+                <div style={{ color: 'var(--sd-gold)', fontSize: 10, letterSpacing: '0.4px', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                  {t.coproLot} {profile.numLot}
+                </div>
               </div>
             )}
           </div>
@@ -1881,26 +2765,32 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
       </aside>
 
       {/* ── CONTENU PRINCIPAL ── */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto" style={{ background: 'var(--sd-cream)' }}>
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+        <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', padding: '0 36px', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }}>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              {NAV_ITEMS.find(n => n.id === page)?.emoji} {NAV_ITEMS.find(n => n.id === page)?.label}
+            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 400, color: 'var(--sd-navy)', letterSpacing: '0.2px' }}>
+              {navItems.find(n => n.id === page)?.emoji} {navItems.find(n => n.id === page)?.label}
             </h1>
-            <p className="text-sm text-gray-500">{profile.immeuble} · Bât. {profile.batiment} · Lot {profile.numLot} · {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p style={{ fontSize: 11, color: 'var(--sd-ink-3)', letterSpacing: '0.3px' }}>
+              {profile.immeuble} · {t.bat} {profile.batiment} · {t.lot} {profile.numLot} · {new Date().toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            {notifNonLues > 0 && (
-              <button onClick={() => setPage('accueil')} className="relative p-2 text-gray-500 hover:text-purple-600 transition" title="Notifications">
-                <span className="text-xl">🔔</span>
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-purple-600 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                  {notifNonLues}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => setPage('accueil')}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'linear-gradient(135deg, var(--sd-gold), #A8842A)', color: 'var(--sd-navy)', border: 'none', padding: '9px 18px', borderRadius: 9, fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.2px', boxShadow: '0 2px 8px rgba(201,168,76,0.35)', position: 'relative' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--sd-navy)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1.5a4.5 4.5 0 00-4.5 4.5v2.5L2 10.5h12L12.5 8.5V6A4.5 4.5 0 008 1.5z"/><path d="M6.5 12.5a1.5 1.5 0 003 0"/></svg>
+              {t.notifications}
+              {notifNonLues > 0 && (
+                <span style={{ background: '#e74c3c', color: '#fff', fontSize: 10, fontWeight: 700, minWidth: 18, height: 18, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', marginLeft: 2 }}>
+                  {notifNonLues > 9 ? '9+' : notifNonLues}
                 </span>
-              </button>
-            )}
+              )}
+            </button>
           </div>
-        </div>
+        </header>
 
         {/* Contenu pages */}
         <div className="p-6">
@@ -1912,78 +2802,78 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="space-y-6">
               {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">💶</span>
-                    <span className="text-xs text-gray-500 font-medium">Charges du mois</span>
+                    <span className="text-xs text-[#8A9BB0] font-medium">{t.chargesDuMois}</span>
                   </div>
-                  <p className="text-xl font-bold text-gray-900">{formatPrice(chargesDuMois?.montant || 285)}</p>
+                  <p className="text-xl font-bold text-[#0D1B2E]">{formatPrice(chargesDuMois?.montant || 285)}</p>
                   <p className="text-xs mt-1">
                     {chargesDuMois?.statut === 'payee'
-                      ? <span className="text-green-600">✓ Payée</span>
-                      : <span className="text-amber-600">En attente</span>
+                      ? <span className="text-green-600">{t.payee}</span>
+                      : <span className="text-amber-600">{t.enAttente}</span>
                     }
                   </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">📊</span>
-                    <span className="text-xs text-gray-500 font-medium">Solde à payer</span>
+                    <span className="text-xs text-[#8A9BB0] font-medium">{t.soldeAPayer}</span>
                   </div>
                   <p className={`text-xl font-bold ${solde > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatPrice(solde)}</p>
-                  <p className="text-xs text-gray-500 mt-1">{paiementsEnAttente} paiement{paiementsEnAttente > 1 ? 's' : ''} en attente</p>
+                  <p className="text-xs text-[#8A9BB0] mt-1">{paiementsEnAttente} {t.paiementsEnAttente}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">🏠</span>
-                    <span className="text-xs text-gray-500 font-medium">Tantièmes</span>
+                    <span className="text-xs text-[#8A9BB0] font-medium">{t.tantiemes}</span>
                   </div>
-                  <p className="text-xl font-bold text-gray-900">{profile.tantiemes} / 10 000</p>
-                  <p className="text-xs text-purple-600 mt-1">Quote-part : {profile.quotePart}%</p>
+                  <p className="text-xl font-bold text-[#0D1B2E]">{profile.tantiemes} / 10 000</p>
+                  <p className="text-xs text-[#C9A84C] mt-1">{t.quotePart} : {profile.quotePart}%</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">🔔</span>
-                    <span className="text-xs text-gray-500 font-medium">Notifications</span>
+                    <span className="text-xs text-[#8A9BB0] font-medium">Notifications</span>
                   </div>
-                  <p className="text-xl font-bold text-gray-900">{notifNonLues}</p>
-                  <p className="text-xs text-gray-500 mt-1">non lue{notifNonLues > 1 ? 's' : ''}</p>
+                  <p className="text-xl font-bold text-[#0D1B2E]">{notifNonLues}</p>
+                  <p className="text-xs text-[#8A9BB0] mt-1">{t.nonLues}</p>
                 </div>
               </div>
 
               {/* Actions rapides */}
               <div className="flex flex-wrap gap-3">
-                <button onClick={() => setPage('signalement')} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition">
-                  🔔 Faire un signalement
+                <button onClick={() => setPage('signalement')} className="flex items-center gap-2 bg-[#0D1B2E] hover:bg-[#152338] text-white text-sm font-medium px-4 py-2.5 rounded-lg transition">
+                  {t.faireSignalement}
                 </button>
-                <button onClick={() => setPage('paiements')} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg border border-gray-200 transition">
-                  💶 Mes paiements
+                <button onClick={() => setPage('paiements')} className="flex items-center gap-2 bg-white hover:bg-[#F7F4EE] text-[#0D1B2E] text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E4DDD0] transition">
+                  {t.mesPaiements}
                 </button>
-                <button onClick={() => setPage('documents')} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg border border-gray-200 transition">
-                  📁 Mes documents
+                <button onClick={() => setPage('documents')} className="flex items-center gap-2 bg-white hover:bg-[#F7F4EE] text-[#0D1B2E] text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E4DDD0] transition">
+                  {t.mesDocuments}
                 </button>
-                <button onClick={() => setPage('assemblees')} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2.5 rounded-lg border border-gray-200 transition">
-                  🗳️ Voter en AG
+                <button onClick={() => setPage('assemblees')} className="flex items-center gap-2 bg-white hover:bg-[#F7F4EE] text-[#0D1B2E] text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E4DDD0] transition">
+                  {t.voterAG}
                 </button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Échéances */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="px-5 py-4 border-b border-gray-100">
-                    <h2 className="font-bold text-gray-900">📅 Prochaines échéances</h2>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm">
+                  <div className="px-5 py-4 border-b border-[#E4DDD0]">
+                    <h2 className="font-bold text-[#0D1B2E]">{t.prochainesEcheances}</h2>
                   </div>
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-[#E4DDD0]">
                     {echeances.sort((a, b) => a.date.localeCompare(b.date)).map(e => (
                       <div key={e.id} className="px-5 py-3 flex items-start gap-3">
                         <span className="text-lg mt-0.5">{ECHEANCE_TYPE_EMOJI[e.type]}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">{e.titre}</p>
-                            {e.urgent && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">Urgent</span>}
+                            <p className="text-sm font-medium text-[#0D1B2E] truncate">{e.titre}</p>
+                            {e.urgent && <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">{t.urgent}</span>}
                           </div>
-                          <p className="text-xs text-gray-500">{e.description}</p>
-                          <p className="text-xs text-purple-600 font-medium mt-0.5">{formatDate(e.date)}</p>
+                          <p className="text-xs text-[#8A9BB0]">{e.description}</p>
+                          <p className="text-xs text-[#C9A84C] font-medium mt-0.5">{formatDate(e.date)}</p>
                         </div>
                       </div>
                     ))}
@@ -1991,30 +2881,30 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 </div>
 
                 {/* Notifications */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="font-bold text-gray-900">🔔 Notifications</h2>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm">
+                  <div className="px-5 py-4 border-b border-[#E4DDD0] flex items-center justify-between">
+                    <h2 className="font-bold text-[#0D1B2E]">🔔 Notifications</h2>
                     {notifNonLues > 0 && (
-                      <button onClick={markAllNotifsRead} className="text-xs text-purple-600 hover:text-purple-800 font-medium">
-                        Tout marquer lu
+                      <button onClick={markAllNotifsRead} className="text-xs text-[#C9A84C] hover:text-[#A8842A] font-medium">
+                        {t.toutMarquerLu}
                       </button>
                     )}
                   </div>
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-[#E4DDD0]">
                     {notifications.sort((a, b) => b.date.localeCompare(a.date)).map(n => (
                       <div
                         key={n.id}
                         onClick={() => markNotifRead(n.id)}
-                        className={`px-5 py-3 flex items-start gap-3 cursor-pointer transition ${!n.lu ? 'bg-purple-50/50' : 'hover:bg-gray-50'}`}
+                        className={`px-5 py-3 flex items-start gap-3 cursor-pointer transition ${!n.lu ? 'bg-[rgba(201,168,76,0.08)]' : 'hover:bg-[#F7F4EE]'}`}
                       >
                         <span className="text-lg mt-0.5">{NOTIF_TYPE_EMOJI[n.type]}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className={`text-sm truncate ${!n.lu ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>{n.titre}</p>
-                            {!n.lu && <span className="w-2 h-2 bg-purple-600 rounded-full flex-shrink-0" />}
+                            <p className={`text-sm truncate ${!n.lu ? 'font-bold text-[#0D1B2E]' : 'font-medium text-[#4A5E78]'}`}>{n.titre}</p>
+                            {!n.lu && <span className="w-2 h-2 bg-[#C9A84C] rounded-full flex-shrink-0" />}
                           </div>
-                          <p className="text-xs text-gray-500 truncate">{n.message}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{new Date(n.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-xs text-[#8A9BB0] truncate">{n.message}</p>
+                          <p className="text-xs text-[#8A9BB0] mt-0.5">{new Date(n.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                       </div>
                     ))}
@@ -2023,14 +2913,14 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               </div>
 
               {/* Annonces récentes */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="font-bold text-gray-900">📢 Dernières annonces</h2>
-                  <button onClick={() => setPage('annonces')} className="text-xs text-purple-600 hover:text-purple-800 font-medium">
-                    Voir tout →
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm">
+                <div className="px-5 py-4 border-b border-[#E4DDD0] flex items-center justify-between">
+                  <h2 className="font-bold text-[#0D1B2E]">{t.dernieresAnnonces}</h2>
+                  <button onClick={() => setPage('annonces')} className="text-xs text-[#C9A84C] hover:text-[#A8842A] font-medium">
+                    {t.voirTout}
                   </button>
                 </div>
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-[#E4DDD0]">
                   {annonces.slice(0, 3).map(a => (
                     <div key={a.id} className="px-5 py-3 flex items-start gap-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded ${
@@ -2038,11 +2928,11 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                         a.importance === 'important' ? 'bg-orange-100 text-orange-700' :
                         'bg-blue-100 text-blue-700'
                       }`}>
-                        {a.importance === 'urgent' ? '🔴 Urgent' : a.importance === 'important' ? '🟠 Important' : '🔵 Info'}
+                        {a.importance === 'urgent' ? t.urgentLabel : a.importance === 'important' ? t.importantLabel : t.infoLabel}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${!a.lu ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>{a.titre}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{a.auteur} · {formatDate(a.date)}</p>
+                        <p className={`text-sm ${!a.lu ? 'font-bold text-[#0D1B2E]' : 'font-medium text-[#4A5E78]'}`}>{a.titre}</p>
+                        <p className="text-xs text-[#8A9BB0] mt-0.5">{a.auteur} · {formatDate(a.date)}</p>
                       </div>
                     </div>
                   ))}
@@ -2057,34 +2947,34 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
           {page === 'documents' && (
             <div className="space-y-6">
               {/* Filtres */}
-              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
                 <div className="flex flex-wrap gap-3">
                   <select
                     value={docFilterType}
                     onChange={e => setDocFilterType(e.target.value)}
-                    className="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none bg-white"
+                    className="px-3 py-2 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none bg-white"
                   >
-                    <option value="tous">Tous les types</option>
-                    {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
+                    <option value="tous">{t.tousLesTypes}</option>
+                    {Object.entries(docTypeLabels).map(([k, v]) => (
                       <option key={k} value={k}>{v.emoji} {v.label}</option>
                     ))}
                   </select>
                   <select
                     value={docFilterAnnee}
                     onChange={e => setDocFilterAnnee(e.target.value)}
-                    className="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none bg-white"
+                    className="px-3 py-2 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none bg-white"
                   >
-                    <option value="toutes">Toutes les années</option>
+                    <option value="toutes">{t.toutesLesAnnees}</option>
                     {[...new Set(documents.map(d => d.annee))].sort((a, b) => b - a).map(y => (
                       <option key={y} value={y}>{y}</option>
                     ))}
                   </select>
                   <input
                     type="text"
-                    placeholder="🔍 Rechercher un document..."
+                    placeholder={t.rechercherDoc}
                     value={docSearch}
                     onChange={e => setDocSearch(e.target.value)}
-                    className="flex-1 min-w-[200px] px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
+                    className="flex-1 min-w-[200px] px-3 py-2 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none"
                   />
                 </div>
               </div>
@@ -2097,38 +2987,38 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                   .filter(d => !docSearch || d.nom.toLowerCase().includes(docSearch.toLowerCase()))
                   .sort((a, b) => b.dateUpload.localeCompare(a.dateUpload))
                   .map(doc => (
-                    <div key={doc.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
+                    <div key={doc.id} className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm hover:shadow-md transition">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-2xl">{DOC_TYPE_LABELS[doc.type]?.emoji || '📄'}</span>
-                          {!doc.consulte && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">Nouveau</span>}
+                          <span className="text-2xl">{docTypeLabels[doc.type]?.emoji || '📄'}</span>
+                          {!doc.consulte && <span className="text-xs bg-[rgba(201,168,76,0.15)] text-[#A8842A] px-1.5 py-0.5 rounded font-bold">{t.nouveau}</span>}
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded ${doc.public ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {doc.public ? 'Public' : 'Personnel'}
+                        <span className={`text-xs px-2 py-0.5 rounded ${doc.public ? 'bg-green-100 text-green-700' : 'bg-[#F7F4EE] text-[#4A5E78]'}`}>
+                          {doc.public ? t.publique : t.personnel}
                         </span>
                       </div>
-                      <h3 className="text-sm font-bold text-gray-900 mb-1">{doc.nom}</h3>
-                      <p className="text-xs text-gray-500 mb-1">{DOC_TYPE_LABELS[doc.type]?.label} · {doc.annee}</p>
-                      <p className="text-xs text-gray-500 mb-3">{doc.taille} · Ajouté le {formatDate(doc.dateUpload)}</p>
+                      <h3 className="text-sm font-bold text-[#0D1B2E] mb-1">{doc.nom}</h3>
+                      <p className="text-xs text-[#8A9BB0] mb-1">{docTypeLabels[doc.type]?.label} · {doc.annee}</p>
+                      <p className="text-xs text-[#8A9BB0] mb-3">{doc.taille} · {t.ajouteLe} {formatDate(doc.dateUpload)}</p>
                       {doc.consulte && doc.dateConsultation && (
-                        <p className="text-xs text-green-600 mb-3">✓ Consulté le {formatDate(doc.dateConsultation)}</p>
+                        <p className="text-xs text-green-600 mb-3">{t.consulteLe} {formatDate(doc.dateConsultation)}</p>
                       )}
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
                             markDocConsulte(doc.id)
-                            alert(`Téléchargement de "${doc.nom}" en cours...`)
+                            alert(locale === 'pt' ? `A descarregar "${doc.nom}"...` : `Téléchargement de "${doc.nom}" en cours...`)
                           }}
-                          className="flex-1 flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium py-2 rounded-lg transition"
+                          className="flex-1 flex items-center justify-center gap-1 bg-[#0D1B2E] hover:bg-[#152338] text-white text-xs font-medium py-2 rounded-lg transition"
                         >
-                          📥 Télécharger
+                          {t.telecharger}
                         </button>
                         {!doc.consulte && (
                           <button
                             onClick={() => markDocConsulte(doc.id)}
-                            className="flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium py-2 px-3 rounded-lg transition"
+                            className="flex items-center justify-center gap-1 bg-[#F7F4EE] hover:bg-[#F7F4EE] text-[#4A5E78] text-xs font-medium py-2 px-3 rounded-lg transition"
                           >
-                            👁️ Marquer lu
+                            {t.marquerLu}
                           </button>
                         )}
                       </div>
@@ -2138,17 +3028,17 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
 
               {/* Derniers consultés */}
               {documents.filter(d => d.consulte).length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="px-5 py-4 border-b border-gray-100">
-                    <h2 className="font-bold text-gray-900">👁️ Derniers documents consultés</h2>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm">
+                  <div className="px-5 py-4 border-b border-[#E4DDD0]">
+                    <h2 className="font-bold text-[#0D1B2E]">{t.derniersConsultes}</h2>
                   </div>
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-[#E4DDD0]">
                     {documents.filter(d => d.consulte && d.dateConsultation).sort((a, b) => (b.dateConsultation || '').localeCompare(a.dateConsultation || '')).slice(0, 5).map(doc => (
                       <div key={doc.id} className="px-5 py-3 flex items-center gap-3">
-                        <span>{DOC_TYPE_LABELS[doc.type]?.emoji || '📄'}</span>
+                        <span>{docTypeLabels[doc.type]?.emoji || '📄'}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{doc.nom}</p>
-                          <p className="text-xs text-gray-500">Consulté le {formatDate(doc.dateConsultation!)}</p>
+                          <p className="text-sm font-medium text-[#0D1B2E] truncate">{doc.nom}</p>
+                          <p className="text-xs text-[#8A9BB0]">Consulté le {formatDate(doc.dateConsultation!)}</p>
                         </div>
                       </div>
                     ))}
@@ -2165,20 +3055,20 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="space-y-6">
               {/* Résumé */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Total payé (année en cours)</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.totalPaye}</p>
                   <p className="text-2xl font-bold text-green-600 mt-1">
                     {formatPrice(paiements.filter(p => p.statut === 'payee' && p.datePaiement?.startsWith('2026')).reduce((s, p) => s + p.montant, 0))}
                   </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">En attente</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.enAttente}</p>
                   <p className="text-2xl font-bold text-amber-600 mt-1">
                     {formatPrice(paiements.filter(p => p.statut === 'en_attente').reduce((s, p) => s + p.montant, 0))}
                   </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">En retard</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.enRetard}</p>
                   <p className="text-2xl font-bold text-red-600 mt-1">
                     {formatPrice(paiements.filter(p => p.statut === 'en_retard').reduce((s, p) => s + p.montant, 0))}
                   </p>
@@ -2189,63 +3079,63 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               <div className="flex gap-2">
                 <button
                   onClick={() => setPaiementTab('en_attente')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${paiementTab === 'en_attente' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${paiementTab === 'en_attente' ? 'bg-[#0D1B2E] text-white' : 'bg-white text-[#4A5E78] border border-[#E4DDD0] hover:bg-[#F7F4EE]'}`}
                 >
-                  À payer ({paiements.filter(p => p.statut !== 'payee').length})
+                  {t.aPayer} ({paiements.filter(p => p.statut !== 'payee').length})
                 </button>
                 <button
                   onClick={() => setPaiementTab('payee')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${paiementTab === 'payee' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${paiementTab === 'payee' ? 'bg-[#0D1B2E] text-white' : 'bg-white text-[#4A5E78] border border-[#E4DDD0] hover:bg-[#F7F4EE]'}`}
                 >
-                  Historique ({paiements.filter(p => p.statut === 'payee').length})
+                  {t.historiquePaiements} ({paiements.filter(p => p.statut === 'payee').length})
                 </button>
               </div>
 
               {/* Liste */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-[#F7F4EE] border-b border-[#E4DDD0]">
                     <tr>
-                      <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Référence</th>
-                      <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Description</th>
-                      <th className="text-right text-xs font-medium text-gray-500 px-5 py-3">Montant</th>
-                      <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Échéance</th>
-                      <th className="text-left text-xs font-medium text-gray-500 px-5 py-3">Statut</th>
-                      <th className="text-right text-xs font-medium text-gray-500 px-5 py-3">Actions</th>
+                      <th className="text-left text-xs font-medium text-[#8A9BB0] px-5 py-3">{t.reference}</th>
+                      <th className="text-left text-xs font-medium text-[#8A9BB0] px-5 py-3">{t.description}</th>
+                      <th className="text-right text-xs font-medium text-[#8A9BB0] px-5 py-3">{t.montant}</th>
+                      <th className="text-left text-xs font-medium text-[#8A9BB0] px-5 py-3">{t.echeance}</th>
+                      <th className="text-left text-xs font-medium text-[#8A9BB0] px-5 py-3">{t.statut}</th>
+                      <th className="text-right text-xs font-medium text-[#8A9BB0] px-5 py-3">{t.actions}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-[#E4DDD0]">
                     {paiements
                       .filter(p => paiementTab === 'payee' ? p.statut === 'payee' : p.statut !== 'payee')
                       .sort((a, b) => b.dateEcheance.localeCompare(a.dateEcheance))
                       .map(p => (
-                        <tr key={p.id} className="hover:bg-gray-50 transition">
-                          <td className="px-5 py-3 text-xs font-mono text-gray-500">{p.reference}</td>
+                        <tr key={p.id} className="hover:bg-[#F7F4EE] transition">
+                          <td className="px-5 py-3 text-xs font-mono text-[#8A9BB0]">{p.reference}</td>
                           <td className="px-5 py-3">
-                            <p className="text-sm font-medium text-gray-900">{p.description}</p>
-                            <p className="text-xs text-gray-500 capitalize">{p.type.replace(/_/g, ' ')}</p>
+                            <p className="text-sm font-medium text-[#0D1B2E]">{p.description}</p>
+                            <p className="text-xs text-[#8A9BB0] capitalize">{p.type.replace(/_/g, ' ')}</p>
                           </td>
-                          <td className={`px-5 py-3 text-right text-sm font-bold ${p.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                          <td className={`px-5 py-3 text-right text-sm font-bold ${p.montant < 0 ? 'text-green-600' : 'text-[#0D1B2E]'}`}>
                             {formatPrice(p.montant)}
                           </td>
-                          <td className="px-5 py-3 text-sm text-gray-600">{formatDate(p.dateEcheance)}</td>
+                          <td className="px-5 py-3 text-sm text-[#4A5E78]">{formatDate(p.dateEcheance)}</td>
                           <td className="px-5 py-3">
                             <span className={`text-xs font-medium px-2 py-1 rounded ${
                               p.statut === 'payee' ? 'bg-green-100 text-green-700' :
                               p.statut === 'en_retard' ? 'bg-red-100 text-red-700' :
                               'bg-amber-100 text-amber-700'
                             }`}>
-                              {p.statut === 'payee' ? '✓ Payé' : p.statut === 'en_retard' ? '⚠ En retard' : '⏳ En attente'}
+                              {p.statut === 'payee' ? t.statutPaye : p.statut === 'en_retard' ? t.statutEnRetard : t.statutEnAttente}
                             </span>
-                            {p.datePaiement && <p className="text-xs text-gray-500 mt-1">le {formatDate(p.datePaiement)}</p>}
+                            {p.datePaiement && <p className="text-xs text-[#8A9BB0] mt-1">le {formatDate(p.datePaiement)}</p>}
                           </td>
                           <td className="px-5 py-3 text-right">
                             {p.statut === 'payee' && (
                               <button
-                                onClick={() => alert(`Téléchargement du reçu ${p.reference}...`)}
-                                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                                onClick={() => alert(locale === 'pt' ? `A descarregar o recibo ${p.reference}...` : `Téléchargement du reçu ${p.reference}...`)}
+                                className="text-xs text-[#C9A84C] hover:text-[#A8842A] font-medium"
                               >
-                                📥 Reçu
+                                {t.recu}
                               </button>
                             )}
                           </td>
@@ -2267,7 +3157,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                   key={a.id}
                   onClick={() => markAnnonceRead(a.id)}
                   className={`bg-white rounded-xl border shadow-sm p-5 cursor-pointer transition ${
-                    !a.lu ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200 hover:bg-gray-50'
+                    !a.lu ? 'border-[#C9A84C] bg-[rgba(201,168,76,0.08)]' : 'border-[#E4DDD0] hover:bg-[#F7F4EE]'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -2277,15 +3167,15 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                         a.importance === 'important' ? 'bg-orange-100 text-orange-700' :
                         'bg-blue-100 text-blue-700'
                       }`}>
-                        {a.importance === 'urgent' ? '🔴 Urgent' : a.importance === 'important' ? '🟠 Important' : '🔵 Info'}
+                        {a.importance === 'urgent' ? t.urgentLabel : a.importance === 'important' ? t.importantLabel : t.infoLabel}
                       </span>
-                      {!a.lu && <span className="w-2 h-2 bg-purple-600 rounded-full" />}
+                      {!a.lu && <span className="w-2 h-2 bg-[#0D1B2E] rounded-full" />}
                     </div>
-                    <span className="text-xs text-gray-500">{formatDate(a.date)}</span>
+                    <span className="text-xs text-[#8A9BB0]">{formatDate(a.date)}</span>
                   </div>
-                  <h3 className={`text-sm mb-2 ${!a.lu ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>{a.titre}</h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{a.contenu}</p>
-                  <p className="text-xs text-gray-500 mt-3">Par {a.auteur}</p>
+                  <h3 className={`text-sm mb-2 ${!a.lu ? 'font-bold text-[#0D1B2E]' : 'font-medium text-[#0D1B2E]'}`}>{a.titre}</h3>
+                  <p className="text-sm text-[#4A5E78] leading-relaxed">{a.contenu}</p>
+                  <p className="text-xs text-[#8A9BB0] mt-3">Par {a.auteur}</p>
                 </div>
               ))}
             </div>
@@ -2296,40 +3186,40 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
           ════════════════════════════════════════════════════════════════════════ */}
           {page === 'signalement' && (
             <div className="max-w-2xl">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-purple-100 bg-purple-50">
-                  <h3 className="font-bold text-purple-900">🔔 Nouveau signalement</h3>
-                  <p className="text-xs text-purple-600 mt-0.5">Signalez un problème à votre gestionnaire de copropriété</p>
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-[#C9A84C] bg-[rgba(201,168,76,0.08)]">
+                  <h3 className="font-bold text-[#0D1B2E]">{t.nouveauSignalement}</h3>
+                  <p className="text-xs text-[#C9A84C] mt-0.5">{t.signalerProbleme}</p>
                 </div>
 
                 {signalemEnvoye ? (
                   <div className="p-12 text-center">
                     <div className="text-5xl mb-4">✅</div>
-                    <h3 className="text-lg font-bold text-green-700">Signalement envoyé !</h3>
-                    <p className="text-sm text-gray-500 mt-2">Votre gestionnaire a été notifié. Un suivi apparaîtra dans votre historique.</p>
-                    <button onClick={() => setPage('historique')} className="mt-4 text-sm text-purple-600 hover:text-purple-800 font-medium">
-                      Voir l'historique →
+                    <h3 className="text-lg font-bold text-green-700">{t.signalementEnvoye}</h3>
+                    <p className="text-sm text-[#8A9BB0] mt-2">{t.signalementConfirm}</p>
+                    <button onClick={() => setPage('historique')} className="mt-4 text-sm text-[#C9A84C] hover:text-[#A8842A] font-medium">
+                      {t.voirHistorique}
                     </button>
                   </div>
                 ) : (
                   <div className="p-5 space-y-5">
 
                     {/* Localisation auto */}
-                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-purple-700 mb-2">📍 Votre localisation (auto-remplie)</p>
+                    <div className="bg-[rgba(201,168,76,0.08)] border border-[#C9A84C] rounded-xl p-3">
+                      <p className="text-xs font-semibold text-[#A8842A] mb-2">{t.localisationAuto}</p>
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs bg-white border border-purple-100 px-2 py-1 rounded-lg">🏢 {profile.immeuble}</span>
-                        {profile.batiment && <span className="text-xs bg-white border border-purple-100 px-2 py-1 rounded-lg">Bât. {profile.batiment}</span>}
-                        {profile.etage && <span className="text-xs bg-white border border-purple-100 px-2 py-1 rounded-lg">Étage {profile.etage}</span>}
-                        {profile.numLot && <span className="text-xs bg-white border border-purple-100 px-2 py-1 rounded-lg">Lot {profile.numLot}</span>}
+                        <span className="text-xs bg-white border border-[#C9A84C] px-2 py-1 rounded-lg">🏢 {profile.immeuble}</span>
+                        {profile.batiment && <span className="text-xs bg-white border border-[#C9A84C] px-2 py-1 rounded-lg">{t.bat} {profile.batiment}</span>}
+                        {profile.etage && <span className="text-xs bg-white border border-[#C9A84C] px-2 py-1 rounded-lg">{t.etage} {profile.etage}</span>}
+                        {profile.numLot && <span className="text-xs bg-white border border-[#C9A84C] px-2 py-1 rounded-lg">{t.lot} {profile.numLot}</span>}
                       </div>
                     </div>
 
                     {/* Toggle partie commune */}
-                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
+                    <div className="flex items-center justify-between p-3 border border-[#E4DDD0] rounded-xl">
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">Partie commune ?</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Cave, couloir, ascenseur, toiture, hall…</p>
+                        <p className="text-sm font-semibold text-[#0D1B2E]">{t.partieCommune}</p>
+                        <p className="text-xs text-[#8A9BB0] mt-0.5">{t.partieCommuneDesc}</p>
                       </div>
                       <button
                         onClick={() => { setSignalemPartieCommune(v => !v); setSignalemZone('') }}
@@ -2342,64 +3232,64 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                     {/* Zone commune */}
                     {signalemPartieCommune && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Zone concernée</label>
+                        <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.zoneConcernee}</label>
                         <select
                           value={signalemZone}
                           onChange={e => setSignalemZone(e.target.value)}
                           className="w-full px-3 py-2.5 border-2 border-orange-200 rounded-lg text-sm focus:border-orange-400 focus:outline-none bg-white"
                         >
-                          <option value="">Sélectionner une zone…</option>
-                          {ZONES_COMMUNES.map(z => <option key={z} value={z}>{z}</option>)}
-                          <option value="Autre">Autre (préciser dans la description)</option>
+                          <option value="">{t.selectionnerZone}</option>
+                          {zonesCommunes.map(z => <option key={z} value={z}>{z}</option>)}
+                          <option value="Autre">{t.autrePreciser}</option>
                         </select>
                       </div>
                     )}
 
                     {/* Type d'intervention */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Type d'intervention *</label>
+                      <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.typeIntervention}</label>
                       <select
                         value={signalemType}
                         onChange={e => setSignalemType(e.target.value)}
-                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none bg-white"
+                        className="w-full px-3 py-2.5 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none bg-white"
                       >
-                        <option value="">Choisir le type…</option>
-                        {TYPES_INTERVENTION.map(t => <option key={t} value={t}>{t}</option>)}
+                        <option value="">{t.choisirType}</option>
+                        {typesIntervention.map(ti => <option key={ti} value={ti}>{ti}</option>)}
                       </select>
                     </div>
 
                     {/* Description */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Description du problème *</label>
+                      <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.descriptionProbleme}</label>
                       <textarea
                         value={signalemDesc}
                         onChange={e => setSignalemDesc(e.target.value)}
-                        placeholder="Décrivez précisément le problème constaté..."
+                        placeholder={t.decrivezProbleme}
                         rows={4}
-                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none resize-none"
+                        className="w-full px-3 py-2.5 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none resize-none"
                       />
                     </div>
 
                     {/* Urgence */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Niveau d'urgence</label>
+                      <label className="block text-xs font-medium text-[#4A5E78] mb-2">{t.niveauUrgence}</label>
                       <div className="flex gap-2">
                         {([
-                          { val: 'normale' as const, label: '🟡 Normale', desc: 'Sous 48h' },
-                          { val: 'urgente' as const, label: '🔴 Urgent', desc: 'Immédiat' },
-                          { val: 'planifiee' as const, label: '🟢 Planifiée', desc: 'À programmer' },
+                          { val: 'normale' as const, label: t.urgenceNormale, desc: t.urgenceNormaleDesc },
+                          { val: 'urgente' as const, label: t.urgenceUrgent, desc: t.urgenceUrgentDesc },
+                          { val: 'planifiee' as const, label: t.urgencePlanifiee, desc: t.urgencePlanifieeDesc },
                         ] as const).map(({ val, label, desc }) => (
                           <button
                             key={val}
                             onClick={() => setSignalemUrgence(val)}
                             className={`flex-1 py-2.5 px-3 rounded-lg border-2 text-center transition ${
                               signalemUrgence === val
-                                ? 'border-purple-500 bg-purple-50'
-                                : 'border-gray-200 bg-white hover:border-gray-300'
+                                ? 'border-[#C9A84C] bg-[rgba(201,168,76,0.08)]'
+                                : 'border-[#E4DDD0] bg-white hover:border-[#E4DDD0]'
                             }`}
                           >
-                            <p className="text-xs font-bold text-gray-800">{label}</p>
-                            <p className="text-xs text-gray-500">{desc}</p>
+                            <p className="text-xs font-bold text-[#0D1B2E]">{label}</p>
+                            <p className="text-xs text-[#8A9BB0]">{desc}</p>
                           </button>
                         ))}
                       </div>
@@ -2409,13 +3299,13 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                     <button
                       onClick={handleEnvoyerSignalement}
                       disabled={!signalemType || !signalemDesc}
-                      className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition text-sm"
+                      className="w-full bg-[#0D1B2E] hover:bg-[#152338] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition text-sm"
                     >
-                      📤 Envoyer le signalement au syndic
+                      {t.envoyerSignalement}
                     </button>
 
-                    <p className="text-xs text-gray-500 text-center">
-                      Votre signalement sera transmis à votre gestionnaire de copropriété.
+                    <p className="text-xs text-[#8A9BB0] text-center">
+                      {t.signalementTransmis}
                     </p>
                   </div>
                 )}
@@ -2435,28 +3325,28 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                     key={ag.id}
                     onClick={() => setSelectedAG(selectedAG === ag.id ? null : ag.id)}
                     className={`bg-white rounded-xl border shadow-sm p-5 cursor-pointer transition ${
-                      selectedAG === ag.id ? 'border-purple-400 ring-2 ring-purple-100' : 'border-gray-200 hover:border-purple-200'
+                      selectedAG === ag.id ? 'border-[#C9A84C] ring-2 ring-[#C9A84C]' : 'border-[#E4DDD0] hover:border-[#C9A84C]'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded ${
                         ag.type === 'ordinaire' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
                       }`}>
-                        {ag.type === 'ordinaire' ? 'AG Ordinaire' : 'AG Extraordinaire'}
+                        {ag.type === 'ordinaire' ? t.agOrdinaire : t.agExtraordinaire}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded ${
-                        ag.statut === 'cloturee' ? 'bg-gray-100 text-gray-600' :
+                        ag.statut === 'cloturee' ? 'bg-[#F7F4EE] text-[#4A5E78]' :
                         ag.statut === 'en_cours' ? 'bg-green-100 text-green-700' :
-                        ag.statut === 'convoquee' ? 'bg-purple-100 text-purple-700' :
+                        ag.statut === 'convoquee' ? 'bg-[rgba(201,168,76,0.15)] text-[#A8842A]' :
                         'bg-amber-100 text-amber-700'
                       }`}>
-                        {ag.statut === 'cloturee' ? '✓ Clôturée' : ag.statut === 'en_cours' ? '● En cours' : ag.statut === 'convoquee' ? '📩 Convoquée' : '📅 Planifiée'}
+                        {ag.statut === 'cloturee' ? t.cloturee : ag.statut === 'en_cours' ? t.enCours : ag.statut === 'convoquee' ? t.convoquee : t.planifiee}
                       </span>
                     </div>
-                    <h3 className="text-base font-bold text-gray-900 mb-1">{ag.titre}</h3>
-                    <p className="text-sm text-gray-600 mb-1">📅 {new Date(ag.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                    <p className="text-sm text-gray-500">📍 {ag.lieu}</p>
-                    <p className="text-xs text-purple-600 font-medium mt-2">{ag.resolutions.length} résolution{ag.resolutions.length > 1 ? 's' : ''} · Cliquer pour détails</p>
+                    <h3 className="text-base font-bold text-[#0D1B2E] mb-1">{ag.titre}</h3>
+                    <p className="text-sm text-[#4A5E78] mb-1">📅 {new Date(ag.date).toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-sm text-[#8A9BB0]">📍 {ag.lieu}</p>
+                    <p className="text-xs text-[#C9A84C] font-medium mt-2">{ag.resolutions.length} {t.resolutions}</p>
                   </div>
                 ))}
               </div>
@@ -2468,52 +3358,52 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 return (
                   <div className="space-y-6">
                     {/* Infos pratiques */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                      <h2 className="font-bold text-gray-900 text-lg mb-4">📋 Informations pratiques</h2>
+                    <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm p-5">
+                      <h2 className="font-bold text-[#0D1B2E] text-lg mb-4">{t.infosPratiques}</h2>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Date</p>
-                          <p className="text-sm text-gray-900">{new Date(ag.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-xs text-[#8A9BB0] font-medium">{t.date}</p>
+                          <p className="text-sm text-[#0D1B2E]">{new Date(ag.date).toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Lieu</p>
-                          <p className="text-sm text-gray-900">{ag.lieu}</p>
+                          <p className="text-xs text-[#8A9BB0] font-medium">{t.lieu}</p>
+                          <p className="text-sm text-[#0D1B2E]">{ag.lieu}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 font-medium">Type</p>
-                          <p className="text-sm text-gray-900 capitalize">{ag.type}</p>
+                          <p className="text-xs text-[#8A9BB0] font-medium">{t.type}</p>
+                          <p className="text-sm text-[#0D1B2E] capitalize">{ag.type}</p>
                         </div>
                         {ag.lienVisio && (
                           <div>
-                            <p className="text-xs text-gray-500 font-medium">Visioconférence</p>
-                            <p className="text-sm text-purple-600 font-medium">🎥 Lien disponible</p>
+                            <p className="text-xs text-[#8A9BB0] font-medium">{t.visioconference}</p>
+                            <p className="text-sm text-[#C9A84C] font-medium">{t.lienDispo}</p>
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* Ordre du jour */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                      <h2 className="font-bold text-gray-900 text-lg mb-4">📝 Ordre du jour</h2>
+                    <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm p-5">
+                      <h2 className="font-bold text-[#0D1B2E] text-lg mb-4">{t.ordreDuJour}</h2>
                       <ol className="space-y-2">
                         {ag.ordreDuJour.map((item, i) => (
                           <li key={i} className="flex items-start gap-3">
-                            <span className="flex-shrink-0 w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
-                            <span className="text-sm text-gray-700">{item}</span>
+                            <span className="flex-shrink-0 w-6 h-6 bg-[rgba(201,168,76,0.15)] text-[#A8842A] rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
+                            <span className="text-sm text-[#4A5E78]">{item}</span>
                           </li>
                         ))}
                       </ol>
                     </div>
 
                     {/* Résolutions & Votes */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                      <div className="px-5 py-4 border-b border-gray-100">
-                        <h2 className="font-bold text-gray-900 text-lg">🗳️ Résolutions</h2>
+                    <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm">
+                      <div className="px-5 py-4 border-b border-[#E4DDD0]">
+                        <h2 className="font-bold text-[#0D1B2E] text-lg">{t.resolutionsTitle}</h2>
                         {ag.statut !== 'cloturee' && (
-                          <p className="text-xs text-purple-600 mt-1">Vos tantièmes : {profile.tantiemes} / 10 000 — Votez en cliquant sur votre choix</p>
+                          <p className="text-xs text-[#C9A84C] mt-1">Vos tantièmes : {profile.tantiemes} / 10 000 — Votez en cliquant sur votre choix</p>
                         )}
                       </div>
-                      <div className="divide-y divide-gray-100">
+                      <div className="divide-y divide-[#E4DDD0]">
                         {ag.resolutions.map(res => {
                           const totalVotes = res.votePour + res.voteContre + res.voteAbstention
                           const pctPour = totalVotes > 0 ? Math.round((res.votePour / totalVotes) * 100) : 0
@@ -2522,19 +3412,19 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                           return (
                             <div key={res.id} className="p-5">
                               <div className="flex items-start justify-between mb-2">
-                                <h3 className="text-sm font-bold text-gray-900">{res.titre}</h3>
+                                <h3 className="text-sm font-bold text-[#0D1B2E]">{res.titre}</h3>
                                 <div className="flex items-center gap-2">
-                                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${MAJORITE_LABELS[res.majorite]?.color || 'bg-gray-100 text-gray-600'}`}>
-                                    {MAJORITE_LABELS[res.majorite]?.label}
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${majoriteLabels[res.majorite]?.color || 'bg-[#F7F4EE] text-[#4A5E78]'}`}>
+                                    {majoriteLabels[res.majorite]?.label}
                                   </span>
                                   {res.resultat && (
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${res.resultat === 'adoptée' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                      {res.resultat === 'adoptée' ? '✓ Adoptée' : '✗ Rejetée'}
+                                      {res.resultat === 'adoptée' ? t.adoptee : t.rejetee}
                                     </span>
                                   )}
                                 </div>
                               </div>
-                              <p className="text-sm text-gray-600 mb-3">{res.description}</p>
+                              <p className="text-sm text-[#4A5E78] mb-3">{res.description}</p>
 
                               {/* Mon vote */}
                               {res.monVote && (
@@ -2542,9 +3432,9 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                                   <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded ${
                                     res.monVote === 'pour' ? 'bg-green-100 text-green-700' :
                                     res.monVote === 'contre' ? 'bg-red-100 text-red-700' :
-                                    'bg-gray-100 text-gray-600'
+                                    'bg-[#F7F4EE] text-[#4A5E78]'
                                   }`}>
-                                    Mon vote : {res.monVote === 'pour' ? '✓ POUR' : res.monVote === 'contre' ? '✗ CONTRE' : '○ ABSTENTION'}
+                                    {t.monVote} {res.monVote === 'pour' ? t.votePour : res.monVote === 'contre' ? t.voteContre : t.voteAbstention}
                                   </span>
                                 </div>
                               )}
@@ -2553,27 +3443,27 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                               {(res.statut === 'cloturee' || res.monVote) && totalVotes > 0 && (
                                 <div className="space-y-1.5 mb-3">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 w-16">Pour</span>
-                                    <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                                    <span className="text-xs text-[#8A9BB0] w-16">{t.pour}</span>
+                                    <div className="flex-1 bg-[#F7F4EE] rounded-full h-3 overflow-hidden">
                                       <div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${pctPour}%` }} />
                                     </div>
-                                    <span className="text-xs font-medium text-gray-700 w-10 text-right">{pctPour}%</span>
+                                    <span className="text-xs font-medium text-[#4A5E78] w-10 text-right">{pctPour}%</span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 w-16">Contre</span>
-                                    <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                                    <span className="text-xs text-[#8A9BB0] w-16">{t.contre}</span>
+                                    <div className="flex-1 bg-[#F7F4EE] rounded-full h-3 overflow-hidden">
                                       <div className="bg-red-500 h-full rounded-full transition-all" style={{ width: `${pctContre}%` }} />
                                     </div>
-                                    <span className="text-xs font-medium text-gray-700 w-10 text-right">{pctContre}%</span>
+                                    <span className="text-xs font-medium text-[#4A5E78] w-10 text-right">{pctContre}%</span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 w-16">Abstention</span>
-                                    <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                                    <span className="text-xs text-[#8A9BB0] w-16">{t.abstention}</span>
+                                    <div className="flex-1 bg-[#F7F4EE] rounded-full h-3 overflow-hidden">
                                       <div className="bg-gray-400 h-full rounded-full transition-all" style={{ width: `${pctAbst}%` }} />
                                     </div>
-                                    <span className="text-xs font-medium text-gray-700 w-10 text-right">{pctAbst}%</span>
+                                    <span className="text-xs font-medium text-[#4A5E78] w-10 text-right">{pctAbst}%</span>
                                   </div>
-                                  <p className="text-xs text-gray-500">Total : {totalVotes.toLocaleString('fr-FR')} tantièmes exprimés</p>
+                                  <p className="text-xs text-[#8A9BB0]">Total : {totalVotes.toLocaleString(dateFmtLocale)} tantièmes exprimés</p>
                                 </div>
                               )}
 
@@ -2584,19 +3474,19 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                                     onClick={() => handleVote(ag.id, res.id, 'pour')}
                                     className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 font-medium text-sm py-2.5 rounded-lg border border-green-200 transition"
                                   >
-                                    ✓ Pour
+                                    {t.votePour}
                                   </button>
                                   <button
                                     onClick={() => handleVote(ag.id, res.id, 'contre')}
                                     className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 font-medium text-sm py-2.5 rounded-lg border border-red-200 transition"
                                   >
-                                    ✗ Contre
+                                    {t.voteContre}
                                   </button>
                                   <button
                                     onClick={() => handleVote(ag.id, res.id, 'abstention')}
-                                    className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-medium text-sm py-2.5 rounded-lg border border-gray-200 transition"
+                                    className="flex-1 bg-[#F7F4EE] hover:bg-[#F7F4EE] text-[#4A5E78] font-medium text-sm py-2.5 rounded-lg border border-[#E4DDD0] transition"
                                   >
-                                    ○ Abstention
+                                    {t.voteAbstention}
                                   </button>
                                 </div>
                               )}
@@ -2613,24 +3503,24 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       const daysLeft = Math.ceil((deadline.getTime() - Date.now()) / 86400000)
                       const canContest = daysLeft > 0
                       return (
-                        <div className={`rounded-xl border p-5 shadow-sm ${canContest ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className={`rounded-xl border p-5 shadow-sm ${canContest ? 'bg-amber-50 border-amber-200' : 'bg-[#F7F4EE] border-[#E4DDD0]'}`}>
                           <div className="flex items-start gap-3 mb-3">
                             <span className="text-2xl">{canContest ? '⚖️' : '🔒'}</span>
                             <div>
-                              <h3 className="font-bold text-gray-900">Contestation de l&apos;AG</h3>
+                              <h3 className="font-bold text-[#0D1B2E]">Contestation de l&apos;AG</h3>
                               {canContest ? (
                                 <p className="text-sm text-amber-700 mt-1">
                                   ⏰ <strong>{daysLeft} jour(s) restant(s)</strong> pour contester (délai légal : 2 mois après l&apos;AG, art. 42 loi du 10/07/1965)
                                 </p>
                               ) : (
-                                <p className="text-sm text-gray-500 mt-1">Le délai de contestation de 2 mois est écoulé.</p>
+                                <p className="text-sm text-[#8A9BB0] mt-1">Le délai de contestation de 2 mois est écoulé.</p>
                               )}
                             </div>
                           </div>
                           {canContest && (
                             <>
                               <div className="bg-white rounded-lg p-4 border border-amber-100 mb-3">
-                                <p className="text-xs text-gray-600 leading-relaxed">
+                                <p className="text-xs text-[#4A5E78] leading-relaxed">
                                   <strong>Rappel juridique :</strong> Tout copropriétaire opposant ou défaillant peut contester une décision d&apos;AG
                                   dans un délai de 2 mois à compter de la notification du PV (article 42 de la loi du 10 juillet 1965).
                                   La contestation doit être faite par LRAR au syndic, puis si nécessaire devant le Tribunal judiciaire.
@@ -2638,22 +3528,24 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                               </div>
                               <button
                                 onClick={() => {
-                                  const template = `[Votre nom et adresse]\n\n[Nom et adresse du syndic]\n\nObjet : Contestation de résolution(s) adoptée(s) lors de l'AG du ${new Date(ag.date).toLocaleDateString('fr-FR')}\n\nLettre recommandée avec accusé de réception\n\nMadame, Monsieur le Syndic,\n\nJe soussigné(e) [Votre nom], copropriétaire au sein de la copropriété [nom/adresse immeuble], lot n°${profile.numLot || '___'}, titulaire de ${profile.tantiemes} tantièmes,\n\nPar la présente, je conteste la/les résolution(s) suivante(s) adoptée(s) lors de l'assemblée générale ${ag.type} du ${new Date(ag.date).toLocaleDateString('fr-FR')} :\n\n- [Préciser la/les résolution(s) contestée(s)]\n\nMotif(s) de la contestation :\n- [Vice de forme / irrégularité de convocation / abus de majorité / autre]\n\nConformément à l'article 42 de la loi du 10 juillet 1965, je vous mets en demeure de prendre acte de cette contestation dans un délai de 15 jours.\n\nÀ défaut de réponse satisfaisante, je me réserve le droit de saisir le Tribunal judiciaire compétent.\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.\n\nFait à [Ville], le ${new Date().toLocaleDateString('fr-FR')}\n\n[Signature]`
+                                  const template = locale === 'pt'
+                                    ? `[O seu nome e morada]\n\n[Nome e morada do administrador]\n\nAssunto: Impugnação de deliberação(ões) da Assembleia de ${new Date(ag.date).toLocaleDateString(dateFmtLocale)}\n\nCarta registada com aviso de receção\n\nExmo(a) Sr(a) Administrador(a),\n\nEu, [O seu nome], condómino do condomínio [nome/morada do edifício], fração n.º ${profile.numLot || '___'}, titular de ${profile.tantiemes} permilagens,\n\nPela presente, venho impugnar a(s) seguinte(s) deliberação(ões) tomada(s) na assembleia geral ${ag.type === 'ordinaire' ? 'ordinária' : 'extraordinária'} de ${new Date(ag.date).toLocaleDateString(dateFmtLocale)}:\n\n- [Especificar a(s) deliberação(ões) impugnada(s)]\n\nFundamento(s) da impugnação:\n- [Vício de forma / irregularidade na convocação / abuso de maioria / outro]\n\nNos termos do artigo 1433.º do Código Civil, solicito que tomem conhecimento da presente impugnação no prazo de 15 dias.\n\nNa falta de resposta satisfatória, reservo-me o direito de recorrer ao Tribunal competente.\n\nCom os melhores cumprimentos,\n\nFeito em [Cidade], a ${new Date().toLocaleDateString(dateFmtLocale)}\n\n[Assinatura]`
+                                    : `[Votre nom et adresse]\n\n[Nom et adresse du syndic]\n\nObjet : Contestation de résolution(s) adoptée(s) lors de l'AG du ${new Date(ag.date).toLocaleDateString(dateFmtLocale)}\n\nLettre recommandée avec accusé de réception\n\nMadame, Monsieur le Syndic,\n\nJe soussigné(e) [Votre nom], copropriétaire au sein de la copropriété [nom/adresse immeuble], lot n°${profile.numLot || '___'}, titulaire de ${profile.tantiemes} tantièmes,\n\nPar la présente, je conteste la/les résolution(s) suivante(s) adoptée(s) lors de l'assemblée générale ${ag.type} du ${new Date(ag.date).toLocaleDateString(dateFmtLocale)} :\n\n- [Préciser la/les résolution(s) contestée(s)]\n\nMotif(s) de la contestation :\n- [Vice de forme / irrégularité de convocation / abus de majorité / autre]\n\nConformément à l'article 42 de la loi du 10 juillet 1965, je vous mets en demeure de prendre acte de cette contestation dans un délai de 15 jours.\n\nÀ défaut de réponse satisfaisante, je me réserve le droit de saisir le Tribunal judiciaire compétent.\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.\n\nFait à [Ville], le ${new Date().toLocaleDateString(dateFmtLocale)}\n\n[Signature]`
                                   navigator.clipboard.writeText(template).then(() => {
-                                    alert('Template de mise en demeure copié dans le presse-papier !')
+                                    alert(locale === 'pt' ? 'Modelo de impugnação copiado!' : 'Template de mise en demeure copié dans le presse-papier !')
                                   }).catch(() => {
                                     const el = document.createElement('textarea')
                                     el.value = template; document.body.appendChild(el); el.select()
                                     document.execCommand('copy'); document.body.removeChild(el)
-                                    alert('Template copié !')
+                                    alert(locale === 'pt' ? 'Modelo copiado!' : 'Template copié !')
                                   })
                                 }}
                                 className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-bold text-sm transition"
                               >
                                 📋 Copier le template de mise en demeure
                               </button>
-                              <p className="text-[10px] text-gray-500 text-center mt-2">
-                                Deadline : {deadline.toLocaleDateString('fr-FR')} · Envoi par LRAR recommandé
+                              <p className="text-[10px] text-[#8A9BB0] text-center mt-2">
+                                Deadline : {deadline.toLocaleDateString(dateFmtLocale)} · Envoi par LRAR recommandé
                               </p>
                             </>
                           )}
@@ -2673,51 +3565,51 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="space-y-6">
               {/* Récap */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Tantièmes</p>
-                  <p className="text-xl font-bold text-gray-900">{profile.tantiemes}</p>
-                  <p className="text-xs text-purple-600">/ 10 000</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.tantiemes}</p>
+                  <p className="text-xl font-bold text-[#0D1B2E]">{profile.tantiemes}</p>
+                  <p className="text-xs text-[#C9A84C]">/ 10 000</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Quote-part</p>
-                  <p className="text-xl font-bold text-gray-900">{profile.quotePart}%</p>
-                  <p className="text-xs text-gray-500">des charges</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.quotePart}</p>
+                  <p className="text-xl font-bold text-[#0D1B2E]">{profile.quotePart}%</p>
+                  <p className="text-xs text-[#8A9BB0]">{t.desCharges}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Total payé 2025</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.totalPaye2025}</p>
                   <p className="text-xl font-bold text-green-600">
                     {formatPrice(historique.filter(h => h.type === 'paiement' && h.date.startsWith('2025') && h.montant && h.montant > 0).reduce((s, h) => s + (h.montant || 0), 0))}
                   </p>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                  <p className="text-xs text-gray-500 font-medium">Événements</p>
-                  <p className="text-xl font-bold text-gray-900">{historique.length}</p>
-                  <p className="text-xs text-gray-500">enregistrés</p>
+                <div className="bg-white rounded-xl border border-[#E4DDD0] p-4 shadow-sm">
+                  <p className="text-xs text-[#8A9BB0] font-medium">{t.evenements}</p>
+                  <p className="text-xl font-bold text-[#0D1B2E]">{historique.length}</p>
+                  <p className="text-xs text-[#8A9BB0]">{t.enregistres}</p>
                 </div>
               </div>
 
               {/* Graphique charges (CSS) */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                <h2 className="font-bold text-gray-900 mb-4">📊 Évolution des charges (12 derniers mois)</h2>
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm p-5">
+                <h2 className="font-bold text-[#0D1B2E] mb-4">{t.evolutionCharges}</h2>
                 <div className="flex items-end gap-2 h-40">
                   {charges.sort((a, b) => a.mois.localeCompare(b.mois)).map(c => {
                     const maxCharge = Math.max(...charges.map(ch => ch.montant))
                     const height = maxCharge > 0 ? (c.montant / maxCharge) * 100 : 0
                     return (
                       <div key={c.id} className="flex-1 flex flex-col items-center gap-1">
-                        <span className="text-xs text-gray-500 font-medium">{formatPrice(c.montant)}</span>
+                        <span className="text-xs text-[#8A9BB0] font-medium">{formatPrice(c.montant)}</span>
                         <div
-                          className={`w-full rounded-t-md transition-all ${c.statut === 'payee' ? 'bg-purple-500' : 'bg-purple-200'}`}
+                          className={`w-full rounded-t-md transition-all ${c.statut === 'payee' ? 'bg-[#C9A84C]' : 'bg-[rgba(201,168,76,0.25)]'}`}
                           style={{ height: `${height}%`, minHeight: '4px' }}
                         />
-                        <span className="text-xs text-gray-500">{c.mois.slice(5)}/{c.mois.slice(2, 4)}</span>
+                        <span className="text-xs text-[#8A9BB0]">{c.mois.slice(5)}/{c.mois.slice(2, 4)}</span>
                       </div>
                     )
                   })}
                 </div>
-                <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 bg-purple-500 rounded" /> Payée</span>
-                  <span className="flex items-center gap-1"><span className="w-3 h-3 bg-purple-200 rounded" /> En attente</span>
+                <div className="flex items-center gap-4 mt-3 text-xs text-[#8A9BB0]">
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 bg-[#C9A84C] rounded" /> {t.chartPayee}</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 bg-[rgba(201,168,76,0.25)] rounded" /> {t.chartEnAttente}</span>
                 </div>
               </div>
 
@@ -2728,7 +3620,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                     key={f}
                     onClick={() => setHistoFilter(f)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                      histoFilter === f ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                      histoFilter === f ? 'bg-[#0D1B2E] text-white' : 'bg-white text-[#4A5E78] border border-[#E4DDD0] hover:bg-[#F7F4EE]'
                     }`}
                   >
                     {f === 'tous' ? 'Tous' : `${HISTORIQUE_TYPE_EMOJI[f] || ''} ${f.charAt(0).toUpperCase() + f.slice(1)}`}
@@ -2737,33 +3629,33 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               </div>
 
               {/* Timeline */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="divide-y divide-gray-100">
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm">
+                <div className="divide-y divide-[#E4DDD0]">
                   {(() => {
                     const filtered = historique
                       .filter(h => histoFilter === 'tous' || h.type === histoFilter)
                       .sort((a, b) => b.date.localeCompare(a.date))
                     let lastMonth = ''
                     return filtered.map(h => {
-                      const month = new Date(h.date).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+                      const month = new Date(h.date).toLocaleDateString(dateFmtLocale, { month: 'long', year: 'numeric' })
                       const showHeader = month !== lastMonth
                       lastMonth = month
                       return (
                         <React.Fragment key={h.id}>
                           {showHeader && (
-                            <div className="px-5 py-2 bg-gray-50">
-                              <p className="text-xs font-bold text-gray-500 uppercase">{month}</p>
+                            <div className="px-5 py-2 bg-[#F7F4EE]">
+                              <p className="text-xs font-bold text-[#8A9BB0] uppercase">{month}</p>
                             </div>
                           )}
                           <div className="px-5 py-3 flex items-start gap-3">
                             <span className="text-lg mt-0.5">{HISTORIQUE_TYPE_EMOJI[h.type]}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900">{h.titre}</p>
-                              <p className="text-xs text-gray-500">{h.description}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">{formatDate(h.date)}</p>
+                              <p className="text-sm font-medium text-[#0D1B2E]">{h.titre}</p>
+                              <p className="text-xs text-[#8A9BB0]">{h.description}</p>
+                              <p className="text-xs text-[#8A9BB0] mt-0.5">{formatDate(h.date)}</p>
                             </div>
                             {h.montant !== undefined && (
-                              <span className={`text-sm font-bold ${h.montant < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                              <span className={`text-sm font-bold ${h.montant < 0 ? 'text-green-600' : 'text-[#0D1B2E]'}`}>
                                 {h.montant < 0 ? '+' : '-'}{formatPrice(Math.abs(h.montant))}
                               </span>
                             )}
@@ -2784,30 +3676,30 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">🧩 Mes modules</h2>
-                  <p className="text-sm text-gray-500 mt-1">Personnalisez votre espace en activant les fonctionnalités utiles</p>
+                  <h2 className="text-2xl font-bold text-[#0D1B2E]">{t.mesModules}</h2>
+                  <p className="text-sm text-[#8A9BB0] mt-1">{t.mesModulesDesc}</p>
                 </div>
                 <div className="bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full text-sm font-bold">
-                  {COPRO_MODULES.filter(m => isModuleEnabled(m.key)).length}/{COPRO_MODULES.length} actifs
+                  {coproModules.filter(m => isModuleEnabled(m.key)).length}/{coproModules.length} {t.actifs}
                 </div>
               </div>
 
               <div className="grid gap-3">
-                {COPRO_MODULES.map(mod => {
+                {coproModules.map(mod => {
                   const enabled = isModuleEnabled(mod.key)
                   return (
-                    <div key={mod.key} className={`bg-white rounded-2xl p-4 border-2 transition-all ${enabled ? 'border-amber-300 shadow-sm' : 'border-gray-200 opacity-75'}`}>
+                    <div key={mod.key} className={`bg-white rounded-2xl p-4 border-2 transition-all ${enabled ? 'border-amber-300 shadow-sm' : 'border-[#E4DDD0] opacity-75'}`}>
                       <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${enabled ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${enabled ? 'bg-amber-100' : 'bg-[#F7F4EE]'}`}>
                           {mod.icon}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900">{mod.label}</div>
-                          <div className="text-sm text-gray-500 mt-0.5">{mod.description}</div>
+                          <div className="font-semibold text-[#0D1B2E]">{mod.label}</div>
+                          <div className="text-sm text-[#8A9BB0] mt-0.5">{mod.description}</div>
                         </div>
                         <button
                           onClick={() => toggleModule(mod.key)}
-                          className={`w-14 h-8 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-[#FFC107]' : 'bg-gray-200'}`}
+                          className={`w-14 h-8 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-[#0D1B2E]' : 'bg-[#E4DDD0]'}`}
                         >
                           <div className="w-6 h-6 bg-white rounded-full shadow absolute top-1 transition-all" style={{ left: enabled ? '28px' : '4px' }} />
                         </button>
@@ -2821,8 +3713,8 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 <div className="flex items-start gap-3">
                   <span className="text-xl">💡</span>
                   <div>
-                    <div className="font-semibold text-blue-800 text-sm">Astuce</div>
-                    <div className="text-xs text-blue-600 mt-0.5">Désactivez les modules que vous n'utilisez pas pour simplifier votre espace. Les données ne sont pas supprimées — vous pouvez les réactiver à tout moment.</div>
+                    <div className="font-semibold text-blue-800 text-sm">{t.astuce}</div>
+                    <div className="text-xs text-blue-600 mt-0.5">{t.astuceTexte}</div>
                   </div>
                 </div>
               </div>
@@ -2835,18 +3727,18 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
           {page === 'parametres' && (
             <div className="space-y-6">
               {/* Profil */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-bold text-gray-900 text-lg">👤 Mon profil</h2>
+                  <h2 className="font-bold text-[#0D1B2E] text-lg">{t.monProfil}</h2>
                   {!editProfile && (
                     <button
                       onClick={() => {
                         setProfileForm({ nom: profile.nom, prenom: profile.prenom, email: profile.email, telephone: profile.telephone })
                         setEditProfile(true)
                       }}
-                      className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                      className="text-xs text-[#C9A84C] hover:text-[#A8842A] font-medium"
                     >
-                      ✏️ Modifier
+                      {t.modifier}
                     </button>
                   )}
                 </div>
@@ -2854,76 +3746,76 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 {!editProfile ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Nom complet</p>
-                      <p className="text-sm text-gray-900 font-medium">{profile.prenom} {profile.nom}</p>
+                      <p className="text-xs text-[#8A9BB0] font-medium">{t.nomComplet}</p>
+                      <p className="text-sm text-[#0D1B2E] font-medium">{profile.prenom} {profile.nom}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Email</p>
-                      <p className="text-sm text-gray-900">{profile.email}</p>
+                      <p className="text-xs text-[#8A9BB0] font-medium">{t.email}</p>
+                      <p className="text-sm text-[#0D1B2E]">{profile.email}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Téléphone</p>
-                      <p className="text-sm text-gray-900">{profile.telephone}</p>
+                      <p className="text-xs text-[#8A9BB0] font-medium">{t.telephone}</p>
+                      <p className="text-sm text-[#0D1B2E]">{profile.telephone}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Immeuble</p>
-                      <p className="text-sm text-gray-900">{profile.immeuble}</p>
+                      <p className="text-xs text-[#8A9BB0] font-medium">{t.immeuble}</p>
+                      <p className="text-sm text-[#0D1B2E]">{profile.immeuble}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Localisation</p>
-                      <p className="text-sm text-gray-900">Bât. {profile.batiment} · Étage {profile.etage} · Lot {profile.numLot}</p>
+                      <p className="text-xs text-[#8A9BB0] font-medium">{t.localisation}</p>
+                      <p className="text-sm text-[#0D1B2E]">{t.bat} {profile.batiment} · {t.etage} {profile.etage} · {t.lot} {profile.numLot}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium">Tantièmes / Quote-part</p>
-                      <p className="text-sm text-gray-900">{profile.tantiemes} / 10 000 ({profile.quotePart}%)</p>
+                      <p className="text-xs text-[#8A9BB0] font-medium">{t.tantièmesQuotePart}</p>
+                      <p className="text-sm text-[#0D1B2E]">{profile.tantiemes} / 10 000 ({profile.quotePart}%)</p>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Prénom</label>
+                        <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.prenom}</label>
                         <input
                           type="text"
                           value={profileForm.prenom}
                           onChange={e => setProfileForm({ ...profileForm, prenom: e.target.value })}
-                          className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
+                          className="w-full px-3 py-2.5 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Nom</label>
+                        <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.nom}</label>
                         <input
                           type="text"
                           value={profileForm.nom}
                           onChange={e => setProfileForm({ ...profileForm, nom: e.target.value })}
-                          className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
+                          className="w-full px-3 py-2.5 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                        <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.email}</label>
                         <input
                           type="email"
                           value={profileForm.email}
                           onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
-                          className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
+                          className="w-full px-3 py-2.5 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Téléphone</label>
+                        <label className="block text-xs font-medium text-[#4A5E78] mb-1">{t.telephone}</label>
                         <input
                           type="tel"
                           value={profileForm.telephone}
                           onChange={e => setProfileForm({ ...profileForm, telephone: e.target.value })}
-                          className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-500 focus:outline-none"
+                          className="w-full px-3 py-2.5 border-2 border-[#E4DDD0] rounded-lg text-sm focus:border-[#C9A84C] focus:outline-none"
                         />
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={saveProfile} className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-                        Enregistrer
+                      <button onClick={saveProfile} className="bg-[#0D1B2E] hover:bg-[#152338] text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                        {t.enregistrer}
                       </button>
-                      <button onClick={() => setEditProfile(false)} className="bg-white hover:bg-gray-50 text-gray-600 text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 transition">
-                        Annuler
+                      <button onClick={() => setEditProfile(false)} className="bg-white hover:bg-[#F7F4EE] text-[#4A5E78] text-sm font-medium px-4 py-2 rounded-lg border border-[#E4DDD0] transition">
+                        {t.annuler}
                       </button>
                     </div>
                   </div>
@@ -2931,25 +3823,25 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               </div>
 
               {/* Notifications */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                <h2 className="font-bold text-gray-900 text-lg mb-4">🔔 Préférences de notification</h2>
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm p-5">
+                <h2 className="font-bold text-[#0D1B2E] text-lg mb-4">{t.prefsNotif}</h2>
                 <div className="space-y-4">
                   {[
-                    { key: 'notifEmail' as const, label: 'Notifications par email', desc: 'Recevoir les alertes et rappels par email' },
-                    { key: 'notifPush' as const, label: 'Notifications push', desc: 'Recevoir les alertes sur votre téléphone' },
-                    { key: 'mailingAG' as const, label: 'Convocations AG', desc: 'Recevoir les convocations d\'assemblée générale' },
-                    { key: 'alertesPaiement' as const, label: 'Alertes paiement', desc: 'Rappels d\'échéances de paiement' },
-                    { key: 'alertesTravaux' as const, label: 'Alertes travaux', desc: 'Informations sur les travaux en cours' },
-                    { key: 'resumeHebdo' as const, label: 'Résumé hebdomadaire', desc: 'Synthèse des événements de la semaine' },
+                    { key: 'notifEmail' as const, label: t.notifEmail, desc: t.notifEmailDesc },
+                    { key: 'notifPush' as const, label: t.notifPush, desc: t.notifPushDesc },
+                    { key: 'mailingAG' as const, label: t.mailingAG, desc: t.mailingAGDesc },
+                    { key: 'alertesPaiement' as const, label: t.alertesPaiement, desc: t.alertesPaiementDesc },
+                    { key: 'alertesTravaux' as const, label: t.alertesTravaux, desc: t.alertesTravauxDesc },
+                    { key: 'resumeHebdo' as const, label: t.resumeHebdo, desc: t.resumeHebdoDesc },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{label}</p>
-                        <p className="text-xs text-gray-500">{desc}</p>
+                        <p className="text-sm font-medium text-[#0D1B2E]">{label}</p>
+                        <p className="text-xs text-[#8A9BB0]">{desc}</p>
                       </div>
                       <button
                         onClick={() => setParams(prev => ({ ...prev, [key]: !prev[key] }))}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${params[key] ? 'bg-purple-600' : 'bg-gray-300'}`}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${params[key] ? 'bg-[#0D1B2E]' : 'bg-gray-300'}`}
                       >
                         <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${params[key] ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>
@@ -2959,47 +3851,47 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               </div>
 
               {/* Export PDF */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                <h2 className="font-bold text-gray-900 text-lg mb-4">📥 Export & téléchargements</h2>
+              <div className="bg-white rounded-xl border border-[#E4DDD0] shadow-sm p-5">
+                <h2 className="font-bold text-[#0D1B2E] text-lg mb-4">{t.exportTelecharge}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button
-                    onClick={() => alert('Génération du récapitulatif annuel en PDF...')}
-                    className="flex items-center gap-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 transition text-left"
+                    onClick={() => alert(locale === 'pt' ? 'A gerar o resumo anual em PDF...' : 'Génération du récapitulatif annuel en PDF...')}
+                    className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
                   >
                     <span className="text-2xl">📊</span>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Récapitulatif annuel</p>
-                      <p className="text-xs text-gray-500">Synthèse charges et paiements</p>
+                      <p className="text-sm font-medium text-[#0D1B2E]">{t.recapAnnuel}</p>
+                      <p className="text-xs text-[#8A9BB0]">{t.recapAnnuelDesc}</p>
                     </div>
                   </button>
                   <button
-                    onClick={() => alert('Génération du récapitulatif votes AG en PDF...')}
-                    className="flex items-center gap-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 transition text-left"
+                    onClick={() => alert(locale === 'pt' ? 'A gerar o resumo de votos AG em PDF...' : 'Génération du récapitulatif votes AG en PDF...')}
+                    className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
                   >
                     <span className="text-2xl">🗳️</span>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Mes votes AG</p>
-                      <p className="text-xs text-gray-500">Historique de tous vos votes</p>
+                      <p className="text-sm font-medium text-[#0D1B2E]">{t.mesVotesAG}</p>
+                      <p className="text-xs text-[#8A9BB0]">{t.mesVotesAGDesc}</p>
                     </div>
                   </button>
                   <button
-                    onClick={() => alert('Génération de l\'attestation de copropriété en PDF...')}
-                    className="flex items-center gap-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 transition text-left"
+                    onClick={() => alert(locale === 'pt' ? 'A gerar a declaração de condomínio em PDF...' : 'Génération de l\'attestation de copropriété en PDF...')}
+                    className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
                   >
                     <span className="text-2xl">📜</span>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Attestation copropriété</p>
-                      <p className="text-xs text-gray-500">Lot {profile.numLot} · {profile.tantiemes} tantièmes</p>
+                      <p className="text-sm font-medium text-[#0D1B2E]">{t.attestationCopro}</p>
+                      <p className="text-xs text-[#8A9BB0]">{t.lot} {profile.numLot} · {profile.tantiemes} {t.tantiemes}</p>
                     </div>
                   </button>
                   <button
                     onClick={() => window.location.href = '/coproprietaire/portail'}
-                    className="flex items-center gap-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 transition text-left"
+                    className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
                   >
                     <span className="text-2xl">🔔</span>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Portail signalements</p>
-                      <p className="text-xs text-gray-500">Accéder au portail de signalement</p>
+                      <p className="text-sm font-medium text-[#0D1B2E]">{t.portailSignalements}</p>
+                      <p className="text-xs text-[#8A9BB0]">{t.portailSignalementsDesc}</p>
                     </div>
                   </button>
                 </div>
@@ -3014,59 +3906,58 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <div className="flex flex-col h-[calc(100vh-120px)] max-w-3xl mx-auto">
 
               {/* En-tête assistant */}
-              <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] rounded-xl p-5 mb-4 flex items-center gap-4 shadow-md">
+              <div className="bg-gradient-to-r from-[#C9A84C] to-[#F0D898] rounded-xl p-5 mb-4 flex items-center gap-4 shadow-md">
                 <div className="w-14 h-14 bg-white/30 rounded-full flex items-center justify-center text-3xl flex-shrink-0">
                   <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="25" y="45" width="50" height="35" rx="8" fill="#FFC107"/>
-                    <rect x="28" y="18" width="44" height="30" rx="10" fill="#FFD54F"/>
+                    <rect x="25" y="45" width="50" height="35" rx="8" fill="#C9A84C"/>
+                    <rect x="28" y="18" width="44" height="30" rx="10" fill="#F0D898"/>
                     <circle cx="40" cy="30" r="5" fill="#1a1a2e"/><circle cx="60" cy="30" r="5" fill="#1a1a2e"/>
                     <circle cx="42" cy="28" r="1.5" fill="white"/><circle cx="62" cy="28" r="1.5" fill="white"/>
                     <path d="M42 38 Q50 44 58 38" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-                    <line x1="50" y1="18" x2="50" y2="8" stroke="#FFC107" strokeWidth="3" strokeLinecap="round"/>
+                    <line x1="50" y1="18" x2="50" y2="8" stroke="#C9A84C" strokeWidth="3" strokeLinecap="round"/>
                     <circle cx="50" cy="6" r="4" fill="#FF9800"/>
-                    <rect x="12" y="50" width="13" height="6" rx="3" fill="#FFD54F"/>
-                    <rect x="33" y="80" width="10" height="12" rx="4" fill="#FFD54F"/>
-                    <rect x="57" y="80" width="10" height="12" rx="4" fill="#FFD54F"/>
+                    <rect x="12" y="50" width="13" height="6" rx="3" fill="#F0D898"/>
+                    <rect x="33" y="80" width="10" height="12" rx="4" fill="#F0D898"/>
+                    <rect x="57" y="80" width="10" height="12" rx="4" fill="#F0D898"/>
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Fixy — Assistant IA</h2>
-                  <p className="text-gray-700 text-sm">Je connais toute votre copropriété. Posez-moi n&apos;importe quelle question !</p>
+                  <h2 className="text-xl font-bold text-[#0D1B2E]">{t.assistantTitre}</h2>
+                  <p className="text-[#4A5E78] text-sm">{t.assistantDesc}</p>
                 </div>
                 {assistantMessages.length > 0 && (
                   <button
                     onClick={() => setAssistantMessages([])}
-                    className="ml-auto text-xs bg-gray-900/10 hover:bg-gray-900/20 text-gray-900 px-3 py-1.5 rounded-lg transition"
+                    className="ml-auto text-xs bg-[#0D1B2E]/10 hover:bg-[#0D1B2E]/20 text-[#0D1B2E] px-3 py-1.5 rounded-lg transition"
                   >
-                    Nouvelle conversation
+                    {t.nouvelleConversation}
                   </button>
                 )}
               </div>
 
               {/* Zone de chat */}
-              <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+              <div className="flex-1 bg-white rounded-xl border border-[#E4DDD0] shadow-sm flex flex-col overflow-hidden">
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {assistantMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full py-8 text-center">
                       <div className="text-5xl mb-4">💬</div>
-                      <p className="text-gray-600 font-medium text-lg mb-2">Bonjour {profile.prenom} !</p>
-                      <p className="text-gray-500 text-sm mb-6 max-w-md">
-                        Je suis Fixy, votre assistant personnel pour la copropriété <strong>{profile.immeuble}</strong>.
-                        Je peux répondre à toutes vos questions — même si vous n'êtes pas à l'aise avec la technologie !
+                      <p className="text-[#4A5E78] font-medium text-lg mb-2">{t.bonjourPrenom} {profile.prenom} !</p>
+                      <p className="text-[#8A9BB0] text-sm mb-6 max-w-md">
+                        {t.assistantIntro} <strong>{profile.immeuble}</strong>{t.assistantIntro2}
                       </p>
-                      <p className="text-xs text-gray-500 mb-4 font-medium">Questions fréquentes :</p>
+                      <p className="text-xs text-[#8A9BB0] mb-4 font-medium">{t.questionsFréquentes}</p>
                       <div className="flex flex-wrap gap-2 justify-center max-w-lg">
                         {[
-                          'Combien je dois payer ce mois ?',
-                          'Quelle est la prochaine assemblée générale ?',
-                          'Quels documents puis-je télécharger ?',
-                          'Quel est mon solde actuel ?',
-                          'Comment voter pour une résolution ?',
-                          'Y a-t-il des travaux prévus ?',
-                          'Quand est la prochaine coupure d\'eau ?',
-                          'C\'est quoi les tantièmes ?',
+                          t.assistantQ1,
+                          t.assistantQ2,
+                          t.assistantQ3,
+                          t.assistantQ4,
+                          t.assistantQ5,
+                          t.assistantQ6,
+                          t.assistantQ7,
+                          t.assistantQ8,
                         ].map(q => (
                           <button
                             key={q}
@@ -3089,15 +3980,15 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       {assistantMessages.map((msg, i) => (
                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                           {msg.role === 'assistant' && (
-                            <div className="w-7 h-7 bg-[#FFC107] rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0 mt-0.5">
+                            <div className="w-7 h-7 bg-[#C9A84C] rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0 mt-0.5">
                               🤖
                             </div>
                           )}
                           <div
                             className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                               msg.role === 'user'
-                                ? 'bg-[#FFC107] text-gray-900 rounded-tr-sm'
-                                : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                                ? 'bg-[#0D1B2E] text-white rounded-tr-sm'
+                                : 'bg-white border border-[#E4DDD0] text-[#0D1B2E] rounded-tl-sm'
                             }`}
                           >
                             {msg.content}
@@ -3106,10 +3997,10 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       ))}
                       {assistantLoading && (
                         <div className="flex justify-start">
-                          <div className="w-7 h-7 bg-[#FFC107] rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0">
+                          <div className="w-7 h-7 bg-[#C9A84C] rounded-full flex items-center justify-center text-sm mr-2 flex-shrink-0">
                             🤖
                           </div>
-                          <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
+                          <div className="bg-white border border-[#E4DDD0] rounded-2xl rounded-tl-sm px-4 py-3">
                             <div className="flex gap-1 items-center">
                               <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                               <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -3125,8 +4016,8 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
 
                 {/* Suggestions rapides quand il y a déjà des messages */}
                 {assistantMessages.length > 0 && (
-                  <div className="px-4 py-2 border-t border-gray-100 flex gap-2 overflow-x-auto">
-                    {['Mes paiements en attente', 'Prochaine AG', 'Mes documents', 'Mon solde'].map(q => (
+                  <div className="px-4 py-2 border-t border-[#E4DDD0] flex gap-2 overflow-x-auto">
+                    {[t.suggestionQ1, t.suggestionQ2, t.suggestionQ3, t.suggestionQ4].map(q => (
                       <button
                         key={q}
                         onClick={() => {
@@ -3145,7 +4036,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                 )}
 
                 {/* Input */}
-                <div className="p-4 border-t border-gray-200">
+                <div className="p-4 border-t border-[#E4DDD0]">
                   <form
                     onSubmit={e => { e.preventDefault(); sendAssistantMessage() }}
                     className="flex gap-2"
@@ -3155,14 +4046,14 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       type="text"
                       value={assistantInput}
                       onChange={e => setAssistantInput(e.target.value)}
-                      placeholder="Posez votre question à Fixy…"
+                      placeholder={t.placeholderInput}
                       disabled={assistantLoading}
-                      className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:bg-white disabled:opacity-60 transition"
+                      className="flex-1 bg-[#F7F4EE] border border-[#E4DDD0] rounded-xl px-4 py-3 text-sm text-[#0D1B2E] placeholder-gray-400 focus:outline-none focus:border-[#C9A84C] focus:bg-white disabled:opacity-60 transition"
                     />
                     <button
                       type="submit"
                       disabled={!assistantInput.trim() || assistantLoading}
-                      className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold px-5 py-3 rounded-xl transition"
+                      className="bg-[#0D1B2E] hover:bg-[#152338] disabled:opacity-40 text-white font-bold px-5 py-3 rounded-xl transition"
                     >
                       {assistantLoading ? (
                         <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -3176,8 +4067,8 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
                       )}
                     </button>
                   </form>
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    Fixy peut répondre à toutes vos questions sur votre copropriété
+                  <p className="text-xs text-[#8A9BB0] mt-2 text-center">
+                    {t.assistantPied}
                   </p>
                 </div>
               </div>
@@ -3218,14 +4109,14 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
         {page !== 'assistant' && (
           <button
             onClick={() => setPage('assistant')}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 font-bold px-5 py-3 rounded-full shadow-xl transition-all hover:scale-105 active:scale-95"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#C9A84C] hover:bg-[#F0D898] text-[#0D1B2E] font-bold px-5 py-3 rounded-full shadow-xl transition-all hover:scale-105 active:scale-95"
           >
             <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="25" y="45" width="50" height="35" rx="8" fill="#FFC107"/>
-              <rect x="28" y="18" width="44" height="30" rx="10" fill="#FFD54F"/>
+              <rect x="25" y="45" width="50" height="35" rx="8" fill="#C9A84C"/>
+              <rect x="28" y="18" width="44" height="30" rx="10" fill="#F0D898"/>
               <circle cx="40" cy="30" r="5" fill="#1a1a2e"/><circle cx="60" cy="30" r="5" fill="#1a1a2e"/>
               <path d="M42 38 Q50 44 58 38" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-              <line x1="50" y1="18" x2="50" y2="8" stroke="#FFC107" strokeWidth="3" strokeLinecap="round"/>
+              <line x1="50" y1="18" x2="50" y2="8" stroke="#C9A84C" strokeWidth="3" strokeLinecap="round"/>
               <circle cx="50" cy="6" r="4" fill="#FF9800"/>
             </svg>
             <span className="text-sm">Fixy</span>
