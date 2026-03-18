@@ -820,7 +820,10 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
   contactName?: string
 }) {
   const locale = useLocale()
-  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
+  const URGENCE_CONFIG = getUrgenceConfig(isPt)
+  const STATUT_CONFIG = getStatutConfig(isPt)
   const om = msg.ordre_mission!
   const urgence = URGENCE_CONFIG[om.urgence] || URGENCE_CONFIG.normale
   const statut = STATUT_CONFIG[om.statut] || STATUT_CONFIG.en_attente

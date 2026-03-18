@@ -623,9 +623,9 @@ export default function LoginPage() {
       {/* ── FOOTER ── */}
       <footer style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#999' }}>
         © 2026 VITFIX ·{' '}
-        <LocaleLink href="/mentions-legales" style={{ color: '#999', textDecoration: 'none' }}>Mentions légales</LocaleLink>
+        <LocaleLink href="/mentions-legales" style={{ color: '#999', textDecoration: 'none' }}>{locale === 'pt' ? 'Avisos legais' : 'Mentions légales'}</LocaleLink>
         {' '}·{' '}
-        <LocaleLink href="/confidentialite" style={{ color: '#999', textDecoration: 'none' }}>Confidentialité</LocaleLink>
+        <LocaleLink href="/confidentialite" style={{ color: '#999', textDecoration: 'none' }}>{locale === 'pt' ? 'Privacidade' : 'Confidentialité'}</LocaleLink>
         {' '}·{' '}
         <LocaleLink href="/contact" style={{ color: '#999', textDecoration: 'none' }}>Contact</LocaleLink>
       </footer>
