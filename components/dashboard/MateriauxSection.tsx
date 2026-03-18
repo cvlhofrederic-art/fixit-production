@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useLocale } from '@/lib/i18n/context'
+import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 /* ══════════ MATÉRIAUX & PRIX SECTION ══════════ */
 
@@ -30,6 +32,13 @@ const STORE_COLORS: Record<string, string> = {
   'ManoMano': 'text-blue-700 bg-blue-50',
   'Toolstation': 'text-red-700 bg-red-50',
   'Cdiscount': 'text-red-700 bg-red-50',
+  // PT stores
+  'Leroy Merlin PT': 'text-green-700 bg-green-50',
+  'AKI': 'text-orange-700 bg-orange-50',
+  'Bricomarché': 'text-blue-700 bg-blue-50',
+  'Maxmat': 'text-red-700 bg-red-50',
+  'Wurth': 'text-red-700 bg-red-50',
+  'Sanitop': 'text-purple-700 bg-purple-50',
 }
 
 const PRODUCT_PRESETS = [
@@ -42,6 +51,8 @@ const PRODUCT_PRESETS = [
 ]
 
 export default function MateriauxSection({ artisan, onExportDevis }: { artisan: any; onExportDevis: (lines: any[]) => void }) {
+  const locale = useLocale()
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')
   const [userCity, setUserCity] = useState<string | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
@@ -72,6 +83,27 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, currentResults])
+
+  // Auto-geoloc au mount (silencieux — pas d'erreur si refusé)
+  useEffect(() => {
+    if (userCity || typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
+            { headers: { 'User-Agent': 'Vitfix-Pro/1.0' } }
+          )
+          const data = await res.json()
+          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || null
+          if (city) setUserCity(city)
+        } catch { /* silencieux */ }
+      },
+      () => { /* silencieux — l'utilisateur pourra cliquer manuellement */ },
+      { timeout: 5000, maximumAge: 600000 }
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleGeolocation = () => {
     if (!navigator.geolocation) { setGeoError('Géolocalisation non supportée'); return }
@@ -121,6 +153,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
           city: userCity,
           mode: searchMode,
           conversationHistory: messages.slice(-6),
+          locale,
         }),
       })
       const data = await res.json()
@@ -253,16 +286,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     onExportDevis(exportLines)
   }
 
-  const formatMsg = (text: string) => {
-    // 1. Escape HTML first (XSS prevention)
-    const escaped = text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
-    // 2. Apply markdown on escaped content
-    return escaped
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br/>')
-  }
+  const formatMsg = (text: string) => safeMarkdownToHTML(text)
 
   // Totaux avec logique fiscale correcte
   const totalBestPrice = currentResults?.reduce((sum, m) => sum + (m.bestPrice?.price || m.avgPrice || 0), 0) || 0
@@ -280,11 +304,11 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
   return (
     <div className="animate-fadeIn">
       {/* Header */}
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-[#FFC107] shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
+        <div className="flex items-center justify-between flex-wrap gap-3 w-full">
           <div>
-            <h1 className="text-2xl font-semibold">🛒 Matériaux & Prix</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Recherche IA autonome · Comparatif par enseigne</p>
+            <h1 className="text-xl font-semibold leading-tight">🛒 Matériaux & Prix</h1>
+            <p className="text-xs text-gray-400 mt-0.5">Recherche IA autonome · Comparatif par enseigne</p>
           </div>
           <div className="flex items-center gap-2">
             {userCity && (
@@ -478,35 +502,55 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                             {m.bestPrice && (
                               <div className="text-right flex-shrink-0">
                                 <div className="text-lg font-black text-green-600">{m.bestPrice.price} €</div>
-                                <div className="text-xs text-gray-500">Meilleur prix</div>
+                                <div className="text-xs text-gray-500">
+                                  {m.qty > 1 ? `${m.bestPrice.price} x ${m.qty} = ${Math.round(m.bestPrice.price * m.qty)} €` : 'Meilleur prix'}
+                                </div>
                               </div>
                             )}
                           </div>
 
                           {/* Prix par enseigne */}
                           {m.prices.length > 0 ? (
-                            <div className="divide-y divide-gray-50">
-                              {[...m.prices].sort((a, b) => a.price - b.price).map((p, j) => (
-                                <div key={j} className={`flex items-center gap-3 px-5 py-2.5 ${
-                                  m.bestPrice?.store === p.store ? 'bg-green-50' : ''
-                                }`}>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
-                                    {p.store}
-                                  </span>
-                                  <div className="flex-1" />
-                                  <span className={`font-bold text-base ${m.bestPrice?.store === p.store ? 'text-green-700' : 'text-gray-700'}`}>
-                                    {p.price} €
-                                  </span>
-                                  {m.bestPrice?.store === p.store && (
-                                    <span className="text-green-600 text-xs font-bold">✅ Meilleur</span>
-                                  )}
-                                  {p.url && (
-                                    <a href={p.url} target="_blank" rel="noopener noreferrer"
-                                      className="text-blue-500 hover:text-blue-700 text-xs underline ml-1">↗</a>
-                                  )}
+                            (() => {
+                              const sorted = [...m.prices].filter(p => p.price > 0).sort((a, b) => a.price - b.price)
+                              const bestP = sorted[0]?.price || 0
+                              const worstP = sorted[sorted.length - 1]?.price || 0
+                              return (
+                                <div className="divide-y divide-gray-50">
+                                  {sorted.map((p, j) => {
+                                    const isBest = bestP > 0 && p.price === bestP
+                                    const isWorst = sorted.length > 1 && p.price === worstP && worstP !== bestP
+                                    const ecartPct = bestP > 0 && !isBest ? Math.round(((p.price - bestP) / bestP) * 100) : 0
+                                    return (
+                                      <div key={j} className={`flex items-center gap-3 px-5 py-2.5 ${
+                                        isBest ? 'bg-green-50' : isWorst ? 'bg-red-50/40' : ''
+                                      }`}>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
+                                          {p.store}
+                                        </span>
+                                        <div className="flex-1" />
+                                        {m.qty > 1 && (
+                                          <span className="text-xs text-gray-400 mr-2">{p.price} x {m.qty} = {Math.round(p.price * m.qty)} €</span>
+                                        )}
+                                        <span className={`font-bold text-base ${
+                                          isBest ? 'text-green-700' : isWorst ? 'text-red-600' : 'text-gray-700'
+                                        }`}>
+                                          {p.price} €
+                                        </span>
+                                        {isBest && <span className="text-green-600 text-xs font-bold">Meilleur</span>}
+                                        {!isBest && ecartPct > 0 && (
+                                          <span className={`text-xs font-semibold ${isWorst ? 'text-red-500' : 'text-gray-400'}`}>+{ecartPct}%</span>
+                                        )}
+                                        {p.url && (
+                                          <a href={p.url} target="_blank" rel="noopener noreferrer"
+                                            className="text-blue-500 hover:text-blue-700 text-xs underline ml-1">Voir</a>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                              ))}
-                            </div>
+                              )
+                            })()
                           ) : (
                             <div className="px-5 py-3 text-sm text-gray-500 italic">Prix non trouvés — vérifiez manuellement</div>
                           )}
@@ -537,15 +581,28 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
                     {/* Tableau comparatif si plusieurs enseignes */}
                     {allStores.length > 1 && (
+                      (() => {
+                        const storeTotals = allStores.map(s => ({
+                          store: s,
+                          total: currentResults!.reduce((sum, m) => {
+                            const p = m.prices.find(pr => pr.store === s)
+                            return sum + (p ? p.price * m.qty : 0)
+                          }, 0),
+                          coverage: currentResults!.filter(m => m.prices.some(pr => pr.store === s)).length,
+                        }))
+                        const bestStoreTotal = Math.min(...storeTotals.filter(st => st.coverage === currentResults!.length && st.total > 0).map(st => st.total))
+                        const worstStoreTotal = Math.max(...storeTotals.filter(st => st.total > 0).map(st => st.total))
+                        return (
                       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 font-bold text-sm text-gray-700">
-                          📊 Tableau comparatif des prix
+                          📊 Comparatif par enseigne
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-gray-100">
                                 <th className="text-left px-4 py-2 text-gray-500 font-semibold">Matériau</th>
+                                <th className="text-center px-2 py-2 text-gray-400 font-semibold text-xs">Qté</th>
                                 {allStores.map(s => (
                                   <th key={s} className="text-right px-4 py-2 text-gray-500 font-semibold whitespace-nowrap">{s}</th>
                                 ))}
@@ -553,36 +610,69 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                               </tr>
                             </thead>
                             <tbody>
-                              {currentResults.map((m, i) => (
+                              {currentResults.map((m, i) => {
+                                const sortedPrices = [...m.prices].filter(p => p.price > 0).sort((a, b) => a.price - b.price)
+                                const rowBest = sortedPrices[0]?.price || 0
+                                const rowWorst = sortedPrices[sortedPrices.length - 1]?.price || 0
+                                return (
                                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
                                   <td className="px-4 py-2 text-gray-800 font-medium max-w-[200px] truncate">{m.name}</td>
+                                  <td className="text-center px-2 py-2 text-gray-400 text-xs">{m.qty} {m.unit}</td>
                                   {allStores.map(s => {
                                     const p = m.prices.find(pr => pr.store === s)
-                                    const isBest = m.bestPrice?.store === s
+                                    const isBest = p && p.price === rowBest && rowBest > 0
+                                    const isWorst = p && p.price === rowWorst && rowWorst !== rowBest && sortedPrices.length > 1
+                                    const ecart = rowBest > 0 && p && p.price > rowBest ? Math.round(((p.price - rowBest) / rowBest) * 100) : 0
                                     return (
                                       <td key={s} className={`text-right px-4 py-2 font-semibold ${
-                                        isBest ? 'text-green-700 bg-green-50' : p ? 'text-gray-700' : 'text-gray-300'
+                                        isBest ? 'text-green-700 bg-green-50' : isWorst ? 'text-red-600 bg-red-50/40' : p ? 'text-gray-700' : 'text-gray-300'
                                       }`}>
-                                        {p ? `${p.price} €` : '—'}
+                                        {p ? (
+                                          <span>
+                                            {m.qty > 1 ? `${Math.round(p.price * m.qty)}` : p.price} €
+                                            {ecart > 0 && <span className={`text-xs ml-1 ${isWorst ? 'text-red-400' : 'text-gray-400'}`}>+{ecart}%</span>}
+                                          </span>
+                                        ) : '—'}
                                       </td>
                                     )
                                   })}
                                   <td className="text-right px-4 py-2 text-green-700 font-bold">
-                                    {m.bestPrice ? `${m.bestPrice.price} €` : '—'}
+                                    {m.bestPrice ? `${m.qty > 1 ? Math.round(m.bestPrice.price * m.qty) : m.bestPrice.price} €` : '—'}
                                   </td>
                                 </tr>
-                              ))}
+                                )
+                              })}
+                              {/* Total par enseigne */}
                               <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
-                                <td className="px-4 py-2 text-gray-700">TOTAL (meilleurs prix)</td>
-                                {allStores.map(s => <td key={s} className="px-4 py-2" />)}
+                                <td className="px-4 py-2 text-gray-700" colSpan={2}>TOTAL</td>
+                                {storeTotals.map(st => {
+                                  const isCheapest = st.total > 0 && st.total === bestStoreTotal && st.coverage === currentResults!.length
+                                  const isMostExpensive = st.total > 0 && st.total === worstStoreTotal && worstStoreTotal !== bestStoreTotal
+                                  const ecart = bestStoreTotal > 0 && st.total > bestStoreTotal ? Math.round(((st.total - bestStoreTotal) / bestStoreTotal) * 100) : 0
+                                  return (
+                                    <td key={st.store} className={`text-right px-4 py-2 ${
+                                      isCheapest ? 'text-green-700 bg-green-50' : isMostExpensive ? 'text-red-600' : st.total > 0 ? 'text-gray-700' : 'text-gray-300'
+                                    }`}>
+                                      {st.total > 0 ? (
+                                        <span>
+                                          {Math.round(st.total)} €
+                                          {ecart > 0 && <span className={`text-xs ml-1 ${isMostExpensive ? 'text-red-400' : 'text-gray-400'}`}>+{ecart}%</span>}
+                                          {st.coverage < currentResults!.length && <span className="text-xs ml-1 text-gray-400">*</span>}
+                                        </span>
+                                      ) : '—'}
+                                    </td>
+                                  )
+                                })}
                                 <td className="text-right px-4 py-2 text-green-700 text-base">
-                                  {totalBestPrice > 0 ? `${totalBestPrice} €` : '—'}
+                                  {totalBestPrice > 0 ? `${Math.round(currentResults!.reduce((sum, m) => sum + (m.bestPrice ? m.bestPrice.price * m.qty : 0), 0))} €` : '—'}
                                 </td>
                               </tr>
                             </tbody>
                           </table>
                         </div>
                       </div>
+                        )
+                      })()
                     )}
 
                     {/* Marge + Export devis */}
@@ -722,7 +812,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                   const maxSaving = cheapest && mostExpensive && mostExpensive.price > cheapest.price
                     ? mostExpensive.price - cheapest.price : 0
                   const savingPct = mostExpensive && mostExpensive.price > 0 ? Math.round((maxSaving / mostExpensive.price) * 100) : 0
-                  const timeStr = productFetchedAt ? new Date(productFetchedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null
+                  const timeStr = productFetchedAt ? new Date(productFetchedAt).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' }) : null
 
                   return (
                   <div className="space-y-4">
@@ -950,7 +1040,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                       <div className="font-bold text-gray-900 truncate">{s.query}</div>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-xs text-gray-500">
-                          📅 {new Date(s.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          📅 {new Date(s.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                         {s.city && <span className="text-xs text-blue-600">📍 {s.city}</span>}
                         <span className="text-xs text-gray-500">{s.materials.length} matériaux</span>
@@ -968,7 +1058,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                           setCurrentEstimate(s.totalEstimate)
                           setMessages([
                             { role: 'user', content: s.query },
-                            { role: 'assistant', content: `Résultats chargés depuis l'historique du **${new Date(s.date).toLocaleDateString('fr-FR')}**${s.city ? ` (${s.city})` : ''}.` },
+                            { role: 'assistant', content: `Résultats chargés depuis l'historique du **${new Date(s.date).toLocaleDateString(dateFmtLocale)}**${s.city ? ` (${s.city})` : ''}.` },
                           ])
                           setChatStarted(true)
                           setActiveTab('recherche')
