@@ -10,13 +10,21 @@ interface MatPrice { store: string; price: number; url: string | null }
 interface MatItem { name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string; prices: MatPrice[]; bestPrice: { store: string; price: number } | null; avgPrice: number }
 interface MatSearch { id: string; date: string; query: string; city: string | null; materials: MatItem[]; totalEstimate: { min: number; max: number } | null }
 
-const JOB_PRESETS = [
+const JOB_PRESETS_FR = [
   { label: '🚿 Chauffe-eau', q: 'Remplacement chauffe-eau thermodynamique 200L' },
   { label: '🪟 Carrelage 20m²', q: 'Pose carrelage sol 20m² format 60x60' },
   { label: '⚡ Tableau électrique', q: 'Remplacement tableau électrique 8 circuits' },
   { label: '🚪 Salle de bain', q: 'Rénovation salle de bain complète 6m²' },
   { label: '🔩 Robinetterie', q: 'Remplacement robinetterie cuisine et salle de bain' },
   { label: '🧱 Isolation combles', q: 'Isolation combles perdus 50m² laine de verre' },
+]
+const JOB_PRESETS_PT = [
+  { label: '🚿 Aquecedor', q: 'Substituição esquentador termostático 200L' },
+  { label: '🪟 Azulejo 20m²', q: 'Colocação azulejo pavimento 20m² formato 60x60' },
+  { label: '⚡ Quadro elétrico', q: 'Substituição quadro elétrico 8 circuitos' },
+  { label: '🚪 Casa de banho', q: 'Renovação casa de banho completa 6m²' },
+  { label: '🔩 Torneiras', q: 'Substituição torneiras cozinha e casa de banho' },
+  { label: '🧱 Isolamento sótão', q: 'Isolamento sótão 50m² lã de vidro' },
 ]
 
 const STORE_COLORS: Record<string, string> = {
@@ -41,13 +49,21 @@ const STORE_COLORS: Record<string, string> = {
   'Sanitop': 'text-purple-700 bg-purple-50',
 }
 
-const PRODUCT_PRESETS = [
+const PRODUCT_PRESETS_FR = [
   { label: '🔧 Disqueuse', q: 'disqueuse meuleuse 125mm' },
   { label: '🔩 Perceuse', q: 'perceuse visseuse sans fil 18V' },
   { label: '💨 Karcher', q: 'nettoyeur haute pression karcher' },
   { label: '🪜 Échafaudage', q: 'échafaudage roulant aluminium' },
   { label: '📐 Laser', q: 'niveau laser croix vert' },
   { label: '🔨 Visseuse', q: 'visseuse à chocs 18V' },
+]
+const PRODUCT_PRESETS_PT = [
+  { label: '🔧 Rebarbadora', q: 'rebarbadora 125mm' },
+  { label: '🔩 Berbequim', q: 'berbequim aparafusadora sem fio 18V' },
+  { label: '💨 Karcher', q: 'lavadora de alta pressão karcher' },
+  { label: '🪜 Andaime', q: 'andaime rolante alumínio' },
+  { label: '📐 Laser', q: 'nível laser cruzado verde' },
+  { label: '🔨 Aparafusadora', q: 'aparafusadora de impacto 18V' },
 ]
 
 export default function MateriauxSection({ artisan, onExportDevis }: { artisan: any; onExportDevis: (lines: any[]) => void }) {
@@ -214,7 +230,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.response || 'Voici les matériaux identifiés pour votre chantier.',
+        content: data.response || (locale === 'pt' ? 'Aqui estão os materiais identificados para a sua obra.' : 'Voici les matériaux identifiés pour votre chantier.'),
       }])
     } catch {
       setMessages(prev => [...prev, {
@@ -390,9 +406,9 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
               {/* Quick presets */}
               <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Interventions courantes</p>
+                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">{locale === 'pt' ? 'Intervenções comuns' : 'Interventions courantes'}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {JOB_PRESETS.map((p, i) => (
+                  {(locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className="bg-white border-2 border-gray-200 hover:border-[#FFC107] hover:-translate-y-0.5 text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm">
                       {p.label}
@@ -417,9 +433,9 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
               </div>
 
               <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Recherches populaires</p>
+                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">{locale === 'pt' ? 'Pesquisas populares' : 'Recherches populaires'}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {PRODUCT_PRESETS.map((p, i) => (
+                  {(locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className="bg-white border-2 border-gray-200 hover:border-blue-400 hover:-translate-y-0.5 text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm">
                       {p.label}
@@ -972,7 +988,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
               {/* Suggestions rapides */}
               {chatStarted && !isLoading && (
                 <div className="flex gap-2 flex-wrap mb-4">
-                  {(searchMode === 'product' ? PRODUCT_PRESETS : JOB_PRESETS).slice(0, 3).map((p, i) => (
+                  {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : (locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR)).slice(0, 3).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-1.5 hover:bg-amber-100 transition font-medium whitespace-nowrap">
                       {p.label}
