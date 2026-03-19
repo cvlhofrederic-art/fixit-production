@@ -499,7 +499,7 @@ L'artisan recherche : "${query.trim()}"${cityContext}.
 ${BTP_NORMS_KNOWLEDGE}
 
 Génère une liste de 3-6 produits recommandés avec prix estimés (prix magasin France 2024-2025).
-Pour chaque produit, indique le magasin principal (Leroy Merlin, Brico Dépôt, Castorama, ManoMano, Point P).`
+Pour chaque produit, indique le magasin principal (Leroy Merlin, Brico Dépôt, Castorama, ManoMano, Point P).
 
 Réponds UNIQUEMENT avec un JSON valide, sans markdown :
 {
