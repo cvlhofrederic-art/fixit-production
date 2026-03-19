@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const { from, to } = parsePagination(request.url)
+  const { from, to } = parsePagination(new URL(request.url))
   const { data, error, count } = await query.range(from, to)
 
   if (error) {
