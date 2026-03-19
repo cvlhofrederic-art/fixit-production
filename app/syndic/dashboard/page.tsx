@@ -21,7 +21,7 @@ import { ROLE_PAGES, SYNDIC_MODULES, EVENT_COLORS } from '@/components/syndic-da
 
 // ─── Lazy-loaded Section Components (code-splitting) ─────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false }) as React.ComponentType<any>
+const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false })
 const EquipeSection = d(() => import('@/components/syndic-dashboard/misc/EquipeSection'))
 const AnalyseDevisSection = d(() => import('@/components/syndic-dashboard/reporting/AnalyseDevisSection'))
 const DocsInterventionsSection = d(() => import('@/components/syndic-dashboard/operations/DocsInterventionsSection'))
@@ -81,9 +81,10 @@ const RecouvrementEnrichiFRSection = d(() => import('@/components/syndic-dashboa
 const SuiviEnergetiqueFRSection = d(() => import('@/components/syndic-dashboard/technical/SuiviEnergetiqueFRSection'))
 const CommunicationDematFRSection = d(() => import('@/components/syndic-dashboard/communication/CommunicationDematFRSection'))
 const GEDCertifieeFRSection = d(() => import('@/components/syndic-dashboard/operations/GEDCertifieeFRSection'))
-const MissionDetailsModal = d(() => import('@/components/syndic-dashboard/operations/MissionDetailsModal'))
-const FacturationPageWithTransferts = d(() => import('@/components/syndic-dashboard/financial/FacturationPageWithTransferts'))
-const CanalCommunicationsPage = d(() => import('@/components/syndic-dashboard/communication/CanalCommunicationsPage'))
+// Static imports for components with complex typed props (callbacks)
+import MissionDetailsModal from '@/components/syndic-dashboard/operations/MissionDetailsModal'
+import FacturationPageWithTransferts from '@/components/syndic-dashboard/financial/FacturationPageWithTransferts'
+import CanalCommunicationsPage from '@/components/syndic-dashboard/communication/CanalCommunicationsPage'
 const GmailConnectButton = d(() => import('@/components/syndic-dashboard/communication/GmailConnectButton'))
 const SignatureModal = d(() => import('@/components/syndic-dashboard/misc/SignatureModal'))
 // ── PT ──
@@ -3729,7 +3730,7 @@ export default function SyndicDashboard() {
               artisans={artisans}
               userRole={userRole}
               user={user}
-              onUpdateMission={(updated: any) => {
+              onUpdateMission={(updated) => {
                 setMissions(prev => prev.map(m => m.id === updated.id ? updated : m))
                 try {
                   const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
@@ -3738,14 +3739,14 @@ export default function SyndicDashboard() {
                   localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(newStored))
                 } catch {}
               }}
-              onAddMission={(newM: any) => {
+              onAddMission={(newM) => {
                 setMissions(prev => {
                   const updated = [newM, ...prev]
                   try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated)) } catch {}
                   return updated
                 })
               }}
-              onOpenMission={(m: any) => { setSelectedMission(m); setShowMissionDetails(true) }}
+              onOpenMission={(m) => { setSelectedMission(m); setShowMissionDetails(true) }}
               onCreateMission={() => setShowModalMission(true)}
               canalInterneMessages={canalInterneMessages}
               setCanalInterneMessages={setCanalInterneMessages}
@@ -3779,7 +3780,7 @@ export default function SyndicDashboard() {
                 } catch {}
               }}
               userName={userName}
-              onAddPlanningEvent={(evt: any) => setPlanningEvents(prev => [...prev, evt])}
+              onAddPlanningEvent={(evt) => setPlanningEvents(prev => [...prev, evt])}
             />
           )}
 
