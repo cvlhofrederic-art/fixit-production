@@ -50,6 +50,59 @@ const STORE_COLORS: Record<string, string> = {
   'Sanitop': 'text-purple-700 bg-purple-50',
 }
 
+// ─── Coordonnées GPS des magasins physiques (marchés PT + FR) ───
+interface StoreLocation { name: string; lat: number; lng: number; label: string }
+const STORE_LOCATIONS: StoreLocation[] = [
+  // PT — Norte (Porto / Tâmega e Sousa)
+  { name: 'Leroy Merlin PT', lat: 41.1896, lng: -8.6827, label: 'Matosinhos' },
+  { name: 'Leroy Merlin PT', lat: 41.1159, lng: -8.6139, label: 'Gaia' },
+  { name: 'Leroy Merlin PT', lat: 41.2356, lng: -8.6199, label: 'Maia' },
+  { name: 'AKI', lat: 41.1877, lng: -8.6943, label: 'Matosinhos' },
+  { name: 'AKI', lat: 41.1596, lng: -8.6359, label: 'Porto' },
+  { name: 'AKI', lat: 41.2080, lng: -8.2845, label: 'Penafiel' },
+  { name: 'Maxmat', lat: 41.1615, lng: -8.6564, label: 'Porto' },
+  { name: 'Maxmat', lat: 41.1844, lng: -8.1544, label: 'Marco Canaveses' },
+  { name: 'Maxmat', lat: 41.2723, lng: -8.0811, label: 'Amarante' },
+  { name: 'Bricomarché', lat: 41.1844, lng: -8.1544, label: 'Marco Canaveses' },
+  { name: 'Bricomarché', lat: 41.2080, lng: -8.2845, label: 'Penafiel' },
+  { name: 'Wurth', lat: 41.1579, lng: -8.6291, label: 'Porto' },
+  { name: 'Wurth', lat: 41.2356, lng: -8.6199, label: 'Maia' },
+  { name: 'Sanitop', lat: 41.1615, lng: -8.6564, label: 'Porto' },
+  // FR — PACA (Marseille / Aix-en-Provence)
+  { name: 'Leroy Merlin', lat: 43.3065, lng: 5.3655, label: 'Marseille La Valentine' },
+  { name: 'Leroy Merlin', lat: 43.4510, lng: 5.3916, label: 'Aix-en-Provence' },
+  { name: 'Leroy Merlin', lat: 43.2956, lng: 5.5708, label: 'Aubagne' },
+  { name: 'Brico Dépôt', lat: 43.3188, lng: 5.3917, label: 'Marseille' },
+  { name: 'Brico Dépôt', lat: 43.4335, lng: 5.2141, label: 'Vitrolles' },
+  { name: 'Castorama', lat: 43.2784, lng: 5.3806, label: 'Marseille' },
+  { name: 'Point P', lat: 43.3097, lng: 5.3789, label: 'Marseille' },
+  { name: 'Point P', lat: 43.4510, lng: 5.3916, label: 'Aix-en-Provence' },
+  { name: 'Cédéo', lat: 43.3030, lng: 5.3830, label: 'Marseille' },
+  { name: 'Mr.Bricolage', lat: 43.2520, lng: 5.3980, label: 'La Ciotat' },
+  { name: 'Toolstation', lat: 43.3100, lng: 5.3750, label: 'Marseille' },
+]
+
+/** Distance haversine en km entre deux points GPS */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+/** Trouve le magasin le plus proche pour une enseigne donnée */
+function getNearestStore(storeName: string, userLat: number, userLng: number): { distance: number; label: string } | null {
+  const matches = STORE_LOCATIONS.filter(s => storeName.includes(s.name) || s.name.includes(storeName))
+  if (matches.length === 0) return null
+  let best: { distance: number; label: string } | null = null
+  for (const m of matches) {
+    const d = haversineKm(userLat, userLng, m.lat, m.lng)
+    if (!best || d < best.distance) best = { distance: Math.round(d), label: m.label }
+  }
+  return best
+}
+
 const PRODUCT_PRESETS_FR = [
   { label: '🔧 Disqueuse', q: 'disqueuse meuleuse 125mm' },
   { label: '🔩 Perceuse', q: 'perceuse visseuse sans fil 18V' },
@@ -72,6 +125,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')
   const [userCity, setUserCity] = useState<string | null>(null)
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
@@ -106,6 +160,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     if (userCity || typeof navigator === 'undefined' || !navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
@@ -128,6 +183,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     setGeoError(null)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
@@ -557,6 +613,10 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                                       }`}>
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
                                           {p.store}
+                                          {userCoords && (() => {
+                                            const nearest = getNearestStore(p.store, userCoords.lat, userCoords.lng)
+                                            return nearest ? <span className="ml-1 opacity-70">({nearest.distance} km)</span> : null
+                                          })()}
                                         </span>
                                         <div className="flex-1" />
                                         {m.qty > 1 && (
@@ -633,9 +693,14 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                               <tr className="border-b border-gray-100">
                                 <th className="text-left px-4 py-2 text-gray-500 font-semibold">{locale === 'pt' ? 'Material' : 'Matériau'}</th>
                                 <th className="text-center px-2 py-2 text-gray-400 font-semibold text-xs">{locale === 'pt' ? 'Qtd' : 'Qté'}</th>
-                                {allStores.map(s => (
-                                  <th key={s} className="text-right px-4 py-2 text-gray-500 font-semibold whitespace-nowrap">{s}</th>
-                                ))}
+                                {allStores.map(s => {
+                                  const nearest = userCoords ? getNearestStore(s, userCoords.lat, userCoords.lng) : null
+                                  return (
+                                    <th key={s} className="text-right px-4 py-2 text-gray-500 font-semibold whitespace-nowrap">
+                                      {s}{nearest ? <span className="font-normal text-xs text-gray-400 ml-1">({nearest.distance} km)</span> : null}
+                                    </th>
+                                  )
+                                })}
                                 <th className="text-right px-4 py-2 text-green-600 font-semibold">{locale === 'pt' ? 'Melhor' : 'Meilleur'}</th>
                               </tr>
                             </thead>
@@ -986,6 +1051,10 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                               </div>
                               <span className={`text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
                                 {p.store}
+                                {userCoords && (() => {
+                                  const nearest = getNearestStore(p.store, userCoords.lat, userCoords.lng)
+                                  return nearest ? <span className="ml-1 opacity-70">({nearest.distance} km)</span> : null
+                                })()}
                               </span>
                               <div className="text-right flex-shrink-0 min-w-[90px]">
                                 {p.price > 0 ? (
