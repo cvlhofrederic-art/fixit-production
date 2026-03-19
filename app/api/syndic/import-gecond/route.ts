@@ -8,15 +8,12 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId, getUserRole } from '@/lib/auth-helpers'
 import { parseGecondCSV, gecondToFixit } from '@/lib/gecond-parser'
 import { logger } from '@/lib/logger'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// supabaseAdmin imported from @/lib/supabase-server (lazy init, safe at build time)
 
 // ── Rate limiter simple ─────────────────────────────────────────────────────
 const importLimiter = new Map<string, { count: number; resetAt: number }>()
