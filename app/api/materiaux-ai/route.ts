@@ -823,15 +823,47 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
     // ── STAGE 2 : Recherche prix Tavily (si disponible) ───────────────────────
     let searchBundle = ''
     if (usingTavily) {
+      // PT: recherches séparées par enseigne pour garantir des résultats de chaque magasin
+      const ptStoreGroups = [
+        { stores: ['leroymerlin.pt'], label: 'Leroy Merlin PT' },
+        { stores: ['aki.pt'], label: 'AKI' },
+        { stores: ['maxmat.pt', 'bricomarche.pt', 'wurth.pt'], label: 'Maxmat/Bricomarché/Wurth' },
+      ]
+
       const searchResults = await Promise.allSettled(
         rawMaterials.map(async (m) => {
           const countryLabel = locale === 'pt' ? 'Portugal' : 'France'
-          const searchQ = `${m.name} ${locale === 'pt' ? 'preço loja' : 'prix magasin'} ${countryLabel} 2025${citySearchSuffix}`
-          const results = await searchTavily(searchQ, {
-            maxResults: 5,
-            includeDomains: storeDomains,
-          })
-          return { material: m, results }
+
+          if (locale === 'pt') {
+            // Recherches parallèles par groupe d'enseignes PT
+            const storeSearches = await Promise.allSettled(
+              ptStoreGroups.map(async (group) => {
+                const searchQ = `${m.name} preço ${group.label} Portugal 2025${citySearchSuffix}`
+                const results = await searchTavily(searchQ, {
+                  maxResults: 3,
+                  includeDomains: group.stores,
+                })
+                // Si pas de résultat sur le domaine, chercher sans restriction de domaine
+                if (results.length === 0) {
+                  const fallbackQ = `${m.name} preço ${group.label} 2025`
+                  return searchTavily(fallbackQ, { maxResults: 2 })
+                }
+                return results
+              })
+            )
+            const allResults = storeSearches.flatMap(r =>
+              r.status === 'fulfilled' ? r.value : []
+            )
+            return { material: m, results: allResults }
+          } else {
+            // FR: recherche groupée (fonctionne bien)
+            const searchQ = `${m.name} prix magasin ${countryLabel} 2025${citySearchSuffix}`
+            const results = await searchTavily(searchQ, {
+              maxResults: 5,
+              includeDomains: storeDomains,
+            })
+            return { material: m, results }
+          }
         })
       )
 
@@ -871,10 +903,11 @@ Estrutura OBRIGATÓRIA:
       "normDetails": "Pontos de atenção para instalação e conformidade",
       "prices": [
         {"store": "Leroy Merlin PT", "price": 699, "url": "https://www.leroymerlin.pt/..."},
-        {"store": "AKI [Estimado]", "price": 549, "url": null}
+        {"store": "AKI", "price": 549, "url": "https://www.aki.pt/..."},
+        {"store": "Maxmat [Estimado]", "price": 619, "url": null}
       ],
       "bestPrice": {"store": "AKI", "price": 549},
-      "avgPrice": 625
+      "avgPrice": 622
     }
   ],
   "totalEstimate": {"min": 850, "max": 1200},
