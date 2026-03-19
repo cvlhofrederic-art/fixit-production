@@ -4891,7 +4891,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           batimentsConnus={batimentsConnus}
           artisans={artisans}
           coproprios={coproprios}
-          onAdd={async (m) => {
+          onAdd={async (m: any) => {
             // Mémoriser le bâtiment saisi
             if (m.immeuble?.trim()) enregistrerBatiment(m.immeuble)
             const missionId = Date.now().toString()
