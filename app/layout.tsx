@@ -27,11 +27,10 @@ const syne = Syne({
   weight: ["400", "600", "700", "800"],
 });
 
-// Montserrat: reduced weights (was 400-900, now 400/600/700) — saves ~60KB font data
 const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 // Polices Syndic Dashboard (Outfit + Playfair Display)
