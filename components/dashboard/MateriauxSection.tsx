@@ -123,7 +123,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
   }, [])
 
   const handleGeolocation = () => {
-    if (!navigator.geolocation) { setGeoError('Géolocalisation non supportée'); return }
+    if (!navigator.geolocation) { setGeoError(locale === 'pt' ? 'Geolocalização não suportada' : 'Géolocalisation non supportée'); return }
     setGeoLoading(true)
     setGeoError(null)
     navigator.geolocation.getCurrentPosition(
@@ -136,11 +136,11 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
           const data = await res.json()
           const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || null
           setUserCity(city)
-        } catch { setGeoError('Impossible de déterminer la ville') }
+        } catch { setGeoError(locale === 'pt' ? 'Impossível determinar a cidade' : 'Impossible de déterminer la ville') }
         setGeoLoading(false)
       },
       (err) => {
-        setGeoError(err.code === 1 ? 'Accès à la position refusé' : 'Erreur de géolocalisation')
+        setGeoError(err.code === 1 ? (locale === 'pt' ? 'Acesso à localização recusado' : 'Accès à la position refusé') : (locale === 'pt' ? 'Erro de geolocalização' : 'Erreur de géolocalisation'))
         setGeoLoading(false)
       },
       { timeout: 8000, maximumAge: 300000 }
@@ -209,7 +209,9 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
         }
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: data.response || (data.products?.length > 0 ? 'Voici les produits trouvés.' : 'Aucun produit trouvé. Essayez une recherche plus précise.'),
+          content: data.response || (data.products?.length > 0
+            ? (locale === 'pt' ? 'Aqui estão os produtos encontrados.' : 'Voici les produits trouvés.')
+            : (locale === 'pt' ? 'Nenhum produto encontrado. Tente uma pesquisa mais precisa.' : 'Aucun produit trouvé. Essayez une recherche plus précise.')),
         }])
         setIsLoading(false)
         setTimeout(() => inputRef.current?.focus(), 100)
@@ -330,8 +332,8 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
       <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
         <div className="flex items-center justify-between flex-wrap gap-3 w-full">
           <div>
-            <h1 className="text-xl font-semibold leading-tight">🛒 Matériaux & Prix</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Recherche IA autonome · Comparatif par enseigne</p>
+            <h1 className="text-xl font-semibold leading-tight">{locale === 'pt' ? '🛒 Materiais & Preços' : '🛒 Matériaux & Prix'}</h1>
+            <p className="text-xs text-gray-400 mt-0.5">{locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne'}</p>
           </div>
           <div className="flex items-center gap-2">
             {userCity && (
@@ -348,7 +350,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                   : 'border-[#FFC107] bg-[#FFC107]/10 text-gray-800 hover:bg-[#FFC107]/20'
               }`}
             >
-              {geoLoading ? '⏳' : '📍'} {userCity ? 'Mettre à jour' : 'Localisation GPS'}
+              {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
             </button>
           </div>
         </div>
@@ -359,9 +361,9 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
       <div className="bg-white border-b border-gray-100 px-6 lg:px-10 pt-4 pb-0">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-0">
           {([
-            { key: 'recherche', label: '🔍 Recherche' },
-            { key: 'historique', label: `📋 Historique (${savedSearches.length})` },
-            { key: 'aide', label: '💡 Aide' },
+            { key: 'recherche', label: locale === 'pt' ? '🔍 Pesquisa' : '🔍 Recherche' },
+            { key: 'historique', label: locale === 'pt' ? `📋 Histórico (${savedSearches.length})` : `📋 Historique (${savedSearches.length})` },
+            { key: 'aide', label: locale === 'pt' ? '💡 Ajuda' : '💡 Aide' },
           ] as const).map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
@@ -383,14 +385,14 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
                 searchMode === 'project' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}>
-              🏗️ Matériaux chantier
+              {locale === 'pt' ? '🏗️ Materiais obra' : '🏗️ Matériaux chantier'}
             </button>
             <button
               onClick={() => { setSearchMode('product'); setCurrentResults(null); setCurrentEstimate(null) }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
                 searchMode === 'product' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
               }`}>
-              🛍️ Recherche produit
+              {locale === 'pt' ? '🛍️ Pesquisa produto' : '🛍️ Recherche produit'}
             </button>
           </div>
 
@@ -399,14 +401,16 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
             <div className="max-w-2xl mx-auto">
               <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-[#FFC107]/40 rounded-2xl p-8 mb-6 text-center">
                 <div className="text-6xl mb-4">🛒</div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Agent Matériaux IA</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">{locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}</h2>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux
-                  avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong>
+                  {locale === 'pt'
+                    ? <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
+                    : <>Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong></>
+                  }
                 </p>
                 {!userCity && (
                   <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
-                    💡 Activez la localisation GPS pour des résultats adaptés à votre région
+                    {locale === 'pt' ? '💡 Ative a localização GPS para resultados adaptados à sua região' : '💡 Activez la localisation GPS pour des résultats adaptés à votre région'}
                   </div>
                 )}
               </div>
@@ -431,11 +435,12 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
             <div className="max-w-2xl mx-auto">
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300/40 rounded-2xl p-8 mb-6 text-center">
                 <div className="text-6xl mb-4">🛍️</div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Recherche Produit</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">{locale === 'pt' ? 'Pesquisa Produto' : 'Recherche Produit'}</h2>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Recherchez un outil ou produit spécifique. L&apos;agent scanne les boutiques en ligne
-                  <strong> (Amazon, ManoMano, Leroy Merlin, Castorama…)</strong> et affiche les meilleurs prix
-                  avec des liens d&apos;achat directs.
+                  {locale === 'pt'
+                    ? <>Pesquise uma ferramenta ou produto específico. O agente analisa as lojas online <strong>(Amazon, ManoMano, Leroy Merlin PT, AKI…)</strong> e mostra os melhores preços com links de compra diretos.</>
+                    : <>Recherchez un outil ou produit spécifique. L&apos;agent scanne les boutiques en ligne <strong>(Amazon, ManoMano, Leroy Merlin, Castorama…)</strong> et affiche les meilleurs prix avec des liens d&apos;achat directs.</>
+                  }
                 </p>
               </div>
 
@@ -483,7 +488,9 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                           <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                           <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                         </span>
-                        <span>{searchMode === 'product' ? 'Recherche du produit sur les boutiques en ligne...' : 'Recherche des matériaux et prix en cours...'}</span>
+                        <span>{searchMode === 'product'
+                          ? (locale === 'pt' ? 'A pesquisar o produto nas lojas online...' : 'Recherche du produit sur les boutiques en ligne...')
+                          : (locale === 'pt' ? 'A pesquisar materiais e preços...' : 'Recherche des matériaux et prix en cours...')}</span>
                       </div>
                     </div>
                   </div>
@@ -495,7 +502,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                     {isFallback && (
                       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 flex gap-2">
                         <span>⚠️</span>
-                        <span>Prix estimés (sans recherche web en temps réel). Activez Tavily pour des prix actualisés.</span>
+                        <span>{locale === 'pt' ? 'Preços estimados (sem pesquisa web em tempo real). Ative Tavily para preços atualizados.' : 'Prix estimés (sans recherche web en temps réel). Activez Tavily pour des prix actualisés.'}</span>
                       </div>
                     )}
 
@@ -526,7 +533,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                               <div className="text-right flex-shrink-0">
                                 <div className="text-lg font-black text-green-600">{m.bestPrice.price} €</div>
                                 <div className="text-xs text-gray-500">
-                                  {m.qty > 1 ? `${m.bestPrice.price} x ${m.qty} = ${Math.round(m.bestPrice.price * m.qty)} €` : 'Meilleur prix'}
+                                  {m.qty > 1 ? `${m.bestPrice.price} x ${m.qty} = ${Math.round(m.bestPrice.price * m.qty)} €` : (locale === 'pt' ? 'Melhor preço' : 'Meilleur prix')}
                                 </div>
                               </div>
                             )}
@@ -560,13 +567,13 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                                         }`}>
                                           {p.price} €
                                         </span>
-                                        {isBest && <span className="text-green-600 text-xs font-bold">Meilleur</span>}
+                                        {isBest && <span className="text-green-600 text-xs font-bold">{locale === 'pt' ? 'Melhor' : 'Meilleur'}</span>}
                                         {!isBest && ecartPct > 0 && (
                                           <span className={`text-xs font-semibold ${isWorst ? 'text-red-500' : 'text-gray-400'}`}>+{ecartPct}%</span>
                                         )}
                                         {p.url && (
                                           <a href={p.url} target="_blank" rel="noopener noreferrer"
-                                            className="text-blue-500 hover:text-blue-700 text-xs underline ml-1">Voir</a>
+                                            className="text-blue-500 hover:text-blue-700 text-xs underline ml-1">{locale === 'pt' ? 'Ver' : 'Voir'}</a>
                                         )}
                                       </div>
                                     )
@@ -575,7 +582,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                               )
                             })()
                           ) : (
-                            <div className="px-5 py-3 text-sm text-gray-500 italic">Prix non trouvés — vérifiez manuellement</div>
+                            <div className="px-5 py-3 text-sm text-gray-500 italic">{locale === 'pt' ? 'Preços não encontrados — verifique manualmente' : 'Prix non trouvés — vérifiez manuellement'}</div>
                           )}
 
                           {/* Normes applicables */}
@@ -618,18 +625,18 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                         return (
                       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
                         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 font-bold text-sm text-gray-700">
-                          📊 Comparatif par enseigne
+                          {locale === 'pt' ? '📊 Comparativo por loja' : '📊 Comparatif par enseigne'}
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-gray-100">
-                                <th className="text-left px-4 py-2 text-gray-500 font-semibold">Matériau</th>
-                                <th className="text-center px-2 py-2 text-gray-400 font-semibold text-xs">Qté</th>
+                                <th className="text-left px-4 py-2 text-gray-500 font-semibold">{locale === 'pt' ? 'Material' : 'Matériau'}</th>
+                                <th className="text-center px-2 py-2 text-gray-400 font-semibold text-xs">{locale === 'pt' ? 'Qtd' : 'Qté'}</th>
                                 {allStores.map(s => (
                                   <th key={s} className="text-right px-4 py-2 text-gray-500 font-semibold whitespace-nowrap">{s}</th>
                                 ))}
-                                <th className="text-right px-4 py-2 text-green-600 font-semibold">Meilleur</th>
+                                <th className="text-right px-4 py-2 text-green-600 font-semibold">{locale === 'pt' ? 'Melhor' : 'Meilleur'}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -702,7 +709,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                     {totalBestPrice > 0 && (
                       <div className="bg-white border-2 border-[#FFC107]/40 rounded-2xl p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="font-bold text-gray-800 text-lg">💰 Intégrer au devis</h3>
+                          <h3 className="font-bold text-gray-800 text-lg">{locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}</h3>
                           {/* Badge statut fiscal détecté */}
                           <span className={`text-xs px-3 py-1 rounded-full font-semibold border ${
                             isAssujetti
@@ -718,7 +725,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
                         {/* Marge slider */}
                         <div className="flex items-center gap-4 mb-2">
-                          <label className="text-sm font-semibold text-gray-600 flex-shrink-0">Marge de revente</label>
+                          <label className="text-sm font-semibold text-gray-600 flex-shrink-0">{locale === 'pt' ? 'Margem de revenda' : 'Marge de revente'}</label>
                           <input
                             type="range" min={0} max={60} value={globalMarkup}
                             onChange={e => setGlobalMarkup(Number(e.target.value))}
@@ -732,54 +739,56 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                         {/* Alerte si marge insuffisante */}
                         {!margeIsRentable && totalBestPrice > 0 && (
                           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-red-700">
-                            ⚠️ <strong>Marge insuffisante.</strong> Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>
-                            {isAutoEntrepreneur ? ` en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)` : ` en société assujettie TVA`}.
+                            ⚠️ <strong>{locale === 'pt' ? 'Margem insuficiente.' : 'Marge insuffisante.'}</strong> {locale === 'pt'
+                              ? <>Norma mínima: <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' para trabalhador independente (cobre IVA compra não recuperável + encargos)' : ' para empresa sujeita a IVA'}</>
+                              : <>Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)' : ' en société assujettie TVA'}</>
+                            }.
                           </div>
                         )}
                         {margeIsRentable && totalBestPrice > 0 && (
                           <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2 mb-4 text-xs text-green-700">
-                            ✅ Marge conforme aux standards nationaux BTP ({margeMinRecommandee}% min)
+                            {locale === 'pt' ? `✅ Margem conforme às normas do setor (${margeMinRecommandee}% mín)` : `✅ Marge conforme aux standards nationaux BTP (${margeMinRecommandee}% min)`}
                           </div>
                         )}
 
                         {/* Tableau de calcul fiscal */}
                         <div className="bg-gray-50 rounded-2xl p-4 mb-5 space-y-2 text-sm">
                           <div className="flex justify-between text-gray-600">
-                            <span>Coût achat matériaux (prix magasin TTC)</span>
+                            <span>{locale === 'pt' ? 'Custo compra materiais (preço loja c/ IVA)' : 'Coût achat matériaux (prix magasin TTC)'}</span>
                             <span className="font-semibold">{Math.round(totalBestPrice)} €</span>
                           </div>
                           {isAssujetti && (
                             <div className="flex justify-between text-gray-500 text-xs pl-3">
-                              <span>→ TVA achat récupérée ({TVA_ACHAT}%) — crédit de TVA</span>
+                              <span>{locale === 'pt' ? `→ IVA compra recuperado (${TVA_ACHAT}%) — crédito de IVA` : `→ TVA achat récupérée (${TVA_ACHAT}%) — crédit de TVA`}</span>
                               <span className="text-blue-600 font-semibold">−{Math.round(totalBestPrice - totalCoutAchatHT)} €</span>
                             </div>
                           )}
                           {isAutoEntrepreneur && (
                             <div className="flex justify-between text-gray-500 text-xs pl-3">
-                              <span>→ TVA achat non récupérable (incluse dans votre coût réel)</span>
+                              <span>{locale === 'pt' ? '→ IVA compra não recuperável (incluído no seu custo real)' : '→ TVA achat non récupérable (incluse dans votre coût réel)'}</span>
                               <span className="text-amber-600 font-semibold">{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</span>
                             </div>
                           )}
                           <div className="flex justify-between text-gray-600 border-t border-gray-200 pt-2">
-                            <span>Coût réel HT artisan</span>
+                            <span>{locale === 'pt' ? 'Custo real s/ IVA profissional' : 'Coût réel HT artisan'}</span>
                             <span className="font-semibold">{Math.round(totalCoutAchatHT)} €</span>
                           </div>
                           <div className="flex justify-between text-amber-700">
-                            <span>Marge revente {globalMarkup}%</span>
+                            <span>{locale === 'pt' ? `Margem revenda ${globalMarkup}%` : `Marge revente ${globalMarkup}%`}</span>
                             <span className="font-bold">+{markupAmount} €</span>
                           </div>
                           <div className="flex justify-between text-gray-800 font-bold border-t border-gray-200 pt-2">
-                            <span>Montant HT à facturer</span>
+                            <span>{locale === 'pt' ? 'Montante s/ IVA a faturar' : 'Montant HT à facturer'}</span>
                             <span>{totalWithMarkup} €</span>
                           </div>
                           {isAssujetti && (
                             <div className="flex justify-between text-gray-600 text-xs pl-3">
-                              <span>+ TVA {TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)</span>
+                              <span>{locale === 'pt' ? `+ IVA ${TVA_REVENTE}% cobrado (renovação)` : `+ TVA ${TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)`}</span>
                               <span>{Math.round(totalRevente * TVA_REVENTE / 100)} €</span>
                             </div>
                           )}
                           <div className={`flex justify-between font-black text-base pt-2 border-t-2 border-gray-300 ${isAssujetti ? 'text-blue-700' : 'text-green-700'}`}>
-                            <span>Total TTC client</span>
+                            <span>{locale === 'pt' ? 'Total c/ IVA cliente' : 'Total TTC client'}</span>
                             <span>{Math.round(totalReventeTTC)} €</span>
                           </div>
                         </div>
@@ -788,32 +797,53 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                         <div className={`rounded-xl px-4 py-3 mb-4 text-xs leading-relaxed ${
                           isAssujetti ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
                         }`}>
-                          {isAssujetti ? (
-                            <>
-                              <strong>📋 Régime TVA réel :</strong> Vous récupérez la TVA sur vos achats et collectez la TVA sur vos ventes.
-                              Taux applicable : <strong>10% rénovation logement &gt;2 ans</strong> (art. 279-0 bis CGI).
-                              Pour éco-rénovation (isolation, PAC, fenêtres) : 5.5% (art. 278-0 bis CGI).
-                              Pour local professionnel ou construction neuve : 20%.
-                            </>
+                          {locale === 'pt' ? (
+                            isAssujetti ? (
+                              <>
+                                <strong>📋 Regime IVA normal:</strong> Recupera o IVA nas compras e cobra IVA nas vendas.
+                                Taxa aplicável: <strong>23% normal</strong>, 13% intermédia, 6% reduzida (renovação habitação).
+                              </>
+                            ) : (
+                              <>
+                                <strong>📋 Regime de isenção IVA:</strong> Não cobra IVA.
+                                As compras são a seu cargo c/ IVA (não recuperável).
+                                As faturas devem mencionar <em>&quot;IVA — isento artigo 53.º do CIVA&quot;</em>.
+                              </>
+                            )
                           ) : (
-                            <>
-                              <strong>📋 Franchise en base de TVA :</strong> Vous n&apos;êtes pas assujetti à la TVA.
-                              Vos achats sont à votre charge TTC (non récupérable).
-                              Vos factures doivent mentionner <em>&quot;TVA non applicable — art. 293 B du CGI&quot;</em>.
-                              Seuils 2025 : 37 500 €/an prestation · 85 000 €/an marchandises.
-                            </>
+                            isAssujetti ? (
+                              <>
+                                <strong>📋 Régime TVA réel :</strong> Vous récupérez la TVA sur vos achats et collectez la TVA sur vos ventes.
+                                Taux applicable : <strong>10% rénovation logement &gt;2 ans</strong> (art. 279-0 bis CGI).
+                                Pour éco-rénovation (isolation, PAC, fenêtres) : 5.5% (art. 278-0 bis CGI).
+                                Pour local professionnel ou construction neuve : 20%.
+                              </>
+                            ) : (
+                              <>
+                                <strong>📋 Franchise en base de TVA :</strong> Vous n&apos;êtes pas assujetti à la TVA.
+                                Vos achats sont à votre charge TTC (non récupérable).
+                                Vos factures doivent mentionner <em>&quot;TVA non applicable — art. 293 B du CGI&quot;</em>.
+                                Seuils 2025 : 37 500 €/an prestation · 85 000 €/an marchandises.
+                              </>
+                            )
                           )}
                         </div>
 
                         <button onClick={handleExportDevis}
                           className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3.5 rounded-xl font-bold text-base shadow-md hover:-translate-y-0.5 transition-all">
-                          📄 Exporter vers un devis ({totalWithMarkup} € HT
-                          {isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})
+                          {locale === 'pt'
+                            ? `📄 Exportar para orçamento (${totalWithMarkup} € s/ IVA${isAssujetti ? ` + IVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € c/ IVA` : ' — IVA isento'})`
+                            : `📄 Exporter vers un devis (${totalWithMarkup} € HT${isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})`
+                          }
                         </button>
                         <p className="text-xs text-gray-500 text-center mt-2">
-                          {isAssujetti
-                            ? `TVA ${TVA_REVENTE}% collectée sur revente · Prix HT client calculés avec marge ${globalMarkup}%`
-                            : `Franchise TVA art. 293B CGI · Marge ${globalMarkup}% sur coût TTC artisan`
+                          {locale === 'pt'
+                            ? (isAssujetti
+                              ? `IVA ${TVA_REVENTE}% cobrado na revenda · Preços s/ IVA calculados com margem ${globalMarkup}%`
+                              : `Isento IVA art. 53.º CIVA · Margem ${globalMarkup}% sobre custo c/ IVA`)
+                            : (isAssujetti
+                              ? `TVA ${TVA_REVENTE}% collectée sur revente · Prix HT client calculés avec marge ${globalMarkup}%`
+                              : `Franchise TVA art. 293B CGI · Marge ${globalMarkup}% sur coût TTC artisan`)
                           }
                         </p>
                       </div>
@@ -847,7 +877,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                             ? 'bg-green-600 text-white shadow-md'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}>
-                        🆕 Neuf {newProducts.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${productTab === 'new' ? 'bg-white/20' : 'bg-gray-200'}`}>{newProducts.length}</span>}
+                        {locale === 'pt' ? '🆕 Novo' : '🆕 Neuf'} {newProducts.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${productTab === 'new' ? 'bg-white/20' : 'bg-gray-200'}`}>{newProducts.length}</span>}
                       </button>
                       <button onClick={() => setProductTab('refurbished')}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
@@ -855,10 +885,10 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                             ? 'bg-purple-600 text-white shadow-md'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}>
-                        ♻️ Reconditionné / Déstockage {refurbProducts.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${productTab === 'refurbished' ? 'bg-white/20' : 'bg-gray-200'}`}>{refurbProducts.length}</span>}
+                        {locale === 'pt' ? '♻️ Recondicionado / Outlet' : '♻️ Reconditionné / Déstockage'} {refurbProducts.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${productTab === 'refurbished' ? 'bg-white/20' : 'bg-gray-200'}`}>{refurbProducts.length}</span>}
                       </button>
                       {timeStr && (
-                        <span className="ml-auto text-[11px] text-gray-500 italic">Prix constatés à {timeStr}</span>
+                        <span className="ml-auto text-[11px] text-gray-500 italic">{locale === 'pt' ? `Preços verificados às ${timeStr}` : `Prix constatés à ${timeStr}`}</span>
                       )}
                     </div>
 
@@ -866,10 +896,14 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                       <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
                         <div className="text-3xl mb-2">{productTab === 'new' ? '📦' : '♻️'}</div>
                         <p className="text-sm text-gray-500 font-medium">
-                          Aucune offre {productTab === 'new' ? 'neuve' : 'reconditionnée / déstockage'} trouvée pour ce produit.
+                          {locale === 'pt'
+                            ? `Nenhuma oferta ${productTab === 'new' ? 'nova' : 'recondicionada / outlet'} encontrada para este produto.`
+                            : `Aucune offre ${productTab === 'new' ? 'neuve' : 'reconditionnée / déstockage'} trouvée pour ce produit.`}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {productTab === 'new' ? 'Essayez l\'onglet Reconditionné / Déstockage pour trouver des alternatives.' : 'Essayez l\'onglet Neuf pour voir les offres disponibles.'}
+                          {locale === 'pt'
+                            ? (productTab === 'new' ? 'Tente o separador Recondicionado / Outlet para encontrar alternativas.' : 'Tente o separador Novo para ver as ofertas disponíveis.')
+                            : (productTab === 'new' ? 'Essayez l\'onglet Reconditionné / Déstockage pour trouver des alternatives.' : 'Essayez l\'onglet Neuf pour voir les offres disponibles.')}
                         </p>
                       </div>
                     ) : (
@@ -879,29 +913,31 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                       <div className={`bg-gradient-to-r ${productTab === 'new' ? 'from-green-50 to-emerald-50 border-green-200' : 'from-purple-50 to-fuchsia-50 border-purple-200'} border rounded-2xl p-4`}>
                         <div className="flex items-center justify-between mb-3">
                           <span className={`text-sm font-bold ${productTab === 'new' ? 'text-green-800' : 'text-purple-800'}`}>
-                            📊 Comparatif {productTab === 'new' ? 'Neuf' : 'Reconditionné / Déstockage'} — {withPrice.length} offres
+                            {locale === 'pt'
+                              ? `📊 Comparativo ${productTab === 'new' ? 'Novo' : 'Recondicionado / Outlet'} — ${withPrice.length} ofertas`
+                              : `📊 Comparatif ${productTab === 'new' ? 'Neuf' : 'Reconditionné / Déstockage'} — ${withPrice.length} offres`}
                           </span>
                           {maxSaving > 0 && (
                             <span className={`${productTab === 'new' ? 'bg-green-600' : 'bg-purple-600'} text-white text-xs font-bold px-3 py-1 rounded-full`}>
-                              Économie jusqu&apos;à {maxSaving.toFixed(2)} € ({savingPct}%)
+                              {locale === 'pt' ? `Poupança até ${maxSaving.toFixed(2)} € (${savingPct}%)` : `Économie jusqu'à ${maxSaving.toFixed(2)} € (${savingPct}%)`}
                             </span>
                           )}
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                           <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                            <div className="text-xs text-gray-500 mb-1">🏆 Meilleur prix</div>
+                            <div className="text-xs text-gray-500 mb-1">{locale === 'pt' ? '🏆 Melhor preço' : '🏆 Meilleur prix'}</div>
                             <div className={`text-lg font-black ${productTab === 'new' ? 'text-green-600' : 'text-purple-600'}`}>{cheapest.price.toFixed(2)} €</div>
                             <div className={`text-xs font-semibold mt-0.5 px-2 py-0.5 rounded-full inline-block ${STORE_COLORS[cheapest.store] || 'text-gray-700 bg-gray-100'}`}>
                               {cheapest.store}
                             </div>
                           </div>
                           <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                            <div className="text-xs text-gray-500 mb-1">📈 Prix moyen</div>
+                            <div className="text-xs text-gray-500 mb-1">{locale === 'pt' ? '📈 Preço médio' : '📈 Prix moyen'}</div>
                             <div className="text-lg font-bold text-gray-700">{avgPrice.toFixed(2)} €</div>
-                            <div className="text-xs text-gray-500">{withPrice.length} offres</div>
+                            <div className="text-xs text-gray-500">{withPrice.length} {locale === 'pt' ? 'ofertas' : 'offres'}</div>
                           </div>
                           <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                            <div className="text-xs text-gray-500 mb-1">💸 Plus cher</div>
+                            <div className="text-xs text-gray-500 mb-1">{locale === 'pt' ? '💸 Mais caro' : '💸 Plus cher'}</div>
                             <div className="text-lg font-bold text-red-500">{mostExpensive.price.toFixed(2)} €</div>
                             <div className={`text-xs font-semibold mt-0.5 px-2 py-0.5 rounded-full inline-block ${STORE_COLORS[mostExpensive.store] || 'text-gray-700 bg-gray-100'}`}>
                               {mostExpensive.store}
@@ -922,9 +958,11 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                       <div className={`px-4 py-3 ${productTab === 'new' ? 'bg-gray-50' : 'bg-purple-50/50'} border-b border-gray-200`}>
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-bold text-gray-700">
-                            {productTab === 'new' ? '🛒' : '♻️'} Offres {productTab === 'new' ? 'neuves' : 'reconditionnées / déstockage'}
+                            {locale === 'pt'
+                              ? `${productTab === 'new' ? '🛒' : '♻️'} Ofertas ${productTab === 'new' ? 'novas' : 'recondicionadas / outlet'}`
+                              : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconditionnées / déstockage'}`}
                           </span>
-                          <span className="text-xs text-gray-500">Triées du moins cher au plus cher</span>
+                          <span className="text-xs text-gray-500">{locale === 'pt' ? 'Ordenadas do mais barato ao mais caro' : 'Triées du moins cher au plus cher'}</span>
                         </div>
                       </div>
                       <div className="divide-y divide-gray-100">
@@ -955,13 +993,13 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                                     <div className={`text-base font-black ${isBest ? (productTab === 'new' ? 'text-green-600' : 'text-purple-600') : 'text-gray-800'}`}>
                                       {p.price.toFixed(2)} €
                                     </div>
-                                    {isBest && <div className={`text-[10px] font-bold ${productTab === 'new' ? 'text-green-600' : 'text-purple-600'} uppercase`}>Meilleur prix</div>}
+                                    {isBest && <div className={`text-[10px] font-bold ${productTab === 'new' ? 'text-green-600' : 'text-purple-600'} uppercase`}>{locale === 'pt' ? 'Melhor preço' : 'Meilleur prix'}</div>}
                                     {!isBest && saving > 0 && (
                                       <div className="text-[10px] text-red-400">+{saving.toFixed(2)} €</div>
                                     )}
                                   </>
                                 ) : (
-                                  <div className="text-xs text-gray-500 italic">Voir prix</div>
+                                  <div className="text-xs text-gray-500 italic">{locale === 'pt' ? 'Ver preço' : 'Voir prix'}</div>
                                 )}
                               </div>
                               {p.url && (
@@ -971,7 +1009,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                                       ? (productTab === 'new' ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700') + ' text-white'
                                       : 'bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900'
                                   }`}>
-                                  {isBest ? '🏆 Acheter' : 'Acheter →'}
+                                  {isBest ? (locale === 'pt' ? '🏆 Comprar' : '🏆 Acheter') : (locale === 'pt' ? 'Comprar →' : 'Acheter →')}
                                 </a>
                               )}
                             </div>
@@ -981,7 +1019,9 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                     </div>
 
                     <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700">
-                      ⚠️ Prix constatés en temps réel — Les tarifs peuvent varier. Vérifiez le prix final sur le site du vendeur avant achat.
+                      {locale === 'pt'
+                        ? '⚠️ Preços verificados em tempo real — Os preços podem variar. Verifique o preço final no site do vendedor antes de comprar.'
+                        : '⚠️ Prix constatés en temps réel — Les tarifs peuvent varier. Vérifiez le prix final sur le site du vendeur avant achat.'}
                     </div>
                     </>
                     )}
@@ -1003,7 +1043,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                   ))}
                   <button onClick={() => { setMessages([]); setChatStarted(false); setCurrentResults(null); setCurrentEstimate(null); setProductResults(null); setProductRecommendations(''); setProductFetchedAt(null); setProductTab('new') }}
                     className="text-xs bg-gray-100 border border-gray-200 text-gray-500 rounded-xl px-3 py-1.5 hover:bg-gray-200 transition font-medium">
-                    🔄 Nouvelle recherche
+                    {locale === 'pt' ? '🔄 Nova pesquisa' : '🔄 Nouvelle recherche'}
                   </button>
                 </div>
               )}
@@ -1021,23 +1061,29 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputValue) }
                 }}
                 placeholder={searchMode === 'product'
-                  ? `Recherchez un outil ou produit...\nEx: "disqueuse Bosch 125mm" ou "perceuse Makita 18V"`
+                  ? (locale === 'pt'
+                    ? `Pesquise uma ferramenta ou produto...\nEx: "rebarbadora Bosch 125mm" ou "berbequim Makita 18V"`
+                    : `Recherchez un outil ou produit...\nEx: "disqueuse Bosch 125mm" ou "perceuse Makita 18V"`)
                   : userCity
-                    ? `Décrivez votre intervention à ${userCity}...\nEx: "Remplacement chauffe-eau 150L" ou "Pose parquet flottant 30m²"`
-                    : `Décrivez votre intervention...\nEx: "Remplacement chauffe-eau 150L" ou "Installation VMC double flux"`
+                    ? (locale === 'pt'
+                      ? `Descreva a sua intervenção em ${userCity}...\nEx: "Substituição esquentador 150L" ou "Colocação pavimento flutuante 30m²"`
+                      : `Décrivez votre intervention à ${userCity}...\nEx: "Remplacement chauffe-eau 150L" ou "Pose parquet flottant 30m²"`)
+                    : (locale === 'pt'
+                      ? `Descreva a sua intervenção...\nEx: "Substituição esquentador 150L" ou "Instalação VMC duplo fluxo"`
+                      : `Décrivez votre intervention...\nEx: "Remplacement chauffe-eau 150L" ou "Installation VMC double flux"`)
                 }
                 rows={3}
                 className="w-full px-5 pt-4 pb-2 text-sm focus:outline-none bg-transparent resize-none rounded-2xl"
                 disabled={isLoading}
               />
               <div className="flex items-center justify-between px-4 pb-3">
-                <span className="text-xs text-gray-300">Entrée = rechercher · Maj+Entrée = saut de ligne</span>
+                <span className="text-xs text-gray-300">{locale === 'pt' ? 'Enter = pesquisar · Shift+Enter = nova linha' : 'Entrée = rechercher · Maj+Entrée = saut de ligne'}</span>
                 <button
                   onClick={() => sendMessage(inputValue)}
                   disabled={!inputValue.trim() || isLoading}
                   className="bg-[#FFC107] hover:bg-[#FFD54F] disabled:opacity-40 text-gray-900 px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-sm"
                 >
-                  {isLoading ? '⏳' : '🔍 Rechercher'}
+                  {isLoading ? '⏳' : (locale === 'pt' ? '🔍 Pesquisar' : '🔍 Rechercher')}
                 </button>
               </div>
             </div>
@@ -1051,8 +1097,8 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
           {savedSearches.length === 0 ? (
             <div className="text-center py-20">
               <div className="text-6xl mb-4">📋</div>
-              <h3 className="text-xl font-bold text-gray-700 mb-2">Aucune recherche sauvegardée</h3>
-              <p className="text-gray-500 text-sm">Vos recherches de matériaux apparaîtront ici automatiquement.</p>
+              <h3 className="text-xl font-bold text-gray-700 mb-2">{locale === 'pt' ? 'Nenhuma pesquisa guardada' : 'Aucune recherche sauvegardée'}</h3>
+              <p className="text-gray-500 text-sm">{locale === 'pt' ? 'As suas pesquisas de materiais aparecerão aqui automaticamente.' : 'Vos recherches de matériaux apparaîtront ici automatiquement.'}</p>
             </div>
           ) : (
             <div className="space-y-3 max-w-3xl mx-auto">
@@ -1066,7 +1112,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                           📅 {new Date(s.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
                         {s.city && <span className="text-xs text-blue-600">📍 {s.city}</span>}
-                        <span className="text-xs text-gray-500">{s.materials.length} matériaux</span>
+                        <span className="text-xs text-gray-500">{s.materials.length} {locale === 'pt' ? 'materiais' : 'matériaux'}</span>
                         {s.totalEstimate && (
                           <span className="text-xs font-bold text-green-600">
                             ~{s.totalEstimate.min}–{s.totalEstimate.max} €
@@ -1081,14 +1127,16 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                           setCurrentEstimate(s.totalEstimate)
                           setMessages([
                             { role: 'user', content: s.query },
-                            { role: 'assistant', content: `Résultats chargés depuis l'historique du **${new Date(s.date).toLocaleDateString(dateFmtLocale)}**${s.city ? ` (${s.city})` : ''}.` },
+                            { role: 'assistant', content: locale === 'pt'
+                              ? `Resultados carregados do histórico de **${new Date(s.date).toLocaleDateString(dateFmtLocale)}**${s.city ? ` (${s.city})` : ''}.`
+                              : `Résultats chargés depuis l'historique du **${new Date(s.date).toLocaleDateString(dateFmtLocale)}**${s.city ? ` (${s.city})` : ''}.` },
                           ])
                           setChatStarted(true)
                           setActiveTab('recherche')
                         }}
                         className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-xl text-sm font-bold transition-all"
                       >
-                        📂 Recharger
+                        {locale === 'pt' ? '📂 Carregar' : '📂 Recharger'}
                       </button>
                       <button
                         onClick={() => {
@@ -1114,46 +1162,92 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
         <div className="p-6 lg:p-8 max-w-3xl mx-auto">
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">🤖 Comment fonctionne l&apos;agent ?</h3>
+              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</h3>
               <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-600 leading-relaxed">
-                <li><strong>Analyse :</strong> L&apos;IA identifie les matériaux nécessaires à partir de votre description</li>
-                <li><strong>Recherche :</strong> Chaque matériau est recherché sur internet (Leroy Merlin, Brico Dépôt, Castorama…)</li>
-                <li><strong>Comparaison :</strong> Les prix sont extraits et comparés par enseigne</li>
-                <li><strong>Export :</strong> La liste peut être exportée directement vers un devis avec marge configurable</li>
+                {locale === 'pt' ? (
+                  <>
+                    <li><strong>Análise:</strong> A IA identifica os materiais necessários a partir da sua descrição</li>
+                    <li><strong>Pesquisa:</strong> Cada material é pesquisado online (Leroy Merlin PT, AKI, Maxmat…)</li>
+                    <li><strong>Comparação:</strong> Os preços são extraídos e comparados por loja</li>
+                    <li><strong>Exportar:</strong> A lista pode ser exportada diretamente para um orçamento com margem configurável</li>
+                  </>
+                ) : (
+                  <>
+                    <li><strong>Analyse :</strong> L&apos;IA identifie les matériaux nécessaires à partir de votre description</li>
+                    <li><strong>Recherche :</strong> Chaque matériau est recherché sur internet (Leroy Merlin, Brico Dépôt, Castorama…)</li>
+                    <li><strong>Comparaison :</strong> Les prix sont extraits et comparés par enseigne</li>
+                    <li><strong>Export :</strong> La liste peut être exportée directement vers un devis avec marge configurable</li>
+                  </>
+                )}
               </ol>
             </div>
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">🛍️ Recherche Produit</h3>
+              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>🔍 <strong>Recherche directe</strong> : tapez le nom d&apos;un outil ou produit spécifique</li>
-                <li>🌐 <strong>Boutiques en ligne</strong> : Amazon, ManoMano, Leroy Merlin, Castorama, Toolstation…</li>
-                <li>🛒 <strong>Liens d&apos;achat</strong> : chaque résultat a un bouton &quot;Acheter&quot; qui ouvre la page produit</li>
-                <li>💰 <strong>Comparaison</strong> : les résultats sont triés du moins cher au plus cher</li>
+                {locale === 'pt' ? (
+                  <>
+                    <li>🔍 <strong>Pesquisa direta</strong>: escreva o nome de uma ferramenta ou produto específico</li>
+                    <li>🌐 <strong>Lojas online</strong>: Amazon, ManoMano, Leroy Merlin PT, AKI, Maxmat…</li>
+                    <li>🛒 <strong>Links de compra</strong>: cada resultado tem um botão &quot;Comprar&quot; que abre a página do produto</li>
+                    <li>💰 <strong>Comparação</strong>: os resultados são ordenados do mais barato ao mais caro</li>
+                  </>
+                ) : (
+                  <>
+                    <li>🔍 <strong>Recherche directe</strong> : tapez le nom d&apos;un outil ou produit spécifique</li>
+                    <li>🌐 <strong>Boutiques en ligne</strong> : Amazon, ManoMano, Leroy Merlin, Castorama, Toolstation…</li>
+                    <li>🛒 <strong>Liens d&apos;achat</strong> : chaque résultat a un bouton &quot;Acheter&quot; qui ouvre la page produit</li>
+                    <li>💰 <strong>Comparaison</strong> : les résultats sont triés du moins cher au plus cher</li>
+                  </>
+                )}
               </ul>
             </div>
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">🏪 Enseignes couvertes</h3>
+              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '🏪 Lojas cobertas' : '🏪 Enseignes couvertes'}</h3>
               <div className="flex flex-wrap gap-2">
-                {['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage',
-                  'Amazon', 'ManoMano', 'Toolstation', 'Cdiscount'].map(s => (
+                {(locale === 'pt'
+                  ? ['Leroy Merlin PT', 'AKI', 'Maxmat', 'Bricomarché', 'Wurth', 'Sanitop', 'Amazon', 'ManoMano']
+                  : ['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage', 'Amazon', 'ManoMano', 'Toolstation', 'Cdiscount']
+                ).map(s => (
                   <span key={s} className={`px-3 py-1.5 rounded-full text-sm font-semibold ${STORE_COLORS[s] || 'bg-gray-100 text-gray-700'}`}>{s}</span>
                 ))}
               </div>
             </div>
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">💡 Conseils d&apos;utilisation</h3>
+              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>📍 <strong>Activez le GPS</strong> pour des résultats orientés vers votre région</li>
-                <li>🎯 <strong>Soyez précis</strong> : &quot;chauffe-eau 150L électrique&quot; plutôt que &quot;chauffe-eau&quot;</li>
-                <li>📐 <strong>Donnez les surfaces</strong> : &quot;carrelage 20m²&quot; permet d&apos;estimer les quantités</li>
-                <li>💰 <strong>Ajustez la marge</strong> selon votre contrat et la complexité de la pose</li>
-                <li>📄 <strong>Exportez vers devis</strong> pour facturer les matériaux avec TVA 10% (rénovation BTP)</li>
+                {locale === 'pt' ? (
+                  <>
+                    <li>📍 <strong>Ative o GPS</strong> para resultados orientados à sua região</li>
+                    <li>🎯 <strong>Seja preciso</strong>: &quot;esquentador 150L elétrico&quot; em vez de &quot;esquentador&quot;</li>
+                    <li>📐 <strong>Indique as áreas</strong>: &quot;azulejo 20m²&quot; permite estimar as quantidades</li>
+                    <li>💰 <strong>Ajuste a margem</strong> conforme o seu contrato e a complexidade da instalação</li>
+                    <li>📄 <strong>Exporte para orçamento</strong> para faturar os materiais com IVA</li>
+                  </>
+                ) : (
+                  <>
+                    <li>📍 <strong>Activez le GPS</strong> pour des résultats orientés vers votre région</li>
+                    <li>🎯 <strong>Soyez précis</strong> : &quot;chauffe-eau 150L électrique&quot; plutôt que &quot;chauffe-eau&quot;</li>
+                    <li>📐 <strong>Donnez les surfaces</strong> : &quot;carrelage 20m²&quot; permet d&apos;estimer les quantités</li>
+                    <li>💰 <strong>Ajustez la marge</strong> selon votre contrat et la complexité de la pose</li>
+                    <li>📄 <strong>Exportez vers devis</strong> pour facturer les matériaux avec TVA 10% (rénovation BTP)</li>
+                  </>
+                )}
               </ul>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-700">
-              <strong>⚠️ Disclaimer :</strong> Les prix affichés sont des estimations à titre indicatif.
-              Ils peuvent varier selon les promotions, stocks et localisation. Vérifiez toujours les prix
-              définitifs directement sur les sites ou en magasin avant d&apos;établir un devis définitif.
+              {locale === 'pt' ? (
+                <>
+                  <strong>⚠️ Aviso:</strong> Os preços apresentados são estimativas indicativas.
+                  Podem variar conforme promoções, stock e localização. Verifique sempre os preços
+                  finais diretamente nos sites ou em loja antes de elaborar um orçamento definitivo.
+                </>
+              ) : (
+                <>
+                  <strong>⚠️ Disclaimer :</strong> Les prix affichés sont des estimations à titre indicatif.
+                  Ils peuvent varier selon les promotions, stocks et localisation. Vérifiez toujours les prix
+                  définitifs directement sur les sites ou en magasin avant d&apos;établir un devis définitif.
+                </>
+              )}
             </div>
           </div>
         </div>
