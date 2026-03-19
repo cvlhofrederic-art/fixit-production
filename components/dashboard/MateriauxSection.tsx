@@ -650,7 +650,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                             <div className="px-5 py-3 bg-amber-50 border-t border-amber-100">
                               {m.norms?.length > 0 && (
                                 <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                                  <span className="text-xs font-bold text-amber-700">📋 Normes :</span>
+                                  <span className="text-xs font-bold text-amber-700">{locale === 'pt' ? '📋 Normas:' : '📋 Normes :'}</span>
                                   {m.norms.map((n: string, ni: number) => (
                                     <span key={ni} className="text-xs bg-amber-100 border border-amber-300 text-amber-800 px-2 py-0.5 rounded-full font-mono font-semibold">
                                       {n}

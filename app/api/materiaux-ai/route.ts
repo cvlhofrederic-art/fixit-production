@@ -881,7 +881,12 @@ Estrutura OBRIGATÓRIA:
   "response": "Síntese em português com normas a respeitar",
   "recommendations": "Conselhos práticos: onde comprar, alertas normas"
 }
-REGRAS: preço = número inteiro em euros c/ IVA, 2 a 4 lojas por material, url real ou null.`
+REGRAS OBRIGATÓRIAS:
+- preço = número inteiro em euros c/ IVA
+- MÍNIMO 3 lojas por material (Leroy Merlin PT + AKI + Maxmat no mínimo). Se não tens preço web, usa preço estimado com "[Estimado]" no nome da loja
+- bestPrice = loja com o preço mais baixo em prices
+- avgPrice = média arredondada dos prices
+- Se só tens 1 preço web, COMPLETA com preços estimados das outras lojas. NUNCA retornes apenas 1 loja.`
       : `Tu es un expert acheteur BTP en France. Tu connais précisément les prix en rayon de Leroy Merlin (LM), Brico Dépôt (BD), Castorama (Casto), Point P (PP) et Cédéo.
 
 ${BTP_NORMS_KNOWLEDGE}
