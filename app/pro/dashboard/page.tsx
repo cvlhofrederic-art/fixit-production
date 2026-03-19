@@ -1249,7 +1249,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div id="artisan-dashboard-v22" className="h-screen grid grid-rows-[48px_1fr] grid-cols-[1fr] lg:grid-cols-[220px_1fr] overflow-hidden">
+    <div id="artisan-dashboard-v22" className="h-screen flex flex-col overflow-hidden">
 
       {/* ── BOUTON RETOUR ADMIN (mode override) ── */}
       {showAdminBtn && (
@@ -1271,7 +1271,7 @@ export default function DashboardPage() {
       )}
 
       {/* ══════════ V22 TOPBAR ══════════ */}
-      <header className="col-span-1 lg:col-span-2 flex items-center px-5 gap-4" style={{ background: 'var(--v22-text)', borderBottom: '2px solid var(--v22-yellow)' }}>
+      <header className="h-12 flex-shrink-0 flex items-center px-5 gap-4" style={{ background: 'var(--v22-text)', borderBottom: '2px solid var(--v22-yellow)' }}>
         <button className="lg:hidden text-white text-lg" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
         <a href="#" className="v22-mono text-xs font-medium tracking-wider uppercase no-underline" onClick={(e) => { e.preventDefault(); navigateTo('home') }}>
           <span style={{ color: 'var(--v22-yellow)' }}>VIT</span><span className="text-white">FIX</span>
@@ -1305,8 +1305,11 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* ══════════ BODY (sidebar + content) ══════════ */}
+      <div className="flex flex-1 overflow-hidden">
+
       {/* ══════════ V22 SIDEBAR ══════════ */}
-      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[220px] h-[calc(100vh-48px)] overflow-y-auto transition-transform duration-200 v22-sidebar flex flex-col`} style={{ borderRight: '1px solid var(--v22-yellow)' }}>
+      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[220px] h-[calc(100vh-48px)] overflow-y-auto transition-transform duration-200 v22-sidebar flex flex-col flex-shrink-0`} style={{ borderRight: '1px solid var(--v22-yellow)' }}>
         <div className="flex-1 overflow-y-auto pt-5">
           {/* Principal */}
           <div className="mb-5">
@@ -1401,7 +1404,7 @@ export default function DashboardPage() {
       )}
 
       {/* ══════════ CONTENT ══════════ */}
-      <main className="overflow-y-auto p-6" style={{ background: 'var(--v22-bg)' }}>
+      <main className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--v22-bg)' }}>
 
           {/* ────── HOME ────── */}
           {activePage === 'home' && (
@@ -1976,6 +1979,7 @@ export default function DashboardPage() {
           )}
 
       </main>
+      </div>{/* end flex body */}
 
       <style jsx global>{`
         @keyframes fadeIn {
