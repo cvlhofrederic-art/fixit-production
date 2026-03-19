@@ -6,7 +6,7 @@ import { Syne } from "next/font/google";
 import { Montserrat } from "next/font/google";
 import { Outfit } from "next/font/google";
 import { Playfair_Display } from "next/font/google";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
@@ -159,9 +159,6 @@ export default async function RootLayout({
   const cookieStore = await cookies()
   const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
 
-  // Read CSP nonce from middleware (for inline script tags)
-  const headersList = await headers()
-  const nonce = headersList.get('x-nonce') ?? undefined
 
   // NL and ES investor pages target Porto (same as EN)
   const jsonLd = (locale === 'en' || locale === 'nl' || locale === 'es') ? {
@@ -323,12 +320,10 @@ export default async function RootLayout({
         <link rel="alternate" hrefLang="x-default" href="https://vitfix.io/fr/" />
         <script
           type="application/ld+json"
-          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <script
           type="application/ld+json"
-          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               '@context': 'https://schema.org',
