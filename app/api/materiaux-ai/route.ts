@@ -646,7 +646,7 @@ RÈGLES CRITIQUES DE PRÉCISION DES PRIX:
 
 RÈGLES URLs:
 - N'invente JAMAIS une URL. Utilise UNIQUEMENT les URLs des résultats fournis.
-- Chaque produit DOIT avoir une URL réelle (commence par http)`
+- Chaque produit DOIT avoir une URL réelle (commence par http)
 
 CLASSIFICATION NEUF / RECONDITIONNÉ-DÉSTOCKAGE:
 - Les résultats marqués [N...] sont des produits NEUFS → condition: "new"
