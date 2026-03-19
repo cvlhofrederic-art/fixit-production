@@ -21,7 +21,7 @@ import { ROLE_PAGES, SYNDIC_MODULES, EVENT_COLORS } from '@/components/syndic-da
 
 // ─── Lazy-loaded Section Components (code-splitting) ─────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const d = (loader: () => Promise<any>) => dynamic(loader as any, { ssr: false }) as any
+const d = (loader: () => Promise<any>) => dynamic(loader, { ssr: false }) as React.ComponentType<any>
 const EquipeSection = d(() => import('@/components/syndic-dashboard/misc/EquipeSection'))
 const AnalyseDevisSection = d(() => import('@/components/syndic-dashboard/reporting/AnalyseDevisSection'))
 const DocsInterventionsSection = d(() => import('@/components/syndic-dashboard/operations/DocsInterventionsSection'))
