@@ -445,35 +445,61 @@ export async function POST(request: NextRequest) {
     const storeDomains = locale === 'pt' ? BTP_STORE_DOMAINS_PT : BTP_STORE_DOMAINS_FR
     const citySearchSuffix = city ? ` ${city}` : ''
 
+    // ── PT locale: strong system override injected BEFORE every prompt ──
     const ptSuppliersBlock = locale === 'pt' ? `
-FORNECEDORES PORTUGAL (em vez de lojas francesas):
-Leroy Merlin PT, AKI, Bricomarché, Maxmat, Staples, Wurth, DOTT, Sanitop, Salvador Caetano Materiais
+ATENÇÃO — CONTEXTO PORTUGAL (OBRIGATÓRIO):
+Responde SEMPRE em português europeu. NUNCA em francês.
+Este profissional trabalha em PORTUGAL${city ? ` (${city})` : ''}, NÃO em França.
 
-NORMAS (em vez de DTU):
+LOJAS PORTUGAL (USAR APENAS ESTAS):
+- Leroy Merlin Portugal (leroymerlin.pt)
+- AKI (aki.pt)
+- Bricomarché Portugal
+- Maxmat (maxmat.pt)
+- Wurth Portugal (wurth.pt)
+- DOTT Marketplace (dott.pt)
+- Sanitop (sanitop.pt)
+
+REGRA ANTI-ALUCINAÇÃO (CRÍTICA):
+- NUNCA inventes nomes de lojas que não existem na zona do profissional
+- NUNCA inventes endereços de lojas
+- Se não encontraste uma loja real com stock nesta zona, diz "Verificar disponibilidade na loja mais próxima"
+- Se não tens preço real de fonte web, indica "Preço estimado" e explica que deve ser confirmado em loja
+- Cada preço DEVE ter uma tag: [Preço real] se vem de URL web, [Preço estimado] se é da tua base de conhecimentos
+
+NORMAS PORTUGAL (em vez de DTU francesas):
 - Eurocódigos Estruturais com Anexos Nacionais PT
 - NP EN (normas portuguesas harmonizadas, IPQ)
-- RIEBT (eletricidade), ITED/ITUR (telecomunicações)
+- RIEBT (Regulamento de Instalações Elétricas de Baixa Tensão)
+- ITED/ITUR (telecomunicações)
 - Regulamento da Água (DL 23/95)
+- Regulamento Geral de Segurança Contra Incêndio (DL 220/2008)
 - Marcação CE, Certificação LNEC
+- SCE (Sistema de Certificação Energética) em vez de DPE
 
-IVA: 23% standard (em vez de TVA 20%)
-Formato preço: "s/ IVA" / "c/ IVA" (em vez de HT/TTC)
-Códigos postais: XXXX-XXX
-Distritos: Lisboa, Porto, Braga, Faro, Setúbal, Aveiro, Coimbra, Viseu, Leiria, Évora, Santarém, Viana do Castelo, Vila Real, Bragança, Guarda, Castelo Branco, Portalegre, Beja + Açores + Madeira
+IVA: 23% standard, 13% intermédio, 6% reduzido
+Formato preço: XX,XX € (s/ IVA) ou (c/ IVA)
 ` : ''
 
     // ══ MODE PRODUIT : Recherche directe de produit avec liens d'achat ══════
     if (searchMode === 'product') {
       if (!usingTavily) {
         // Fallback sans Tavily : Groq génère des recommandations produit depuis sa base de connaissances
-        const fallbackPrompt = `Tu es un assistant achat professionnel pour artisans BTP en France.
+        const fallbackPrompt = locale === 'pt'
+          ? `${ptSuppliersBlock}
+És um assistente de compras profissional para profissionais de construção em Portugal.
+O profissional procura: "${query.trim()}"${cityContext}.
+
+Gera uma lista de 3-6 produtos recomendados com preços estimados (lojas Portugal 2024-2025).
+Para cada produto, indica a loja principal (Leroy Merlin PT, AKI, Maxmat, Bricomarché, Wurth).
+NUNCA inventes lojas que não existem em Portugal. Se não tens a certeza do preço, indica "Preço estimado".`
+          : `Tu es un assistant achat professionnel pour artisans BTP en France.
 L'artisan recherche : "${query.trim()}"${cityContext}.
 
 ${BTP_NORMS_KNOWLEDGE}
-${ptSuppliersBlock}
 
 Génère une liste de 3-6 produits recommandés avec prix estimés (prix magasin France 2024-2025).
-Pour chaque produit, indique le magasin principal (Leroy Merlin, Brico Dépôt, Castorama, ManoMano, Point P).
+Pour chaque produit, indique le magasin principal (Leroy Merlin, Brico Dépôt, Castorama, ManoMano, Point P).`
 
 Réponds UNIQUEMENT avec un JSON valide, sans markdown :
 {
@@ -511,7 +537,10 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
                 image: null,
                 condition: 'new',
               })),
-              response: (fallbackParsed.response || `Résultats estimés pour "${query}"`) + '\n\n💡 *Prix indicatifs basés sur les tarifs magasin 2024-2025. Pour des prix en temps réel, visitez directement les sites des enseignes.*',
+              response: (fallbackParsed.response || (locale === 'pt' ? `Resultados estimados para "${query}"` : `Résultats estimés pour "${query}"`))
+                + (locale === 'pt'
+                  ? '\n\n⚠️ *Preços estimados — sem confirmação em tempo real. Confirme os preços diretamente nas lojas (Leroy Merlin PT, AKI, Maxmat).*'
+                  : '\n\n💡 *Prix indicatifs basés sur les tarifs magasin 2024-2025. Pour des prix en temps réel, visitez directement les sites des enseignes.*'),
               recommendations: fallbackParsed.recommendations || '',
               source: 'groq-only',
               fallback: true,
@@ -526,7 +555,9 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
           success: true,
           mode: 'product',
           products: [],
-          response: `Aucun résultat trouvé pour "${query}". Essayez un terme plus précis (ex: "Bosch GWS 7-125" au lieu de "disqueuse").`,
+          response: locale === 'pt'
+            ? `Nenhum resultado encontrado para "${query}". Tente um termo mais preciso (ex: "Bosch GWS 7-125" em vez de "rebarbadora").`
+            : `Aucun résultat trouvé pour "${query}". Essayez un terme plus précis (ex: "Bosch GWS 7-125" au lieu de "disqueuse").`,
           recommendations: '',
           fallback: true,
         })
@@ -571,7 +602,9 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
           success: true,
           mode: 'product',
           products: [],
-          response: `Aucun résultat trouvé pour "${query}". Essayez un terme plus précis (ex: "Bosch GWS 7-125" au lieu de "disqueuse").`,
+          response: locale === 'pt'
+            ? `Nenhum resultado encontrado para "${query}". Tente um termo mais preciso (ex: "Bosch GWS 7-125" em vez de "rebarbadora").`
+            : `Aucun résultat trouvé pour "${query}". Essayez un terme plus précis (ex: "Bosch GWS 7-125" au lieu de "disqueuse").`,
           recommendations: '',
           fetchedAt: new Date().toISOString(),
         })
@@ -585,7 +618,21 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
         .map((r, i) => `[R${i + 1}] "${r.title}" — ${r.content.substring(0, 300)} — URL: ${r.url}`)
         .join('\n\n')
 
-      const productPrompt = `Tu es un assistant achat professionnel pour artisans BTP en France.
+      const productPrompt = locale === 'pt'
+        ? `${ptSuppliersBlock}
+A partir dos resultados de pesquisa abaixo, extrai os VERDADEIROS produtos com os seus VERDADEIROS preços e URLs REAIS.
+
+REGRAS CRÍTICAS ANTI-ALUCINAÇÃO:
+- NUNCA inventes um preço. Extrai o preço EXATO tal como aparece no texto do resultado.
+- Se o texto contém "a partir de 59,90 €" → price: 59.90
+- Se nenhum preço é visível no texto → price: 0 (NÃO INVENTAR)
+- Usa o ponto como separador decimal (59.90 não 59,90)
+
+REGRAS URLs:
+- NUNCA inventes uma URL. Usa APENAS as URLs dos resultados fornecidos.
+- Cada produto DEVE ter uma URL real (começa por http)
+- Se não há URL real → url: null`
+        : `Tu es un assistant achat professionnel pour artisans BTP en France.
 ${ptSuppliersBlock}
 À partir des résultats de recherche ci-dessous, extrais les VRAIS produits avec leurs VRAIS prix et VRAIES URLs.
 
@@ -599,7 +646,7 @@ RÈGLES CRITIQUES DE PRÉCISION DES PRIX:
 
 RÈGLES URLs:
 - N'invente JAMAIS une URL. Utilise UNIQUEMENT les URLs des résultats fournis.
-- Chaque produit DOIT avoir une URL réelle (commence par http)
+- Chaque produit DOIT avoir une URL réelle (commence par http)`
 
 CLASSIFICATION NEUF / RECONDITIONNÉ-DÉSTOCKAGE:
 - Les résultats marqués [N...] sont des produits NEUFS → condition: "new"
@@ -699,7 +746,32 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown, sans backtick:
     // ══ MODE PROJET : Analyse chantier + matériaux (existant) ═══════════════
 
     // ── STAGE 1 : Extraction matériaux + normes applicables ───────────────────
-    const stage1System = `Tu es un expert BTP français certifié. Tu connais parfaitement toutes les normes (DTU, NF, RE2020, arrêtés) applicables à chaque type de travaux.
+    const stage1System = locale === 'pt'
+      ? `${ptSuppliersBlock}
+És um especialista certificado em construção civil em Portugal. Conheces perfeitamente todas as normas (Eurocódigos, NP EN, RIEBT, ITED) aplicáveis a cada tipo de obra.
+
+Para a obra descrita, gera a lista dos materiais ESSENCIAIS com as suas normas obrigatórias.
+
+REGRAS CRÍTICAS:
+- Lista APENAS os materiais CONSUMÍVEIS que o profissional deve COMPRAR para esta obra
+- NÃO extrapoles nem inventes materiais não mencionados
+- NÃO incluas ferramentas (berbequim, nível, etc.) salvo se pedido
+- Máximo 5 materiais (os mais importantes/caros apenas)
+- Sê PRECISO nas dimensões/capacidades/modelos mencionados no pedido
+
+Responde APENAS com um array JSON válido, sem texto antes ou depois, sem markdown.
+Formato obrigatório:
+[
+  {
+    "name": "Esquentador termostático 200L classe A+",
+    "qty": 1,
+    "unit": "unidade",
+    "category": "Aquecimento",
+    "norms": ["NP EN 16147", "Eurocódigo", "RIEBT"],
+    "normDetails": "COP mínimo 2.5. Ligação elétrica conforme RIEBT. Distância mínima 0.5m de qualquer parede."
+  }
+]`
+      : `Tu es un expert BTP français certifié. Tu connais parfaitement toutes les normes (DTU, NF, RE2020, arrêtés) applicables à chaque type de travaux.
 
 ${BTP_NORMS_KNOWLEDGE}
 ${ptSuppliersBlock}
@@ -731,7 +803,7 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
 
     const stage1Text = await callGroq([
       { role: 'system', content: stage1System },
-      { role: 'user', content: `Chantier : ${query.trim()}${cityContext}` },
+      { role: 'user', content: locale === 'pt' ? `Obra: ${query.trim()}${cityContext}` : `Chantier : ${query.trim()}${cityContext}` },
     ], 1000, 'llama-3.1-8b-instant')
 
     const rawMaterials: Array<{ name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string }> =
@@ -776,7 +848,41 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
     }
 
     // ── STAGE 3 : Analyse prix + génération réponse finale ────────────────────
-    const priceSystem = `Tu es un expert acheteur BTP en France. Tu connais précisément les prix en rayon de Leroy Merlin (LM), Brico Dépôt (BD), Castorama (Casto), Point P (PP) et Cédéo.
+    const priceSystem = locale === 'pt'
+      ? `${ptSuppliersBlock}
+És um especialista em compras de materiais de construção em Portugal. Conheces os preços de Leroy Merlin PT, AKI, Maxmat, Bricomarché e Wurth.
+
+${usingTavily ? 'Resultados de pesquisa web são fornecidos. Usa os preços encontrados como prioridade. Se insuficientes, complementa com a tua base de conhecimentos.' : 'Usa a tua base de conhecimentos de preços Portugal 2024-2025.'}
+
+REGRAS ANTI-ALUCINAÇÃO (OBRIGATÓRIAS):
+- NUNCA inventes nomes de lojas que não existem na zona do profissional
+- Se o preço vem de resultado web, adiciona a URL real no campo "url"
+- Se o preço é estimado (da tua base), coloca url: null e adiciona "[Estimado]" no nome da loja
+- Se NÃO tens informação fiável sobre um preço, põe price: 0 em vez de inventar
+
+IMPORTANTE: Retorna APENAS um objeto JSON válido, sem markdown.
+Estrutura OBRIGATÓRIA:
+{
+  "materials": [
+    {
+      "name": "nome exato do material com referência/modelo",
+      "qty": 1, "unit": "unidade", "category": "categoria",
+      "norms": ["NP EN XXXXX", "RIEBT"],
+      "normDetails": "Pontos de atenção para instalação e conformidade",
+      "prices": [
+        {"store": "Leroy Merlin PT", "price": 699, "url": "https://www.leroymerlin.pt/..."},
+        {"store": "AKI [Estimado]", "price": 549, "url": null}
+      ],
+      "bestPrice": {"store": "AKI", "price": 549},
+      "avgPrice": 625
+    }
+  ],
+  "totalEstimate": {"min": 850, "max": 1200},
+  "response": "Síntese em português com normas a respeitar",
+  "recommendations": "Conselhos práticos: onde comprar, alertas normas"
+}
+REGRAS: preço = número inteiro em euros c/ IVA, 2 a 4 lojas por material, url real ou null.`
+      : `Tu es un expert acheteur BTP en France. Tu connais précisément les prix en rayon de Leroy Merlin (LM), Brico Dépôt (BD), Castorama (Casto), Point P (PP) et Cédéo.
 
 ${BTP_NORMS_KNOWLEDGE}
 ${ptSuppliersBlock}
@@ -816,9 +922,12 @@ RÈGLES ABSOLUES:
 - normDetails = contraintes concrètes de pose (distances, sections, pentes, épaisseurs)
 - Si des URLs de produits sont disponibles dans les résultats de recherche web, inclus-les dans le champ "url". Sinon mets null.`
 
+    const jobLabel = locale === 'pt' ? 'Obra' : 'Chantier'
+    const matsLabel = locale === 'pt' ? 'Materiais identificados' : 'Matériaux identifiés'
+    const webLabel = locale === 'pt' ? 'Resultados pesquisa web' : 'Résultats recherche web'
     const priceUserContent = usingTavily
-      ? `Chantier: "${query}"${cityContext}\nMatériaux identifiés: ${JSON.stringify(rawMaterials)}\n\nRésultats recherche web:\n${searchBundle}`
-      : `Chantier: "${query}"${cityContext}\nMatériaux identifiés: ${JSON.stringify(rawMaterials)}`
+      ? `${jobLabel}: "${query}"${cityContext}\n${matsLabel}: ${JSON.stringify(rawMaterials)}\n\n${webLabel}:\n${searchBundle}`
+      : `${jobLabel}: "${query}"${cityContext}\n${matsLabel}: ${JSON.stringify(rawMaterials)}`
 
     const priceText = await callGroq([
       { role: 'system', content: priceSystem },
