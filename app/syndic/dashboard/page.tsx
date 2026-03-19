@@ -5760,7 +5760,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           documentRef={`CABINET_${cabinetNom.replace(/\s/g, '_')}`}
           signataire={userName}
           onClose={() => setShowSignatureModal(false)}
-          onSign={(sigData) => {
+          onSign={(sigData: any) => {
             setSyndicSignature(sigData)
             if (user) localStorage.setItem(`fixit_syndic_signature_${user.id}`, JSON.stringify(sigData))
             setShowSignatureModal(false)
