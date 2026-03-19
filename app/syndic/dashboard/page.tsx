@@ -3729,7 +3729,7 @@ export default function SyndicDashboard() {
               artisans={artisans}
               userRole={userRole}
               user={user}
-              onUpdateMission={(updated) => {
+              onUpdateMission={(updated: any) => {
                 setMissions(prev => prev.map(m => m.id === updated.id ? updated : m))
                 try {
                   const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
@@ -3738,14 +3738,14 @@ export default function SyndicDashboard() {
                   localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(newStored))
                 } catch {}
               }}
-              onAddMission={(newM) => {
+              onAddMission={(newM: any) => {
                 setMissions(prev => {
                   const updated = [newM, ...prev]
                   try { localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(updated)) } catch {}
                   return updated
                 })
               }}
-              onOpenMission={(m) => { setSelectedMission(m); setShowMissionDetails(true) }}
+              onOpenMission={(m: any) => { setSelectedMission(m); setShowMissionDetails(true) }}
               onCreateMission={() => setShowModalMission(true)}
               canalInterneMessages={canalInterneMessages}
               setCanalInterneMessages={setCanalInterneMessages}
@@ -3779,7 +3779,7 @@ export default function SyndicDashboard() {
                 } catch {}
               }}
               userName={userName}
-              onAddPlanningEvent={(evt) => setPlanningEvents(prev => [...prev, evt])}
+              onAddPlanningEvent={(evt: any) => setPlanningEvents(prev => [...prev, evt])}
             />
           )}
 
