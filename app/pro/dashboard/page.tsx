@@ -1979,7 +1979,7 @@ export default function DashboardPage() {
           )}
 
       </main>
-      </div>{/* end flex body */}
+      </div>
 
       <style jsx global>{`
         @keyframes fadeIn {
