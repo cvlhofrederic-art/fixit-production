@@ -54,18 +54,29 @@ export async function POST(request: NextRequest) {
     const { artisan_id, service_id, booking_date, booking_time, duration_minutes, address, notes, price_ht, price_ttc, status } = validation.data
     const dur = duration_minutes
 
-    // ── Fetch artisan profile for notifications ────────────────────────
-    const { data: artisanProfile } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('user_id, company_name')
-      .eq('id', artisan_id)
-      .single()
+    // ── Fetch artisan profile + ensure client profile (parallel) ──────
+    const [{ data: artisanProfile }, { data: existingProfile }] = await Promise.all([
+      supabaseAdmin.from('profiles_artisan').select('user_id, company_name').eq('id', artisan_id).single(),
+      supabaseAdmin.from('profiles_client').select('id').eq('id', user.id).single(),
+    ])
+
+    if (!existingProfile) {
+      const meta = user.user_metadata || {}
+      await supabaseAdmin.from('profiles_client').insert({
+        id: user.id,
+        first_name: meta.full_name?.split(' ')[0] || null,
+        last_name: meta.full_name?.split(' ').slice(1).join(' ') || null,
+        phone: meta.phone || null,
+        address: meta.address || null,
+      })
+    }
 
     const isAutoAccept = false
 
     // ── Build insert data ──────────────────────────────────────────────
     const insertData: Record<string, unknown> = {
       artisan_id,
+      client_id: user.id,
       booking_date,
       booking_time,
       duration_minutes: dur,
@@ -82,27 +93,6 @@ export async function POST(request: NextRequest) {
 
     if (service_id) {
       insertData.service_id = service_id
-    }
-
-    // Attach client_id from authenticated user
-    insertData.client_id = user.id
-
-    // ── Ensure profiles_client exists (FK constraint) ────────────────
-    const { data: existingProfile } = await supabaseAdmin
-      .from('profiles_client')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
-    if (!existingProfile) {
-      const meta = user.user_metadata || {}
-      await supabaseAdmin.from('profiles_client').insert({
-        id: user.id,
-        first_name: meta.full_name?.split(' ')[0] || null,
-        last_name: meta.full_name?.split(' ').slice(1).join(' ') || null,
-        phone: meta.phone || null,
-        address: meta.address || null,
-      })
     }
 
     const { data, error } = await supabaseAdmin

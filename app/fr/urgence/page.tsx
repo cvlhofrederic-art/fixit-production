@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   description: 'Artisan en urgence à Marseille et dans le 13 : plombier, électricien. Intervention rapide 24h/24, 7j/7. Appelez ou WhatsApp maintenant.',
   alternates: {
     canonical: 'https://vitfix.io/fr/urgence/',
+    languages: {
+      'fr': 'https://vitfix.io/fr/urgence/',
+      'pt': 'https://vitfix.io/pt/urgencia/',
+      'x-default': 'https://vitfix.io/fr/urgence/',
+    },
   },
 }
 

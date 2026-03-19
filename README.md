@@ -111,27 +111,52 @@ app/
 │   ├── services/[slug]/    ← Pages SEO service × ville (380+ pages)
 │   ├── urgence/[slug]/     ← Pages urgence × ville
 │   ├── ville/[slug]/       ← Pages par ville
-│   ├── blog/[slug]/        ← Articles blog
+│   ├── blog/[slug]/        ← Articles blog FR
 │   ├── specialites/        ← Niches PACA (débroussaillage, palmier…)
 │   ├── copropriete/        ← Pages B2B copropriété
 │   ├── pres-de-chez-moi/   ← Pages "near me"
-│   └── simulateur-devis/   ← Simulateur de devis interactif
+│   ├── simulateur-devis/   ← Simulateur de devis interactif
+│   ├── recherche/          ← Recherche artisan
+│   ├── tarifs/             ← Tarifs particuliers
+│   ├── artisan/[id]/       ← Page profil artisan
+│   ├── a-propos/           ← À propos
+│   ├── cgu/                ← Conditions générales
+│   ├── mentions-legales/   ← Mentions légales
+│   ├── marches/            ← Bourse aux marchés
+│   └── reserver/           ← Réservation
 ├── pt/                     ← Marché Portugal
+│   ├── servicos/[slug]/    ← Pages SEO service × ville
+│   ├── urgencia/[slug]/    ← Pages urgence × ville
+│   ├── cidade/[slug]/      ← Pages par ville
+│   ├── blog/[slug]/        ← Articles blog PT
+│   ├── perto-de-mim/       ← Pages "near me" PT
+│   ├── precos/             ← Guias de preços
+│   ├── pesquisar/          ← Recherche (alias FR)
+│   ├── avaliacoes/         ← Avaliações
+│   ├── sobre/              ← Sobre nós
+│   ├── como-funciona/      ← Como funciona
+│   ├── mercados/           ← Bolsa de trabalho
+│   ├── simulador-orcamento/← Simulador de orçamento
+│   └── …                   ← 350+ pages SEO
 ├── en/                     ← Marché anglophone (expats Porto)
 ├── es/                     ← Marché espagnol (investisseurs)
 ├── nl/                     ← Marché néerlandais
 ├── pro/
-│   ├── dashboard/          ← Dashboard artisan (fichier monolithique ~3800 lignes)
+│   ├── dashboard/          ← Dashboard artisan (~2300 lignes)
 │   ├── mobile/             ← App mobile artisan (Capacitor)
 │   ├── register/           ← Inscription artisan
 │   └── login/              ← Connexion artisan
 ├── syndic/
-│   ├── dashboard/          ← Dashboard syndic
+│   ├── dashboard/          ← Dashboard syndic (~5900 lignes)
 │   ├── register/           ← Inscription syndic
 │   └── login/              ← Connexion syndic
 ├── client/dashboard/       ← Dashboard client
 ├── coproprietaire/         ← Espace copropriétaire
 ├── admin/                  ← Back-office admin
+├── contact/                ← Contact (bilingue FR/PT)
+├── confidentialite/        ← Politique de confidentialité (bilingue)
+├── cookies/                ← Politique cookies (bilingue)
+├── confirmation/           ← Confirmation réservation
 └── api/                    ← Routes API (voir ci-dessous)
 ```
 
@@ -169,7 +194,8 @@ app/api/
 | `lib/fr-seo-pages-data.ts` | 20 services × 19 villes PACA (380 pages FR) |
 | `lib/seo-pages-data.ts` | Services × villes Portugal |
 | `lib/data/investor-pages-data.ts` | Pages investisseurs (EN/ES/NL/FR) |
-| `lib/constants.ts` | Téléphones, URLs, timeouts centralisés |
+| `lib/constants.ts` | Téléphones, emails, URLs, AI models, timeouts centralisés |
+| `components/syndic-dashboard/config.ts` | RBAC roles, modules syndic, couleurs planning |
 
 ---
 
@@ -187,6 +213,7 @@ app/api/
 
 ### SEO — ne jamais enfreindre
 
+- Toutes les pages PT vivent sous `/pt/`, toutes les pages FR sous `/fr/` — seules les pages partagées (contact, auth, pro, syndic) restent au root
 - Les URLs `/pt/` et `/fr/` sont **sacrées** — jamais modifier leur structure (impact SEO critique)
 - Toujours inclure `BreadcrumbList` + `FAQPage` en JSON-LD sur les pages service
 - Canonical URLs pointent vers `vitfix.io` (jamais `vercel.app`)

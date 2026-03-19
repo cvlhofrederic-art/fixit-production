@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { NOREPLY_EMAIL } from '@/lib/constants'
 
 // ── Lazy singleton Resend client (avoid crash if RESEND_API_KEY not set at build time) ──
 let _resend: Resend | null = null
@@ -26,7 +27,7 @@ export interface EmailResult {
 }
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || 'VITFIX <noreply@vitfix.io>'
+const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || `VITFIX <${NOREPLY_EMAIL}>`
 
 // ── Send single email ────────────────────────────────────────────────────────
 export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {

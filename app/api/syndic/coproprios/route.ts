@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { logger } from '@/lib/logger'
+import { logger, parsePagination } from '@/lib/logger'
 
 // ── GET /api/syndic/coproprios ──────────────────────────────────────────────
 // Retourne tous les copropriétaires du cabinet
@@ -39,14 +39,15 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const { data, error } = await query
+  const { from, to } = parsePagination(request.url)
+  const { data, error, count } = await query.range(from, to)
 
   if (error) {
     logger.error('[COPROPRIOS] GET error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 
-  const response = NextResponse.json({ coproprios: data || [] })
+  const response = NextResponse.json({ coproprios: data || [], from, to, count })
   response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
   return response
 }

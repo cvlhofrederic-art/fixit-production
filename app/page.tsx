@@ -82,18 +82,24 @@ export default function HomePage() {
       document.querySelectorAll('[data-reveal-id]').forEach(el => observer.observe(el))
     })
     // Fallback: on scroll, check for elements scrolled past that observer may have missed
+    let scrollTicking = false
     const onScroll = () => {
-      document.querySelectorAll('[data-reveal-id]').forEach(el => {
-        const rect = el.getBoundingClientRect()
-        const id = (el as HTMLElement).dataset.revealId
-        if (id && (rect.top < window.innerHeight + 150)) {
-          setRevealedEls(prev => {
-            if (prev.has(id)) return prev
-            const next = new Set(prev)
-            next.add(id)
-            return next
-          })
-        }
+      if (scrollTicking) return
+      scrollTicking = true
+      requestAnimationFrame(() => {
+        document.querySelectorAll('[data-reveal-id]').forEach(el => {
+          const rect = el.getBoundingClientRect()
+          const id = (el as HTMLElement).dataset.revealId
+          if (id && (rect.top < window.innerHeight + 150)) {
+            setRevealedEls(prev => {
+              if (prev.has(id)) return prev
+              const next = new Set(prev)
+              next.add(id)
+              return next
+            })
+          }
+        })
+        scrollTicking = false
       })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -573,10 +579,10 @@ export default function HomePage() {
           <div className={s.footerCol}>
             <h5>Vitfix</h5>
             <ul>
-              <li><Link href={isPt ? '/sobre' : '/a-propos'}>{isPt ? 'Sobre nós' : 'À propos'}</Link></li>
+              <li><Link href={isPt ? '/pt/sobre' : '/fr/a-propos'}>{isPt ? 'Sobre nós' : 'À propos'}</Link></li>
               <li><Link href="/contact">{isPt ? 'Contacto' : 'Contact'}</Link></li>
-              <li><Link href={isPt ? '/pt/blog' : '/blog'}>Blog</Link></li>
-              <li><Link href={isPt ? '/pt/avis' : '/avis'}>{isPt ? 'Avaliações' : 'Avis'}</Link></li>
+              <li><Link href={isPt ? '/pt/blog' : '/fr/blog'}>Blog</Link></li>
+              <li><Link href={isPt ? '/pt/avaliacoes' : '/fr/avis'}>{isPt ? 'Avaliações' : 'Avis'}</Link></li>
             </ul>
           </div>
           <div className={s.footerCol}>
@@ -598,15 +604,15 @@ export default function HomePage() {
           <div className={s.footerCol}>
             <h5>{isPt ? 'Legal' : 'Légal'}</h5>
             <ul>
-              <li><Link href="/cgu">{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
+              <li><Link href={isPt ? '/fr/cgu' : '/fr/cgu'}>{isPt ? 'Termos e condições' : 'CGU'}</Link></li>
               <li><Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link></li>
-              <li><Link href="/mentions-legales">{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
+              <li><Link href={isPt ? '/fr/mentions-legales' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link></li>
             </ul>
           </div>
         </div>
         <div className={s.footerBottom}>
           © 2026 Vitfix · {isPt ? 'Todos os direitos reservados' : 'Tous droits réservés'} ·{' '}
-          <Link href="/mentions-legales">{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
+          <Link href={isPt ? '/fr/mentions-legales' : '/fr/mentions-legales'}>{isPt ? 'Aviso legal' : 'Mentions légales'}</Link> ·{' '}
           <Link href="/confidentialite">{isPt ? 'Privacidade' : 'Confidentialité'}</Link>
         </div>
       </footer>

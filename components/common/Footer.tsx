@@ -3,9 +3,19 @@
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
+// Locale-aware paths for pages that have different slugs per locale
+const localePaths = {
+  search:       { fr: '/recherche', pt: '/pesquisar' },
+  pricing:      { fr: '/tarifs', pt: '/precos' },
+  reviews:      { fr: '/avis', pt: '/avaliacoes' },
+  legalNotice:  { fr: '/mentions-legales', pt: '/mentions-legales' },
+  terms:        { fr: '/cgu', pt: '/cgu' },
+} as const
+
 export default function Footer() {
   const { t } = useTranslation()
   const locale = useLocale()
+  const lp = (key: keyof typeof localePaths) => localePaths[key][locale === 'pt' ? 'pt' : 'fr']
 
   return (
     <footer className="bg-dark pt-14 pb-8 px-[5%] text-white/50">
@@ -29,7 +39,7 @@ export default function Footer() {
             </h4>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href="/recherche" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('search')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.findArtisan')}
                 </LocaleLink>
               </li>
@@ -39,12 +49,12 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/tarifs" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('pricing')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.pricing')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/avis" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('reviews')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.reviews')}
                 </LocaleLink>
               </li>
@@ -87,12 +97,12 @@ export default function Footer() {
             </h4>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href="/mentions-legales" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('legalNotice')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.legalNotice')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/cgu" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('terms')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.terms')}
                 </LocaleLink>
               </li>

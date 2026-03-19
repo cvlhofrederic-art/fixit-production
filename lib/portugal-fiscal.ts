@@ -67,32 +67,11 @@ export const PT_MA_IVA_RATES = {
 // The private key is stored securely as an environment variable
 
 /**
- * Generate a new RSA key pair for AT certification.
- * Run this ONCE during initial setup, then store the keys securely.
- * The public key goes to AT, the private key goes to PT_FISCAL_PRIVATE_KEY env var.
- */
-export function generateKeyPair(): { publicKey: string; privateKey: string } {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 1024, // AT minimum requirement (Portaria n.º 363/2010)
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  })
-  return { publicKey, privateKey }
-}
-
-/**
  * Get the software's private key from environment.
  * Returns null if not configured (development mode).
  */
-export function getPrivateKey(): string | null {
+function getPrivateKey(): string | null {
   return process.env.PT_FISCAL_PRIVATE_KEY || null
-}
-
-/**
- * Get the software's public key from environment.
- */
-export function getPublicKey(): string | null {
-  return process.env.PT_FISCAL_PUBLIC_KEY || null
 }
 
 // ─── Hash Chain (Portaria n.º 363/2010) ─────────────────────────────────────

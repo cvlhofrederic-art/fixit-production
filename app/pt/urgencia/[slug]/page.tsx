@@ -1,67 +1,104 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getAllUrgencyCombos, getUrgencyCombo, SERVICES } from '@/lib/data/seo-pages-data'
+import { getAllUrgencyCombos, getUrgencyCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
+// ── Generate all 32 urgency pages (4 services × 8 cities) ──
 export function generateStaticParams() {
-  return getAllUrgencyCombos().map(c => ({ slug: c.slug }))
+  return getAllUrgencyCombos().map(p => ({ slug: p.slug }))
 }
 
+// ── Dynamic SEO metadata ──
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const combo = getUrgencyCombo(slug)
   if (!combo) return {}
 
-  const title = combo.service.urgency.metaTitle.replace('{city}', combo.city.name)
-  const description = combo.service.urgency.metaDesc.replace('{city}', combo.city.name)
+  const title = combo.service.urgency.metaTitle.replace(/{city}/g, combo.city.name)
+  const description = combo.service.urgency.metaDesc.replace(/{city}/g, combo.city.name)
 
   return {
     title,
     description,
-    openGraph: { title, description, siteName: 'VITFIX', locale: 'pt_PT', type: 'website' },
-    alternates: { canonical: `https://vitfix.io/pt/urgencia/${slug}/` },
+    openGraph: {
+      title,
+      description,
+      siteName: 'VITFIX',
+      locale: 'pt_PT',
+      type: 'website',
+      images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
+    alternates: {
+      canonical: `https://vitfix.io/pt/urgencia/${slug}/`,
+      languages: {
+        'pt': `https://vitfix.io/pt/urgencia/${slug}/`,
+        'x-default': `https://vitfix.io/pt/urgencia/${slug}/`,
+      },
+    },
   }
 }
 
-export default async function PtUrgenciaCityPage({ params }: { params: Promise<{ slug: string }> }) {
+// ── Page Component ──
+export default async function UrgencyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const combo = getUrgencyCombo(slug)
   if (!combo) notFound()
 
-  const { service, city } = combo
-  const waText = encodeURIComponent(`URGÊNCIA! Preciso de um ${service.name.toLowerCase()} imediatamente em ${city.name}. Podem intervir?`)
-  const otherServices = SERVICES.filter(s => s.slug !== service.slug && ['eletricista', 'canalizador'].includes(s.slug))
+  const { service, city, nearbyCities } = combo
+  const replaceCity = (text: string) => text.replace(/\{city\}/g, city.name)
+  const urgency = service.urgency
+  const heroTitle = replaceCity(urgency.heroTitle)
+  const heroSubtitle = replaceCity(urgency.heroSubtitle)
+  const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
+  // Schema.org — Emergency Service + FAQPage
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'EmergencyService',
-        name: `VITFIX — ${service.name} urgência em ${city.name}`,
-        description: service.urgency.metaDesc.replace('{city}', city.name),
+        name: `VITFIX - ${service.name} Urgente em ${city.name}`,
+        description: urgency.metaDesc.replace(/{city}/g, city.name),
         url: `https://vitfix.io/pt/urgencia/${slug}/`,
-        image: 'https://vitfix.io/og-image.png',
-        logo: 'https://vitfix.io/og-image.png',
+        areaServed: {
+          '@type': 'City',
+          name: city.name,
+          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
+        },
+        availableChannel: {
+          '@type': 'ServiceChannel',
+          serviceType: `${service.name} de urgência`,
+          availableLanguage: 'Português',
+        },
+        hoursAvailable: {
+          '@type': 'OpeningHoursSpecification',
+          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+          opens: '00:00',
+          closes: '23:59',
+        },
+        image: 'https://vitfix.io/logo.png',
         telephone: PHONE_PT,
-        areaServed: { '@type': 'City', name: city.name },
         address: {
           '@type': 'PostalAddress',
           addressLocality: city.name,
           addressRegion: city.distrito,
           addressCountry: 'PT',
         },
-        openingHoursSpecification: {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-          opens: '00:00',
-          closes: '23:59',
+        geo: {
+          '@type': 'GeoCoordinates',
+          latitude: city.lat,
+          longitude: city.lng,
         },
-        geo: { '@type': 'GeoCoordinates', latitude: city.lat, longitude: city.lng },
         aggregateRating: {
           '@type': 'AggregateRating',
           ratingValue: '4.9',
-          reviewCount: '5000',
+          reviewCount: '127',
           bestRating: '5',
           worstRating: '1',
         },
@@ -71,8 +108,16 @@ export default async function PtUrgenciaCityPage({ params }: { params: Promise<{
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
           { '@type': 'ListItem', position: 2, name: 'Urgência', item: 'https://vitfix.io/pt/urgencia/' },
-          { '@type': 'ListItem', position: 3, name: `${service.name} urgência ${city.name}`, item: `https://vitfix.io/pt/urgencia/${slug}/` },
+          { '@type': 'ListItem', position: 3, name: `${service.name} Urgente em ${city.name}`, item: `https://vitfix.io/pt/urgencia/${slug}/` },
         ],
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: service.faqs.map(faq => ({
+          '@type': 'Question',
+          name: replaceCity(faq.question),
+          acceptedAnswer: { '@type': 'Answer', text: replaceCity(faq.answer) },
+        })),
       },
     ],
   }
@@ -81,121 +126,174 @@ export default async function PtUrgenciaCityPage({ params }: { params: Promise<{
     <div className="min-h-screen bg-warm-gray">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      {/* ── HERO URGÊNCIA ── */}
-      <section className="relative overflow-hidden py-16 md:py-20" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' }}>
-        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow/6 rounded-full -translate-y-1/3 translate-x-1/3 pointer-events-none" />
+      {/* ── HERO URGENCE ── */}
+      <section className="relative overflow-hidden pt-16 pb-14 md:pt-20 md:pb-18" style={{ background: 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 30%, #FFCC80 100%)' }}>
+        <div className="absolute top-0 right-0 w-60 h-60 bg-yellow/20 rounded-full -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-40 h-40 bg-yellow/10 rounded-full translate-y-1/2 -translate-x-1/3" />
+
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav aria-label="Breadcrumb" className="mb-6 text-sm text-white/50">
+          {/* Breadcrumb */}
+          <nav aria-label="Breadcrumb" className="mb-6 text-sm text-dark/60">
             <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
             <Link href="/pt/urgencia/" className="hover:text-yellow transition">Urgência</Link>
             <span className="mx-2">/</span>
-            <span className="text-white/80">{service.name} {city.name}</span>
+            <span className="text-dark font-medium">{service.name} em {city.name}</span>
           </nav>
 
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-3xl">⚠️</span>
-            <span className="text-yellow font-bold text-sm uppercase tracking-wider">{service.urgency.availableSchedule}</span>
+          {/* Urgency badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/10 border border-red-500/25 text-sm font-bold mb-5">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+            <span className="text-red-700">URGÊNCIA — {urgency.availableSchedule}</span>
           </div>
 
-          <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-white mb-4">
-            {service.name} Urgência em {city.name}<br />
-            <span className="text-yellow">Intervenção em {service.urgency.avgResponseTime}</span>
+          <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
+            {heroTitle}
           </h1>
-          <p className="text-lg text-white/70 max-w-2xl mb-8 leading-relaxed">
-            {service.urgency.metaDesc.replace('{city}', city.name)}
+          <p className="text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
+            {heroSubtitle}
           </p>
 
-          <div className="flex flex-wrap gap-3">
-            <a
-              href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${waText}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3.5 text-[0.95rem] hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_24px_rgba(37,211,102,0.5)]"
+          {/* CTAs urgence */}
+          <div className="flex flex-wrap gap-3 mb-10">
+            <Link
+              href="/pt/pesquisar/"
+              className="inline-flex items-center gap-2 bg-red-600 text-white font-display font-bold rounded-full px-7 py-3.5 text-[0.95rem] hover:bg-red-700 hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(220,38,38,0.3)]"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp — Resposta imediata
-            </a>
-            <a
-              href={`tel:${PHONE_PT}`}
-              className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3.5 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all"
+              <span className="text-lg">🚨</span>
+              Pedir ajuda agora
+            </Link>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 border-2 border-dark text-dark rounded-full font-bold px-7 py-3.5 text-[0.95rem] bg-white/80 hover:bg-dark hover:text-white transition-all"
             >
-              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 8V5z"/></svg>
-              Ligar agora
-            </a>
+              Contactar-nos
+            </Link>
           </div>
-        </div>
-      </section>
 
-      {/* ── PASSOS DE URGÊNCIA ── */}
-      <section className="py-14">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Passos imediatos */}
-            <div className="bg-white rounded-2xl border border-border/50 overflow-hidden">
-              <div className="p-5 bg-yellow/10 border-b border-yellow/20">
-                <h2 className="font-display font-bold text-lg flex items-center gap-2">
-                  <span>🛡️</span> Passos de urgência — {city.name}
-                </h2>
-                <p className="text-sm text-text-muted mt-1">Enquanto espera pelo {service.name.toLowerCase()}</p>
-              </div>
-              <ol className="p-5 space-y-3">
-                {service.urgency.immediateSteps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow flex items-center justify-center text-dark font-bold text-xs">{i + 1}</span>
-                    <span className="text-[0.87rem] text-dark/80 leading-relaxed">{step}</span>
-                  </li>
-                ))}
-              </ol>
+          {/* Tempo de resposta */}
+          <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
+              <span className="text-yellow font-bold">⚡</span>
+              <span className="text-dark">Tempo médio de resposta: <strong>{urgency.avgResponseTime}</strong></span>
             </div>
-
-            {/* Quando ligar */}
-            <div className="bg-white rounded-2xl border border-border/50 overflow-hidden">
-              <div className="p-5 bg-red-50 border-b border-red-100">
-                <h2 className="font-display font-bold text-lg flex items-center gap-2">
-                  <span>🔴</span> Quando ligar de urgência?
-                </h2>
-                <p className="text-sm text-text-muted mt-1">Estas situações necessitam de intervenção imediata</p>
-              </div>
-              <ul className="p-5 space-y-3">
-                {service.urgency.whenToCall.map((situation, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="flex-shrink-0 text-red-500 font-bold text-lg mt-0.5">!</span>
-                    <span className="text-[0.87rem] text-dark/80 leading-relaxed">{situation}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
+              <span className="text-yellow font-bold">📍</span>
+              <span className="text-dark">{city.name} e {city.freguesias.length} freguesias</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── ZONA + FREGUESIAS ── */}
-      <section className="py-14 bg-white">
+      {/* ── O QUE FAZER IMEDIATAMENTE ── */}
+      <section className="py-14 md:py-18">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-xl font-bold mb-4">Zona de intervenção de urgência — {city.name}</h2>
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
+            O que fazer imediatamente?
+          </h2>
+          <p className="text-text-muted mb-8 max-w-2xl">
+            Siga estes passos enquanto espera pelo profissional VITFIX:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {urgency.immediateSteps.map((step, i) => (
+              <div key={i} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-border/50">
+                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold mt-0.5">
+                  {i + 1}
+                </span>
+                <span className="text-[0.93rem] text-dark leading-relaxed">{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── QUANDO CHAMAR ── */}
+      <section className="py-14 md:py-18 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
+            Quando chamar um {service.name.toLowerCase()} de urgência?
+          </h2>
+          <p className="text-text-muted mb-8 max-w-2xl">
+            Estas situações requerem intervenção profissional imediata em {city.name}:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {urgency.whenToCall.map((situation, i) => (
+              <div key={i} className="flex items-start gap-3 p-4 rounded-xl border-2 border-red-100 bg-red-50/50 hover:border-red-200 transition-colors">
+                <span className="flex-shrink-0 text-red-500 text-lg mt-0.5">⚠️</span>
+                <span className="text-[0.93rem] text-dark font-medium">{situation}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SERVICES COMPLETS ── */}
+      <section className="py-14 md:py-18">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
+            Os nossos serviços de {service.name.toLowerCase()} em {city.name}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {service.features.map((feature, i) => (
+              <div key={i} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-border/50">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold mt-0.5">✓</span>
+                <span className="text-[0.93rem] text-dark leading-relaxed">{feature}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href={`/pt/servicos/${service.slug}-${city.slug}/`}
+              className="text-yellow font-semibold hover:underline"
+            >
+              Ver todos os serviços de {service.name.toLowerCase()} em {city.name} →
+            </Link>
+            {['canalizador', 'eletricista', 'pintor'].includes(service.slug) && (
+              <Link
+                href={`/pt/precos/${service.slug}/`}
+                className="text-text-muted font-semibold hover:text-dark hover:underline transition"
+              >
+                💰 Ver tabela de preços →
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── ZONA DE COBERTURA ── */}
+      <section className="py-14 md:py-18 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
+            Cobertura de urgência — {city.name}
+          </h2>
           <p className="text-text-muted mb-6">
-            Os nossos profissionais de {service.name.toLowerCase()} intervêm de urgência em todas as freguesias de {city.name} ({city.population.toLocaleString('pt-PT')} habitantes).
+            Os nossos {service.name.toLowerCase()}s de urgência atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
           </p>
-          <div className="flex flex-wrap gap-2 mb-8">
-            {city.freguesias.map(q => (
-              <span key={q} className="px-3 py-1.5 bg-warm-gray rounded-full text-sm text-dark/70 border border-border/30">{q}</span>
+          <div className="flex flex-wrap gap-2 mb-10">
+            {city.freguesias.map(f => (
+              <span key={f} className="px-3 py-1.5 bg-warm-gray rounded-full text-sm text-dark/70 border border-border/30">{f}</span>
             ))}
           </div>
 
-          {/* Outros serviços de urgência */}
-          {otherServices.length > 0 && (
+          {/* Urgência noutras cidades */}
+          {nearbyCities.length > 0 && (
             <>
-              <h3 className="font-display text-lg font-bold mb-4">Outras urgências em {city.name}</h3>
-              <div className="flex flex-wrap gap-3">
-                {otherServices.map(os => (
+              <h3 className="font-display text-xl font-bold mb-4">{service.name} urgente noutras cidades</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {nearbyCities.map(nc => (
                   <Link
-                    key={os.slug}
-                    href={`/pt/urgencia/${os.slug}-urgente-${city.slug}/`}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/50 text-sm hover:border-yellow hover:bg-yellow/5 transition-all"
+                    key={nc.slug}
+                    href={`/pt/urgencia/${service.slug}-urgente-${nc.slug}/`}
+                    className="flex items-center gap-3 p-4 rounded-xl border-2 border-yellow/20 hover:border-yellow hover:bg-yellow/5 transition-all group"
                   >
-                    <span>{os.icon}</span>
-                    {os.name} urgência {city.name}
+                    <span className="text-xl">🚨</span>
+                    <div>
+                      <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{service.name} urgente em {nc.name}</span>
+                      <span className="block text-xs text-text-muted">{nc.population.toLocaleString('pt-PT')} hab.</span>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -204,36 +302,91 @@ export default async function PtUrgenciaCityPage({ params }: { params: Promise<{
         </div>
       </section>
 
-      {/* ── BOTTOM CTA ── */}
-      <section className="py-12">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative overflow-hidden rounded-2xl p-8" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' }}>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div>
-                <h3 className="font-display text-xl font-bold text-white mb-2">
-                  {service.name} urgência em {city.name} — {service.urgency.avgResponseTime}
-                </h3>
-                <p className="text-white/60 text-sm">{service.urgency.availableSchedule}</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
-                <a
-                  href={`https://wa.me/${PHONE_PT.replace('+', '')}?text=${waText}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold rounded-full px-6 py-3 text-sm hover:bg-[#20ba59] transition-all whitespace-nowrap"
+      {/* ── FAQ ── */}
+      <section className="py-14 md:py-18">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
+            Perguntas frequentes — {service.name} urgente
+          </h2>
+          <div className="space-y-4 mt-8">
+            {service.faqs.map((faq, i) => (
+              <details key={i} className="group rounded-2xl border border-border/50 bg-white overflow-hidden">
+                <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer list-none font-display font-bold text-dark hover:text-yellow transition select-none">
+                  <span className="text-[0.95rem]">{replaceCity(faq.question)}</span>
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
+                </summary>
+                <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
+                  {replaceCity(faq.answer)}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── RELATED BLOG ── */}
+      {relatedArticles.length > 0 && (
+        <section className="py-14 md:py-18 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-xl font-bold text-dark mb-6">Artigos relacionados</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {relatedArticles.map(a => (
+                <Link
+                  key={a.slug}
+                  href={`/pt/blog/${a.slug}/`}
+                  className="p-5 rounded-2xl border border-border/50 hover:border-yellow hover:shadow-sm transition-all group"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  WhatsApp Urgência
-                </a>
-                <a
-                  href={`tel:${PHONE_PT}`}
-                  className="inline-flex items-center justify-center gap-2 bg-yellow text-dark font-bold rounded-full px-6 py-3 text-sm hover:bg-yellow-light transition-all whitespace-nowrap"
-                >
-                  Ligar agora
-                </a>
-              </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{a.icon}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-yellow">{a.category}</span>
+                  </div>
+                  <h3 className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">{a.title}</h3>
+                </Link>
+              ))}
             </div>
           </div>
+        </section>
+      )}
+
+      {/* ── OTHER URGENCY SERVICES ── */}
+      <section className="py-14 md:py-18">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6">
+            Outros serviços de urgência em {city.name}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {SERVICES.filter(s => s.slug !== service.slug).map(os => (
+              <Link
+                key={os.slug}
+                href={`/pt/urgencia/${os.slug}-urgente-${city.slug}/`}
+                className="p-6 bg-white rounded-2xl border-2 border-yellow/20 hover:border-yellow hover:shadow-md transition-all group text-center"
+              >
+                <span className="text-3xl block mb-3">{os.icon}</span>
+                <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{os.name} Urgente</span>
+                <span className="block text-sm text-text-muted mt-1">em {city.name}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── BOTTOM CTA ── */}
+      <section className="py-16 md:py-20" style={{ background: 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%)' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <span className="text-4xl block mb-4">🚨</span>
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
+            Urgência em {city.name}? Estamos disponíveis agora!
+          </h2>
+          <p className="text-dark/70 mb-8 max-w-md mx-auto">
+            {urgency.availableSchedule}. Profissionais verificados, intervenção rápida.
+          </p>
+          <Link
+            href="/pt/pesquisar/"
+            className="inline-flex items-center gap-2 bg-red-600 text-white font-display font-bold rounded-full px-8 py-4 text-base hover:bg-red-700 hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(220,38,38,0.3)]"
+          >
+            Encontrar {service.name.toLowerCase()} urgente agora
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </Link>
         </div>
       </section>
     </div>

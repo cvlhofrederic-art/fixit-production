@@ -373,7 +373,7 @@ export default function OcorrenciasIASection({ user }: Props) {
               </button>
               {imagemPreview && (
                 <div className="mt-3 relative inline-block">
-                  <img src={imagemPreview} alt="Preview" className="w-32 h-32 object-cover rounded-xl border border-gray-200" />
+                  <img src={imagemPreview} alt="Preview" loading="lazy" width={128} height={128} className="w-32 h-32 object-cover rounded-xl border border-gray-200" />
                   <button
                     onClick={() => setImagemPreview(null)}
                     className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
@@ -516,7 +516,7 @@ export default function OcorrenciasIASection({ user }: Props) {
               <div key={oc.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
                 <div className="flex items-start gap-3">
                   {oc.imagemBase64 && (
-                    <img src={oc.imagemBase64} alt="" className="w-16 h-16 object-cover rounded-lg border" />
+                    <img src={oc.imagemBase64} alt="" loading="lazy" width={64} height={64} className="w-16 h-16 object-cover rounded-lg border" />
                   )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">

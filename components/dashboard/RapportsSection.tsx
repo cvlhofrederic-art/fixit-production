@@ -626,7 +626,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
         <div className="flex items-center justify-between flex-wrap gap-4 w-full">
           <div>
             <h1 className="text-xl font-semibold leading-tight">📋 Rapports d'Intervention</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Compte-rendus BTP — liés à vos interventions</p>
+            <p className="text-xs text-gray-400 mt-0.5">Compte-rendus BTP, liés à vos interventions</p>
           </div>
           <button onClick={openNew} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2">
             ➕ Nouveau rapport
@@ -649,7 +649,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
             <div className="p-6 space-y-6">
               {/* Liaison intervention / mission */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <label className="block text-sm font-bold text-gray-700 mb-2">⚡ Import rapide — pré-remplir depuis :</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">⚡ Import rapide : pré-remplir depuis</label>
                 <div className="flex gap-2 mb-3">
                   <button
                     onClick={() => setImportSource('intervention')}

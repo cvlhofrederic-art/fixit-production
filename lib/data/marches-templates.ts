@@ -9,6 +9,7 @@ export interface MarcheTemplate {
   estimated_budget_min?: number
   estimated_budget_max?: number
   typical_duration: string
+  typical_duration_pt: string
   suggested_requirements: {
     rc_pro?: boolean
     decennale?: boolean
@@ -29,6 +30,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 5000,
     estimated_budget_max: 15000,
     typical_duration: '2 semaines',
+    typical_duration_pt: '2 semanas',
     suggested_requirements: { rc_pro: true, decennale: true },
   },
   {
@@ -42,6 +44,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 2000,
     estimated_budget_max: 8000,
     typical_duration: '1 semaine',
+    typical_duration_pt: '1 semana',
     suggested_requirements: { rc_pro: true, qualibat: true },
   },
   {
@@ -55,6 +58,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 8000,
     estimated_budget_max: 25000,
     typical_duration: '3 semaines',
+    typical_duration_pt: '3 semanas',
     suggested_requirements: { rc_pro: true, decennale: true },
   },
   {
@@ -68,6 +72,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 1500,
     estimated_budget_max: 5000,
     typical_duration: '1 semaine',
+    typical_duration_pt: '1 semana',
     suggested_requirements: { rc_pro: true },
   },
   {
@@ -81,6 +86,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 3000,
     estimated_budget_max: 12000,
     typical_duration: '2 semaines',
+    typical_duration_pt: '2 semanas',
     suggested_requirements: { rc_pro: true, decennale: true },
   },
   {
@@ -94,6 +100,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 2000,
     estimated_budget_max: 6000,
     typical_duration: '3 jours',
+    typical_duration_pt: '3 dias',
     suggested_requirements: { rc_pro: true, rge: true },
   },
   {
@@ -107,6 +114,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 30000,
     estimated_budget_max: 80000,
     typical_duration: '3 mois',
+    typical_duration_pt: '3 meses',
     suggested_requirements: { rc_pro: true, decennale: true, qualibat: true },
   },
   {
@@ -120,6 +128,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 2000,
     estimated_budget_max: 8000,
     typical_duration: '1 semaine',
+    typical_duration_pt: '1 semana',
     suggested_requirements: { rc_pro: true, decennale: true },
   },
   {
@@ -133,6 +142,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 5000,
     estimated_budget_max: 20000,
     typical_duration: '2 semaines',
+    typical_duration_pt: '2 semanas',
     suggested_requirements: { rc_pro: true, decennale: true },
   },
   {
@@ -146,6 +156,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 1000,
     estimated_budget_max: 5000,
     typical_duration: '2 jours',
+    typical_duration_pt: '2 dias',
     suggested_requirements: { rc_pro: true },
   },
   {
@@ -159,6 +170,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 2000,
     estimated_budget_max: 7000,
     typical_duration: '2 jours',
+    typical_duration_pt: '2 dias',
     suggested_requirements: { rc_pro: true, rge: true },
   },
   {
@@ -172,6 +184,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 5000,
     estimated_budget_max: 20000,
     typical_duration: '2 semaines',
+    typical_duration_pt: '2 semanas',
     suggested_requirements: { rc_pro: true },
   },
   {
@@ -185,6 +198,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 3000,
     estimated_budget_max: 12000,
     typical_duration: '1 semaine',
+    typical_duration_pt: '1 semana',
     suggested_requirements: { rc_pro: true, rge: true },
   },
   {
@@ -198,6 +212,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 2000,
     estimated_budget_max: 10000,
     typical_duration: '1 semaine',
+    typical_duration_pt: '1 semana',
     suggested_requirements: { rc_pro: true },
   },
   {
@@ -211,6 +226,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 150,
     estimated_budget_max: 800,
     typical_duration: '1 jour',
+    typical_duration_pt: '1 dia',
     suggested_requirements: { rc_pro: true },
   },
   {
@@ -224,6 +240,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 20000,
     estimated_budget_max: 60000,
     typical_duration: '2 mois',
+    typical_duration_pt: '2 meses',
     suggested_requirements: { rc_pro: true, decennale: true, qualibat: true },
   },
   {
@@ -237,6 +254,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 5000,
     estimated_budget_max: 15000,
     typical_duration: '2 semaines',
+    typical_duration_pt: '2 semanas',
     suggested_requirements: { rc_pro: true, rge: true, qualibat: true },
   },
   {
@@ -250,6 +268,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 10000,
     estimated_budget_max: 50000,
     typical_duration: '1 mois',
+    typical_duration_pt: '1 mês',
     suggested_requirements: { rc_pro: true, decennale: true, qualibat: true },
   },
   {
@@ -263,6 +282,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 15000,
     estimated_budget_max: 40000,
     typical_duration: '1 mois',
+    typical_duration_pt: '1 mês',
     suggested_requirements: { rc_pro: true, decennale: true },
   },
   {
@@ -276,6 +296,7 @@ export const MARCHE_TEMPLATES: MarcheTemplate[] = [
     estimated_budget_min: 500,
     estimated_budget_max: 2000,
     typical_duration: '1 jour',
+    typical_duration_pt: '1 dia',
     suggested_requirements: { rc_pro: true },
   },
 ]

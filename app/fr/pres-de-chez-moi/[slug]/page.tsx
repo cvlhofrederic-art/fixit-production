@@ -72,7 +72,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     alternates: { canonical: `https://vitfix.io/fr/pres-de-chez-moi/${slug}/` },
-    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website' },
+    openGraph: { title, description, siteName: 'VITFIX', locale: 'fr_FR', type: 'website', images: [{ url: 'https://vitfix.io/og-image.png', width: 1200, height: 630 }] },
   }
 }
 

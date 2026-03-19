@@ -29,7 +29,7 @@ async function getPlugin() {
  * Demande la permission d'envoyer des notifications locales
  * @returns true si accordée, false sinon
  */
-export async function requestNotificationPermission(): Promise<boolean> {
+async function requestNotificationPermission(): Promise<boolean> {
   const plugin = await getPlugin()
   if (!plugin) return false
   try {

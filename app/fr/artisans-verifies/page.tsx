@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/fr/artisans-verifies/',
+    languages: {
+      'fr': 'https://vitfix.io/fr/artisans-verifies/',
+      'pt': 'https://vitfix.io/pt/profissionais-verificados/',
+      'x-default': 'https://vitfix.io/fr/artisans-verifies/',
+    },
   },
 }
 

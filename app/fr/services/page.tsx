@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description: 'Tous les services d\'artisans à Marseille et dans les Bouches-du-Rhône : plombier, électricien, peintre, plaquiste. Professionnels vérifiés, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/services/',
+    languages: {
+      'fr': 'https://vitfix.io/fr/services/',
+      'pt': 'https://vitfix.io/pt/servicos/',
+      'x-default': 'https://vitfix.io/fr/services/',
+    },
   },
 }
 

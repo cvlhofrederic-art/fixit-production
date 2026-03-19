@@ -17,6 +17,15 @@ export const WHATSAPP_FR = `https://wa.me/${PHONE_FR.replace('+', '')}`
 /** Lien WhatsApp Portugal */
 export const WHATSAPP_PT = `https://wa.me/${PHONE_PT.replace('+', '')}`
 
+// ── Emails ────────────────────────────────────────────────────────────────────
+
+/** Email de contact public */
+export const CONTACT_EMAIL = 'contact@vitfix.io'
+/** Email expéditeur (transactionnel Resend) */
+export const NOREPLY_EMAIL = 'noreply@vitfix.io'
+/** Email support artisan */
+export const SUPPORT_EMAIL = 'support@fixit.fr'
+
 // ── URLs ─────────────────────────────────────────────────────────────────────
 
 /** URL de production */
@@ -24,10 +33,28 @@ export const SITE_URL = 'https://vitfix.io'
 
 /** URLs API externes */
 export const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 export const TAVILY_API_URL = 'https://api.tavily.com/search'
 export const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org'
 export const GOUV_ADRESSE_API_URL = 'https://api-adresse.data.gouv.fr'
 export const GOUV_ENTREPRISES_API_URL = 'https://recherche-entreprises.api.gouv.fr'
+
+/** URLs Google APIs */
+export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+export const GMAIL_API_URL = 'https://gmail.googleapis.com/gmail/v1'
+export const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+
+// ── AI Models ────────────────────────────────────────────────────────────────
+
+/** Modèle Groq principal (rapide, performant) */
+export const GROQ_MODEL_PRIMARY = 'llama-3.3-70b-versatile'
+/** Modèle Groq fallback (plus rapide, moins précis) */
+export const GROQ_MODEL_FALLBACK = 'llama-3.1-8b-instant'
+
+// ── Misc ─────────────────────────────────────────────────────────────────────
+
+/** User-Agent pour requêtes HTTP sortantes */
+export const USER_AGENT = 'Vitfix/1.0'
 
 // ── Timeouts (ms) ────────────────────────────────────────────────────────────
 

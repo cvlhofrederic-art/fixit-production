@@ -13,9 +13,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${baseUrl}/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 1.0 },
     { url: `${baseUrl}/pt/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 1.0 },
-    { url: `${baseUrl}/recherche/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 0.9 },
-    { url: `${baseUrl}/avis/`, lastModified: new Date('2026-03-16'), changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${baseUrl}/blog/`, lastModified: new Date('2026-03-01'), changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${baseUrl}/fr/recherche/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/pt/pesquisar/`, lastModified: new Date('2026-03-01'), changeFrequency: 'daily', priority: 0.9 },
+    { url: `${baseUrl}/pt/avaliacoes/`, lastModified: new Date('2026-03-16'), changeFrequency: 'weekly', priority: 0.8 },
     // Pages contenu FR — relation client/professionnel
     { url: `${baseUrl}/fr/comment-ca-marche/`, lastModified: new Date('2026-03-16'), changeFrequency: 'monthly', priority: 0.85 },
     { url: `${baseUrl}/fr/devenir-partenaire/`, lastModified: new Date('2026-03-16'), changeFrequency: 'monthly', priority: 0.85 },
@@ -84,6 +84,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date('2026-03-18'),
       changeFrequency: 'monthly' as const,
       priority: 0.85,
+    },
+    {
+      url: `${baseUrl}/pt/mercados/publicar/`,
+      lastModified: new Date('2026-03-18'),
+      changeFrequency: 'monthly' as const,
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/pt/mercados/gerir/`,
+      lastModified: new Date('2026-03-18'),
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
     },
   ]
 
@@ -336,7 +348,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .limit(500)
 
     const artisanPages: MetadataRoute.Sitemap = (artisans || []).map((a) => ({
-      url: `${baseUrl}/artisan/${a.slug || a.id}/`,
+      url: `${baseUrl}/fr/artisan/${a.slug || a.id}/`,
       lastModified: a.updated_at ? new Date(a.updated_at) : new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.8,

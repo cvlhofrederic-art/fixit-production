@@ -22,7 +22,12 @@ export const metadata: Metadata = {
     type: 'website',
   },
   alternates: {
-    canonical: 'https://vitfix.io/fr/simulateur-devis',
+    canonical: 'https://vitfix.io/fr/simulateur-devis/',
+    languages: {
+      'fr': 'https://vitfix.io/fr/simulateur-devis/',
+      'pt': 'https://vitfix.io/pt/simulador-orcamento/',
+      'x-default': 'https://vitfix.io/fr/simulateur-devis/',
+    },
   },
 }
 

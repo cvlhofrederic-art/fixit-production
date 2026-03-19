@@ -750,6 +750,7 @@
     opacity: 0;
     transform: translateY(24px);
     transition: opacity 0.65s ease, transform 0.65s ease;
+    will-change: transform, opacity;
 }
 .reveal.visible { opacity: 1; transform: none; }
 

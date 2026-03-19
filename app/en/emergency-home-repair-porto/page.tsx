@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/en/emergency-home-repair-porto/',
+    languages: {
+      'en': 'https://vitfix.io/en/emergency-home-repair-porto/',
+      'pt': 'https://vitfix.io/pt/urgencia/',
+      'fr': 'https://vitfix.io/fr/urgence/',
+      'x-default': 'https://vitfix.io/en/emergency-home-repair-porto/',
+    },
   },
 }
 

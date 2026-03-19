@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/en/',
+    languages: {
+      'en': 'https://vitfix.io/en/',
+      'fr': 'https://vitfix.io/fr/',
+      'pt': 'https://vitfix.io/pt/',
+      'nl': 'https://vitfix.io/nl/',
+      'es': 'https://vitfix.io/es/',
+      'x-default': 'https://vitfix.io/en/',
+    },
   },
 }
 

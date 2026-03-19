@@ -11,54 +11,43 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'ui-avatars.com' },
     ],
   },
-  // i18n: rewrite /pt/... to /... (locale stored in cookie)
-  // /fr/ now has dedicated routes under app/fr/ (like /en/)
-  // We keep specific rewrites for the 4 FR investor pages that live at root level
+  // Locale routing: PT pages live in app/pt/, FR pages in app/fr/
+  // Rewrites only needed for shared pages at root (auth, pro, client, syndic, etc.)
   async rewrites() {
     return {
       beforeFiles: [
-        // FR investor pages now live under app/fr/ — no rewrite needed
-        // FR shared pages: root-level pages that should also work under /fr/ prefix
-        // (auth, pro, client, syndic, contact, avis, etc.)
+        // ── Shared root pages accessible via /fr/ prefix ──
         { source: '/fr/auth/:path*', destination: '/auth/:path*' },
         { source: '/fr/pro/:path*', destination: '/pro/:path*' },
         { source: '/fr/client/:path*', destination: '/client/:path*' },
         { source: '/fr/syndic/:path*', destination: '/syndic/:path*' },
+        { source: '/fr/admin/:path*', destination: '/admin/:path*' },
+        { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
         { source: '/fr/contact', destination: '/contact' },
         { source: '/fr/contact/', destination: '/contact/' },
-        { source: '/fr/avis', destination: '/avis' },
-        { source: '/fr/avis/', destination: '/avis/' },
-        { source: '/fr/inscription', destination: '/inscription' },
-        { source: '/fr/inscription/', destination: '/inscription/' },
-        { source: '/fr/recherche', destination: '/recherche' },
-        { source: '/fr/recherche/', destination: '/recherche/' },
-        { source: '/fr/reserver', destination: '/reserver' },
-        { source: '/fr/reserver/', destination: '/reserver/' },
-        { source: '/fr/tarifs', destination: '/tarifs' },
-        { source: '/fr/tarifs/', destination: '/tarifs/' },
-        { source: '/fr/mentions-legales', destination: '/mentions-legales' },
-        { source: '/fr/mentions-legales/', destination: '/mentions-legales/' },
-        { source: '/fr/a-propos', destination: '/a-propos' },
-        { source: '/fr/a-propos/', destination: '/a-propos/' },
-        { source: '/fr/sobre', destination: '/sobre' },
-        { source: '/fr/sobre/', destination: '/sobre/' },
-        { source: '/fr/cgu', destination: '/cgu' },
-        { source: '/fr/cgu/', destination: '/cgu/' },
+        { source: '/fr/confirmation', destination: '/confirmation' },
+        { source: '/fr/confirmation/', destination: '/confirmation/' },
         { source: '/fr/confidentialite', destination: '/confidentialite' },
         { source: '/fr/confidentialite/', destination: '/confidentialite/' },
         { source: '/fr/cookies', destination: '/cookies' },
         { source: '/fr/cookies/', destination: '/cookies/' },
-        { source: '/fr/artisan/:path*', destination: '/artisan/:path*' },
-        { source: '/fr/admin/:path*', destination: '/admin/:path*' },
-        { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
-        { source: '/fr/confirmation', destination: '/confirmation' },
-        { source: '/fr/confirmation/', destination: '/confirmation/' },
         { source: '/fr/tracking/:path*', destination: '/tracking/:path*' },
-        { source: '/fr/marches/:path*', destination: '/marches/:path*' },
-        // PT locale: rewrite /pt/... to /... (actual pages live at root)
-        { source: '/pt', destination: '/' },
-        { source: '/pt/:path*', destination: '/:path*' },
-        // Note: dedicated /fr/ routes (services, blog, specialites, etc.) are handled by app/fr/
+        // ── Shared root pages accessible via /pt/ prefix ──
+        { source: '/pt/auth/:path*', destination: '/auth/:path*' },
+        { source: '/pt/pro/:path*', destination: '/pro/:path*' },
+        { source: '/pt/client/:path*', destination: '/client/:path*' },
+        { source: '/pt/syndic/:path*', destination: '/syndic/:path*' },
+        { source: '/pt/admin/:path*', destination: '/admin/:path*' },
+        { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        { source: '/pt/contact', destination: '/contact' },
+        { source: '/pt/contact/', destination: '/contact/' },
+        { source: '/pt/confirmation', destination: '/confirmation' },
+        { source: '/pt/confirmation/', destination: '/confirmation/' },
+        { source: '/pt/confidentialite', destination: '/confidentialite' },
+        { source: '/pt/confidentialite/', destination: '/confidentialite/' },
+        { source: '/pt/cookies', destination: '/cookies' },
+        { source: '/pt/cookies/', destination: '/cookies/' },
+        { source: '/pt/tracking/:path*', destination: '/tracking/:path*' },
       ],
       afterFiles: [],
       fallback: [],
@@ -66,18 +55,41 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      // Alternate spelling: electricista → eletricista
-      { source: '/servicos/electricista-:city/', destination: '/servicos/eletricista-:city/', permanent: true },
-      { source: '/urgencia/electricista-urgente-:city/', destination: '/urgencia/eletricista-urgente-:city/', permanent: true },
-      { source: '/perto-de-mim/electricista/', destination: '/perto-de-mim/eletricista/', permanent: true },
-      { source: '/precos/electricista/', destination: '/precos/eletricista/', permanent: true },
+      // Alternate spelling: electricista → eletricista (PT pages now under /pt/)
+      { source: '/pt/servicos/electricista-:city/', destination: '/pt/servicos/eletricista-:city/', permanent: true },
+      { source: '/pt/urgencia/electricista-urgente-:city/', destination: '/pt/urgencia/eletricista-urgente-:city/', permanent: true },
+      { source: '/pt/perto-de-mim/electricista/', destination: '/pt/perto-de-mim/eletricista/', permanent: true },
+      { source: '/pt/precos/electricista/', destination: '/pt/precos/eletricista/', permanent: true },
       // Northern PT variant: picheleiro → canalizador
-      { source: '/servicos/picheleiro-:city/', destination: '/servicos/canalizador-:city/', permanent: true },
-      { source: '/urgencia/picheleiro-urgente-:city/', destination: '/urgencia/canalizador-urgente-:city/', permanent: true },
-      { source: '/perto-de-mim/picheleiro/', destination: '/perto-de-mim/canalizador/', permanent: true },
-      { source: '/precos/picheleiro/', destination: '/precos/canalizador/', permanent: true },
+      { source: '/pt/servicos/picheleiro-:city/', destination: '/pt/servicos/canalizador-:city/', permanent: true },
+      { source: '/pt/urgencia/picheleiro-urgente-:city/', destination: '/pt/urgencia/canalizador-urgente-:city/', permanent: true },
+      { source: '/pt/perto-de-mim/picheleiro/', destination: '/pt/perto-de-mim/canalizador/', permanent: true },
+      { source: '/pt/precos/picheleiro/', destination: '/pt/precos/canalizador/', permanent: true },
       // Common misspelling: marido de aluguer → faz-tudo
-      { source: '/perto-de-mim/marido-de-aluguer/', destination: '/perto-de-mim/faz-tudo/', permanent: true },
+      { source: '/pt/perto-de-mim/marido-de-aluguer/', destination: '/pt/perto-de-mim/faz-tudo/', permanent: true },
+      // Legacy root PT paths → redirect to /pt/ prefix
+      { source: '/servicos/:path*', destination: '/pt/servicos/:path*', permanent: true },
+      { source: '/urgencia/:path*', destination: '/pt/urgencia/:path*', permanent: true },
+      { source: '/cidade/:path*', destination: '/pt/cidade/:path*', permanent: true },
+      { source: '/perto-de-mim/:path*', destination: '/pt/perto-de-mim/:path*', permanent: true },
+      { source: '/precos/:path*', destination: '/pt/precos/:path*', permanent: true },
+      { source: '/sobre/', destination: '/pt/sobre/', permanent: true },
+      { source: '/como-funciona/', destination: '/pt/como-funciona/', permanent: true },
+      { source: '/especialidades/', destination: '/pt/especialidades/', permanent: true },
+      { source: '/profissionais-verificados/', destination: '/pt/profissionais-verificados/', permanent: true },
+      { source: '/profissional/:path*', destination: '/pt/profissional/:path*', permanent: true },
+      { source: '/torne-se-parceiro/', destination: '/pt/torne-se-parceiro/', permanent: true },
+      { source: '/pesquisar/', destination: '/pt/pesquisar/', permanent: true },
+      { source: '/condominio/', destination: '/pt/condominio/', permanent: true },
+      { source: '/simulador-orcamento/', destination: '/pt/simulador-orcamento/', permanent: true },
+      // Legacy root FR paths → redirect to /fr/ prefix
+      { source: '/a-propos/', destination: '/fr/a-propos/', permanent: true },
+      { source: '/recherche/', destination: '/fr/recherche/', permanent: true },
+      { source: '/tarifs/', destination: '/fr/tarifs/', permanent: true },
+      { source: '/cgu/', destination: '/fr/cgu/', permanent: true },
+      { source: '/mentions-legales/', destination: '/fr/mentions-legales/', permanent: true },
+      { source: '/artisan/:path*', destination: '/fr/artisan/:path*', permanent: true },
+      { source: '/reserver/', destination: '/fr/reserver/', permanent: true },
       // French marketplace URLs → redirect to PT equivalents
       { source: '/pt/marches/publier/', destination: '/pt/mercados/publicar/', permanent: true },
       { source: '/pt/marches/gerer/', destination: '/pt/mercados/gerir/', permanent: true },
@@ -103,6 +115,14 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      // Static assets: aggressive caching (images, fonts, icons)
+      {
+        source: '/(.*)\\.(png|jpg|jpeg|webp|avif|svg|ico|woff2|woff)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      // Security headers on all routes
       {
         source: '/:path*',
         headers: [
@@ -112,7 +132,6 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(self)' },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
-          // CSP is now set dynamically in middleware.ts with per-request nonces
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
         ],
       },

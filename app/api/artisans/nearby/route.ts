@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('country', country)
     }
 
-    const { data: artisans, error } = await query
+    const { data: artisans, error } = await query.limit(200)
 
     if (error) {
       logger.error('[artisans/nearby] Query error:', error)

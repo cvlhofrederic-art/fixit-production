@@ -60,25 +60,22 @@ export const TOOLS: Record<string, ToolDef> = {
     execute: async (p, artisanId) => {
       const days: number[] = p.day_of_week === 'all' ? [0, 1, 2, 3, 4, 5, 6] : [Number(p.day_of_week)]
       const isAvail = Boolean(p.is_available)
-      const results: string[] = []
+      const validDays = days.filter(d => d >= 0 && d <= 6)
 
-      for (const day of days) {
-        if (day < 0 || day > 6) continue
-        const { data: existing } = await supabaseAdmin
-          .from('availability').select('id, artisan_id, day_of_week, is_available, start_time, end_time').eq('artisan_id', artisanId).eq('day_of_week', day).single()
+      // Batch upsert instead of N+1 queries
+      const rows = validDays.map(day => ({
+        artisan_id: artisanId,
+        day_of_week: day,
+        is_available: isAvail,
+        start_time: '08:00',
+        end_time: '17:00',
+      }))
+      await supabaseAdmin.from('availability').upsert(rows, { onConflict: 'artisan_id,day_of_week' })
 
-        if (existing) {
-          await supabaseAdmin.from('availability').update({ is_available: isAvail }).eq('id', existing.id)
-        } else if (isAvail) {
-          await supabaseAdmin.from('availability').insert({
-            artisan_id: artisanId, day_of_week: day, start_time: '08:00', end_time: '17:00', is_available: true,
-          })
-        }
-        results.push(DAY_NAMES[day])
-      }
+      const names = validDays.map(d => DAY_NAMES[d])
       return {
         success: true,
-        detail: `${results.length} jour(s) ${isAvail ? 'activé(s)' : 'désactivé(s)'} : ${results.join(', ')}`,
+        detail: `${names.length} jour(s) ${isAvail ? 'activé(s)' : 'désactivé(s)'} : ${names.join(', ')}`,
       }
     },
   },

@@ -86,7 +86,7 @@ export default function Header() {
               {t('nav.login') || (locale === 'pt' ? 'Iniciar sessão' : 'Se connecter')}
             </LocaleLink>
             <LocaleLink
-              href="/recherche"
+              href={locale === 'pt' ? '/pesquisar' : '/recherche'}
               className="px-5 py-2.5 rounded-full bg-yellow text-dark text-[0.88rem] font-semibold no-underline hover:bg-yellow-light hover:-translate-y-px transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
               {t('nav.findArtisan') || (locale === 'pt' ? 'Encontrar um profissional' : 'Trouver un artisan')} →
@@ -178,7 +178,7 @@ export default function Header() {
                 <LocaleLink href={SIMULATEUR_HREF[locale] || '/simulateur-devis'} className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
                   {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.pt}
                 </LocaleLink>
-                <LocaleLink href="/recherche" className="block text-center bg-yellow text-dark rounded-full py-3 font-semibold no-underline mt-2" onClick={() => setMenuOpen(false)}>
+                <LocaleLink href={locale === 'pt' ? '/pesquisar' : '/recherche'} className="block text-center bg-yellow text-dark rounded-full py-3 font-semibold no-underline mt-2" onClick={() => setMenuOpen(false)}>
                   {t('nav.findArtisan') || (locale === 'pt' ? 'Encontrar um profissional' : 'Trouver un artisan')} →
                 </LocaleLink>
               </>

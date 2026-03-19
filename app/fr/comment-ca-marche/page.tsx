@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/fr/comment-ca-marche/',
+    languages: {
+      'fr': 'https://vitfix.io/fr/comment-ca-marche/',
+      'pt': 'https://vitfix.io/pt/como-funciona/',
+      'x-default': 'https://vitfix.io/fr/comment-ca-marche/',
+    },
   },
 }
 

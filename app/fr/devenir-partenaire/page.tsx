@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/fr/devenir-partenaire/',
+    languages: {
+      'fr': 'https://vitfix.io/fr/devenir-partenaire/',
+      'pt': 'https://vitfix.io/pt/torne-se-parceiro/',
+      'x-default': 'https://vitfix.io/fr/devenir-partenaire/',
+    },
   },
 }
 

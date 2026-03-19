@@ -132,7 +132,9 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({ clients })
+    const response = NextResponse.json({ clients })
+    response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+    return response
   } catch (err: any) {
     logger.error('[artisan-clients] Erreur:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

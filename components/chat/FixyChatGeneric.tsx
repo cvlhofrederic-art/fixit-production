@@ -23,13 +23,13 @@ const WELCOME_MESSAGES: Record<string, Record<string, string>> = {
     syndic: "Bonjour ! Je suis Fixy 🤖, votre assistant IA pour la gestion de copropriété. Je peux vous aider sur : interventions, ordres de mission, réglementation, communication copropriétaires, budgets... Posez-moi votre question !",
     syndic_tech: "Bonjour ! Je suis Fixy 🔧, votre assistant technique. Je peux vous aider sur : diagnostics techniques, priorisation d'urgences, normes DTU/NF, comptes-rendus d'intervention, planification des travaux... Que puis-je faire pour vous ?",
     copro: "Bonjour ! Je suis Fixy 🏠, votre assistant pour la copropriété. Je peux vous aider sur : signalement d'incidents, charges, assemblées générales, droits et obligations, urgences... Comment puis-je vous aider ?",
-    locataire: "Bonjour ! Je suis Fixy 🏠, votre assistant. Je peux vous aider sur : signalement de problèmes, suivi d'interventions, charges, vie en copropriété, urgences... N'hésitez pas à me poser vos questions !",
+    locataire: "Bonjour ! Je suis Fixy 🏠, votre assistant. Je peux vous aider sur : signalement de problèmes, suivi d'interventions, charges, vie en copropriété, urgences... Posez-moi votre question !",
   },
   pt: {
     syndic: "Olá! Sou o Fixy 🤖, o seu assistente IA para gestão de condomínios. Posso ajudá-lo com: intervenções, ordens de serviço, regulamentação, comunicação com condóminos, orçamentos... Coloque a sua questão!",
     syndic_tech: "Olá! Sou o Fixy 🔧, o seu assistente técnico. Posso ajudá-lo com: diagnósticos técnicos, priorização de urgências, normas técnicas, relatórios de intervenção, planeamento de obras... Como posso ajudá-lo?",
     copro: "Olá! Sou o Fixy 🏠, o seu assistente para o condomínio. Posso ajudá-lo com: relato de incidentes, quotas, assembleias gerais, direitos e obrigações, urgências... Como posso ajudá-lo?",
-    locataire: "Olá! Sou o Fixy 🏠, o seu assistente. Posso ajudá-lo com: relato de problemas, acompanhamento de intervenções, quotas, vida em condomínio, urgências... Não hesite em colocar as suas questões!",
+    locataire: "Olá! Sou o Fixy 🏠, o seu assistente. Posso ajudá-lo com: relato de problemas, acompanhamento de intervenções, quotas, vida em condomínio, urgências... Coloque a sua questão!",
   },
 }
 

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import PublierMarcheClient from '@/app/marches/publier/PublierMarcheClient'
+import PublierMarcheClient from '@/app/fr/marches/publier/PublierMarcheClient'
 
 export const metadata: Metadata = {
   title: 'Publique um pedido de orçamento',

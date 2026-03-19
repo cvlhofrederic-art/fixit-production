@@ -1,6 +1,8 @@
 // ── Shared Groq API helper with retry 429 + model fallback ──────────────────
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+import { GROQ_API_URL, GROQ_MODEL_PRIMARY, GROQ_MODEL_FALLBACK } from '@/lib/constants'
+
+const GROQ_URL = GROQ_API_URL
 
 export interface GroqMessage {
   role: string
@@ -36,8 +38,8 @@ export async function callGroqWithRetry(
   if (!apiKey) throw new Error('GROQ_API_KEY not configured')
 
   const maxRetries = config.maxRetries ?? 2
-  const primaryModel = opts.model || 'llama-3.3-70b-versatile'
-  const fallbackModel = config.fallbackModel || 'llama-3.1-8b-instant'
+  const primaryModel = opts.model || GROQ_MODEL_PRIMARY
+  const fallbackModel = config.fallbackModel || GROQ_MODEL_FALLBACK
   const models = primaryModel === fallbackModel ? [primaryModel] : [primaryModel, fallbackModel]
 
   let lastError: Error | null = null
@@ -103,8 +105,8 @@ export async function callGroqStreaming(
   if (!apiKey) throw new Error('GROQ_API_KEY not configured')
 
   const maxRetries = config.maxRetries ?? 2
-  const primaryModel = opts.model || 'llama-3.3-70b-versatile'
-  const fallbackModel = config.fallbackModel || 'llama-3.1-8b-instant'
+  const primaryModel = opts.model || GROQ_MODEL_PRIMARY
+  const fallbackModel = config.fallbackModel || GROQ_MODEL_FALLBACK
   const models = primaryModel === fallbackModel ? [primaryModel] : [primaryModel, fallbackModel]
 
   let lastError: Error | null = null

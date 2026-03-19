@@ -287,40 +287,23 @@ export default function DashboardPage() {
     })
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
-    const { data: bookingsData } = await supabase
-      .from('bookings').select('*, services(name)')
-      .eq('artisan_id', artisanData.id)
-      .order('booking_date', { ascending: false }).limit(20)
-    setBookings(bookingsData || [])
-
-    const { data: servicesData } = await supabase
-      .from('services').select('*').eq('artisan_id', artisanData.id)
-    setServices(servicesData || [])
-
-    // Load availability via API route (bypasses RLS with service_role key)
-    try {
-      const availRes = await fetch(`/api/availability?artisan_id=${artisanData.id}`)
-      const availJson = await availRes.json()
-      setAvailability(availJson.data || [])
-    } catch {
-      setAvailability([])
-    }
-
-    // Load absences
-    try {
-      const absRes = await fetch(`/api/artisan-absences?artisan_id=${artisanData.id}`)
-      const absJson = await absRes.json()
-      setAbsences(absJson.data || [])
-    } catch { setAbsences([]) }
-
-    // Load dayServices from API (stored in bio marker, shared with client)
-    try {
-      const dsRes = await fetch(`/api/availability-services?artisan_id=${artisanData.id}`)
-      const dsJson = await dsRes.json()
-      if (dsJson.data) setDayServices(dsJson.data)
-    } catch {
-      // Fallback localStorage
-      const savedDayServices = localStorage.getItem(`fixit_availability_services_${artisanData.id}`)
+    // Parallel fetch: all 5 data sources depend only on artisanData.id
+    const aid = artisanData.id
+    const [bookingsRes, servicesRes, availRes, absRes, dsRes] = await Promise.all([
+      supabase.from('bookings').select('*, services(name)').eq('artisan_id', aid).order('booking_date', { ascending: false }).limit(20),
+      supabase.from('services').select('*').eq('artisan_id', aid),
+      fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
+    ])
+    setBookings(bookingsRes.data || [])
+    setServices(servicesRes.data || [])
+    setAvailability(availRes.data || [])
+    setAbsences(absRes.data || [])
+    if (dsRes.data) {
+      setDayServices(dsRes.data)
+    } else {
+      const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
       if (savedDayServices) setDayServices(JSON.parse(savedDayServices))
     }
 
@@ -1257,7 +1240,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" }}>
+    <div className="h-screen flex flex-col overflow-hidden font-sans">
 
       {/* ── BOUTON RETOUR ADMIN (mode override) ── */}
       {showAdminBtn && (
@@ -1480,7 +1463,7 @@ export default function DashboardPage() {
 
           {/* ────── MESSAGERIE V2 ────── */}
           {(activePage === 'messages' || activePage === 'comm_pro') && artisan && (
-            <div className="animate-fadeIn flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
+            <div className="animate-fadeIn flex flex-col h-[calc(100vh-64px)]">
               <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center flex-shrink-0">
                 <div>
                   <h1 className="text-xl font-semibold leading-tight">💬 {t('proDash.modules.messaging')}</h1>
