@@ -5,6 +5,380 @@
   display: none !important;
 }
 
+/* ── V22 Artisan Dashboard Design System ──────────────────── */
+:root {
+  --v22-yellow: #FFD600;
+  --v22-yellow-light: #FFFBE6;
+  --v22-yellow-border: #FFE566;
+  --v22-bg: #F7F7F5;
+  --v22-surface: #FFFFFF;
+  --v22-border: #E8E8E4;
+  --v22-border-dark: #D0D0C8;
+  --v22-text: #0D0D0D;
+  --v22-text-mid: #555;
+  --v22-text-muted: #888;
+  --v22-sidebar-bg: #0D0D0D;
+  --v22-sidebar-hover: #1A1A1A;
+  --v22-sidebar-active: #2A2A2A;
+  --v22-green: #1A7A3C;
+  --v22-green-light: #E6F5EC;
+  --v22-red: #C0392B;
+  --v22-red-light: #FDECEA;
+  --v22-amber: #8A6000;
+  --v22-amber-light: #FFF8E1;
+}
+
+/* V22 scoped to artisan dashboard */
+#artisan-dashboard-v22 {
+  font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--v22-text);
+  background: var(--v22-bg);
+  -webkit-font-smoothing: antialiased;
+}
+#artisan-dashboard-v22 * { box-sizing: border-box; }
+
+/* Mono text utility */
+#artisan-dashboard-v22 .v22-mono {
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+}
+
+/* V22 Card */
+#artisan-dashboard-v22 .v22-card {
+  background: var(--v22-surface);
+  border: 1px solid var(--v22-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#artisan-dashboard-v22 .v22-card-head {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--v22-border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#artisan-dashboard-v22 .v22-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v22-text);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+}
+#artisan-dashboard-v22 .v22-card-meta {
+  font-size: 11px;
+  color: var(--v22-text-muted);
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  margin-left: auto;
+}
+#artisan-dashboard-v22 .v22-card-body { padding: 14px; }
+
+/* V22 Buttons */
+#artisan-dashboard-v22 .v22-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid var(--v22-border-dark);
+  background: var(--v22-surface);
+  color: var(--v22-text);
+  transition: all 0.1s;
+  font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+}
+#artisan-dashboard-v22 .v22-btn:hover { background: var(--v22-bg); }
+#artisan-dashboard-v22 .v22-btn-primary {
+  background: var(--v22-yellow);
+  border-color: var(--v22-yellow);
+  color: var(--v22-text);
+}
+#artisan-dashboard-v22 .v22-btn-primary:hover { background: #FFE030; }
+#artisan-dashboard-v22 .v22-btn-sm { padding: 4px 10px; font-size: 11px; }
+
+/* V22 Tags */
+#artisan-dashboard-v22 .v22-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+}
+#artisan-dashboard-v22 .v22-tag-green { background: var(--v22-green-light); color: var(--v22-green); }
+#artisan-dashboard-v22 .v22-tag-red { background: var(--v22-red-light); color: var(--v22-red); }
+#artisan-dashboard-v22 .v22-tag-amber { background: var(--v22-amber-light); color: var(--v22-amber); }
+#artisan-dashboard-v22 .v22-tag-yellow { background: var(--v22-yellow-light); color: #7A6000; border: 1px solid var(--v22-yellow-border); }
+#artisan-dashboard-v22 .v22-tag-gray { background: var(--v22-bg); color: var(--v22-text-muted); border: 1px solid var(--v22-border); }
+
+/* V22 Stats row */
+#artisan-dashboard-v22 .v22-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--v22-border);
+  border: 1px solid var(--v22-border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+#artisan-dashboard-v22 .v22-stat { background: var(--v22-surface); padding: 14px 16px; }
+#artisan-dashboard-v22 .v22-stat-yellow { background: var(--v22-yellow); }
+#artisan-dashboard-v22 .v22-stat-label {
+  font-size: 10px;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  color: var(--v22-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+#artisan-dashboard-v22 .v22-stat-yellow .v22-stat-label { color: rgba(0,0,0,0.5); }
+#artisan-dashboard-v22 .v22-stat-val {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--v22-text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+#artisan-dashboard-v22 .v22-stat-delta { font-size: 11px; }
+#artisan-dashboard-v22 .v22-up { color: var(--v22-green); }
+#artisan-dashboard-v22 .v22-down { color: var(--v22-red); }
+
+/* V22 Tables */
+#artisan-dashboard-v22 table { width: 100%; border-collapse: collapse; }
+#artisan-dashboard-v22 th {
+  text-align: left;
+  font-size: 10px;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-weight: 500;
+  color: var(--v22-text-muted);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--v22-border);
+  background: var(--v22-bg);
+}
+#artisan-dashboard-v22 td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #F0F0EE;
+  font-size: 12px;
+  vertical-align: middle;
+}
+#artisan-dashboard-v22 tbody tr { cursor: pointer; transition: background 0.1s; }
+#artisan-dashboard-v22 tbody tr:hover td { background: #FAFAF7; }
+#artisan-dashboard-v22 .v22-ref {
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--v22-text-muted);
+}
+#artisan-dashboard-v22 .v22-amount {
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-weight: 500;
+  text-align: right;
+}
+#artisan-dashboard-v22 .v22-client-name { font-weight: 500; color: var(--v22-text); }
+
+/* V22 Page header */
+#artisan-dashboard-v22 .v22-page-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--v22-border);
+  flex-wrap: wrap;
+}
+#artisan-dashboard-v22 .v22-page-title { font-size: 16px; font-weight: 600; color: var(--v22-text); }
+#artisan-dashboard-v22 .v22-page-sub {
+  font-size: 12px;
+  color: var(--v22-text-muted);
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+}
+
+/* V22 Alerts */
+#artisan-dashboard-v22 .v22-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-left: 3px solid var(--v22-border-dark);
+  background: var(--v22-surface);
+  border-top: 1px solid var(--v22-border);
+  border-right: 1px solid var(--v22-border);
+  border-bottom: 1px solid var(--v22-border);
+  border-radius: 0 3px 3px 0;
+  cursor: pointer;
+}
+#artisan-dashboard-v22 .v22-alert-red { border-left-color: var(--v22-red); background: var(--v22-red-light); }
+#artisan-dashboard-v22 .v22-alert-amber { border-left-color: var(--v22-amber); background: var(--v22-amber-light); }
+
+/* V22 Form inputs */
+#artisan-dashboard-v22 .v22-form-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--v22-border);
+  border-radius: 3px;
+  font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  color: var(--v22-text);
+  background: var(--v22-surface);
+  outline: none;
+}
+#artisan-dashboard-v22 .v22-form-input:focus { border-color: var(--v22-yellow); }
+#artisan-dashboard-v22 .v22-form-label {
+  font-size: 11px;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  color: var(--v22-text-mid);
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* V22 Modal */
+#artisan-dashboard-v22 .v22-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(13,13,13,0.45);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#artisan-dashboard-v22 .v22-modal {
+  background: var(--v22-surface);
+  border: 1px solid var(--v22-border);
+  border-radius: 4px;
+  width: 480px;
+  max-width: 94vw;
+}
+#artisan-dashboard-v22 .v22-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--v22-border);
+}
+#artisan-dashboard-v22 .v22-modal-body { padding: 16px; }
+#artisan-dashboard-v22 .v22-modal-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--v22-border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* V22 Notification panel */
+#artisan-dashboard-v22 .v22-notif-panel {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 150;
+  background: var(--v22-surface);
+  border: 1px solid var(--v22-border);
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+/* V22 Toast */
+#artisan-dashboard-v22 .v22-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--v22-text);
+  color: #fff;
+  font-size: 12px;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  padding: 10px 16px;
+  border-radius: 3px;
+  border-left: 3px solid var(--v22-yellow);
+  z-index: 400;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.2s;
+  pointer-events: none;
+}
+#artisan-dashboard-v22 .v22-toast.show { opacity: 1; transform: translateY(0); }
+
+/* V22 Progress bars */
+#artisan-dashboard-v22 .v22-prog-bar {
+  height: 4px;
+  background: var(--v22-bg);
+  border: 1px solid var(--v22-border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+#artisan-dashboard-v22 .v22-prog-fill { height: 100%; border-radius: 1px; background: var(--v22-yellow); }
+
+/* V22 Sidebar */
+#artisan-dashboard-v22 .v22-sidebar { background: var(--v22-sidebar-bg); }
+#artisan-dashboard-v22 .v22-sidebar-label {
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0 16px;
+  margin-bottom: 4px;
+}
+#artisan-dashboard-v22 .v22-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all 0.1s;
+}
+#artisan-dashboard-v22 .v22-sidebar-item:hover { background: var(--v22-sidebar-hover); color: #fff; }
+#artisan-dashboard-v22 .v22-sidebar-item.active {
+  background: var(--v22-sidebar-active);
+  color: #fff;
+  border-left-color: var(--v22-yellow);
+  font-weight: 500;
+}
+#artisan-dashboard-v22 .v22-sidebar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  flex-shrink: 0;
+}
+#artisan-dashboard-v22 .v22-sidebar-item.active .v22-sidebar-dot { background: var(--v22-yellow); }
+#artisan-dashboard-v22 .v22-badge-count {
+  margin-left: auto;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.5);
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+#artisan-dashboard-v22 .v22-sidebar-item.active .v22-badge-count {
+  background: rgba(255,214,0,0.15);
+  border-color: rgba(255,214,0,0.4);
+  color: var(--v22-yellow);
+}
+#artisan-dashboard-v22 .v22-badge-count.red { background: var(--v22-red); color: #fff; border-color: var(--v22-red); }
+
+/* V22 Offline indicator */
+#artisan-dashboard-v22 .v22-offline {
+  font-size: 10px;
+  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-weight: 500;
+  color: #fff;
+  background: var(--v22-red);
+  padding: 2px 8px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+}
+
 /* ── Syndic Dashboard Design System (Navy/Gold) ─────────────── */
 :root {
   --sd-navy:        #0D1B2E;

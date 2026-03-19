@@ -45,40 +45,97 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
   const annualHT = ctx.annualCAHT ?? 0
   const annualCA = ctx.annualCA ?? 0
   const totalExpenses = ctx.totalExpenses ?? 0
+  const orgRole = ctx.orgRole || 'artisan'
+  const isEntreprise = orgRole === 'pro_societe'
 
-  // Taux selon statut détecté (micro-entrepreneur par défaut)
-  // URSSAF 2026 BTP : 21,2% CA HT (taux micro-entrepreneur artisan)
-  const tauxURSSAF = 0.212
-  // IR libératoire micro BIC : 1,7%
-  const tauxIR = 0.017
-  const urssaf = annualHT * tauxURSSAF
-  const ir = annualHT * tauxIR
-  const cfe = 200 // estimation forfaitaire minimale CFE
-  const net = annualHT - urssaf - ir - totalExpenses - cfe
-  // Plafonds 2026 micro-entrepreneur artisan (services & BTP) :
-  // CA max : 77 700 € (prestation de services)
-  // Franchise TVA : 37 500 € (seuil franchise en base)
-  const plafondMicro = 77700
-  const seuilTVA = 37500
-  const plafondPct = annualHT > 0 ? ((annualHT / plafondMicro) * 100).toFixed(1) : '0'
-  const tvaSeuil = annualHT > seuilTVA ? '⚠️ DÉPASSE le seuil franchise TVA (37 500 €) — TVA obligatoire' : `✅ Sous le seuil franchise TVA (${fmt(seuilTVA)})`
+  // ── Calculs fiscaux adaptés au statut ──
+  let fiscalBlock = ''
+  let fiscalReferentiel = ''
 
-  // Déclarations trimestrielles
-  const quarterLines = (ctx.quarterData || [0, 0, 0, 0])
-    .map((ca: number, q: number) => {
-      const u = ca * tauxURSSAF
-      const i = ca * tauxIR
-      const echeance = ['30 avril', '31 juillet', '31 octobre', '31 janvier N+1'][q]
-      return `  T${q + 1} : CA HT ${fmt(ca)} → URSSAF ${fmt(u)} + IR ${fmt(i)} = ${fmt(u + i)} (échéance ${echeance})`
-    })
-    .join('\n')
+  if (isEntreprise) {
+    // Entreprise BTP (SARL, SAS, EURL, SA) — régime réel, IS/IR réel
+    const tauxIS15 = 0.15 // IS réduit sur premiers 42 500 €
+    const tauxIS25 = 0.25 // IS normal au-delà
+    const resultatAvantIS = annualHT - totalExpenses
+    const is15 = Math.min(Math.max(resultatAvantIS, 0), 42500) * tauxIS15
+    const is25 = Math.max(resultatAvantIS - 42500, 0) * tauxIS25
+    const isTotal = is15 + is25
+    const resultatNet = resultatAvantIS - isTotal
+    // Charges patronales estimées (si salariés) — info contextuelle
+    const chargesPatronales = ctx.masseSalariale ? ctx.masseSalariale * 0.45 : 0
+    const cfe = 500 // estimation CFE entreprise
 
-  return `Tu es **Léa**, agent IA se comportant exactement comme un **expert-comptable senior** spécialisé dans toutes les sociétés du secteur du **bâtiment et de l'artisanat**, y compris les entreprises de construction, rénovation, dératisation, plomberie, électricité, menuiserie, peinture et autres métiers artisanaux en France.
+    fiscalBlock = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 DONNÉES FINANCIÈRES — ENTREPRISE BTP (${currentYear})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CA TTC annuel             : ${fmt(annualCA)}
+CA HT annuel              : ${fmt(annualHT)}
+Charges d'exploitation    : ${fmt(totalExpenses)}
+Résultat avant IS         : ${fmt(resultatAvantIS)}
+IS estimé (15% + 25%)     : ${fmt(isTotal)}
+  dont IS 15% (≤42 500€)  : ${fmt(is15)}
+  dont IS 25% (>42 500€)  : ${fmt(is25)}
+Résultat net après IS     : ${fmt(resultatNet)}
+${chargesPatronales > 0 ? `Masse salariale brute     : ${fmt(ctx.masseSalariale)}\nCharges patronales (~45%) : ${fmt(chargesPatronales)}` : ''}
+CFE (estimation)          : ${fmt(cfe)}
+TVA : collectée sur toutes les factures (régime réel normal ou simplifié)`
 
-📅 Aujourd'hui : ${today}
+    fiscalReferentiel = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ RÉFÉRENTIEL FISCAL ENTREPRISE BTP 2026
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**STATUT : Entreprise BTP (SARL/SAS/EURL/SA) — régime réel**
+ATTENTION : NE PAS appliquer les règles micro-entrepreneur (21,2% URSSAF, plafond 77 700€, IR libératoire). Ce professionnel est une ENTREPRISE.
 
-Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **tous types de statuts : auto-entrepreneurs, SARL, SAS, EURL, micro-entreprises ou sociétés classiques**, tout en restant pratique, clair et conforme à la **législation française 2026**.
+**IS 2026 :** 15% sur les premiers 42 500 € de bénéfice, 25% au-delà (PME CA < 10M€)
+**TVA :** Obligatoire, régime réel normal (CA3 mensuelle) ou simplifié (CA12 annuelle + 2 acomptes)
+  - TVA rénovation logement >2 ans : 10% (art. 279-0 bis CGI)
+  - TVA éco-rénovation (isolation, PAC, fenêtres) : 5,5% (art. 278-0 bis CGI)
+  - TVA travaux neufs / local professionnel : 20%
+  - TVA récupérable sur achats et charges d'exploitation
+**Charges sociales dirigeant :**
+  - Gérant majoritaire SARL (TNS) : ~45% du revenu net (SSI/ex-RSI)
+  - Président SAS (assimilé salarié) : ~65-80% du salaire brut (charges patronales + salariales)
+  - Dividendes : flat tax 30% (12,8% IR + 17,2% prélèvements sociaux) ou barème progressif
+**Charges sociales salariés :** ~45% charges patronales sur salaire brut
+**Amortissements :** Déductibles (véhicules, matériel, outillage) — linéaire ou dégressif
+**Provisions :** Provisions pour risques (litiges, garantie décennale), créances douteuses
+**Sous-traitance :** auto-liquidation TVA (art. 283-2 nonies CGI) — facture sans TVA du sous-traitant
+**Retenues de garantie :** 5% max, libérée à 1 an (loi 71-584)
+**Situations de travaux :** facturation progressive selon avancement
+**Plan comptable BTP :** 601 (achats mat.), 604 (sous-traitance), 613 (locations), 615 (entretien), 616 (assurance), 622 (honoraires), 623 (pub), 625 (déplacements), 626 (télécom), 641 (salaires), 645 (charges sociales), 706 (prestation), 707 (vente marchandises)
+**Liasse fiscale :** 2065 (IS) ou 2031 (IR BIC réel) + bilan + compte de résultat + annexes
+**CFE :** Variable par commune, base minimum ~500-2000€ pour entreprise BTP
+**CVAE :** Supprimée depuis 2024
+**Délai paiement inter-entreprises :** 30 jours max (60 jours accord contractuel) — L.441-10 C.com
+**Assurance décennale :** obligatoire art. L.241-1 Code des assurances
+**Facturation électronique :** obligatoire réception sept. 2026, émission selon taille
+**Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+)`
 
+  } else {
+    // Micro-entrepreneur artisan (existant)
+    const tauxURSSAF = 0.212
+    const tauxIR = 0.017
+    const urssaf = annualHT * tauxURSSAF
+    const ir = annualHT * tauxIR
+    const cfe = 200
+    const net = annualHT - urssaf - ir - totalExpenses - cfe
+    const plafondMicro = 77700
+    const seuilTVA = 37500
+    const plafondPct = annualHT > 0 ? ((annualHT / plafondMicro) * 100).toFixed(1) : '0'
+    const tvaSeuil = annualHT > seuilTVA ? '⚠️ DÉPASSE le seuil franchise TVA (37 500 €) — TVA obligatoire' : `✅ Sous le seuil franchise TVA (${fmt(seuilTVA)})`
+
+    const quarterLines = (ctx.quarterData || [0, 0, 0, 0])
+      .map((ca: number, q: number) => {
+        const u = ca * tauxURSSAF
+        const i = ca * tauxIR
+        const echeance = ['30 avril', '31 juillet', '31 octobre', '31 janvier N+1'][q]
+        return `  T${q + 1} : CA HT ${fmt(ca)} → URSSAF ${fmt(u)} + IR ${fmt(i)} = ${fmt(u + i)} (échéance ${echeance})`
+      })
+      .join('\n')
+
+    fiscalBlock = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 DONNÉES FINANCIÈRES RÉELLES DE L'ENTREPRISE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -94,7 +151,41 @@ Franchise TVA           : ${tvaSeuil}
 ${annualHT > 65000 ? '🚨 ALERTE : Proche du plafond micro (77 700 €) — anticiper passage au régime réel !' : ''}
 
 Déclarations trimestrielles ${currentYear} :
-${quarterLines}
+${quarterLines}`
+
+    fiscalReferentiel = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ RÉFÉRENTIEL TECHNIQUE BTP 2026
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Taux URSSAF 2026 micro-entrepreneur artisan :** 21,2% CA HT
+**Taux URSSAF 2026 micro-entrepreneur commerce :** 12,3% CA HT
+**IR libératoire BIC services :** 1,7% | BIC ventes : 1,0% | BNC : 2,2%
+**Plafond micro BIC services/BTP :** 77 700 € CA HT
+**Plafond micro BIC ventes :** 188 700 € CA HT
+**Franchise TVA :** 37 500 € (seuil 2026, majoré 41 250 € tolérance)
+**TVA rénovation logement >2 ans :** 10% (art. 279-0 bis CGI)
+**TVA éco-rénovation (isolation, PAC, fenêtres) :** 5,5% (art. 278-0 bis CGI)
+**TVA travaux neufs / local professionnel :** 20%
+**Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+)
+**CFE min nationale :** 227 € (2026, variable par commune)
+**ACRE 2026 :** -50% cotisations URSSAF l'année de création
+**Assurance décennale :** obligatoire art. L.241-1 Code des assurances
+**Assurance RC Pro :** fortement recommandée, déductible à 100%
+**Sous-traitance :** contrat obligatoire >600€, loi 75-1334 du 31/12/1975
+**Délai paiement inter-entreprises :** 30 jours max (60 jours accord contractuel) — L.441-10 C.com
+**Pénalités retard :** taux BCE + 10 points + indemnité forfaitaire 40€ — D.441-5 C.com
+**Plan comptable BTP :** 601 (achats mat.), 604 (sous-traitance), 615 (entretien), 616 (assurance), 622 (honoraires comptable), 623 (pub), 625 (déplacements), 626 (télécom), 641 (salaires), 645 (charges sociales), 706 (prestation), 707 (vente marchandises)`
+  }
+
+  const statutLabel = isEntreprise ? 'entreprise BTP (SARL/SAS/EURL)' : 'auto-entrepreneurs, SARL, SAS, EURL, micro-entreprises ou sociétés classiques'
+
+  return `Tu es **Léa**, agent IA se comportant exactement comme un **expert-comptable senior** spécialisé dans toutes les sociétés du secteur du **bâtiment et de l'artisanat**, y compris les entreprises de construction, rénovation, dératisation, plomberie, électricité, menuiserie, peinture et autres métiers artisanaux en France.
+
+📅 Aujourd'hui : ${today}
+
+Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation française 2026**.
+${isEntreprise ? '\n⚠️ IMPORTANT : Ce professionnel est une ENTREPRISE BTP (société), PAS un auto-entrepreneur. N\'applique JAMAIS les règles micro-entrepreneur (21,2% URSSAF, plafond 77 700€, IR libératoire 1,7%). Utilise les règles IS, TVA régime réel, charges sociales régime général ou TNS selon la forme juridique.\n' : ''}
+${fiscalBlock}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 TOUTES LES INTERVENTIONS TERMINÉES (brut, ligne par ligne)
@@ -148,27 +239,7 @@ ${expenseLines || '  (Aucune charge enregistrée)'}
 - Checklists mensuelles, trimestrielles et annuelles.
 - Conservation des justificatifs : 10 ans pour les documents comptables (L.123-22 C.com).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏗️ RÉFÉRENTIEL TECHNIQUE BTP 2026
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**Taux URSSAF 2026 micro-entrepreneur artisan :** 21,2% CA HT
-**Taux URSSAF 2026 micro-entrepreneur commerce :** 12,3% CA HT
-**IR libératoire BIC services :** 1,7% | BIC ventes : 1,0% | BNC : 2,2%
-**Plafond micro BIC services/BTP :** 77 700 € CA HT
-**Plafond micro BIC ventes :** 188 700 € CA HT
-**Franchise TVA :** 37 500 € (seuil 2026, majoré 41 250 € tolérance)
-**TVA rénovation logement >2 ans :** 10% (art. 279-0 bis CGI)
-**TVA éco-rénovation (isolation, PAC, fenêtres) :** 5,5% (art. 278-0 bis CGI)
-**TVA travaux neufs / local professionnel :** 20%
-**Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+)
-**CFE min nationale :** 227 € (2026, variable par commune)
-**ACRE 2026 :** -50% cotisations URSSAF l'année de création
-**Assurance décennale :** obligatoire art. L.241-1 Code des assurances
-**Assurance RC Pro :** fortement recommandée, déductible à 100%
-**Sous-traitance :** contrat obligatoire >600€, loi 75-1334 du 31/12/1975
-**Délai paiement inter-entreprises :** 30 jours max (60 jours accord contractuel) — L.441-10 C.com
-**Pénalités retard :** taux BCE + 10 points + indemnité forfaitaire 40€ — D.441-5 C.com
-**Plan comptable BTP :** 601 (achats mat.), 604 (sous-traitance), 615 (entretien), 616 (assurance), 622 (honoraires comptable), 623 (pub), 625 (déplacements), 626 (télécom), 641 (salaires), 645 (charges sociales), 706 (prestation), 707 (vente marchandises)
+${fiscalReferentiel}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📐 RÈGLES DE CALCUL SUR PÉRIODE
@@ -535,11 +606,24 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
   }
   // ─── End PT branch ───────────────────────────────────────────────────────
 
-  const tauxURSSAF = 0.212
-  const tauxIR = 0.017
-  const urssaf = ht * tauxURSSAF
-  const ir = ht * tauxIR
-  const net = ht - urssaf - ir - totalExpenses - 200
+  const isEntrepriseFB = ctx.orgRole === 'pro_societe'
+
+  // Calculs adaptés au statut
+  let urssaf: number, ir: number, net: number
+  if (isEntrepriseFB) {
+    const resultat = ht - totalExpenses
+    const is15 = Math.min(Math.max(resultat, 0), 42500) * 0.15
+    const is25 = Math.max(resultat - 42500, 0) * 0.25
+    urssaf = 0 // pas d'URSSAF micro pour une entreprise
+    ir = is15 + is25 // IS au lieu d'IR
+    net = resultat - ir - 500
+  } else {
+    const tauxURSSAF = 0.212
+    const tauxIR = 0.017
+    urssaf = ht * tauxURSSAF
+    ir = ht * tauxIR
+    net = ht - urssaf - ir - totalExpenses - 200
+  }
 
   if (msgLower.includes('matériau') || msgLower.includes('matériaux') || msgLower.includes('matière')) {
     const matLines = (ctx.allExpenses || []).filter((e: any) => e.category === 'materiel')
@@ -554,12 +638,19 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
     return `🚗 **Dépenses transport**\n\n**Total : ${fmt(total)}**\n\n${lines.map((e: any) => `- ${e.date} : ${e.label} → **${fmt(parseFloat(e.amount || 0))}**`).join('\n') || '(Aucune dépense transport)'}\n\n💡 **Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+). Notez chaque trajet professionnel avec date, départ, arrivée et motif.`
   }
 
-  if (msgLower.includes('urssaf') || msgLower.includes('cotisation')) {
+  if (msgLower.includes('urssaf') || msgLower.includes('cotisation') || msgLower.includes('charges sociales')) {
+    if (isEntrepriseFB) {
+      return `💳 **Charges sociales — Entreprise BTP 2026**\n\nEn tant qu'entreprise (SARL/SAS), les cotisations ne se calculent PAS sur le CA mais sur la rémunération du dirigeant et les salaires.\n\n**Gérant majoritaire SARL (TNS) :** ~45% du revenu net\n**Président SAS (assimilé salarié) :** ~65-80% du salaire brut\n**Salariés :** ~45% charges patronales sur salaire brut\n\n💡 Pas de plafond micro-entrepreneur. L'entreprise paie l'IS sur le bénéfice (15% ≤ 42 500€, 25% au-delà).`
+    }
     const quarters = ctx.quarterData || [0, 0, 0, 0]
-    return `💳 **Cotisations URSSAF 2026**\n\nCA HT annuel : **${fmt(ht)}**\nTaux artisan BTP : **21,2%**\n\n**Total URSSAF : ${fmt(urssaf)}**\n\nDétail par trimestre :\n${quarters.map((ca: number, q: number) => `  T${q + 1} : CA ${fmt(ca)} → URSSAF **${fmt(ca * tauxURSSAF)}** + IR **${fmt(ca * tauxIR)}**`).join('\n')}\n\n💡 **Rappel :** Déclaration et paiement sur autoentrepreneur.urssaf.fr. ACRE = -50% l'année de création.`
+    return `💳 **Cotisations URSSAF 2026**\n\nCA HT annuel : **${fmt(ht)}**\nTaux artisan BTP : **21,2%**\n\n**Total URSSAF : ${fmt(urssaf)}**\n\nDétail par trimestre :\n${quarters.map((ca: number, q: number) => `  T${q + 1} : CA ${fmt(ca)} → URSSAF **${fmt(ca * 0.212)}** + IR **${fmt(ca * 0.017)}**`).join('\n')}\n\n💡 **Rappel :** Déclaration et paiement sur autoentrepreneur.urssaf.fr. ACRE = -50% l'année de création.`
   }
 
   if (msgLower.includes('bénéfice') || msgLower.includes('net') || msgLower.includes('résultat')) {
+    if (isEntrepriseFB) {
+      const resultat = ht - totalExpenses
+      return `📊 **Résultat net estimé ${new Date().getFullYear()} — Entreprise BTP**\n\nCA HT : **${fmt(ht)}**\n− Charges d'exploitation : **${fmt(totalExpenses)}**\n= Résultat avant IS : **${fmt(resultat)}**\n− IS (15% ≤ 42 500€ + 25% au-delà) : **${fmt(ir)}**\n− CFE (estimation) : **500 €**\n\n**= Résultat net après IS : ${fmt(net)}**\n\n💡 Marge nette : ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Standard entreprise BTP : 5-15%. Optimisez via amortissements, provisions, et rémunération dirigeant.`
+    }
     return `📊 **Résultat net estimé ${new Date().getFullYear()}**\n\nCA HT : **${fmt(ht)}**\n− Charges déductibles : **${fmt(totalExpenses)}**\n− URSSAF (21,2%) : **${fmt(urssaf)}**\n− IR libératoire (1,7%) : **${fmt(ir)}**\n− CFE (estimation) : **200 €**\n\n**= Résultat net : ${fmt(net)}**\n\n💡 **Conseil :** Marge nette de ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Standard BTP artisan : 15-25%. En dessous de 15% → revoir tarifs ou charges.`
   }
 

@@ -7,8 +7,8 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 
 /* ══════════ AGENT COMPTABLE LÉA ══════════ */
 
-function AgentComptable({ bookings, artisan, services, expenses, annualHT, annualCA, totalExpenses, quarterData, currentMonth, currentYear, formatEur }: {
-  bookings: any[]; artisan: any; services: any[]; expenses: any[]; annualHT: number; annualCA: number; totalExpenses: number; quarterData: number[]; currentMonth: number; currentYear: number; formatEur: (v: number) => string
+function AgentComptable({ bookings, artisan, services, expenses, annualHT, annualCA, totalExpenses, quarterData, currentMonth, currentYear, formatEur, orgRole }: {
+  bookings: any[]; artisan: any; services: any[]; expenses: any[]; annualHT: number; annualCA: number; totalExpenses: number; quarterData: number[]; currentMonth: number; currentYear: number; formatEur: (v: number) => string; orgRole?: string
 }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -40,6 +40,8 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
   })), [bookings, services])
 
   const financialContext = {
+    // Statut juridique (micro-entrepreneur ou entreprise)
+    orgRole: orgRole || 'artisan',
     // Agrégats (référence rapide)
     annualCA,
     annualCAHT: annualHT,
@@ -320,7 +322,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
 /* ══════════ COMPTABILITÉ SECTION ══════════ */
 
-export default function ComptabiliteSection({ bookings, artisan, services }: { bookings: any[]; artisan: any; services: any[] }) {
+export default function ComptabiliteSection({ bookings, artisan, services, orgRole }: { bookings: any[]; artisan: any; services: any[]; orgRole?: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
