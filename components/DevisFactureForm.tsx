@@ -1652,1039 +1652,1036 @@ export default function DevisFactureForm({
     .slice(0, 10)
 
   // ─── Locked field style ───
-  const lockedFieldClass = 'w-full p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed'
-  const normalFieldClass = 'w-full p-3 border border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20'
+  const lockedFieldClass = 'v22-form-input'
+  const lockedFieldStyle: React.CSSProperties = { background: 'var(--v22-bg)', color: 'var(--v22-text-mid)', cursor: 'not-allowed' }
+  const normalFieldClass = 'v22-form-input'
 
   // Are legal fields locked? (verified = data comes from official source)
   const isLegalLocked = companyVerified || !!verifiedCompany?.legalForm
 
   return (
-    <div className="animate-fadeIn">
+    <div>
       {/* Top header */}
-      <div className="bg-white px-6 lg:px-10 py-4 border-b border-[#34495E]">
-        <div className="flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-gray-500 hover:text-gray-700 font-semibold transition">
-              ← {t('devis.back')}
-            </button>
-            <h1 className="text-xl font-semibold">
-              {docType === 'devis' ? `📄 ${t('devis.newDevis')}` : `🧾 ${t('devis.newFacture')}`}
-              {docTitle && <span className="text-gray-500 font-normal ml-2">— {docTitle}</span>}
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Bouton Passer en facture (affiché uniquement en mode devis) */}
-            {docType === 'devis' && (
-              <button
-                onClick={() => {
-                  if (confirm(t('devis.convertConfirm'))) {
-                    setDocType('facture')
-                    // Pré-remplir la date de prestation avec aujourd'hui si vide
-                    if (!prestationDate) setPrestationDate(today)
-                    // Ajouter la référence devis dans les notes
-                    const devisRefLabel = locale === 'pt' ? 'Ref. orçamento' : 'Réf. devis'
-                    if (!notes.includes('Réf. devis') && !notes.includes('Ref. orçamento')) {
-                      setNotes((prev: string) => `${devisRefLabel}: ${docNumber}${prev ? '\n' + prev : ''}`)
-                    }
+      <div className="v22-page-header" style={{ margin: 0, padding: '10px 16px', borderBottom: '1px solid var(--v22-border)', background: 'var(--v22-surface)' }}>
+        <button onClick={onBack} className="v22-btn v22-btn-ghost v22-btn-sm">← {t('devis.back')}</button>
+        <span className="v22-page-title" style={{ fontSize: '14px' }}>
+          {docType === 'devis' ? t('devis.newDevis') : t('devis.newFacture')}
+          {docTitle && <span className="v22-ref" style={{ fontWeight: 400, marginLeft: 8 }}>— {docTitle}</span>}
+        </span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Bouton Passer en facture (affiché uniquement en mode devis) */}
+          {docType === 'devis' && (
+            <button
+              onClick={() => {
+                if (confirm(t('devis.convertConfirm'))) {
+                  setDocType('facture')
+                  if (!prestationDate) setPrestationDate(today)
+                  const devisRefLabel = locale === 'pt' ? 'Ref. orçamento' : 'Réf. devis'
+                  if (!notes.includes('Réf. devis') && !notes.includes('Ref. orçamento')) {
+                    setNotes((prev: string) => `${devisRefLabel}: ${docNumber}${prev ? '\n' + prev : ''}`)
                   }
-                }}
-                className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-sm"
-              >
-                🧾 {t('devis.convertToFacture')}
-              </button>
-            )}
-            <div className="flex gap-1 bg-[#F8F9FA] p-1 rounded-lg">
-              <button
-                onClick={() => setDocType('devis')}
-                className={`px-4 py-2 rounded-md font-semibold text-sm transition ${docType === 'devis' ? 'bg-[#FFC107] text-gray-900' : 'text-gray-600 hover:bg-gray-200'}`}
-              >
-                📄 {t('devis.devisTab')}
-              </button>
-              <button
-                onClick={() => setDocType('facture')}
-                className={`px-4 py-2 rounded-md font-semibold text-sm transition ${docType === 'facture' ? 'bg-[#FFC107] text-gray-900' : 'text-gray-600 hover:bg-gray-200'}`}
-              >
-                🧾 {t('devis.factureTab')}
-              </button>
-            </div>
+                }
+              }}
+              className="v22-btn v22-btn-green v22-btn-sm"
+            >
+              {t('devis.convertToFacture')}
+            </button>
+          )}
+          <div className="v22-tabs">
+            <button
+              onClick={() => setDocType('devis')}
+              className={`v22-tab ${docType === 'devis' ? 'active' : ''}`}
+            >
+              {t('devis.devisTab')}
+            </button>
+            <button
+              onClick={() => setDocType('facture')}
+              className={`v22-tab ${docType === 'facture' ? 'active' : ''}`}
+            >
+              {t('devis.factureTab')}
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="p-6 lg:p-8">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
+      <div style={{ padding: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16 }}>
 
           {/* ═══════════ LEFT: FORM ═══════════ */}
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Header */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <div className="flex justify-between items-center mb-4 pb-4 border-b-[3px] border-[#FFC107]">
-                <h2 className="text-2xl font-bold text-[#2C3E50]">
+            <div className="v22-card">
+              <div className="v22-card-head" style={{ borderBottomWidth: 2, borderBottomColor: 'var(--v22-yellow)' }}>
+                <span className="v22-card-title" style={{ fontSize: 13 }}>
                   {docType === 'devis' ? t('devis.newDevis') : t('devis.newFacture')}
-                </h2>
-                <span className="text-lg text-gray-500 font-semibold">{docNumber}</span>
+                </span>
+                <span className="v22-card-meta">{docNumber}</span>
               </div>
+              <div className="v22-card-body">
+                {/* Titre / Objet du document */}
+                <div className="v22-form-group">
+                  <label className="v22-form-label">
+                    {t('devis.titleLabel')} {docType === 'devis' ? t('devis.titleLabelDevis') : t('devis.titleLabelFacture')}
+                    <span style={{ color: 'var(--v22-text-muted)', fontWeight: 400, marginLeft: 4 }}>{t('devis.titleHint')}</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={e => setDocTitle(e.target.value)}
+                    placeholder={t('devis.titlePlaceholder')}
+                    className="v22-form-input"
+                    style={{ borderColor: 'var(--v22-yellow)', fontWeight: 500 }}
+                  />
+                </div>
 
-              {/* Titre / Objet du document */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  🏷️ {t('devis.titleLabel')} {docType === 'devis' ? t('devis.titleLabelDevis') : t('devis.titleLabelFacture')}
-                  <span className="text-gray-500 font-normal ml-1">{t('devis.titleHint')}</span>
-                </label>
-                <input
-                  type="text"
-                  value={docTitle}
-                  onChange={e => setDocTitle(e.target.value)}
-                  placeholder={t('devis.titlePlaceholder')}
-                  className="w-full p-3 border-2 border-[#FFC107] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FFC107]/30 text-[#2C3E50] font-medium text-lg placeholder:text-gray-300 placeholder:font-normal placeholder:text-sm"
-                />
-              </div>
-
-              {/* Legal warning */}
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mb-4">
-                <p className="text-sm text-red-800">
-                  <strong>{'⚠️'} {t('devis.legalComplianceTitle')}</strong><br />
-                  {t('devis.legalComplianceDesc')}
-                </p>
-              </div>
-
-              {/* Quick import */}
-              <div className="bg-gradient-to-r from-[#FFF9E6] to-[#FFE082] p-4 rounded-xl border-2 border-[#FFC107]">
-                <h3 className="font-semibold mb-1 flex items-center gap-2">{'⚡'} {t('devis.quickImportTitle')}</h3>
-                <p className="text-xs text-amber-700 mb-3">{t('devis.quickImportDesc')}</p>
-                {recentBookings.length > 0 ? (
-                  <div className="relative">
-                    <select
-                      onChange={(e) => importFromBooking(e.target.value)}
-                      disabled={importingBooking}
-                      className="w-full p-3 border-2 border-[#FFC107] rounded-lg bg-white text-sm cursor-pointer focus:outline-none disabled:opacity-60"
-                      defaultValue=""
-                    >
-                      <option value="">{t('devis.quickImportPlaceholder')}</option>
-                      {recentBookings.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.booking_date} {b.booking_time?.substring(0, 5)} – {b.services?.name || 'Prestation'} – {formatPrice(b.price_ttc ?? 0)}
-                        </option>
-                      ))}
-                    </select>
-                    {importingBooking && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-700 text-xs font-medium">
-                        <span className="inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                        {t('devis.loading')}
-                      </div>
-                    )}
+                {/* Legal warning */}
+                <div className="v22-alert v22-alert-red" style={{ marginBottom: 12, cursor: 'default' }}>
+                  <div>
+                    <strong style={{ color: 'var(--v22-red)' }}>{t('devis.legalComplianceTitle')}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--v22-red)', marginTop: 2 }}>{t('devis.legalComplianceDesc')}</div>
                   </div>
-                ) : (
-                  <div className="bg-white/60 rounded-lg p-3 text-center">
-                    <p className="text-sm text-amber-700">{t('devis.quickImportNone')}</p>
-                    <p className="text-xs text-amber-600 mt-1">{t('devis.quickImportNoneHint')}</p>
+                </div>
+
+                {/* Quick import */}
+                <div className="v22-alert v22-alert-amber" style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span className="v22-card-title" style={{ textTransform: 'none', fontSize: 12 }}>{t('devis.quickImportTitle')}</span>
                   </div>
-                )}
+                  <div style={{ fontSize: 11, color: 'var(--v22-amber)', marginBottom: 8 }}>{t('devis.quickImportDesc')}</div>
+                  {recentBookings.length > 0 ? (
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        onChange={(e) => importFromBooking(e.target.value)}
+                        disabled={importingBooking}
+                        className="v22-form-input"
+                        style={{ cursor: 'pointer' }}
+                        defaultValue=""
+                      >
+                        <option value="">{t('devis.quickImportPlaceholder')}</option>
+                        {recentBookings.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.booking_date} {b.booking_time?.substring(0, 5)} – {b.services?.name || 'Prestation'} – {formatPrice(b.price_ttc ?? 0)}
+                          </option>
+                        ))}
+                      </select>
+                      {importingBooking && (
+                        <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--v22-amber)' }}>
+                          <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--v22-amber)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                          {t('devis.loading')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ background: 'var(--v22-surface)', borderRadius: 3, padding: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 12, color: 'var(--v22-amber)' }}>{t('devis.quickImportNone')}</div>
+                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('devis.quickImportNoneHint')}</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* ─── Section: Entreprise ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'🏢'} {t('devis.companySection')}
-              </h3>
-
-              {/* Verified company banner */}
-              {loadingCompany ? (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-[#FFC107] border-t-transparent"></div>
-                  <span className="text-sm text-gray-500">{t('devis.loadingCompanyInfo')}</span>
-                </div>
-              ) : isLegalLocked ? (
-                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg mb-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-green-600 font-bold text-sm flex items-center gap-1">
-                      {'✅'} {t('devis.verifiedDataTitle')}
-                    </span>
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.companySection')}</span>
+              </div>
+              <div className="v22-card-body">
+                {/* Verified company banner */}
+                {loadingCompany ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--v22-bg)', borderRadius: 3, marginBottom: 12 }}>
+                    <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid var(--v22-yellow)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{t('devis.loadingCompanyInfo')}</span>
                   </div>
-                  <p className="text-xs text-green-700">
-                    {t('devis.verifiedDataDesc')}
-                  </p>
-                  {officialLegalForm && (
-                    <p className="text-xs text-green-600 mt-1 font-medium">
-                      {'📋'} {t('devis.verifiedDataSource')} : {officialLegalForm} — {localeFormats.taxIdLabel} {companySiret}
-                      {companyNafLabel && ` — ${companyNafLabel}`}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg mb-4">
-                  <p className="text-sm text-amber-800">
-                    <strong>{'⚠️'} {t('devis.unverifiedDataTitle')}</strong> — {t('devis.unverifiedDataDesc')}
-                  </p>
-                </div>
-              )}
-
-              {/* Statut juridique — LOCKED if verified */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                  {t('devis.legalStatus')} <span className="text-red-500">*</span>
-                  {isLegalLocked && (
-                    <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                      {'🔒'} {t('devis.verified')}
-                    </span>
-                  )}
-                </label>
-                {isLegalLocked ? (
-                  <div className="relative">
-                    <div className={`${lockedFieldClass} flex items-center justify-between`}>
-                      <span className="font-medium">{officialLegalForm || getStatusLabel(companyStatus, t)}</span>
-                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">{'🔒'} {t('devis.notEditable')}</span>
+                ) : isLegalLocked ? (
+                  <div className="v22-alert v22-alert-green" style={{ marginBottom: 12, cursor: 'default' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span className="v22-tag v22-tag-green">{t('devis.verifiedDataTitle')}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--v22-green)' }}>{t('devis.verifiedDataDesc')}</div>
+                      {officialLegalForm && (
+                        <div className="v22-ref" style={{ marginTop: 4 }}>
+                          {t('devis.verifiedDataSource')} : {officialLegalForm} — {localeFormats.taxIdLabel} {companySiret}
+                          {companyNafLabel && ` — ${companyNafLabel}`}
+                        </div>
+                      )}
                     </div>
-                    <input type="hidden" value={companyStatus} />
                   </div>
                 ) : (
-                  <select value={companyStatus} onChange={(e) => setCompanyStatus(e.target.value)}
-                    className={`${normalFieldClass} bg-white`}>
-                    {getCompanyStatuses(locale).map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                {/* Nom commercial — LOCKED if verified */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                    {t('devis.companyName')} <span className="text-red-500">*</span>
-                    {isLegalLocked && (
-                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                        {'🔒'} {t('devis.verified')}
-                      </span>
-                    )}
-                  </label>
-                  <input type="text" value={companyName}
-                    onChange={isLegalLocked ? undefined : (e) => setCompanyName(e.target.value)}
-                    readOnly={isLegalLocked}
-                    className={isLegalLocked ? lockedFieldClass : normalFieldClass} />
-                </div>
-                {/* SIRET — LOCKED if verified */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                    {localeFormats.taxIdLabel} <span className="text-red-500">*</span>
-                    {isLegalLocked && (
-                      <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                        {'🔒'} {t('devis.verified')}
-                      </span>
-                    )}
-                  </label>
-                  <input type="text" value={companySiret}
-                    onChange={isLegalLocked ? undefined : (e) => setCompanySiret(e.target.value)}
-                    readOnly={isLegalLocked}
-                    placeholder={t('devis.taxIdPlaceholder')}
-                    className={isLegalLocked ? lockedFieldClass : normalFieldClass} />
-                </div>
-              </div>
-
-              {/* SIREN (read-only display if available) */}
-              {companySiren && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-600 mb-1">SIREN</label>
-                  <input type="text" value={companySiren} readOnly className={lockedFieldClass} />
-                </div>
-              )}
-
-              {/* Adresse siège social — LOCKED if verified */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                  {t('devis.headOfficeAddress')} <span className="text-red-500">*</span>
-                  {isLegalLocked && (
-                    <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                      {'🔒'} {t('devis.verified')}
-                    </span>
-                  )}
-                </label>
-                <input type="text" value={companyAddress}
-                  onChange={isLegalLocked ? undefined : (e) => setCompanyAddress(e.target.value)}
-                  readOnly={isLegalLocked}
-                  className={isLegalLocked ? lockedFieldClass : normalFieldClass} />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.registryNumber')} <span className="text-red-500">*</span></label>
-                  <input type="text" value={companyRCS} onChange={(e) => setCompanyRCS(e.target.value)}
-                    placeholder={t('devis.registryPlaceholder')}
-                    className={normalFieldClass} />
-                </div>
-                {isSocieteStatus(companyStatus, locale) && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.shareCapital')}</label>
-                    <input type="text" value={companyCapital} onChange={(e) => setCompanyCapital(e.target.value)}
-                      placeholder={t('devis.shareCapitalPlaceholder')}
-                      className={normalFieldClass} />
+                  <div className="v22-alert v22-alert-amber" style={{ marginBottom: 12, cursor: 'default' }}>
+                    <div>
+                      <strong style={{ color: 'var(--v22-amber)' }}>{t('devis.unverifiedDataTitle')}</strong>
+                      <span style={{ fontSize: 11, color: 'var(--v22-amber)' }}> — {t('devis.unverifiedDataDesc')}</span>
+                    </div>
                   </div>
                 )}
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.phone')} <span className="text-red-500">*</span></label>
-                  <input type="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)}
-                    className={normalFieldClass} />
+                {/* Statut juridique — LOCKED if verified */}
+                <div className="v22-form-group">
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {t('devis.legalStatus')} <span style={{ color: 'var(--v22-red)' }}>*</span>
+                    {isLegalLocked && <span className="v22-tag v22-tag-green">{t('devis.verified')}</span>}
+                  </label>
+                  {isLegalLocked ? (
+                    <div>
+                      <div className={lockedFieldClass} style={{ ...lockedFieldStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 500 }}>{officialLegalForm || getStatusLabel(companyStatus, t)}</span>
+                        <span className="v22-tag v22-tag-gray">{t('devis.notEditable')}</span>
+                      </div>
+                      <input type="hidden" value={companyStatus} />
+                    </div>
+                  ) : (
+                    <select value={companyStatus} onChange={(e) => setCompanyStatus(e.target.value)}
+                      className={normalFieldClass}>
+                      {getCompanyStatuses(locale).map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.email')} <span className="text-red-500">*</span></label>
-                  <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)}
-                    className={normalFieldClass} />
-                </div>
-              </div>
 
-              {/* Assurance décennale / RC Pro */}
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-lg mb-4">
-                <p className="text-sm text-blue-800 font-semibold">{'🛡️'} {t('devis.insuranceMandatoryTitle')}</p>
-                <p className="text-xs text-blue-600 mt-1">{t('devis.insuranceMandatoryDesc')}</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceType')} <span className="text-red-500">*</span></label>
-                  <select value={insuranceType} onChange={(e) => setInsuranceType(e.target.value as 'rc_pro' | 'decennale' | 'both')}
-                    className={normalFieldClass}>
-                    <option value="rc_pro">{t('devis.insuranceRcPro')}</option>
-                    <option value="decennale">{t('devis.insuranceDecennale')}</option>
-                    <option value="both">{t('devis.insuranceBoth')}</option>
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  {/* Nom commercial — LOCKED if verified */}
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {t('devis.companyName')} <span style={{ color: 'var(--v22-red)' }}>*</span>
+                      {isLegalLocked && <span className="v22-tag v22-tag-green">{t('devis.verified')}</span>}
+                    </label>
+                    <input type="text" value={companyName}
+                      onChange={isLegalLocked ? undefined : (e) => setCompanyName(e.target.value)}
+                      readOnly={isLegalLocked}
+                      className={lockedFieldClass}
+                      style={isLegalLocked ? lockedFieldStyle : undefined} />
+                  </div>
+                  {/* SIRET — LOCKED if verified */}
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {localeFormats.taxIdLabel} <span style={{ color: 'var(--v22-red)' }}>*</span>
+                      {isLegalLocked && <span className="v22-tag v22-tag-green">{t('devis.verified')}</span>}
+                    </label>
+                    <input type="text" value={companySiret}
+                      onChange={isLegalLocked ? undefined : (e) => setCompanySiret(e.target.value)}
+                      readOnly={isLegalLocked}
+                      placeholder={t('devis.taxIdPlaceholder')}
+                      className={lockedFieldClass}
+                      style={isLegalLocked ? lockedFieldStyle : undefined} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceName')} <span className="text-red-500">*</span></label>
-                  <input type="text" value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)}
-                    placeholder={t('devis.insuranceNamePlaceholder')}
-                    className={normalFieldClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceContractNumber')} <span className="text-red-500">*</span></label>
-                  <input type="text" value={insuranceNumber} onChange={(e) => setInsuranceNumber(e.target.value)}
-                    placeholder={t('devis.insuranceContractPlaceholder')}
-                    className={normalFieldClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.insuranceCoverage')} <span className="text-red-500">*</span></label>
-                  <input type="text" value={insuranceCoverage} onChange={(e) => setInsuranceCoverage(e.target.value)}
-                    placeholder={t('devis.insuranceCoveragePlaceholder')}
-                    className={normalFieldClass} />
-                </div>
-              </div>
 
-              {/* Médiateur de la consommation */}
-              <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded-r-lg mb-4 mt-6">
-                <p className="text-sm text-purple-800 font-semibold">{'⚖️'} {t('devis.mediatorTitle')}</p>
-                <p className="text-xs text-purple-600 mt-1">{t('devis.mediatorDesc')}</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.mediatorName')}</label>
-                  <input type="text" value={mediatorName} onChange={(e) => setMediatorName(e.target.value)}
-                    placeholder={t('devis.mediatorNamePlaceholder')}
-                    className={normalFieldClass} />
+                {/* SIREN (read-only display if available) */}
+                {companySiren && (
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">SIREN</label>
+                    <input type="text" value={companySiren} readOnly className={lockedFieldClass} style={lockedFieldStyle} />
+                  </div>
+                )}
+
+                {/* Adresse siège social — LOCKED if verified */}
+                <div className="v22-form-group">
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {t('devis.headOfficeAddress')} <span style={{ color: 'var(--v22-red)' }}>*</span>
+                    {isLegalLocked && <span className="v22-tag v22-tag-green">{t('devis.verified')}</span>}
+                  </label>
+                  <input type="text" value={companyAddress}
+                    onChange={isLegalLocked ? undefined : (e) => setCompanyAddress(e.target.value)}
+                    readOnly={isLegalLocked}
+                    className={lockedFieldClass}
+                    style={isLegalLocked ? lockedFieldStyle : undefined} />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.mediatorUrl')}</label>
-                  <input type="text" value={mediatorUrl} onChange={(e) => setMediatorUrl(e.target.value)}
-                    placeholder={t('devis.mediatorUrlPlaceholder')}
-                    className={normalFieldClass} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.registryNumber')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="text" value={companyRCS} onChange={(e) => setCompanyRCS(e.target.value)}
+                      placeholder={t('devis.registryPlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                  {isSocieteStatus(companyStatus, locale) && (
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.shareCapital')}</label>
+                      <input type="text" value={companyCapital} onChange={(e) => setCompanyCapital(e.target.value)}
+                        placeholder={t('devis.shareCapitalPlaceholder')}
+                        className={normalFieldClass} />
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.phone')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="tel" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)}
+                      className={normalFieldClass} />
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.email')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)}
+                      className={normalFieldClass} />
+                  </div>
+                </div>
+
+                {/* Assurance décennale / RC Pro */}
+                <div className="v22-alert v22-alert-blue" style={{ marginBottom: 12, cursor: 'default' }}>
+                  <div>
+                    <strong style={{ color: '#1D4ED8', fontSize: 12 }}>{t('devis.insuranceMandatoryTitle')}</strong>
+                    <div style={{ fontSize: 11, color: '#1D4ED8', marginTop: 2 }}>{t('devis.insuranceMandatoryDesc')}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.insuranceType')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <select value={insuranceType} onChange={(e) => setInsuranceType(e.target.value as 'rc_pro' | 'decennale' | 'both')}
+                      className={normalFieldClass}>
+                      <option value="rc_pro">{t('devis.insuranceRcPro')}</option>
+                      <option value="decennale">{t('devis.insuranceDecennale')}</option>
+                      <option value="both">{t('devis.insuranceBoth')}</option>
+                    </select>
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.insuranceName')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="text" value={insuranceName} onChange={(e) => setInsuranceName(e.target.value)}
+                      placeholder={t('devis.insuranceNamePlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.insuranceContractNumber')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="text" value={insuranceNumber} onChange={(e) => setInsuranceNumber(e.target.value)}
+                      placeholder={t('devis.insuranceContractPlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.insuranceCoverage')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="text" value={insuranceCoverage} onChange={(e) => setInsuranceCoverage(e.target.value)}
+                      placeholder={t('devis.insuranceCoveragePlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                </div>
+
+                {/* Médiateur de la consommation */}
+                <div className="v22-alert v22-alert-purple" style={{ marginBottom: 12, cursor: 'default' }}>
+                  <div>
+                    <strong style={{ color: '#7C3AED', fontSize: 12 }}>{t('devis.mediatorTitle')}</strong>
+                    <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 2 }}>{t('devis.mediatorDesc')}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.mediatorName')}</label>
+                    <input type="text" value={mediatorName} onChange={(e) => setMediatorName(e.target.value)}
+                      placeholder={t('devis.mediatorNamePlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.mediatorUrl')}</label>
+                    <input type="text" value={mediatorUrl} onChange={(e) => setMediatorUrl(e.target.value)}
+                      placeholder={t('devis.mediatorUrlPlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* ─── Section: TVA ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'💶'} {t('devis.taxConfigSection')}
-              </h3>
-              <div className="flex items-center gap-4 p-4 bg-[#F8F9FA] rounded-xl mb-4">
-                <button
-                  onClick={() => {
-                    const next = !tvaEnabled
-                    setTvaEnabled(next)
-                    // Mettre à jour le taux TVA de toutes les lignes existantes
-                    const rate = locale === 'pt' ? 23 : 20
-                    setLines(prev => prev.map(l => ({ ...l, tvaRate: next ? rate : 0 })))
-                  }}
-                  className={`w-14 h-7 rounded-full relative transition-colors flex-shrink-0 ${tvaEnabled ? 'bg-green-400' : 'bg-gray-300'}`}
-                >
-                  <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${tvaEnabled ? 'translate-x-7' : 'translate-x-0.5'}`} />
-                </button>
-                <div>
-                  <div className="font-semibold">{tvaEnabled ? t('devis.taxEnabled') : t('devis.taxDisabled')}</div>
-                  <div className="text-sm text-gray-500">
-                    {tvaEnabled ? t('devis.taxEnabledDesc') : t('devis.taxDisabledDesc')}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.taxConfigSection')}</span>
+              </div>
+              <div className="v22-card-body">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--v22-bg)', borderRadius: 3, marginBottom: 12 }}>
+                  <button
+                    onClick={() => {
+                      const next = !tvaEnabled
+                      setTvaEnabled(next)
+                      const rate = locale === 'pt' ? 23 : 20
+                      setLines(prev => prev.map(l => ({ ...l, tvaRate: next ? rate : 0 })))
+                    }}
+                    className={`v22-toggle ${tvaEnabled ? 'v22-toggle-on' : 'v22-toggle-off'}`}
+                  >
+                    <div className={`v22-toggle-knob ${tvaEnabled ? 'v22-toggle-knob-on' : 'v22-toggle-knob-off'}`} />
+                  </button>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{tvaEnabled ? t('devis.taxEnabled') : t('devis.taxDisabled')}</div>
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                      {tvaEnabled ? t('devis.taxEnabledDesc') : t('devis.taxDisabledDesc')}
+                    </div>
                   </div>
                 </div>
+                {isSmallBusinessStatus(companyStatus, locale) && (
+                  <div className={tvaEnabled ? 'v22-tag v22-tag-amber' : 'v22-tag v22-tag-green'} style={{ display: 'block', padding: '6px 10px', fontSize: 11, marginBottom: 12 }}>
+                    {tvaEnabled ? t('devis.taxThresholdWarning') : t('devis.taxExemptInfo')}
+                  </div>
+                )}
+                {tvaEnabled && (
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">{t('devis.taxNumberLabel')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="text" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)}
+                      placeholder={t('devis.taxNumberPlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                )}
               </div>
-              {isSmallBusinessStatus(companyStatus, locale) && (
-                <div className={`text-xs p-3 rounded-lg mb-4 ${tvaEnabled ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
-                  {tvaEnabled
-                    ? `⚠️ ${t('devis.taxThresholdWarning')}`
-                    : `✅ ${t('devis.taxExemptInfo')}`}
-                </div>
-              )}
-              {tvaEnabled && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.taxNumberLabel')} <span className="text-red-500">*</span></label>
-                  <input type="text" value={tvaNumber} onChange={(e) => setTvaNumber(e.target.value)}
-                    placeholder={t('devis.taxNumberPlaceholder')}
-                    className={normalFieldClass} />
-                </div>
-              )}
             </div>
 
             {/* ─── Section: Client ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'👤'} {t('devis.clientSection')}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientName')} <span className="text-red-500">*</span></label>
-                  <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                    placeholder={t('devis.clientNamePlaceholder')}
-                    className={normalFieldClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientEmail')}</label>
-                  <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
-                    placeholder={locale === 'pt' ? 'maria.silva@email.pt' : 'marie.dubois@email.fr'}
-                    className={normalFieldClass} />
-                </div>
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.clientSection')}</span>
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientAddress')} <span className="text-red-500">*</span></label>
-                <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
-                  placeholder={t('devis.clientAddressPlaceholder')}
-                  className={normalFieldClass} />
-              </div>
-              {/* Adresse d'intervention — apparaît dès qu'un SIRET client est renseigné (pro/syndic) */}
-              {clientSiret.trim().length > 0 && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                    📍 {t('devis.interventionAddress')}
-                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">{t('devis.interventionAddressClientPro')}</span>
-                  </label>
-                  <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
-                    placeholder={t('devis.interventionAddressPlaceholder')}
-                    className={normalFieldClass} />
-                  <p className="text-xs text-gray-400 mt-1">{t('devis.interventionAddressHint')}</p>
+              <div className="v22-card-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.clientName')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
+                      placeholder={t('devis.clientNamePlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.clientEmail')}</label>
+                    <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)}
+                      placeholder={locale === 'pt' ? 'maria.silva@email.pt' : 'marie.dubois@email.fr'}
+                      className={normalFieldClass} />
+                  </div>
                 </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientPhone')}</label>
-                  <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
-                    placeholder={t('devis.clientPhonePlaceholder')}
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{t('devis.clientAddress')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                  <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)}
+                    placeholder={t('devis.clientAddressPlaceholder')}
                     className={normalFieldClass} />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.clientTaxId')}</label>
-                  <input type="text" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)}
-                    placeholder={t('devis.clientTaxIdPlaceholder')}
-                    className={normalFieldClass} />
+                {/* Adresse d'intervention — apparaît dès qu'un SIRET client est renseigné (pro/syndic) */}
+                {clientSiret.trim().length > 0 && (
+                  <div className="v22-form-group">
+                    <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {t('devis.interventionAddress')}
+                      <span className="v22-tag v22-tag-amber">{t('devis.interventionAddressClientPro')}</span>
+                    </label>
+                    <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
+                      placeholder={t('devis.interventionAddressPlaceholder')}
+                      className={normalFieldClass} />
+                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>{t('devis.interventionAddressHint')}</div>
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.clientPhone')}</label>
+                    <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)}
+                      placeholder={t('devis.clientPhonePlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.clientTaxId')}</label>
+                    <input type="text" value={clientSiret} onChange={(e) => setClientSiret(e.target.value)}
+                      placeholder={t('devis.clientTaxIdPlaceholder')}
+                      className={normalFieldClass} />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* ─── Section: Document Info ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📋'} {t('devis.docInfoSection')}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.issueDate')} <span className="text-red-500">*</span></label>
-                  <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)}
-                    className={normalFieldClass} />
-                  {docType === 'facture' && <p className="text-[10px] text-gray-400 mt-1">{t('devis.issueDateFactureHint')}</p>}
-                </div>
-                {docType === 'devis' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.validityDays')} <span className="text-red-500">*</span></label>
-                    <input type="number" value={docValidity} onChange={(e) => setDocValidity(parseInt(e.target.value) || 30)}
-                      className={normalFieldClass} />
-                  </div>
-                )}
-                {docType === 'facture' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.prestationDate')} <span className="text-red-500">*</span></label>
-                    <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
-                      className={normalFieldClass} />
-                    <p className="text-[10px] text-gray-400 mt-1">{t('devis.prestationDateHint')}</p>
-                  </div>
-                )}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.docInfoSection')}</span>
               </div>
-              {docType === 'devis' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-600 mb-2">{t('devis.executionDelay')} <span className="text-red-500">*</span></label>
-                  <div className="flex gap-3 items-center">
-                    <input type="number" min="0" value={executionDelayDays || ''} onChange={(e) => {
-                      const v = parseInt(e.target.value) || 0
-                      setExecutionDelayDays(v)
-                      setExecutionDelay(`${v} jour${v > 1 ? 's' : ''} ${executionDelayType === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
-                    }}
-                      placeholder="Nb"
-                      className="w-20 p-3 border border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20 text-center" />
-                    <select value={executionDelayType} onChange={(e) => {
-                      const t = e.target.value as 'ouvres' | 'calendaires'
-                      setExecutionDelayType(t)
-                      if (executionDelayDays > 0) setExecutionDelay(`${executionDelayDays} jour${executionDelayDays > 1 ? 's' : ''} ${t === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
-                    }}
-                      className="flex-1 p-3 border border-gray-200 rounded-lg focus:border-[#FFC107] focus:outline-none focus:ring-2 focus:ring-[#FFC107]/20">
-                      <option value="ouvres">{t('devis.workingDays')}</option>
-                      <option value="calendaires">{t('devis.calendarDays')}</option>
-                    </select>
+              <div className="v22-card-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.issueDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)}
+                      className={normalFieldClass} />
+                    {docType === 'facture' && <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>{t('devis.issueDateFactureHint')}</div>}
                   </div>
-                  {executionDelayDays > 0 && (
-                    <p className="text-xs text-gray-500 mt-1.5">→ {executionDelay} {t('devis.afterAcceptance')}</p>
+                  {docType === 'devis' && (
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.validityDays')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <input type="number" value={docValidity} onChange={(e) => setDocValidity(parseInt(e.target.value) || 30)}
+                        className={normalFieldClass} />
+                    </div>
+                  )}
+                  {docType === 'facture' && (
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.prestationDate')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <input type="date" value={prestationDate} onChange={(e) => setPrestationDate(e.target.value)}
+                        className={normalFieldClass} />
+                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>{t('devis.prestationDateHint')}</div>
+                    </div>
                   )}
                 </div>
-              )}
+                {docType === 'devis' && (
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">{t('devis.executionDelay')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input type="number" min="0" value={executionDelayDays || ''} onChange={(e) => {
+                        const v = parseInt(e.target.value) || 0
+                        setExecutionDelayDays(v)
+                        setExecutionDelay(`${v} jour${v > 1 ? 's' : ''} ${executionDelayType === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
+                      }}
+                        placeholder="Nb"
+                        className={normalFieldClass}
+                        style={{ width: 70, textAlign: 'center' }} />
+                      <select value={executionDelayType} onChange={(e) => {
+                        const t = e.target.value as 'ouvres' | 'calendaires'
+                        setExecutionDelayType(t)
+                        if (executionDelayDays > 0) setExecutionDelay(`${executionDelayDays} jour${executionDelayDays > 1 ? 's' : ''} ${t === 'ouvres' ? 'ouvrés' : 'calendaires'}`)
+                      }}
+                        className={normalFieldClass}
+                        style={{ flex: 1 }}>
+                        <option value="ouvres">{t('devis.workingDays')}</option>
+                        <option value="calendaires">{t('devis.calendarDays')}</option>
+                      </select>
+                    </div>
+                    {executionDelayDays > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>→ {executionDelay} {t('devis.afterAcceptance')}</div>
+                    )}
+                  </div>
+                )}
 
-              {/* Toggle droit de rétractation (devis uniquement) */}
-              {docType === 'devis' && (
-                <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg">
-                  <div className="flex items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsHorsEtablissement(!isHorsEtablissement)}
-                      className={`w-14 h-7 rounded-full relative transition-colors flex-shrink-0 ${isHorsEtablissement ? 'bg-orange-400' : 'bg-gray-300'}`}
-                    >
-                      <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${isHorsEtablissement ? 'translate-x-7' : 'translate-x-0.5'}`} />
-                    </button>
-                    <div>
-                      <div className="font-semibold text-sm text-orange-900">
-                        {isHorsEtablissement ? `📋 ${t('devis.withdrawalRightEnabled')}` : t('devis.withdrawalRightDisabled')}
-                      </div>
-                      <div className="text-xs text-orange-700 mt-0.5">
-                        {isHorsEtablissement
-                          ? t('devis.withdrawalRightEnabledDesc')
-                          : t('devis.withdrawalRightDisabledDesc')}
+                {/* Toggle droit de rétractation (devis uniquement) */}
+                {docType === 'devis' && (
+                  <div className="v22-alert v22-alert-orange" style={{ cursor: 'default' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsHorsEtablissement(!isHorsEtablissement)}
+                        className={`v22-toggle ${isHorsEtablissement ? 'v22-toggle-on-orange' : 'v22-toggle-off'}`}
+                      >
+                        <div className={`v22-toggle-knob ${isHorsEtablissement ? 'v22-toggle-knob-on' : 'v22-toggle-knob-off'}`} />
+                      </button>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 12, color: '#9A3412' }}>
+                          {isHorsEtablissement ? t('devis.withdrawalRightEnabled') : t('devis.withdrawalRightDisabled')}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#EA580C', marginTop: 2 }}>
+                          {isHorsEtablissement
+                            ? t('devis.withdrawalRightEnabledDesc')
+                            : t('devis.withdrawalRightDisabledDesc')}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* ─── Section: Prestations ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'🔧'} {t('devis.prestationsSection')}
-              </h3>
-
-              {/* Table header */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse min-w-[600px]">
-                  <thead>
-                    <tr className="bg-[#2C3E50] text-white">
-                      <th className="text-left p-3 font-semibold text-sm rounded-tl-lg" style={{ width: '30%' }}>{t('devis.designation')}</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '8%' }}>{t('devis.qty')}</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>{t('devis.unit')}</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '10%' }}>{localeFormats.taxLabel} %</th>
-                      <th className="text-left p-3 font-semibold text-sm" style={{ width: '18%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
-                      <th className="p-3 rounded-tr-lg" style={{ width: '8%' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((line) => (
-                      <tr key={line.id} className="border-b border-gray-100">
-                        <td className="p-2">
-                          {line.description ? (
-                            <input
-                              type="text"
-                              value={line.description}
-                              onChange={(e) => updateLine(line.id, 'description', e.target.value)}
-                              className="w-full p-2 border border-gray-200 rounded-md text-sm focus:border-[#FFC107] focus:outline-none"
-                            />
-                          ) : (
-                            <div>
-                              <select
-                                onChange={(e) => selectMotif(line.id, e.target.value)}
-                                className="w-full p-2 border border-gray-200 rounded-md text-sm focus:border-[#FFC107] focus:outline-none bg-white"
-                                defaultValue=""
-                              >
-                                <option value="">{t('devis.selectMotif')}</option>
-                                {services.map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.name} - {formatPrice(s.price_ht ?? 0)}
-                                  </option>
-                                ))}
-                                <option value="custom">{'➕'} {t('devis.freeEntry')}</option>
-                              </select>
-                              {line.description === '' && (
-                                <input
-                                  type="text"
-                                  placeholder={t('devis.freeEntryPlaceholder')}
-                                  onChange={(e) => updateLine(line.id, 'description', e.target.value)}
-                                  className="w-full p-2 border border-gray-200 rounded-md text-sm mt-1 focus:border-[#FFC107] focus:outline-none"
-                                  style={{ display: 'none' }}
-                                />
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            value={line.qty}
-                            onChange={(e) => updateLine(line.id, 'qty', parseInt(e.target.value) || 1)}
-                            min={1}
-                            className="w-full p-2 border border-gray-200 rounded-md text-sm text-center focus:border-[#FFC107] focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <select
-                            value={line.unit || 'u'}
-                            onChange={(e) => updateLine(line.id, 'unit', e.target.value)}
-                            className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none"
-                          >
-                            <option value="u">{t('devis.unitOptions.u')}</option>
-                            <option value="m²">{t('devis.unitOptions.m2')}</option>
-                            <option value="m³">{t('devis.unitOptions.m3')}</option>
-                            <option value="ml">{t('devis.unitOptions.ml')}</option>
-                            <option value="h">{t('devis.unitOptions.h')}</option>
-                            <option value="forfait">{t('devis.unitOptions.forfait')}</option>
-                            <option value="kg">{t('devis.unitOptions.kg')}</option>
-                            <option value="tonne">{t('devis.unitOptions.tonne')}</option>
-                            <option value="lot">{t('devis.unitOptions.lot')}</option>
-                          </select>
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            value={line.priceHT}
-                            onChange={(e) => updateLine(line.id, 'priceHT', parseFloat(e.target.value) || 0)}
-                            step="0.01"
-                            className="w-full p-2 border border-gray-200 rounded-md text-sm focus:border-[#FFC107] focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <select
-                            value={line.tvaRate}
-                            onChange={(e) => updateLine(line.id, 'tvaRate', parseFloat(e.target.value))}
-                            disabled={!tvaEnabled}
-                            className="w-full p-2 border border-gray-200 rounded-md text-sm bg-white focus:border-[#FFC107] focus:outline-none disabled:opacity-60"
-                          >
-                            {locale === 'pt' ? (
-                              <>
-                                <option value={23}>23%</option>
-                                <option value={13}>13%</option>
-                                <option value={6}>6%</option>
-                                <option value={0}>0%</option>
-                              </>
-                            ) : (
-                              <>
-                                <option value={20}>20%</option>
-                                <option value={10}>10%</option>
-                                <option value={5.5}>5,5%</option>
-                                <option value={0}>0%</option>
-                              </>
-                            )}
-                          </select>
-                        </td>
-                        <td className="p-2">
-                          <div className="p-2 bg-gray-50 rounded-md text-sm font-semibold text-right">
-                            {localeFormats.currencyFormat(line.totalHT)}
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <button
-                            onClick={() => removeLine(line.id)}
-                            className="w-full bg-red-500 hover:bg-red-600 text-white p-2 rounded-md text-sm transition"
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.prestationsSection')}</span>
               </div>
+              <div className="v22-card-body" style={{ padding: 0 }}>
+                {/* Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="v22-devis-table" style={{ minWidth: 600 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '30%' }}>{t('devis.designation')}</th>
+                        <th style={{ width: '8%' }}>{t('devis.qty')}</th>
+                        <th style={{ width: '10%' }}>{t('devis.unit')}</th>
+                        <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
+                        <th style={{ width: '10%' }}>{localeFormats.taxLabel} %</th>
+                        <th style={{ width: '18%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
+                        <th style={{ width: '8%' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line) => (
+                        <tr key={line.id}>
+                          <td>
+                            {line.description ? (
+                              <input
+                                type="text"
+                                value={line.description}
+                                onChange={(e) => updateLine(line.id, 'description', e.target.value)}
+                                className="v22-form-input"
+                              />
+                            ) : (
+                              <div>
+                                <select
+                                  onChange={(e) => selectMotif(line.id, e.target.value)}
+                                  className="v22-form-input"
+                                  defaultValue=""
+                                >
+                                  <option value="">{t('devis.selectMotif')}</option>
+                                  {services.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.name} - {formatPrice(s.price_ht ?? 0)}
+                                    </option>
+                                  ))}
+                                  <option value="custom">{t('devis.freeEntry')}</option>
+                                </select>
+                                {line.description === '' && (
+                                  <input
+                                    type="text"
+                                    placeholder={t('devis.freeEntryPlaceholder')}
+                                    onChange={(e) => updateLine(line.id, 'description', e.target.value)}
+                                    className="v22-form-input"
+                                    style={{ display: 'none', marginTop: 4 }}
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={line.qty}
+                              onChange={(e) => updateLine(line.id, 'qty', parseInt(e.target.value) || 1)}
+                              min={1}
+                              className="v22-form-input"
+                              style={{ textAlign: 'center' }}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={line.unit || 'u'}
+                              onChange={(e) => updateLine(line.id, 'unit', e.target.value)}
+                              className="v22-form-input"
+                            >
+                              <option value="u">{t('devis.unitOptions.u')}</option>
+                              <option value="m²">{t('devis.unitOptions.m2')}</option>
+                              <option value="m³">{t('devis.unitOptions.m3')}</option>
+                              <option value="ml">{t('devis.unitOptions.ml')}</option>
+                              <option value="h">{t('devis.unitOptions.h')}</option>
+                              <option value="forfait">{t('devis.unitOptions.forfait')}</option>
+                              <option value="kg">{t('devis.unitOptions.kg')}</option>
+                              <option value="tonne">{t('devis.unitOptions.tonne')}</option>
+                              <option value="lot">{t('devis.unitOptions.lot')}</option>
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={line.priceHT}
+                              onChange={(e) => updateLine(line.id, 'priceHT', parseFloat(e.target.value) || 0)}
+                              step="0.01"
+                              className="v22-form-input"
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={line.tvaRate}
+                              onChange={(e) => updateLine(line.id, 'tvaRate', parseFloat(e.target.value))}
+                              disabled={!tvaEnabled}
+                              className="v22-form-input"
+                              style={{ opacity: !tvaEnabled ? 0.5 : 1 }}
+                            >
+                              {locale === 'pt' ? (
+                                <>
+                                  <option value={23}>23%</option>
+                                  <option value={13}>13%</option>
+                                  <option value={6}>6%</option>
+                                  <option value={0}>0%</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value={20}>20%</option>
+                                  <option value={10}>10%</option>
+                                  <option value={5.5}>5,5%</option>
+                                  <option value={0}>0%</option>
+                                </>
+                              )}
+                            </select>
+                          </td>
+                          <td>
+                            <div className="v22-amount" style={{ padding: '7px 10px', background: 'var(--v22-bg)', borderRadius: 3 }}>
+                              {localeFormats.currencyFormat(line.totalHT)}
+                            </div>
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => removeLine(line.id)}
+                              className="v22-btn v22-btn-danger v22-btn-sm"
+                              style={{ width: '100%' }}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              <button
-                onClick={addLine}
-                className="mt-4 w-full p-3 bg-white border-2 border-dashed border-gray-300 rounded-lg text-gray-500 font-semibold hover:border-[#FFC107] hover:text-[#FFC107] hover:bg-[#FFF9E6] transition"
-              >
-                {t('devis.addLine')}
-              </button>
+                <div style={{ padding: 14 }}>
+                  <button
+                    onClick={addLine}
+                    className="v22-btn"
+                    style={{ width: '100%', border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)' }}
+                  >
+                    + {t('devis.addLine')}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* ─── Section: Payment (Facture only) ─── */}
             {docType === 'facture' && (
-              <div className="bg-white rounded-2xl p-6 shadow-sm">
-                <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                  {'💳'} {t('devis.paymentSection')}
-                </h3>
-                <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg mb-4">
-                  <p className="text-xs text-amber-800">{t('devis.paymentSectionDesc')}</p>
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">{t('devis.paymentSection')}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.paymentCondition')} <span className="text-red-500">*</span></label>
-                    <select value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)}
-                      className={`${normalFieldClass} bg-white`}>
-                      <option value={t('devis.paymentCondValues.immediate')}>{t('devis.paymentCondOptions.immediate')}</option>
-                      <option value={t('devis.paymentCondValues.30end')}>{t('devis.paymentCondOptions.30end')}</option>
-                      <option value={t('devis.paymentCondValues.30date')}>{t('devis.paymentCondOptions.30date')}</option>
-                      <option value={t('devis.paymentCondValues.45end')}>{t('devis.paymentCondOptions.45end')}</option>
-                      <option value={t('devis.paymentCondValues.60date')}>{t('devis.paymentCondOptions.60date')}</option>
-                      <option value={t('devis.paymentCondValues.5050')}>{t('devis.paymentCondOptions.5050')}</option>
-                    </select>
+                <div className="v22-card-body">
+                  <div className="v22-alert v22-alert-amber" style={{ marginBottom: 12, cursor: 'default' }}>
+                    <div style={{ fontSize: 11, color: 'var(--v22-amber)' }}>{t('devis.paymentSectionDesc')}</div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.paymentMode')} <span className="text-red-500">*</span></label>
-                    <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}
-                      className={`${normalFieldClass} bg-white`}>
-                      <option value={t('devis.paymentModeOptions.transfer')}>{t('devis.paymentModeOptions.transfer')}</option>
-                      <option value={t('devis.paymentModeOptions.card')}>{t('devis.paymentModeOptions.card')}</option>
-                      <option value={t('devis.paymentModeOptions.cheque')}>{t('devis.paymentModeOptions.cheque')}</option>
-                      <option value={t('devis.paymentModeOptions.cash')}>{t('devis.paymentModeOptions.cash')}</option>
-                      <option value={`${t('devis.paymentModeOptions.transfer')} + ${t('devis.paymentModeOptions.cheque')}`}>{t('devis.paymentModeOptions.transferCheque')}</option>
-                    </select>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.paymentCondition')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <select value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)}
+                        className={normalFieldClass}>
+                        <option value={t('devis.paymentCondValues.immediate')}>{t('devis.paymentCondOptions.immediate')}</option>
+                        <option value={t('devis.paymentCondValues.30end')}>{t('devis.paymentCondOptions.30end')}</option>
+                        <option value={t('devis.paymentCondValues.30date')}>{t('devis.paymentCondOptions.30date')}</option>
+                        <option value={t('devis.paymentCondValues.45end')}>{t('devis.paymentCondOptions.45end')}</option>
+                        <option value={t('devis.paymentCondValues.60date')}>{t('devis.paymentCondOptions.60date')}</option>
+                        <option value={t('devis.paymentCondValues.5050')}>{t('devis.paymentCondOptions.5050')}</option>
+                      </select>
+                    </div>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.paymentMode')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}
+                        className={normalFieldClass}>
+                        <option value={t('devis.paymentModeOptions.transfer')}>{t('devis.paymentModeOptions.transfer')}</option>
+                        <option value={t('devis.paymentModeOptions.card')}>{t('devis.paymentModeOptions.card')}</option>
+                        <option value={t('devis.paymentModeOptions.cheque')}>{t('devis.paymentModeOptions.cheque')}</option>
+                        <option value={t('devis.paymentModeOptions.cash')}>{t('devis.paymentModeOptions.cash')}</option>
+                        <option value={`${t('devis.paymentModeOptions.transfer')} + ${t('devis.paymentModeOptions.cheque')}`}>{t('devis.paymentModeOptions.transferCheque')}</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.paymentDue')} <span className="text-red-500">*</span></label>
-                    <input type="date" value={paymentDue} onChange={(e) => setPaymentDue(e.target.value)}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.paymentDue')} <span style={{ color: 'var(--v22-red)' }}>*</span></label>
+                      <input type="date" value={paymentDue} onChange={(e) => setPaymentDue(e.target.value)}
+                        className={normalFieldClass} />
+                    </div>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.iban')}</label>
+                      <input type="text" value={iban} onChange={(e) => setIban(e.target.value)}
+                        placeholder={t('devis.ibanPlaceholder')}
+                        className={normalFieldClass} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                    <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                      <label className="v22-form-label">{t('devis.bic')}</label>
+                      <input type="text" value={bic} onChange={(e) => setBic(e.target.value)}
+                        placeholder={t('devis.bicPlaceholder')}
+                        className={normalFieldClass} />
+                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>{t('devis.bicHint')}</div>
+                    </div>
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: 0 }}>
+                    <label className="v22-form-label">{t('devis.discountLabel')}</label>
+                    <input type="text" value={discount} onChange={(e) => setDiscount(e.target.value)}
+                      placeholder={t('devis.discountPlaceholder')}
                       className={normalFieldClass} />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.iban')}</label>
-                    <input type="text" value={iban} onChange={(e) => setIban(e.target.value)}
-                      placeholder={t('devis.ibanPlaceholder')}
-                      className={normalFieldClass} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.bic')}</label>
-                    <input type="text" value={bic} onChange={(e) => setBic(e.target.value)}
-                      placeholder={t('devis.bicPlaceholder')}
-                      className={normalFieldClass} />
-                    <p className="text-[10px] text-gray-400 mt-1">{t('devis.bicHint')}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">{t('devis.discountLabel')}</label>
-                  <input type="text" value={discount} onChange={(e) => setDiscount(e.target.value)}
-                    placeholder={t('devis.discountPlaceholder')}
-                    className={normalFieldClass} />
                 </div>
               </div>
             )}
 
             {/* ─── Section: Notes ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📝'} {t('devis.notesSection')}
-              </h3>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                placeholder={t('devis.notesPlaceholder')}
-                className={`${normalFieldClass} resize-none`}
-              />
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.notesSection')}</span>
+              </div>
+              <div className="v22-card-body">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  placeholder={t('devis.notesPlaceholder')}
+                  className={normalFieldClass}
+                  style={{ resize: 'none' }}
+                />
+              </div>
             </div>
 
             {/* ─── Section: Joindre un rapport ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📋'} {t('devis.attachReportSection')}
-              </h3>
-              {availableRapports.length > 0 ? (
-                <div className="space-y-3">
-                  <select
-                    value={attachedRapportId || ''}
-                    onChange={(e) => setAttachedRapportId(e.target.value || null)}
-                    className={normalFieldClass}
-                  >
-                    <option value="">{t('devis.noReportAttached')}</option>
-                    {availableRapports.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {r.rapportNumber} — {r.interventionDate ? new Date(r.interventionDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : 'N/D'} — {r.motif || r.clientName || 'Intervention'}
-                      </option>
-                    ))}
-                  </select>
-                  {attachedRapport && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-amber-900 text-sm">{attachedRapport.rapportNumber}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          attachedRapport.status === 'termine' ? 'bg-green-100 text-green-700' :
-                          attachedRapport.status === 'en_cours' ? 'bg-blue-100 text-blue-700' :
-                          attachedRapport.status === 'a_reprendre' ? 'bg-amber-100 text-amber-700' :
-                          'bg-purple-100 text-purple-700'
-                        }`}>
-                          {attachedRapport.status === 'termine' ? t('devis.reportStatus.termine') :
-                           attachedRapport.status === 'en_cours' ? t('devis.reportStatus.en_cours') :
-                           attachedRapport.status === 'a_reprendre' ? t('devis.reportStatus.a_reprendre') : t('devis.reportStatus.sous_garantie')}
-                        </span>
-                      </div>
-                      {attachedRapport.motif && (
-                        <p className="text-sm text-amber-800">{'🔧'} {attachedRapport.motif}</p>
-                      )}
-                      <div className="text-xs text-amber-600 space-y-0.5">
-                        {attachedRapport.interventionDate && (
-                          <p>{'📅'} {new Date(attachedRapport.interventionDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
-                            {attachedRapport.startTime && ` à ${attachedRapport.startTime}`}
-                            {attachedRapport.endTime && ` → ${attachedRapport.endTime}`}
-                          </p>
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.attachReportSection')}</span>
+              </div>
+              <div className="v22-card-body">
+                {availableRapports.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <select
+                      value={attachedRapportId || ''}
+                      onChange={(e) => setAttachedRapportId(e.target.value || null)}
+                      className={normalFieldClass}
+                    >
+                      <option value="">{t('devis.noReportAttached')}</option>
+                      {availableRapports.map(r => (
+                        <option key={r.id} value={r.id}>
+                          {r.rapportNumber} — {r.interventionDate ? new Date(r.interventionDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : 'N/D'} — {r.motif || r.clientName || 'Intervention'}
+                        </option>
+                      ))}
+                    </select>
+                    {attachedRapport && (
+                      <div style={{ background: 'var(--v22-amber-light)', border: '1px solid var(--v22-border)', borderRadius: 3, padding: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--v22-text)' }}>{attachedRapport.rapportNumber}</span>
+                          <span className={
+                            attachedRapport.status === 'termine' ? 'v22-tag v22-tag-green' :
+                            attachedRapport.status === 'en_cours' ? 'v22-tag v22-tag-yellow' :
+                            attachedRapport.status === 'a_reprendre' ? 'v22-tag v22-tag-amber' :
+                            'v22-tag v22-tag-gray'
+                          }>
+                            {attachedRapport.status === 'termine' ? t('devis.reportStatus.termine') :
+                             attachedRapport.status === 'en_cours' ? t('devis.reportStatus.en_cours') :
+                             attachedRapport.status === 'a_reprendre' ? t('devis.reportStatus.a_reprendre') : t('devis.reportStatus.sous_garantie')}
+                          </span>
+                        </div>
+                        {attachedRapport.motif && (
+                          <div style={{ fontSize: 12, color: 'var(--v22-amber)', marginBottom: 4 }}>{attachedRapport.motif}</div>
                         )}
-                        {attachedRapport.siteAddress && <p>{'📍'} {attachedRapport.siteAddress}</p>}
-                        {attachedRapport.travaux?.filter(Boolean).length > 0 && (
-                          <p>{'✅'} {attachedRapport.travaux.filter(Boolean).length} travaux effectués</p>
-                        )}
+                        <div className="v22-ref" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {attachedRapport.interventionDate && (
+                            <span>{new Date(attachedRapport.interventionDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}
+                              {attachedRapport.startTime && ` ${attachedRapport.startTime}`}
+                              {attachedRapport.endTime && ` → ${attachedRapport.endTime}`}
+                            </span>
+                          )}
+                          {attachedRapport.siteAddress && <span>{attachedRapport.siteAddress}</span>}
+                          {attachedRapport.travaux?.filter(Boolean).length > 0 && (
+                            <span>{attachedRapport.travaux.filter(Boolean).length} travaux</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setAttachedRapportId(null)}
+                          className="v22-btn v22-btn-sm" style={{ marginTop: 8, color: 'var(--v22-red)', borderColor: 'var(--v22-red)' }}
+                        >
+                          {t('devis.removeReport')}
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setAttachedRapportId(null)}
-                        className="text-xs text-red-500 hover:text-red-700 mt-1"
-                      >
-                        {t('devis.removeReport')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 italic">
-                  {t('devis.noReportAvailable')}
-                </p>
-              )}
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
+                    {t('devis.noReportAvailable')}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* ─── Section: Photos chantier ─── */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4 flex items-center gap-2 text-lg">
-                {'📸'} {t('devis.attachPhotosSection')}
-              </h3>
-              <p className="text-xs text-gray-500 mb-3">
-                {t('devis.attachPhotosDesc')}
-              </p>
-              {photosLoading ? (
-                <p className="text-sm text-gray-400 italic">{t('devis.loadingPhotos')}</p>
-              ) : availablePhotos.length > 0 ? (
-                <div className="space-y-3">
-                  {/* Filter by booking if a linked booking exists */}
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPhotoIds(new Set())}
-                      className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
-                    >
-                      {t('devis.deselectAll')} ({selectedPhotoIds.size})
-                    </button>
-                    {linkedBookingId && (
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.attachPhotosSection')}</span>
+              </div>
+              <div className="v22-card-body">
+                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+                  {t('devis.attachPhotosDesc')}
+                </div>
+                {photosLoading ? (
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>{t('devis.loadingPhotos')}</div>
+                ) : availablePhotos.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* Filter by booking if a linked booking exists */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       <button
                         type="button"
-                        onClick={() => {
-                          const bookingPhotos = availablePhotos.filter(p => p.booking_id === linkedBookingId)
-                          setSelectedPhotoIds(new Set(bookingPhotos.map(p => p.id)))
-                        }}
-                        className="text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition"
+                        onClick={() => setSelectedPhotoIds(new Set())}
+                        className="v22-btn v22-btn-sm"
                       >
-                        {t('devis.selectLinkedPhotos')}
+                        {t('devis.deselectAll')} ({selectedPhotoIds.size})
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPhotoIds(new Set(availablePhotos.map(p => p.id)))}
-                      className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition"
-                    >
-                      {t('devis.selectAll')}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
-                    {availablePhotos.map((photo) => (
-                      <div
-                        key={photo.id}
-                        onClick={() => togglePhotoSelection(photo.id)}
-                        className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                          selectedPhotoIds.has(photo.id)
-                            ? 'border-amber-500 ring-2 ring-amber-300'
-                            : 'border-gray-200 hover:border-gray-400'
-                        }`}
+                      {linkedBookingId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const bookingPhotos = availablePhotos.filter(p => p.booking_id === linkedBookingId)
+                            setSelectedPhotoIds(new Set(bookingPhotos.map(p => p.id)))
+                          }}
+                          className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-amber-light)', color: 'var(--v22-amber)', borderColor: 'var(--v22-amber)' }}
+                        >
+                          {t('devis.selectLinkedPhotos')}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPhotoIds(new Set(availablePhotos.map(p => p.id)))}
+                        className="v22-btn v22-btn-sm v22-btn-primary"
                       >
-                        <NextImage src={photo.url} alt={photo.label || 'Photo'} width={200} height={80} className="w-full h-20 object-cover" unoptimized />
-                        {selectedPhotoIds.has(photo.id) && (
-                          <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✓</span>
+                        {t('devis.selectAll')}
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
+                      {availablePhotos.map((photo) => (
+                        <div
+                          key={photo.id}
+                          onClick={() => togglePhotoSelection(photo.id)}
+                          style={{
+                            position: 'relative', cursor: 'pointer', borderRadius: 3, overflow: 'hidden',
+                            border: selectedPhotoIds.has(photo.id) ? '2px solid var(--v22-yellow)' : '1px solid var(--v22-border)',
+                            boxShadow: selectedPhotoIds.has(photo.id) ? '0 0 0 2px var(--v22-yellow-border)' : 'none',
+                          }}
+                        >
+                          <NextImage src={photo.url} alt={photo.label || 'Photo'} width={200} height={80} style={{ width: '100%', height: 70, objectFit: 'cover', display: 'block' }} unoptimized />
+                          {selectedPhotoIds.has(photo.id) && (
+                            <div style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, background: 'var(--v22-yellow)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ color: 'var(--v22-text)', fontSize: 10, fontWeight: 700 }}>✓</span>
+                            </div>
+                          )}
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', padding: '2px 4px' }}>
+                            <div style={{ fontSize: 9, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : ''}
+                            </div>
                           </div>
-                        )}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1 py-0.5">
-                          <p className="text-[9px] text-white truncate">
-                            {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR') : ''}
-                            {photo.lat && photo.lng ? ' 📍' : ''}
-                          </p>
                         </div>
+                      ))}
+                    </div>
+                    {selectedPhotoIds.size > 0 && (
+                      <div className="v22-tag v22-tag-amber" style={{ alignSelf: 'flex-start' }}>
+                        {selectedPhotoIds.size} {t('devis.photosSelected')}
                       </div>
-                    ))}
+                    )}
                   </div>
-                  {selectedPhotoIds.size > 0 && (
-                    <p className="text-sm text-amber-700 font-medium">
-                      {'📎'} {selectedPhotoIds.size} {t('devis.photosSelected')}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 italic">
-                  {t('devis.noPhotos')}
-                </p>
-              )}
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
+                    {t('devis.noPhotos')}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* ─── Legal Mentions ─── */}
-            <div className="bg-[#F8F9FA] rounded-xl p-4">
-              <p className="text-sm text-gray-600 leading-relaxed">
-                <strong className="text-gray-800">{t('devis.legalMentionsLabel')}</strong><br />
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.legalMentionsLabel')}</span>
+              </div>
+              <div className="v22-card-body" style={{ background: 'var(--v22-bg)' }}>
                 {getLegalMentions().map((m, i) => (
-                  <span key={i}>{'📋'} {m}<br /></span>
+                  <div key={i} className="v22-ref" style={{ marginBottom: 4, lineHeight: 1.6 }}>{m}</div>
                 ))}
-              </p>
+              </div>
             </div>
           </div>
 
           {/* ═══════════ RIGHT: SUMMARY PANEL ═══════════ */}
-          <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 16, alignSelf: 'flex-start' }}>
             {/* Totals */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4">{t('devis.summary')}</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
-                  <span className="font-semibold">{localeFormats.currencyFormat(subtotalHT)}</span>
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.summary')}</span>
+              </div>
+              <div className="v22-card-body" style={{ padding: 0 }}>
+                <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--v22-border)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
+                  <span className="v22-amount">{localeFormats.currencyFormat(subtotalHT)}</span>
                 </div>
                 {tvaEnabled && (
-                  <div className="flex justify-between py-2 border-b border-gray-100">
-                    <span className="text-gray-600">{t('devis.taxLabel')}</span>
-                    <span className="font-semibold">{localeFormats.currencyFormat(totalTVA)}</span>
+                  <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--v22-border)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{t('devis.taxLabel')}</span>
+                    <span className="v22-amount">{localeFormats.currencyFormat(totalTVA)}</span>
                   </div>
                 )}
-                <div className={`flex justify-between p-4 -mx-5 -mb-5 rounded-b-2xl text-lg font-bold ${tvaEnabled ? 'bg-green-500 text-white' : 'bg-[#FFC107] text-gray-900'}`}>
+                <div style={{
+                  padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: tvaEnabled ? 'var(--v22-green)' : 'var(--v22-yellow)',
+                  color: tvaEnabled ? '#fff' : 'var(--v22-text)',
+                  fontWeight: 600, fontSize: 14,
+                }}>
                   <span>{tvaEnabled ? t('devis.totalTTC') : t('devis.totalNet')}</span>
-                  <span>{localeFormats.currencyFormat(tvaEnabled ? totalTTC : subtotalHT)}</span>
+                  <span className="v22-mono">{localeFormats.currencyFormat(tvaEnabled ? totalTTC : subtotalHT)}</span>
                 </div>
               </div>
             </div>
 
             {/* Verified Company Info Summary */}
             {isLegalLocked && (
-              <div className="bg-white rounded-2xl p-5 shadow-sm">
-                <h3 className="font-bold text-[#2C3E50] mb-3 flex items-center gap-2">
-                  {'🏢'} {t('devis.verifiedCompany')}
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 flex-shrink-0">{'📋'}</span>
-                    <div>
-                      <p className="font-semibold text-gray-800">{companyName}</p>
-                      <p className="text-gray-500 text-xs">{officialLegalForm || getStatusLabel(companyStatus, t)}</p>
-                    </div>
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">{t('devis.verifiedCompany')}</span>
+                  <span className="v22-tag v22-tag-green" style={{ marginLeft: 'auto' }}>{t('devis.verified')}</span>
+                </div>
+                <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 12 }}>{companyName}</div>
+                    <div className="v22-ref">{officialLegalForm || getStatusLabel(companyStatus, t)}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500">{'🆔'}</span>
-                    <span className="text-gray-600">{localeFormats.taxIdLabel}: {companySiret}</span>
-                  </div>
-                  {companySiren && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-500">{'🏛️'}</span>
-                      <span className="text-gray-600">SIREN: {companySiren}</span>
-                    </div>
-                  )}
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 flex-shrink-0">{'📍'}</span>
-                    <span className="text-gray-600">{companyAddress}</span>
-                  </div>
-                  {companyNafLabel && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-500">{'🔧'}</span>
-                      <span className="text-gray-600 text-xs">{companyNafLabel}</span>
-                    </div>
-                  )}
+                  <div className="v22-ref">{localeFormats.taxIdLabel}: {companySiret}</div>
+                  {companySiren && <div className="v22-ref">SIREN: {companySiren}</div>}
+                  <div className="v22-ref">{companyAddress}</div>
+                  {companyNafLabel && <div className="v22-ref">{companyNafLabel}</div>}
                 </div>
               </div>
             )}
 
             {/* Compliance */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-3">{t('devis.legalCompliance')}</h3>
-              <div className="text-xs text-gray-500 mb-3 bg-gray-50 px-3 py-1.5 rounded-lg">
-                {t('devis.statusLabel')} : <span className="font-semibold text-gray-700">{getStatusLabel(companyStatus, t)}</span>
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.legalCompliance')}</span>
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center">
-                  <span>{t('devis.complianceSiret')}</span>
-                  <span className={compliance.siret ? 'text-green-500' : 'text-red-500'}>{compliance.siret ? '✅' : '❌'}</span>
+              <div className="v22-card-body">
+                <div className="v22-ref" style={{ marginBottom: 8, background: 'var(--v22-bg)', padding: '4px 8px', borderRadius: 2 }}>
+                  {t('devis.statusLabel')} : <span style={{ fontWeight: 600, color: 'var(--v22-text)' }}>{getStatusLabel(companyStatus, t)}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span>{t('devis.complianceRcs')}</span>
-                  <span className={compliance.rcs ? 'text-green-500' : 'text-red-500'}>{compliance.rcs ? '✅' : '❌'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
+                    { label: t('devis.complianceSiret'), ok: compliance.siret },
+                    { label: t('devis.complianceRcs'), ok: compliance.rcs },
+                    { label: t('devis.complianceInsurance'), ok: compliance.insurance },
+                    { label: t('devis.complianceClient'), ok: compliance.client },
+                    { label: t('devis.complianceLines'), ok: compliance.lines },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span>{item.label}</span>
+                      <span className={item.ok ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-red'}>{item.ok ? 'OK' : 'X'}</span>
+                    </div>
+                  ))}
+                  {'capital' in compliance && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span>{t('devis.complianceCapital')}</span>
+                      <span className={(compliance as any).capital ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-red'}>{(compliance as any).capital ? 'OK' : 'X'}</span>
+                    </div>
+                  )}
+                  {'tvaNumber' in compliance && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span>{t('devis.complianceTva')}</span>
+                      <span className={(compliance as any).tvaNumber ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-red'}>{(compliance as any).tvaNumber ? 'OK' : 'X'}</span>
+                    </div>
+                  )}
+                  {isLegalLocked && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span>{t('devis.complianceVerified')}</span>
+                      <span className="v22-tag v22-tag-green">OK</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span>{t('devis.complianceInsurance')}</span>
-                  <span className={compliance.insurance ? 'text-green-500' : 'text-red-500'}>{compliance.insurance ? '✅' : '❌'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>{t('devis.complianceClient')}</span>
-                  <span className={compliance.client ? 'text-green-500' : 'text-red-500'}>{compliance.client ? '✅' : '❌'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>{t('devis.complianceLines')}</span>
-                  <span className={compliance.lines ? 'text-green-500' : 'text-red-500'}>{compliance.lines ? '✅' : '❌'}</span>
-                </div>
-                {'capital' in compliance && (
-                  <div className="flex justify-between items-center">
-                    <span>{t('devis.complianceCapital')}</span>
-                    <span className={(compliance as any).capital ? 'text-green-500' : 'text-red-500'}>{(compliance as any).capital ? '✅' : '❌'}</span>
-                  </div>
-                )}
-                {'tvaNumber' in compliance && (
-                  <div className="flex justify-between items-center">
-                    <span>{t('devis.complianceTva')}</span>
-                    <span className={(compliance as any).tvaNumber ? 'text-green-500' : 'text-red-500'}>{(compliance as any).tvaNumber ? '✅' : '❌'}</span>
-                  </div>
-                )}
-                {isLegalLocked && (
-                  <div className="flex justify-between items-center">
-                    <span>{t('devis.complianceVerified')}</span>
-                    <span className="text-green-500">✅</span>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* Actions */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-[#2C3E50] mb-4">{t('devis.actions')}</h3>
-              <div className="space-y-3">
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('devis.actions')}</span>
+              </div>
+              <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button
                   onClick={handleSaveDraft}
-                  className="w-full p-3 bg-white text-gray-600 border-2 border-gray-200 rounded-lg font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                  className="v22-btn"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px' }}
                 >
-                  {'💾'} {t('devis.saveDraft')}
+                  {t('devis.saveDraft')}
                 </button>
                 <button
                   onClick={handleGeneratePDF}
                   disabled={pdfLoading}
-                  className="w-full p-3 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
+                  className="v22-btn v22-btn-primary"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer' }}
                 >
-                  {pdfLoading ? (
-                    <><span className="inline-block animate-spin">⏳</span> {t('devis.generatingPdf')}</>
-                  ) : (
-                    <><span>📄</span> {t('devis.downloadPdf')}</>
-                  )}
+                  {pdfLoading ? t('devis.generatingPdf') : t('devis.downloadPdf')}
                 </button>
                 <button
                   onClick={handleValidateAndSend}
                   disabled={!allCompliant}
-                  className="w-full p-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="v22-btn v22-btn-green"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: !allCompliant ? 0.5 : 1, cursor: !allCompliant ? 'not-allowed' : 'pointer' }}
                 >
-                  {'✉️'} {t('devis.validateAndSend')}
+                  {t('devis.validateAndSend')}
                 </button>
               </div>
             </div>
@@ -2696,31 +2693,29 @@ export default function DevisFactureForm({
           MODAL ENVOI — Email ou Vitfix Channel
           ═══════════════════════════════════════════════ */}
       {showSendModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-5">
-              <h3 className="text-lg font-bold text-gray-900">
-                {showSendModal === 'pdf' ? `✅ ${t('devis.sendModalPdfTitle')}` : `✅ ${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${t('devis.sendModalValidateTitle')}`}
-              </h3>
-              <p className="text-gray-700 text-sm mt-1">
-                {t('devis.sendModalQuestion')}
-              </p>
+        <div className="v22-modal-overlay">
+          <div className="v22-modal" style={{ width: 440 }}>
+            <div className="v22-modal-head" style={{ background: 'var(--v22-yellow)', borderBottomColor: 'var(--v22-yellow-border)' }}>
+              <span className="v22-modal-title">
+                {showSendModal === 'pdf' ? t('devis.sendModalPdfTitle') : `${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${t('devis.sendModalValidateTitle')}`}
+              </span>
+              <button onClick={() => setShowSendModal(null)} className="v22-modal-close">✕</button>
             </div>
-            <div className="p-5 space-y-3">
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{t('devis.sendModalQuestion')}</div>
               {/* Option 1: Email */}
               {clientEmail && (
                 <button
                   onClick={handleSendViaEmail}
-                  className="w-full flex items-center gap-4 p-4 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-blue-200 transition group"
+                  className="v22-btn"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', textAlign: 'left', background: '#EFF6FF', borderColor: '#BFDBFE' }}
                 >
-                  <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-xl">{'✉️'}</span>
+                  <div style={{ width: 32, height: 32, background: '#1D4ED8', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontSize: 14 }}>{'@'}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: '#1E40AF', fontSize: 12 }}>{t('devis.sendViaEmail')}</div>
+                    <div className="v22-ref" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{clientEmail}</div>
                   </div>
-                  <div className="text-left">
-                    <div className="font-semibold text-blue-900">{t('devis.sendViaEmail')}</div>
-                    <div className="text-xs text-blue-600 truncate max-w-[200px]">{clientEmail}</div>
-                  </div>
-                  <span className="ml-auto text-blue-400 group-hover:translate-x-1 transition-transform">{'→'}</span>
+                  <span style={{ color: '#93C5FD' }}>→</span>
                 </button>
               )}
 
@@ -2728,40 +2723,37 @@ export default function DevisFactureForm({
               <button
                 onClick={handleSendViaVitfix}
                 disabled={!linkedBookingId || sendingVitfix}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition group ${
-                  linkedBookingId
-                    ? 'bg-amber-50 hover:bg-amber-100 border-amber-200'
-                    : 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
-                }`}
+                className="v22-btn"
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', textAlign: 'left',
+                  background: linkedBookingId ? 'var(--v22-amber-light)' : 'var(--v22-bg)',
+                  borderColor: linkedBookingId ? 'var(--v22-yellow-border)' : 'var(--v22-border)',
+                  opacity: (!linkedBookingId || sendingVitfix) ? 0.5 : 1,
+                  cursor: (!linkedBookingId || sendingVitfix) ? 'not-allowed' : 'pointer',
+                }}
               >
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  linkedBookingId ? 'bg-[#FFC107]' : 'bg-gray-300'
-                }`}>
-                  {sendingVitfix ? (
-                    <span className="text-white text-xl animate-spin">{'⏳'}</span>
-                  ) : (
-                    <span className="text-white text-xl">{'💬'}</span>
-                  )}
+                <div style={{ width: 32, height: 32, background: linkedBookingId ? 'var(--v22-yellow)' : 'var(--v22-border-dark)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14 }}>
+                  {sendingVitfix ? '...' : 'V'}
                 </div>
-                <div className="text-left">
-                  <div className={`font-semibold ${linkedBookingId ? 'text-amber-900' : 'text-gray-500'}`}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, color: linkedBookingId ? 'var(--v22-amber)' : 'var(--v22-text-muted)' }}>
                     {sendingVitfix ? t('devis.sending') : t('devis.sendViaVitfix')}
                   </div>
-                  <div className={`text-xs ${linkedBookingId ? 'text-amber-600' : 'text-gray-500'}`}>
+                  <div className="v22-ref">
                     {linkedBookingId
                       ? t('devis.sendViaVitfixDesc')
                       : t('devis.sendViaVitfixImport')}
                   </div>
                 </div>
                 {linkedBookingId && !sendingVitfix && (
-                  <span className="ml-auto text-amber-400 group-hover:translate-x-1 transition-transform">{'→'}</span>
+                  <span style={{ color: 'var(--v22-amber)' }}>→</span>
                 )}
               </button>
-
-              {/* Cancel */}
+            </div>
+            <div className="v22-modal-foot">
               <button
                 onClick={() => setShowSendModal(null)}
-                className="w-full p-3 text-gray-500 hover:text-gray-700 text-sm font-medium transition"
+                className="v22-btn v22-btn-sm"
               >
                 {t('devis.cancel')}
               </button>

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('artisan_absences')
-    .select('id, artisan_id, start_date, end_date, reason, label, source, created_at')
+    .select('id, artisan_id, start_date, end_date, reason, label, created_at')
     .eq('artisan_id', artisanId)
     .order('start_date')
     .limit(100)
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { artisan_id, source } = body
+    const { artisan_id } = body
 
     if (!artisan_id) {
       return NextResponse.json({ error: 'artisan_id is required' }, { status: 400 })
@@ -82,7 +82,6 @@ export async function POST(request: NextRequest) {
         end_date,
         reason: reason || '',
         label: label || '',
-        source: source || 'manual',
       })
       .select()
       .single()

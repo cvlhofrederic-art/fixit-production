@@ -54,19 +54,19 @@ type Props = {
 
 // ═══ CONFIG ═══
 
-const getUrgenceConfig = (isPt: boolean): Record<string, { bg: string; text: string; label: string; dot: string }> => ({
-  basse:   { bg: 'bg-gray-100',   text: 'text-gray-600',   label: isPt ? 'Baixa' : 'Basse',     dot: 'bg-gray-400' },
-  normale: { bg: 'bg-blue-100',   text: 'text-blue-700',   label: isPt ? 'Normal' : 'Normale',   dot: 'bg-blue-500' },
-  haute:   { bg: 'bg-orange-100', text: 'text-orange-700', label: isPt ? 'Alta' : 'Haute',       dot: 'bg-orange-500' },
-  urgente: { bg: 'bg-red-100',    text: 'text-red-700',    label: isPt ? 'Urgente' : 'Urgente',  dot: 'bg-red-500' },
+const getUrgenceConfig = (isPt: boolean): Record<string, { label: string; tagClass: string }> => ({
+  basse:   { label: isPt ? 'Baixa' : 'Basse',     tagClass: 'v22-tag v22-tag-gray' },
+  normale: { label: isPt ? 'Normal' : 'Normale',   tagClass: 'v22-tag' },
+  haute:   { label: isPt ? 'Alta' : 'Haute',       tagClass: 'v22-tag v22-tag-amber' },
+  urgente: { label: isPt ? 'Urgente' : 'Urgente',  tagClass: 'v22-tag v22-tag-red' },
 })
 
-const getStatutConfig = (isPt: boolean): Record<string, { bg: string; text: string; label: string }> => ({
-  en_attente: { bg: 'bg-amber-100',   text: 'text-amber-800',   label: isPt ? 'Pendente' : 'En attente' },
-  accepte:    { bg: 'bg-green-100',   text: 'text-green-800',   label: isPt ? 'Aceite' : 'Accept\u00e9' },
-  refuse:     { bg: 'bg-red-100',     text: 'text-red-800',     label: isPt ? 'Recusado' : 'Refus\u00e9' },
-  en_cours:   { bg: 'bg-blue-100',    text: 'text-blue-800',    label: isPt ? 'Em curso' : 'En cours' },
-  termine:    { bg: 'bg-emerald-100', text: 'text-emerald-800', label: isPt ? 'Terminado' : 'Termin\u00e9' },
+const getStatutConfig = (isPt: boolean): Record<string, { label: string; tagClass: string }> => ({
+  en_attente: { label: isPt ? 'Pendente' : 'En attente', tagClass: 'v22-tag v22-tag-amber' },
+  accepte:    { label: isPt ? 'Aceite' : 'Accepté',      tagClass: 'v22-tag v22-tag-green' },
+  refuse:     { label: isPt ? 'Recusado' : 'Refusé',     tagClass: 'v22-tag v22-tag-red' },
+  en_cours:   { label: isPt ? 'Em curso' : 'En cours',   tagClass: 'v22-tag v22-tag-yellow' },
+  termine:    { label: isPt ? 'Terminado' : 'Terminé',    tagClass: 'v22-tag v22-tag-green' },
 })
 
 // ═══ COMPOSANT PRINCIPAL ═══
@@ -111,12 +111,10 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
       const data = await res.json()
       if (data.conversations) {
         setConversations(data.conversations)
-        // Cache en localStorage pour persistance
         try { localStorage.setItem(CONV_CACHE_KEY, JSON.stringify(data.conversations)) } catch { /* quota */ }
       }
     } catch (e) {
       console.error('[messagerie] load conversations error:', e)
-      // Fallback localStorage
       try {
         const cached = localStorage.getItem(CONV_CACHE_KEY)
         if (cached) setConversations(JSON.parse(cached))
@@ -148,14 +146,12 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
       const data = await res.json()
       if (data.messages) {
         setMessages(data.messages)
-        // Cache messages en localStorage
         try { localStorage.setItem(MSG_CACHE_KEY_PREFIX + convId, JSON.stringify(data.messages)) } catch { /* quota */ }
         loadUnreadCounts()
         loadConversations()
       }
     } catch (e) {
       console.error('[messagerie] load messages error:', e)
-      // Fallback localStorage
       try {
         const cached = localStorage.getItem(MSG_CACHE_KEY_PREFIX + convId)
         if (cached) setMessages(JSON.parse(cached))
@@ -209,7 +205,6 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
 
   // ── Action ordre de mission ──
   const handleOrdreMissionAction = async (messageId: string, action: string, extraData?: Record<string, string>) => {
-    // Si "accepte" sans heure → ouvrir le popup de choix d'heure
     if (action === 'accepte' && !extraData?.arrival_time) {
       setShowTimePickerForMsg(messageId)
       setArrivalTime('09:00')
@@ -250,7 +245,7 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
   // ── Effects ──
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // ── Polling conversations toutes les 8s (fiable, pas dépendant du Realtime) ──
+  // ── Polling conversations toutes les 8s ──
   useEffect(() => {
     loadConversations()
     loadUnreadCounts()
@@ -264,12 +259,10 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
   // ── Polling messages de la conversation active toutes les 5s ──
   useEffect(() => {
     if (!activeConv) return
-    // Charger depuis le cache localStorage immédiatement
     try {
       const cached = localStorage.getItem(MSG_CACHE_KEY_PREFIX + activeConv.id)
       if (cached) setMessages(JSON.parse(cached))
     } catch { /* ignore */ }
-    // Puis charger depuis le serveur
     loadMessages(activeConv.id)
     pollMsgRef.current = setInterval(() => {
       loadMessages(activeConv.id, true)
@@ -277,7 +270,7 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
     return () => { if (pollMsgRef.current) clearInterval(pollMsgRef.current) }
   }, [activeConv?.id, loadMessages, MSG_CACHE_KEY_PREFIX])
 
-  // ── Supabase Realtime (en complément du polling pour l'instantanéité) ──
+  // ── Supabase Realtime ──
   useEffect(() => {
     const channel = supabase
       .channel(`messagerie_${artisan.user_id}`)
@@ -318,7 +311,7 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
     const diffMin = Math.floor(diffMs / 60000)
-    if (diffMin < 1) return "À l'instant"
+    if (diffMin < 1) return "\u00C0 l'instant"
     if (diffMin < 60) return `Il y a ${diffMin}min`
     const diffH = Math.floor(diffMin / 60)
     if (diffH < 24) return `Il y a ${diffH}h`
@@ -337,90 +330,67 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
   // Quick templates
   const quickTemplates = tab === 'clients'
     ? isPt
-      ? ['📍 A caminho', '✅ Terminado', '⚠️ Problema encontrado', '🔑 Acesso necessário']
-      : ['📍 En route', '✅ Terminé', '⚠️ Problème rencontré', '🔑 Accès requis']
+      ? ['\uD83D\uDCCD A caminho', '\u2705 Terminado', '\u26A0\uFE0F Problema encontrado', '\uD83D\uDD11 Acesso necess\u00E1rio']
+      : ['\uD83D\uDCCD En route', '\u2705 Termin\u00E9', '\u26A0\uFE0F Probl\u00E8me rencontr\u00E9', '\uD83D\uDD11 Acc\u00E8s requis']
     : isPt
-      ? ['📍 A caminho', '✅ Terminado', '📄 Orçamento enviado', '📸 Fotos enviadas']
-      : ['📍 En route', '✅ Terminé', '📄 Devis envoyé', '📸 Photos envoyées']
+      ? ['\uD83D\uDCCD A caminho', '\u2705 Terminado', '\uD83D\uDCC4 Or\u00E7amento enviado', '\uD83D\uDCF8 Fotos enviadas']
+      : ['\uD83D\uDCCD En route', '\u2705 Termin\u00E9', '\uD83D\uDCC4 Devis envoy\u00E9', '\uD83D\uDCF8 Photos envoy\u00E9es']
 
   // ═══ RENDER ═══
   return (
-    <div className="flex gap-0 h-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="v22-msg-wrap" style={{ height: '100%' }}>
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* ═══ PANNEAU GAUCHE — Liste conversations ═════════════ */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      <div className={`${activeConv ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-80 flex-shrink-0 border-r border-gray-100`}>
+      {/* ═══ PANNEAU GAUCHE — Liste conversations ═══ */}
+      <div className={`v22-msg-left ${activeConv ? 'v22-msg-left-hidden' : 'v22-msg-left-full'}`}>
 
         {/* ── Switcher Particuliers / Professionnels ── */}
-        <div className="p-3 border-b border-gray-100 bg-gray-50">
-          <div className="flex rounded-xl border border-gray-200 overflow-hidden bg-white">
-            {/* PARTICULIERS */}
-            <button
-              onClick={() => { setTab('clients'); setActiveConv(null) }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition ${
-                tab === 'clients' ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <span>{'\uD83C\uDFE0'}</span>
-              <span>Particuliers</span>
-              {unreadClients > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                  tab === 'clients' ? 'bg-white text-amber-600' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {unreadClients > 9 ? '9+' : unreadClients}
-                </span>
-              )}
-            </button>
-            {/* PROFESSIONNELS */}
-            <button
-              onClick={() => { setTab('donneurs'); setActiveConv(null) }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition border-l border-gray-200 ${
-                tab === 'donneurs' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <span>{'\uD83C\uDFE2'}</span>
-              <span>Professionnels</span>
-              {unreadPro > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                  tab === 'donneurs' ? 'bg-white text-indigo-600' : 'bg-indigo-100 text-indigo-700'
-                }`}>
-                  {unreadPro > 9 ? '9+' : unreadPro}
-                </span>
-              )}
-            </button>
-          </div>
-          {/* Sous-titre */}
-          <p className="text-xs text-gray-500 text-center mt-1.5">
-            {tab === 'clients'
-              ? `${filteredConversations.length} conversation${filteredConversations.length > 1 ? 's' : ''} client${filteredConversations.length > 1 ? 's' : ''}`
-              : `${filteredConversations.length} conversation${filteredConversations.length > 1 ? 's' : ''} pro`}
-          </p>
+        <div className="v22-msg-tabs">
+          <button
+            onClick={() => { setTab('clients'); setActiveConv(null) }}
+            className={`v22-msg-tab ${tab === 'clients' ? 'active' : ''}`}
+          >
+            {'\uD83C\uDFE0'} Particuliers
+            {unreadClients > 0 && (
+              <span className="v22-msg-tab-count">{unreadClients > 9 ? '9+' : unreadClients}</span>
+            )}
+          </button>
+          <button
+            onClick={() => { setTab('donneurs'); setActiveConv(null) }}
+            className={`v22-msg-tab ${tab === 'donneurs' ? 'active' : ''}`}
+          >
+            {'\uD83C\uDFE2'} Professionnels
+            {unreadPro > 0 && (
+              <span className="v22-msg-tab-count">{unreadPro > 9 ? '9+' : unreadPro}</span>
+            )}
+          </button>
+        </div>
+
+        {/* ── Count ── */}
+        <div className="v22-msg-count">
+          {filteredConversations.length} conversation{filteredConversations.length > 1 ? 's' : ''}{' '}
+          {tab === 'clients' ? 'client' : 'pro'}{filteredConversations.length > 1 && tab === 'clients' ? 's' : ''}
         </div>
 
         {/* ── Recherche + filtres ── */}
-        <div className="px-3 py-2 border-b border-gray-100">
+        <div className="v22-msg-search">
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={tab === 'clients' ? 'Rechercher un client\u2026' : 'Rechercher un professionnel\u2026'}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-purple-400 focus:outline-none"
+            className="v22-form-input"
+            style={{ width: '100%' }}
           />
-          <div className="flex gap-1 mt-1.5 flex-wrap">
+          <div className="v22-msg-filters">
             <button
               onClick={() => setFilterUnread('all')}
-              className={`text-xs px-2 py-1 rounded-lg border transition ${filterUnread === 'all'
-                ? tab === 'clients' ? 'border-amber-400 bg-amber-50 text-amber-700 font-semibold' : 'border-indigo-400 bg-indigo-50 text-indigo-700 font-semibold'
-                : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              className={`v22-msg-filter ${filterUnread === 'all' ? 'active' : ''}`}
             >
               Toutes
             </button>
             <button
               onClick={() => setFilterUnread('unread')}
-              className={`text-xs px-2 py-1 rounded-lg border transition ${filterUnread === 'unread'
-                ? tab === 'clients' ? 'border-amber-400 bg-amber-50 text-amber-700 font-semibold' : 'border-indigo-400 bg-indigo-50 text-indigo-700 font-semibold'
-                : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              className={`v22-msg-filter ${filterUnread === 'unread' ? 'active' : ''}`}
             >
               {'\u2709\uFE0F'} Non lues
             </button>
@@ -428,22 +398,18 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
         </div>
 
         {/* ── Liste des conversations ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="v22-msg-list">
           {filteredConversations.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <div className="text-3xl mb-2">{tab === 'clients' ? '\uD83C\uDFE0' : '\uD83C\uDFE2'}</div>
-              <p className="text-xs text-gray-500">
-                {search.trim()
-                  ? 'Aucun résultat'
-                  : tab === 'clients' ? 'Aucune conversation client' : 'Aucune conversation pro'}
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
+            <div className="v22-msg-empty">
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{tab === 'clients' ? '\uD83C\uDFE0' : '\uD83C\uDFE2'}</div>
+              <div>{search.trim() ? 'Aucun r\u00E9sultat' : tab === 'clients' ? 'Aucune conversation client' : 'Aucune conversation pro'}</div>
+              <div style={{ marginTop: 4, color: 'var(--v22-text-muted)', fontSize: 11 }}>
                 {search.trim()
                   ? 'Essayez un autre terme'
                   : tab === 'clients'
-                    ? 'Les conversations avec vos clients particuliers apparaîtront ici'
-                    : "Les conversations avec les syndics et donneurs d'ordres apparaîtront ici"}
-              </p>
+                    ? 'Les conversations avec vos clients particuliers appara\u00EEtront ici'
+                    : "Les conversations avec les syndics et donneurs d'ordres appara\u00EEtront ici"}
+              </div>
             </div>
           ) : (
             filteredConversations.map(conv => {
@@ -451,129 +417,76 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
               const isPro = conv.contact_type === 'pro'
 
               return (
-                <button
+                <div
                   key={conv.id}
                   onClick={() => { setActiveConv(conv); loadMessages(conv.id) }}
-                  className={`w-full text-left px-4 py-3.5 border-b border-gray-50 transition ${
-                    isPro ? 'hover:bg-indigo-50/50' : 'hover:bg-amber-50/50'
-                  } ${isSelected
-                    ? isPro ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : 'bg-amber-50 border-l-4 border-l-amber-500'
-                    : ''
-                  }`}
+                  className={`v22-msg-item ${isSelected ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {/* Avatar */}
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 border-2 ${
-                          isPro
-                            ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                            : 'bg-amber-100 text-amber-700 border-amber-200'
-                        }`}>
-                          {conv.contact_name?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-gray-900 truncate">{conv.contact_name || 'Contact'}</p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {isPro ? "Donneur d'ordres" : 'Client particulier'}
-                          </p>
-                        </div>
-                      </div>
-                      {/* Preview */}
-                      {conv.last_message_preview ? (
-                        <p className="text-xs text-gray-500 mt-0.5 ml-11 truncate italic">
-                          {conv.last_message_preview}
-                        </p>
-                      ) : (
-                        <p className={`text-xs mt-0.5 ml-11 italic ${isPro ? 'text-indigo-300' : 'text-amber-300'}`}>
-                          Nouvelle conversation
-                        </p>
-                      )}
-                    </div>
-                    {/* Time + Badge */}
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <span className="text-xs text-gray-400">{formatDate(conv.last_message_at)}</span>
-                      {conv.unread_count > 0 && (
-                        <span className={`text-white text-xs px-1.5 py-0.5 rounded-full font-bold min-w-[1.2rem] text-center ${
-                          isPro ? 'bg-indigo-600' : 'bg-amber-500'
-                        }`}>
-                          {conv.unread_count > 9 ? '9+' : conv.unread_count}
-                        </span>
-                      )}
+                  {/* Avatar */}
+                  <div className={`v22-msg-avatar ${isPro ? 'v22-msg-avatar-pro' : ''}`}>
+                    {conv.contact_name?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  {/* Body */}
+                  <div className="v22-msg-body">
+                    <div className="v22-msg-name">{conv.contact_name || 'Contact'}</div>
+                    <div className="v22-msg-preview">
+                      {conv.last_message_preview || (isPro ? 'Nouvelle conversation pro' : 'Nouvelle conversation')}
                     </div>
                   </div>
-                </button>
+                  {/* Meta */}
+                  <div className="v22-msg-meta">
+                    <span className="v22-msg-time">{formatDate(conv.last_message_at)}</span>
+                    {conv.unread_count > 0 && <div className="v22-msg-unread-dot" />}
+                  </div>
+                </div>
               )
             })
           )}
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* ═══ PANNEAU DROITE — Thread conversation ═════════════ */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      <div className={`${activeConv ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0`}>
+      {/* ═══ PANNEAU DROITE — Thread conversation ═══ */}
+      <div className={`v22-msg-right ${activeConv ? 'v22-msg-right-full' : 'v22-msg-right-hidden'}`}>
         {!activeConv ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-6xl mb-4">{'\uD83D\uDCAC'}</div>
-              <h3 className="text-lg font-bold text-gray-700">Sélectionnez une conversation</h3>
-              <p className="text-sm text-gray-500 mt-2">Choisissez un contact dans la liste pour voir les messages</p>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>{'\uD83D\uDCAC'}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-text)' }}>S\u00E9lectionnez une conversation</div>
+              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
             </div>
           </div>
         ) : (
           <>
             {/* ── Header conversation ── */}
-            <div className="p-4 border-b border-gray-100 bg-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* Bouton retour mobile */}
-                  <button
-                    onClick={() => setActiveConv(null)}
-                    className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500"
-                  >
-                    {'\u2190'}
-                  </button>
-                  {/* Avatar */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                    activeConv.contact_type === 'pro'
-                      ? 'bg-indigo-100 text-indigo-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {activeConv.contact_name?.charAt(0)?.toUpperCase() || '?'}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-gray-900 text-sm">{activeConv.contact_name || 'Contact'}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        activeConv.contact_type === 'pro'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {activeConv.contact_type === 'pro' ? 'Professionnel' : 'Particulier'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {activeConv.contact_type === 'pro' ? "Donneur d'ordres" : 'Client particulier'}
-                    </p>
-                  </div>
+            <div className="v22-msg-header">
+              <button onClick={() => setActiveConv(null)} className="v22-msg-back">{'\u2190'}</button>
+              <div className={`v22-msg-header-avatar ${activeConv.contact_type === 'pro' ? 'v22-msg-avatar-pro' : ''}`}>
+                {activeConv.contact_name?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="v22-msg-header-name">{activeConv.contact_name || 'Contact'}</span>
+                  <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>
+                    {activeConv.contact_type === 'pro' ? 'Professionnel' : 'Particulier'}
+                  </span>
+                </div>
+                <div className="v22-msg-header-sub">
+                  {activeConv.contact_type === 'pro' ? "Donneur d'ordres" : 'Client particulier'}
                 </div>
               </div>
             </div>
 
             {/* ── Messages ── */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            <div className="v22-msg-thread">
               {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="w-8 h-8 border-3 border-gray-200 border-t-amber-500 rounded-full animate-spin" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
+                  <div style={{ width: 24, height: 24, border: '2px solid var(--v22-border)', borderTopColor: 'var(--v22-yellow)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="text-5xl mb-3">{activeConv.contact_type === 'pro' ? '\uD83C\uDFE2' : '\uD83C\uDFE0'}</div>
-                  <p className="text-gray-500 font-medium">Conversation ouverte</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Aucun message pour le moment.{'\n'}Envoyez un message pour démarrer la conversation.
-                  </p>
+                <div className="v22-msg-empty">
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>{activeConv.contact_type === 'pro' ? '\uD83C\uDFE2' : '\uD83C\uDFE0'}</div>
+                  <div>Conversation ouverte</div>
+                  <div style={{ marginTop: 4, fontSize: 11 }}>Aucun message pour le moment. Envoyez un message pour d\u00E9marrer.</div>
                 </div>
               ) : (
                 messages.map(msg => (
@@ -593,31 +506,21 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
             </div>
 
             {/* ── Zone saisie ── */}
-            <div className="border-t border-gray-100 bg-white px-4 pt-3">
+            <div className="v22-msg-input-area">
               {/* Quick templates */}
-              <div className="flex gap-1.5 flex-wrap mb-2">
+              <div className="v22-msg-templates">
                 {quickTemplates.map(txt => (
-                  <button
-                    key={txt}
-                    onClick={() => setInputValue(txt)}
-                    className={`text-xs px-2.5 py-1 rounded-full transition ${
-                      activeConv.contact_type === 'pro'
-                        ? 'bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700'
-                        : 'bg-gray-100 hover:bg-amber-50 hover:text-amber-700'
-                    }`}
-                  >
+                  <button key={txt} onClick={() => setInputValue(txt)} className="v22-msg-tpl">
                     {txt}
                   </button>
                 ))}
               </div>
               {/* Textarea + Send */}
-              <div className="flex gap-2 pb-4">
+              <div className="v22-msg-compose">
                 <textarea
                   ref={inputRef}
-                  className={`flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none resize-none ${
-                    activeConv.contact_type === 'pro' ? 'focus:border-indigo-400' : 'focus:border-amber-400'
-                  }`}
-                  placeholder={`Message à ${activeConv.contact_name || 'votre contact'}\u2026`}
+                  className="v22-msg-textarea"
+                  placeholder={`Message \u00E0 ${activeConv.contact_name || 'votre contact'}\u2026`}
                   value={inputValue}
                   rows={2}
                   onChange={e => setInputValue(e.target.value)}
@@ -626,11 +529,7 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
                 <button
                   onClick={sendMessage}
                   disabled={!inputValue.trim() || sending}
-                  className={`px-5 py-2 rounded-xl font-semibold text-sm transition disabled:opacity-60 self-end text-white ${
-                    activeConv.contact_type === 'pro'
-                      ? 'bg-indigo-600 hover:bg-indigo-700'
-                      : 'bg-amber-500 hover:bg-amber-600'
-                  }`}
+                  className="v22-msg-send"
                 >
                   {sending ? '\u2026' : 'Envoyer'}
                 </button>
@@ -642,34 +541,37 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
 
       {/* ── Popup choix heure d'arrivée ── */}
       {showTimePickerForMsg && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fadeIn">
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-4">
-              <h3 className="text-white font-bold text-lg">{'\uD83D\uDD50'} Accepter la mission</h3>
-              <p className="text-white/80 text-sm mt-1">Indiquez votre heure d&apos;arrivée et la durée estimée</p>
+        <div className="v22-modal-overlay">
+          <div className="v22-modal" style={{ maxWidth: 380 }}>
+            <div className="v22-modal-head">
+              <div className="v22-modal-title">{'\uD83D\uDD50'} Accepter la mission</div>
+              <button onClick={() => setShowTimePickerForMsg(null)} className="v22-modal-close">{'\u2715'}</button>
             </div>
-            <div className="p-6 space-y-5">
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                Indiquez votre heure d&apos;arriv\u00E9e et la dur\u00E9e estim\u00E9e
+              </div>
+
               {/* Heure d'arrivée */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Heure d&apos;arrivée</p>
-                <div className="flex items-center justify-center mb-2">
+                <div className="v22-form-label" style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Heure d&apos;arriv\u00E9e
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
                   <input
                     type="time"
                     value={arrivalTime}
                     onChange={e => setArrivalTime(e.target.value)}
-                    className="text-3xl font-bold text-center border-2 border-indigo-200 rounded-xl px-6 py-3 focus:outline-none focus:border-indigo-500 transition"
+                    className="v22-form-input"
+                    style={{ fontSize: 22, fontWeight: 600, textAlign: 'center', padding: '8px 16px', width: 'auto' }}
                   />
                 </div>
-                <div className="flex flex-wrap gap-1.5 justify-center">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
                   {['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '14:00', '14:30', '15:00'].map(t => (
                     <button
                       key={t}
                       onClick={() => setArrivalTime(t)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                        arrivalTime === t
-                          ? 'bg-indigo-500 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-700'
-                      }`}
+                      className={`v22-btn v22-btn-sm ${arrivalTime === t ? 'v22-btn-primary' : ''}`}
                     >
                       {t}
                     </button>
@@ -679,8 +581,10 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
 
               {/* Durée estimée */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Durée estimée de la mission</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="v22-form-label" style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Dur\u00E9e estim\u00E9e
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                   {[
                     { label: '30 min', value: 0.5 },
                     { label: '1 h', value: 1 },
@@ -688,26 +592,31 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
                     { label: '2 h', value: 2 },
                     { label: '3 h', value: 3 },
                     { label: '4 h', value: 4 },
-                    { label: '½ journée', value: 4 },
-                    { label: 'Journée', value: 8 },
+                    { label: '\u00BD journ\u00E9e', value: 4 },
+                    { label: 'Journ\u00E9e', value: 8 },
                     { label: '2 jours', value: 16 },
                   ].map(opt => (
                     <button
                       key={opt.label}
                       onClick={() => setDurationHours(opt.value)}
-                      className={`py-2 rounded-xl text-sm font-semibold transition border-2 ${
-                        durationHours === opt.value
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:bg-green-50'
-                      }`}
+                      className={`v22-btn v22-btn-sm ${durationHours === opt.value ? 'v22-btn-primary' : ''}`}
                     >
                       {opt.label}
                     </button>
                   ))}
                 </div>
                 {/* Résumé */}
-                <div className="mt-2 text-center text-xs text-indigo-600 font-medium bg-indigo-50 rounded-lg py-1.5">
-                  {'\uD83D\uDCC5'} Créneau bloqué : {arrivalTime} →{' '}
+                <div style={{
+                  marginTop: 8,
+                  textAlign: 'center',
+                  fontSize: 11,
+                  color: 'var(--v22-text-mid)',
+                  background: 'var(--v22-yellow-light)',
+                  borderRadius: 3,
+                  padding: '6px 0',
+                  border: '1px solid var(--v22-yellow-border)',
+                }}>
+                  {'\uD83D\uDCC5'} Cr\u00E9neau bloqu\u00E9 : {arrivalTime} {'\u2192'}{' '}
                   {(() => {
                     const [h, m] = arrivalTime.split(':').map(Number)
                     const totalMin = h * 60 + m + Math.round(durationHours * 60)
@@ -715,21 +624,14 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
                   })()}
                 </div>
               </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowTimePickerForMsg(null)}
-                  className="flex-1 border-2 border-gray-200 text-gray-600 py-3 rounded-xl font-semibold text-sm hover:bg-gray-50 transition"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={confirmAcceptWithTime}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold text-sm transition"
-                >
-                  {'\u2713'} Confirmer &amp; bloquer agenda
-                </button>
-              </div>
+            </div>
+            <div className="v22-modal-foot" style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowTimePickerForMsg(null)} className="v22-btn" style={{ flex: 1 }}>
+                Annuler
+              </button>
+              <button onClick={confirmAcceptWithTime} className="v22-btn v22-btn-green" style={{ flex: 1 }}>
+                {'\u2713'} Confirmer &amp; bloquer agenda
+              </button>
             </div>
           </div>
         </div>
@@ -756,11 +658,12 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   // Message système
   if (msg.type === 'system') {
     return (
-      <div className="flex justify-center">
-        <div className="bg-white border border-gray-200 rounded-xl px-4 py-2 max-w-xl">
-          <p className="text-xs text-gray-500 text-center leading-relaxed whitespace-pre-line">{msg.content}</p>
-          <p className="text-xs text-gray-300 text-center mt-1">{time}</p>
-        </div>
+      <div className="v22-msg-system">
+        <span className="v22-msg-system-text">
+          {msg.content}
+          <br />
+          <span style={{ fontSize: 9, color: 'var(--v22-text-muted)' }}>{time}</span>
+        </span>
       </div>
     )
   }
@@ -773,40 +676,26 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   // Message texte / photo / voice
   const senderLabel = isOwn ? artisanName : contactName
   const avatarLetter = senderLabel.charAt(0).toUpperCase()
-  const isPro = contactType === 'pro'
 
   return (
-    <div className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
-      {/* Avatar */}
-      <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${
-        isOwn
-          ? 'bg-amber-100 text-amber-700'
-          : isPro
-            ? 'bg-indigo-100 text-indigo-700'
-            : 'bg-gray-100 text-gray-600'
-      }`}>
+    <div className={`v22-msg-bubble-row ${isOwn ? 'own' : ''}`}>
+      <div className={`v22-msg-bubble-avatar ${isOwn ? 'own' : ''}`}>
         {avatarLetter}
       </div>
-      <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-        <p className="text-xs text-gray-500 px-1">
-          {senderLabel} {isOwn ? '· Artisan' : isPro ? "· Donneur d'ordres" : '· Client'}
-        </p>
-        <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line shadow-sm ${
-          isOwn
-            ? 'bg-amber-500 text-white rounded-tr-sm'
-            : isPro
-              ? 'bg-indigo-50 text-gray-900 border border-indigo-100 rounded-tl-sm'
-              : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'
-        }`}>
+      <div className="v22-msg-bubble-col">
+        <span className="v22-msg-bubble-sender">
+          {senderLabel} {isOwn ? '\u00B7 Artisan' : contactType === 'pro' ? "\u00B7 Donneur d'ordres" : '\u00B7 Client'}
+        </span>
+        <div className={`v22-msg-bubble ${isOwn ? 'own' : ''}`}>
           {msg.type === 'photo' && msg.metadata?.url ? (
-            <Image src={String(msg.metadata.url)} alt="" width={400} height={300} className="rounded-lg mb-2 max-w-full" unoptimized />
+            <Image src={String(msg.metadata.url)} alt="" width={400} height={300} style={{ borderRadius: 3, marginBottom: 6, maxWidth: '100%', height: 'auto' }} unoptimized />
           ) : null}
-          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+          {msg.content}
         </div>
-        <p className="text-xs text-gray-300 px-1">
+        <span className="v22-msg-bubble-time">
           {time}
-          {isOwn && msg.read && <span className="ml-1">{'\u2713\u2713'}</span>}
-        </p>
+          {isOwn && msg.read && ' \u2713\u2713'}
+        </span>
       </div>
     </div>
   )
@@ -829,99 +718,81 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
   const statut = STATUT_CONFIG[om.statut] || STATUT_CONFIG.en_attente
 
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-      <div className="w-full max-w-md bg-white border-2 border-indigo-200 rounded-2xl overflow-hidden shadow-sm">
+    <div style={{ display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+      <div className="v22-card v22-msg-mission">
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{'\uD83D\uDCCB'}</span>
-            <span className="text-white font-bold text-sm">Ordre de mission</span>
+        <div className="v22-msg-mission-head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{'\uD83D\uDCCB'}</span>
+            <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--v22-text)' }}>Ordre de mission</span>
           </div>
-          <span className={`${urgence.bg} ${urgence.text} text-xs font-bold px-2.5 py-1 rounded-full`}>
-            {urgence.label}
-          </span>
+          <span className={urgence.tagClass}>{urgence.label}</span>
         </div>
 
         {/* Body */}
-        <div className="p-4 space-y-2.5">
-          <h4 className="font-bold text-gray-900">{om.titre || 'Mission'}</h4>
+        <div className="v22-msg-mission-body">
+          <div className="v22-msg-mission-title">{om.titre || 'Mission'}</div>
 
           {om.adresse && (
-            <div className="flex items-start gap-2 text-sm text-gray-600">
-              <span className="flex-shrink-0">{'\uD83D\uDCCD'}</span>
+            <div className="v22-msg-mission-row">
+              <span>{'\uD83D\uDCCD'}</span>
               <span>{om.adresse}</span>
             </div>
           )}
 
           {om.date_souhaitee && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="v22-msg-mission-row">
               <span>{'\uD83D\uDCC5'}</span>
               <span>{new Date(om.date_souhaitee + 'T12:00:00').toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
             </div>
           )}
 
           {om.arrival_time && (om.statut === 'accepte' || om.statut === 'en_cours' || om.statut === 'termine') && (
-            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+            <div className="v22-msg-arrival-info">
               <span>{'\uD83D\uDD50'}</span>
-              <span className="font-semibold">Arrivée prévue à {om.arrival_time}</span>
+              <span>Arriv\u00E9e pr\u00E9vue \u00E0 {om.arrival_time}</span>
             </div>
           )}
 
           {om.description && (
-            <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{om.description}</p>
+            <div className="v22-msg-mission-desc">{om.description}</div>
           )}
 
           {/* Statut */}
-          <div className="flex items-center gap-2">
-            <span className={`${statut.bg} ${statut.text} text-xs font-bold px-3 py-1 rounded-full`}>
-              {statut.label}
-            </span>
-          </div>
+          <span className={statut.tagClass}>{statut.label}</span>
         </div>
 
         {/* Actions (seulement si en_attente et c'est l'artisan qui voit) */}
         {om.statut === 'en_attente' && !isOwn && (
-          <div className="border-t border-gray-100 p-3 flex gap-2">
-            <button
-              onClick={() => onAction(msg.id, 'accepte')}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl font-bold text-sm transition"
-            >
+          <div className="v22-msg-mission-foot">
+            <button onClick={() => onAction(msg.id, 'accepte')} className="v22-btn v22-btn-green">
               {'\u2713'} Accepter
             </button>
-            <button
-              onClick={() => onAction(msg.id, 'refuse')}
-              className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2.5 rounded-xl font-bold text-sm transition"
-            >
+            <button onClick={() => onAction(msg.id, 'refuse')} className="v22-btn v22-btn-red-outline">
               {'\u2715'} Refuser
             </button>
           </div>
         )}
 
         {om.statut === 'accepte' && !isOwn && (
-          <div className="border-t border-gray-100 p-3">
-            <button
-              onClick={() => onAction(msg.id, 'en_cours')}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm transition"
-            >
-              {'\uD83D\uDD27'} Démarrer l&apos;intervention
+          <div className="v22-msg-mission-foot">
+            <button onClick={() => onAction(msg.id, 'en_cours')} className="v22-btn v22-btn-blue" style={{ flex: 1 }}>
+              {'\uD83D\uDD27'} D\u00E9marrer l&apos;intervention
             </button>
           </div>
         )}
 
         {om.statut === 'en_cours' && !isOwn && (
-          <div className="border-t border-gray-100 p-3">
-            <button
-              onClick={() => onAction(msg.id, 'termine')}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-sm transition"
-            >
-              {'\u2705'} Marquer comme terminé
+          <div className="v22-msg-mission-foot">
+            <button onClick={() => onAction(msg.id, 'termine')} className="v22-btn v22-btn-green" style={{ flex: 1 }}>
+              {'\u2705'} Marquer comme termin\u00E9
             </button>
           </div>
         )}
 
-        {/* Bouton Proposer un devis — disponible dès que la mission est acceptée */}
+        {/* Bouton Proposer un devis */}
         {(om.statut === 'accepte' || om.statut === 'en_cours' || om.statut === 'termine') && !isOwn && onProposerDevis && (
-          <div className="border-t border-gray-100 p-3">
+          <div className="v22-msg-mission-foot">
             <button
               onClick={() => onProposerDevis({
                 titre: om.titre || '',
@@ -930,7 +801,8 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
                 date_souhaitee: om.date_souhaitee || '',
                 contactName: contactName || '',
               })}
-              className="w-full bg-gradient-to-r from-[#FFC107] to-[#FFD54F] hover:from-[#FFB300] hover:to-[#FFC107] text-gray-900 py-2.5 rounded-xl font-bold text-sm transition shadow-sm flex items-center justify-center gap-2"
+              className="v22-btn v22-btn-primary"
+              style={{ flex: 1 }}
             >
               {'\uD83D\uDCC4'} Proposer un devis
             </button>
@@ -938,8 +810,8 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
         )}
 
         {/* Timestamp */}
-        <div className="px-4 pb-2 text-right">
-          <span className="text-[10px] text-gray-400">
+        <div style={{ padding: '0 14px 8px', textAlign: 'right' }}>
+          <span className="v22-mono" style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>
             {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>

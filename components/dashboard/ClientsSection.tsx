@@ -161,22 +161,22 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   }
 
   return (
-    <div className="animate-fadeIn">
+    <div>
       {/* Modal — Create/Edit client */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-bold text-lg text-gray-900">
-                {editingId ? `✏️ ${t('proDash.clients.modifierClient')}` : `➕ ${t('proDash.clients.nouveauClient')}`}
-              </h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+        <div className="v22-modal-overlay">
+          <div className="v22-modal" style={{ maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="v22-modal-head">
+              <span className="v22-card-title">
+                {editingId ? t('proDash.clients.modifierClient') : t('proDash.clients.nouveauClient')}
+              </span>
+              <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>✕</button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Type toggle */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">{t('proDash.clients.typeDeClient')}</label>
-                <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+                <label className="v22-form-label">{t('proDash.clients.typeDeClient')}</label>
+                <div style={{ display: 'flex', gap: 6 }}>
                   {(['particulier', 'professionnel'] as const).map(ct => (
                     <button
                       key={ct}
@@ -185,9 +185,10 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                         type: ct,
                         mainAddressLabel: ct === 'professionnel' ? t('proDash.clients.siegeSocial') : t('proDash.clients.domicile'),
                       }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${clientForm.type === ct ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+                      className={`v22-btn ${clientForm.type === ct ? 'v22-btn-primary' : ''}`}
+                      style={{ flex: 1 }}
                     >
-                      {ct === 'particulier' ? `👤 ${t('proDash.clients.particulierType')}` : `🏢 ${t('proDash.clients.professionnelType')}`}
+                      {ct === 'particulier' ? t('proDash.clients.particulierType') : t('proDash.clients.professionnelType')}
                     </button>
                   ))}
                 </div>
@@ -195,7 +196,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
               {/* Name */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="v22-form-label">
                   {clientForm.type === 'professionnel' ? `${t('proDash.clients.raisonSociale')} *` : `${t('proDash.clients.nomComplet')} *`}
                 </label>
                 <input
@@ -203,30 +204,33 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   value={clientForm.name}
                   onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder={clientForm.type === 'professionnel' ? 'AJA Associés, Groupe Martin...' : 'Jean Dupont'}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                  className="v22-form-input"
+                  style={{ width: '100%' }}
                 />
               </div>
 
               {/* Phone + Email */}
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.telephone')}</label>
+                  <label className="v22-form-label">{t('proDash.clients.telephone')}</label>
                   <input
                     type="tel"
                     value={clientForm.phone}
                     onChange={e => setClientForm(prev => ({ ...prev, phone: e.target.value }))}
                     placeholder="06 00 00 00 00"
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                    className="v22-form-input"
+                    style={{ width: '100%' }}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.email')}</label>
+                  <label className="v22-form-label">{t('proDash.clients.email')}</label>
                   <input
                     type="email"
                     value={clientForm.email}
                     onChange={e => setClientForm(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="contact@exemple.fr"
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                    className="v22-form-input"
+                    style={{ width: '100%' }}
                   />
                 </div>
               </div>
@@ -234,27 +238,29 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               {/* SIRET for pro */}
               {clientForm.type === 'professionnel' && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.siret')}</label>
+                  <label className="v22-form-label">{t('proDash.clients.siret')}</label>
                   <input
                     type="text"
                     value={clientForm.siret}
                     onChange={e => setClientForm(prev => ({ ...prev, siret: e.target.value }))}
                     placeholder="123 456 789 00012"
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] font-mono"
+                    className="v22-form-input v22-mono"
+                    style={{ width: '100%' }}
                   />
                 </div>
               )}
 
               {/* Main address */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  {clientForm.mainAddressLabel} <span className="text-gray-500 font-normal">({t('proDash.clients.adressePrincipale')})</span>
+                <label className="v22-form-label">
+                  {clientForm.mainAddressLabel} <span style={{ fontWeight: 400 }}>({t('proDash.clients.adressePrincipale')})</span>
                 </label>
-                <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: 8 }}>
                   <select
                     value={clientForm.mainAddressLabel}
                     onChange={e => setClientForm(prev => ({ ...prev, mainAddressLabel: e.target.value }))}
-                    className="border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] bg-white flex-shrink-0"
+                    className="v22-form-input"
+                    style={{ flexShrink: 0, width: 'auto' }}
                   >
                     {clientForm.type === 'particulier'
                       ? [t('proDash.clients.domicile'), t('proDash.clients.residencePrincipale'), t('proDash.clients.appartement'), t('proDash.clients.maison'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)
@@ -265,55 +271,56 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     value={clientForm.mainAddress}
                     onChange={e => setClientForm(prev => ({ ...prev, mainAddress: e.target.value }))}
                     placeholder="12 rue de la Paix, 75001 Paris"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                    className="v22-form-input"
+                    style={{ flex: 1 }}
                   />
                 </div>
               </div>
 
               {/* Intervention addresses */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    {`📍 ${t('proDash.clients.lieuxIntervention')}`}
-                    <span className="text-gray-500 font-normal ml-1">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <label className="v22-form-label" style={{ margin: 0 }}>
+                    {t('proDash.clients.lieuxIntervention')}
+                    <span style={{ fontWeight: 400, marginLeft: 4 }}>
                       ({clientForm.type === 'professionnel' ? t('proDash.clients.lotsResidencesSites') : t('proDash.clients.autresAdresses')})
                     </span>
                   </label>
-                  <button
-                    onClick={addInterventionAddress}
-                    className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition font-medium"
-                  >
+                  <button onClick={addInterventionAddress} className="v22-btn v22-btn-sm">
                     {t('proDash.clients.ajouterLieu')}
                   </button>
                 </div>
 
                 {clientForm.interventionAddresses.length === 0 ? (
-                  <p className="text-xs text-gray-500 italic">
+                  <p style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
                     {clientForm.type === 'professionnel'
                       ? t('proDash.clients.exempleProLieux')
                       : t('proDash.clients.exemplePartLieux')}
                   </p>
                 ) : (
-                  <div className="space-y-2">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {clientForm.interventionAddresses.map((addr) => (
-                      <div key={addr.id} className="flex gap-2 items-start">
+                      <div key={addr.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <input
                           type="text"
                           value={addr.label}
                           onChange={e => updateInterventionAddress(addr.id, 'label', e.target.value)}
                           placeholder={clientForm.type === 'professionnel' ? t('proDash.clients.exempleProLabel') : t('proDash.clients.exemplePartLabel')}
-                          className="w-36 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107] flex-shrink-0"
+                          className="v22-form-input"
+                          style={{ width: 140, flexShrink: 0 }}
                         />
                         <input
                           type="text"
                           value={addr.address}
                           onChange={e => updateInterventionAddress(addr.id, 'address', e.target.value)}
                           placeholder={t('proDash.clients.adresseComplete')}
-                          className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]"
+                          className="v22-form-input"
+                          style={{ flex: 1 }}
                         />
                         <button
                           onClick={() => removeInterventionAddress(addr.id)}
-                          className="text-red-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 flex-shrink-0 mt-0.5"
+                          className="v22-btn v22-btn-sm"
+                          style={{ color: 'var(--v22-red)', flexShrink: 0 }}
                         >
                           ✕
                         </button>
@@ -325,285 +332,295 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('proDash.clients.notesInternes')}</label>
+                <label className="v22-form-label">{t('proDash.clients.notesInternes')}</label>
                 <textarea
                   value={clientForm.notes}
                   onChange={e => setClientForm(prev => ({ ...prev, notes: e.target.value }))}
                   rows={2}
                   placeholder={t('proDash.clients.notesPlaceholder')}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
+                  className="v22-form-input"
+                  style={{ width: '100%', resize: 'none' }}
                 />
               </div>
             </div>
 
-            <div className="p-5 border-t border-gray-100 flex gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 border-2 border-gray-200 text-gray-600 rounded-xl py-3 font-semibold text-sm hover:bg-gray-50 transition"
-              >
+            <div className="v22-modal-foot">
+              <button onClick={() => setShowModal(false)} className="v22-btn" style={{ flex: 1 }}>
                 {t('proDash.clients.annuler')}
               </button>
               <button
                 onClick={saveClient}
                 disabled={!clientForm.name.trim() || saving}
-                className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl py-3 font-bold text-sm transition disabled:opacity-50"
+                className="v22-btn v22-btn-primary"
+                style={{ flex: 1, opacity: (!clientForm.name.trim() || saving) ? 0.5 : 1 }}
               >
-                {saving ? t('proDash.clients.sauvegardeEncours') : editingId ? `💾 ${t('proDash.motifs.modifier')}` : `✅ ${t('proDash.clients.creerClient')}`}
+                {saving ? t('proDash.clients.sauvegardeEncours') : editingId ? t('proDash.motifs.modifier') : t('proDash.clients.creerClient')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-        <div className="flex items-center justify-between flex-wrap gap-4 w-full">
-          <div>
-            <h1 className="text-xl font-semibold leading-tight">👥 {t('proDash.clients.title')}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{t('proDash.clients.subtitle')}</p>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold">
-              {allClients.length} {allClients.length > 1 ? t('proDash.clients.clients') : t('proDash.clients.client')}
-            </span>
-            <span className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
-              {`👤 ${particuliersCount} ${particuliersCount > 1 ? t('proDash.clients.particuliers') : t('proDash.clients.particulier')}`}
-            </span>
-            <span className="bg-purple-50 border border-purple-200 text-purple-700 px-3 py-1 rounded-full text-sm font-semibold">
-              {`🏢 ${entreprisesCount} ${t('proDash.clients.pro')}`}
-            </span>
-            <button
-              onClick={openNew}
-              className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
-            >
-              ➕ {t('proDash.clients.nouveauClient')}
-            </button>
-          </div>
+      {/* Page header */}
+      <div className="v22-page-header">
+        <div>
+          <div className="v22-page-title">{t('proDash.clients.title')}</div>
+          <div className="v22-page-sub">{t('proDash.clients.subtitle')}</div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="v22-tag v22-tag-gray">{allClients.length} {allClients.length > 1 ? t('proDash.clients.clients') : t('proDash.clients.client')}</span>
+          <button onClick={openNew} className="v22-btn v22-btn-primary">+ {t('proDash.clients.nouveauClient')}</button>
         </div>
       </div>
 
-      <div className="p-6 lg:p-8">
-        {/* Search + Tabs */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">🔍</span>
-            <input
-              type="text"
-              placeholder={t('proDash.clients.rechercherPlaceholder')}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#FFC107] transition bg-white"
-            />
-          </div>
-          <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-            {(['tous', 'particuliers', 'entreprises'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                {tab === 'tous' ? `${t('proDash.clients.tous')} (${allClients.length})` : tab === 'particuliers' ? `👤 (${particuliersCount})` : `🏢 (${entreprisesCount})`}
-              </button>
-            ))}
-          </div>
+      {/* Search + Tabs */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          placeholder={t('proDash.clients.rechercherPlaceholder')}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="v22-form-input"
+          style={{ flex: 1, minWidth: 200 }}
+        />
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(['tous', 'particuliers', 'entreprises'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`v22-btn v22-btn-sm ${activeTab === tab ? 'v22-btn-primary' : ''}`}
+            >
+              {tab === 'tous' ? `${t('proDash.clients.tous')} (${allClients.length})` : tab === 'particuliers' ? `B2C (${particuliersCount})` : `B2B (${entreprisesCount})`}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* Loading */}
-        {loading && (
-          <div className="text-center py-20 text-gray-500">
-            <div className="text-4xl mb-4 animate-pulse">👥</div>
-            <p>{t('proDash.clients.chargement')}</p>
+      {/* Loading */}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--v22-text-muted)', fontSize: 13 }}>
+          <p>{t('proDash.clients.chargement')}</p>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && filtered.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <div style={{ fontSize: 13, color: 'var(--v22-text-mid)', marginBottom: 8 }}>
+            {search ? t('proDash.clients.aucunResultat') : t('proDash.clients.pasEncoreClients')}
           </div>
-        )}
-
-        {/* Empty */}
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">👥</div>
-            <h3 className="text-xl font-bold text-gray-700 mb-2">
-              {search ? t('proDash.clients.aucunResultat') : t('proDash.clients.pasEncoreClients')}
-            </h3>
-            <p className="text-gray-500 text-sm mb-6">
-              {search ? t('proDash.clients.essayerAutreTerme') : t('proDash.clients.clientsApparaitront')}
-            </p>
-            {!search && (
-              <button
-                onClick={openNew}
-                className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition-all"
-              >
-                ➕ {t('proDash.clients.creerPremierClient')}
-              </button>
-            )}
+          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 16 }}>
+            {search ? t('proDash.clients.essayerAutreTerme') : t('proDash.clients.clientsApparaitront')}
           </div>
-        )}
+          {!search && (
+            <button onClick={openNew} className="v22-btn v22-btn-primary">
+              + {t('proDash.clients.creerPremierClient')}
+            </button>
+          )}
+        </div>
+      )}
 
-        {/* Client cards */}
-        {!loading && filtered.length > 0 && (
-          <div className="space-y-3">
-            {filtered.map(c => {
-              const isExp = isEntreprise(c)
-              const ca = totalCA(c)
-              const lastDate = lastBookingDate(c)
-              const bks = c.bookings || []
-              const isExpanded = expandedId === c.id
-              const isManual = c.source === 'manual'
-              const hasInterventionAddresses = c.interventionAddresses && c.interventionAddresses.length > 0
+      {/* Clients table */}
+      {!loading && filtered.length > 0 && (
+        <div className="v22-card">
+          <div className="v22-card-head">
+            <span className="v22-card-title">{t('proDash.clients.title')}</span>
+            <span className="v22-card-meta">{filtered.length} {filtered.length > 1 ? t('proDash.clients.clients') : t('proDash.clients.client')}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Type</th>
+                <th>{t('proDash.clients.ville') || 'Ville'}</th>
+                <th>{t('proDash.clients.interventions') || 'Interventions'}</th>
+                <th style={{ textAlign: 'right' }}>{t('proDash.clients.caTotal') || 'CA total'}</th>
+                <th>{t('proDash.clients.dernierContact') || 'Dernier contact'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(c => {
+                const isExp = isEntreprise(c)
+                const ca = totalCA(c)
+                const lastDate = lastBookingDate(c)
+                const bks = c.bookings || []
+                const isExpanded = expandedId === c.id
+                const isManual = c.source === 'manual'
+                const hasInterventionAddresses = c.interventionAddresses && c.interventionAddresses.length > 0
+                const city = (c.mainAddress || c.address || '').split(',').pop()?.trim() || ''
 
-              return (
-                <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                  {/* Card header */}
-                  <div className="p-5 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : c.id)}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold flex-shrink-0 ${isExp ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {isExp ? '🏢' : (c.name || '?').charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-gray-900 text-base">{c.name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isExp ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {isExp ? t('proDash.clients.professionnelType') : t('proDash.clients.particulierType')}
-                          </span>
-                          {c.source === 'auth' && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ {t('proDash.clients.compteFix')}</span>}
-                          {isManual && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{t('proDash.clients.ajouteManuellement')}</span>}
-                          {hasInterventionAddresses && (
-                            <span className="text-xs bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full">
-                              {`📍 ${c.interventionAddresses.length} ${c.interventionAddresses.length > 1 ? t('proDash.clients.lieux') : t('proDash.clients.lieu')}`}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-1 flex-wrap">
-                          {c.phone && <span className="text-sm text-gray-500">📞 {c.phone}</span>}
-                          {c.email && <span className="text-sm text-gray-500 truncate">✉️ {c.email}</span>}
-                          {!c.phone && !c.email && <span className="text-sm text-gray-500 italic">{t('proDash.clients.coordonneesNonRenseignees')}</span>}
-                        </div>
-                      </div>
-                      <div className="hidden sm:flex flex-col items-end gap-1 flex-shrink-0">
-                        <div className="text-lg font-bold text-green-600">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
-                        <div className="text-xs text-gray-500">{bks.length} {bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
-                        {lastDate && <div className="text-xs text-gray-500">{t('proDash.clients.dernier')}: {new Date(lastDate).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}</div>}
-                      </div>
-                      <div className={`text-gray-500 text-lg transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}>▾</div>
+                return (
+                  <tr key={c.id} onClick={() => setExpandedId(isExpanded ? null : c.id)} style={isExpanded ? { background: 'var(--v22-bg)' } : undefined}>
+                    <td>
+                      <span className="v22-client-name">{c.name}</span>
+                      {c.phone && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{c.phone}</div>}
+                    </td>
+                    <td>
+                      <span className={`v22-tag ${isExp ? 'v22-tag-yellow' : 'v22-tag-gray'}`}>
+                        {isExp ? 'B2B' : 'B2C'}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{city || '—'}</td>
+                    <td style={{ fontSize: 12 }}>{bks.length}</td>
+                    <td className="v22-amount">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</td>
+                    <td>
+                      {lastDate
+                        ? <span className="v22-ref">{new Date(lastDate).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}</span>
+                        : <span className="v22-ref">—</span>
+                      }
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Expanded detail panel */}
+      {expandedId && (() => {
+        const c = filtered.find(cl => cl.id === expandedId)
+        if (!c) return null
+        const isExp = isEntreprise(c)
+        const ca = totalCA(c)
+        const bks = c.bookings || []
+        const isManual = c.source === 'manual'
+        const hasInterventionAddresses = c.interventionAddresses && c.interventionAddresses.length > 0
+
+        return (
+          <div className="v22-card" style={{ marginTop: 12 }}>
+            <div className="v22-card-head">
+              <span className="v22-card-title">{c.name}</span>
+              <span className={`v22-tag ${isExp ? 'v22-tag-yellow' : 'v22-tag-gray'}`}>
+                {isExp ? t('proDash.clients.professionnelType') : t('proDash.clients.particulierType')}
+              </span>
+              {c.source === 'auth' && <span className="v22-tag v22-tag-green">{t('proDash.clients.compteFix')}</span>}
+              {isManual && <span className="v22-tag v22-tag-gray">{t('proDash.clients.ajouteManuellement')}</span>}
+              <button onClick={() => setExpandedId(null)} className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto' }}>✕</button>
+            </div>
+            <div className="v22-card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              {/* Contact info + addresses */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+                  {t('proDash.clients.coordonnees')}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                  {c.phone && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.telephone')}</span>
+                      <a href={`tel:${c.phone}`} style={{ color: 'var(--v22-text)' }}>{c.phone}</a>
                     </div>
-                  </div>
-
-                  {/* Expanded detail */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-100 p-5 bg-gray-50">
-                      <div className="grid sm:grid-cols-2 gap-6">
-                        {/* Coordonnées + adresses */}
-                        <div>
-                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">📋 {t('proDash.clients.coordonnees')}</h4>
-                          <div className="space-y-2 text-sm">
-                            {c.phone && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.telephone')}</span>
-                                <a href={`tel:${c.phone}`} className="text-blue-600 hover:underline font-medium">{c.phone}</a>
-                              </div>
-                            )}
-                            {c.email && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.email')}</span>
-                                <a href={`mailto:${c.email}`} className="text-blue-600 hover:underline font-medium truncate">{c.email}</a>
-                              </div>
-                            )}
-                            {(c.mainAddress || c.address) && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">{c.mainAddressLabel || t('proDash.clients.adresse')}</span>
-                                <span className="text-gray-700">{c.mainAddress || c.address}</span>
-                              </div>
-                            )}
-                            {c.siret && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.siret')}</span>
-                                <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">{c.siret}</span>
-                              </div>
-                            )}
-                            {c.notes && (
-                              <div className="flex gap-2">
-                                <span className="text-gray-500 w-20 flex-shrink-0">{t('proDash.clients.notes')}</span>
-                                <span className="text-gray-600 italic text-xs">{c.notes}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Intervention addresses */}
-                          {hasInterventionAddresses && (
-                            <div className="mt-4">
-                              <h5 className="font-bold text-gray-600 text-xs uppercase tracking-wide mb-2">📍 {t('proDash.clients.lieuxIntervention')}</h5>
-                              <div className="space-y-1.5">
-                                {c.interventionAddresses.map((addr: any) => (
-                                  <div key={addr.id} className="flex items-start gap-2 bg-white border border-orange-100 rounded-lg px-3 py-2">
-                                    <span className="font-semibold text-orange-600 text-xs flex-shrink-0 min-w-[70px]">{addr.label || t('proDash.clients.lieu')}</span>
-                                    <span className="text-gray-600 text-xs">{addr.address}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Actions */}
-                          <div className="flex gap-2 mt-4 flex-wrap">
-                            <button onClick={() => onNewRdv(c.name)} className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm">
-                              {`📅 ${t('proDash.clients.rdv')}`}
-                            </button>
-                            <button onClick={() => onNewDevis(c.name)} className="flex-1 bg-white border-2 border-gray-200 hover:border-[#FFC107] text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold transition-all">
-                              {`📄 ${t('proDash.devis.title')}`}
-                            </button>
-                            {isManual && (
-                              <>
-                                <button onClick={() => openEdit(c)} className="bg-blue-50 border border-blue-200 text-blue-600 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-100 transition">
-                                  ✏️
-                                </button>
-                                <button onClick={() => deleteManualClient(c.id)} className="bg-red-50 border border-red-200 text-red-500 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition">
-                                  🗑️
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Booking history */}
-                        <div>
-                          <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">🗂 {t('proDash.clients.historique')} ({bks.length})</h4>
-                          {bks.length === 0 ? (
-                            <p className="text-gray-500 text-sm italic">{t('proDash.clients.aucuneIntervention')}</p>
-                          ) : (
-                            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                              {[...bks].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((bk: any) => (
-                                <div key={bk.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-lg px-3 py-2">
-                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${bk.status === 'completed' ? 'bg-green-500' : bk.status === 'confirmed' ? 'bg-blue-500' : bk.status === 'cancelled' ? 'bg-red-400' : 'bg-amber-400'}`} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-medium text-gray-800 truncate">{bk.service || 'Intervention'}</div>
-                                    {bk.address && <div className="text-xs text-gray-500 truncate">📍 {bk.address}</div>}
-                                    <div className="text-xs text-gray-500">{new Date(bk.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                                  </div>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${bk.status === 'completed' ? 'bg-green-100 text-green-700' : bk.status === 'confirmed' ? 'bg-blue-100 text-blue-700' : bk.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
-                                    {bk.status === 'completed' ? t('proDash.clients.termine') : bk.status === 'confirmed' ? t('proDash.clients.confirme') : bk.status === 'cancelled' ? t('proDash.clients.annuleStat') : t('proDash.clients.enAttente')}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div className="mt-3 pt-3 border-t border-gray-200 flex gap-4 text-sm">
-                            <div>
-                              <div className="font-bold text-green-600 text-lg">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
-                              <div className="text-gray-500 text-xs">{t('proDash.clients.caTotal')}</div>
-                            </div>
-                            <div>
-                              <div className="font-bold text-gray-700 text-lg">{bks.length}</div>
-                              <div className="text-gray-500 text-xs">{bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                  )}
+                  {c.email && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.email')}</span>
+                      <a href={`mailto:${c.email}`} style={{ color: 'var(--v22-text)' }}>{c.email}</a>
+                    </div>
+                  )}
+                  {(c.mainAddress || c.address) && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{c.mainAddressLabel || t('proDash.clients.adresse')}</span>
+                      <span>{c.mainAddress || c.address}</span>
+                    </div>
+                  )}
+                  {c.siret && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.siret')}</span>
+                      <span className="v22-mono">{c.siret}</span>
+                    </div>
+                  )}
+                  {c.notes && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.notes')}</span>
+                      <span style={{ color: 'var(--v22-text-mid)', fontStyle: 'italic', fontSize: 11 }}>{c.notes}</span>
                     </div>
                   )}
                 </div>
-              )
-            })}
+
+                {/* Intervention addresses */}
+                {hasInterventionAddresses && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--v22-text-muted)', marginBottom: 8 }}>
+                      {t('proDash.clients.lieuxIntervention')}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {c.interventionAddresses.map((addr: any) => (
+                        <div key={addr.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 8px', background: 'var(--v22-bg)', borderRadius: 4, border: '1px solid var(--v22-border)' }}>
+                          <span style={{ fontWeight: 500, color: 'var(--v22-amber)', flexShrink: 0, minWidth: 70 }}>{addr.label || t('proDash.clients.lieu')}</span>
+                          <span style={{ color: 'var(--v22-text-mid)' }}>{addr.address}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                  <button onClick={() => onNewRdv(c.name)} className="v22-btn v22-btn-primary">
+                    {t('proDash.clients.rdv')}
+                  </button>
+                  <button onClick={() => onNewDevis(c.name)} className="v22-btn">
+                    {t('proDash.devis.title')}
+                  </button>
+                  {isManual && (
+                    <>
+                      <button onClick={() => openEdit(c)} className="v22-btn v22-btn-sm">
+                        {t('proDash.motifs.modifier') || 'Modifier'}
+                      </button>
+                      <button
+                        onClick={() => deleteManualClient(c.id)}
+                        className="v22-btn v22-btn-sm"
+                        style={{ color: 'var(--v22-red)' }}
+                      >
+                        {t('proDash.clients.supprimerClient') || 'Supprimer'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Booking history */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+                  {t('proDash.clients.historique')} ({bks.length})
+                </div>
+                {bks.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>{t('proDash.clients.aucuneIntervention')}</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {[...bks].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((bk: any) => (
+                      <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '6px 8px', background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 4 }}>
+                        <span style={{
+                          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                          background: bk.status === 'completed' ? 'var(--v22-green)' : bk.status === 'confirmed' ? '#2563eb' : bk.status === 'cancelled' ? 'var(--v22-red)' : 'var(--v22-amber)'
+                        }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.service || 'Intervention'}</div>
+                          {bk.address && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.address}</div>}
+                          <div className="v22-ref">{new Date(bk.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                        </div>
+                        <span className={`v22-tag ${bk.status === 'completed' ? 'v22-tag-green' : bk.status === 'confirmed' ? 'v22-tag-gray' : bk.status === 'cancelled' ? 'v22-tag-red' : 'v22-tag-amber'}`}>
+                          {bk.status === 'completed' ? t('proDash.clients.termine') : bk.status === 'confirmed' ? t('proDash.clients.confirme') : bk.status === 'cancelled' ? t('proDash.clients.annuleStat') : t('proDash.clients.enAttente')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--v22-border)', display: 'flex', gap: 24, fontSize: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 16 }} className="v22-amount">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
+                    <div style={{ color: 'var(--v22-text-muted)', fontSize: 11 }}>{t('proDash.clients.caTotal')}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 16 }}>{bks.length}</div>
+                    <div style={{ color: 'var(--v22-text-muted)', fontSize: 11 }}>{bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        )
+      })()}
     </div>
   )
 }

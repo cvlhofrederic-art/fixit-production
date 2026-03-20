@@ -35,6 +35,7 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [editExpiry, setEditExpiry] = useState<string | null>(null)
   const [sendEmail, setSendEmail] = useState('')
+  const [showUploadModal, setShowUploadModal] = useState<string | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const saveToStorage = (updated: Record<string, WalletDoc>) => {
@@ -42,7 +43,6 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
     localStorage.setItem(storageKey, JSON.stringify(updated))
   }
 
-  // Synchroniser un document wallet avec les fiches syndic (RC Pro, etc.)
   const syncToSyndic = async (docKey: string, hasDocument: boolean, expiryDate?: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -90,6 +90,7 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
       console.error('Upload wallet doc error:', e)
     } finally {
       setUploading(prev => ({ ...prev, [docKey]: false }))
+      setShowUploadModal(null)
     }
   }
 
@@ -118,18 +119,32 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
     return 'valid'
   }
 
-  const statusBadge = (status: 'missing' | 'valid' | 'expiring' | 'expired') => {
+  const statusTagClass = (status: 'missing' | 'valid' | 'expiring' | 'expired') => {
     const map = {
-      missing: { label: t('proDash.wallet.manquant'), bg: 'bg-gray-100', text: 'text-gray-500' },
-      valid: { label: t('proDash.wallet.valide'), bg: 'bg-green-100', text: 'text-green-700' },
-      expiring: { label: t('proDash.wallet.expireBientot'), bg: 'bg-amber-100', text: 'text-amber-700' },
-      expired: { label: t('proDash.wallet.expire'), bg: 'bg-red-100', text: 'text-red-600' },
+      missing: 'v22-tag-gray',
+      valid: 'v22-tag-green',
+      expiring: 'v22-tag-amber',
+      expired: 'v22-tag-red',
     }
-    const s = map[status]
-    return <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${s.bg} ${s.text}`}>{s.label}</span>
+    return `v22-tag ${map[status]}`
+  }
+
+  const statusLabel = (status: 'missing' | 'valid' | 'expiring' | 'expired') => {
+    const map = {
+      missing: t('proDash.wallet.manquant'),
+      valid: t('proDash.wallet.valide'),
+      expiring: t('proDash.wallet.expireBientot'),
+      expired: t('proDash.wallet.expire'),
+    }
+    return map[status]
   }
 
   const validCount = WALLET_DOCS.filter(d => getStatus(docs[d.key]) === 'valid').length
+  const expiringCount = WALLET_DOCS.filter(d => getStatus(docs[d.key]) === 'expiring').length
+  const expiredCount = WALLET_DOCS.filter(d => getStatus(docs[d.key]) === 'expired').length
+  const missingCount = WALLET_DOCS.filter(d => getStatus(docs[d.key]) === 'missing').length
+  const actionsRequired = expiringCount + expiredCount + missingCount
+  const pct = Math.round((validCount / WALLET_DOCS.length) * 100)
 
   const handleSendDossier = () => {
     const lines = WALLET_DOCS
@@ -147,137 +162,228 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div style={{ padding: '16px', maxWidth: '960px', margin: '0 auto' }}>
+      {/* Page header */}
+      <div className="v22-page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{'🗂️'} {t('proDash.wallet.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('proDash.wallet.subtitle')}</p>
+          <div className="v22-page-title">{'🗂️'} {t('proDash.wallet.title')}</div>
+          <div className="v22-page-sub">
+            {actionsRequired > 0
+              ? `${actionsRequired} action${actionsRequired > 1 ? 's' : ''} requise${actionsRequired > 1 ? 's' : ''}`
+              : t('proDash.wallet.subtitle')}
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-black text-gray-900">{validCount}/{WALLET_DOCS.length}</div>
-          <div className="text-xs text-gray-500">{t('proDash.wallet.documentsValides')}</div>
+        <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => setShowUploadModal('_pick')}>
+          + {t('proDash.wallet.ajouter')}
+        </button>
+      </div>
+
+      {/* Global compliance progress card */}
+      <div className="v22-card" style={{ marginBottom: 16 }}>
+        <div className="v22-card-body">
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 22, fontWeight: 700 }}>{pct}%</span>
+            <span className="v22-mono" style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+              {validCount}/{WALLET_DOCS.length} documents
+            </span>
+          </div>
+          <div className="v22-prog-bar">
+            <div
+              className="v22-prog-fill"
+              style={{
+                width: `${pct}%`,
+                background: validCount === WALLET_DOCS.length ? 'var(--v22-green)' : undefined,
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 11 }}>
+            <span><span className="v22-tag v22-tag-green">{validCount}</span> {t('proDash.wallet.valide')}</span>
+            <span><span className="v22-tag v22-tag-amber">{expiringCount}</span> {t('proDash.wallet.expireBientot')}</span>
+            <span><span className="v22-tag v22-tag-red">{expiredCount}</span> {t('proDash.wallet.expire')}</span>
+            <span><span className="v22-tag v22-tag-gray">{missingCount}</span> {t('proDash.wallet.manquant')}</span>
+          </div>
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full bg-gray-100 rounded-full h-2 mb-8">
-        <div
-          className="h-2 rounded-full transition-all"
-          style={{
-            width: `${(validCount / WALLET_DOCS.length) * 100}%`,
-            background: validCount === WALLET_DOCS.length ? '#22c55e' : validCount >= 4 ? '#FFC107' : '#f87171',
-          }}
-        />
-      </div>
+      {/* Documents list card */}
+      <div className="v22-card" style={{ marginBottom: 16 }}>
+        <div className="v22-card-head">
+          <span className="v22-card-title">Documents</span>
+          <span className="v22-card-meta">{WALLET_DOCS.length} requis</span>
+        </div>
+        <div className="v22-card-body" style={{ padding: 0 }}>
+          {WALLET_DOCS.map((docDef, i) => {
+            const doc = docs[docDef.key]
+            const status = getStatus(doc)
+            return (
+              <div
+                key={docDef.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 14px',
+                  borderBottom: i < WALLET_DOCS.length - 1 ? '1px solid var(--v22-border)' : 'none',
+                }}
+              >
+                {/* Icon */}
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{docDef.icon}</span>
 
-      {/* Document cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {WALLET_DOCS.map(docDef => {
-          const doc = docs[docDef.key]
-          const status = getStatus(doc)
-          return (
-            <div key={docDef.key} className={`bg-white border-2 rounded-2xl p-4 transition-all ${status === 'expired' ? 'border-red-200' : status === 'expiring' ? 'border-amber-200' : status === 'valid' ? 'border-green-200' : 'border-gray-100'}`}>
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{docDef.icon}</span>
-                  <div>
-                    <div className="font-bold text-gray-900 text-sm">{docDef.label}</div>
-                    <div className="text-xs text-gray-500">{docDef.desc}</div>
-                  </div>
+                {/* Label + desc + dates */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, color: 'var(--v22-text)' }}>{docDef.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{docDef.desc}</div>
+                  {doc?.expiryDate && (
+                    <div className="v22-mono" style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                      {t('proDash.wallet.expireLe')} {new Date(doc.expiryDate).toLocaleDateString(dateLocale)}
+                    </div>
+                  )}
                 </div>
-                {statusBadge(status)}
-              </div>
 
-              {doc?.url && (
-                <div className="mt-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-xs text-gray-600 font-medium truncate">{doc.name || t('proDash.wallet.documentUploade')}</div>
-                    {doc.expiryDate && (
-                      <div className="text-xs text-gray-500">{t('proDash.wallet.expireLe')} {new Date(doc.expiryDate).toLocaleDateString(dateLocale)}</div>
-                    )}
-                    {doc.uploadedAt && (
-                      <div className="text-xs text-gray-300">{t('proDash.wallet.ajouteLe')} {new Date(doc.uploadedAt).toLocaleDateString(dateLocale)}</div>
-                    )}
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <a href={doc.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 text-xs p-1 rounded hover:bg-blue-50">{'👁️'}</a>
-                    <button onClick={() => removeDoc(docDef.key)} className="text-red-400 hover:text-red-600 text-xs p-1 rounded hover:bg-red-50">{'🗑️'}</button>
-                  </div>
-                </div>
-              )}
+                {/* Status tag */}
+                <span className={statusTagClass(status)}>{statusLabel(status)}</span>
 
-              <div className="mt-3 flex gap-2 flex-wrap">
-                {/* Upload button */}
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.webp"
-                  className="hidden"
-                  ref={el => { fileInputRefs.current[docDef.key] = el }}
-                  onChange={e => {
-                    const f = e.target.files?.[0]
-                    if (f) handleUpload(docDef.key, f)
-                    e.target.value = ''
-                  }}
-                />
-                <button
-                  onClick={() => fileInputRefs.current[docDef.key]?.click()}
-                  disabled={uploading[docDef.key]}
-                  className="flex items-center gap-1 text-xs bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-3 py-1.5 rounded-lg font-semibold transition disabled:opacity-50"
-                >
-                  {uploading[docDef.key] ? `⏳ ${t('proDash.wallet.uploading')}` : doc?.url ? `🔄 ${t('proDash.wallet.remplacer')}` : `📎 ${t('proDash.wallet.ajouter')}`}
-                </button>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  {doc?.url && (
+                    <>
+                      <a href={doc.url} target="_blank" rel="noreferrer" className="v22-btn v22-btn-sm" title="Voir">{'👁️'}</a>
+                      <button onClick={() => removeDoc(docDef.key)} className="v22-btn v22-btn-sm" title="Supprimer">{'🗑️'}</button>
+                    </>
+                  )}
 
-                {/* Expiry date */}
-                {editExpiry === docDef.key ? (
-                  <div className="flex gap-1 items-center">
-                    <input
-                      type="date"
-                      className="text-xs border border-gray-200 rounded px-2 py-1"
-                      defaultValue={doc?.expiryDate || ''}
-                      onBlur={e => setExpiry(docDef.key, e.target.value)}
-                      autoFocus
-                    />
-                    <button onClick={() => setEditExpiry(null)} className="text-xs text-gray-500">✕</button>
-                  </div>
-                ) : (
+                  {/* Upload button */}
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    style={{ display: 'none' }}
+                    ref={el => { fileInputRefs.current[docDef.key] = el }}
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) handleUpload(docDef.key, f)
+                      e.target.value = ''
+                    }}
+                  />
                   <button
-                    onClick={() => setEditExpiry(docDef.key)}
-                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 transition"
+                    onClick={() => fileInputRefs.current[docDef.key]?.click()}
+                    disabled={uploading[docDef.key]}
+                    className="v22-btn v22-btn-primary v22-btn-sm"
+                    style={{ opacity: uploading[docDef.key] ? 0.5 : 1 }}
                   >
-                    {'📅'} {doc?.expiryDate ? t('proDash.wallet.echeance') : t('proDash.wallet.ajouterEcheance')}
+                    {uploading[docDef.key] ? '⏳' : doc?.url ? '🔄' : '📎'}
                   </button>
-                )}
+
+                  {/* Expiry date toggle */}
+                  {editExpiry === docDef.key ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input
+                        type="date"
+                        className="v22-form-input"
+                        style={{ padding: '3px 6px', fontSize: 11, width: 130 }}
+                        defaultValue={doc?.expiryDate || ''}
+                        onBlur={e => setExpiry(docDef.key, e.target.value)}
+                        autoFocus
+                      />
+                      <button onClick={() => setEditExpiry(null)} className="v22-btn v22-btn-sm">✕</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setEditExpiry(docDef.key)}
+                      className="v22-btn v22-btn-sm"
+                      title={doc?.expiryDate ? t('proDash.wallet.echeance') : t('proDash.wallet.ajouterEcheance')}
+                    >
+                      {'📅'}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
 
-      {/* Send dossier */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5">
-        <div className="font-bold text-gray-900 mb-1">{'📤'} {t('proDash.wallet.envoyerDossier')}</div>
-        <p className="text-sm text-gray-500 mb-4">{t('proDash.wallet.envoyerDossierDesc')}</p>
-        <div className="flex gap-3">
-          <input
-            type="email"
-            placeholder={t('proDash.wallet.emailDestinataire')}
-            value={sendEmail}
-            onChange={e => setSendEmail(e.target.value)}
-            className="flex-1 border border-blue-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 bg-white"
-          />
-          <button
-            onClick={handleSendDossier}
-            disabled={WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50 whitespace-nowrap"
-          >
-            {'📧'} {t('proDash.wallet.envoyerLeDossier')}
-          </button>
+      {/* Send dossier card */}
+      <div className="v22-card">
+        <div className="v22-card-head">
+          <span className="v22-card-title">{'📤'} {t('proDash.wallet.envoyerDossier')}</span>
         </div>
-        {WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0 && (
-          <p className="text-xs text-gray-500 mt-2">{'⚠️'} {t('proDash.wallet.uploadAuMoinsUn')}</p>
-        )}
+        <div className="v22-card-body">
+          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+            {t('proDash.wallet.envoyerDossierDesc')}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="email"
+              placeholder={t('proDash.wallet.emailDestinataire')}
+              value={sendEmail}
+              onChange={e => setSendEmail(e.target.value)}
+              className="v22-form-input"
+              style={{ flex: 1 }}
+            />
+            <button
+              onClick={handleSendDossier}
+              disabled={WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0}
+              className="v22-btn v22-btn-primary"
+              style={{ opacity: WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}
+            >
+              {'📧'} {t('proDash.wallet.envoyerLeDossier')}
+            </button>
+          </div>
+          {WALLET_DOCS.filter(d => docs[d.key]?.url).length === 0 && (
+            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 6 }}>
+              {'⚠️'} {t('proDash.wallet.uploadAuMoinsUn')}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Upload document modal (pick document type) */}
+      {showUploadModal === '_pick' && (
+        <div className="v22-modal-overlay" onClick={() => setShowUploadModal(null)}>
+          <div className="v22-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="v22-modal-head">
+              <span className="v22-card-title">+ {t('proDash.wallet.ajouter')}</span>
+              <button className="v22-modal-close" onClick={() => setShowUploadModal(null)}>✕</button>
+            </div>
+            <div className="v22-modal-body" style={{ padding: 0 }}>
+              {WALLET_DOCS.map((docDef, i) => {
+                const status = getStatus(docs[docDef.key])
+                return (
+                  <button
+                    key={docDef.key}
+                    onClick={() => {
+                      setShowUploadModal(null)
+                      fileInputRefs.current[docDef.key]?.click()
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      borderBottom: i < WALLET_DOCS.length - 1 ? '1px solid var(--v22-border)' : 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>{docDef.icon}</span>
+                    <span style={{ flex: 1, fontWeight: 500, color: 'var(--v22-text)' }}>{docDef.label}</span>
+                    <span className={statusTagClass(status)}>{statusLabel(status)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="v22-modal-foot">
+              <button className="v22-btn" onClick={() => setShowUploadModal(null)}>
+                {locale === 'pt' ? 'Cancelar' : 'Annuler'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

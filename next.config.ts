@@ -140,9 +140,7 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Upload source maps for readable stack traces in Sentry
   silent: true,
-  // Exclude Session Replay code from the client bundle
   bundleSizeOptimizations: {
     excludeReplayIframe: true,
     excludeReplayShadowDom: true,

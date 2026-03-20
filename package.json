@@ -66,6 +66,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
