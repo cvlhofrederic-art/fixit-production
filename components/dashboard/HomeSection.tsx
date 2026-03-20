@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
@@ -19,6 +20,40 @@ interface HomeSectionProps {
   setActivePage: (page: string) => void
   setSidebarOpen: (v: boolean) => void
   openNewMotif: () => void
+}
+
+function extractClientName(booking: any): string {
+  const notes = booking.notes || ''
+  // Pattern: "Client: Name|..." or "Client: Name."
+  const match = notes.match(/Client:\s*([^|.]+)/)
+  if (match) return match[1].trim()
+  // Fallback: use service name or generic
+  return booking.client_name || booking.services?.name || 'Client'
+}
+
+function getInitials(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return '??'
+}
+
+function getWeekNumber(d: Date): number {
+  const oneJan = new Date(d.getFullYear(), 0, 1)
+  const days = Math.floor((d.getTime() - oneJan.getTime()) / 86400000)
+  return Math.ceil((days + oneJan.getDay() + 1) / 7)
+}
+
+function formatRelativeTime(dateStr: string, locale: string): string {
+  if (!dateStr) return ''
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffDays === 0) return locale === 'pt' ? 'Hoje' : "Aujourd'hui"
+  if (diffDays === 1) return locale === 'pt' ? 'Ontem' : 'Hier'
+  if (diffDays < 7) return locale === 'pt' ? `${diffDays}d atrás` : `il y a ${diffDays}j`
+  return date.toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: '2-digit' })
 }
 
 export default function HomeSection({
@@ -41,43 +76,344 @@ export default function HomeSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  return (
-    <div className="p-6 lg:p-8 animate-fadeIn">
-      {/* -- Banniere adaptative -- */}
-      {orgRole === 'artisan' && (
-        <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-6 lg:p-8 rounded-2xl text-gray-900 mb-8 shadow-lg">
-          <h1 className="text-3xl lg:text-4xl font-bold mb-2">{'👋'} {t('proDash.home.bonjour')} {firstName} !</h1>
-          <p className="text-lg opacity-95">{pendingBookings.length} {t('proDash.home.interventionsEnAttente')}</p>
-        </div>
-      )}
-      {orgRole === 'pro_societe' && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-6 lg:p-8 rounded-2xl text-white mb-8 shadow-lg">
-          <h1 className="text-3xl lg:text-4xl font-bold mb-2">{'🏗️'} {t('proDash.home.bonjour')} {firstName} !</h1>
-          <p className="text-lg opacity-95">{t('proDash.home.dashSocieteBTP')} — {pendingBookings.length} {t('proDash.home.chantiersEnAttente')}</p>
-        </div>
-      )}
-      {orgRole === 'pro_conciergerie' && (
-        <div className="bg-gradient-to-r from-purple-600 to-purple-400 p-6 lg:p-8 rounded-2xl text-white mb-8 shadow-lg">
-          <h1 className="text-3xl lg:text-4xl font-bold mb-2">{'🗝️'} {t('proDash.home.bonjour')} {firstName} !</h1>
-          <p className="text-lg opacity-95">{t('proDash.home.conciergerie')} — {pendingBookings.length} {t('proDash.home.demandesEnAttente')}</p>
-        </div>
-      )}
-      {orgRole === 'pro_gestionnaire' && (
-        <div className="bg-gradient-to-r from-green-600 to-green-400 p-6 lg:p-8 rounded-2xl text-white mb-8 shadow-lg">
-          <h1 className="text-3xl lg:text-4xl font-bold mb-2">{'🏢'} {t('proDash.home.bonjour')} {firstName} !</h1>
-          <p className="text-lg opacity-95">{t('proDash.home.gestionnaireImmeubles')} — {pendingBookings.length} {t('proDash.home.ordresEnAttente')}</p>
-        </div>
-      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        <StatCard icon="📅" iconBg="bg-blue-50" iconColor="text-blue-500" value={bookings.length.toString()} label={orgRole === 'pro_societe' ? t('proDash.home.chantiersCeMois') : orgRole === 'pro_gestionnaire' ? t('proDash.home.ordresDeMission') : t('proDash.home.interventionsCeMois')} change={`${pendingBookings.length} ${t('proDash.home.enAttente')}`} positive onClick={() => navigateTo('calendar')} />
-        <StatCard icon="💰" iconBg="bg-green-50" iconColor="text-green-500" value={formatPrice(totalRevenue)} label={t('proDash.home.chiffreAffaires')} change={`${completedBookings.length} ${t('proDash.home.terminees')}`} positive onClick={() => navigateTo('revenus')} />
-        <StatCard icon="🔧" iconBg="bg-amber-50" iconColor="text-orange-500" value={services.filter(s => s.active).length.toString()} label={orgRole === 'pro_societe' ? t('proDash.home.equipesActives') : orgRole === 'pro_gestionnaire' ? t('proDash.home.immeublesGeres') : t('proDash.home.motifsActifs')} change={`${services.length} ${t('proDash.home.auTotal')}`} onClick={() => navigateTo(orgRole === 'pro_societe' ? 'equipes' : orgRole === 'pro_gestionnaire' ? 'immeubles' : 'motifs')} />
-        <StatCard icon="⭐" iconBg="bg-pink-50" iconColor="text-pink-500" value={`${artisan?.rating_avg || '5.0'}/5`} label={t('proDash.home.noteMoyenne')} change={`${artisan?.rating_count || 0} ${t('proDash.home.avis')}`} positive onClick={() => navigateTo('stats')} />
+  const now = new Date()
+  const weekNum = getWeekNumber(now)
+  const monthYear = now.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })
+
+  // Today's bookings for agenda
+  const todayStr = now.toISOString().split('T')[0]
+  const todayBookings = bookings.filter(b => b.booking_date === todayStr)
+
+  // Conversion rate
+  const totalReceived = pendingBookings.length + completedBookings.length
+  const conversionRate = totalReceived > 0 ? Math.round((completedBookings.length / totalReceived) * 100) : 0
+
+  // Devis from localStorage
+  const [recentDevis, setRecentDevis] = useState<any[]>([])
+  const [alerts, setAlerts] = useState<any[]>([])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !artisan?.id) return
+    try {
+      const raw = localStorage.getItem(`fixit_docs_${artisan.id}`)
+      if (raw) {
+        const docs = JSON.parse(raw)
+        const devisList = (docs || [])
+          .filter((d: any) => d.type === 'devis')
+          .sort((a: any, b: any) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime())
+          .slice(0, 5)
+        setRecentDevis(devisList)
+
+        // Generate alerts from data
+        const alertItems: any[] = []
+        // Unpaid invoices
+        const unpaidInvoices = (docs || []).filter((d: any) => d.type === 'facture' && d.status !== 'paid' && d.status !== 'payée')
+        unpaidInvoices.slice(0, 2).forEach((inv: any) => {
+          alertItems.push({
+            type: 'red',
+            title: `${locale === 'pt' ? 'Fatura não paga' : 'Facture impayée'} — ${inv.client || inv.clientName || 'Client'}`,
+            sub: `${inv.ref || inv.number || '—'} · ${formatPrice(inv.total || inv.amount || 0)}`,
+            time: formatRelativeTime(inv.date || inv.created_at, locale),
+          })
+        })
+        // Pending devis without response
+        const pendingDevis = (docs || []).filter((d: any) => d.type === 'devis' && (!d.status || d.status === 'pending' || d.status === 'en_attente'))
+        pendingDevis.slice(0, 2).forEach((dv: any) => {
+          alertItems.push({
+            type: 'amber',
+            title: `${locale === 'pt' ? 'Orçamento pendente' : 'Devis en attente'} — ${dv.client || dv.clientName || 'Client'}`,
+            sub: `${dv.ref || dv.number || '—'} · ${locale === 'pt' ? 'sem resposta' : 'sans réponse'}`,
+            time: formatRelativeTime(dv.date || dv.created_at, locale),
+          })
+        })
+        setAlerts(alertItems)
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [artisan?.id, locale])
+
+  return (
+    <div className="animate-fadeIn">
+      {/* ── Page Header ── */}
+      <div className="v22-page-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1 }}>
+          <div className="v22-page-title">{locale === 'pt' ? 'Painel' : 'Tableau de bord'}</div>
+          <div className="v22-page-sub">{locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum} · {monthYear}</div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="v22-btn v22-btn-sm" onClick={() => navigateTo('stats')}>
+            {locale === 'pt' ? 'Exportar' : 'Exporter'}
+          </button>
+          <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }}>
+            + {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}
+          </button>
+        </div>
       </div>
 
-      <h2 className="text-xl font-bold mb-4">{t('proDash.home.actionsRapides')}</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* ── Stats Row ── */}
+      <div className="v22-stats">
+        <div className="v22-stat v22-stat-yellow" style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
+          <div className="v22-stat-label">{locale === 'pt' ? 'Pedidos pendentes' : 'Demandes en attente'}</div>
+          <div className="v22-stat-val">{pendingBookings.length}</div>
+          <div className="v22-stat-delta">→ {pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length} {locale === 'pt' ? 'urgentes' : 'urgentes'}</div>
+        </div>
+        <div className="v22-stat" style={{ cursor: 'pointer' }} onClick={() => navigateTo('revenus')}>
+          <div className="v22-stat-label">{locale === 'pt' ? 'Faturação mensal' : 'CA ce mois'}</div>
+          <div className="v22-stat-val">{formatPrice(totalRevenue)}</div>
+          <div className="v22-stat-delta v22-up">↑ {completedBookings.length} {locale === 'pt' ? 'terminadas' : t('proDash.home.terminees')}</div>
+        </div>
+        <div className="v22-stat" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
+          <div className="v22-stat-label">{locale === 'pt' ? 'Nota média' : 'Note moyenne'}</div>
+          <div className="v22-stat-val">{artisan?.rating_avg || '5.0'} ★</div>
+          <div className="v22-stat-delta" style={{ color: 'var(--v22-text-muted)' }}>{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
+        </div>
+        <div className="v22-stat" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
+          <div className="v22-stat-label">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
+          <div className="v22-stat-val">{conversionRate}%</div>
+          <div className="v22-stat-delta v22-up">{completedBookings.length}/{totalReceived}</div>
+        </div>
+      </div>
+
+      {/* ── Grid Main: Demandes + (Agenda + Alertes) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '16px', marginBottom: '16px' }}>
+        {/* LEFT: Demandes reçues */}
+        <div className="v22-card">
+          <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="v22-card-title">{locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues'}</div>
+            <span className="v22-tag v22-tag-yellow" style={{ marginLeft: 'auto' }}>{pendingBookings.length} {locale === 'pt' ? 'pendentes' : 'en attente'}</span>
+            <button className="v22-btn v22-btn-sm" style={{ marginLeft: '8px', border: 'none', background: 'none', color: 'var(--v22-text-muted)', cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('calendar')}>
+              {locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}
+            </button>
+          </div>
+          <div className="v22-card-body" style={{ padding: 0 }}>
+            {pendingBookings.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+                {locale === 'pt' ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}
+              </div>
+            ) : (
+              pendingBookings.slice(0, 6).map((b) => {
+                const clientName = extractClientName(b)
+                const initials = getInitials(clientName)
+                const isUrgent = b.notes?.toLowerCase().includes('urgent')
+                const desc = b.services?.name || b.service_name || 'Intervention'
+                const time = b.booking_time?.substring(0, 5) || formatRelativeTime(b.created_at || b.booking_date, locale)
+                return (
+                  <div
+                    key={b.id}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderBottom: '1px solid var(--v22-border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#FAFAF7')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    onClick={() => navigateTo('calendar')}
+                  >
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '10px', fontWeight: 600, fontFamily: 'var(--font-ibm-plex-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {initials}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{clientName}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)', marginTop: '1px' }}>{desc}{b.address ? ` · ${b.address}` : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                      <span className="v22-ref">{time}</span>
+                      <span className={`v22-tag ${isUrgent ? 'v22-tag-red' : 'v22-tag-amber'}`}>{isUrgent ? (locale === 'pt' ? 'Urgente' : 'Urgente') : (locale === 'pt' ? 'Pendente' : 'En attente')}</span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT: Agenda + Alertes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Agenda du jour */}
+          <div className="v22-card">
+            <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center' }}>
+              <div className="v22-card-title">{locale === 'pt' ? 'Agenda de hoje' : 'Agenda du jour'}</div>
+              <button className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto', border: 'none', background: 'none', color: 'var(--v22-text-muted)', cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('calendar')}>
+                {locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}
+              </button>
+            </div>
+            <div className="v22-card-body">
+              {todayBookings.length === 0 ? (
+                <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)', padding: '12px 0' }}>
+                  {locale === 'pt' ? 'Nada agendado para hoje' : "Rien de prévu aujourd'hui"}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--v22-text-muted)', marginBottom: '6px' }}>
+                    {locale === 'pt' ? 'Hoje' : "Aujourd'hui"} — {now.toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </div>
+                  {todayBookings.slice(0, 4).map((b, i) => {
+                    const clientName = extractClientName(b)
+                    const isCompleted = b.status === 'completed'
+                    return (
+                      <div
+                        key={b.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '2px',
+                          borderLeft: `2px solid ${isCompleted ? 'var(--v22-green)' : 'var(--v22-yellow)'}`,
+                          background: isCompleted ? 'var(--v22-green-light)' : 'var(--v22-yellow-light)',
+                          marginBottom: '4px', cursor: 'pointer',
+                        }}
+                        onClick={() => navigateTo('calendar')}
+                      >
+                        <span className="v22-ref">{b.booking_time?.substring(0, 5) || '—'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{b.services?.name || 'RDV'} — {clientName}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)' }}>{b.address || ''}{b.duration ? ` · ${b.duration}` : ''}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Alertes */}
+          <div className="v22-card">
+            <div className="v22-card-head">
+              <div className="v22-card-title">{locale === 'pt' ? 'Alertas' : 'Alertes'}</div>
+              <div className="v22-card-meta">{alerts.length} {locale === 'pt' ? 'ativas' : 'actives'}</div>
+            </div>
+            <div style={{ padding: '10px' }}>
+              {alerts.length === 0 ? (
+                <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)', padding: '8px 0' }}>
+                  {locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {alerts.map((a, i) => (
+                    <div key={i} className={`v22-alert v22-alert-${a.type}`}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{a.title}</div>
+                        <div className="v22-ref" style={{ marginTop: '2px' }}>{a.sub}</div>
+                      </div>
+                      <div className="v22-ref" style={{ flexShrink: 0 }}>{a.time}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Grid 3: Avis + Messagerie + Devis récents ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        {/* Derniers avis */}
+        <div className="v22-card">
+          <div className="v22-card-head">
+            <div className="v22-card-title">{locale === 'pt' ? 'Últimas avaliações' : 'Derniers avis'}</div>
+            <div className="v22-card-meta">{artisan?.rating_avg || '5.0'} / 5</div>
+          </div>
+          <div className="v22-card-body" style={{ padding: 0 }}>
+            {/* Placeholder: no avis data in props */}
+            <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+              {locale === 'pt' ? 'Nenhuma avaliação ainda' : 'Aucun avis pour le moment'}
+            </div>
+          </div>
+        </div>
+
+        {/* Messagerie */}
+        <div className="v22-card">
+          <div className="v22-card-head">
+            <div className="v22-card-title">{locale === 'pt' ? 'Mensagens' : 'Messagerie'}</div>
+            <div className="v22-card-meta" style={{ color: 'var(--v22-red)' }}>
+              {/* Placeholder count */}
+            </div>
+          </div>
+          <div className="v22-card-body" style={{ padding: 0 }}>
+            {pendingBookings.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+                {locale === 'pt' ? 'Nenhuma mensagem' : 'Aucun message'}
+              </div>
+            ) : (
+              pendingBookings.slice(0, 4).map((b) => {
+                const clientName = extractClientName(b)
+                const initials = getInitials(clientName)
+                return (
+                  <div
+                    key={b.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px solid var(--v22-border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#FAFAF7')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    onClick={() => navigateTo('messages')}
+                  >
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '9px', fontWeight: 600, fontFamily: 'var(--font-ibm-plex-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {initials}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{clientName}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.services?.name || (locale === 'pt' ? 'Nova mensagem...' : 'Nouveau message...')}
+                      </div>
+                    </div>
+                    <span className="v22-ref" style={{ flexShrink: 0 }}>
+                      {b.booking_time?.substring(0, 5) || formatRelativeTime(b.created_at, locale)}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Devis récents */}
+        <div className="v22-card">
+          <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="v22-card-title">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
+            <button className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto', border: 'none', background: 'none', color: 'var(--v22-text-muted)', cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('devis')}>
+              {locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}
+            </button>
+          </div>
+          <div className="v22-card-body" style={{ padding: 0 }}>
+            {recentDevis.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+                {locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis'}
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>{locale === 'pt' ? 'Réf.' : 'Réf.'}</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>Client</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'right', borderBottom: '1px solid var(--v22-border)' }}>{locale === 'pt' ? 'Valor' : 'Montant'}</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>{locale === 'pt' ? 'Estado' : 'Statut'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentDevis.map((d, i) => {
+                    const statusClass = d.status === 'accepted' || d.status === 'accepté' ? 'v22-tag-green' : d.status === 'rejected' || d.status === 'refusé' ? 'v22-tag-red' : 'v22-tag-amber'
+                    const statusLabel = d.status === 'accepted' || d.status === 'accepté' ? (locale === 'pt' ? 'Aceite' : 'Accepté') : d.status === 'rejected' || d.status === 'refusé' ? (locale === 'pt' ? 'Recusado' : 'Refusé') : (locale === 'pt' ? 'Pendente' : 'Attente')
+                    return (
+                      <tr
+                        key={d.id || i}
+                        style={{ cursor: 'pointer', transition: 'background 0.1s' }}
+                        onMouseEnter={e => { e.currentTarget.querySelectorAll('td').forEach(td => (td as HTMLElement).style.background = '#FAFAF7') }}
+                        onMouseLeave={e => { e.currentTarget.querySelectorAll('td').forEach(td => (td as HTMLElement).style.background = '') }}
+                        onClick={() => navigateTo('devis')}
+                      >
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px' }}><span className="v22-ref">{d.ref || d.number || `${i + 1}`}</span></td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', fontWeight: 500 }}>{d.client || d.clientName || '—'}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', textAlign: 'right', fontFamily: 'var(--font-ibm-plex-mono)' }}>{formatPrice(d.total || d.amount || 0)}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px' }}><span className={`v22-tag ${statusClass}`}>{statusLabel}</span></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Quick Actions (kept, role-based) ── */}
+      <div className="v22-card" style={{ marginTop: '16px' }}>
+        <div className="v22-card-head"><div className="v22-card-title">{t('proDash.home.actionsRapides')}</div></div>
+        <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
         {orgRole === 'artisan' && <>
           <QuickAction icon="📅" label={t('proDash.home.nouvelRdv')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} />
           <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }} />
@@ -102,41 +438,8 @@ export default function HomeSection({
           <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }} />
           <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setShowFactureForm(true); setActivePage('factures'); setSidebarOpen(false) }} />
         </>}
+        </div>
       </div>
-
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 className="text-xl font-bold text-gray-900 mb-5">{t('proDash.home.activiteRecente')}</h2>
-        {bookings.length === 0 ? (
-          <p className="text-gray-500 text-center py-6">{t('proDash.home.aucuneActivite')}</p>
-        ) : (
-          bookings.slice(0, 5).map((b) => (
-            <ActivityItem
-              key={b.id}
-              icon={b.status === 'completed' ? '✓' : b.status === 'confirmed' ? '📅' : b.status === 'pending' ? '⏳' : '✕'}
-              iconBg={b.status === 'completed' ? 'bg-green-50' : b.status === 'confirmed' ? 'bg-blue-50' : b.status === 'pending' ? 'bg-amber-50' : 'bg-red-50'}
-              iconColor={b.status === 'completed' ? 'text-green-500' : b.status === 'confirmed' ? 'text-blue-500' : b.status === 'pending' ? 'text-orange-500' : 'text-red-500'}
-              title={`${b.services?.name || 'RDV'} - ${b.status === 'completed' ? t('proDash.home.termine') : b.status === 'confirmed' ? t('proDash.home.confirme') : b.status === 'pending' ? t('proDash.home.enAttenteStat') : t('proDash.home.annule')}`}
-              time={`${b.booking_date} ${t('proDash.common.a')} ${b.booking_time?.substring(0, 5) || '?'}`}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
-function StatCard({ icon, iconBg, iconColor, value, label, change, positive, onClick }: {
-  icon: string; iconBg: string; iconColor: string; value: string; label: string; change: string; positive?: boolean; onClick?: () => void
-}) {
-  return (
-    <div onClick={onClick}
-      className="bg-white p-6 rounded-2xl shadow-sm cursor-pointer hover:-translate-y-1.5 hover:shadow-lg transition-all">
-      <div className={`w-14 h-14 ${iconBg} rounded-xl flex items-center justify-center text-2xl mb-4`}>
-        <span className={iconColor}>{icon}</span>
-      </div>
-      <div className="text-3xl font-bold mb-1">{value}</div>
-      <div className="text-gray-500">{label}</div>
-      <div className={`text-sm mt-2 font-semibold ${positive ? 'text-green-500' : 'text-gray-500'}`}>{change}</div>
     </div>
   )
 }
@@ -144,25 +447,10 @@ function StatCard({ icon, iconBg, iconColor, value, label, change, positive, onC
 function QuickAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   return (
     <div onClick={onClick}
-      className="bg-white p-6 rounded-2xl border-2 border-gray-200 cursor-pointer text-center hover:border-[#FFC107] hover:-translate-y-1 hover:shadow-lg transition-all">
-      <div className="text-4xl mb-3">{icon}</div>
-      <div className="font-semibold text-gray-900">{label}</div>
-    </div>
-  )
-}
-
-function ActivityItem({ icon, iconBg, iconColor, title, time }: {
-  icon: string; iconBg: string; iconColor: string; title: string; time: string
-}) {
-  return (
-    <div className="flex items-center gap-4 p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer rounded-lg transition">
-      <div className={`w-11 h-11 ${iconBg} rounded-xl flex items-center justify-center text-xl flex-shrink-0`}>
-        <span className={iconColor}>{icon}</span>
-      </div>
-      <div className="flex-1">
-        <div className="font-semibold">{title}</div>
-        <div className="text-sm text-gray-500">{time}</div>
-      </div>
+      className="v22-card cursor-pointer text-center hover:shadow-md transition-shadow"
+      style={{ padding: '16px 10px' }}>
+      <div style={{ fontSize: '24px', marginBottom: '6px' }}>{icon}</div>
+      <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--v22-text)' }}>{label}</div>
     </div>
   )
 }

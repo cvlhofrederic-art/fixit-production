@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -30,6 +30,12 @@ const WalletConformiteSection = dynamic(() => import('@/components/dashboard/Wal
 const CarnetDeVisiteSection = dynamic(() => import('@/components/dashboard/CarnetDeVisiteSection'), { ssr: false })
 const PhotosChantierSection = dynamic(() => import('@/components/dashboard/PhotosChantierSection'), { ssr: false })
 const BourseAuxMarchesSection = dynamic(() => import('@/components/marches/BourseAuxMarchesSection'), { ssr: false })
+
+// V22 new sections
+const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'), { ssr: false })
+const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSection'), { ssr: false })
+const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'), { ssr: false })
+const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), { ssr: false })
 
 // BTP sections
 const EquipesBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.EquipesBTPSection), { ssr: false })
@@ -67,6 +73,7 @@ export default function DashboardPage() {
   const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activePage, setActivePage] = useState('home')
+  const calendarDataLoadedRef = useRef(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDevisForm, setShowDevisForm] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
@@ -149,6 +156,9 @@ export default function DashboardPage() {
     { id: 'marches', icon: '🏛️', label: t('proDash.modules.marches') || 'Bourse aux Marchés', description: t('proDash.modules.marchesDesc') || 'Appels d\'offres et candidatures', category: t('proDash.categories.activity') },
     { id: 'wallet', icon: '🗂️', label: t('proDash.modules.wallet'), description: t('proDash.modules.walletDesc'), category: t('proDash.categories.proProfil') },
     { id: 'portfolio', icon: '📸', label: t('proDash.modules.portfolio'), description: t('proDash.modules.portfolioDesc'), category: t('proDash.categories.proProfil') },
+    { id: 'chantiers_v22', icon: '🏗️', label: 'Chantiers', description: 'Gestion des chantiers en cours', category: t('proDash.categories.activity') },
+    { id: 'pipeline', icon: '📊', label: 'Pipeline', description: 'Suivi commercial des devis', category: t('proDash.categories.billing') },
+    { id: 'bibliotheque', icon: '📚', label: 'Bibliothèque', description: 'Ouvrages, matériaux et main-d\'œuvre', category: t('proDash.categories.billing') },
     { id: 'settings', icon: '⚙️', label: t('proDash.modules.settings'), description: t('proDash.modules.settingsDesc'), category: t('proDash.categories.account'), locked: true },
   ], [t])
 
@@ -287,24 +297,23 @@ export default function DashboardPage() {
     })
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
-    // Parallel fetch: all 5 data sources depend only on artisanData.id
+    // Parallel fetch: only critical data for initial render
     const aid = artisanData.id
-    const [bookingsRes, servicesRes, availRes, absRes, dsRes] = await Promise.all([
+    const [bookingsRes, servicesRes] = await Promise.all([
       supabase.from('bookings').select('*, services(name)').eq('artisan_id', aid).order('booking_date', { ascending: false }).limit(20),
       supabase.from('services').select('*').eq('artisan_id', aid),
-      fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
     setBookings(bookingsRes.data || [])
     setServices(servicesRes.data || [])
-    setAvailability(availRes.data || [])
-    setAbsences(absRes.data || [])
-    if (dsRes.data) {
-      setDayServices(dsRes.data)
-    } else {
-      const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
-      if (savedDayServices) setDayServices(JSON.parse(savedDayServices))
+
+    // Load availability/absences/dayServices from localStorage immediately (no network wait)
+    try {
+      const lsAbs = JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')
+      setAbsences(lsAbs)
+    } catch { setAbsences([]) }
+    const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
+    if (savedDayServices) {
+      try { setDayServices(JSON.parse(savedDayServices)) } catch { /* ignore */ }
     }
 
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanData.id}`) || '[]')
@@ -313,6 +322,27 @@ export default function DashboardPage() {
 
     setLoading(false)
   }
+
+  // Lazy-load calendar/horaires data only when those sections are first visited
+  const loadCalendarData = useCallback(async (aid: string) => {
+    if (calendarDataLoadedRef.current) return
+    calendarDataLoadedRef.current = true
+    const [availRes, absRes, dsRes] = await Promise.all([
+      fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
+    ])
+    setAvailability(availRes.data || [])
+    const apiAbsences = absRes.data || []
+    if (apiAbsences.length > 0) setAbsences(apiAbsences)
+    if (dsRes.data) setDayServices(dsRes.data)
+  }, [])
+
+  useEffect(() => {
+    if ((activePage === 'calendar' || activePage === 'horaires') && artisan?.id) {
+      loadCalendarData(artisan.id)
+    }
+  }, [activePage, artisan?.id, loadCalendarData])
 
   const DAY_NAMES = [t('proDash.days.sunday'), t('proDash.days.monday'), t('proDash.days.tuesday'), t('proDash.days.wednesday'), t('proDash.days.thursday'), t('proDash.days.friday'), t('proDash.days.saturday')]
   const DAY_SHORT = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
@@ -539,24 +569,40 @@ export default function DashboardPage() {
 
   const createAbsence = async () => {
     if (!artisan || !newAbsence.start_date || !newAbsence.end_date) return
+    const newAbs = { id: crypto.randomUUID(), artisan_id: artisan.id, ...newAbsence, created_at: new Date().toISOString() }
     try {
+      // Try API first
       const res = await fetch('/api/artisan-absences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artisan_id: artisan.id, ...newAbsence })
       })
       const json = await res.json()
-      if (json.data) setAbsences([...absences, json.data])
-      setShowAbsenceModal(false)
-      setNewAbsence({ start_date: '', end_date: '', reason: isPt ? 'Férias' : 'Vacances', label: '' })
-    } catch (err) { console.error('Erreur création absence:', err) }
+      if (json.data) {
+        setAbsences([...absences, json.data])
+      } else {
+        // Fallback: localStorage
+        const updated = [...absences, newAbs]
+        setAbsences(updated)
+        localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
+      }
+    } catch {
+      // Fallback: localStorage
+      const updated = [...absences, newAbs]
+      setAbsences(updated)
+      localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
+    }
+    setShowAbsenceModal(false)
+    setNewAbsence({ start_date: '', end_date: '', reason: isPt ? 'Férias' : 'Vacances', label: '' })
   }
 
   const deleteAbsence = async (absenceId: string) => {
+    const updated = absences.filter((a: any) => a.id !== absenceId)
+    setAbsences(updated)
+    if (artisan?.id) localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
     try {
       await fetch(`/api/artisan-absences?id=${absenceId}`, { method: 'DELETE' })
-      setAbsences(absences.filter((a: any) => a.id !== absenceId))
-    } catch (err) { console.error('Erreur suppression absence:', err) }
+    } catch { /* ignore if API fails */ }
   }
 
   const changeWeek = (direction: number) => {
@@ -1240,11 +1286,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden font-sans">
+    <div id="artisan-dashboard-v22" className="h-screen flex flex-col overflow-hidden">
 
       {/* ── BOUTON RETOUR ADMIN (mode override) ── */}
       {showAdminBtn && (
-        <div className="fixed top-3 right-3 z-[9999]">
+        <div className="fixed top-1 right-16 z-[9999]">
           <button
             onClick={async () => {
               const { data: { user: u } } = await supabase.auth.getUser()
@@ -1254,151 +1300,148 @@ export default function DashboardPage() {
                 window.location.href = '/admin/dashboard'
               }
             }}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg transition"
+            className="v22-btn v22-btn-primary text-[10px] px-3 py-1"
           >
             ⚡ Retour Admin
           </button>
         </div>
       )}
 
-      {/* ══════════ MOBILE TOP BAR (hidden on desktop) ══════════ */}
-      <div className="lg:hidden bg-[#2C3E50] px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center gap-3">
-          <button className="text-2xl text-white" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
-          <div className="text-xl font-display font-extrabold cursor-pointer" onClick={() => navigateTo('home')}>
-            <span className="text-yellow">VIT</span><span className="text-white">FIX</span>
-          </div>
+      {/* ══════════ V22 TOPBAR ══════════ */}
+      <header className="h-12 flex-shrink-0 flex items-center px-5 gap-4" style={{ background: 'var(--v22-text)', borderBottom: '2px solid var(--v22-yellow)' }}>
+        <button className="lg:hidden text-white text-lg" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+        <a href="#" className="v22-mono text-xs font-medium tracking-wider uppercase no-underline" onClick={(e) => { e.preventDefault(); navigateTo('home') }}>
+          <span style={{ color: 'var(--v22-yellow)' }}>VIT</span><span className="text-white">FIX</span>
+        </a>
+        <span className="v22-mono text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-sm" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>Espace Pro</span>
+        <div className="v22-mono text-xs text-white/60 ml-auto border-l border-white/20 pl-4">
+          {artisan?.company_name || firstName} · {orgRole === 'artisan' ? 'Artisan' : orgRole === 'pro_societe' ? 'Société' : orgRole === 'pro_conciergerie' ? 'Conciergerie' : 'Gestionnaire'}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfileMenu(!showProfileMenu)}>
-              <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-white font-bold text-xs shadow-md">
-                {initials}
-              </div>
+        <div className="relative">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfileMenu(!showProfileMenu)}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold v22-mono" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
+              {initials}
             </div>
-            {showProfileMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-                  <button onClick={() => { setShowProfileMenu(false); navigateTo('settings') }}
-                    className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition">
-                    <span>⚙️</span> {t('proDash.myProfile')}
-                  </button>
-                  <div className="border-t border-gray-100" />
-                  <button onClick={async () => { setShowProfileMenu(false); await supabase.auth.signOut(); window.location.href = `/${locale}/` }}
-                    className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition">
-                    <span>🚪</span> {t('proDash.logout')}
-                  </button>
-                </div>
-              </>
-            )}
           </div>
+          {showProfileMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+              <div className="absolute right-0 top-full mt-1 w-44 z-50 overflow-hidden v22-card">
+                <button onClick={() => { setShowProfileMenu(false); navigateTo('settings') }}
+                  className="w-full px-3 py-2.5 text-left text-xs hover:bg-[var(--v22-bg)] flex items-center gap-2 transition" style={{ color: 'var(--v22-text)' }}>
+                  ⚙️ {t('proDash.myProfile')}
+                </button>
+                <div style={{ borderTop: '1px solid var(--v22-border)' }} />
+                <button onClick={async () => { setShowProfileMenu(false); await supabase.auth.signOut(); window.location.href = `/${locale}/` }}
+                  className="w-full px-3 py-2.5 text-left text-xs flex items-center gap-2 transition" style={{ color: 'var(--v22-red)' }}>
+                  🚪 {t('proDash.logout')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* ══════════ MAIN LAYOUT ══════════ */}
+      {/* ══════════ BODY (sidebar + content) ══════════ */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ══════════ SIDEBAR ══════════ */}
-        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[250px] bg-[#2C3E50] text-white h-full overflow-y-auto transition-transform duration-300`}>
-          {/* Logo + Profile — h-20 aligné avec les headers de contenu */}
-          <div className="px-5 h-20 border-b border-[#34495E] flex items-center">
-            <div className="relative flex items-center gap-3 w-full">
-              <div className="w-[36px] h-[36px] rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-white font-bold text-xs shadow-md flex-shrink-0">
-                {initials}
-              </div>
-              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigateTo('home')}>
-                <div className="text-xl font-display font-extrabold leading-tight"><span className="text-yellow">VIT</span><span className="text-white">FIX</span></div>
-                <div className="text-[10px] text-[#95A5A6] truncate">{artisan?.company_name}</div>
-              </div>
-            </div>
-          </div>
-          <div className="mb-6 pt-4">
-            <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">{t('proDash.sidebar.main')}</div>
-            <SidebarItem icon="🏠" label={t('proDash.modules.home')} active={activePage === 'home'} onClick={() => navigateTo('home')} />
+
+      {/* ══════════ V22 SIDEBAR ══════════ */}
+      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[220px] h-[calc(100vh-48px)] overflow-y-auto transition-transform duration-200 v22-sidebar flex flex-col flex-shrink-0`} style={{ borderRight: '1px solid var(--v22-yellow)' }}>
+        <div className="flex-1 overflow-y-auto pt-5">
+          {/* Principal */}
+          <div className="mb-5">
+            <div className="v22-sidebar-label">{t('proDash.sidebar.main')}</div>
+            <V22SidebarItem label={t('proDash.modules.home')} active={activePage === 'home'} onClick={() => navigateTo('home')} />
             {orgRole === 'artisan' && <>
-              <SidebarItem icon="📅" label={t('proDash.modules.calendar')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
-              <SidebarItem icon="🔧" label={t('proDash.modules.motifs')} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
-              <SidebarItem icon="🕐" label={t('proDash.modules.hours')} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
+              <V22SidebarItem label={t('proDash.modules.calendar')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
+              <V22SidebarItem label="Chantiers" active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} />
+              <V22SidebarItem label={t('proDash.modules.motifs')} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
+              <V22SidebarItem label={t('proDash.modules.hours')} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
             </>}
             {orgRole === 'pro_societe' && <>
-              <SidebarItem icon="👷" label={t('proDash.btp.teams')} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />
-              <SidebarItem icon="📋" label={t('proDash.btp.sites')} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />
-              <SidebarItem icon="📅" label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
-              <SidebarItem icon="📅" label={t('proDash.btp.gantt')} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />
-              <SidebarItem icon="📊" label={t('proDash.btp.situations')} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
-              <SidebarItem icon="🔒" label={t('proDash.btp.guarantees')} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
-              <SidebarItem icon="⏱️" label={t('proDash.btp.timeTracking')} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />
-              <SidebarItem icon="🤝" label={t('proDash.btp.subcontracting')} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
-              <SidebarItem icon="📋" label={t('proDash.btp.tenders')} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
+              <V22SidebarItem label={t('proDash.btp.teams')} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />
+              <V22SidebarItem label={t('proDash.btp.sites')} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />
+              <V22SidebarItem label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
+              <V22SidebarItem label={t('proDash.btp.gantt')} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />
+              <V22SidebarItem label={t('proDash.btp.situations')} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
+              <V22SidebarItem label={t('proDash.btp.guarantees')} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
+              <V22SidebarItem label={t('proDash.btp.timeTracking')} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />
+              <V22SidebarItem label={t('proDash.btp.subcontracting')} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
+              <V22SidebarItem label={t('proDash.btp.tenders')} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
             </>}
             {orgRole === 'pro_conciergerie' && <>
-              <SidebarItem icon="🏠" label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
-              <SidebarItem icon="📅" label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
-              <SidebarItem icon="🔑" label={t('proDash.conciergerie.access')} active={activePage === 'acces'} onClick={() => navigateTo('acces')} />
-              <SidebarItem icon="🌐" label={t('proDash.conciergerie.channelManager')} active={activePage === 'channel_manager'} onClick={() => navigateTo('channel_manager')} />
-              <SidebarItem icon="💰" label={t('proDash.conciergerie.pricing')} active={activePage === 'tarification'} onClick={() => navigateTo('tarification')} />
-              <SidebarItem icon="✅" label={t('proDash.conciergerie.checkinout')} active={activePage === 'checkinout'} onClick={() => navigateTo('checkinout')} />
-              <SidebarItem icon="📖" label={t('proDash.conciergerie.welcomeBook')} active={activePage === 'livret'} onClick={() => navigateTo('livret')} />
-              <SidebarItem icon="🧹" label={t('proDash.conciergerie.cleaningSchedule')} active={activePage === 'menage'} onClick={() => navigateTo('menage')} />
-              <SidebarItem icon="📈" label={t('proDash.conciergerie.revpar')} active={activePage === 'revpar'} onClick={() => navigateTo('revpar')} />
+              <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
+              <V22SidebarItem label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
+              <V22SidebarItem label={t('proDash.conciergerie.access')} active={activePage === 'acces'} onClick={() => navigateTo('acces')} />
+              <V22SidebarItem label={t('proDash.conciergerie.channelManager')} active={activePage === 'channel_manager'} onClick={() => navigateTo('channel_manager')} />
+              <V22SidebarItem label={t('proDash.conciergerie.pricing')} active={activePage === 'tarification'} onClick={() => navigateTo('tarification')} />
+              <V22SidebarItem label={t('proDash.conciergerie.checkinout')} active={activePage === 'checkinout'} onClick={() => navigateTo('checkinout')} />
+              <V22SidebarItem label={t('proDash.conciergerie.welcomeBook')} active={activePage === 'livret'} onClick={() => navigateTo('livret')} />
+              <V22SidebarItem label={t('proDash.conciergerie.cleaningSchedule')} active={activePage === 'menage'} onClick={() => navigateTo('menage')} />
+              <V22SidebarItem label={t('proDash.conciergerie.revpar')} active={activePage === 'revpar'} onClick={() => navigateTo('revpar')} />
             </>}
             {orgRole === 'pro_gestionnaire' && <>
-              <SidebarItem icon="🏢" label={t('proDash.gestionnaire.buildings')} active={activePage === 'immeubles'} onClick={() => navigateTo('immeubles')} />
-              <SidebarItem icon="📋" label={t('proDash.gestionnaire.missions')} active={activePage === 'missions'} onClick={() => navigateTo('missions')} />
-              <SidebarItem icon="📅" label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
+              <V22SidebarItem label={t('proDash.gestionnaire.buildings')} active={activePage === 'immeubles'} onClick={() => navigateTo('immeubles')} />
+              <V22SidebarItem label={t('proDash.gestionnaire.missions')} active={activePage === 'missions'} onClick={() => navigateTo('missions')} />
+              <V22SidebarItem label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
             </>}
           </div>
-          <div className="mb-6">
-            <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">{t('proDash.sidebar.communication')}</div>
-            {isModuleEnabled('messages') && <SidebarItem icon="💬" label={t('proDash.modules.messaging')} active={activePage === 'messages' || activePage === 'comm_pro'} badge={(unreadMsgCount + pendingBookings.length) || undefined} onClick={() => navigateTo('messages')} />}
-            {isModuleEnabled('clients') && <SidebarItem icon="👥" label={t('proDash.modules.clients')} active={activePage === 'clients'} onClick={() => navigateTo('clients')} />}
+          {/* Communication */}
+          <div className="mb-5">
+            <div className="v22-sidebar-label">{t('proDash.sidebar.communication')}</div>
+            {isModuleEnabled('messages') && <V22SidebarItem label={t('proDash.modules.messaging')} active={activePage === 'messages' || activePage === 'comm_pro'} badge={(unreadMsgCount + pendingBookings.length) || undefined} badgeRed onClick={() => navigateTo('messages')} />}
+            {isModuleEnabled('clients') && <V22SidebarItem label={t('proDash.modules.clients')} active={activePage === 'clients'} onClick={() => navigateTo('clients')} />}
           </div>
-          <div className="mb-6">
-            <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">{t('proDash.sidebar.facturation')}</div>
-            {isModuleEnabled('devis') && <SidebarItem icon="📄" label={t('proDash.modules.quotes')} active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
-            {isModuleEnabled('factures') && <SidebarItem icon="🧾" label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
-            {isModuleEnabled('rapports') && <SidebarItem icon="📋" label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
-            <SidebarItem icon="📸" label={t('proDash.modules.sitePhotos')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
+          {/* Facturation */}
+          <div className="mb-5">
+            <div className="v22-sidebar-label">{t('proDash.sidebar.facturation')}</div>
+            {isModuleEnabled('devis') && <V22SidebarItem label={t('proDash.modules.quotes')} active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
+            {orgRole === 'artisan' && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
+            {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
+            {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
+            <V22SidebarItem label={t('proDash.modules.sitePhotos')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
+            {orgRole === 'artisan' && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
             {isModuleEnabled('contrats') && (orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
-              <SidebarItem icon="📑" label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
+              <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
             )}
           </div>
-          <div className="mb-6">
-            <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">{t('proDash.sidebar.analyse')}</div>
-            {isModuleEnabled('stats') && <SidebarItem icon="📊" label={t('proDash.modules.stats')} active={activePage === 'stats'} onClick={() => navigateTo('stats')} />}
-            {isModuleEnabled('revenus') && <SidebarItem icon="💰" label={t('proDash.modules.revenue')} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />}
-            {isModuleEnabled('comptabilite') && <SidebarItem icon="🧮" label={t('proDash.modules.accounting')} active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />}
+          {/* Analyse */}
+          <div className="mb-5">
+            <div className="v22-sidebar-label">{t('proDash.sidebar.analyse')}</div>
+            {isModuleEnabled('stats') && <V22SidebarItem label={t('proDash.modules.stats')} active={activePage === 'stats'} onClick={() => navigateTo('stats')} />}
+            {isModuleEnabled('revenus') && <V22SidebarItem label={t('proDash.modules.revenue')} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />}
+            {isModuleEnabled('comptabilite') && <V22SidebarItem label={t('proDash.modules.accounting')} active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />}
             {isModuleEnabled('materiaux') && orgRole === 'artisan' && (
-              <SidebarItem icon="🛒" label={t('proDash.modules.materials')} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} />
+              <V22SidebarItem label={t('proDash.modules.materials')} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} />
             )}
             {isModuleEnabled('marches') && (
-              <SidebarItem icon="🏛️" label={t('proDash.modules.marches') || 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
+              <V22SidebarItem label={t('proDash.modules.marches') || 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
             )}
           </div>
+          {/* Profil Pro */}
           {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio')) && (
-            <div className="mb-6">
-              <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">{t('proDash.sidebar.profilPro')}</div>
-              {isModuleEnabled('wallet') && <SidebarItem icon="🗂️" label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
-              {isModuleEnabled('portfolio') && <SidebarItem icon="📸" label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
+            <div className="mb-5">
+              <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
+              {isModuleEnabled('wallet') && <V22SidebarItem label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
+              {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
             </div>
           )}
-          <div className="mb-6">
-            <div className="px-6 text-[0.7rem] uppercase text-[#95A5A6] mb-3 font-semibold tracking-widest">{t('proDash.sidebar.compte')}</div>
-            <SidebarItem icon="⚙️" label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab !== 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
-            <SidebarItem icon="🧩" label={t('proDash.modules.modules')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
-            <SidebarItem icon="❓" label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
-            <div onClick={handleLogout} className="flex items-center gap-3 px-6 py-4 cursor-pointer text-red-400 hover:bg-red-500/10 hover:pl-8 transition-all text-[0.95rem]">
-              <span>🚪</span><span>{t('proDash.logout')}</span>
-            </div>
-          </div>
         </div>
+        {/* Compte (bottom) */}
+        <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
+          <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab !== 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
+          <V22SidebarItem label={t('proDash.modules.modules')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
+          <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
+        </div>
+      </aside>
 
-        {sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
-        )}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
 
-        {/* ══════════ CONTENT ══════════ */}
-        <div className="flex-1 overflow-y-auto bg-[#F8F9FA]">
+      {/* ══════════ CONTENT ══════════ */}
+      <main className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--v22-bg)' }}>
 
           {/* ────── HOME ────── */}
           {activePage === 'home' && (
@@ -1463,14 +1506,12 @@ export default function DashboardPage() {
 
           {/* ────── MESSAGERIE V2 ────── */}
           {(activePage === 'messages' || activePage === 'comm_pro') && artisan && (
-            <div className="animate-fadeIn flex flex-col h-[calc(100vh-64px)]">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center flex-shrink-0">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">💬 {t('proDash.modules.messaging')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.messaging.subtitle')}</p>
-                </div>
+            <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+              <div className="v22-page-header" style={{ flexShrink: 0 }}>
+                <div className="v22-page-title">💬 {t('proDash.modules.messaging')}</div>
+                <div className="v22-page-sub">{t('proDash.messaging.subtitle')}</div>
               </div>
-              <div className="flex-1 min-h-0 p-3">
+              <div style={{ flex: 1, minHeight: 0, padding: '12px' }}>
             <MessagerieArtisan
               artisan={artisan}
               onProposerDevis={(missionData) => {
@@ -1765,12 +1806,6 @@ export default function DashboardPage() {
           {/* ────── WALLET CONFORMITÉ ────── */}
           {activePage === 'wallet' && (
             <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">🗂️ {t('proDash.modules.wallet')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.modules.walletDesc')}</p>
-                </div>
-              </div>
               <WalletConformiteSection artisan={artisan} />
             </div>
           )}
@@ -1778,11 +1813,9 @@ export default function DashboardPage() {
           {/* ────── CARNET DE VISITE / PORTFOLIO ────── */}
           {activePage === 'portfolio' && (
             <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">📸 {t('proDash.modules.portfolio')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.modules.portfolioDesc')}</p>
-                </div>
+              <div className="v22-page-header">
+                <div className="v22-page-title">📸 {t('proDash.modules.portfolio')}</div>
+                <div className="v22-page-sub">{t('proDash.modules.portfolioDesc')}</div>
               </div>
               <CarnetDeVisiteSection artisan={artisan} />
             </div>
@@ -1941,61 +1974,38 @@ export default function DashboardPage() {
             <PhotosChantierSection artisan={artisan} bookings={bookings} />
           )}
 
+          {/* ────── CHANTIERS V22 (Artisan) ────── */}
+          {activePage === 'chantiers_v22' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans les chantiers">
+              <ChantiersV22Section artisan={artisan} navigateTo={navigateTo} />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── PIPELINE KANBAN ────── */}
+          {activePage === 'pipeline' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le pipeline">
+              <PipelineSection artisan={artisan} navigateTo={navigateTo} />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── BIBLIOTHÈQUE D'OUVRAGES ────── */}
+          {activePage === 'bibliotheque' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans la bibliothèque">
+              <BibliothequeSection artisan={artisan} navigateTo={navigateTo} />
+            </SectionErrorBoundary>
+          )}
+
           {/* ────── CANAL PRO ────── */}
           {activePage === 'canal' && (
             <CanalProSection artisan={artisan} orgRole={orgRole} />
           )}
 
-          {/* ────── AIDE ────── */}
+          {/* ────── AIDE V22 ────── */}
           {activePage === 'help' && (
-            <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">❓ {t('proDash.help.title')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.help.subtitle')}</p>
-                </div>
-              </div>
-              <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-                <div className="bg-white p-8 rounded-2xl shadow-sm mb-6">
-                  <h2 className="text-xl font-bold mb-4">🚀 {t('proDash.help.quickStart')}</h2>
-                  <p className="text-gray-500 mb-4 text-lg">{t('proDash.help.welcome')}</p>
-                  <ol className="list-decimal pl-6 text-gray-600 space-y-3 text-lg leading-relaxed">
-                    <li>{t('proDash.help.step1')}</li>
-                    <li>{t('proDash.help.step2')}</li>
-                    <li>{t('proDash.help.step3')}</li>
-                    <li>{t('proDash.help.step4')}</li>
-                  </ol>
-                </div>
-                <div className="bg-white p-8 rounded-2xl shadow-sm mb-6">
-                  <h2 className="text-xl font-bold mb-4">📚 {t('proDash.help.guides')}</h2>
-                  <div className="space-y-3">
-                    <button onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }} className="w-full text-left bg-white text-gray-600 border-2 border-gray-200 px-5 py-4 rounded-lg font-semibold hover:bg-gray-50 hover:border-[#FFC107] transition">📄 {t('proDash.help.createQuote')}</button>
-                    <button onClick={() => { setShowFactureForm(true); setActivePage('factures'); setSidebarOpen(false) }} className="w-full text-left bg-white text-gray-600 border-2 border-gray-200 px-5 py-4 rounded-lg font-semibold hover:bg-gray-50 hover:border-[#FFC107] transition">🧾 {t('proDash.help.createInvoice')}</button>
-                    <button onClick={() => navigateTo('calendar')} className="w-full text-left bg-white text-gray-600 border-2 border-gray-200 px-5 py-4 rounded-lg font-semibold hover:bg-gray-50 hover:border-[#FFC107] transition">📅 {t('proDash.help.configCalendar')}</button>
-                    <button onClick={() => navigateTo('motifs')} className="w-full text-left bg-white text-gray-600 border-2 border-gray-200 px-5 py-4 rounded-lg font-semibold hover:bg-gray-50 hover:border-[#FFC107] transition">🔧 {t('proDash.help.manageMotifs')}</button>
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-2xl shadow-sm">
-                  <h2 className="text-xl font-bold mb-4">💬 {t('proDash.help.support')}</h2>
-                  <p className="text-gray-500 mb-5 text-lg">{t('proDash.help.supportDesc')}</p>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl text-center cursor-pointer hover:-translate-y-1 transition-transform">
-                      <div className="text-4xl mb-3">📧</div>
-                      <div className="font-bold text-lg mb-1">{t('proDash.help.email')}</div>
-                      <div className="text-gray-500">support@fixit.fr</div>
-                    </div>
-                    <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl text-center cursor-pointer hover:-translate-y-1 transition-transform">
-                      <div className="text-4xl mb-3">💬</div>
-                      <div className="font-bold text-lg mb-1">{t('proDash.help.chat')}</div>
-                      <div className="text-gray-500">{t('proDash.help.chatHours')}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <AideSection navigateTo={navigateTo} />
           )}
 
-        </div>
+      </main>
       </div>
 
       <style jsx global>{`
@@ -2082,18 +2092,18 @@ export default function DashboardPage() {
 
       {/* ── Modal Messagerie Artisan Dashboard ── */}
       {dashMsgModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDashMsgModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-6 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div className="v22-modal-overlay" onClick={() => setDashMsgModal(null)}>
+          <div className="v22-modal" style={{ width: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="v22-modal-head">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">💬 {t('proDash.msg.title')}</h3>
-                <p className="text-sm text-gray-500 mt-0.5">{dashMsgModal.services?.name || 'Service'} &bull; {dashMsgModal.booking_date} à {dashMsgModal.booking_time?.substring(0, 5)}</p>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>💬 {t('proDash.msg.title')}</div>
+                <div className="v22-ref" style={{ marginTop: 2 }}>{dashMsgModal.services?.name || 'Service'} · {dashMsgModal.booking_date} à {dashMsgModal.booking_time?.substring(0, 5)}</div>
               </div>
-              <button onClick={() => setDashMsgModal(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setDashMsgModal(null)} className="v22-btn v22-btn-sm">✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+            <div className="v22-modal-body" style={{ flex: 1, overflowY: 'auto', minHeight: 200, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {dashMsgList.length === 0 ? (
-                <div className="text-center py-8 text-sm text-gray-500">
+                <div style={{ textAlign: 'center', padding: '32px 14px', fontSize: 12, color: 'var(--v22-text-muted)' }}>
                   {t('proDash.msg.noMessages')}
                 </div>
               ) : (
@@ -2105,7 +2115,7 @@ export default function DashboardPage() {
                   if (msg.type === 'photo' && msg.attachment_url) {
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl p-1.5 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                        <div style={{ maxWidth: '75%', borderRadius: 4, padding: 6, background: isMe ? 'var(--v22-yellow-light)' : 'var(--v22-bg)', border: `1px solid ${isMe ? 'var(--v22-yellow-border)' : 'var(--v22-border)'}` }}>
                           {!isMe && <div className="text-xs font-semibold text-gray-500 px-2 mb-1">{msg.sender_name || 'Client'}</div>}
                           <img
                             src={msg.attachment_url}
@@ -2124,7 +2134,7 @@ export default function DashboardPage() {
                   if (msg.type === 'voice' && msg.attachment_url) {
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                        <div style={{ maxWidth: '75%', borderRadius: 4, padding: '8px 12px', background: isMe ? 'var(--v22-yellow-light)' : 'var(--v22-bg)', border: `1px solid ${isMe ? 'var(--v22-yellow-border)' : 'var(--v22-border)'}` }}>
                           {!isMe && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm">🎤</span>
@@ -2199,13 +2209,12 @@ export default function DashboardPage() {
                   // ── Default text / auto_reply ──
                   return (
                     <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                        isMe
-                          ? 'bg-[#FFC107] text-gray-900'
-                          : msg.type === 'auto_reply'
-                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
+                      <div style={{
+                        maxWidth: '75%', borderRadius: 4, padding: '8px 14px',
+                        background: isMe ? 'var(--v22-yellow-light)' : msg.type === 'auto_reply' ? '#E8F0FE' : 'var(--v22-bg)',
+                        border: `1px solid ${isMe ? 'var(--v22-yellow-border)' : msg.type === 'auto_reply' ? '#B3D4FC' : 'var(--v22-border)'}`,
+                        color: 'var(--v22-text)'
+                      }}>
                         {msg.type === 'auto_reply' && <div className="text-[10px] font-semibold opacity-70 mb-1">{t('proDash.msg.autoReply')}</div>}
                         {!isMe && msg.sender_role === 'client' && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -2265,7 +2274,7 @@ export default function DashboardPage() {
                 <button
                   onClick={sendDashMessage}
                   disabled={dashMsgSending || !dashMsgText.trim() || dashMsgRecording}
-                  className="bg-[#FFC107] hover:bg-amber-500 text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition flex-shrink-0"
+                  className="v22-btn v22-btn-primary" style={{ flexShrink: 0 }}
                 >
                   {t('common.send')}
                 </button>
@@ -2292,6 +2301,20 @@ function SidebarItem({ icon, label, active, badge, onClick }: {
       <span>{label}</span>
       {badge && badge > 0 && (
         <span className="ml-auto bg-red-500 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">{badge}</span>
+      )}
+    </div>
+  )
+}
+
+function V22SidebarItem({ label, active, badge, badgeRed, onClick }: {
+  label: string; active?: boolean; badge?: number; badgeRed?: boolean; onClick: () => void
+}) {
+  return (
+    <div onClick={onClick} className={`v22-sidebar-item ${active ? 'active' : ''}`}>
+      <div className="v22-sidebar-dot" />
+      <span>{label}</span>
+      {badge && badge > 0 && (
+        <span className={`v22-badge-count ${badgeRed ? 'red' : ''}`}>{badge}</span>
       )}
     </div>
   )

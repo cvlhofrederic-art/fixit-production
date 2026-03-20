@@ -6,6 +6,7 @@ import { Syne } from "next/font/google";
 import { Montserrat } from "next/font/google";
 import { Outfit } from "next/font/google";
 import { Playfair_Display } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
@@ -45,6 +46,19 @@ const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
   weight: ["400", "600"],
   style: ["normal", "italic"],
+});
+
+// V22 Artisan Dashboard fonts
+const ibmPlexSans = IBM_Plex_Sans({
+  variable: "--font-ibm-plex-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 const sharedMeta = {
@@ -344,7 +358,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} ${playfairDisplay.variable} font-sans antialiased`}>
+      <body className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} ${playfairDisplay.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
         <Providers locale={locale}>
           <a href="#main-content" className="skip-to-content">
             {locale === 'en' || locale === 'nl' ? 'Skip to main content' : locale === 'pt' ? 'Ir para o conte\u00fado principal' : locale === 'es' ? 'Ir al contenido principal' : 'Aller au contenu principal'}
