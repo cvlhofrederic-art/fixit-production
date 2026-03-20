@@ -2358,7 +2358,7 @@
     "devis": {
       "title": "Orçamentos",
       "subtitle": "Criação e gestão de orçamentos",
-      "nouveauDevis": "+ Novo orçamento",
+      "nouveauDevis": "Novo orçamento",
       "totalDevis": "Total de orçamentos",
       "envoyes": "Enviados",
       "nonEnvoyes": "Não enviados",
@@ -2379,7 +2379,7 @@
     "factures": {
       "title": "Faturas",
       "subtitle": "Gestão de faturas",
-      "nouvelleFacture": "+ Nova fatura",
+      "nouvelleFacture": "Nova fatura",
       "totalFactures": "Total de faturas",
       "caHTTotal": "Volume s/ IVA total",
       "envoyees": "Enviadas",
@@ -2736,7 +2736,8 @@
       "rapport": "Relatório",
       "supprimerPhoto": "Eliminar esta foto?",
       "nonAssociee": "Não associada",
-      "aucunRapportLie": "Nenhum relatório associado"
+      "aucunRapportLie": "Nenhum relatório associado",
+      "ajouterPhotos": "Adicionar fotos"
     },
     "ordres": {
       "title": "Ordens de serviço",
@@ -4023,7 +4024,7 @@
     "selectMotif": "Escolher um motivo...",
     "freeEntry": "Escrita livre",
     "freeEntryPlaceholder": "Escrita livre...",
-    "addLine": "+ Adicionar uma linha",
+    "addLine": "Adicionar uma linha",
     "paymentSection": "Condições de Pagamento (OBRIGATÓRIO)",
     "paymentSectionDesc": "Estas menções são obrigatórias em todas as faturas (art. 36.º do CIVA). A ausência de penalidades por atraso é automaticamente adicionada.",
     "paymentCondition": "Condições de pagamento",

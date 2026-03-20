@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [activePage, setActivePage] = useState('home')
   const calendarDataLoadedRef = useRef(false)
+  const realtimeErrorCount = useRef(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDevisForm, setShowDevisForm] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
@@ -1253,6 +1254,11 @@ export default function DashboardPage() {
       .subscribe((status, err) => {
         if (status === 'CHANNEL_ERROR') {
           console.error('[pro/dashboard] Realtime channel error:', err?.message)
+          realtimeErrorCount.current += 1
+          if (realtimeErrorCount.current >= 3) {
+            console.warn('[pro/dashboard] Realtime: too many errors, unsubscribing')
+            supabase.removeChannel(channel)
+          }
         }
       })
     return () => { supabase.removeChannel(channel) }
