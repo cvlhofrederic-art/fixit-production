@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activePage, setActivePage] = useState('home')
+  const calendarDataLoadedRef = useRef(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDevisForm, setShowDevisForm] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
@@ -296,24 +297,23 @@ export default function DashboardPage() {
     })
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
-    // Parallel fetch: all 5 data sources depend only on artisanData.id
+    // Parallel fetch: only critical data for initial render
     const aid = artisanData.id
-    const [bookingsRes, servicesRes, availRes, absRes, dsRes] = await Promise.all([
+    const [bookingsRes, servicesRes] = await Promise.all([
       supabase.from('bookings').select('*, services(name)').eq('artisan_id', aid).order('booking_date', { ascending: false }).limit(20),
       supabase.from('services').select('*').eq('artisan_id', aid),
-      fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
     setBookings(bookingsRes.data || [])
     setServices(servicesRes.data || [])
-    setAvailability(availRes.data || [])
-    setAbsences(absRes.data || [])
-    if (dsRes.data) {
-      setDayServices(dsRes.data)
-    } else {
-      const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
-      if (savedDayServices) setDayServices(JSON.parse(savedDayServices))
+
+    // Load availability/absences/dayServices from localStorage immediately (no network wait)
+    try {
+      const lsAbs = JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')
+      setAbsences(lsAbs)
+    } catch { setAbsences([]) }
+    const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
+    if (savedDayServices) {
+      try { setDayServices(JSON.parse(savedDayServices)) } catch { /* ignore */ }
     }
 
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanData.id}`) || '[]')
@@ -322,6 +322,27 @@ export default function DashboardPage() {
 
     setLoading(false)
   }
+
+  // Lazy-load calendar/horaires data only when those sections are first visited
+  const loadCalendarData = useCallback(async (aid: string) => {
+    if (calendarDataLoadedRef.current) return
+    calendarDataLoadedRef.current = true
+    const [availRes, absRes, dsRes] = await Promise.all([
+      fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
+    ])
+    setAvailability(availRes.data || [])
+    const apiAbsences = absRes.data || []
+    if (apiAbsences.length > 0) setAbsences(apiAbsences)
+    if (dsRes.data) setDayServices(dsRes.data)
+  }, [])
+
+  useEffect(() => {
+    if ((activePage === 'calendar' || activePage === 'horaires') && artisan?.id) {
+      loadCalendarData(artisan.id)
+    }
+  }, [activePage, artisan?.id, loadCalendarData])
 
   const DAY_NAMES = [t('proDash.days.sunday'), t('proDash.days.monday'), t('proDash.days.tuesday'), t('proDash.days.wednesday'), t('proDash.days.thursday'), t('proDash.days.friday'), t('proDash.days.saturday')]
   const DAY_SHORT = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
@@ -548,24 +569,40 @@ export default function DashboardPage() {
 
   const createAbsence = async () => {
     if (!artisan || !newAbsence.start_date || !newAbsence.end_date) return
+    const newAbs = { id: crypto.randomUUID(), artisan_id: artisan.id, ...newAbsence, created_at: new Date().toISOString() }
     try {
+      // Try API first
       const res = await fetch('/api/artisan-absences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artisan_id: artisan.id, ...newAbsence })
       })
       const json = await res.json()
-      if (json.data) setAbsences([...absences, json.data])
-      setShowAbsenceModal(false)
-      setNewAbsence({ start_date: '', end_date: '', reason: isPt ? 'Férias' : 'Vacances', label: '' })
-    } catch (err) { console.error('Erreur création absence:', err) }
+      if (json.data) {
+        setAbsences([...absences, json.data])
+      } else {
+        // Fallback: localStorage
+        const updated = [...absences, newAbs]
+        setAbsences(updated)
+        localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
+      }
+    } catch {
+      // Fallback: localStorage
+      const updated = [...absences, newAbs]
+      setAbsences(updated)
+      localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
+    }
+    setShowAbsenceModal(false)
+    setNewAbsence({ start_date: '', end_date: '', reason: isPt ? 'Férias' : 'Vacances', label: '' })
   }
 
   const deleteAbsence = async (absenceId: string) => {
+    const updated = absences.filter((a: any) => a.id !== absenceId)
+    setAbsences(updated)
+    if (artisan?.id) localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
     try {
       await fetch(`/api/artisan-absences?id=${absenceId}`, { method: 'DELETE' })
-      setAbsences(absences.filter((a: any) => a.id !== absenceId))
-    } catch (err) { console.error('Erreur suppression absence:', err) }
+    } catch { /* ignore if API fails */ }
   }
 
   const changeWeek = (direction: number) => {
@@ -1469,14 +1506,12 @@ export default function DashboardPage() {
 
           {/* ────── MESSAGERIE V2 ────── */}
           {(activePage === 'messages' || activePage === 'comm_pro') && artisan && (
-            <div className="animate-fadeIn flex flex-col h-[calc(100vh-64px)]">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center flex-shrink-0">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">💬 {t('proDash.modules.messaging')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.messaging.subtitle')}</p>
-                </div>
+            <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+              <div className="v22-page-header" style={{ flexShrink: 0 }}>
+                <div className="v22-page-title">💬 {t('proDash.modules.messaging')}</div>
+                <div className="v22-page-sub">{t('proDash.messaging.subtitle')}</div>
               </div>
-              <div className="flex-1 min-h-0 p-3">
+              <div style={{ flex: 1, minHeight: 0, padding: '12px' }}>
             <MessagerieArtisan
               artisan={artisan}
               onProposerDevis={(missionData) => {
@@ -1771,12 +1806,6 @@ export default function DashboardPage() {
           {/* ────── WALLET CONFORMITÉ ────── */}
           {activePage === 'wallet' && (
             <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">🗂️ {t('proDash.modules.wallet')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.modules.walletDesc')}</p>
-                </div>
-              </div>
               <WalletConformiteSection artisan={artisan} />
             </div>
           )}
@@ -1784,11 +1813,9 @@ export default function DashboardPage() {
           {/* ────── CARNET DE VISITE / PORTFOLIO ────── */}
           {activePage === 'portfolio' && (
             <div className="animate-fadeIn">
-              <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-                <div>
-                  <h1 className="text-xl font-semibold leading-tight">📸 {t('proDash.modules.portfolio')}</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{t('proDash.modules.portfolioDesc')}</p>
-                </div>
+              <div className="v22-page-header">
+                <div className="v22-page-title">📸 {t('proDash.modules.portfolio')}</div>
+                <div className="v22-page-sub">{t('proDash.modules.portfolioDesc')}</div>
               </div>
               <CarnetDeVisiteSection artisan={artisan} />
             </div>
@@ -2065,18 +2092,18 @@ export default function DashboardPage() {
 
       {/* ── Modal Messagerie Artisan Dashboard ── */}
       {dashMsgModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDashMsgModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-6 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div className="v22-modal-overlay" onClick={() => setDashMsgModal(null)}>
+          <div className="v22-modal" style={{ width: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="v22-modal-head">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">💬 {t('proDash.msg.title')}</h3>
-                <p className="text-sm text-gray-500 mt-0.5">{dashMsgModal.services?.name || 'Service'} &bull; {dashMsgModal.booking_date} à {dashMsgModal.booking_time?.substring(0, 5)}</p>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>💬 {t('proDash.msg.title')}</div>
+                <div className="v22-ref" style={{ marginTop: 2 }}>{dashMsgModal.services?.name || 'Service'} · {dashMsgModal.booking_date} à {dashMsgModal.booking_time?.substring(0, 5)}</div>
               </div>
-              <button onClick={() => setDashMsgModal(null)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setDashMsgModal(null)} className="v22-btn v22-btn-sm">✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px]">
+            <div className="v22-modal-body" style={{ flex: 1, overflowY: 'auto', minHeight: 200, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {dashMsgList.length === 0 ? (
-                <div className="text-center py-8 text-sm text-gray-500">
+                <div style={{ textAlign: 'center', padding: '32px 14px', fontSize: 12, color: 'var(--v22-text-muted)' }}>
                   {t('proDash.msg.noMessages')}
                 </div>
               ) : (
@@ -2088,7 +2115,7 @@ export default function DashboardPage() {
                   if (msg.type === 'photo' && msg.attachment_url) {
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl p-1.5 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                        <div style={{ maxWidth: '75%', borderRadius: 4, padding: 6, background: isMe ? 'var(--v22-yellow-light)' : 'var(--v22-bg)', border: `1px solid ${isMe ? 'var(--v22-yellow-border)' : 'var(--v22-border)'}` }}>
                           {!isMe && <div className="text-xs font-semibold text-gray-500 px-2 mb-1">{msg.sender_name || 'Client'}</div>}
                           <img
                             src={msg.attachment_url}
@@ -2107,7 +2134,7 @@ export default function DashboardPage() {
                   if (msg.type === 'voice' && msg.attachment_url) {
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMe ? 'bg-[#FFC107]' : 'bg-gray-100'}`}>
+                        <div style={{ maxWidth: '75%', borderRadius: 4, padding: '8px 12px', background: isMe ? 'var(--v22-yellow-light)' : 'var(--v22-bg)', border: `1px solid ${isMe ? 'var(--v22-yellow-border)' : 'var(--v22-border)'}` }}>
                           {!isMe && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm">🎤</span>
@@ -2182,13 +2209,12 @@ export default function DashboardPage() {
                   // ── Default text / auto_reply ──
                   return (
                     <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                        isMe
-                          ? 'bg-[#FFC107] text-gray-900'
-                          : msg.type === 'auto_reply'
-                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
+                      <div style={{
+                        maxWidth: '75%', borderRadius: 4, padding: '8px 14px',
+                        background: isMe ? 'var(--v22-yellow-light)' : msg.type === 'auto_reply' ? '#E8F0FE' : 'var(--v22-bg)',
+                        border: `1px solid ${isMe ? 'var(--v22-yellow-border)' : msg.type === 'auto_reply' ? '#B3D4FC' : 'var(--v22-border)'}`,
+                        color: 'var(--v22-text)'
+                      }}>
                         {msg.type === 'auto_reply' && <div className="text-[10px] font-semibold opacity-70 mb-1">{t('proDash.msg.autoReply')}</div>}
                         {!isMe && msg.sender_role === 'client' && <div className="text-xs font-semibold text-gray-500 mb-1">{msg.sender_name || 'Client'}</div>}
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -2248,7 +2274,7 @@ export default function DashboardPage() {
                 <button
                   onClick={sendDashMessage}
                   disabled={dashMsgSending || !dashMsgText.trim() || dashMsgRecording}
-                  className="bg-[#FFC107] hover:bg-amber-500 text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition flex-shrink-0"
+                  className="v22-btn v22-btn-primary" style={{ flexShrink: 0 }}
                 >
                   {t('common.send')}
                 </button>

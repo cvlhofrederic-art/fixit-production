@@ -71,47 +71,47 @@ function PasswordChangeCard() {
   }
 
   return (
-    <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-2xl mt-6">
-      <h3 className="text-xl font-bold mb-6">{'🔒'} {t('proDash.settings.securityTitle')}</h3>
+    <div className="v22-card" style={{ maxWidth: 672, marginTop: 16 }}>
+      <div className="v22-card-head">
+        <div className="v22-card-title">{'🔒'} {t('proDash.settings.securityTitle')}</div>
+      </div>
+      <div className="v22-card-body">
+        {msg && (
+          <div className={`v22-alert ${msg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {msg.text}
+            <button onClick={() => setMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-text-muted)', fontSize: 14 }}>{'✕'}</button>
+          </div>
+        )}
 
-      {msg && (
-        <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
-          msg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
-          {msg.text}
-          <button onClick={() => setMsg(null)} className="ml-auto text-gray-500 hover:text-gray-600">{'✕'}</button>
-        </div>
-      )}
-
-      <div className="space-y-5">
-        <div>
-          <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.newPassword')}</label>
+        <div className="v22-form-group">
+          <label className="v22-form-label">{t('proDash.settings.newPassword')}</label>
           <input
             type="password"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
-            className="w-full p-3 border-2 border-gray-200 rounded-lg text-base focus:border-[#FFC107] focus:outline-none"
+            className="v22-form-input"
           />
         </div>
-        <div>
-          <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.confirmPassword')}</label>
+        <div className="v22-form-group">
+          <label className="v22-form-label">{t('proDash.settings.confirmPassword')}</label>
           <input
             type="password"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
-            className="w-full p-3 border-2 border-gray-200 rounded-lg text-base focus:border-[#FFC107] focus:outline-none"
+            className="v22-form-input"
           />
-          <p className="text-xs text-gray-500 mt-1">{t('proDash.settings.pwdMinLength')}</p>
+          <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.pwdMinLength')}</span>
         </div>
-        <div className="flex gap-3 pt-2">
+        <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
           <button
             onClick={handleChangePassword}
             disabled={saving || !newPassword || !confirmPassword}
-            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
+            className="v22-btn v22-btn-primary"
+            style={{ opacity: (saving || !newPassword || !confirmPassword) ? 0.5 : 1 }}
           >
             {saving ? `⏳ ${t('proDash.settings.pwdSaving')}` : `🔒 ${t('proDash.settings.pwdUpdate')}`}
           </button>
@@ -144,209 +144,231 @@ export default function SettingsSection({
 
   return (
     <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-        <div>
-          <h1 className="text-xl font-semibold leading-tight">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : `⚙️ ${t('proDash.settings.title')}`}</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : t('proDash.settings.subtitle')}</p>
+      {/* Page header */}
+      <div className="v22-page-header">
+        <div style={{ flex: 1 }}>
+          <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : `⚙️ ${t('proDash.settings.title')}`}</div>
+          <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : t('proDash.settings.subtitle')}</div>
         </div>
+        {settingsTab === 'profil' && (
+          <button onClick={saveSettings} disabled={savingSettings} className="v22-btn v22-btn-primary" style={{ opacity: savingSettings ? 0.5 : 1 }}>
+            {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrer')}`}
+          </button>
+        )}
       </div>
 
       {/* Profil & Parametres */}
       {settingsTab === 'profil' && (
-      <div className="p-6 lg:p-8">
-        <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-2xl">
-          <h3 className="text-xl font-bold mb-6">{t('proDash.settings.profilProfessionnel')}</h3>
+      <div style={{ padding: '16px' }}>
+        {/* Two-column grid: profile left, settings right */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
-          {/* Message upload */}
-          {uploadMsg && (
-            <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
-              uploadMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-            }`}>
-              {uploadMsg.text}
-              <button onClick={() => setUploadMsg(null)} className="ml-auto text-gray-500 hover:text-gray-600">{'✕'}</button>
-            </div>
-          )}
+          {/* LEFT COLUMN */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Profile card */}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <div className="v22-card-title">{t('proDash.settings.profilProfessionnel')}</div>
+              </div>
+              <div className="v22-card-body">
+                {/* Upload message */}
+                {uploadMsg && (
+                  <div className={`v22-alert ${uploadMsg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {uploadMsg.text}
+                    <button onClick={() => setUploadMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-text-muted)', fontSize: 14 }}>{'✕'}</button>
+                  </div>
+                )}
 
-          <div className="space-y-5">
-            {/* Photo de profil */}
-            <div>
-              <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.photoProfil')}</label>
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gray-200 flex-shrink-0 bg-gray-100 flex items-center justify-center relative">
-                  {profilePhotoPreview ? (
-                    <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
-                  ) : (artisan as any)?.profile_photo_url ? (
-                    <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="80px" />
-                  ) : (
-                    <span className="text-3xl font-bold text-gray-500">{initials}</span>
-                  )}
+                {/* Avatar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    {profilePhotoPreview ? (
+                      <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
+                    ) : (artisan as any)?.profile_photo_url ? (
+                      <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="64px" />
+                    ) : (
+                      <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-text-muted)' }}>{initials}</span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} className="v22-btn v22-btn-sm">
+                      {'📷'} {t('proDash.settings.choisirPhoto')}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (!f) return
+                        setProfilePhotoFile(f)
+                        const reader = new FileReader()
+                        reader.onload = (ev) => setProfilePhotoPreview(ev.target?.result as string)
+                        reader.readAsDataURL(f)
+                      }} />
+                    </label>
+                    {profilePhotoFile && (
+                      <button
+                        onClick={() => {
+                          uploadDocument(profilePhotoFile, 'profiles', 'profile_photo_url', setProfilePhotoUploading)
+                          setProfilePhotoFile(null)
+                          setProfilePhotoPreview('')
+                        }}
+                        disabled={profilePhotoUploading}
+                        className="v22-btn v22-btn-primary v22-btn-sm"
+                        style={{ marginLeft: 6, opacity: profilePhotoUploading ? 0.5 : 1 }}
+                      >
+                        {profilePhotoUploading ? `⏳ ${t('proDash.settings.uploading')}` : `⬆️ ${t('proDash.settings.upload')}`}
+                      </button>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="cursor-pointer inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">
-                    {'📷'} {t('proDash.settings.choisirPhoto')}
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (!f) return
-                      setProfilePhotoFile(f)
-                      const reader = new FileReader()
-                      reader.onload = (ev) => setProfilePhotoPreview(ev.target?.result as string)
-                      reader.readAsDataURL(f)
-                    }} />
-                  </label>
-                  {profilePhotoFile && (
-                    <button
-                      onClick={() => {
-                        uploadDocument(profilePhotoFile, 'profiles', 'profile_photo_url', setProfilePhotoUploading)
-                        setProfilePhotoFile(null)
-                        setProfilePhotoPreview('')
-                      }}
-                      disabled={profilePhotoUploading}
-                      className="ml-2 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{t('proDash.settings.nomCompletEntreprise')}</label>
+                  <input type="text" value={settingsForm.company_name} onChange={(e) => setSettingsForm({...settingsForm, company_name: e.target.value})}
+                    className="v22-form-input" />
+                </div>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{t('proDash.settings.emailProfessionnel')}</label>
+                  <input type="email" value={settingsForm.email} onChange={(e) => setSettingsForm({...settingsForm, email: e.target.value})}
+                    className="v22-form-input" />
+                </div>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{t('proDash.settings.telephoneLabel')}</label>
+                  <input type="tel" value={settingsForm.phone} onChange={(e) => setSettingsForm({...settingsForm, phone: e.target.value})}
+                    className="v22-form-input" />
+                </div>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{t('proDash.settings.descriptionBio')}</label>
+                  <textarea value={settingsForm.bio} onChange={(e) => setSettingsForm({...settingsForm, bio: e.target.value})}
+                    rows={3} placeholder={t('proDash.settings.descriptionPlaceholder')}
+                    className="v22-form-input" style={{ resize: 'none' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Booking link card */}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <div className="v22-card-title">{t('proDash.settings.lienReservation')}</div>
+              </div>
+              <div className="v22-card-body">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
+                    className="v22-form-input" style={{ flex: 1, background: 'var(--v22-bg)', color: 'var(--v22-text-muted)', fontSize: 12 }} />
+                  <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); alert(t('proDash.settings.lienCopie')) }}
+                    className="v22-btn v22-btn-primary" style={{ whiteSpace: 'nowrap' }}>
+                    {'📋'} {t('proDash.settings.copier')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Auto-accept card */}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <div className="v22-card-title">{'📅'} {t('proDash.settings.parametresAgenda')}</div>
+              </div>
+              <div className="v22-card-body">
+                {/* Toggle auto-accept */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--v22-bg)', borderRadius: 6, marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{t('proDash.settings.validationAutoRdv')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                      {autoAccept ? t('proDash.settings.autoAcceptOn') : t('proDash.settings.autoAcceptOff')}
+                    </div>
+                  </div>
+                  <button onClick={toggleAutoAccept} style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: autoAccept ? 'var(--v22-green)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                    <div style={{ position: 'absolute', top: 2, width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', transition: 'left .2s', left: autoAccept ? 22 : 2 }} />
+                  </button>
+                </div>
+
+                {autoAccept && (
+                  <div style={{ padding: 12, background: 'var(--v22-green-light)', borderRadius: 6, border: '1px solid var(--v22-green)', marginBottom: 12 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 8 }}>{'⚙️'} {t('proDash.settings.optionsAutoAccept')}</div>
+                    <label className="v22-form-label">{t('proDash.settings.dureeBlocage')}</label>
+                    <select
+                      value={settingsForm.auto_block_duration_minutes}
+                      onChange={e => setSettingsForm({...settingsForm, auto_block_duration_minutes: parseInt(e.target.value)})}
+                      className="v22-form-input"
                     >
-                      {profilePhotoUploading ? `⏳ ${t('proDash.settings.uploading')}` : `⬆️ ${t('proDash.settings.upload')}`}
-                    </button>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">{t('proDash.settings.photoFormat')}</p>
+                      <option value={60}>{t('proDash.settings.heures1')}</option>
+                      <option value={120}>{t('proDash.settings.heures2')}</option>
+                      <option value={180}>{t('proDash.settings.heures3')}</option>
+                      <option value={240}>{t('proDash.settings.heures4')}</option>
+                      <option value={360}>{t('proDash.settings.heures6')}</option>
+                      <option value={480}>{t('proDash.settings.heures8')}</option>
+                    </select>
+                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.blocageInfo')}</span>
+                  </div>
+                )}
+
+                {/* Auto-reply */}
+                <div style={{ padding: 12, background: 'var(--v22-bg)', borderRadius: 6, marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 4 }}>{'💬'} {t('proDash.settings.reponseAuto')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 8 }}>{t('proDash.settings.reponseAutoDesc')}</div>
+                  <textarea
+                    value={settingsForm.auto_reply_message}
+                    onChange={e => setSettingsForm({...settingsForm, auto_reply_message: e.target.value})}
+                    rows={3}
+                    placeholder={t('proDash.settings.reponseAutoPlaceholder')}
+                    className="v22-form-input"
+                    style={{ resize: 'none' }}
+                  />
+                </div>
+
+                {/* Intervention radius */}
+                <div style={{ padding: 12, background: 'var(--v22-bg)', borderRadius: 6 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 8 }}>{'📍'} {t('proDash.settings.perimetreIntervention')}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="range"
+                      min={5}
+                      max={100}
+                      step={5}
+                      value={settingsForm.zone_radius_km}
+                      onChange={e => setSettingsForm({...settingsForm, zone_radius_km: parseInt(e.target.value)})}
+                      style={{ flex: 1, accentColor: 'var(--v22-yellow)' }}
+                    />
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--v22-text)', minWidth: 60, textAlign: 'right' }}>{settingsForm.zone_radius_km} km</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.rayonAutour')}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, paddingTop: 12 }}>
+                  <button onClick={saveSettings} disabled={savingSettings}
+                    className="v22-btn v22-btn-primary"
+                    style={{ opacity: savingSettings ? 0.5 : 1 }}>
+                    {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrerParametres')}`}
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.nomCompletEntreprise')}</label>
-              <input type="text" value={settingsForm.company_name} onChange={(e) => setSettingsForm({...settingsForm, company_name: e.target.value})}
-                className="w-full p-3 border-2 border-gray-200 rounded-lg text-base focus:border-[#FFC107] focus:outline-none" />
-            </div>
-            <div>
-              <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.emailProfessionnel')}</label>
-              <input type="email" value={settingsForm.email} onChange={(e) => setSettingsForm({...settingsForm, email: e.target.value})}
-                className="w-full p-3 border-2 border-gray-200 rounded-lg text-base focus:border-[#FFC107] focus:outline-none" />
-            </div>
-            <div>
-              <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.telephoneLabel')}</label>
-              <input type="tel" value={settingsForm.phone} onChange={(e) => setSettingsForm({...settingsForm, phone: e.target.value})}
-                className="w-full p-3 border-2 border-gray-200 rounded-lg text-base focus:border-[#FFC107] focus:outline-none" />
-            </div>
-            <div>
-              <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.descriptionBio')}</label>
-              <textarea value={settingsForm.bio} onChange={(e) => setSettingsForm({...settingsForm, bio: e.target.value})}
-                rows={3} placeholder={t('proDash.settings.descriptionPlaceholder')}
-                className="w-full p-3 border-2 border-gray-200 rounded-lg text-base focus:border-[#FFC107] focus:outline-none resize-none" />
-            </div>
-            <div>
-              <label className="block mb-2 font-semibold text-sm">{t('proDash.settings.lienReservation')}</label>
-              <div className="flex items-center gap-2">
-                <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600" />
-                <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); alert(t('proDash.settings.lienCopie')) }}
-                  className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-3 rounded-lg font-semibold text-sm transition whitespace-nowrap">
-                  {'📋'} {t('proDash.settings.copier')}
-                </button>
-              </div>
-            </div>
-            <div className="flex gap-3 pt-4">
-              <button onClick={saveSettings} disabled={savingSettings}
-                className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50">
-                {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrer')}`}
-              </button>
-            </div>
+            {/* Password change */}
+            <PasswordChangeCard />
           </div>
         </div>
-
-        {/* Agenda settings */}
-        <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm max-w-2xl mt-6">
-          <h3 className="text-xl font-bold mb-6">{'📅'} {t('proDash.settings.parametresAgenda')}</h3>
-          <div className="space-y-5">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <div>
-                <div className="font-semibold">{t('proDash.settings.validationAutoRdv')}</div>
-                <p className="text-sm text-gray-500">
-                  {autoAccept ? t('proDash.settings.autoAcceptOn') : t('proDash.settings.autoAcceptOff')}
-                </p>
-              </div>
-              <button onClick={toggleAutoAccept} className={`w-14 h-7 rounded-full relative transition-colors ${autoAccept ? 'bg-green-400' : 'bg-gray-300'}`}>
-                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${autoAccept ? 'translate-x-7' : 'translate-x-0.5'}`} />
-              </button>
-            </div>
-            {autoAccept && (
-              <div className="p-4 bg-green-50 rounded-xl border border-green-200">
-                <div className="font-semibold mb-2">{'⚙️'} {t('proDash.settings.optionsAutoAccept')}</div>
-                <label className="text-sm text-gray-600 block mb-1">{t('proDash.settings.dureeBlocage')}</label>
-                <select
-                  value={settingsForm.auto_block_duration_minutes}
-                  onChange={e => setSettingsForm({...settingsForm, auto_block_duration_minutes: parseInt(e.target.value)})}
-                  className="w-full border border-green-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:border-green-400"
-                >
-                  <option value={60}>{t('proDash.settings.heures1')}</option>
-                  <option value={120}>{t('proDash.settings.heures2')}</option>
-                  <option value={180}>{t('proDash.settings.heures3')}</option>
-                  <option value={240}>{t('proDash.settings.heures4')}</option>
-                  <option value={360}>{t('proDash.settings.heures6')}</option>
-                  <option value={480}>{t('proDash.settings.heures8')}</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">{t('proDash.settings.blocageInfo')}</p>
-              </div>
-            )}
-
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <div className="font-semibold mb-2">{'💬'} {t('proDash.settings.reponseAuto')}</div>
-              <p className="text-sm text-gray-500 mb-2">{t('proDash.settings.reponseAutoDesc')}</p>
-              <textarea
-                value={settingsForm.auto_reply_message}
-                onChange={e => setSettingsForm({...settingsForm, auto_reply_message: e.target.value})}
-                rows={3}
-                placeholder={t('proDash.settings.reponseAutoPlaceholder')}
-                className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
-              />
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl">
-              <div className="font-semibold mb-2">{'📍'} {t('proDash.settings.perimetreIntervention')}</div>
-              <div className="flex items-center gap-4">
-                <input
-                  type="range"
-                  min={5}
-                  max={100}
-                  step={5}
-                  value={settingsForm.zone_radius_km}
-                  onChange={e => setSettingsForm({...settingsForm, zone_radius_km: parseInt(e.target.value)})}
-                  className="flex-1 accent-[#FFC107]"
-                />
-                <span className="text-lg font-bold text-gray-900 min-w-[60px] text-right">{settingsForm.zone_radius_km} km</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">{t('proDash.settings.rayonAutour')}</p>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button onClick={saveSettings} disabled={savingSettings}
-                className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50">
-                {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrerParametres')}`}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Password change */}
-        <PasswordChangeCard />
       </div>
       )}
 
       {/* Modules */}
       {settingsTab === 'modules' && (
-        <div className="p-6 lg:p-8">
-          <div className="max-w-4xl mx-auto">
+        <div style={{ padding: 16 }}>
+          <div style={{ maxWidth: 960, margin: '0 auto' }}>
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">🧩 {t('proDash.settings.mesModules')}</h2>
-                <p className="text-sm text-gray-500 mt-1">{t('proDash.settings.modulesDesc')}</p>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--v22-text)' }}>🧩 {t('proDash.settings.mesModules')}</div>
+                <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.modulesDesc')}</div>
               </div>
-              <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-sm font-bold">
+              <span className="v22-tag v22-tag-yellow">
                 {ALL_MODULES.filter(m => !m.locked && isModuleEnabled(m.id)).length}/{ALL_MODULES.filter(m => !m.locked).length} {t('proDash.settings.actifs')}
-              </div>
+              </span>
             </div>
 
             {/* Module Cards Grid */}
-            <div className="space-y-6">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
                 { title: `📅 ${t('proDash.settings.activite')}`, keys: ['calendar', 'motifs', 'horaires'] },
                 { title: `💬 ${t('proDash.settings.communicationGroup')}`, keys: ['messages', 'clients'] },
@@ -358,25 +380,25 @@ export default function SettingsSection({
                 if (groupMods.length === 0) return null
                 return (
                   <div key={group.title}>
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">{group.title}</h3>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--v22-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{group.title}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                       {groupMods.map(mod => {
                         const enabled = isModuleEnabled(mod.id)
                         return (
-                          <div key={mod.id} className={`bg-white rounded-2xl p-4 border-2 transition-all ${enabled ? 'border-amber-300 shadow-sm' : 'border-gray-200 opacity-70'}`}>
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${enabled ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                          <div key={mod.id} className="v22-card" style={{ opacity: enabled ? 1 : 0.6, borderColor: enabled ? 'var(--v22-yellow-border)' : 'var(--v22-border)' }}>
+                            <div style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: enabled ? 'var(--v22-yellow-light)' : 'var(--v22-bg)' }}>
                                 {mod.icon}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-sm text-gray-900">{mod.label}</div>
-                                <div className="text-xs text-gray-500 mt-0.5">{mod.description}</div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{mod.label}</div>
+                                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{mod.description}</div>
                               </div>
                               <button
                                 onClick={() => toggleModule(mod.id)}
-                                className={`w-12 h-7 rounded-full transition-all relative flex-shrink-0 ${enabled ? 'bg-[#FFC107]' : 'bg-gray-200'}`}
+                                style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: enabled ? 'var(--v22-yellow)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}
                               >
-                                <div className="w-5 h-5 bg-white rounded-full shadow absolute top-1 transition-all" style={{ left: enabled ? '24px' : '4px' }} />
+                                <div style={{ width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', position: 'absolute', top: 2, transition: 'left .2s', left: enabled ? 22 : 2 }} />
                               </button>
                             </div>
                           </div>
@@ -388,21 +410,21 @@ export default function SettingsSection({
               })}
             </div>
 
-            {/* Ordre du menu */}
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-4">
+            {/* Menu order */}
+            <div className="v22-card" style={{ marginTop: 16 }}>
+              <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">↕️ {t('proDash.settings.ordreMenu')}</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{t('proDash.settings.ordreMenuDesc')}</p>
+                  <div className="v22-card-title">↕️ {t('proDash.settings.ordreMenu')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.ordreMenuDesc')}</div>
                 </div>
                 <button
                   onClick={() => saveModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))}
-                  className="text-xs text-gray-500 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition"
+                  className="v22-btn v22-btn-sm"
                 >
                   ↺ {t('proDash.settings.reinitialiser')}
                 </button>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {(() => {
                   const enabledMods = modulesConfig
                     .filter(c => c.enabled)
@@ -411,21 +433,21 @@ export default function SettingsSection({
                     const mod = ALL_MODULES.find(m => m.id === conf.id)
                     if (!mod) return null
                     return (
-                      <div key={mod.id} className="flex items-center gap-3 bg-white border-2 rounded-xl px-4 py-3 transition-all group border-amber-200 hover:border-amber-400">
-                        <span className="text-gray-300 group-hover:text-gray-500 select-none text-lg leading-none font-mono">⠿</span>
-                        <span className="text-xl w-6 text-center">{mod.icon}</span>
-                        <span className="flex-1 font-semibold text-sm text-gray-800">{mod.label}</span>
-                        <span className="text-xs text-gray-500 font-mono w-5 text-center">{idx + 1}</span>
-                        <div className="flex flex-col gap-0.5">
+                      <div key={mod.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', border: '1px solid var(--v22-yellow-border)', borderRadius: 6, background: 'var(--v22-surface)', transition: 'border-color .15s' }}>
+                        <span style={{ color: 'var(--v22-text-muted)', userSelect: 'none', fontSize: 16, lineHeight: 1, fontFamily: 'monospace' }}>⠿</span>
+                        <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{mod.icon}</span>
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{mod.label}</span>
+                        <span className="v22-ref" style={{ width: 20, textAlign: 'center' }}>{idx + 1}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <button
                             onClick={() => moveModule(mod.id, 'up')}
                             disabled={idx === 0}
-                            className="w-6 h-5 flex items-center justify-center rounded text-gray-500 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
+                            style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 3, border: 'none', background: 'none', cursor: idx === 0 ? 'not-allowed' : 'pointer', color: idx === 0 ? 'var(--v22-border)' : 'var(--v22-text-muted)', fontSize: 11, fontWeight: 700, opacity: idx === 0 ? 0.3 : 1 }}
                           >▲</button>
                           <button
                             onClick={() => moveModule(mod.id, 'down')}
                             disabled={idx === enabledMods.length - 1}
-                            className="w-6 h-5 flex items-center justify-center rounded text-gray-500 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs font-bold"
+                            style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 3, border: 'none', background: 'none', cursor: idx === enabledMods.length - 1 ? 'not-allowed' : 'pointer', color: idx === enabledMods.length - 1 ? 'var(--v22-border)' : 'var(--v22-text-muted)', fontSize: 11, fontWeight: 700, opacity: idx === enabledMods.length - 1 ? 0.3 : 1 }}
                           >▼</button>
                         </div>
                       </div>
@@ -436,12 +458,12 @@ export default function SettingsSection({
             </div>
 
             {/* Tip box */}
-            <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-4">
-              <div className="flex items-start gap-3">
-                <span className="text-xl">💡</span>
+            <div className="v22-alert v22-alert-amber" style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>💡</span>
                 <div>
-                  <div className="font-semibold text-amber-800 text-sm">{t('proDash.settings.astuce')}</div>
-                  <div className="text-xs text-amber-600 mt-0.5">{t('proDash.settings.astuceTexte')}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-amber)' }}>{t('proDash.settings.astuce')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.astuceTexte')}</div>
                 </div>
               </div>
             </div>

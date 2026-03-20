@@ -43,10 +43,10 @@ interface RapportIntervention {
 }
 
 const RAPPORT_STATUS_MAP = {
-  termine: { label: '✅ Terminé', color: 'bg-green-100 text-green-700' },
-  en_cours: { label: '🔄 En cours', color: 'bg-blue-100 text-blue-700' },
-  a_reprendre: { label: '⚠️ À reprendre', color: 'bg-amber-100 text-amber-700' },
-  sous_garantie: { label: '🛡️ Sous garantie', color: 'bg-purple-100 text-purple-700' },
+  termine: { label: '✅ Terminé', tagClass: 'v22-tag v22-tag-green' },
+  en_cours: { label: '🔄 En cours', tagClass: 'v22-tag v22-tag-gray' },
+  a_reprendre: { label: '⚠️ À reprendre', tagClass: 'v22-tag v22-tag-amber' },
+  sous_garantie: { label: '🛡️ Sous garantie', tagClass: 'v22-tag v22-tag-gray' },
 }
 
 export default function RapportsSection({ artisan, bookings, services }: { artisan: any; bookings: any[]; services: any[] }) {
@@ -620,96 +620,100 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
   const fv = (v: string | undefined) => v || ''
 
   return (
-    <div className="animate-fadeIn">
+    <div>
       {/* ── Header ── */}
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-        <div className="flex items-center justify-between flex-wrap gap-4 w-full">
-          <div>
-            <h1 className="text-xl font-semibold leading-tight">📋 Rapports d'Intervention</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Compte-rendus BTP, liés à vos interventions</p>
-          </div>
-          <button onClick={openNew} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2">
-            ➕ Nouveau rapport
-          </button>
+      <div className="v22-page-header">
+        <div>
+          <h1 className="v22-page-title">Rapports d&apos;Intervention</h1>
+          <p className="v22-page-sub">Compte-rendus BTP, lies a vos interventions</p>
         </div>
+        <button onClick={openNew} className="v22-btn v22-btn-primary">
+          + Nouveau rapport
+        </button>
       </div>
 
       {/* ── Form Modal ── */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl my-4">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
-              <h3 className="font-bold text-lg text-gray-900">
-                {editingId ? '✏️ Modifier le rapport' : '📋 Nouveau rapport d\'intervention'}
-              </h3>
-              <span className="text-sm font-mono text-gray-500">{fv(form.rapportNumber)}</span>
-              <button onClick={() => setShowForm(false)} className="text-gray-500 hover:text-gray-600 text-xl">✕</button>
+      <div className={`v22-modal-overlay${showForm ? ' open' : ''}`}>
+        {showForm && (
+          <div className="v22-modal" style={{ maxWidth: '720px' }}>
+            <div className="v22-modal-head">
+              <span className="v22-modal-title">
+                {editingId ? 'Modifier le rapport' : 'Nouveau rapport d\'intervention'}
+              </span>
+              <span className="v22-ref">{fv(form.rapportNumber)}</span>
+              <button onClick={() => setShowForm(false)} className="v22-modal-close">✕</button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Liaison intervention / mission */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <label className="block text-sm font-bold text-gray-700 mb-2">⚡ Import rapide : pré-remplir depuis</label>
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() => setImportSource('intervention')}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition ${importSource === 'intervention' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'}`}
-                  >
-                    🔧 Intervention client
-                  </button>
-                  <button
-                    onClick={() => setImportSource('mission')}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition ${importSource === 'mission' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'}`}
-                  >
-                    📋 Mission syndic / pro
-                  </button>
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">Import rapide : pre-remplir depuis</span>
                 </div>
-
-                {importSource === 'intervention' ? (
-                  <select
-                    onChange={e => linkBooking(e.target.value)}
-                    defaultValue=""
-                    className="w-full border-2 border-amber-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
-                  >
-                    <option value="">Sélectionner une intervention pour pré-remplir...</option>
-                    {[...bookings].filter(b => b.status === 'confirmed' || b.status === 'completed').slice(0, 20).map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.booking_date} {b.booking_time?.substring(0, 5)} — {b.services?.name || 'Intervention'} — {b.address || 'Adresse non définie'}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <>
-                    <select
-                      onChange={e => linkMission(e.target.value)}
-                      defaultValue=""
-                      className="w-full border-2 border-amber-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
+                <div className="v22-card-body" style={{ padding: '14px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                    <button
+                      onClick={() => setImportSource('intervention')}
+                      className={importSource === 'intervention' ? 'v22-btn v22-btn-primary' : 'v22-btn'}
+                      style={{ flex: 1 }}
                     >
-                      <option value="">Sélectionner une mission pour pré-remplir...</option>
-                      {availableMissions.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.source === 'syndic' ? '🏛️' : '🏢'} {m.titre || m.type || 'Mission'} — {m.immeuble || m.locataire || 'N/D'} — {m.dateIntervention || m.date || 'Date N/D'}
-                          {m.priorite === 'urgente' ? ' ⚠️ URGENT' : ''}
+                      Intervention client
+                    </button>
+                    <button
+                      onClick={() => setImportSource('mission')}
+                      className={importSource === 'mission' ? 'v22-btn v22-btn-primary' : 'v22-btn'}
+                      style={{ flex: 1 }}
+                    >
+                      Mission syndic / pro
+                    </button>
+                  </div>
+
+                  {importSource === 'intervention' ? (
+                    <select
+                      onChange={e => linkBooking(e.target.value)}
+                      defaultValue=""
+                      className="v22-form-input"
+                    >
+                      <option value="">Selectionner une intervention pour pre-remplir...</option>
+                      {[...bookings].filter(b => b.status === 'confirmed' || b.status === 'completed').slice(0, 20).map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.booking_date} {b.booking_time?.substring(0, 5)} — {b.services?.name || 'Intervention'} — {b.address || 'Adresse non definie'}
                         </option>
                       ))}
                     </select>
-                    {availableMissions.length === 0 && (
-                      <p className="text-xs text-gray-500 mt-2 italic">Aucune mission disponible. Les missions apparaissent ici depuis vos Ordres de Mission ou missions gestionnaire.</p>
-                    )}
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <select
+                        onChange={e => linkMission(e.target.value)}
+                        defaultValue=""
+                        className="v22-form-input"
+                      >
+                        <option value="">Selectionner une mission pour pre-remplir...</option>
+                        {availableMissions.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.source === 'syndic' ? '🏛️' : '🏢'} {m.titre || m.type || 'Mission'} — {m.immeuble || m.locataire || 'N/D'} — {m.dateIntervention || m.date || 'Date N/D'}
+                            {m.priorite === 'urgente' ? ' ⚠️ URGENT' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {availableMissions.length === 0 && (
+                        <p className="v22-card-meta" style={{ marginTop: '8px', fontStyle: 'italic' }}>Aucune mission disponible. Les missions apparaissent ici depuis vos Ordres de Mission ou missions gestionnaire.</p>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Réf. devis / facture + statut */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">📎 Lier à un Devis / Facture</label>
+              {/* Ref. devis / facture + statut */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Lier a un Devis / Facture</label>
                   <select
                     value={fv(form.refDevisFact)}
                     onChange={e => setForm(p => ({ ...p, refDevisFact: e.target.value }))}
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
+                    className="v22-form-input"
                   >
-                    <option value="">Aucun document lié</option>
+                    <option value="">Aucun document lie</option>
                     {(() => {
                       try {
                         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -719,7 +723,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                           .sort((a: any, b: any) => (b.savedAt || '').localeCompare(a.savedAt || ''))
                           .map((d: any) => (
                             <option key={d.docNumber} value={d.docNumber}>
-                              {d.docNumber} — {d.clientName || 'Client'} — {d.docType === 'devis' ? '📄 Devis' : '🧾 Facture'}
+                              {d.docNumber} — {d.clientName || 'Client'} — {d.docType === 'devis' ? 'Devis' : 'Facture'}
                             </option>
                           ))
                       } catch { return null }
@@ -727,356 +731,374 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                   </select>
                   <input type="text" value={fv(form.refDevisFact)} onChange={e => setForm(p => ({ ...p, refDevisFact: e.target.value }))}
                     placeholder="Ou saisir manuellement : DEV-2026-001"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs mt-2 focus:outline-none focus:border-[#FFC107] text-gray-500" />
+                    className="v22-form-input" style={{ marginTop: '6px' }} />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Statut</label>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Statut</label>
                   <select value={fv(form.status)} onChange={e => setForm(p => ({ ...p, status: e.target.value as any }))}
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] bg-white">
-                    <option value="termine">✅ Terminé</option>
-                    <option value="en_cours">🔄 En cours</option>
-                    <option value="a_reprendre">⚠️ À reprendre</option>
-                    <option value="sous_garantie">🛡️ Sous garantie</option>
+                    className="v22-form-input">
+                    <option value="termine">Termine</option>
+                    <option value="en_cours">En cours</option>
+                    <option value="a_reprendre">A reprendre</option>
+                    <option value="sous_garantie">Sous garantie</option>
                   </select>
                 </div>
               </div>
 
               {/* Section Client */}
-              <div className="border border-gray-200 rounded-xl p-4">
-                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">👤 Client</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Nom / Raison sociale *</label>
-                    <input type="text" value={fv(form.clientName)} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
-                      placeholder="Jean Dupont" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Téléphone</label>
-                    <input type="tel" value={fv(form.clientPhone)} onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
-                      placeholder="06 00 00 00 00" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Email</label>
-                    <input type="email" value={fv(form.clientEmail)} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))}
-                      placeholder="client@exemple.fr" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Adresse client</label>
-                    <input type="text" value={fv(form.clientAddress)} onChange={e => setForm(p => ({ ...p, clientAddress: e.target.value }))}
-                      placeholder="12 rue de la Paix, 13600..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">Client</span>
+                </div>
+                <div className="v22-card-body" style={{ padding: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Nom / Raison sociale *</label>
+                      <input type="text" value={fv(form.clientName)} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
+                        placeholder="Jean Dupont" className="v22-form-input" />
+                    </div>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Telephone</label>
+                      <input type="tel" value={fv(form.clientPhone)} onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
+                        placeholder="06 00 00 00 00" className="v22-form-input" />
+                    </div>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Email</label>
+                      <input type="email" value={fv(form.clientEmail)} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))}
+                        placeholder="client@exemple.fr" className="v22-form-input" />
+                    </div>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Adresse client</label>
+                      <input type="text" value={fv(form.clientAddress)} onChange={e => setForm(p => ({ ...p, clientAddress: e.target.value }))}
+                        placeholder="12 rue de la Paix, 13600..." className="v22-form-input" />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Section Intervention */}
-              <div className="border border-gray-200 rounded-xl p-4">
-                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">🗓 Détails de l'intervention</h4>
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Date *</label>
-                    <input type="date" value={fv(form.interventionDate)} onChange={e => setForm(p => ({ ...p, interventionDate: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Heure début</label>
-                    <input type="time" value={fv(form.startTime)} onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Heure fin</label>
-                    <input type="time" value={fv(form.endTime)} onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                  </div>
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">Details de l&apos;intervention</span>
                 </div>
-                <div className="mb-3">
-                  <label className="text-xs text-gray-500 mb-1 block">Adresse du chantier (si différente du client)</label>
-                  <input type="text" value={fv(form.siteAddress)} onChange={e => setForm(p => ({ ...p, siteAddress: e.target.value }))}
-                    placeholder="Adresse d'intervention..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Motif / Description du problème *</label>
-                  <textarea value={fv(form.motif)} onChange={e => setForm(p => ({ ...p, motif: e.target.value }))}
-                    rows={2} placeholder="Fuite sous évier cuisine, remplacement robinet défectueux..."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
+                <div className="v22-card-body" style={{ padding: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Date *</label>
+                      <input type="date" value={fv(form.interventionDate)} onChange={e => setForm(p => ({ ...p, interventionDate: e.target.value }))}
+                        className="v22-form-input" />
+                    </div>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Heure debut</label>
+                      <input type="time" value={fv(form.startTime)} onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
+                        className="v22-form-input" />
+                    </div>
+                    <div className="v22-form-group">
+                      <label className="v22-form-label">Heure fin</label>
+                      <input type="time" value={fv(form.endTime)} onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
+                        className="v22-form-input" />
+                    </div>
+                  </div>
+                  <div className="v22-form-group" style={{ marginBottom: '10px' }}>
+                    <label className="v22-form-label">Adresse du chantier (si differente du client)</label>
+                    <input type="text" value={fv(form.siteAddress)} onChange={e => setForm(p => ({ ...p, siteAddress: e.target.value }))}
+                      placeholder="Adresse d'intervention..." className="v22-form-input" />
+                  </div>
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">Motif / Description du probleme *</label>
+                    <textarea value={fv(form.motif)} onChange={e => setForm(p => ({ ...p, motif: e.target.value }))}
+                      rows={2} placeholder="Fuite sous evier cuisine, remplacement robinet defectueux..."
+                      className="v22-form-input" style={{ resize: 'none' }} />
+                  </div>
                 </div>
               </div>
 
-              {/* Travaux réalisés */}
-              <div className="border border-gray-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">🔧 Travaux réalisés</h4>
+              {/* Travaux realises */}
+              <div className="v22-card">
+                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="v22-card-title">Travaux realises</span>
                   <button onClick={() => setForm(p => ({ ...p, travaux: [...(p.travaux || []), ''] }))}
-                    className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition">
+                    className="v22-btn v22-btn-sm">
                     + Ajouter
                   </button>
                 </div>
-                {(form.travaux || ['']).map((t, i) => (
-                  <div key={i} className="flex gap-2 mb-2">
-                    <span className="text-gray-500 mt-2 text-sm">✓</span>
-                    <input type="text" value={t} onChange={e => setForm(p => ({ ...p, travaux: (p.travaux || []).map((x, j) => j === i ? e.target.value : x) }))}
-                      placeholder="Dépose et remplacement du robinet mitigeur..."
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                    {(form.travaux || []).length > 1 && (
-                      <button onClick={() => setForm(p => ({ ...p, travaux: (p.travaux || []).filter((_, j) => j !== i) }))}
-                        className="text-red-400 hover:text-red-600 px-2">✕</button>
-                    )}
-                  </div>
-                ))}
+                <div className="v22-card-body" style={{ padding: '14px' }}>
+                  {(form.travaux || ['']).map((t, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
+                      <span className="v22-card-meta">✓</span>
+                      <input type="text" value={t} onChange={e => setForm(p => ({ ...p, travaux: (p.travaux || []).map((x, j) => j === i ? e.target.value : x) }))}
+                        placeholder="Depose et remplacement du robinet mitigeur..."
+                        className="v22-form-input" style={{ flex: 1 }} />
+                      {(form.travaux || []).length > 1 && (
+                        <button onClick={() => setForm(p => ({ ...p, travaux: (p.travaux || []).filter((_, j) => j !== i) }))}
+                          className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Matériaux */}
-              <div className="border border-gray-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">🧱 Matériaux utilisés</h4>
+              {/* Materiaux */}
+              <div className="v22-card">
+                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="v22-card-title">Materiaux utilises</span>
                   <button onClick={() => setForm(p => ({ ...p, materiaux: [...(p.materiaux || []), ''] }))}
-                    className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1 rounded-lg hover:bg-amber-100 transition">
+                    className="v22-btn v22-btn-sm">
                     + Ajouter
                   </button>
                 </div>
-                {(form.materiaux || ['']).map((m, i) => (
-                  <div key={i} className="flex gap-2 mb-2">
-                    <span className="text-gray-500 mt-2 text-sm">—</span>
-                    <input type="text" value={m} onChange={e => setForm(p => ({ ...p, materiaux: (p.materiaux || []).map((x, j) => j === i ? e.target.value : x) }))}
-                      placeholder="Robinet mitigeur Grohe (1u), Joint 3/4 (2u)..."
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#FFC107]" />
-                    {(form.materiaux || []).length > 1 && (
-                      <button onClick={() => setForm(p => ({ ...p, materiaux: (p.materiaux || []).filter((_, j) => j !== i) }))}
-                        className="text-red-400 hover:text-red-600 px-2">✕</button>
-                    )}
-                  </div>
-                ))}
+                <div className="v22-card-body" style={{ padding: '14px' }}>
+                  {(form.materiaux || ['']).map((m, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
+                      <span className="v22-card-meta">—</span>
+                      <input type="text" value={m} onChange={e => setForm(p => ({ ...p, materiaux: (p.materiaux || []).map((x, j) => j === i ? e.target.value : x) }))}
+                        placeholder="Robinet mitigeur Grohe (1u), Joint 3/4 (2u)..."
+                        className="v22-form-input" style={{ flex: 1 }} />
+                      {(form.materiaux || []).length > 1 && (
+                        <button onClick={() => setForm(p => ({ ...p, materiaux: (p.materiaux || []).filter((_, j) => j !== i) }))}
+                          className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Observations + Recommandations */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">📝 Observations</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Observations</label>
                   <textarea value={fv(form.observations)} onChange={e => setForm(p => ({ ...p, observations: e.target.value }))}
-                    rows={3} placeholder="Constatations sur place, état du matériel existant..."
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
+                    rows={3} placeholder="Constatations sur place, etat du materiel existant..."
+                    className="v22-form-input" style={{ resize: 'none' }} />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">💡 Recommandations</label>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Recommandations</label>
                   <textarea value={fv(form.recommendations)} onChange={e => setForm(p => ({ ...p, recommendations: e.target.value }))}
-                    rows={3} placeholder="Travaux complémentaires conseillés, délai de révision..."
-                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
+                    rows={3} placeholder="Travaux complementaires conseilles, delai de revision..."
+                    className="v22-form-input" style={{ resize: 'none' }} />
                 </div>
               </div>
 
-              {/* 📸 Photos Chantier liées */}
-              <div className="border border-gray-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">📸 Photos Chantier</h4>
+              {/* Photos Chantier liees */}
+              <div className="v22-card">
+                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="v22-card-title">Photos Chantier</span>
                   <button
                     type="button"
                     onClick={() => { setShowPhotoPicker(!showPhotoPicker); if (!showPhotoPicker && availablePhotos.length === 0) loadAvailablePhotos() }}
-                    className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-100 transition font-semibold"
+                    className="v22-btn v22-btn-sm"
                   >
                     {showPhotoPicker ? (locale === 'pt' ? '✕ Fechar' : '✕ Fermer') : (locale === 'pt' ? '+ Adicionar fotos' : '+ Ajouter des photos')}
                   </button>
                 </div>
+                <div className="v22-card-body" style={{ padding: '14px' }}>
+                  {/* Photos deja liees */}
+                  {linkedPhotos.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                      {linkedPhotos.map(photoId => {
+                        const photo = availablePhotos.find(p => p.id === photoId)
+                        return (
+                          <div key={photoId} style={{ position: 'relative' }}>
+                            {photo ? (
+                              <Image src={photo.url} alt="Photo chantier" width={80} height={80} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '6px', border: '2px solid var(--v22-green)' }} unoptimized />
+                            ) : (
+                              <div style={{ width: '80px', height: '80px', background: 'var(--v22-bg)', borderRadius: '6px', border: '2px solid var(--v22-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>📸</div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => togglePhotoLink(photoId)}
+                              style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'var(--v22-red)', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
+                            >
+                              ✕
+                            </button>
+                            {photo?.lat && photo?.lng && (
+                              <div style={{ position: 'absolute', bottom: '2px', left: '2px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '8px', padding: '1px 4px', borderRadius: '3px' }}>GPS</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
 
-                {/* Photos déjà liées */}
-                {linkedPhotos.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {linkedPhotos.map(photoId => {
-                      const photo = availablePhotos.find(p => p.id === photoId)
-                      return (
-                        <div key={photoId} className="relative group">
-                          {photo ? (
-                            <Image src={photo.url} alt="Photo chantier" width={80} height={80} className="w-20 h-20 object-cover rounded-lg border-2 border-green-400" unoptimized />
-                          ) : (
-                            <div className="w-20 h-20 bg-gray-100 rounded-lg border-2 border-green-400 flex items-center justify-center text-xs text-gray-400">📸</div>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => togglePhotoLink(photoId)}
-                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                          >
-                            ✕
-                          </button>
-                          {photo?.lat && photo?.lng && (
-                            <div className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[8px] px-1 rounded">📍 GPS</div>
-                          )}
+                  {linkedPhotos.length === 0 && !showPhotoPicker && (
+                    <p className="v22-card-meta" style={{ fontStyle: 'italic' }}>Aucune photo liee. Ajoutez des photos chantier pour les inclure dans le rapport.</p>
+                  )}
+
+                  {/* Picker — grille de photos disponibles */}
+                  {showPhotoPicker && (
+                    <div style={{ background: 'var(--v22-bg)', borderRadius: '6px', padding: '10px', marginTop: '8px' }}>
+                      {photosLoading ? (
+                        <div className="v22-card-meta" style={{ textAlign: 'center', padding: '16px' }}>Chargement des photos...</div>
+                      ) : availablePhotos.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '16px' }}>
+                          <div style={{ fontSize: '24px', marginBottom: '4px' }}>📸</div>
+                          <p className="v22-card-meta">Aucune photo chantier disponible</p>
+                          <p className="v22-card-meta" style={{ marginTop: '2px' }}>Prenez des photos depuis l&apos;app mobile</p>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {linkedPhotos.length === 0 && !showPhotoPicker && (
-                  <p className="text-xs text-gray-400 italic">Aucune photo liée. Ajoutez des photos chantier pour les inclure dans le rapport.</p>
-                )}
-
-                {/* Picker — grille de photos disponibles */}
-                {showPhotoPicker && (
-                  <div className="bg-gray-50 rounded-xl p-3 mt-2">
-                    {photosLoading ? (
-                      <div className="text-center py-4 text-xs text-gray-400">Chargement des photos...</div>
-                    ) : availablePhotos.length === 0 ? (
-                      <div className="text-center py-4">
-                        <div className="text-2xl mb-1">📸</div>
-                        <p className="text-xs text-gray-500">Aucune photo chantier disponible</p>
-                        <p className="text-xs text-gray-400 mt-0.5">Prenez des photos depuis l&apos;app mobile</p>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-xs text-gray-500 mb-2 font-medium">Cliquez pour sélectionner / désélectionner :</p>
-                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
-                          {availablePhotos.map(photo => {
-                            const isLinked = linkedPhotos.includes(photo.id)
-                            return (
-                              <button
-                                type="button"
-                                key={photo.id}
-                                onClick={() => togglePhotoLink(photo.id)}
-                                className={`relative rounded-lg overflow-hidden border-2 transition ${
-                                  isLinked ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200 hover:border-amber-300'
-                                }`}
-                              >
-                                <Image src={photo.url} alt="" width={100} height={64} className="w-full h-16 object-cover" unoptimized />
-                                {isLinked && (
-                                  <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
-                                    <span className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">✓</span>
+                      ) : (
+                        <>
+                          <p className="v22-card-meta" style={{ marginBottom: '8px' }}>Cliquez pour selectionner / deselectionner :</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', maxHeight: '192px', overflowY: 'auto' }}>
+                            {availablePhotos.map(photo => {
+                              const isLinked = linkedPhotos.includes(photo.id)
+                              return (
+                                <button
+                                  type="button"
+                                  key={photo.id}
+                                  onClick={() => togglePhotoLink(photo.id)}
+                                  style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: isLinked ? '2px solid var(--v22-green)' : '2px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none' }}
+                                >
+                                  <Image src={photo.url} alt="" width={100} height={64} style={{ width: '100%', height: '64px', objectFit: 'cover', display: 'block' }} unoptimized />
+                                  {isLinked && (
+                                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <span style={{ background: 'var(--v22-green)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
+                                    </div>
+                                  )}
+                                  <div style={{ fontSize: '8px', color: 'var(--v22-text-muted)', padding: '2px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {new Date(photo.taken_at).toLocaleDateString(dateFmtLocale)}
                                   </div>
-                                )}
-                                <div className="text-[8px] text-gray-500 px-1 py-0.5 truncate">
-                                  {new Date(photo.taken_at).toLocaleDateString(dateFmtLocale)}
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2 text-right">{linkedPhotos.length} photo{linkedPhotos.length > 1 ? 's' : ''} sélectionnée{linkedPhotos.length > 1 ? 's' : ''}</p>
-                      </>
-                    )}
-                  </div>
-                )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="v22-card-meta" style={{ marginTop: '8px', textAlign: 'right' }}>{linkedPhotos.length} photo{linkedPhotos.length > 1 ? 's' : ''} selectionnee{linkedPhotos.length > 1 ? 's' : ''}</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="p-5 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white rounded-b-2xl">
-              <button onClick={() => setShowForm(false)} className="flex-1 border-2 border-gray-200 text-gray-600 rounded-xl py-3 font-semibold text-sm hover:bg-gray-50 transition">
+            <div className="v22-modal-foot">
+              <button onClick={() => setShowForm(false)} className="v22-btn" style={{ flex: 1 }}>
                 Annuler
               </button>
               <button onClick={saveForm} disabled={!form.clientName || !form.interventionDate || !form.motif}
-                className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl py-3 font-bold text-sm transition disabled:opacity-50">
-                {editingId ? '💾 Mettre à jour' : '✅ Créer le rapport'}
+                className="v22-btn v22-btn-primary" style={{ flex: 1, opacity: (!form.clientName || !form.interventionDate || !form.motif) ? 0.5 : 1 }}>
+                {editingId ? 'Mettre a jour' : 'Creer le rapport'}
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Compteurs ── */}
       {rapports.length > 0 && (
-        <div className="px-6 lg:px-8 pt-6">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl p-4 shadow-sm text-center">
-              <div className="text-2xl font-black text-[#2C3E50]">{rapports.length}</div>
-              <div className="text-xs text-gray-500">Total rapports</div>
+        <div style={{ padding: '16px 14px 0' }}>
+          <div className="v22-stats">
+            <div className="v22-stat">
+              <div className="v22-stat-val">{rapports.length}</div>
+              <div className="v22-stat-label">Total rapports</div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm text-center">
-              <div className="text-2xl font-black text-green-600">{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
-              <div className="text-xs text-gray-500">Envoyés</div>
+            <div className="v22-stat">
+              <div className="v22-stat-val" style={{ color: 'var(--v22-green)' }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
+              <div className="v22-stat-label">Envoyes</div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm text-center">
-              <div className="text-2xl font-black text-amber-600">{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
-              <div className="text-xs text-gray-500">Non envoyés</div>
+            <div className="v22-stat">
+              <div className="v22-stat-val" style={{ color: 'var(--v22-amber)' }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
+              <div className="v22-stat-label">Non envoyes</div>
             </div>
           </div>
         </div>
       )}
 
       {/* ── Rapport list ── */}
-      <div className="p-6 lg:p-8">
+      <div style={{ padding: '14px' }}>
         {rapports.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-xl font-bold text-gray-700 mb-2">Aucun rapport</h3>
-            <p className="text-gray-500 text-sm mb-6">Créez votre premier rapport d'intervention BTP</p>
-            <button onClick={openNew} className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition">
-              📋 Créer un rapport
+          <div className="v22-card" style={{ textAlign: 'center', padding: '48px 16px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+            <div className="v22-card-title" style={{ marginBottom: '6px' }}>Aucun rapport</div>
+            <p className="v22-card-meta" style={{ marginBottom: '16px' }}>Creez votre premier rapport d&apos;intervention BTP</p>
+            <button onClick={openNew} className="v22-btn v22-btn-primary">
+              Creer un rapport
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {rapports.map(r => {
-              const st = RAPPORT_STATUS_MAP[r.status] || RAPPORT_STATUS_MAP.termine
-              const duration = r.startTime && r.endTime ? (() => {
-                const [sh, sm] = r.startTime.split(':').map(Number)
-                const [eh, em] = r.endTime.split(':').map(Number)
-                const mins = (eh * 60 + em) - (sh * 60 + sm)
-                if (mins <= 0) return null
-                return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : '00'}`
-              })() : null
+          <div className="v22-card">
+            <div className="v22-card-head">
+              <span className="v22-card-title">Rapports ({rapports.length})</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ref</th>
+                  <th>Client</th>
+                  <th>Motif</th>
+                  <th>Date</th>
+                  <th>Statut</th>
+                  <th>Envoi</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rapports.map(r => {
+                  const st = RAPPORT_STATUS_MAP[r.status] || RAPPORT_STATUS_MAP.termine
+                  const duration = r.startTime && r.endTime ? (() => {
+                    const [sh, sm] = r.startTime.split(':').map(Number)
+                    const [eh, em] = r.endTime.split(':').map(Number)
+                    const mins = (eh * 60 + em) - (sh * 60 + sm)
+                    if (mins <= 0) return null
+                    return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : '00'}`
+                  })() : null
 
-              return (
-                <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      {/* Left info */}
-                      <div className="flex items-start gap-4 flex-1 min-w-0">
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex-shrink-0">
-                          <div className="text-xs font-bold text-amber-700 font-mono">{r.rapportNumber}</div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-bold text-gray-900">{r.clientName || 'Client non défini'}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${st.color}`}>{st.label}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${r.sentStatus === 'envoye' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
-                              {r.sentStatus === 'envoye' ? '✅ Envoyé' : '⏳ Non envoyé'}
-                            </span>
-                            {r.refDevisFact && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">📎 {r.refDevisFact}</span>}
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <span className="v22-ref">{r.rapportNumber}</span>
+                        {r.refDevisFact && <div className="v22-card-meta" style={{ marginTop: '2px' }}>{r.refDevisFact}</div>}
+                      </td>
+                      <td>
+                        <span className="v22-client-name">{r.clientName || 'Client non defini'}</span>
+                        {r.siteAddress && <div className="v22-card-meta">{r.siteAddress}</div>}
+                      </td>
+                      <td>
+                        <div style={{ maxWidth: '200px' }}>{r.motif}</div>
+                        {r.travaux?.filter(t => t).length > 0 && (
+                          <div className="v22-card-meta" style={{ marginTop: '2px' }}>
+                            {r.travaux.filter(t => t).slice(0, 2).map((t, i) => <span key={i} style={{ marginRight: '8px' }}>✓ {t}</span>)}
+                            {r.travaux.filter(t => t).length > 2 && <span>+{r.travaux.filter(t => t).length - 2}</span>}
                           </div>
-                          {r.sentAt && (
-                            <div className="text-[10px] text-gray-400 mb-0.5">
-                              📧 Envoyé le {new Date(r.sentAt).toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short', year: 'numeric' })} à {new Date(r.sentAt).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          )}
-                          <div className="text-sm text-gray-600 font-medium">{r.motif}</div>
-                          <div className="flex items-center gap-4 mt-1 flex-wrap text-xs text-gray-500">
-                            <span>📅 {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</span>
-                            {r.startTime && <span>🕐 {r.startTime}{r.endTime ? ` → ${r.endTime}` : ''}{duration ? ` (${duration})` : ''}</span>}
-                            {r.siteAddress && <span>📍 {r.siteAddress}</span>}
+                        )}
+                        {(r.linkedPhotoIds?.length || 0) > 0 && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span className="v22-tag v22-tag-gray">📸 {r.linkedPhotoIds!.length} photo{r.linkedPhotoIds!.length > 1 ? 's' : ''}</span>
                           </div>
-                          {r.travaux?.filter(t => t).length > 0 && (
-                            <div className="mt-2 text-xs text-gray-500">
-                              {r.travaux.filter(t => t).slice(0, 2).map((t, i) => <span key={i} className="mr-3">✓ {t}</span>)}
-                              {r.travaux.filter(t => t).length > 2 && <span className="text-gray-500">+{r.travaux.filter(t => t).length - 2} autres</span>}
-                            </div>
-                          )}
-                          {(r.linkedPhotoIds?.length || 0) > 0 && (
-                            <div className="mt-1.5">
-                              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
-                                📸 {r.linkedPhotoIds!.length} photo{r.linkedPhotoIds!.length > 1 ? 's' : ''} chantier
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex flex-col gap-2 flex-shrink-0">
-                        <div className="flex gap-2">
+                        )}
+                      </td>
+                      <td>
+                        {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                        {r.startTime && <div className="v22-card-meta">{r.startTime}{r.endTime ? ` → ${r.endTime}` : ''}{duration ? ` (${duration})` : ''}</div>}
+                      </td>
+                      <td><span className={st.tagClass}>{st.label}</span></td>
+                      <td>
+                        <span className={r.sentStatus === 'envoye' ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-gray'}>
+                          {r.sentStatus === 'envoye' ? 'Envoye' : 'Non envoye'}
+                        </span>
+                        {r.sentAt && (
+                          <div className="v22-card-meta" style={{ marginTop: '2px' }}>
+                            {new Date(r.sentAt).toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short' })}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => generatePDF(r)}
                             disabled={pdfLoading === r.id}
-                            className="bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 px-3 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1"
+                            className="v22-btn v22-btn-sm"
                           >
-                            {pdfLoading === r.id ? '⏳' : '📥 PDF'}
+                            {pdfLoading === r.id ? '⏳' : 'PDF'}
                           </button>
-                          <button onClick={() => openEdit(r)} className="bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-xl text-sm font-semibold transition">✏️</button>
-                          <button onClick={() => deleteRapport(r.id)} className="bg-red-50 border border-red-200 text-red-400 hover:bg-red-100 px-3 py-2 rounded-xl text-sm transition">🗑️</button>
-                        </div>
-                        <div className="flex gap-2">
+                          <button onClick={() => openEdit(r)} className="v22-btn v22-btn-sm">✏️</button>
+                          <button onClick={() => deleteRapport(r.id)} className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>🗑️</button>
                           {r.sentStatus !== 'envoye' && (
                             <button onClick={() => {
                               const now = new Date().toISOString()
                               saveRapports(rapports.map(x => x.id === r.id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
                             }}
-                              className="bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1">
-                              ✅ Marquer envoyé
+                              className="v22-btn v22-btn-sm">
+                              Marquer envoye
                             </button>
                           )}
                           {r.clientEmail && (
@@ -1087,17 +1109,17 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                               const now = new Date().toISOString()
                               saveRapports(rapports.map(x => x.id === r.id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
                             }}
-                              className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 px-3 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1">
-                              📧 Email
+                              className="v22-btn v22-btn-sm">
+                              Email
                             </button>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -1106,22 +1128,22 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
       {previewRapport && (
         <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff' }}>
           <div ref={pdfRef} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', color: '#1a1a1a', padding: '48px 48px 40px 48px', background: '#fff', width: '794px', boxSizing: 'border-box', lineHeight: '1.5' }}>
-            {/* En-tête bandeau */}
+            {/* En-tete bandeau */}
             <div style={{ backgroundColor: '#1E293B', margin: '-48px -48px 0 -48px', padding: '30px 48px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '24px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.3px' }}>RAPPORT D&apos;INTERVENTION</div>
                 <div style={{ fontSize: '13px', color: '#FFC107', fontWeight: '700', marginTop: '6px', letterSpacing: '1px' }}>{previewRapport.rapportNumber}</div>
                 <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '4px' }}>
-                  Établi le {new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
+                  Etabli le {new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
               </div>
               {previewRapport.refDevisFact && (
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>Réf : {previewRapport.refDevisFact}</div>
+                  <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>Ref : {previewRapport.refDevisFact}</div>
                 </div>
               )}
             </div>
-            {/* Bande jaune décorative */}
+            {/* Bande jaune decorative */}
             <div style={{ height: '4px', background: 'linear-gradient(90deg, #FFC107 0%, #FFD54F 50%, #FFC107 100%)', margin: '0 -48px 28px -48px' }}></div>
 
             {/* Artisan + Client */}
@@ -1133,7 +1155,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                 {previewRapport.artisanPhone && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.artisanPhone}</div>}
                 {previewRapport.artisanEmail && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.artisanEmail}</div>}
                 {previewRapport.artisanSiret && <div style={{ fontSize: '9px', color: '#94A3B8', marginTop: '6px' }}>SIRET : {previewRapport.artisanSiret}</div>}
-                {previewRapport.artisanInsurance && <div style={{ fontSize: '9px', color: '#94A3B8' }}>🛡️ {previewRapport.artisanInsurance}</div>}
+                {previewRapport.artisanInsurance && <div style={{ fontSize: '9px', color: '#94A3B8' }}>{previewRapport.artisanInsurance}</div>}
               </div>
               <div style={{ background: '#F8FAFC', borderLeft: '4px solid #FFC107', borderRadius: '0 10px 10px 0', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                 <div style={{ fontSize: '9px', fontWeight: '700', color: '#B45309', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>Client</div>
@@ -1144,16 +1166,16 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
               </div>
             </div>
 
-            {/* Détails intervention */}
+            {/* Details intervention */}
             <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '9px', fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '10px' }}>Détails de l&apos;intervention</div>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '10px' }}>Details de l&apos;intervention</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                 <div>
                   <div style={{ fontSize: '9px', color: '#6b7280' }}>Date</div>
                   <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.interventionDate ? new Date(previewRapport.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : '—'}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure début</div>
+                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure debut</div>
                   <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.startTime || '—'}</div>
                 </div>
                 <div>
@@ -1161,7 +1183,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                   <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.endTime || '—'}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Durée</div>
+                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Duree</div>
                   <div style={{ fontWeight: 'bold', fontSize: '11px' }}>
                     {previewRapport.startTime && previewRapport.endTime ? (() => {
                       const [sh, sm] = previewRapport.startTime.split(':').map(Number)
@@ -1194,7 +1216,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
             {previewRapport.travaux?.filter(t => t).length > 0 && (
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Travaux réalisés
+                  Travaux realises
                 </div>
                 <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC' }}>
                   {previewRapport.travaux.filter(t => t).map((t, i) => (
@@ -1207,11 +1229,11 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
               </div>
             )}
 
-            {/* Matériaux */}
+            {/* Materiaux */}
             {previewRapport.materiaux?.filter(m => m).length > 0 && (
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Matériaux utilisés
+                  Materiaux utilises
                 </div>
                 <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC' }}>
                   {previewRapport.materiaux.filter(m => m).map((m, i) => (
@@ -1268,7 +1290,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
 
             {/* Footer */}
             <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '2px solid #E2E8F0', textAlign: 'center', fontSize: '8px', color: '#94A3B8' }}>
-              {previewRapport.artisanName} — {previewRapport.artisanSiret ? `SIRET ${previewRapport.artisanSiret}` : ''} — Document généré par Vitfix Pro — {new Date().toLocaleDateString(dateFmtLocale)}
+              {previewRapport.artisanName} — {previewRapport.artisanSiret ? `SIRET ${previewRapport.artisanSiret}` : ''} — Document genere par Vitfix Pro — {new Date().toLocaleDateString(dateFmtLocale)}
             </div>
           </div>
         </div>
