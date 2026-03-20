@@ -29,25 +29,25 @@ const JOB_PRESETS_PT = [
 ]
 
 const STORE_COLORS: Record<string, string> = {
-  'Leroy Merlin': 'text-green-700 bg-green-50',
-  'Brico Dépôt': 'text-orange-700 bg-orange-50',
-  'Castorama': 'text-blue-700 bg-blue-50',
-  'Point P': 'text-red-700 bg-red-50',
-  'Cédéo': 'text-purple-700 bg-purple-50',
-  'Mr.Bricolage': 'text-yellow-700 bg-yellow-50',
-  'Brico Leclerc': 'text-teal-700 bg-teal-50',
-  'Amazon': 'text-orange-700 bg-orange-50',
-  'Amazon.fr': 'text-orange-700 bg-orange-50',
-  'ManoMano': 'text-blue-700 bg-blue-50',
-  'Toolstation': 'text-red-700 bg-red-50',
-  'Cdiscount': 'text-red-700 bg-red-50',
+  'Leroy Merlin': 'v22-tag v22-tag-green',
+  'Brico Dépôt': 'v22-tag v22-tag-amber',
+  'Castorama': 'v22-tag v22-tag-gray',
+  'Point P': 'v22-tag v22-tag-red',
+  'Cédéo': 'v22-tag v22-tag-gray',
+  'Mr.Bricolage': 'v22-tag v22-tag-yellow',
+  'Brico Leclerc': 'v22-tag v22-tag-green',
+  'Amazon': 'v22-tag v22-tag-amber',
+  'Amazon.fr': 'v22-tag v22-tag-amber',
+  'ManoMano': 'v22-tag v22-tag-gray',
+  'Toolstation': 'v22-tag v22-tag-red',
+  'Cdiscount': 'v22-tag v22-tag-red',
   // PT stores
-  'Leroy Merlin PT': 'text-green-700 bg-green-50',
-  'AKI': 'text-orange-700 bg-orange-50',
-  'Bricomarché': 'text-blue-700 bg-blue-50',
-  'Maxmat': 'text-red-700 bg-red-50',
-  'Wurth': 'text-red-700 bg-red-50',
-  'Sanitop': 'text-purple-700 bg-purple-50',
+  'Leroy Merlin PT': 'v22-tag v22-tag-green',
+  'AKI': 'v22-tag v22-tag-amber',
+  'Bricomarché': 'v22-tag v22-tag-gray',
+  'Maxmat': 'v22-tag v22-tag-red',
+  'Wurth': 'v22-tag v22-tag-red',
+  'Sanitop': 'v22-tag v22-tag-gray',
 }
 
 // ─── Coordonnées GPS des magasins physiques (marchés PT + FR) ───
@@ -308,32 +308,16 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
   }
 
   // ─── Logique fiscale selon statut artisan ────────────────────────────────
-  // Détermine si l'artisan est en franchise en base de TVA (auto-entrepreneur, ou EI sous seuil)
-  // Seuils 2024-2025 : 37 500€ CA pour services / 85 000€ pour ventes de marchandises
-  // Pour BTP (mixte prestation+fourniture) : seuil 37 500€ applicable
   const artisanLegalForm = (artisan?.legal_form || '').toLowerCase()
   const isAutoEntrepreneur = artisanLegalForm.includes('auto') || artisanLegalForm.includes('micro') || artisanLegalForm.includes('individuel')
-  // TVA applicable si l'artisan est en société (SARL/SAS/EURL) ou a explicitement activé la TVA
   const isAssujetti = artisanLegalForm.includes('sarl') || artisanLegalForm.includes('sas') || artisanLegalForm.includes('eurl') || artisanLegalForm.includes('sa ')
 
-  // Taux de TVA applicable sur la revente de matériaux BTP :
-  // - Travaux de rénovation logement > 2 ans : 10% (art. 279-0 bis CGI)
-  // - Travaux éco-rénovation éligibles (isolation, PAC) : 5.5% (art. 278-0 bis CGI)
-  // - Travaux en logement neuf ou local professionnel : 20%
-  // On utilise 10% par défaut (rénovation résidentielle = cas le plus courant)
-  const TVA_REVENTE = 10   // % TVA sur prestations+fournitures facturées au client
-  const TVA_ACHAT = 10     // % TVA incluse dans les prix TTC magasin (rénovation BTP)
-
-  // Prix de revente HT à facturer au client selon statut fiscal :
-  // AE/franchise : Prix achat TTC × (1 + marge%) → pas de TVA récupérée à l'achat
-  //               → le devis est en HT = TTC (TVA non applicable art. 293B CGI)
-  // Assujetti TVA : Prix achat TTC / (1 + TVA_ACHAT/100) = Prix achat HT artisan
-  //               → Prix revente HT = Prix achat HT × (1 + marge%)
-  //               → Le client paie HT + TVA 10% sur la prestation complète
+  const TVA_REVENTE = 10
+  const TVA_ACHAT = 10
 
   const getPrixAchatHT = (prixTTC: number) => {
-    if (isAssujetti) return prixTTC / (1 + TVA_ACHAT / 100)  // récupère la TVA achat
-    return prixTTC  // AE : supporte la TVA achat (non récupérable) → intégrer dans le coût
+    if (isAssujetti) return prixTTC / (1 + TVA_ACHAT / 100)
+    return prixTTC
   }
 
   const getPrixRevente = (prixTTC: number, markup: number) => {
@@ -341,9 +325,6 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     return prixBase * (1 + markup / 100)
   }
 
-  // Marge minimum recommandée : 25-35% (standard national artisans BTP, source CAPEB/FFB)
-  // Pour AE : marge doit couvrir TVA achat non récupérable (10%) + bénéfice réel ≥ 15%
-  // → recommandation min AE = 30%, min assujetti TVA = 25%
   const margeMinRecommandee = isAutoEntrepreneur ? 30 : 25
   const margeIsRentable = globalMarkup >= margeMinRecommandee
 
@@ -358,8 +339,6 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
         qty: m.qty,
         unit: m.unit || 'u',
         priceHT,
-        // AE : TVA non applicable → tvaRate = 0 et tvaEnabled = false dans le devis
-        // Assujetti : TVA 10% rénovation BTP (art. 279-0 bis CGI)
         tvaRate: isAssujetti ? TVA_REVENTE : 0,
         totalHT: Math.round(priceHT * m.qty * 100) / 100,
       }
@@ -382,49 +361,58 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
     ? [...new Set(currentResults.flatMap(m => m.prices.map(p => p.store)))].sort()
     : []
 
+  const getCategoryIcon = (cat: string) => {
+    if (cat === 'Sanitaire' || cat === 'Plomberie') return '🔧'
+    if (cat === 'Électricité') return '⚡'
+    if (cat === 'Chauffage') return '🌡️'
+    if (cat === 'Carrelage') return '🪟'
+    if (cat === 'Isolation' || cat === 'Maçonnerie') return '🧱'
+    if (cat === 'Menuiserie') return '🚪'
+    if (cat === 'Peinture') return '🎨'
+    if (cat === 'Toiture') return '🏠'
+    if (cat === 'Ventilation') return '💨'
+    return '📦'
+  }
+
   return (
-    <div className="animate-fadeIn">
+    <div>
       {/* Header */}
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-        <div className="flex items-center justify-between flex-wrap gap-3 w-full">
-          <div>
-            <h1 className="text-xl font-semibold leading-tight">{locale === 'pt' ? '🛒 Materiais & Preços' : '🛒 Matériaux & Prix'}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne'}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {userCity && (
-              <span className="text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-3 py-1.5 font-semibold">
-                📍 {userCity}
-              </span>
-            )}
-            <button
-              onClick={handleGeolocation}
-              disabled={geoLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${
-                userCity
-                  ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                  : 'border-[#FFC107] bg-[#FFC107]/10 text-gray-800 hover:bg-[#FFC107]/20'
-              }`}
-            >
-              {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
-            </button>
-          </div>
+      <div className="v22-page-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
+        <div style={{ flex: 1 }}>
+          <div className="v22-page-title">🛒 {locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}</div>
+          <div className="v22-page-sub">{locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne'}</div>
         </div>
-        {geoError && <p className="text-xs text-red-500 mt-2">⚠️ {geoError}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {userCity && (
+            <span className="v22-tag v22-tag-green" style={{ fontSize: '11px', padding: '4px 10px' }}>
+              📍 {userCity}
+            </span>
+          )}
+          <button
+            onClick={handleGeolocation}
+            disabled={geoLoading}
+            className={`v22-btn ${userCity ? '' : 'v22-btn-primary'} v22-btn-sm`}
+          >
+            {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
+          </button>
+        </div>
       </div>
+      {geoError && (
+        <div className="v22-alert v22-alert-red" style={{ marginBottom: '12px' }}>
+          <span>⚠️ {geoError}</span>
+        </div>
+      )}
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-100 px-6 lg:px-10 pt-4 pb-0">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-0">
+      <div style={{ padding: '14px 14px 0' }}>
+        <div className="v22-tabs" style={{ marginBottom: '14px' }}>
           {([
             { key: 'recherche', label: locale === 'pt' ? '🔍 Pesquisa' : '🔍 Recherche' },
             { key: 'historique', label: locale === 'pt' ? `📋 Histórico (${savedSearches.length})` : `📋 Historique (${savedSearches.length})` },
             { key: 'aide', label: locale === 'pt' ? '💡 Ajuda' : '💡 Aide' },
           ] as const).map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-                activeTab === t.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              }`}>
+              className={`v22-tab ${activeTab === t.key ? 'active' : ''}`}>
               {t.label}
             </button>
           ))}
@@ -433,51 +421,53 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
       {/* ── RECHERCHE TAB ── */}
       {activeTab === 'recherche' && (
-        <div className="p-6 lg:p-8">
+        <div style={{ padding: '14px' }}>
           {/* Mode toggle */}
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6 mx-auto">
-            <button
-              onClick={() => { setSearchMode('project'); setProductResults(null); setProductRecommendations('') }}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-                searchMode === 'project' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {locale === 'pt' ? '🏗️ Materiais obra' : '🏗️ Matériaux chantier'}
-            </button>
-            <button
-              onClick={() => { setSearchMode('product'); setCurrentResults(null); setCurrentEstimate(null) }}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-                searchMode === 'product' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {locale === 'pt' ? '🛍️ Pesquisa produto' : '🛍️ Recherche produit'}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <div className="v22-tabs">
+              <button
+                onClick={() => { setSearchMode('project'); setProductResults(null); setProductRecommendations('') }}
+                className={`v22-tab ${searchMode === 'project' ? 'active' : ''}`}>
+                {locale === 'pt' ? '🏗️ Materiais obra' : '🏗️ Matériaux chantier'}
+              </button>
+              <button
+                onClick={() => { setSearchMode('product'); setCurrentResults(null); setCurrentEstimate(null) }}
+                className={`v22-tab ${searchMode === 'product' ? 'active' : ''}`}>
+                {locale === 'pt' ? '🛍️ Pesquisa produto' : '🛍️ Recherche produit'}
+              </button>
+            </div>
           </div>
 
           {/* Welcome screen — project mode */}
           {!chatStarted && searchMode === 'project' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-[#FFC107]/40 rounded-2xl p-8 mb-6 text-center">
-                <div className="text-6xl mb-4">🛒</div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">{locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}</h2>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  {locale === 'pt'
-                    ? <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
-                    : <>Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong></>
-                  }
-                </p>
-                {!userCity && (
-                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
-                    {locale === 'pt' ? '💡 Ative a localização GPS para resultados adaptados à sua região' : '💡 Activez la localisation GPS pour des résultats adaptés à votre région'}
-                  </div>
-                )}
+            <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+              <div className="v22-card" style={{ marginBottom: '16px', textAlign: 'center' }}>
+                <div className="v22-card-body" style={{ padding: '24px' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛒</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}</div>
+                  <p style={{ fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
+                    {locale === 'pt'
+                      ? <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
+                      : <>Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong></>
+                    }
+                  </p>
+                  {!userCity && (
+                    <div className="v22-alert v22-alert-amber" style={{ marginTop: '12px', cursor: 'default' }}>
+                      <span>{locale === 'pt' ? '💡 Ative a localização GPS para resultados adaptados à sua região' : '💡 Activez la localisation GPS pour des résultats adaptés à votre région'}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Quick presets */}
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">{locale === 'pt' ? 'Intervenções comuns' : 'Interventions courantes'}</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div style={{ marginBottom: '16px' }}>
+                <div className="v22-form-label" style={{ marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {locale === 'pt' ? 'Intervenções comuns' : 'Interventions courantes'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px' }}>
                   {(locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
-                      className="bg-white border-2 border-gray-200 hover:border-[#FFC107] hover:-translate-y-0.5 text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm">
+                      className="v22-btn" style={{ textAlign: 'left', padding: '10px 12px' }}>
                       {p.label}
                     </button>
                   ))}
@@ -488,24 +478,28 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
           {/* Welcome screen — product mode */}
           {!chatStarted && searchMode === 'product' && (
-            <div className="max-w-2xl mx-auto">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300/40 rounded-2xl p-8 mb-6 text-center">
-                <div className="text-6xl mb-4">🛍️</div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">{locale === 'pt' ? 'Pesquisa Produto' : 'Recherche Produit'}</h2>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  {locale === 'pt'
-                    ? <>Pesquise uma ferramenta ou produto específico. O agente analisa as lojas online <strong>(Amazon, ManoMano, Leroy Merlin PT, AKI…)</strong> e mostra os melhores preços com links de compra diretos.</>
-                    : <>Recherchez un outil ou produit spécifique. L&apos;agent scanne les boutiques en ligne <strong>(Amazon, ManoMano, Leroy Merlin, Castorama…)</strong> et affiche les meilleurs prix avec des liens d&apos;achat directs.</>
-                  }
-                </p>
+            <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+              <div className="v22-card" style={{ marginBottom: '16px', textAlign: 'center' }}>
+                <div className="v22-card-body" style={{ padding: '24px' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛍️</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{locale === 'pt' ? 'Pesquisa Produto' : 'Recherche Produit'}</div>
+                  <p style={{ fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
+                    {locale === 'pt'
+                      ? <>Pesquise uma ferramenta ou produto específico. O agente analisa as lojas online <strong>(Amazon, ManoMano, Leroy Merlin PT, AKI…)</strong> e mostra os melhores preços com links de compra diretos.</>
+                      : <>Recherchez un outil ou produit spécifique. L&apos;agent scanne les boutiques en ligne <strong>(Amazon, ManoMano, Leroy Merlin, Castorama…)</strong> et affiche les meilleurs prix avec des liens d&apos;achat directs.</>
+                    }
+                  </p>
+                </div>
               </div>
 
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">{locale === 'pt' ? 'Pesquisas populares' : 'Recherches populaires'}</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div style={{ marginBottom: '16px' }}>
+                <div className="v22-form-label" style={{ marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {locale === 'pt' ? 'Pesquisas populares' : 'Recherches populaires'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px' }}>
                   {(locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
-                      className="bg-white border-2 border-gray-200 hover:border-blue-400 hover:-translate-y-0.5 text-left px-4 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm">
+                      className="v22-btn" style={{ textAlign: 'left', padding: '10px 12px' }}>
                       {p.label}
                     </button>
                   ))}
@@ -516,18 +510,15 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
           {/* Chat messages */}
           {chatStarted && (
-            <div className="max-w-3xl mx-auto">
-              <div className="space-y-4 mb-6">
+            <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
                 {messages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '8px' }}>
                     {msg.role === 'assistant' && (
-                      <div className="w-8 h-8 bg-[#FFC107] rounded-xl flex items-center justify-center text-lg mr-2 flex-shrink-0 mt-1">🛒</div>
+                      <div className="v22-chat-avatar">🛒</div>
                     )}
-                    <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-[#FFC107] text-gray-900 font-medium rounded-tr-sm'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
-                    }`}
+                    <div
+                      className={`v22-chat-bubble ${msg.role === 'user' ? 'v22-chat-bubble-user' : 'v22-chat-bubble-assistant'}`}
                       dangerouslySetInnerHTML={{ __html: formatMsg(msg.content) }}
                     />
                   </div>
@@ -535,139 +526,133 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
                 {/* Loading */}
                 {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="w-8 h-8 bg-[#FFC107] rounded-xl flex items-center justify-center text-lg mr-2 flex-shrink-0">🛒</div>
-                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-5 py-3 shadow-sm">
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span className="flex gap-1">
-                          <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-2 h-2 bg-[#FFC107] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </span>
-                        <span>{searchMode === 'product'
-                          ? (locale === 'pt' ? 'A pesquisar o produto nas lojas online...' : 'Recherche du produit sur les boutiques en ligne...')
-                          : (locale === 'pt' ? 'A pesquisar materiais e preços...' : 'Recherche des matériaux et prix en cours...')}</span>
-                      </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div className="v22-chat-avatar">🛒</div>
+                    <div className="v22-chat-bubble v22-chat-bubble-assistant" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ display: 'flex', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', background: 'var(--v22-yellow)', borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '0ms' }} />
+                        <span style={{ width: '6px', height: '6px', background: 'var(--v22-yellow)', borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '150ms' }} />
+                        <span style={{ width: '6px', height: '6px', background: 'var(--v22-yellow)', borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '300ms' }} />
+                      </span>
+                      <span style={{ color: 'var(--v22-text-muted)', fontSize: '11px' }}>{searchMode === 'product'
+                        ? (locale === 'pt' ? 'A pesquisar o produto nas lojas online...' : 'Recherche du produit sur les boutiques en ligne...')
+                        : (locale === 'pt' ? 'A pesquisar materiais e preços...' : 'Recherche des matériaux et prix en cours...')}</span>
                     </div>
                   </div>
                 )}
 
                 {/* Résultats matériaux */}
                 {currentResults && currentResults.length > 0 && !isLoading && (
-                  <div className="space-y-4">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {isFallback && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 flex gap-2">
+                      <div className="v22-alert v22-alert-amber">
                         <span>⚠️</span>
                         <span>{locale === 'pt' ? 'Preços estimados (sem pesquisa web em tempo real). Ative Tavily para preços atualizados.' : 'Prix estimés (sans recherche web en temps réel). Activez Tavily pour des prix actualisés.'}</span>
                       </div>
                     )}
 
                     {/* Cards matériaux */}
-                    <div className="grid gap-3">
-                      {currentResults.map((m, i) => (
-                        <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                          {/* Header matériau */}
-                          <div className="flex items-center gap-3 px-5 py-3 bg-gray-50 border-b border-gray-100">
-                            <span className="text-2xl">{
-                              m.category === 'Sanitaire' || m.category === 'Plomberie' ? '🔧'
-                              : m.category === 'Électricité' ? '⚡'
-                              : m.category === 'Chauffage' ? '🌡️'
-                              : m.category === 'Carrelage' ? '🪟'
-                              : m.category === 'Isolation' ? '🧱'
-                              : m.category === 'Menuiserie' ? '🚪'
-                              : m.category === 'Peinture' ? '🎨'
-                              : m.category === 'Maçonnerie' ? '🧱'
-                              : m.category === 'Toiture' ? '🏠'
-                              : m.category === 'Ventilation' ? '💨'
-                              : '📦'
-                            }</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-bold text-gray-900">{m.name}</div>
-                              <div className="text-xs text-gray-500">{m.qty} {m.unit} · {m.category}</div>
-                            </div>
-                            {m.bestPrice && (
-                              <div className="text-right flex-shrink-0">
-                                <div className="text-lg font-black text-green-600">{m.bestPrice.price} €</div>
-                                <div className="text-xs text-gray-500">
-                                  {m.qty > 1 ? `${m.bestPrice.price} x ${m.qty} = ${Math.round(m.bestPrice.price * m.qty)} €` : (locale === 'pt' ? 'Melhor preço' : 'Meilleur prix')}
-                                </div>
-                              </div>
-                            )}
+                    {currentResults.map((m, i) => (
+                      <div key={i} className="v22-card">
+                        {/* Header matériau */}
+                        <div className="v22-card-head" style={{ gap: '10px' }}>
+                          <span style={{ fontSize: '18px' }}>{getCategoryIcon(m.category)}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, color: 'var(--v22-text)' }}>{m.name}</div>
+                            <div className="v22-ref">{m.qty} {m.unit} · {m.category}</div>
                           </div>
-
-                          {/* Prix par enseigne */}
-                          {m.prices.length > 0 ? (
-                            (() => {
-                              const sorted = [...m.prices].filter(p => p.price > 0).sort((a, b) => a.price - b.price)
-                              const bestP = sorted[0]?.price || 0
-                              const worstP = sorted[sorted.length - 1]?.price || 0
-                              return (
-                                <div className="divide-y divide-gray-50">
-                                  {sorted.map((p, j) => {
-                                    const isBest = bestP > 0 && p.price === bestP
-                                    const isWorst = sorted.length > 1 && p.price === worstP && worstP !== bestP
-                                    const ecartPct = bestP > 0 && !isBest ? Math.round(((p.price - bestP) / bestP) * 100) : 0
-                                    return (
-                                      <div key={j} className={`flex items-center gap-3 px-5 py-2.5 ${
-                                        isBest ? 'bg-green-50' : isWorst ? 'bg-red-50/40' : ''
-                                      }`}>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
-                                          {p.store}
-                                          {userCoords && (() => {
-                                            const nearest = getNearestStore(p.store, userCoords.lat, userCoords.lng)
-                                            return nearest ? <span className="ml-1 opacity-70">({nearest.distance} km)</span> : null
-                                          })()}
-                                        </span>
-                                        <div className="flex-1" />
-                                        {m.qty > 1 && (
-                                          <span className="text-xs text-gray-400 mr-2">{p.price} x {m.qty} = {Math.round(p.price * m.qty)} €</span>
-                                        )}
-                                        <span className={`font-bold text-base ${
-                                          isBest ? 'text-green-700' : isWorst ? 'text-red-600' : 'text-gray-700'
-                                        }`}>
-                                          {p.price} €
-                                        </span>
-                                        {isBest && <span className="text-green-600 text-xs font-bold">{locale === 'pt' ? 'Melhor' : 'Meilleur'}</span>}
-                                        {!isBest && ecartPct > 0 && (
-                                          <span className={`text-xs font-semibold ${isWorst ? 'text-red-500' : 'text-gray-400'}`}>+{ecartPct}%</span>
-                                        )}
-                                        {p.url && (
-                                          <a href={p.url} target="_blank" rel="noopener noreferrer"
-                                            className="text-blue-500 hover:text-blue-700 text-xs underline ml-1">{locale === 'pt' ? 'Ver' : 'Voir'}</a>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })()
-                          ) : (
-                            <div className="px-5 py-3 text-sm text-gray-500 italic">{locale === 'pt' ? 'Preços não encontrados — verifique manualmente' : 'Prix non trouvés — vérifiez manuellement'}</div>
-                          )}
-
-                          {/* Normes applicables */}
-                          {(m.norms?.length > 0 || m.normDetails) && (
-                            <div className="px-5 py-3 bg-amber-50 border-t border-amber-100">
-                              {m.norms?.length > 0 && (
-                                <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                                  <span className="text-xs font-bold text-amber-700">{locale === 'pt' ? '📋 Normas:' : '📋 Normes :'}</span>
-                                  {m.norms.map((n: string, ni: number) => (
-                                    <span key={ni} className="text-xs bg-amber-100 border border-amber-300 text-amber-800 px-2 py-0.5 rounded-full font-mono font-semibold">
-                                      {n}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              {m.normDetails && (
-                                <p className="text-xs text-amber-700 leading-relaxed">
-                                  ⚠️ {m.normDetails}
-                                </p>
-                              )}
+                          {m.bestPrice && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div className="v22-amount" style={{ fontSize: '16px', color: 'var(--v22-green)' }}>{m.bestPrice.price} €</div>
+                              <div className="v22-ref">
+                                {m.qty > 1 ? `${m.bestPrice.price} x ${m.qty} = ${Math.round(m.bestPrice.price * m.qty)} €` : (locale === 'pt' ? 'Melhor preço' : 'Meilleur prix')}
+                              </div>
                             </div>
                           )}
                         </div>
-                      ))}
-                    </div>
+
+                        {/* Prix par enseigne */}
+                        {m.prices.length > 0 ? (
+                          (() => {
+                            const sorted = [...m.prices].filter(p => p.price > 0).sort((a, b) => a.price - b.price)
+                            const bestP = sorted[0]?.price || 0
+                            const worstP = sorted[sorted.length - 1]?.price || 0
+                            return (
+                              <div className="v22-card-body" style={{ padding: 0 }}>
+                                <table>
+                                  <tbody>
+                                    {sorted.map((p, j) => {
+                                      const isBest = bestP > 0 && p.price === bestP
+                                      const isWorst = sorted.length > 1 && p.price === worstP && worstP !== bestP
+                                      const ecartPct = bestP > 0 && !isBest ? Math.round(((p.price - bestP) / bestP) * 100) : 0
+                                      return (
+                                        <tr key={j} style={isBest ? { background: 'var(--v22-green-light)' } : isWorst ? { background: 'var(--v22-red-light)' } : undefined}>
+                                          <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                            <span className={STORE_COLORS[p.store] || 'v22-tag v22-tag-gray'}>
+                                              {p.store}
+                                              {userCoords && (() => {
+                                                const nearest = getNearestStore(p.store, userCoords.lat, userCoords.lng)
+                                                return nearest ? <span style={{ opacity: 0.7, marginLeft: '4px' }}>({nearest.distance} km)</span> : null
+                                              })()}
+                                            </span>
+                                          </td>
+                                          <td className="v22-ref" style={{ textAlign: 'right' }}>
+                                            {m.qty > 1 && <span>{p.price} x {m.qty} = {Math.round(p.price * m.qty)} €</span>}
+                                          </td>
+                                          <td className="v22-amount" style={{
+                                            color: isBest ? 'var(--v22-green)' : isWorst ? 'var(--v22-red)' : 'var(--v22-text)',
+                                            fontWeight: 600,
+                                            width: '1%',
+                                            whiteSpace: 'nowrap',
+                                          }}>
+                                            {p.price} €
+                                          </td>
+                                          <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                            {isBest && <span className="v22-tag v22-tag-green">{locale === 'pt' ? 'Melhor' : 'Meilleur'}</span>}
+                                            {!isBest && ecartPct > 0 && (
+                                              <span className={`v22-tag ${isWorst ? 'v22-tag-red' : 'v22-tag-gray'}`}>+{ecartPct}%</span>
+                                            )}
+                                          </td>
+                                          <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                            {p.url && (
+                                              <a href={p.url} target="_blank" rel="noopener noreferrer"
+                                                className="v22-btn v22-btn-sm" style={{ textDecoration: 'none' }}>{locale === 'pt' ? 'Ver' : 'Voir'}</a>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )
+                          })()
+                        ) : (
+                          <div className="v22-card-body">
+                            <span className="v22-ref" style={{ fontStyle: 'italic' }}>{locale === 'pt' ? 'Preços não encontrados — verifique manualmente' : 'Prix non trouvés — vérifiez manuellement'}</span>
+                          </div>
+                        )}
+
+                        {/* Normes applicables */}
+                        {(m.norms?.length > 0 || m.normDetails) && (
+                          <div style={{ padding: '10px 14px', background: 'var(--v22-amber-light)', borderTop: '1px solid var(--v22-border)' }}>
+                            {m.norms?.length > 0 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--v22-amber)' }}>📋 {locale === 'pt' ? 'Normas:' : 'Normes :'}</span>
+                                {m.norms.map((n: string, ni: number) => (
+                                  <span key={ni} className="v22-tag v22-tag-amber v22-mono">{n}</span>
+                                ))}
+                              </div>
+                            )}
+                            {m.normDetails && (
+                              <p style={{ fontSize: '11px', color: 'var(--v22-amber)', lineHeight: 1.5 }}>
+                                ⚠️ {m.normDetails}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
 
                     {/* Tableau comparatif si plusieurs enseignes */}
                     {allStores.length > 1 && (
@@ -683,234 +668,263 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                         const bestStoreTotal = Math.min(...storeTotals.filter(st => st.coverage === currentResults!.length && st.total > 0).map(st => st.total))
                         const worstStoreTotal = Math.max(...storeTotals.filter(st => st.total > 0).map(st => st.total))
                         return (
-                      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                        <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 font-bold text-sm text-gray-700">
-                          {locale === 'pt' ? '📊 Comparativo por loja' : '📊 Comparatif par enseigne'}
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-gray-100">
-                                <th className="text-left px-4 py-2 text-gray-500 font-semibold">{locale === 'pt' ? 'Material' : 'Matériau'}</th>
-                                <th className="text-center px-2 py-2 text-gray-400 font-semibold text-xs">{locale === 'pt' ? 'Qtd' : 'Qté'}</th>
-                                {allStores.map(s => {
-                                  const nearest = userCoords ? getNearestStore(s, userCoords.lat, userCoords.lng) : null
-                                  return (
-                                    <th key={s} className="text-right px-4 py-2 text-gray-500 font-semibold whitespace-nowrap">
-                                      {s}{nearest ? <span className="font-normal text-xs text-gray-400 ml-1">({nearest.distance} km)</span> : null}
-                                    </th>
-                                  )
-                                })}
-                                <th className="text-right px-4 py-2 text-green-600 font-semibold">{locale === 'pt' ? 'Melhor' : 'Meilleur'}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {currentResults.map((m, i) => {
-                                const sortedPrices = [...m.prices].filter(p => p.price > 0).sort((a, b) => a.price - b.price)
-                                const rowBest = sortedPrices[0]?.price || 0
-                                const rowWorst = sortedPrices[sortedPrices.length - 1]?.price || 0
-                                return (
-                                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                                  <td className="px-4 py-2 text-gray-800 font-medium max-w-[200px] truncate">{m.name}</td>
-                                  <td className="text-center px-2 py-2 text-gray-400 text-xs">{m.qty} {m.unit}</td>
-                                  {allStores.map(s => {
-                                    const p = m.prices.find(pr => pr.store === s)
-                                    const isBest = p && p.price === rowBest && rowBest > 0
-                                    const isWorst = p && p.price === rowWorst && rowWorst !== rowBest && sortedPrices.length > 1
-                                    const ecart = rowBest > 0 && p && p.price > rowBest ? Math.round(((p.price - rowBest) / rowBest) * 100) : 0
+                          <div className="v22-card">
+                            <div className="v22-card-head">
+                              <div className="v22-card-title">{locale === 'pt' ? '📊 Comparativo por loja' : '📊 Comparatif par enseigne'}</div>
+                            </div>
+                            <div style={{ overflowX: 'auto' }}>
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th style={{ textAlign: 'left' }}>{locale === 'pt' ? 'Material' : 'Matériau'}</th>
+                                    <th style={{ textAlign: 'center' }}>{locale === 'pt' ? 'Qtd' : 'Qté'}</th>
+                                    {allStores.map(s => {
+                                      const nearest = userCoords ? getNearestStore(s, userCoords.lat, userCoords.lng) : null
+                                      return (
+                                        <th key={s} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                          {s}{nearest ? <span className="v22-ref" style={{ marginLeft: '4px' }}>({nearest.distance} km)</span> : null}
+                                        </th>
+                                      )
+                                    })}
+                                    <th style={{ textAlign: 'right', color: 'var(--v22-green)' }}>{locale === 'pt' ? 'Melhor' : 'Meilleur'}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {currentResults.map((m, i) => {
+                                    const sortedPrices = [...m.prices].filter(p => p.price > 0).sort((a, b) => a.price - b.price)
+                                    const rowBest = sortedPrices[0]?.price || 0
+                                    const rowWorst = sortedPrices[sortedPrices.length - 1]?.price || 0
                                     return (
-                                      <td key={s} className={`text-right px-4 py-2 font-semibold ${
-                                        isBest ? 'text-green-700 bg-green-50' : isWorst ? 'text-red-600 bg-red-50/40' : p ? 'text-gray-700' : 'text-gray-300'
-                                      }`}>
-                                        {p ? (
-                                          <span>
-                                            {m.qty > 1 ? `${Math.round(p.price * m.qty)}` : p.price} €
-                                            {ecart > 0 && <span className={`text-xs ml-1 ${isWorst ? 'text-red-400' : 'text-gray-400'}`}>+{ecart}%</span>}
-                                          </span>
-                                        ) : '—'}
-                                      </td>
+                                      <tr key={i}>
+                                        <td style={{ fontWeight: 500, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</td>
+                                        <td className="v22-ref" style={{ textAlign: 'center' }}>{m.qty} {m.unit}</td>
+                                        {allStores.map(s => {
+                                          const p = m.prices.find(pr => pr.store === s)
+                                          const isBest = p && p.price === rowBest && rowBest > 0
+                                          const isWorst = p && p.price === rowWorst && rowWorst !== rowBest && sortedPrices.length > 1
+                                          const ecart = rowBest > 0 && p && p.price > rowBest ? Math.round(((p.price - rowBest) / rowBest) * 100) : 0
+                                          return (
+                                            <td key={s} className="v22-amount" style={{
+                                              color: isBest ? 'var(--v22-green)' : isWorst ? 'var(--v22-red)' : p ? 'var(--v22-text)' : 'var(--v22-text-muted)',
+                                              background: isBest ? 'var(--v22-green-light)' : isWorst ? 'var(--v22-red-light)' : undefined,
+                                              fontWeight: isBest || isWorst ? 600 : 400,
+                                            }}>
+                                              {p ? (
+                                                <span>
+                                                  {m.qty > 1 ? `${Math.round(p.price * m.qty)}` : p.price} €
+                                                  {ecart > 0 && <span className="v22-ref" style={{ marginLeft: '4px', color: isWorst ? 'var(--v22-red)' : undefined }}> +{ecart}%</span>}
+                                                </span>
+                                              ) : '—'}
+                                            </td>
+                                          )
+                                        })}
+                                        <td className="v22-amount" style={{ color: 'var(--v22-green)', fontWeight: 600 }}>
+                                          {m.bestPrice ? `${m.qty > 1 ? Math.round(m.bestPrice.price * m.qty) : m.bestPrice.price} €` : '—'}
+                                        </td>
+                                      </tr>
                                     )
                                   })}
-                                  <td className="text-right px-4 py-2 text-green-700 font-bold">
-                                    {m.bestPrice ? `${m.qty > 1 ? Math.round(m.bestPrice.price * m.qty) : m.bestPrice.price} €` : '—'}
-                                  </td>
-                                </tr>
-                                )
-                              })}
-                              {/* Total par enseigne */}
-                              <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
-                                <td className="px-4 py-2 text-gray-700" colSpan={2}>TOTAL</td>
-                                {storeTotals.map(st => {
-                                  const isCheapest = st.total > 0 && st.total === bestStoreTotal && st.coverage === currentResults!.length
-                                  const isMostExpensive = st.total > 0 && st.total === worstStoreTotal && worstStoreTotal !== bestStoreTotal
-                                  const ecart = bestStoreTotal > 0 && st.total > bestStoreTotal ? Math.round(((st.total - bestStoreTotal) / bestStoreTotal) * 100) : 0
-                                  return (
-                                    <td key={st.store} className={`text-right px-4 py-2 ${
-                                      isCheapest ? 'text-green-700 bg-green-50' : isMostExpensive ? 'text-red-600' : st.total > 0 ? 'text-gray-700' : 'text-gray-300'
-                                    }`}>
-                                      {st.total > 0 ? (
-                                        <span>
-                                          {Math.round(st.total)} €
-                                          {ecart > 0 && <span className={`text-xs ml-1 ${isMostExpensive ? 'text-red-400' : 'text-gray-400'}`}>+{ecart}%</span>}
-                                          {st.coverage < currentResults!.length && <span className="text-xs ml-1 text-gray-400">*</span>}
-                                        </span>
-                                      ) : '—'}
+                                  {/* Total par enseigne */}
+                                  <tr style={{ fontWeight: 700, borderTop: '2px solid var(--v22-border-dark)' }}>
+                                    <td colSpan={2}>TOTAL</td>
+                                    {storeTotals.map(st => {
+                                      const isCheapest = st.total > 0 && st.total === bestStoreTotal && st.coverage === currentResults!.length
+                                      const isMostExpensive = st.total > 0 && st.total === worstStoreTotal && worstStoreTotal !== bestStoreTotal
+                                      const ecart = bestStoreTotal > 0 && st.total > bestStoreTotal ? Math.round(((st.total - bestStoreTotal) / bestStoreTotal) * 100) : 0
+                                      return (
+                                        <td key={st.store} className="v22-amount" style={{
+                                          color: isCheapest ? 'var(--v22-green)' : isMostExpensive ? 'var(--v22-red)' : st.total > 0 ? 'var(--v22-text)' : 'var(--v22-text-muted)',
+                                          background: isCheapest ? 'var(--v22-green-light)' : undefined,
+                                        }}>
+                                          {st.total > 0 ? (
+                                            <span>
+                                              {Math.round(st.total)} €
+                                              {ecart > 0 && <span className="v22-ref" style={{ marginLeft: '4px', color: isMostExpensive ? 'var(--v22-red)' : undefined }}> +{ecart}%</span>}
+                                              {st.coverage < currentResults!.length && <span className="v22-ref" style={{ marginLeft: '2px' }}>*</span>}
+                                            </span>
+                                          ) : '—'}
+                                        </td>
+                                      )
+                                    })}
+                                    <td className="v22-amount" style={{ color: 'var(--v22-green)', fontSize: '13px' }}>
+                                      {totalBestPrice > 0 ? `${Math.round(currentResults!.reduce((sum, m) => sum + (m.bestPrice ? m.bestPrice.price * m.qty : 0), 0))} €` : '—'}
                                     </td>
-                                  )
-                                })}
-                                <td className="text-right px-4 py-2 text-green-700 text-base">
-                                  {totalBestPrice > 0 ? `${Math.round(currentResults!.reduce((sum, m) => sum + (m.bestPrice ? m.bestPrice.price * m.qty : 0), 0))} €` : '—'}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
                         )
                       })()
                     )}
 
                     {/* Marge + Export devis */}
                     {totalBestPrice > 0 && (
-                      <div className="bg-white border-2 border-[#FFC107]/40 rounded-2xl p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                          <h3 className="font-bold text-gray-800 text-lg">{locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}</h3>
-                          {/* Badge statut fiscal détecté */}
-                          <span className={`text-xs px-3 py-1 rounded-full font-semibold border ${
-                            isAssujetti
-                              ? 'bg-blue-50 border-blue-200 text-blue-700'
-                              : 'bg-amber-50 border-amber-200 text-amber-700'
-                          }`}>
-                            {isAssujetti
-                              ? `📋 ${artisan?.legal_form || 'Société'} — TVA ${TVA_REVENTE}% applicable`
-                              : `📋 ${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise en base TVA (art. 293B CGI)`
+                      <div className="v22-card">
+                        <div className="v22-card-head">
+                          <div className="v22-card-title">{locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}</div>
+                          <div className="v22-card-meta">
+                            <span className={`v22-tag ${isAssujetti ? 'v22-tag-gray' : 'v22-tag-amber'}`}>
+                              {isAssujetti
+                                ? `📋 ${artisan?.legal_form || 'Société'} — TVA ${TVA_REVENTE}%`
+                                : `📋 ${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise TVA (293B CGI)`
+                              }
+                            </span>
+                          </div>
+                        </div>
+                        <div className="v22-card-body">
+                          {/* Marge slider */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                            <label className="v22-form-label" style={{ marginBottom: 0, flexShrink: 0 }}>{locale === 'pt' ? 'Margem de revenda' : 'Marge de revente'}</label>
+                            <input
+                              type="range" min={0} max={60} value={globalMarkup}
+                              onChange={e => setGlobalMarkup(Number(e.target.value))}
+                              style={{ flex: 1, accentColor: 'var(--v22-yellow)' }}
+                            />
+                            <span className="v22-mono" style={{
+                              fontSize: '16px', fontWeight: 700, width: '42px', textAlign: 'right',
+                              color: margeIsRentable ? 'var(--v22-green)' : 'var(--v22-red)',
+                            }}>
+                              {globalMarkup}%
+                            </span>
+                          </div>
+
+                          {/* Alerte si marge insuffisante */}
+                          {!margeIsRentable && totalBestPrice > 0 && (
+                            <div className="v22-alert v22-alert-red" style={{ marginBottom: '12px', cursor: 'default' }}>
+                              <span>⚠️ <strong>{locale === 'pt' ? 'Margem insuficiente.' : 'Marge insuffisante.'}</strong> {locale === 'pt'
+                                ? <>Norma mínima: <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' para trabalhador independente (cobre IVA compra não recuperável + encargos)' : ' para empresa sujeita a IVA'}</>
+                                : <>Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)' : ' en société assujettie TVA'}</>
+                              }.</span>
+                            </div>
+                          )}
+                          {margeIsRentable && totalBestPrice > 0 && (
+                            <div className="v22-alert" style={{ marginBottom: '12px', cursor: 'default', borderLeftColor: 'var(--v22-green)', background: 'var(--v22-green-light)' }}>
+                              <span style={{ color: 'var(--v22-green)' }}>
+                                {locale === 'pt' ? `✅ Margem conforme às normas do setor (${margeMinRecommandee}% mín)` : `✅ Marge conforme aux standards nationaux BTP (${margeMinRecommandee}% min)`}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Tableau de calcul fiscal */}
+                          <div style={{ background: 'var(--v22-bg)', borderRadius: '4px', padding: '12px', marginBottom: '14px' }}>
+                            <table style={{ borderCollapse: 'collapse' }}>
+                              <tbody>
+                                <tr>
+                                  <td style={{ border: 'none', padding: '4px 0', color: 'var(--v22-text-mid)', fontSize: '12px' }}>
+                                    {locale === 'pt' ? 'Custo compra materiais (preço loja c/ IVA)' : 'Coût achat matériaux (prix magasin TTC)'}
+                                  </td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '4px 0' }}>{Math.round(totalBestPrice)} €</td>
+                                </tr>
+                                {isAssujetti && (
+                                  <tr>
+                                    <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
+                                      {locale === 'pt' ? `→ IVA compra recuperado (${TVA_ACHAT}%) — crédito de IVA` : `→ TVA achat récupérée (${TVA_ACHAT}%) — crédit de TVA`}
+                                    </td>
+                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: 'var(--v22-green)' }}>−{Math.round(totalBestPrice - totalCoutAchatHT)} €</td>
+                                  </tr>
+                                )}
+                                {isAutoEntrepreneur && (
+                                  <tr>
+                                    <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
+                                      {locale === 'pt' ? '→ IVA compra não recuperável (incluído no seu custo real)' : '→ TVA achat non récupérable (incluse dans votre coût réel)'}
+                                    </td>
+                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: 'var(--v22-amber)' }}>{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</td>
+                                  </tr>
+                                )}
+                                <tr style={{ borderTop: '1px solid var(--v22-border)' }}>
+                                  <td style={{ border: 'none', padding: '6px 0 4px', color: 'var(--v22-text-mid)', fontSize: '12px' }}>
+                                    {locale === 'pt' ? 'Custo real s/ IVA profissional' : 'Coût réel HT artisan'}
+                                  </td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '6px 0 4px' }}>{Math.round(totalCoutAchatHT)} €</td>
+                                </tr>
+                                <tr>
+                                  <td style={{ border: 'none', padding: '4px 0', color: 'var(--v22-amber)', fontSize: '12px' }}>
+                                    {locale === 'pt' ? `Margem revenda ${globalMarkup}%` : `Marge revente ${globalMarkup}%`}
+                                  </td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '4px 0', color: 'var(--v22-amber)', fontWeight: 700 }}>+{markupAmount} €</td>
+                                </tr>
+                                <tr style={{ borderTop: '1px solid var(--v22-border)' }}>
+                                  <td style={{ border: 'none', padding: '6px 0 4px', fontWeight: 700, fontSize: '12px' }}>
+                                    {locale === 'pt' ? 'Montante s/ IVA a faturar' : 'Montant HT à facturer'}
+                                  </td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '6px 0 4px', fontWeight: 700 }}>{totalWithMarkup} €</td>
+                                </tr>
+                                {isAssujetti && (
+                                  <tr>
+                                    <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
+                                      {locale === 'pt' ? `+ IVA ${TVA_REVENTE}% cobrado (renovação)` : `+ TVA ${TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)`}
+                                    </td>
+                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0' }}>{Math.round(totalRevente * TVA_REVENTE / 100)} €</td>
+                                  </tr>
+                                )}
+                                <tr style={{ borderTop: '2px solid var(--v22-border-dark)' }}>
+                                  <td style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '13px', color: isAssujetti ? 'var(--v22-green)' : 'var(--v22-green)' }}>
+                                    {locale === 'pt' ? 'Total c/ IVA cliente' : 'Total TTC client'}
+                                  </td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '14px', color: 'var(--v22-green)' }}>{Math.round(totalReventeTTC)} €</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Info légale selon statut */}
+                          <div className="v22-alert" style={{
+                            marginBottom: '14px', cursor: 'default', fontSize: '11px', lineHeight: 1.6,
+                            borderLeftColor: isAssujetti ? 'var(--v22-green)' : 'var(--v22-amber)',
+                            background: isAssujetti ? 'var(--v22-green-light)' : 'var(--v22-amber-light)',
+                          }}>
+                            <span style={{ color: isAssujetti ? 'var(--v22-green)' : 'var(--v22-amber)' }}>
+                              {locale === 'pt' ? (
+                                isAssujetti ? (
+                                  <>
+                                    <strong>📋 Regime IVA normal:</strong> Recupera o IVA nas compras e cobra IVA nas vendas.
+                                    Taxa aplicável: <strong>23% normal</strong>, 13% intermédia, 6% reduzida (renovação habitação).
+                                  </>
+                                ) : (
+                                  <>
+                                    <strong>📋 Regime de isenção IVA:</strong> Não cobra IVA.
+                                    As compras são a seu cargo c/ IVA (não recuperável).
+                                    As faturas devem mencionar <em>&quot;IVA — isento artigo 53.º do CIVA&quot;</em>.
+                                  </>
+                                )
+                              ) : (
+                                isAssujetti ? (
+                                  <>
+                                    <strong>📋 Régime TVA réel :</strong> Vous récupérez la TVA sur vos achats et collectez la TVA sur vos ventes.
+                                    Taux applicable : <strong>10% rénovation logement &gt;2 ans</strong> (art. 279-0 bis CGI).
+                                    Pour éco-rénovation (isolation, PAC, fenêtres) : 5.5% (art. 278-0 bis CGI).
+                                    Pour local professionnel ou construction neuve : 20%.
+                                  </>
+                                ) : (
+                                  <>
+                                    <strong>📋 Franchise en base de TVA :</strong> Vous n&apos;êtes pas assujetti à la TVA.
+                                    Vos achats sont à votre charge TTC (non récupérable).
+                                    Vos factures doivent mentionner <em>&quot;TVA non applicable — art. 293 B du CGI&quot;</em>.
+                                    Seuils 2025 : 37 500 €/an prestation · 85 000 €/an marchandises.
+                                  </>
+                                )
+                              )}
+                            </span>
+                          </div>
+
+                          <button onClick={handleExportDevis} className="v22-btn v22-btn-primary" style={{ width: '100%', padding: '10px 16px', fontWeight: 700, fontSize: '13px' }}>
+                            {locale === 'pt'
+                              ? `📄 Exportar para orçamento (${totalWithMarkup} € s/ IVA${isAssujetti ? ` + IVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € c/ IVA` : ' — IVA isento'})`
+                              : `📄 Exporter vers un devis (${totalWithMarkup} € HT${isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})`
                             }
-                          </span>
+                          </button>
+                          <p className="v22-ref" style={{ textAlign: 'center', marginTop: '6px' }}>
+                            {locale === 'pt'
+                              ? (isAssujetti
+                                ? `IVA ${TVA_REVENTE}% cobrado na revenda · Preços s/ IVA calculados com margem ${globalMarkup}%`
+                                : `Isento IVA art. 53.º CIVA · Margem ${globalMarkup}% sobre custo c/ IVA`)
+                              : (isAssujetti
+                                ? `TVA ${TVA_REVENTE}% collectée sur revente · Prix HT client calculés avec marge ${globalMarkup}%`
+                                : `Franchise TVA art. 293B CGI · Marge ${globalMarkup}% sur coût TTC artisan`)
+                            }
+                          </p>
                         </div>
-
-                        {/* Marge slider */}
-                        <div className="flex items-center gap-4 mb-2">
-                          <label className="text-sm font-semibold text-gray-600 flex-shrink-0">{locale === 'pt' ? 'Margem de revenda' : 'Marge de revente'}</label>
-                          <input
-                            type="range" min={0} max={60} value={globalMarkup}
-                            onChange={e => setGlobalMarkup(Number(e.target.value))}
-                            className="flex-1 accent-[#FFC107]"
-                          />
-                          <span className={`text-xl font-black w-14 text-right ${margeIsRentable ? 'text-green-600' : 'text-red-500'}`}>
-                            {globalMarkup}%
-                          </span>
-                        </div>
-
-                        {/* Alerte si marge insuffisante */}
-                        {!margeIsRentable && totalBestPrice > 0 && (
-                          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-red-700">
-                            ⚠️ <strong>{locale === 'pt' ? 'Margem insuficiente.' : 'Marge insuffisante.'}</strong> {locale === 'pt'
-                              ? <>Norma mínima: <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' para trabalhador independente (cobre IVA compra não recuperável + encargos)' : ' para empresa sujeita a IVA'}</>
-                              : <>Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)' : ' en société assujettie TVA'}</>
-                            }.
-                          </div>
-                        )}
-                        {margeIsRentable && totalBestPrice > 0 && (
-                          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2 mb-4 text-xs text-green-700">
-                            {locale === 'pt' ? `✅ Margem conforme às normas do setor (${margeMinRecommandee}% mín)` : `✅ Marge conforme aux standards nationaux BTP (${margeMinRecommandee}% min)`}
-                          </div>
-                        )}
-
-                        {/* Tableau de calcul fiscal */}
-                        <div className="bg-gray-50 rounded-2xl p-4 mb-5 space-y-2 text-sm">
-                          <div className="flex justify-between text-gray-600">
-                            <span>{locale === 'pt' ? 'Custo compra materiais (preço loja c/ IVA)' : 'Coût achat matériaux (prix magasin TTC)'}</span>
-                            <span className="font-semibold">{Math.round(totalBestPrice)} €</span>
-                          </div>
-                          {isAssujetti && (
-                            <div className="flex justify-between text-gray-500 text-xs pl-3">
-                              <span>{locale === 'pt' ? `→ IVA compra recuperado (${TVA_ACHAT}%) — crédito de IVA` : `→ TVA achat récupérée (${TVA_ACHAT}%) — crédit de TVA`}</span>
-                              <span className="text-blue-600 font-semibold">−{Math.round(totalBestPrice - totalCoutAchatHT)} €</span>
-                            </div>
-                          )}
-                          {isAutoEntrepreneur && (
-                            <div className="flex justify-between text-gray-500 text-xs pl-3">
-                              <span>{locale === 'pt' ? '→ IVA compra não recuperável (incluído no seu custo real)' : '→ TVA achat non récupérable (incluse dans votre coût réel)'}</span>
-                              <span className="text-amber-600 font-semibold">{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between text-gray-600 border-t border-gray-200 pt-2">
-                            <span>{locale === 'pt' ? 'Custo real s/ IVA profissional' : 'Coût réel HT artisan'}</span>
-                            <span className="font-semibold">{Math.round(totalCoutAchatHT)} €</span>
-                          </div>
-                          <div className="flex justify-between text-amber-700">
-                            <span>{locale === 'pt' ? `Margem revenda ${globalMarkup}%` : `Marge revente ${globalMarkup}%`}</span>
-                            <span className="font-bold">+{markupAmount} €</span>
-                          </div>
-                          <div className="flex justify-between text-gray-800 font-bold border-t border-gray-200 pt-2">
-                            <span>{locale === 'pt' ? 'Montante s/ IVA a faturar' : 'Montant HT à facturer'}</span>
-                            <span>{totalWithMarkup} €</span>
-                          </div>
-                          {isAssujetti && (
-                            <div className="flex justify-between text-gray-600 text-xs pl-3">
-                              <span>{locale === 'pt' ? `+ IVA ${TVA_REVENTE}% cobrado (renovação)` : `+ TVA ${TVA_REVENTE}% collectée (art. 279-0 bis CGI — rénovation)`}</span>
-                              <span>{Math.round(totalRevente * TVA_REVENTE / 100)} €</span>
-                            </div>
-                          )}
-                          <div className={`flex justify-between font-black text-base pt-2 border-t-2 border-gray-300 ${isAssujetti ? 'text-blue-700' : 'text-green-700'}`}>
-                            <span>{locale === 'pt' ? 'Total c/ IVA cliente' : 'Total TTC client'}</span>
-                            <span>{Math.round(totalReventeTTC)} €</span>
-                          </div>
-                        </div>
-
-                        {/* Info légale selon statut */}
-                        <div className={`rounded-xl px-4 py-3 mb-4 text-xs leading-relaxed ${
-                          isAssujetti ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          {locale === 'pt' ? (
-                            isAssujetti ? (
-                              <>
-                                <strong>📋 Regime IVA normal:</strong> Recupera o IVA nas compras e cobra IVA nas vendas.
-                                Taxa aplicável: <strong>23% normal</strong>, 13% intermédia, 6% reduzida (renovação habitação).
-                              </>
-                            ) : (
-                              <>
-                                <strong>📋 Regime de isenção IVA:</strong> Não cobra IVA.
-                                As compras são a seu cargo c/ IVA (não recuperável).
-                                As faturas devem mencionar <em>&quot;IVA — isento artigo 53.º do CIVA&quot;</em>.
-                              </>
-                            )
-                          ) : (
-                            isAssujetti ? (
-                              <>
-                                <strong>📋 Régime TVA réel :</strong> Vous récupérez la TVA sur vos achats et collectez la TVA sur vos ventes.
-                                Taux applicable : <strong>10% rénovation logement &gt;2 ans</strong> (art. 279-0 bis CGI).
-                                Pour éco-rénovation (isolation, PAC, fenêtres) : 5.5% (art. 278-0 bis CGI).
-                                Pour local professionnel ou construction neuve : 20%.
-                              </>
-                            ) : (
-                              <>
-                                <strong>📋 Franchise en base de TVA :</strong> Vous n&apos;êtes pas assujetti à la TVA.
-                                Vos achats sont à votre charge TTC (non récupérable).
-                                Vos factures doivent mentionner <em>&quot;TVA non applicable — art. 293 B du CGI&quot;</em>.
-                                Seuils 2025 : 37 500 €/an prestation · 85 000 €/an marchandises.
-                              </>
-                            )
-                          )}
-                        </div>
-
-                        <button onClick={handleExportDevis}
-                          className="w-full bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3.5 rounded-xl font-bold text-base shadow-md hover:-translate-y-0.5 transition-all">
-                          {locale === 'pt'
-                            ? `📄 Exportar para orçamento (${totalWithMarkup} € s/ IVA${isAssujetti ? ` + IVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € c/ IVA` : ' — IVA isento'})`
-                            : `📄 Exporter vers un devis (${totalWithMarkup} € HT${isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})`
-                          }
-                        </button>
-                        <p className="text-xs text-gray-500 text-center mt-2">
-                          {locale === 'pt'
-                            ? (isAssujetti
-                              ? `IVA ${TVA_REVENTE}% cobrado na revenda · Preços s/ IVA calculados com margem ${globalMarkup}%`
-                              : `Isento IVA art. 53.º CIVA · Margem ${globalMarkup}% sobre custo c/ IVA`)
-                            : (isAssujetti
-                              ? `TVA ${TVA_REVENTE}% collectée sur revente · Prix HT client calculés avec marge ${globalMarkup}%`
-                              : `Franchise TVA art. 293B CGI · Marge ${globalMarkup}% sur coût TTC artisan`)
-                          }
-                        </p>
                       </div>
                     )}
                   </div>
@@ -933,164 +947,149 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                   const timeStr = productFetchedAt ? new Date(productFetchedAt).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' }) : null
 
                   return (
-                  <div className="space-y-4">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {/* Onglets Neuf / Reconditionné */}
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setProductTab('new')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                          productTab === 'new'
-                            ? 'bg-green-600 text-white shadow-md'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}>
-                        {locale === 'pt' ? '🆕 Novo' : '🆕 Neuf'} {newProducts.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${productTab === 'new' ? 'bg-white/20' : 'bg-gray-200'}`}>{newProducts.length}</span>}
-                      </button>
-                      <button onClick={() => setProductTab('refurbished')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                          productTab === 'refurbished'
-                            ? 'bg-purple-600 text-white shadow-md'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}>
-                        {locale === 'pt' ? '♻️ Recondicionado / Outlet' : '♻️ Reconditionné / Déstockage'} {refurbProducts.length > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full ${productTab === 'refurbished' ? 'bg-white/20' : 'bg-gray-200'}`}>{refurbProducts.length}</span>}
-                      </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="v22-tabs">
+                        <button onClick={() => setProductTab('new')}
+                          className={`v22-tab ${productTab === 'new' ? 'active' : ''}`}>
+                          {locale === 'pt' ? '🆕 Novo' : '🆕 Neuf'} {newProducts.length > 0 && <span className="v22-ref" style={{ marginLeft: '4px' }}>{newProducts.length}</span>}
+                        </button>
+                        <button onClick={() => setProductTab('refurbished')}
+                          className={`v22-tab ${productTab === 'refurbished' ? 'active' : ''}`}>
+                          {locale === 'pt' ? '♻️ Recondicionado' : '♻️ Reconditionné'} {refurbProducts.length > 0 && <span className="v22-ref" style={{ marginLeft: '4px' }}>{refurbProducts.length}</span>}
+                        </button>
+                      </div>
                       {timeStr && (
-                        <span className="ml-auto text-[11px] text-gray-500 italic">{locale === 'pt' ? `Preços verificados às ${timeStr}` : `Prix constatés à ${timeStr}`}</span>
+                        <span className="v22-ref" style={{ marginLeft: 'auto', fontStyle: 'italic' }}>{locale === 'pt' ? `Preços verificados às ${timeStr}` : `Prix constatés à ${timeStr}`}</span>
                       )}
                     </div>
 
                     {activeProducts.length === 0 ? (
-                      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
-                        <div className="text-3xl mb-2">{productTab === 'new' ? '📦' : '♻️'}</div>
-                        <p className="text-sm text-gray-500 font-medium">
-                          {locale === 'pt'
-                            ? `Nenhuma oferta ${productTab === 'new' ? 'nova' : 'recondicionada / outlet'} encontrada para este produto.`
-                            : `Aucune offre ${productTab === 'new' ? 'neuve' : 'reconditionnée / déstockage'} trouvée pour ce produit.`}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {locale === 'pt'
-                            ? (productTab === 'new' ? 'Tente o separador Recondicionado / Outlet para encontrar alternativas.' : 'Tente o separador Novo para ver as ofertas disponíveis.')
-                            : (productTab === 'new' ? 'Essayez l\'onglet Reconditionné / Déstockage pour trouver des alternatives.' : 'Essayez l\'onglet Neuf pour voir les offres disponibles.')}
-                        </p>
+                      <div className="v22-card">
+                        <div className="v22-card-body" style={{ textAlign: 'center', padding: '24px' }}>
+                          <div style={{ fontSize: '24px', marginBottom: '8px' }}>{productTab === 'new' ? '📦' : '♻️'}</div>
+                          <p style={{ fontSize: '12px', color: 'var(--v22-text-muted)', fontWeight: 500 }}>
+                            {locale === 'pt'
+                              ? `Nenhuma oferta ${productTab === 'new' ? 'nova' : 'recondicionada / outlet'} encontrada para este produto.`
+                              : `Aucune offre ${productTab === 'new' ? 'neuve' : 'reconditionnée / déstockage'} trouvée pour ce produit.`}
+                          </p>
+                          <p className="v22-ref" style={{ marginTop: '4px' }}>
+                            {locale === 'pt'
+                              ? (productTab === 'new' ? 'Tente o separador Recondicionado / Outlet para encontrar alternativas.' : 'Tente o separador Novo para ver as ofertas disponíveis.')
+                              : (productTab === 'new' ? 'Essayez l\'onglet Reconditionné / Déstockage pour trouver des alternatives.' : 'Essayez l\'onglet Neuf pour voir les offres disponibles.')}
+                          </p>
+                        </div>
                       </div>
                     ) : (
                     <>
                     {/* Bandeau récapitulatif */}
                     {withPrice.length >= 2 && (
-                      <div className={`bg-gradient-to-r ${productTab === 'new' ? 'from-green-50 to-emerald-50 border-green-200' : 'from-purple-50 to-fuchsia-50 border-purple-200'} border rounded-2xl p-4`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className={`text-sm font-bold ${productTab === 'new' ? 'text-green-800' : 'text-purple-800'}`}>
-                            {locale === 'pt'
-                              ? `📊 Comparativo ${productTab === 'new' ? 'Novo' : 'Recondicionado / Outlet'} — ${withPrice.length} ofertas`
-                              : `📊 Comparatif ${productTab === 'new' ? 'Neuf' : 'Reconditionné / Déstockage'} — ${withPrice.length} offres`}
-                          </span>
-                          {maxSaving > 0 && (
-                            <span className={`${productTab === 'new' ? 'bg-green-600' : 'bg-purple-600'} text-white text-xs font-bold px-3 py-1 rounded-full`}>
-                              {locale === 'pt' ? `Poupança até ${maxSaving.toFixed(2)} € (${savingPct}%)` : `Économie jusqu'à ${maxSaving.toFixed(2)} € (${savingPct}%)`}
-                            </span>
-                          )}
+                      <div className="v22-stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                        <div className="v22-stat">
+                          <div className="v22-stat-label">{locale === 'pt' ? '🏆 Melhor preço' : '🏆 Meilleur prix'}</div>
+                          <div className="v22-stat-val" style={{ color: 'var(--v22-green)' }}>{cheapest.price.toFixed(2)} €</div>
+                          <span className={STORE_COLORS[cheapest.store] || 'v22-tag v22-tag-gray'}>{cheapest.store}</span>
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                            <div className="text-xs text-gray-500 mb-1">{locale === 'pt' ? '🏆 Melhor preço' : '🏆 Meilleur prix'}</div>
-                            <div className={`text-lg font-black ${productTab === 'new' ? 'text-green-600' : 'text-purple-600'}`}>{cheapest.price.toFixed(2)} €</div>
-                            <div className={`text-xs font-semibold mt-0.5 px-2 py-0.5 rounded-full inline-block ${STORE_COLORS[cheapest.store] || 'text-gray-700 bg-gray-100'}`}>
-                              {cheapest.store}
-                            </div>
-                          </div>
-                          <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                            <div className="text-xs text-gray-500 mb-1">{locale === 'pt' ? '📈 Preço médio' : '📈 Prix moyen'}</div>
-                            <div className="text-lg font-bold text-gray-700">{avgPrice.toFixed(2)} €</div>
-                            <div className="text-xs text-gray-500">{withPrice.length} {locale === 'pt' ? 'ofertas' : 'offres'}</div>
-                          </div>
-                          <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                            <div className="text-xs text-gray-500 mb-1">{locale === 'pt' ? '💸 Mais caro' : '💸 Plus cher'}</div>
-                            <div className="text-lg font-bold text-red-500">{mostExpensive.price.toFixed(2)} €</div>
-                            <div className={`text-xs font-semibold mt-0.5 px-2 py-0.5 rounded-full inline-block ${STORE_COLORS[mostExpensive.store] || 'text-gray-700 bg-gray-100'}`}>
-                              {mostExpensive.store}
-                            </div>
-                          </div>
+                        <div className="v22-stat">
+                          <div className="v22-stat-label">{locale === 'pt' ? '📈 Preço médio' : '📈 Prix moyen'}</div>
+                          <div className="v22-stat-val">{avgPrice.toFixed(2)} €</div>
+                          <span className="v22-ref">{withPrice.length} {locale === 'pt' ? 'ofertas' : 'offres'}</span>
                         </div>
+                        <div className="v22-stat">
+                          <div className="v22-stat-label">{locale === 'pt' ? '💸 Mais caro' : '💸 Plus cher'}</div>
+                          <div className="v22-stat-val" style={{ color: 'var(--v22-red)' }}>{mostExpensive.price.toFixed(2)} €</div>
+                          <span className={STORE_COLORS[mostExpensive.store] || 'v22-tag v22-tag-gray'}>{mostExpensive.store}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {maxSaving > 0 && (
+                      <div className="v22-tag v22-tag-green" style={{ fontSize: '11px', padding: '4px 10px', width: 'fit-content' }}>
+                        {locale === 'pt' ? `Poupança até ${maxSaving.toFixed(2)} € (${savingPct}%)` : `Économie jusqu'à ${maxSaving.toFixed(2)} € (${savingPct}%)`}
                       </div>
                     )}
 
                     {productRecommendations && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
-                        💡 {productRecommendations}
+                      <div className="v22-alert" style={{ cursor: 'default', borderLeftColor: 'var(--v22-green)', background: 'var(--v22-green-light)' }}>
+                        <span style={{ color: 'var(--v22-green)' }}>💡 {productRecommendations}</span>
                       </div>
                     )}
 
                     {/* Tableau comparatif des offres */}
-                    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                      <div className={`px-4 py-3 ${productTab === 'new' ? 'bg-gray-50' : 'bg-purple-50/50'} border-b border-gray-200`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-gray-700">
-                            {locale === 'pt'
-                              ? `${productTab === 'new' ? '🛒' : '♻️'} Ofertas ${productTab === 'new' ? 'novas' : 'recondicionadas / outlet'}`
-                              : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconditionnées / déstockage'}`}
-                          </span>
-                          <span className="text-xs text-gray-500">{locale === 'pt' ? 'Ordenadas do mais barato ao mais caro' : 'Triées du moins cher au plus cher'}</span>
+                    <div className="v22-card">
+                      <div className="v22-card-head">
+                        <div className="v22-card-title">
+                          {locale === 'pt'
+                            ? `${productTab === 'new' ? '🛒' : '♻️'} Ofertas ${productTab === 'new' ? 'novas' : 'recondicionadas / outlet'}`
+                            : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconditionnées / déstockage'}`}
                         </div>
+                        <div className="v22-card-meta">{locale === 'pt' ? 'do mais barato ao mais caro' : 'du moins cher au plus cher'}</div>
                       </div>
-                      <div className="divide-y divide-gray-100">
-                        {sorted.map((p, i) => {
-                          const isBest = cheapest && p.price === cheapest.price && p.price > 0
-                          const saving = cheapest && p.price > 0 ? p.price - cheapest.price : 0
-                          const accentColor = productTab === 'new' ? 'green' : 'purple'
-                          return (
-                            <div key={i} className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors ${isBest ? (productTab === 'new' ? 'bg-green-50/50' : 'bg-purple-50/50') : ''}`}>
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                isBest ? `bg-${accentColor}-600 text-white` : 'bg-gray-100 text-gray-500'
-                              }`}
-                                style={isBest ? { backgroundColor: productTab === 'new' ? '#16a34a' : '#9333ea', color: '#fff' } : undefined}>
-                                {p.price > 0 ? i + 1 : '—'}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-gray-900 text-sm leading-tight">{p.name}</div>
-                                {p.description && (
-                                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{p.description}</p>
-                                )}
-                              </div>
-                              <span className={`text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0 ${STORE_COLORS[p.store] || 'text-gray-700 bg-gray-100'}`}>
-                                {p.store}
-                                {userCoords && (() => {
-                                  const nearest = getNearestStore(p.store, userCoords.lat, userCoords.lng)
-                                  return nearest ? <span className="ml-1 opacity-70">({nearest.distance} km)</span> : null
-                                })()}
-                              </span>
-                              <div className="text-right flex-shrink-0 min-w-[90px]">
-                                {p.price > 0 ? (
-                                  <>
-                                    <div className={`text-base font-black ${isBest ? (productTab === 'new' ? 'text-green-600' : 'text-purple-600') : 'text-gray-800'}`}>
+                      <table>
+                        <tbody>
+                          {sorted.map((p, i) => {
+                            const isBest = cheapest && p.price === cheapest.price && p.price > 0
+                            const saving = cheapest && p.price > 0 ? p.price - cheapest.price : 0
+                            return (
+                              <tr key={i} style={isBest ? { background: 'var(--v22-green-light)' } : undefined}>
+                                <td style={{ width: '28px', textAlign: 'center', fontWeight: isBest ? 700 : 400, color: isBest ? 'var(--v22-green)' : 'var(--v22-text-muted)' }}>
+                                  {p.price > 0 ? i + 1 : '—'}
+                                </td>
+                                <td style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 500, color: 'var(--v22-text)' }}>{p.name}</div>
+                                  {p.description && (
+                                    <div className="v22-ref" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{p.description}</div>
+                                  )}
+                                </td>
+                                <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                  <span className={STORE_COLORS[p.store] || 'v22-tag v22-tag-gray'}>
+                                    {p.store}
+                                    {userCoords && (() => {
+                                      const nearest = getNearestStore(p.store, userCoords.lat, userCoords.lng)
+                                      return nearest ? <span style={{ opacity: 0.7, marginLeft: '4px' }}>({nearest.distance} km)</span> : null
+                                    })()}
+                                  </span>
+                                </td>
+                                <td className="v22-amount" style={{
+                                  width: '1%', whiteSpace: 'nowrap',
+                                  color: isBest ? 'var(--v22-green)' : 'var(--v22-text)',
+                                  fontWeight: isBest ? 700 : 500,
+                                }}>
+                                  {p.price > 0 ? (
+                                    <>
                                       {p.price.toFixed(2)} €
-                                    </div>
-                                    {isBest && <div className={`text-[10px] font-bold ${productTab === 'new' ? 'text-green-600' : 'text-purple-600'} uppercase`}>{locale === 'pt' ? 'Melhor preço' : 'Meilleur prix'}</div>}
-                                    {!isBest && saving > 0 && (
-                                      <div className="text-[10px] text-red-400">+{saving.toFixed(2)} €</div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <div className="text-xs text-gray-500 italic">{locale === 'pt' ? 'Ver preço' : 'Voir prix'}</div>
-                                )}
-                              </div>
-                              {p.url && (
-                                <a href={p.url} target="_blank" rel="noopener noreferrer"
-                                  className={`flex-shrink-0 px-3 py-2 rounded-xl font-bold text-xs transition-all shadow-sm whitespace-nowrap ${
-                                    isBest
-                                      ? (productTab === 'new' ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700') + ' text-white'
-                                      : 'bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900'
-                                  }`}>
-                                  {isBest ? (locale === 'pt' ? '🏆 Comprar' : '🏆 Acheter') : (locale === 'pt' ? 'Comprar →' : 'Acheter →')}
-                                </a>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
+                                      {isBest && <div className="v22-ref" style={{ color: 'var(--v22-green)', textTransform: 'uppercase', fontSize: '9px' }}>{locale === 'pt' ? 'Melhor preço' : 'Meilleur prix'}</div>}
+                                      {!isBest && saving > 0 && (
+                                        <div className="v22-ref" style={{ color: 'var(--v22-red)' }}>+{saving.toFixed(2)} €</div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="v22-ref" style={{ fontStyle: 'italic' }}>{locale === 'pt' ? 'Ver preço' : 'Voir prix'}</span>
+                                  )}
+                                </td>
+                                <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                                  {p.url && (
+                                    <a href={p.url} target="_blank" rel="noopener noreferrer"
+                                      className={`v22-btn v22-btn-sm ${isBest ? 'v22-btn-primary' : ''}`}
+                                      style={{ textDecoration: 'none' }}>
+                                      {isBest ? (locale === 'pt' ? '🏆 Comprar' : '🏆 Acheter') : (locale === 'pt' ? 'Comprar →' : 'Acheter →')}
+                                    </a>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     </div>
 
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700">
-                      {locale === 'pt'
-                        ? '⚠️ Preços verificados em tempo real — Os preços podem variar. Verifique o preço final no site do vendedor antes de comprar.'
-                        : '⚠️ Prix constatés en temps réel — Les tarifs peuvent varier. Vérifiez le prix final sur le site du vendeur avant achat.'}
+                    <div className="v22-alert v22-alert-amber" style={{ cursor: 'default' }}>
+                      <span>
+                        {locale === 'pt'
+                          ? '⚠️ Preços verificados em tempo real — Os preços podem variar. Verifique o preço final no site do vendedor antes de comprar.'
+                          : '⚠️ Prix constatés en temps réel — Les tarifs peuvent varier. Vérifiez le prix final sur le site du vendeur avant achat.'}
+                      </span>
                     </div>
                     </>
                     )}
@@ -1103,15 +1102,15 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
               {/* Suggestions rapides */}
               {chatStarted && !isLoading && (
-                <div className="flex gap-2 flex-wrap mb-4">
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : (locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR)).slice(0, 3).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
-                      className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-1.5 hover:bg-amber-100 transition font-medium whitespace-nowrap">
+                      className="v22-btn v22-btn-sm" style={{ whiteSpace: 'nowrap' }}>
                       {p.label}
                     </button>
                   ))}
                   <button onClick={() => { setMessages([]); setChatStarted(false); setCurrentResults(null); setCurrentEstimate(null); setProductResults(null); setProductRecommendations(''); setProductFetchedAt(null); setProductTab('new') }}
-                    className="text-xs bg-gray-100 border border-gray-200 text-gray-500 rounded-xl px-3 py-1.5 hover:bg-gray-200 transition font-medium">
+                    className="v22-btn v22-btn-sm">
                     {locale === 'pt' ? '🔄 Nova pesquisa' : '🔄 Nouvelle recherche'}
                   </button>
                 </div>
@@ -1120,40 +1119,44 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
           )}
 
           {/* Input */}
-          <div className="max-w-3xl mx-auto">
-            <div className="bg-white border-2 border-gray-200 rounded-2xl shadow-sm focus-within:border-[#FFC107] transition-colors">
-              <textarea
-                ref={inputRef}
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputValue) }
-                }}
-                placeholder={searchMode === 'product'
-                  ? (locale === 'pt'
-                    ? `Pesquise uma ferramenta ou produto...\nEx: "rebarbadora Bosch 125mm" ou "berbequim Makita 18V"`
-                    : `Recherchez un outil ou produit...\nEx: "disqueuse Bosch 125mm" ou "perceuse Makita 18V"`)
-                  : userCity
+          <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+            <div className="v22-card" style={{ overflow: 'visible' }}>
+              <div className="v22-card-body" style={{ padding: 0 }}>
+                <textarea
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputValue) }
+                  }}
+                  placeholder={searchMode === 'product'
                     ? (locale === 'pt'
-                      ? `Descreva a sua intervenção em ${userCity}...\nEx: "Substituição esquentador 150L" ou "Colocação pavimento flutuante 30m²"`
-                      : `Décrivez votre intervention à ${userCity}...\nEx: "Remplacement chauffe-eau 150L" ou "Pose parquet flottant 30m²"`)
-                    : (locale === 'pt'
-                      ? `Descreva a sua intervenção...\nEx: "Substituição esquentador 150L" ou "Instalação VMC duplo fluxo"`
-                      : `Décrivez votre intervention...\nEx: "Remplacement chauffe-eau 150L" ou "Installation VMC double flux"`)
-                }
-                rows={3}
-                className="w-full px-5 pt-4 pb-2 text-sm focus:outline-none bg-transparent resize-none rounded-2xl"
-                disabled={isLoading}
-              />
-              <div className="flex items-center justify-between px-4 pb-3">
-                <span className="text-xs text-gray-300">{locale === 'pt' ? 'Enter = pesquisar · Shift+Enter = nova linha' : 'Entrée = rechercher · Maj+Entrée = saut de ligne'}</span>
-                <button
-                  onClick={() => sendMessage(inputValue)}
-                  disabled={!inputValue.trim() || isLoading}
-                  className="bg-[#FFC107] hover:bg-[#FFD54F] disabled:opacity-40 text-gray-900 px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-sm"
-                >
-                  {isLoading ? '⏳' : (locale === 'pt' ? '🔍 Pesquisar' : '🔍 Rechercher')}
-                </button>
+                      ? `Pesquise uma ferramenta ou produto...\nEx: "rebarbadora Bosch 125mm" ou "berbequim Makita 18V"`
+                      : `Recherchez un outil ou produit...\nEx: "disqueuse Bosch 125mm" ou "perceuse Makita 18V"`)
+                    : userCity
+                      ? (locale === 'pt'
+                        ? `Descreva a sua intervenção em ${userCity}...\nEx: "Substituição esquentador 150L" ou "Colocação pavimento flutuante 30m²"`
+                        : `Décrivez votre intervention à ${userCity}...\nEx: "Remplacement chauffe-eau 150L" ou "Pose parquet flottant 30m²"`)
+                      : (locale === 'pt'
+                        ? `Descreva a sua intervenção...\nEx: "Substituição esquentador 150L" ou "Instalação VMC duplo fluxo"`
+                        : `Décrivez votre intervention...\nEx: "Remplacement chauffe-eau 150L" ou "Installation VMC double flux"`)
+                  }
+                  rows={3}
+                  className="v22-form-input"
+                  style={{ border: 'none', borderRadius: '4px 4px 0 0', resize: 'none', padding: '12px 14px' }}
+                  disabled={isLoading}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid var(--v22-border)' }}>
+                  <span className="v22-ref">{locale === 'pt' ? 'Enter = pesquisar · Shift+Enter = nova linha' : 'Entrée = rechercher · Maj+Entrée = saut de ligne'}</span>
+                  <button
+                    onClick={() => sendMessage(inputValue)}
+                    disabled={!inputValue.trim() || isLoading}
+                    className="v22-btn v22-btn-primary"
+                    style={{ opacity: !inputValue.trim() || isLoading ? 0.4 : 1 }}
+                  >
+                    {isLoading ? '⏳' : (locale === 'pt' ? '🔍 Pesquisar' : '🔍 Rechercher')}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1162,34 +1165,34 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
       {/* ── HISTORIQUE TAB ── */}
       {activeTab === 'historique' && (
-        <div className="p-6 lg:p-8">
+        <div style={{ padding: '14px' }}>
           {savedSearches.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-6xl mb-4">📋</div>
-              <h3 className="text-xl font-bold text-gray-700 mb-2">{locale === 'pt' ? 'Nenhuma pesquisa guardada' : 'Aucune recherche sauvegardée'}</h3>
-              <p className="text-gray-500 text-sm">{locale === 'pt' ? 'As suas pesquisas de materiais aparecerão aqui automaticamente.' : 'Vos recherches de matériaux apparaîtront ici automatiquement.'}</p>
+            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+              <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{locale === 'pt' ? 'Nenhuma pesquisa guardada' : 'Aucune recherche sauvegardée'}</div>
+              <p className="v22-ref">{locale === 'pt' ? 'As suas pesquisas de materiais aparecerão aqui automaticamente.' : 'Vos recherches de matériaux apparaîtront ici automatiquement.'}</p>
             </div>
           ) : (
-            <div className="space-y-3 max-w-3xl mx-auto">
+            <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {savedSearches.map(s => (
-                <div key={s.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-4 p-5">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900 truncate">{s.query}</div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-gray-500">
+                <div key={s.id} className="v22-card">
+                  <div className="v22-card-head" style={{ padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--v22-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.query}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                        <span className="v22-ref">
                           📅 {new Date(s.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
                         </span>
-                        {s.city && <span className="text-xs text-blue-600">📍 {s.city}</span>}
-                        <span className="text-xs text-gray-500">{s.materials.length} {locale === 'pt' ? 'materiais' : 'matériaux'}</span>
+                        {s.city && <span className="v22-tag v22-tag-green">📍 {s.city}</span>}
+                        <span className="v22-ref">{s.materials.length} {locale === 'pt' ? 'materiais' : 'matériaux'}</span>
                         {s.totalEstimate && (
-                          <span className="text-xs font-bold text-green-600">
+                          <span className="v22-tag v22-tag-green" style={{ fontWeight: 700 }}>
                             ~{s.totalEstimate.min}–{s.totalEstimate.max} €
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         onClick={() => {
                           setCurrentResults(s.materials)
@@ -1203,7 +1206,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                           setChatStarted(true)
                           setActiveTab('recherche')
                         }}
-                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+                        className="v22-btn v22-btn-primary v22-btn-sm"
                       >
                         {locale === 'pt' ? '📂 Carregar' : '📂 Recharger'}
                       </button>
@@ -1213,7 +1216,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
                           setSavedSearches(updated)
                           localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
                         }}
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-sm transition-all border border-gray-200"
+                        className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}
                       >
                         🗑
                       </button>
@@ -1228,95 +1231,105 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
 
       {/* ── AIDE TAB ── */}
       {activeTab === 'aide' && (
-        <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-          <div className="space-y-4">
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</h3>
-              <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-600 leading-relaxed">
-                {locale === 'pt' ? (
-                  <>
-                    <li><strong>Análise:</strong> A IA identifica os materiais necessários a partir da sua descrição</li>
-                    <li><strong>Pesquisa:</strong> Cada material é pesquisado online (Leroy Merlin PT, AKI, Maxmat…)</li>
-                    <li><strong>Comparação:</strong> Os preços são extraídos e comparados por loja</li>
-                    <li><strong>Exportar:</strong> A lista pode ser exportada diretamente para um orçamento com margem configurável</li>
-                  </>
-                ) : (
-                  <>
-                    <li><strong>Analyse :</strong> L&apos;IA identifie les matériaux nécessaires à partir de votre description</li>
-                    <li><strong>Recherche :</strong> Chaque matériau est recherché sur internet (Leroy Merlin, Brico Dépôt, Castorama…)</li>
-                    <li><strong>Comparaison :</strong> Les prix sont extraits et comparés par enseigne</li>
-                    <li><strong>Export :</strong> La liste peut être exportée directement vers un devis avec marge configurable</li>
-                  </>
-                )}
-              </ol>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
-                {locale === 'pt' ? (
-                  <>
-                    <li>🔍 <strong>Pesquisa direta</strong>: escreva o nome de uma ferramenta ou produto específico</li>
-                    <li>🌐 <strong>Lojas online</strong>: Amazon, ManoMano, Leroy Merlin PT, AKI, Maxmat…</li>
-                    <li>🛒 <strong>Links de compra</strong>: cada resultado tem um botão &quot;Comprar&quot; que abre a página do produto</li>
-                    <li>💰 <strong>Comparação</strong>: os resultados são ordenados do mais barato ao mais caro</li>
-                  </>
-                ) : (
-                  <>
-                    <li>🔍 <strong>Recherche directe</strong> : tapez le nom d&apos;un outil ou produit spécifique</li>
-                    <li>🌐 <strong>Boutiques en ligne</strong> : Amazon, ManoMano, Leroy Merlin, Castorama, Toolstation…</li>
-                    <li>🛒 <strong>Liens d&apos;achat</strong> : chaque résultat a un bouton &quot;Acheter&quot; qui ouvre la page produit</li>
-                    <li>💰 <strong>Comparaison</strong> : les résultats sont triés du moins cher au plus cher</li>
-                  </>
-                )}
-              </ul>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '🏪 Lojas cobertas' : '🏪 Enseignes couvertes'}</h3>
-              <div className="flex flex-wrap gap-2">
-                {(locale === 'pt'
-                  ? ['Leroy Merlin PT', 'AKI', 'Maxmat', 'Bricomarché', 'Wurth', 'Sanitop', 'Amazon', 'ManoMano']
-                  : ['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage', 'Amazon', 'ManoMano', 'Toolstation', 'Cdiscount']
-                ).map(s => (
-                  <span key={s} className={`px-3 py-1.5 rounded-full text-sm font-semibold ${STORE_COLORS[s] || 'bg-gray-100 text-gray-700'}`}>{s}</span>
-                ))}
+        <div style={{ padding: '14px', maxWidth: '720px', margin: '0 auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="v22-card">
+              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</div></div>
+              <div className="v22-card-body">
+                <ol style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
+                  {locale === 'pt' ? (
+                    <>
+                      <li><strong>Análise:</strong> A IA identifica os materiais necessários a partir da sua descrição</li>
+                      <li><strong>Pesquisa:</strong> Cada material é pesquisado online (Leroy Merlin PT, AKI, Maxmat…)</li>
+                      <li><strong>Comparação:</strong> Os preços são extraídos e comparados por loja</li>
+                      <li><strong>Exportar:</strong> A lista pode ser exportada diretamente para um orçamento com margem configurável</li>
+                    </>
+                  ) : (
+                    <>
+                      <li><strong>Analyse :</strong> L&apos;IA identifie les matériaux nécessaires à partir de votre description</li>
+                      <li><strong>Recherche :</strong> Chaque matériau est recherché sur internet (Leroy Merlin, Brico Dépôt, Castorama…)</li>
+                      <li><strong>Comparaison :</strong> Les prix sont extraits et comparés par enseigne</li>
+                      <li><strong>Export :</strong> La liste peut être exportée directement vers un devis avec marge configurable</li>
+                    </>
+                  )}
+                </ol>
               </div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-bold text-gray-800 mb-3 text-lg">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</h3>
-              <ul className="space-y-2 text-sm text-gray-600">
+            <div className="v22-card">
+              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</div></div>
+              <div className="v22-card-body">
+                <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
+                  {locale === 'pt' ? (
+                    <>
+                      <li>🔍 <strong>Pesquisa direta</strong>: escreva o nome de uma ferramenta ou produto específico</li>
+                      <li>🌐 <strong>Lojas online</strong>: Amazon, ManoMano, Leroy Merlin PT, AKI, Maxmat…</li>
+                      <li>🛒 <strong>Links de compra</strong>: cada resultado tem um botão &quot;Comprar&quot; que abre a página do produto</li>
+                      <li>💰 <strong>Comparação</strong>: os resultados são ordenados do mais barato ao mais caro</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>🔍 <strong>Recherche directe</strong> : tapez le nom d&apos;un outil ou produit spécifique</li>
+                      <li>🌐 <strong>Boutiques en ligne</strong> : Amazon, ManoMano, Leroy Merlin, Castorama, Toolstation…</li>
+                      <li>🛒 <strong>Liens d&apos;achat</strong> : chaque résultat a un bouton &quot;Acheter&quot; qui ouvre la page produit</li>
+                      <li>💰 <strong>Comparaison</strong> : les résultats sont triés du moins cher au plus cher</li>
+                    </>
+                  )}
+                </ul>
+              </div>
+            </div>
+            <div className="v22-card">
+              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🏪 Lojas cobertas' : '🏪 Enseignes couvertes'}</div></div>
+              <div className="v22-card-body">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {(locale === 'pt'
+                    ? ['Leroy Merlin PT', 'AKI', 'Maxmat', 'Bricomarché', 'Wurth', 'Sanitop', 'Amazon', 'ManoMano']
+                    : ['Leroy Merlin', 'Brico Dépôt', 'Castorama', 'Point P', 'Cédéo', 'Mr.Bricolage', 'Amazon', 'ManoMano', 'Toolstation', 'Cdiscount']
+                  ).map(s => (
+                    <span key={s} className={STORE_COLORS[s] || 'v22-tag v22-tag-gray'}>{s}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="v22-card">
+              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div></div>
+              <div className="v22-card-body">
+                <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
+                  {locale === 'pt' ? (
+                    <>
+                      <li>📍 <strong>Ative o GPS</strong> para resultados orientados à sua região</li>
+                      <li>🎯 <strong>Seja preciso</strong>: &quot;esquentador 150L elétrico&quot; em vez de &quot;esquentador&quot;</li>
+                      <li>📐 <strong>Indique as áreas</strong>: &quot;azulejo 20m²&quot; permite estimar as quantidades</li>
+                      <li>💰 <strong>Ajuste a margem</strong> conforme o seu contrato e a complexidade da instalação</li>
+                      <li>📄 <strong>Exporte para orçamento</strong> para faturar os materiais com IVA</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>📍 <strong>Activez le GPS</strong> pour des résultats orientés vers votre région</li>
+                      <li>🎯 <strong>Soyez précis</strong> : &quot;chauffe-eau 150L électrique&quot; plutôt que &quot;chauffe-eau&quot;</li>
+                      <li>📐 <strong>Donnez les surfaces</strong> : &quot;carrelage 20m²&quot; permet d&apos;estimer les quantités</li>
+                      <li>💰 <strong>Ajustez la marge</strong> selon votre contrat et la complexité de la pose</li>
+                      <li>📄 <strong>Exportez vers devis</strong> pour facturer les matériaux avec TVA 10% (rénovation BTP)</li>
+                    </>
+                  )}
+                </ul>
+              </div>
+            </div>
+            <div className="v22-alert v22-alert-amber" style={{ cursor: 'default', fontSize: '12px', lineHeight: 1.6 }}>
+              <span>
                 {locale === 'pt' ? (
                   <>
-                    <li>📍 <strong>Ative o GPS</strong> para resultados orientados à sua região</li>
-                    <li>🎯 <strong>Seja preciso</strong>: &quot;esquentador 150L elétrico&quot; em vez de &quot;esquentador&quot;</li>
-                    <li>📐 <strong>Indique as áreas</strong>: &quot;azulejo 20m²&quot; permite estimar as quantidades</li>
-                    <li>💰 <strong>Ajuste a margem</strong> conforme o seu contrato e a complexidade da instalação</li>
-                    <li>📄 <strong>Exporte para orçamento</strong> para faturar os materiais com IVA</li>
+                    <strong>⚠️ Aviso:</strong> Os preços apresentados são estimativas indicativas.
+                    Podem variar conforme promoções, stock e localização. Verifique sempre os preços
+                    finais diretamente nos sites ou em loja antes de elaborar um orçamento definitivo.
                   </>
                 ) : (
                   <>
-                    <li>📍 <strong>Activez le GPS</strong> pour des résultats orientés vers votre région</li>
-                    <li>🎯 <strong>Soyez précis</strong> : &quot;chauffe-eau 150L électrique&quot; plutôt que &quot;chauffe-eau&quot;</li>
-                    <li>📐 <strong>Donnez les surfaces</strong> : &quot;carrelage 20m²&quot; permet d&apos;estimer les quantités</li>
-                    <li>💰 <strong>Ajustez la marge</strong> selon votre contrat et la complexité de la pose</li>
-                    <li>📄 <strong>Exportez vers devis</strong> pour facturer les matériaux avec TVA 10% (rénovation BTP)</li>
+                    <strong>⚠️ Disclaimer :</strong> Les prix affichés sont des estimations à titre indicatif.
+                    Ils peuvent varier selon les promotions, stocks et localisation. Vérifiez toujours les prix
+                    définitifs directement sur les sites ou en magasin avant d&apos;établir un devis définitif.
                   </>
                 )}
-              </ul>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-700">
-              {locale === 'pt' ? (
-                <>
-                  <strong>⚠️ Aviso:</strong> Os preços apresentados são estimativas indicativas.
-                  Podem variar conforme promoções, stock e localização. Verifique sempre os preços
-                  finais diretamente nos sites ou em loja antes de elaborar um orçamento definitivo.
-                </>
-              ) : (
-                <>
-                  <strong>⚠️ Disclaimer :</strong> Les prix affichés sont des estimations à titre indicatif.
-                  Ils peuvent varier selon les promotions, stocks et localisation. Vérifiez toujours les prix
-                  définitifs directement sur les sites ou en magasin avant d&apos;établir un devis définitif.
-                </>
-              )}
+              </span>
             </div>
           </div>
         </div>

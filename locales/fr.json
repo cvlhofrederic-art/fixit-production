@@ -2186,7 +2186,7 @@
   "proDash": {
     "sidebar": {
       "main": "Principal",
-      "home": "Accueil",
+      "home": "Tableau de bord",
       "agenda": "Agenda",
       "motifs": "Motifs",
       "horaires": "Horaires",
@@ -2313,6 +2313,7 @@
       "annuler": "Annuler",
       "ajouterAbsence": "Ajouter une absence",
       "motif": "Motif",
+      "a": "à",
       "conge": "Congé",
       "maladie": "Maladie",
       "formation": "Formation",
@@ -2802,6 +2803,12 @@
       "chatHoraires": "Lun-Ven 9h-18h"
     },
     "btp": {
+      "teams": "Équipes",
+      "sites": "Chantiers",
+      "guarantees": "Retenues de garantie",
+      "timeTracking": "Pointage équipes",
+      "subcontracting": "Sous-traitance",
+      "tenders": "Appels d'offres",
       "equipes": {
         "title": "Équipes",
         "subtitle": "Gérez vos équipes de terrain",
@@ -3050,6 +3057,12 @@
       }
     },
     "conciergerie": {
+      "properties": "Propriétés",
+      "access": "Accès & Clés",
+      "pricing": "Tarification",
+      "checkinout": "Check-in / Check-out",
+      "welcomeBook": "Livret d'accueil",
+      "cleaningSchedule": "Planning ménage",
       "proprietes": {
         "title": "Propriétés gérées",
         "subtitle": "Gestion des propriétés en conciergerie",
@@ -3321,6 +3334,7 @@
       }
     },
     "gestionnaire": {
+      "buildings": "Immeubles",
       "immeubles": {
         "title": "Immeubles gérés",
         "nouvelImmeuble": "+ Nouvel immeuble",
@@ -3448,7 +3462,7 @@
       "erreurUploadPhoto": "Erreur upload photo"
     },
     "modules": {
-      "home": "Accueil",
+      "home": "Tableau de bord",
       "homeDesc": "Tableau de bord principal",
       "calendar": "Agenda",
       "calendarDesc": "Calendrier des rendez-vous",
@@ -3576,7 +3590,7 @@
     "linkCopied": "Lien copié !",
     "copyTrackingLink": "Copier le lien de suivi (client)",
     "nav": {
-      "home": "Accueil",
+      "home": "Tableau de bord",
       "agenda": "Agenda",
       "rdv": "RDV",
       "docs": "Docs",

@@ -39,19 +39,35 @@ export default function StatsRevenusSection({
 
   if (activePage === 'stats') {
     return (
-      <div className="animate-fadeIn">
-        <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
+      <div>
+        <div className="v22-page-header">
           <div>
-            <h1 className="text-xl font-semibold leading-tight">{'📊'} {t('proDash.stats.title')}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{t('proDash.stats.subtitle')}</p>
+            <div className="v22-page-title">{'📊'} {t('proDash.stats.title')}</div>
+            <div className="v22-page-sub">{t('proDash.stats.subtitle')}</div>
           </div>
         </div>
-        <div className="p-6 lg:p-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            <StatCard icon="📅" iconBg="bg-blue-50" iconColor="text-blue-500" value={bookings.length.toString()} label={t('proDash.stats.interventionsTotales')} change={`${completedBookings.length} ${t('proDash.home.terminees')}`} positive />
-            <StatCard icon="💰" iconBg="bg-green-50" iconColor="text-green-500" value={formatPrice(totalRevenue, locale)} label={t('proDash.stats.chiffreAffaires')} change={`${bookings.length} ${t('proDash.clients.interventions')}`} positive />
-            <StatCard icon="⭐" iconBg="bg-orange-50" iconColor="text-orange-500" value={`${artisan?.rating_avg || '5.0'}/5`} label={t('proDash.stats.noteMoyenne')} change={`${artisan?.rating_count || 0} ${t('proDash.home.avis')}`} positive />
-            <StatCard icon="🔧" iconBg="bg-pink-50" iconColor="text-pink-500" value={services.filter(s => s.active).length.toString()} label={t('proDash.stats.motifsActifs')} change={`${services.length} ${t('proDash.stats.auTotal')}`} />
+        <div style={{ padding: '20px' }}>
+          <div className="v22-stats">
+            <div className="v22-stat">
+              <div className="v22-stat-label">{t('proDash.stats.interventionsTotales')}</div>
+              <div className="v22-stat-val">{bookings.length}</div>
+              <div className="v22-stat-delta v22-up">{'📅'} {completedBookings.length} {t('proDash.home.terminees')}</div>
+            </div>
+            <div className="v22-stat v22-stat-yellow">
+              <div className="v22-stat-label">{t('proDash.stats.chiffreAffaires')}</div>
+              <div className="v22-stat-val">{formatPrice(totalRevenue, locale)}</div>
+              <div className="v22-stat-delta">{'💰'} {bookings.length} {t('proDash.clients.interventions')}</div>
+            </div>
+            <div className="v22-stat">
+              <div className="v22-stat-label">{t('proDash.stats.noteMoyenne')}</div>
+              <div className="v22-stat-val">{artisan?.rating_avg || '5.0'}/5</div>
+              <div className="v22-stat-delta v22-up">{'⭐'} {artisan?.rating_count || 0} {t('proDash.home.avis')}</div>
+            </div>
+            <div className="v22-stat">
+              <div className="v22-stat-label">{t('proDash.stats.motifsActifs')}</div>
+              <div className="v22-stat-val">{services.filter(s => s.active).length}</div>
+              <div className="v22-stat-delta">{'🔧'} {services.length} {t('proDash.stats.auTotal')}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -60,49 +76,65 @@ export default function StatsRevenusSection({
 
   // activePage === 'revenus'
   return (
-    <div className="animate-fadeIn">
+    <div>
       <ExportHeader t={t} />
-      <div className="p-6 lg:p-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-sm">
-            <div className="text-gray-500 mb-1">{t('proDash.stats.totalEncaisse')}</div>
-            <div className="text-3xl font-bold text-green-500">{formatPrice(totalRevenue, locale)}</div>
-            <div className="text-sm text-green-500 font-semibold mt-2">{completedBookings.length} {t('proDash.stats.interventionsTerminees')}</div>
+      <div style={{ padding: '20px' }}>
+        <div className="v22-stats" style={{ marginBottom: '20px' }}>
+          <div className="v22-stat">
+            <div className="v22-stat-label">{t('proDash.stats.totalEncaisse')}</div>
+            <div className="v22-stat-val" style={{ color: 'var(--v22-green)' }}>{formatPrice(totalRevenue, locale)}</div>
+            <div className="v22-stat-delta v22-up">{completedBookings.length} {t('proDash.stats.interventionsTerminees')}</div>
           </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm">
-            <div className="text-gray-500 mb-1">{t('proDash.stats.enAttenteEncaissement')}</div>
-            <div className="text-3xl font-bold text-orange-500">{formatPrice(pendingBookings.reduce((s, b) => s + (b.price_ttc || 0), 0), locale)}</div>
-            <div className="text-sm text-gray-500 font-semibold mt-2">{pendingBookings.length} {t('proDash.home.enAttente')}</div>
+          <div className="v22-stat v22-stat-yellow">
+            <div className="v22-stat-label">{t('proDash.stats.enAttenteEncaissement')}</div>
+            <div className="v22-stat-val">{formatPrice(pendingBookings.reduce((s, b) => s + (b.price_ttc || 0), 0), locale)}</div>
+            <div className="v22-stat-delta">{pendingBookings.length} {t('proDash.home.enAttente')}</div>
           </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm">
-            <div className="text-gray-500 mb-1">{t('proDash.stats.ticketMoyen')}</div>
-            <div className="text-3xl font-bold">{formatPrice(bookings.reduce((s, b) => s + (b.price_ttc || 0), 0), locale)}</div>
-            <div className="text-sm text-gray-500 font-semibold mt-2">{bookings.length} {t('proDash.clients.interventions')} {t('proDash.stats.auTotal')}</div>
+          <div className="v22-stat">
+            <div className="v22-stat-label">{t('proDash.stats.ticketMoyen')}</div>
+            <div className="v22-stat-val">{formatPrice(bookings.reduce((s, b) => s + (b.price_ttc || 0), 0), locale)}</div>
+            <div className="v22-stat-delta">{bookings.length} {t('proDash.clients.interventions')} {t('proDash.stats.auTotal')}</div>
           </div>
         </div>
 
         {bookings.length > 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <table className="w-full">
+          <div className="v22-card">
+            <div className="v22-card-head">
+              <div className="v22-card-title">{'💰'} {t('proDash.stats.revenusTitle')}</div>
+              <div className="v22-card-meta">{bookings.length} {t('proDash.clients.interventions')}</div>
+            </div>
+            <table>
               <thead>
-                <tr className="bg-[#2C3E50] text-white">
-                  <th className="text-left p-4 font-semibold text-sm">{t('proDash.calendar.date')}</th>
-                  <th className="text-left p-4 font-semibold text-sm">Service</th>
-                  <th className="text-left p-4 font-semibold text-sm">{t('proDash.calendar.montantTTC')}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{t('proDash.motifs.colStatut')}</th>
+                <tr>
+                  <th>{t('proDash.calendar.date')}</th>
+                  <th>Service</th>
+                  <th>{t('proDash.calendar.montantTTC')}</th>
+                  <th>{t('proDash.motifs.colStatut')}</th>
                 </tr>
               </thead>
               <tbody>
                 {bookings.map((b) => (
-                  <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                    <td className="p-4">{b.booking_date}</td>
-                    <td className="p-4">{b.services?.name || 'Service'}</td>
-                    <td className="p-4 font-bold text-lg" style={{ color: b.status === 'completed' ? '#4CAF50' : b.status === 'pending' ? '#FF9800' : '#999' }}>
-                      {b.status !== 'cancelled' ? `+${formatPrice(b.price_ttc || 0, locale)}` : '-'}
+                  <tr key={b.id}>
+                    <td>{b.booking_date}</td>
+                    <td>{b.services?.name || 'Service'}</td>
+                    <td>
+                      <span className="v22-amount" style={{
+                        color: b.status === 'completed' ? 'var(--v22-green)' : b.status === 'pending' ? 'var(--v22-amber)' : 'var(--v22-text-muted)'
+                      }}>
+                        {b.status !== 'cancelled' ? `+${formatPrice(b.price_ttc || 0, locale)}` : '-'}
+                      </span>
                     </td>
-                    <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${b.status === 'completed' ? 'bg-green-50 text-green-700' : b.status === 'confirmed' ? 'bg-blue-50 text-blue-700' : b.status === 'pending' ? 'bg-amber-50 text-orange-700' : 'bg-red-50 text-red-700'}`}>
-                        {b.status === 'completed' ? t('proDash.home.termine') : b.status === 'confirmed' ? t('proDash.home.confirme') : b.status === 'pending' ? t('proDash.home.enAttenteStat') : t('proDash.home.annule')}
+                    <td>
+                      <span className={`v22-tag ${
+                        b.status === 'completed' ? 'v22-tag-green' :
+                        b.status === 'confirmed' ? 'v22-tag-yellow' :
+                        b.status === 'pending' ? 'v22-tag-amber' :
+                        'v22-tag-red'
+                      }`}>
+                        {b.status === 'completed' ? t('proDash.home.termine') :
+                         b.status === 'confirmed' ? t('proDash.home.confirme') :
+                         b.status === 'pending' ? t('proDash.home.enAttenteStat') :
+                         t('proDash.home.annule')}
                       </span>
                     </td>
                   </tr>
@@ -111,8 +143,8 @@ export default function StatsRevenusSection({
             </table>
           </div>
         ) : (
-          <div className="bg-white p-12 rounded-2xl text-center shadow-sm">
-            <p className="text-gray-500">{t('proDash.home.aucuneActivite')}</p>
+          <div className="v22-card" style={{ padding: '40px', textAlign: 'center' }}>
+            <span style={{ color: 'var(--v22-text-muted)', fontSize: '12px' }}>{t('proDash.home.aucuneActivite')}</span>
           </div>
         )}
       </div>
@@ -132,30 +164,89 @@ function ExportHeader({ t }: { t: (k: string) => string }) {
   }
 
   return (
-    <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex justify-between items-center">
+    <div className="v22-page-header" style={{ justifyContent: 'space-between' }}>
       <div>
-        <h1 className="text-xl font-semibold leading-tight">{'💰'} {t('proDash.stats.revenusTitle')}</h1>
-        <p className="text-xs text-gray-400 mt-0.5">{t('proDash.stats.revenusTitle')}</p>
+        <div className="v22-page-title">{'💰'} {t('proDash.stats.revenusTitle')}</div>
+        <div className="v22-page-sub">{t('proDash.stats.revenusTitle')}</div>
       </div>
-      <div className="relative">
+      <div style={{ position: 'relative' }}>
         <button
           onClick={() => setOpen(!open)}
           disabled={loading !== null}
-          className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm disabled:opacity-50"
+          className="v22-btn v22-btn-primary"
+          style={{ opacity: loading ? 0.5 : 1 }}
         >
           {loading ? '⏳ ...' : `📊 ${t('proDash.stats.exporter')}`}
         </button>
         {open && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-12 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-2 w-56">
-              <button onClick={() => handleExport('clients')} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
+            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+            <div className="v22-card" style={{
+              position: 'absolute',
+              right: 0,
+              top: '40px',
+              zIndex: 50,
+              width: '220px',
+              padding: '4px 0',
+            }}>
+              <button
+                onClick={() => handleExport('clients')}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--v22-text)',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--v22-bg)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
                 <span>{'👥'}</span> {t('proDash.export.clients')}
               </button>
-              <button onClick={() => handleExport('bookings')} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
+              <button
+                onClick={() => handleExport('bookings')}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--v22-text)',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--v22-bg)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
                 <span>{'📋'}</span> {t('proDash.export.bookings')}
               </button>
-              <button onClick={() => handleExport('revenue')} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm flex items-center gap-2">
+              <button
+                onClick={() => handleExport('revenue')}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--v22-text)',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--v22-bg)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
                 <span>{'💰'}</span> {t('proDash.export.revenue')}
               </button>
             </div>
@@ -166,30 +257,14 @@ function ExportHeader({ t }: { t: (k: string) => string }) {
   )
 }
 
-function StatCard({ icon, iconBg, iconColor, value, label, change, positive }: {
-  icon: string; iconBg: string; iconColor: string; value: string; label: string; change: string; positive?: boolean
-}) {
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm">
-      <div className={`w-14 h-14 ${iconBg} rounded-xl flex items-center justify-center text-2xl mb-4`}>
-        <span className={iconColor}>{icon}</span>
-      </div>
-      <div className="text-3xl font-bold mb-1">{value}</div>
-      <div className="text-gray-500">{label}</div>
-      <div className={`text-sm mt-2 font-semibold ${positive ? 'text-green-500' : 'text-gray-500'}`}>{change}</div>
-    </div>
-  )
-}
-
 function PageHeader({ title, subtitle, actionLabel, onAction }: { title: string; subtitle: string; actionLabel: string; onAction: () => void }) {
   return (
-    <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex justify-between items-center">
+    <div className="v22-page-header" style={{ justifyContent: 'space-between' }}>
       <div>
-        <h1 className="text-xl font-semibold leading-tight">{title}</h1>
-        <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
+        <div className="v22-page-title">{title}</div>
+        <div className="v22-page-sub">{subtitle}</div>
       </div>
-      <button onClick={onAction}
-        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm">
+      <button onClick={onAction} className="v22-btn v22-btn-primary">
         {actionLabel}
       </button>
     </div>

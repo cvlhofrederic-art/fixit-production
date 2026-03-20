@@ -199,46 +199,52 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
     text: '', voice: '🎤 ', voice_location: '📍 ', voice_status: '✅ ', voice_alert: '🚨 ', voice_devis: '💰 ', file: '📎 ', photo: '🖼️ ', rapport: '📋 ', devis: '📄 ',
   }
 
-  const ROLE_COLORS: Record<string, string> = {
-    artisan: 'bg-amber-100 text-amber-800', pro_societe: 'bg-blue-100 text-blue-800', pro_conciergerie: 'bg-purple-100 text-purple-800', pro_gestionnaire: 'bg-green-100 text-green-800',
+  const ROLE_TAG_CLASS: Record<string, string> = {
+    artisan: 'v22-tag v22-tag-amber', pro_societe: 'v22-tag v22-tag-gray', pro_conciergerie: 'v22-tag v22-tag-gray', pro_gestionnaire: 'v22-tag v22-tag-green',
   }
 
   return (
-    <div className="animate-fadeIn h-full flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex justify-between items-center flex-shrink-0">
+    <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 120px)' }}>
+      {/* Page header */}
+      <div className="v22-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="text-xl font-semibold leading-tight">📡 Canal Pro</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Communication directe gestionnaire ↔ artisan</p>
+          <div className="v22-page-title">📡 Canal Pro</div>
+          <div className="v22-page-sub">Communication directe gestionnaire ↔ artisan</div>
         </div>
-        <button onClick={() => setShowAddContact(true)} className="bg-[#FFC107] text-gray-900 px-4 py-2 rounded-xl font-semibold text-sm hover:bg-[#FFD54F] transition">+ Contact</button>
+        <button onClick={() => setShowAddContact(true)} className="v22-btn v22-btn-primary">+ Contact</button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* ── Liste contacts ── */}
-        <div className="w-[240px] lg:w-[280px] bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-          <div className="p-3 border-b">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contacts</div>
+        <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--v22-surface)', borderRight: '1px solid var(--v22-border)' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--v22-border)' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--v22-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contacts</div>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div style={{ flex: 1, overflowY: 'auto' }}>
             {contacts.length === 0 ? (
-              <div className="p-6 text-center">
-                <div className="text-4xl mb-3">📡</div>
-                <p className="text-sm text-gray-500 mb-3">Aucun contact</p>
-                <button onClick={() => setShowAddContact(true)} className="text-xs text-[#FFC107] font-semibold hover:underline">+ Ajouter un contact</button>
+              <div style={{ padding: 24, textAlign: 'center' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
+                <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 12 }}>Aucun contact</p>
+                <button onClick={() => setShowAddContact(true)} style={{ fontSize: 11, color: 'var(--v22-yellow)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>+ Ajouter un contact</button>
               </div>
             ) : (
               contacts.map(c => (
                 <div
                   key={c.id}
                   onClick={() => setSelectedContact(c)}
-                  className={`flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition border-b border-gray-100 ${selectedContact?.id === c.id ? 'bg-amber-50 border-l-4 border-l-[#FFC107]' : ''}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer',
+                    borderBottom: '1px solid var(--v22-border)',
+                    background: selectedContact?.id === c.id ? 'var(--v22-yellow-light)' : 'transparent',
+                    borderLeft: selectedContact?.id === c.id ? '3px solid var(--v22-yellow)' : '3px solid transparent',
+                  }}
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                  <div className="v22-chat-avatar">
                     {c.nom.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate">{c.nom}</div>
-                    <div className="text-xs text-gray-500">{c.role}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--v22-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nom}</div>
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{c.role}</div>
                   </div>
                 </div>
               ))
@@ -247,17 +253,17 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
         </div>
 
         {/* ── Zone chat ── */}
-        <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--v22-bg)', minWidth: 0 }}>
           {!selectedContact ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-6xl mb-4">💬</div>
-                <h3 className="text-xl font-bold mb-2 text-gray-700">Sélectionnez un contact</h3>
-                <p className="text-gray-500 mb-4">Choisissez un artisan ou technicien pour démarrer la conversation</p>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--v22-text)' }}>Sélectionnez un contact</h3>
+                <p style={{ color: 'var(--v22-text-muted)', fontSize: 12, marginBottom: 16 }}>Choisissez un artisan ou technicien pour démarrer la conversation</p>
                 {voiceSupported && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-xs mx-auto">
-                    <p className="text-sm text-amber-700 font-semibold">🎤 Commandes vocales disponibles</p>
-                    <p className="text-xs text-amber-600 mt-1">Dites &quot;Bâtiment A, numéro 6&quot; pour envoyer votre position, &quot;Intervention terminée&quot; pour le statut, etc.</p>
+                  <div className="v22-alert v22-alert-amber" style={{ maxWidth: 320, margin: '0 auto' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600 }}>🎤 Commandes vocales disponibles</p>
+                    <p style={{ fontSize: 11, marginTop: 4 }}>Dites &quot;Bâtiment A, numéro 6&quot; pour envoyer votre position, &quot;Intervention terminée&quot; pour le statut, etc.</p>
                   </div>
                 )}
               </div>
@@ -265,36 +271,36 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
           ) : (
             <>
               {/* Header contact */}
-              <div className="bg-white border-b border-gray-200 px-5 py-4 flex items-center gap-3 flex-shrink-0 shadow-sm">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FFC107] to-[#FFD54F] flex items-center justify-center text-white font-bold">
+              <div style={{ background: 'var(--v22-surface)', borderBottom: '1px solid var(--v22-border)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <div className="v22-chat-avatar" style={{ background: 'var(--v22-yellow)' }}>
                   {selectedContact.nom.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div className="font-bold">{selectedContact.nom}</div>
-                  <div className="text-xs text-gray-500">{selectedContact.role} · Canal direct</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{selectedContact.nom}</div>
+                  <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{selectedContact.role} · Canal direct</div>
                 </div>
-                <div className="ml-auto flex gap-2">
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   {voiceSupported && !isRecording && (
-                    <button onClick={startVoice} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-green-200 transition">🎤 Vocal</button>
+                    <button onClick={startVoice} className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-green-light)', color: 'var(--v22-green)', borderColor: 'var(--v22-green)' }}>🎤 Vocal</button>
                   )}
                   {isRecording && (
-                    <button onClick={stopVoice} className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-semibold animate-pulse hover:bg-red-200 transition">⏹ Stop</button>
+                    <button onClick={stopVoice} className="v22-btn v22-btn-sm animate-pulse" style={{ background: 'var(--v22-red-light)', color: 'var(--v22-red)', borderColor: 'var(--v22-red)' }}>⏹ Stop</button>
                   )}
                 </div>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {msgLoading ? (
-                  <div className="text-center py-10 text-gray-500">Chargement...</div>
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--v22-text-muted)', fontSize: 12 }}>Chargement...</div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-10">
-                    <div className="text-4xl mb-3">💬</div>
-                    <p className="text-gray-500 text-sm">Démarrez la conversation</p>
+                  <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>💬</div>
+                    <p style={{ color: 'var(--v22-text-muted)', fontSize: 12 }}>Démarrez la conversation</p>
                     {voiceSupported && (
-                      <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-sm mx-auto text-left">
-                        <p className="text-sm font-bold text-amber-800 mb-2">🎤 Exemples de commandes vocales :</p>
-                        <ul className="text-xs text-amber-700 space-y-1">
+                      <div className="v22-alert v22-alert-amber" style={{ marginTop: 16, maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', textAlign: 'left' }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>🎤 Exemples de commandes vocales :</p>
+                        <ul style={{ fontSize: 11, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <li>• <em>&quot;Bâtiment B, numéro 12, Madame Dupont&quot;</em> → localisation automatique</li>
                           <li>• <em>&quot;Intervention terminée, fuite réparée&quot;</em> → statut terminé</li>
                           <li>• <em>&quot;Urgence, dégât des eaux au 3ème&quot;</em> → alerte priorité haute</li>
@@ -308,22 +314,23 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
                     const isMe = msg.sender_id === (artisan?.user_id || artisan?.id)
                     const icon = MSG_TYPE_ICONS[msg.type] || ''
                     return (
-                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${isMe ? 'bg-[#FFC107] text-gray-900 rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm border border-gray-200'}`}>
+                      <div key={msg.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                        <div className={isMe ? 'v22-chat-bubble v22-chat-bubble-user' : 'v22-chat-bubble v22-chat-bubble-assistant'} style={{ maxWidth: '75%' }}>
                           {!isMe && (
-                            <div className="text-xs font-bold text-gray-500 mb-1">{msg.sender_name}
-                              {msg.sender_role && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${ROLE_COLORS[msg.sender_role] || 'bg-gray-100 text-gray-600'}`}>{msg.sender_role}</span>}
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+                              {msg.sender_name}
+                              {msg.sender_role && <span className={ROLE_TAG_CLASS[msg.sender_role] || 'v22-tag v22-tag-gray'} style={{ marginLeft: 6, fontSize: 9 }}>{msg.sender_role}</span>}
                             </div>
                           )}
-                          <p className="text-sm leading-relaxed">{icon}{msg.content}</p>
+                          <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{icon}{msg.content}</p>
                           {msg.metadata && msg.type === 'voice_location' && (() => {
                             try {
                               const meta = JSON.parse(msg.metadata)
                               if (meta.isLocation && (meta.batiment || meta.numero)) {
                                 return (
-                                  <div className="mt-2 bg-white/30 rounded-lg p-2 text-xs">
-                                    {meta.batiment && <span className="mr-2">🏢 Bât {meta.batiment}</span>}
-                                    {meta.numero && <span className="mr-2">🚪 N°{meta.numero}</span>}
+                                  <div style={{ marginTop: 6, background: 'rgba(255,255,255,0.3)', borderRadius: 3, padding: 6, fontSize: 11 }}>
+                                    {meta.batiment && <span style={{ marginRight: 8 }}>🏢 Bât {meta.batiment}</span>}
+                                    {meta.numero && <span style={{ marginRight: 8 }}>🚪 N°{meta.numero}</span>}
                                     {meta.appartement && <span>🏠 Apt {meta.appartement}</span>}
                                   </div>
                                 )
@@ -331,7 +338,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
                             } catch { return null }
                             return null
                           })()}
-                          <div className={`text-[10px] mt-1 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>
+                          <div style={{ fontSize: 10, marginTop: 4, color: isMe ? 'rgba(0,0,0,0.5)' : 'var(--v22-text-muted)' }}>
                             {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
                             {msg.read_at && isMe && ' · Lu'}
                           </div>
@@ -345,39 +352,40 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
 
               {/* Statut vocal */}
               {voiceStatus === 'recording' && (
-                <div className="mx-4 mb-2 bg-red-50 border border-red-200 rounded-xl p-3 text-center text-sm text-red-700 animate-pulse">
+                <div className="v22-alert v22-alert-red animate-pulse" style={{ margin: '0 14px 8px' }}>
                   🔴 Enregistrement en cours... Parlez maintenant
                 </div>
               )}
               {voiceStatus === 'processing' && (
-                <div className="mx-4 mb-2 bg-blue-50 border border-blue-200 rounded-xl p-3 text-center text-sm text-blue-700">
+                <div className="v22-alert v22-alert-amber" style={{ margin: '0 14px 8px' }}>
                   ⚙️ Traitement de la commande vocale...
                 </div>
               )}
 
               {/* Zone saisie */}
-              <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0">
-                <div className="flex gap-2 items-end">
-                  <div className="flex gap-2">
-                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={e => setAttachFile(e.target.files?.[0] || null)} />
-                    <button onClick={() => fileInputRef.current?.click()} className="text-gray-500 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition" title="Joindre un fichier">📎</button>
+              <div style={{ background: 'var(--v22-surface)', borderTop: '1px solid var(--v22-border)', padding: 14, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx" onChange={e => setAttachFile(e.target.files?.[0] || null)} />
+                    <button onClick={() => fileInputRef.current?.click()} className="v22-btn v22-btn-sm" title="Joindre un fichier">📎</button>
                     {voiceSupported && (
                       <button
                         onMouseDown={startVoice}
                         onTouchStart={startVoice}
-                        className={`p-2 rounded-lg transition ${isRecording ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-500 hover:text-gray-600 hover:bg-gray-100'}`}
+                        className={`v22-btn v22-btn-sm ${isRecording ? 'animate-pulse' : ''}`}
+                        style={isRecording ? { background: 'var(--v22-red-light)', color: 'var(--v22-red)', borderColor: 'var(--v22-red)' } : {}}
                         title="Commande vocale"
                       >🎤</button>
                     )}
                   </div>
-                  <div className="flex-1">
+                  <div style={{ flex: 1 }}>
                     {attachFile && (
-                      <div className="mb-2 bg-blue-50 rounded-lg px-3 py-1.5 text-xs text-blue-700 flex justify-between items-center">
+                      <div style={{ marginBottom: 6, background: 'var(--v22-amber-light)', borderRadius: 3, padding: '4px 10px', fontSize: 11, color: 'var(--v22-amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>📎 {attachFile.name}</span>
-                        <button onClick={() => setAttachFile(null)} className="text-blue-400 hover:text-blue-600">✕</button>
+                        <button onClick={() => setAttachFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-amber)', fontSize: 12 }}>✕</button>
                       </div>
                     )}
-                    <div className="flex gap-2">
+                    <div style={{ display: 'flex', gap: 8 }}>
                       <input
                         type="text"
                         value={newMsg}
@@ -385,22 +393,24 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                         placeholder={isRecording ? '🔴 Enregistrement vocal...' : 'Tapez un message...'}
                         disabled={isRecording}
-                        className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none text-sm"
+                        className="v22-form-input"
+                        style={{ flex: 1 }}
                       />
                       <button
                         onClick={() => sendMessage()}
                         disabled={sending || (!newMsg.trim() && !attachFile)}
-                        className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50"
+                        className="v22-btn v22-btn-primary"
+                        style={{ opacity: (sending || (!newMsg.trim() && !attachFile)) ? 0.5 : 1 }}
                       >Envoyer</button>
                     </div>
                   </div>
                 </div>
                 {/* Actions rapides vocales */}
-                <div className="flex gap-2 mt-3 flex-wrap">
-                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full font-medium transition">🚗 En route</button>
-                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full font-medium transition">📍 Arrivé</button>
-                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full font-medium transition">✅ Terminé</button>
-                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-full font-medium transition">🚨 Alerte</button>
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} className="v22-tag v22-tag-gray" style={{ cursor: 'pointer', border: '1px solid var(--v22-border)' }}>🚗 En route</button>
+                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} className="v22-tag v22-tag-gray" style={{ cursor: 'pointer', border: '1px solid var(--v22-border)' }}>📍 Arrivé</button>
+                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} className="v22-tag v22-tag-green" style={{ cursor: 'pointer' }}>✅ Terminé</button>
+                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} className="v22-tag v22-tag-red" style={{ cursor: 'pointer' }}>🚨 Alerte</button>
                 </div>
               </div>
             </>
@@ -410,29 +420,32 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
 
       {/* Modal ajout contact */}
       {showAddContact && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b"><h2 className="text-xl font-bold">📡 Ajouter un contact</h2></div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-1">Nom / Société *</label>
-                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder="Jean Dupont Plomberie" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none" />
+        <div className="v22-modal-overlay">
+          <div className="v22-modal" style={{ width: '100%', maxWidth: 420 }}>
+            <div className="v22-modal-head">
+              <div className="v22-modal-title">📡 Ajouter un contact</div>
+              <button className="v22-modal-close" onClick={() => setShowAddContact(false)}>✕</button>
+            </div>
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="v22-form-group">
+                <label className="v22-form-label">Nom / Société *</label>
+                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder="Jean Dupont Plomberie" className="v22-form-input" />
               </div>
-              <div>
-                <label className="block text-sm font-semibold mb-1">Rôle</label>
-                <select value={contactForm.role} onChange={e => setContactForm({...contactForm, role: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none">
+              <div className="v22-form-group">
+                <label className="v22-form-label">Rôle</label>
+                <select value={contactForm.role} onChange={e => setContactForm({...contactForm, role: e.target.value})} className="v22-form-input">
                   {['Artisan', 'Technicien', 'Sous-traitant', 'Fournisseur', 'Gestionnaire', 'Syndic', 'Autre'].map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-semibold mb-1">Identifiant utilisateur (optionnel)</label>
-                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-[#FFC107] outline-none" />
-                <p className="text-xs text-gray-500 mt-1">Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</p>
+              <div className="v22-form-group">
+                <label className="v22-form-label">Identifiant utilisateur (optionnel)</label>
+                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className="v22-form-input" />
+                <p style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</p>
               </div>
             </div>
-            <div className="p-6 border-t flex gap-3">
-              <button onClick={() => setShowAddContact(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50 transition">Annuler</button>
-              <button onClick={handleAddContact} className="flex-1 py-2.5 bg-[#FFC107] text-gray-900 rounded-xl font-semibold hover:bg-[#FFD54F] transition">Ajouter</button>
+            <div className="v22-modal-foot" style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowAddContact(false)} className="v22-btn" style={{ flex: 1 }}>Annuler</button>
+              <button onClick={handleAddContact} className="v22-btn v22-btn-primary" style={{ flex: 1 }}>Ajouter</button>
             </div>
           </div>
         </div>
