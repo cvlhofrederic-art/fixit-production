@@ -285,13 +285,16 @@
 
 /* V22 Modal */
 #artisan-dashboard-v22 .v22-modal-overlay {
+  display: none;
   position: fixed;
   inset: 0;
   background: rgba(13,13,13,0.45);
   z-index: 200;
-  display: flex;
   align-items: center;
   justify-content: center;
+}
+#artisan-dashboard-v22 .v22-modal-overlay.open {
+  display: flex;
 }
 #artisan-dashboard-v22 .v22-modal {
   background: var(--v22-surface);
