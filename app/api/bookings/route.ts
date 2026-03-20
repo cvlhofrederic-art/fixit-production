@@ -71,7 +71,28 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const isAutoAccept = false
+    let isAutoAccept = false
+    if (service_id) {
+      const { data: svc } = await supabaseAdmin
+        .from('services')
+        .select('validation_auto, delai_minimum_heures')
+        .eq('id', service_id)
+        .single()
+      isAutoAccept = svc?.validation_auto === true
+
+      // Enforce minimum delay
+      const delai = svc?.delai_minimum_heures || 0
+      if (delai > 0) {
+        const slotTs = new Date(`${booking_date}T${booking_time}:00`).getTime()
+        const minTs = Date.now() + delai * 60 * 60 * 1000
+        if (slotTs < minTs) {
+          return NextResponse.json(
+            { error: `Ce créneau ne respecte pas le délai minimum de ${delai}h avant intervention.` },
+            { status: 400 }
+          )
+        }
+      }
+    }
 
     // ── Build insert data ──────────────────────────────────────────────
     const insertData: Record<string, unknown> = {

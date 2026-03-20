@@ -8,7 +8,7 @@ interface MotifsSectionProps {
   setShowMotifModal: (v: boolean) => void
   editingMotif: any
   motifForm: {
-    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string
+    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number
   }
   setMotifForm: (v: any) => void
   savingMotif: boolean
@@ -58,6 +58,7 @@ export default function MotifsSection({
               <th>{t('proDash.motifs.colDuree')}</th>
               <th>{t('proDash.motifs.colFourchette')}</th>
               <th>{t('proDash.motifs.colUnite')}</th>
+              <th>{t('proDash.motifs.colValidation')}</th>
               <th>{t('proDash.motifs.colStatut')}</th>
               <th>{t('proDash.motifs.colActions')}</th>
             </tr>
@@ -81,6 +82,11 @@ export default function MotifsSection({
                   <span className="v22-tag v22-tag-gray">{getPricingUnit(service)}</span>
                 </td>
                 <td>
+                  <span className={`v22-tag ${service.validation_auto ? 'v22-tag-green' : 'v22-tag-gray'}`}>
+                    {service.validation_auto ? `⚡ ${t('proDash.motifs.auto')}` : `👤 ${t('proDash.motifs.manuel')}`}
+                  </span>
+                </td>
+                <td>
                   <button onClick={() => toggleMotifActive(service.id, service.active)}
                     className={`v22-tag ${service.active ? 'v22-tag-green' : 'v22-tag-gray'}`}
                     style={{ cursor: 'pointer' }}>
@@ -101,7 +107,7 @@ export default function MotifsSection({
             ))}
             {services.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '40px 14px' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '40px 14px' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>{'🔧'}</div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('proDash.motifs.aucunMotif')}</div>
                   <div className="v22-ref" style={{ marginBottom: 12 }}>{t('proDash.motifs.aucunMotifDesc')}</div>
@@ -224,6 +230,57 @@ export default function MotifsSection({
                     </div>
                   </div>
                   <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.surDevisNote')}</div>
+                </div>
+
+                {/* Validation auto */}
+                <div>
+                  <label className="v22-form-label" style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <button
+                      onClick={() => setMotifForm({...motifForm, validation_auto: false})}
+                      className="v22-btn"
+                      style={{
+                        textAlign: 'left', padding: '8px 10px',
+                        borderColor: !motifForm.validation_auto ? 'var(--v22-yellow)' : undefined,
+                        background: !motifForm.validation_auto ? 'var(--v22-yellow-light)' : undefined,
+                      }}>
+                      <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
+                      <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
+                    </button>
+                    <button
+                      onClick={() => setMotifForm({...motifForm, validation_auto: true})}
+                      className="v22-btn"
+                      style={{
+                        textAlign: 'left', padding: '8px 10px',
+                        borderColor: motifForm.validation_auto ? 'var(--v22-yellow)' : undefined,
+                        background: motifForm.validation_auto ? 'var(--v22-yellow-light)' : undefined,
+                      }}>
+                      <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
+                      <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Délai minimum */}
+                <div>
+                  <label className="v22-form-label" style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                    {[0, 2, 4, 8, 12, 24, 48, 72].map((h) => (
+                      <button key={h}
+                        onClick={() => setMotifForm({...motifForm, delai_minimum_heures: h})}
+                        className="v22-btn"
+                        style={{
+                          textAlign: 'center', padding: '8px 6px',
+                          borderColor: motifForm.delai_minimum_heures === h ? 'var(--v22-yellow)' : undefined,
+                          background: motifForm.delai_minimum_heures === h ? 'var(--v22-yellow-light)' : undefined,
+                        }}>
+                        <div style={{ fontWeight: 600, fontSize: 12 }}>
+                          {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
                 </div>
               </div>
             </div>

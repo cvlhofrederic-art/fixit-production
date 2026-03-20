@@ -272,14 +272,31 @@ function ReserverContent() {
                     <Calendar className="w-4 h-4 inline mr-1" />
                     {t('Date souhaitée', 'Data pretendida')}
                   </label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    required
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
-                  />
+                  {(() => {
+                    const delai = service?.delai_minimum_heures || 0
+                    const minDate = new Date(Date.now() + delai * 60 * 60 * 1000)
+                    const minDateStr = minDate.toISOString().split('T')[0]
+                    return (
+                      <>
+                        <input
+                          type="date"
+                          value={formData.date}
+                          onChange={(e) => setFormData({ ...formData, date: e.target.value, time: '' })}
+                          required
+                          min={minDateStr}
+                          className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
+                        />
+                        {delai > 0 && (
+                          <p className="text-xs text-mid mt-1">
+                            {t(
+                              `Délai minimum : ${delai < 24 ? `${delai}h` : `${delai / 24} jour(s)`} avant l'intervention`,
+                              `Prazo mínimo : ${delai < 24 ? `${delai}h` : `${delai / 24} dia(s)`} antes da intervenção`
+                            )}
+                          </p>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
 
                 <div>
@@ -294,7 +311,11 @@ function ReserverContent() {
                     className="w-full px-4 py-3 bg-warm-gray border-[1.5px] border-[#E0E0E0] rounded-xl focus:border-yellow focus:bg-white focus:outline-none"
                   >
                     <option value="">{t('Choisir une heure', 'Escolher uma hora')}</option>
-                    {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((time) => (
+                    {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].filter((time) => {
+                      if (!formData.date || !service?.delai_minimum_heures) return true
+                      const slotTs = new Date(`${formData.date}T${time}:00`).getTime()
+                      return slotTs >= Date.now() + (service.delai_minimum_heures * 60 * 60 * 1000)
+                    }).map((time) => (
                       <option key={time} value={time}>{time}</option>
                     ))}
                   </select>

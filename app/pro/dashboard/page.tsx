@@ -127,9 +127,9 @@ export default function DashboardPage() {
   const [showMotifModal, setShowMotifModal] = useState(false)
   const [editingMotif, setEditingMotif] = useState<any>(null)
   const [motifForm, setMotifForm] = useState<{
-    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string
+    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number
   }>({
-    name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait'
+    name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0
   })
   const [savingMotif, setSavingMotif] = useState(false)
 
@@ -719,7 +719,7 @@ export default function DashboardPage() {
 
   const openNewMotif = () => {
     setEditingMotif(null)
-    setMotifForm({ name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait' })
+    setMotifForm({ name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0 })
     setShowMotifModal(true)
   }
 
@@ -737,6 +737,8 @@ export default function DashboardPage() {
       price_min: min || '',
       price_max: max || '',
       pricing_unit: unit,
+      validation_auto: service.validation_auto || false,
+      delai_minimum_heures: service.delai_minimum_heures || 0,
     })
     setShowMotifModal(true)
   }
@@ -759,6 +761,8 @@ export default function DashboardPage() {
       price_ht: priceMin,
       price_ttc: priceMax,
       active: true,
+      validation_auto: motifForm.validation_auto,
+      delai_minimum_heures: motifForm.delai_minimum_heures,
     }
 
     if (editingMotif) {
@@ -1314,7 +1318,7 @@ export default function DashboardPage() {
       )}
 
       {/* ══════════ V22 TOPBAR ══════════ */}
-      <header className="h-12 flex-shrink-0 flex items-center px-5 gap-4" style={{ background: 'var(--v22-text)', borderBottom: '2px solid var(--v22-yellow)' }}>
+      <header className="h-14 flex-shrink-0 flex items-center px-5 gap-4" style={{ background: 'var(--v22-text)', borderBottom: '2px solid var(--v22-yellow)' }}>
         <button className="lg:hidden text-white text-lg" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
         <a href="#" className="v22-mono text-xs font-medium tracking-wider uppercase no-underline" onClick={(e) => { e.preventDefault(); navigateTo('home') }}>
           <span style={{ color: 'var(--v22-yellow)' }}>VIT</span><span className="text-white">FIX</span>
