@@ -751,7 +751,7 @@
     "devis": {
       "title": "Quotes",
       "subtitle": "Create and manage quotes",
-      "nouveauDevis": "+ New quote",
+      "nouveauDevis": "New quote",
       "totalDevis": "Total quotes",
       "envoyes": "Sent",
       "nonEnvoyes": "Not sent",
@@ -772,7 +772,7 @@
     "factures": {
       "title": "Invoices",
       "subtitle": "Invoice management",
-      "nouvelleFacture": "+ New invoice",
+      "nouvelleFacture": "New invoice",
       "totalFactures": "Total invoices",
       "caHTTotal": "Total revenue excl. tax",
       "envoyees": "Sent",
@@ -867,6 +867,9 @@
       "ferme": "Closed",
       "motifsLabel": "service type(s)",
       "tousMotifs": "All service types"
+    },
+    "photos": {
+      "ajouterPhotos": "Add photos"
     }
   },
   "mob": {
@@ -1023,7 +1026,7 @@
     "subtotal": "Subtotal",
     "tva": "VAT",
     "totalTTC": "Total incl. tax",
-    "addLine": "+ Add line",
+    "addLine": "Add line",
     "removeLine": "Remove",
     "notes": "Notes / Conditions",
     "notesPlaceholder": "Payment terms, additional conditions...",

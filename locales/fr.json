@@ -2367,7 +2367,7 @@
     "devis": {
       "title": "Devis",
       "subtitle": "Création et gestion des devis",
-      "nouveauDevis": "+ Nouveau devis",
+      "nouveauDevis": "Nouveau devis",
       "totalDevis": "Total devis",
       "envoyes": "Envoyés",
       "nonEnvoyes": "Non envoyés",
@@ -2388,7 +2388,7 @@
     "factures": {
       "title": "Factures",
       "subtitle": "Gestion des factures",
-      "nouvelleFacture": "+ Nouvelle facture",
+      "nouvelleFacture": "Nouvelle facture",
       "totalFactures": "Total factures",
       "caHTTotal": "CA HT total",
       "envoyees": "Envoyées",
@@ -2744,7 +2744,8 @@
       "rapport": "Rapport",
       "supprimerPhoto": "Supprimer cette photo ?",
       "nonAssociee": "Non associée",
-      "aucunRapportLie": "Aucun rapport lié"
+      "aucunRapportLie": "Aucun rapport lié",
+      "ajouterPhotos": "Ajouter des photos"
     },
     "ordres": {
       "title": "Ordres de mission",
@@ -4020,7 +4021,7 @@
     "selectMotif": "Choisir un motif...",
     "freeEntry": "Saisie libre",
     "freeEntryPlaceholder": "Saisie libre...",
-    "addLine": "+ Ajouter une ligne",
+    "addLine": "Ajouter une ligne",
     "paymentSection": "Conditions de Paiement (OBLIGATOIRE)",
     "paymentSectionDesc": "Ces mentions sont obligatoires sur toute facture (art. L. 441-3 Code de commerce). L'absence de pénalités de retard ou d'indemnité de recouvrement est automatiquement ajoutée.",
     "paymentCondition": "Conditions de paiement",

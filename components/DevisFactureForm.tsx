@@ -216,6 +216,7 @@ export default function DevisFactureForm({
 
   // ─── PDF (vector-based jsPDF + autoTable) ───
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [savedMsg, setSavedMsg] = useState('')
 
   // ─── Verified Company Data ───
   const [verifiedCompany, setVerifiedCompany] = useState<any>(null)
@@ -812,7 +813,8 @@ export default function DevisFactureForm({
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
     drafts.push({ ...data, savedAt: new Date().toISOString(), status: 'brouillon' })
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
-    alert(`💾 ${t('devis.draftSaved')}`)
+    setSavedMsg(`💾 ${t('devis.draftSaved')}`)
+    setTimeout(() => setSavedMsg(''), 3000)
   }
 
   const handleGeneratePDF = async () => {
@@ -1498,7 +1500,8 @@ export default function DevisFactureForm({
       }
     } catch (err) {
       console.error('Erreur PDF:', err)
-      alert(`❌ ${t('devis.pdfErrorTitle')}`)
+      setSavedMsg(`❌ ${t('devis.pdfErrorTitle')}`)
+      setTimeout(() => setSavedMsg(''), 4000)
     } finally {
       setPdfLoading(false)
     }
@@ -1514,7 +1517,8 @@ export default function DevisFactureForm({
       if (!compliance.lines) missing.push(t('devis.missingLines'))
       if ('capital' in compliance && !compliance.capital) missing.push(`${t('devis.missingCapital')} ${getStatusLabel(companyStatus, t)})`)
       if ('tvaNumber' in compliance && !compliance.tvaNumber) missing.push(t('devis.missingTvaNumber'))
-      alert(`❌ ${t('devis.missingInfo')} :\n\n` + missing.join('\n'))
+      setSavedMsg(`❌ ${t('devis.missingInfo')} : ${missing.join(', ')}`)
+      setTimeout(() => setSavedMsg(''), 5000)
       return
     }
     setShowSendModal('validate')
@@ -1554,7 +1558,8 @@ export default function DevisFactureForm({
   // ─── Send via Vitfix Channel ───
   const handleSendViaVitfix = async () => {
     if (!linkedBookingId) {
-      alert(t('devis.sendNoBooking'))
+      setSavedMsg(`⚠️ ${t('devis.sendNoBooking')}`)
+      setTimeout(() => setSavedMsg(''), 4000)
       return
     }
     const currentMode = showSendModal
@@ -1593,11 +1598,13 @@ export default function DevisFactureForm({
 
       if (!res.ok) throw new Error('Erreur envoi')
 
-      alert(`✅ ${typeLabel} ${t('devis.sendSuccess')}`)
+      setSavedMsg(`✅ ${typeLabel} ${t('devis.sendSuccess')}`)
+      setTimeout(() => setSavedMsg(''), 3000)
       saveAndFinalize(currentMode)
     } catch (err) {
       console.error('Erreur envoi Vitfix:', err)
-      alert(`❌ ${t('devis.sendError')}`)
+      setSavedMsg(`❌ ${t('devis.sendError')}`)
+      setTimeout(() => setSavedMsg(''), 4000)
     } finally {
       setSendingVitfix(false)
     }
@@ -2660,6 +2667,11 @@ export default function DevisFactureForm({
                 <span className="v22-card-title">{t('devis.actions')}</span>
               </div>
               <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {savedMsg && (
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: savedMsg.startsWith('✅') ? '#d1fae5' : savedMsg.startsWith('❌') ? '#fee2e2' : '#fef3c7', fontSize: 13, fontWeight: 500, color: '#1f2937' }}>
+                    {savedMsg}
+                  </div>
+                )}
                 <button
                   onClick={handleSaveDraft}
                   className="v22-btn"
