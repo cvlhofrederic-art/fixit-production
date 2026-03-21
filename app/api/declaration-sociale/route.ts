@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
 
     const { data: artisan } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('id, country, type_activite, periodicite_declaration, acre_actif, acre_date_fin, declaration_configuree')
+      .select('id, language, type_activite, periodicite_declaration, acre_actif, acre_date_fin, declaration_configuree')
       .eq('user_id', user.id)
       .maybeSingle()
 
     if (!artisan) return NextResponse.json({ error: 'Artisan introuvable' }, { status: 404 })
 
-    const pays = (artisan.country || 'FR') as 'FR' | 'PT'
+    const pays = (artisan.language === 'pt' ? 'PT' : 'FR') as 'FR' | 'PT'
     const typeActivite = artisan.type_activite || (pays === 'FR' ? 'bic_services' : 'prestadores_servicos')
     const periodicite = (artisan.periodicite_declaration || 'trimestrielle') as 'mensuelle' | 'trimestrielle'
 
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     const { data: artisan } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('id, country')
+      .select('id, language')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     // Action: marquer comme déclaré
     if (body.action === 'marquer_declaree') {
-      const pays = (artisan.country || 'FR') as 'FR' | 'PT'
+      const pays = (artisan.language === 'pt' ? 'PT' : 'FR') as 'FR' | 'PT'
       const { periode_label, date_debut, date_fin, ca_periode, taux_applique, cotisations_estimees, date_limite } = body
 
       // Upsert la déclaration
