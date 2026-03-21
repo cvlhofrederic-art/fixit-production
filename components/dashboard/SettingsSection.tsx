@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { useTranslation } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { SITE_URL } from '@/lib/constants'
 
 interface SettingsSectionProps {
   artisan: Record<string, unknown> & { id: string; company_name?: string; phone?: string; email?: string; bio?: string; profile_photo_url?: string }
   initials: string
-  settingsTab: 'profil' | 'modules'
-  setSettingsTab: (v: 'profil' | 'modules') => void
+  settingsTab: 'profil' | 'modules' | 'parrainage'
+  setSettingsTab: (v: 'profil' | 'modules' | 'parrainage') => void
   settingsForm: {
     company_name: string; email: string; phone: string; bio: string;
     auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number
@@ -34,6 +35,170 @@ interface SettingsSectionProps {
   modulesConfig: { id: string; enabled: boolean; order: number }[]
   saveModulesConfig: (config: { id: string; enabled: boolean; order: number }[]) => void
   moveModule: (moduleId: string, direction: 'up' | 'down') => void
+}
+
+// ── Parrainage Settings Tab ────────────────────────────────────────────────
+
+function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
+  const [referralCode, setReferralCode] = useState('')
+  const [creditMois, setCreditMois] = useState(0)
+  const [totalParrainages, setTotalParrainages] = useState(0)
+  const [notifEnabled, setNotifEnabled] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [savingNotif, setSavingNotif] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const { data } = await supabase
+        .from('profiles_artisan')
+        .select('referral_code, credit_mois_gratuits, total_parrainages_reussis, referral_notifications_enabled')
+        .eq('id', artisanId)
+        .single()
+      if (data) {
+        setReferralCode(data.referral_code || '')
+        setCreditMois(data.credit_mois_gratuits || 0)
+        setTotalParrainages(data.total_parrainages_reussis || 0)
+        setNotifEnabled(data.referral_notifications_enabled !== false)
+      }
+    } catch { /* silent */ }
+    setLoading(false)
+  }, [artisanId])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const generateCode = async () => {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/referral/generate-code', { method: 'POST' })
+      const json = await res.json()
+      if (json.code) setReferralCode(json.code)
+    } catch { /* silent */ }
+    setGenerating(false)
+  }
+
+  const toggleNotifications = async () => {
+    setSavingNotif(true)
+    const newVal = !notifEnabled
+    try {
+      await supabase
+        .from('profiles_artisan')
+        .update({ referral_notifications_enabled: newVal })
+        .eq('id', artisanId)
+      setNotifEnabled(newVal)
+    } catch { /* silent */ }
+    setSavingNotif(false)
+  }
+
+  const referralLink = referralCode ? `${SITE_URL}/rejoindre?ref=${referralCode}` : ''
+
+  const copyLink = () => {
+    if (!referralLink) return
+    navigator.clipboard.writeText(referralLink)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 16, textAlign: 'center', color: 'var(--v22-text-muted)' }}>
+        Chargement...
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: 16, maxWidth: 672, margin: '0 auto' }}>
+      {/* Code de parrainage */}
+      <div className="v22-card" style={{ marginBottom: 16 }}>
+        <div className="v22-card-head">
+          <div className="v22-card-title">🔗 Votre code de parrainage</div>
+        </div>
+        <div className="v22-card-body">
+          {referralCode ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ flex: 1, padding: '10px 14px', background: 'var(--v22-bg)', borderRadius: 8, border: '1px solid var(--v22-border)', fontFamily: 'monospace', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--v22-text)' }}>
+                  {referralCode}
+                </div>
+                <button onClick={copyLink} className="v22-btn v22-btn-primary" style={{ whiteSpace: 'nowrap' }}>
+                  {copied ? '✅ Copié' : '📋 Copier le lien'}
+                </button>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', wordBreak: 'break-all' }}>
+                {referralLink}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <p style={{ fontSize: 14, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
+                Aucun code de parrainage. Générez-en un pour commencer à parrainer.
+              </p>
+              <button onClick={generateCode} disabled={generating} className="v22-btn v22-btn-primary" style={{ opacity: generating ? 0.5 : 1 }}>
+                {generating ? '⏳ Génération...' : '🎁 Générer mon code'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Stats rapides */}
+      <div className="v22-card" style={{ marginBottom: 16 }}>
+        <div className="v22-card-head">
+          <div className="v22-card-title">📊 Vos stats parrainage</div>
+        </div>
+        <div className="v22-card-body">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ padding: 16, background: 'var(--v22-bg)', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--v22-text)' }}>{totalParrainages}</div>
+              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 4 }}>Parrainage{totalParrainages > 1 ? 's' : ''} réussi{totalParrainages > 1 ? 's' : ''}</div>
+            </div>
+            <div style={{ padding: 16, background: creditMois > 0 ? 'var(--v22-green-light)' : 'var(--v22-bg)', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: creditMois > 0 ? 'var(--v22-green)' : 'var(--v22-text)' }}>{creditMois}</div>
+              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 4 }}>Mois gratuit{creditMois > 1 ? 's' : ''} disponible{creditMois > 1 ? 's' : ''}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="v22-card">
+        <div className="v22-card-head">
+          <div className="v22-card-title">🔔 Notifications parrainage</div>
+        </div>
+        <div className="v22-card-body">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--v22-bg)', borderRadius: 6 }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>Emails de parrainage</div>
+              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                {notifEnabled ? 'Recevez un email à chaque étape du parrainage' : 'Notifications par email désactivées'}
+              </div>
+            </div>
+            <button
+              onClick={toggleNotifications}
+              disabled={savingNotif}
+              style={{
+                width: 44, height: 24, borderRadius: 12, position: 'relative',
+                transition: 'background .2s',
+                background: notifEnabled ? 'var(--v22-green)' : 'var(--v22-border-dark)',
+                border: 'none', cursor: savingNotif ? 'wait' : 'pointer', flexShrink: 0,
+                opacity: savingNotif ? 0.5 : 1,
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 2, width: 20, height: 20,
+                background: '#fff', borderRadius: '50%',
+                boxShadow: '0 1px 2px rgba(0,0,0,.15)',
+                transition: 'left .2s', left: notifEnabled ? 22 : 2,
+              }} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PasswordChangeCard() {
@@ -147,8 +312,8 @@ export default function SettingsSection({
       {/* Page header */}
       <div className="v22-page-header">
         <div style={{ flex: 1 }}>
-          <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : `⚙️ ${t('proDash.settings.title')}`}</div>
-          <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : t('proDash.settings.subtitle')}</div>
+          <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : settingsTab === 'parrainage' ? '🎁 Parrainage' : `⚙️ ${t('proDash.settings.title')}`}</div>
+          <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : t('proDash.settings.subtitle')}</div>
         </div>
         {settingsTab === 'profil' && (
           <button onClick={saveSettings} disabled={savingSettings} className="v22-btn v22-btn-primary" style={{ opacity: savingSettings ? 0.5 : 1 }}>
@@ -352,6 +517,11 @@ export default function SettingsSection({
       </div>
       )}
 
+      {/* Parrainage */}
+      {settingsTab === 'parrainage' && (
+        <ParrainageSettingsTab artisanId={artisan.id} />
+      )}
+
       {/* Modules */}
       {settingsTab === 'modules' && (
         <div style={{ padding: 16 }}>
@@ -374,7 +544,7 @@ export default function SettingsSection({
                 { title: `💬 ${t('proDash.settings.communicationGroup')}`, keys: ['messages', 'clients'] },
                 { title: `📄 ${t('proDash.settings.facturationDocs')}`, keys: ['devis', 'factures', 'rapports', 'contrats'] },
                 { title: `📊 ${t('proDash.settings.analyseFinances')}`, keys: ['stats', 'revenus', 'comptabilite', 'materiaux'] },
-                { title: `🗂️ ${t('proDash.settings.profilProGroup')}`, keys: ['wallet', 'portfolio'] },
+                { title: `🗂️ ${t('proDash.settings.profilProGroup')}`, keys: ['wallet', 'portfolio', 'parrainage'] },
               ].map(group => {
                 const groupMods = ALL_MODULES.filter(m => group.keys.includes(m.id))
                 if (groupMods.length === 0) return null

@@ -1,11 +1,20 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import NextImage from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
+
+// ── Signature types (inline to avoid cross-dependency with syndic) ──
+interface SignatureData {
+  svg_data: string
+  signataire: string
+  timestamp: string
+  document_ref: string
+  hash_sha256: string
+}
 
 // ═══════════════════════════════════════════════
 // TYPES
@@ -287,6 +296,16 @@ export default function DevisFactureForm({
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
   const [photosLoading, setPhotosLoading] = useState(false)
 
+  // ─── Signature électronique ───
+  const [signatureData, setSignatureData] = useState<SignatureData | null>(null)
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
+  const sigCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [sigDrawing, setSigDrawing] = useState(false)
+  const [sigPoints, setSigPoints] = useState<{ x: number; y: number }[][]>([])
+  const [sigCurrentStroke, setSigCurrentStroke] = useState<{ x: number; y: number }[]>([])
+  const [sigNom, setSigNom] = useState('')
+  const [sigSigning, setSigSigning] = useState(false)
+
   // Load available rapports from localStorage
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
@@ -329,6 +348,60 @@ export default function DevisFactureForm({
     })
   }
 
+  // ─── Signature Canvas Handlers ───
+  const getSigPos = useCallback((e: React.TouchEvent | React.MouseEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY }
+  }, [])
+
+  const sigStartDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const canvas = sigCanvasRef.current; if (!canvas) return
+    e.preventDefault()
+    setSigDrawing(true)
+    const pos = getSigPos(e, canvas)
+    setSigCurrentStroke([pos])
+    const ctx = canvas.getContext('2d')!
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y)
+  }, [getSigPos])
+
+  const sigDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    if (!sigDrawing) return
+    const canvas = sigCanvasRef.current; if (!canvas) return
+    e.preventDefault()
+    const pos = getSigPos(e, canvas)
+    setSigCurrentStroke(prev => [...prev, pos])
+    const ctx = canvas.getContext('2d')!
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1E293B'
+    ctx.lineTo(pos.x, pos.y); ctx.stroke()
+  }, [sigDrawing, getSigPos])
+
+  const sigEndDraw = useCallback(() => {
+    if (!sigDrawing) return
+    setSigDrawing(false)
+    setSigPoints(prev => [...prev, sigCurrentStroke])
+    setSigCurrentStroke([])
+  }, [sigDrawing, sigCurrentStroke])
+
+  const sigClearCanvas = useCallback(() => {
+    const canvas = sigCanvasRef.current; if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setSigPoints([]); setSigCurrentStroke([])
+  }, [])
+
+  const sigBuildSVG = useCallback(() => {
+    const paths = sigPoints.filter(s => s.length > 1).map(stroke => {
+      const d = stroke.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+      return `<path d="${d}" stroke="#1E293B" stroke-width="2.5" fill="none" stroke-linecap="round"/>`
+    }).join('')
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="140">${paths}</svg>`
+  }, [sigPoints])
+
   // Generate document number — séquences séparées devis / facture / avoir (art. L441-9 C. com.)
   const isConversion = docType === 'facture' && initialData?.docType === 'devis' && initialData?.docNumber
 
@@ -350,6 +423,48 @@ export default function DevisFactureForm({
   const docNumber = docType === 'devis'
     ? `DEV-${new Date().getFullYear()}-${String(devisCount).padStart(3, '0')}`
     : `FACT-${new Date().getFullYear()}-${String(factureCount).padStart(3, '0')}`
+
+  // ─── Signature: sign + SVG→PNG conversion ───
+  const handleSignDocument = useCallback(async () => {
+    if (sigPoints.length === 0 || !sigNom.trim()) return
+    setSigSigning(true)
+    try {
+      const svg = sigBuildSVG()
+      const timestamp = new Date().toISOString()
+      const payload = `${sigNom}|${timestamp}|${docNumber}|${svg.length}`
+      const encoder = new TextEncoder()
+      const data = encoder.encode(payload)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      setSignatureData({ svg_data: svg, signataire: sigNom, timestamp, document_ref: docNumber, hash_sha256: hash })
+      setShowSignatureModal(false)
+    } catch {
+      setSignatureData({ svg_data: sigBuildSVG(), signataire: sigNom, timestamp: new Date().toISOString(), document_ref: docNumber, hash_sha256: 'hash_error' })
+      setShowSignatureModal(false)
+    }
+    setSigSigning(false)
+  }, [sigPoints, sigNom, sigBuildSVG, docNumber])
+
+  const svgToImageDataUrl = useCallback((svgString: string, width: number, height: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = width * 2
+        canvas.height = height * 2
+        const ctx = canvas.getContext('2d')!
+        ctx.scale(2, 2)
+        ctx.drawImage(img, 0, 0, width, height)
+        URL.revokeObjectURL(url)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG render failed')) }
+      img.src = url
+    })
+  }, [])
 
   // Référence du devis d'origine (si conversion devis → facture)
   const sourceDevisRef = isConversion ? initialData.docNumber : null
@@ -1167,17 +1282,53 @@ export default function DevisFactureForm({
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
         pdf.text(t('devis.pdf.approvalTitle'), sigCenterX, condStartY + 4, { align: 'center' })
         drawLine(sigCenterX - 10, condStartY + 6, sigCenterX + 10, '#E2E8F0', 0.2)
-        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-        pdf.text(t('devis.pdf.handwrittenMention'), sigX + 4, condStartY + 10)
-        pdf.setFont('helvetica', 'italic'); pdf.setFontSize(5.5); pdf.setTextColor('#9CA3AF')
-        const mentionText = t('devis.pdf.approvalText')
-        const mentionWrapped = pdf.splitTextToSize(mentionText, sigW - 8)
-        pdf.text(mentionWrapped, sigX + 4, condStartY + 14)
-        const mentionEndY = condStartY + 14 + mentionWrapped.length * 2.5
-        drawLine(sigX + 4, mentionEndY + 3, sigX + sigW - 4, '#D1D5DB', 0.2)
-        pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-        pdf.text(t('devis.pdf.dateField'), sigX + 4, mentionEndY + 7)
-        pdf.text(t('devis.pdf.signatureField'), sigX + 4, mentionEndY + 11)
+
+        if (signatureData) {
+          // ── Signature électronique présente → embed dans le PDF ──
+          pdf.setFontSize(6); pdf.setFont('helvetica', 'italic'); pdf.setTextColor('#6B7280')
+          pdf.text(locale === 'pt' ? 'Bom para acordo' : 'Bon pour accord', sigX + 4, condStartY + 10)
+
+          // Render SVG signature as PNG image
+          try {
+            const sigImgDataUrl = await svgToImageDataUrl(signatureData.svg_data, 400, 140)
+            const sigImgW = sigW - 8
+            const sigImgH = sigImgW * (140 / 400) // maintain aspect ratio
+            pdf.addImage(sigImgDataUrl, 'PNG', sigX + 4, condStartY + 12, sigImgW, sigImgH)
+
+            // Signer name + date below signature
+            const sigInfoY = condStartY + 12 + sigImgH + 2
+            pdf.setFontSize(6); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
+            pdf.text(signatureData.signataire, sigX + 4, sigInfoY)
+            pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+            const sigDateStr = new Date(signatureData.timestamp).toLocaleString(dateLocaleStr)
+            pdf.text(sigDateStr, sigX + 4, sigInfoY + 3.5)
+          } catch {
+            // Fallback: just show text if SVG render fails
+            pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
+            pdf.text(signatureData.signataire, sigX + 4, condStartY + 14)
+            pdf.setFontSize(6); pdf.setTextColor('#6B7280')
+            pdf.text(new Date(signatureData.timestamp).toLocaleString(dateLocaleStr), sigX + 4, condStartY + 18)
+          }
+
+          // Audit trail (eIDAS art. 25.1)
+          pdf.setFontSize(4.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#9CA3AF')
+          const auditY = condStartY + condH - 8
+          pdf.text(`SHA-256: ${signatureData.hash_sha256.substring(0, 32)}...`, sigX + 4, auditY)
+          pdf.text(locale === 'pt' ? 'Assinatura eletrónica simples — art. 25.1 eIDAS' : 'Signature électronique simple — art. 25.1 eIDAS', sigX + 4, auditY + 3)
+        } else {
+          // ── Pas de signature → zones vierges à remplir à la main ──
+          pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+          pdf.text(t('devis.pdf.handwrittenMention'), sigX + 4, condStartY + 10)
+          pdf.setFont('helvetica', 'italic'); pdf.setFontSize(5.5); pdf.setTextColor('#9CA3AF')
+          const mentionText = t('devis.pdf.approvalText')
+          const mentionWrapped = pdf.splitTextToSize(mentionText, sigW - 8)
+          pdf.text(mentionWrapped, sigX + 4, condStartY + 14)
+          const mentionEndY = condStartY + 14 + mentionWrapped.length * 2.5
+          drawLine(sigX + 4, mentionEndY + 3, sigX + sigW - 4, '#D1D5DB', 0.2)
+          pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+          pdf.text(t('devis.pdf.dateField'), sigX + 4, mentionEndY + 7)
+          pdf.text(t('devis.pdf.signatureField'), sigX + 4, mentionEndY + 11)
+        }
         pdf.roundedRect(sigX, condStartY, sigW, condH, 1.5, 1.5, 'S')
 
         y = condStartY + condH + 6
@@ -2661,6 +2812,42 @@ export default function DevisFactureForm({
               </div>
             </div>
 
+            {/* Signature électronique (devis only) */}
+            {docType === 'devis' && (
+              <div className="v22-card">
+                <div className="v22-card-head">
+                  <span className="v22-card-title">{locale === 'pt' ? 'Assinatura' : 'Signature'}</span>
+                  {signatureData && <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}>{locale === 'pt' ? 'Assinado' : 'Signé'}</span>}
+                </div>
+                <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {signatureData ? (
+                    <div>
+                      <div style={{ border: '1px solid var(--v22-border)', borderRadius: 4, padding: 8, background: 'var(--v22-bg)', marginBottom: 6 }}
+                        dangerouslySetInnerHTML={{ __html: signatureData.svg_data }}
+                      />
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--v22-text)' }}>{signatureData.signataire}</div>
+                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>{new Date(signatureData.timestamp).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</div>
+                      <div style={{ fontSize: 9, color: 'var(--v22-text-muted)', fontFamily: 'monospace', marginTop: 2 }}>SHA-256: {signatureData.hash_sha256.substring(0, 16)}...</div>
+                      <button onClick={() => { setSignatureData(null); sigClearCanvas() }}
+                        className="v22-btn v22-btn-sm" style={{ marginTop: 6, color: 'var(--v22-red)', fontSize: 11 }}>
+                        {locale === 'pt' ? 'Remover assinatura' : 'Retirer la signature'}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+                        {locale === 'pt' ? 'Assine o documento antes de gerar o PDF' : 'Signez le document avant de générer le PDF'}
+                      </div>
+                      <button onClick={() => { setSigNom(companyName); setShowSignatureModal(true) }}
+                        className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px' }}>
+                        {locale === 'pt' ? 'Assinar o documento' : 'Signer le document'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Actions */}
             <div className="v22-card">
               <div className="v22-card-head">
@@ -2769,6 +2956,75 @@ export default function DevisFactureForm({
               >
                 {t('devis.cancel')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL SIGNATURE ÉLECTRONIQUE ═══ */}
+      {showSignatureModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => setShowSignatureModal(false)}>
+          <div style={{ background: 'var(--v22-surface, #fff)', borderRadius: 8, maxWidth: 480, width: '100%', border: '1px solid var(--v22-border)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--v22-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--v22-text)' }}>{locale === 'pt' ? 'Assinatura eletrónica' : 'Signature électronique'}</div>
+                <div style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>art. 1367 Code Civil / art. 25.1 eIDAS — SHA-256</div>
+              </div>
+              <button onClick={() => setShowSignatureModal(false)} style={{ fontSize: 18, color: 'var(--v22-text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ background: 'var(--v22-yellow-light, #FFFBE6)', border: '1px solid var(--v22-yellow-border, #FFD600)', borderRadius: 4, padding: '8px 12px', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--v22-amber, #8A6000)' }}>{docType === 'devis' ? (locale === 'pt' ? 'Orçamento' : 'Devis') : (locale === 'pt' ? 'Fatura' : 'Facture')} : <span style={{ fontWeight: 600 }}>{docNumber}</span></div>
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--v22-text-muted)', marginBottom: 4 }}>{locale === 'pt' ? 'Nome do signatário *' : 'Nom du signataire *'}</label>
+                <input type="text" value={sigNom} onChange={e => setSigNom(e.target.value)}
+                  placeholder={locale === 'pt' ? 'Nome completo' : 'Prénom Nom'}
+                  style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--v22-border)', borderRadius: 4, fontSize: 13, outline: 'none' }} />
+              </div>
+
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--v22-text-muted)' }}>{locale === 'pt' ? 'Assinatura *' : 'Signature *'}</label>
+                  <button onClick={sigClearCanvas} style={{ fontSize: 11, color: 'var(--v22-red, #C0392B)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {locale === 'pt' ? 'Limpar' : 'Effacer'}
+                  </button>
+                </div>
+                <canvas ref={sigCanvasRef} width={400} height={140}
+                  style={{
+                    width: '100%', border: `2px ${sigPoints.length > 0 ? 'solid var(--v22-yellow, #FFD600)' : 'dashed var(--v22-border)'} `,
+                    borderRadius: 4, cursor: 'crosshair', touchAction: 'none',
+                    background: sigPoints.length > 0 ? 'var(--v22-surface, #fff)' : 'var(--v22-bg, #F7F7F5)',
+                  }}
+                  onMouseDown={sigStartDraw} onMouseMove={sigDraw} onMouseUp={sigEndDraw} onMouseLeave={sigEndDraw}
+                  onTouchStart={sigStartDraw} onTouchMove={sigDraw} onTouchEnd={sigEndDraw}
+                />
+                {sigPoints.length === 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', textAlign: 'center', marginTop: 4 }}>
+                    {locale === 'pt' ? 'Assine aqui com o rato ou o dedo' : 'Signez ici avec la souris ou le doigt'}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ background: 'var(--v22-bg, #F7F7F5)', borderRadius: 4, padding: '6px 10px', marginTop: 8, marginBottom: 12, fontSize: 10, color: 'var(--v22-text-muted)' }}>
+                {locale === 'pt' ? 'Carimbo temporal' : 'Horodatage'} : {new Date().toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} — SHA-256
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setShowSignatureModal(false)}
+                  className="v22-btn" style={{ flex: 1, padding: '8px 14px' }}>
+                  {locale === 'pt' ? 'Cancelar' : 'Annuler'}
+                </button>
+                <button onClick={handleSignDocument}
+                  disabled={sigPoints.length === 0 || !sigNom.trim() || sigSigning}
+                  className="v22-btn v22-btn-primary"
+                  style={{ flex: 1, padding: '8px 14px', opacity: (sigPoints.length === 0 || !sigNom.trim() || sigSigning) ? 0.5 : 1 }}>
+                  {sigSigning ? '...' : (locale === 'pt' ? 'Assinar' : 'Signer')}
+                </button>
+              </div>
             </div>
           </div>
         </div>

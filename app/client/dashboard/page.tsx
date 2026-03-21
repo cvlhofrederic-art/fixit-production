@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
@@ -109,6 +109,11 @@ export default function ClientDashboardPage() {
   const [signingDevis, setSigningDevis] = useState<string | null>(null) // message_id en cours de signature
   const [signName, setSignName] = useState('')
   const [signConfirm, setSignConfirm] = useState(false)
+  // ── Signature canvas ──
+  const sigCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [sigDrawing, setSigDrawing] = useState(false)
+  const [sigPoints, setSigPoints] = useState<{ x: number; y: number }[][]>([])
+  const [sigCurrentStroke, setSigCurrentStroke] = useState<{ x: number; y: number }[]>([])
   const [fullscreenImg, setFullscreenImg] = useState<string | null>(null)
 
   // ── Carnet de Santé Logement ──
@@ -469,26 +474,96 @@ export default function ClientDashboardPage() {
     setMediaRecorderRef(null)
   }
 
+  // ── Signature Canvas Handlers ──
+  const getSigPos = useCallback((e: React.TouchEvent | React.MouseEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY }
+  }, [])
+
+  const sigStartDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const canvas = sigCanvasRef.current; if (!canvas) return
+    e.preventDefault()
+    setSigDrawing(true)
+    const pos = getSigPos(e, canvas)
+    setSigCurrentStroke([pos])
+    const ctx = canvas.getContext('2d')!
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y)
+  }, [getSigPos])
+
+  const sigDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    if (!sigDrawing) return
+    const canvas = sigCanvasRef.current; if (!canvas) return
+    e.preventDefault()
+    const pos = getSigPos(e, canvas)
+    setSigCurrentStroke(prev => [...prev, pos])
+    const ctx = canvas.getContext('2d')!
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1E293B'
+    ctx.lineTo(pos.x, pos.y); ctx.stroke()
+  }, [sigDrawing, getSigPos])
+
+  const sigEndDraw = useCallback(() => {
+    if (!sigDrawing) return
+    setSigDrawing(false)
+    setSigPoints(prev => [...prev, sigCurrentStroke])
+    setSigCurrentStroke([])
+  }, [sigDrawing, sigCurrentStroke])
+
+  const sigClearCanvas = useCallback(() => {
+    const canvas = sigCanvasRef.current; if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setSigPoints([]); setSigCurrentStroke([])
+  }, [])
+
+  const sigBuildSVG = useCallback(() => {
+    const paths = sigPoints.filter(s => s.length > 1).map(stroke => {
+      const d = stroke.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+      return `<path d="${d}" stroke="#1E293B" stroke-width="2.5" fill="none" stroke-linecap="round"/>`
+    }).join('')
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="140">${paths}</svg>`
+  }, [sigPoints])
+
   const handleSignDevis = async (messageId: string) => {
-    if (!messageModal || !signName.trim()) return
+    if (!messageModal || !signName.trim() || sigPoints.length === 0) return
     setSendingMessage(true)
     try {
+      // Build SVG + SHA-256 hash
+      const svg = sigBuildSVG()
+      let hash = ''
+      try {
+        const payload = `${signName.trim()}|${new Date().toISOString()}|${messageId}|${svg.length}`
+        const data = new TextEncoder().encode(payload)
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+        hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+      } catch { hash = 'hash_error' }
+
       const token = await getAuthToken()
       const res = await fetch('/api/devis-sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ booking_id: messageModal.id, message_id: messageId, signer_name: signName.trim() }),
+        body: JSON.stringify({
+          booking_id: messageModal.id,
+          message_id: messageId,
+          signer_name: signName.trim(),
+          signature_svg: svg,
+          signature_hash: hash,
+        }),
       })
       const json = await res.json()
       if (json.success && json.data) {
-        // Rafraîchir les messages pour voir la mise à jour
         setMessages(prev => {
-          const updated = prev.map(m => m.id === messageId ? { ...m, metadata: { ...m.metadata, signed: true, signed_at: json.data.metadata?.signed_at, signer_name: signName.trim() } } : m)
+          const updated = prev.map(m => m.id === messageId ? { ...m, metadata: { ...m.metadata, signed: true, signed_at: json.data.metadata?.signed_at, signer_name: signName.trim(), signature_svg: svg } } : m)
           return [...updated, json.data]
         })
         setSigningDevis(null)
         setSignName('')
         setSignConfirm(false)
+        sigClearCanvas()
       } else {
         alert(json.error || t('clientDash.messaging.signError'))
       }
@@ -2659,6 +2734,9 @@ export default function ClientDashboardPage() {
                             {m.prestationDate && <p className="text-xs text-text-muted mt-1">{t('clientDash.devis.serviceDate')} : {new Date(m.prestationDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</p>}
                             {m.companyName && <p className="text-xs text-text-muted mt-0.5">{t('clientDash.devis.from')} : {m.companyName}</p>}
                             {isSigned && <p className="text-xs text-green-700 mt-1 font-semibold">{t('clientDash.devis.signed')}{m.signer_name ? ` ${t('clientDash.devis.signedBy')} ${m.signer_name}` : ''}{m.signed_at ? ` ${t('clientDash.devis.onDate')} ${new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}` : ''}</p>}
+                            {isSigned && m.signature_svg && (
+                              <div className="mt-2 border border-green-200 rounded-lg p-2 bg-white" dangerouslySetInnerHTML={{ __html: m.signature_svg }} style={{ maxHeight: 60, overflow: 'hidden' }} />
+                            )}
                           </div>
                           {!isSigned && (
                             <div className="border-t border-amber-200 px-3 py-2 space-y-1.5">
@@ -2701,6 +2779,10 @@ export default function ClientDashboardPage() {
                           <p className="text-xs text-green-700">N.º{m.docNumber} — {m.totalStr}</p>
                           {m.signer_name && <p className="text-xs text-green-600 mt-0.5">{t('clientDash.devis.signedBy')} {m.signer_name}</p>}
                           {m.signed_at && <p className="text-xs text-green-600">{t('clientDash.devis.onDate')} {new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} {t('clientDash.tracking.at')} {new Date(m.signed_at).toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>}
+                          {m.signature_svg && (
+                            <div className="mt-2 border border-green-200 rounded-lg p-1.5 bg-white" dangerouslySetInnerHTML={{ __html: m.signature_svg }} style={{ maxHeight: 50, overflow: 'hidden' }} />
+                          )}
+                          {m.signature_hash && <p className="text-[8px] text-gray-400 mt-1 font-mono">SHA-256: {m.signature_hash.substring(0, 20)}...</p>}
                           <p className="text-[10px] text-text-muted mt-1">{time}</p>
                         </div>
                       </div>
@@ -2729,9 +2811,9 @@ export default function ClientDashboardPage() {
               )}
             </div>
 
-            {/* ── Modal signature devis ── */}
+            {/* ── Modal signature devis avec canvas ── */}
             {signingDevis && (
-              <div className="px-4 py-3 border-t border-[#E0E0E0] bg-green-50 flex-shrink-0">
+              <div className="px-4 py-3 border-t border-green-200 bg-green-50 flex-shrink-0">
                 <p className="text-xs font-bold text-green-800 mb-2">{t('clientDash.devis.signatureTitle')}</p>
                 <input
                   type="text"
@@ -2740,17 +2822,52 @@ export default function ClientDashboardPage() {
                   placeholder={t('clientDash.devis.fullNamePlaceholder')}
                   className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-green-500"
                 />
+                {/* Canvas signature */}
+                <div className="mb-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-semibold text-green-700">
+                      {locale === 'pt' ? 'Assine aqui' : 'Signez ici'}
+                    </span>
+                    <button onClick={sigClearCanvas} className="text-[10px] text-red-500 hover:text-red-700">
+                      {locale === 'pt' ? 'Limpar' : 'Effacer'}
+                    </button>
+                  </div>
+                  <canvas
+                    ref={sigCanvasRef}
+                    width={400}
+                    height={140}
+                    style={{
+                      width: '100%',
+                      height: 100,
+                      border: `2px ${sigPoints.length > 0 ? 'solid #22c55e' : 'dashed #d1d5db'}`,
+                      borderRadius: 8,
+                      cursor: 'crosshair',
+                      touchAction: 'none',
+                      background: sigPoints.length > 0 ? '#fff' : '#f9fafb',
+                    }}
+                    onMouseDown={sigStartDraw} onMouseMove={sigDraw} onMouseUp={sigEndDraw} onMouseLeave={sigEndDraw}
+                    onTouchStart={sigStartDraw} onTouchMove={sigDraw} onTouchEnd={sigEndDraw}
+                  />
+                  {sigPoints.length === 0 && (
+                    <p className="text-[9px] text-gray-400 text-center mt-0.5">
+                      {locale === 'pt' ? 'Desenhe a sua assinatura com o rato ou o dedo' : 'Dessinez votre signature avec la souris ou le doigt'}
+                    </p>
+                  )}
+                </div>
                 <label className="flex items-start gap-2 text-xs text-mid mb-2 cursor-pointer">
                   <input type="checkbox" checked={signConfirm} onChange={e => setSignConfirm(e.target.checked)} className="mt-0.5 accent-green-600" />
                   <span>{t('clientDash.devis.signatureConsent')}</span>
                 </label>
+                <div className="text-[9px] text-gray-400 mb-2">
+                  SHA-256 · {locale === 'pt' ? 'Assinatura eletrónica simples — art. 25.1 eIDAS' : 'Signature électronique simple — art. 25.1 eIDAS'}
+                </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setSigningDevis(null); setSignConfirm(false) }} className="flex-1 py-2 rounded-lg border border-[#E0E0E0] text-xs font-semibold text-text-muted hover:bg-warm-gray">
+                  <button onClick={() => { setSigningDevis(null); setSignConfirm(false); sigClearCanvas() }} className="flex-1 py-2 rounded-lg border border-[#E0E0E0] text-xs font-semibold text-text-muted hover:bg-warm-gray">
                     {t('clientDash.devis.cancel')}
                   </button>
                   <button
                     onClick={() => handleSignDevis(signingDevis)}
-                    disabled={!signName.trim() || !signConfirm || sendingMessage}
+                    disabled={!signName.trim() || !signConfirm || sigPoints.length === 0 || sendingMessage}
                     className="flex-1 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-bold disabled:opacity-50 transition"
                   >
                     {sendingMessage ? t('clientDash.devis.signing') : t('clientDash.devis.sign')}

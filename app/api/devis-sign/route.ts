@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     if (!devisValidation.success) {
       return NextResponse.json({ error: 'Donn\u00e9es invalides', details: devisValidation.error }, { status: 400 })
     }
-    const { booking_id, message_id, signer_name } = devisValidation.data
+    const { booking_id, message_id, signer_name, signature_svg, signature_hash } = devisValidation.data
 
     // Vérifier que l'utilisateur est le client du booking
     const { data: booking } = await supabaseAdmin
@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
+          ...(signature_svg ? { signature_svg } : {}),
+          ...(signature_hash ? { signature_hash } : {}),
         },
       })
       .eq('id', message_id)
@@ -99,6 +101,8 @@ export async function POST(request: NextRequest) {
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
+          ...(signature_svg ? { signature_svg } : {}),
+          ...(signature_hash ? { signature_hash } : {}),
         },
       })
       .select()

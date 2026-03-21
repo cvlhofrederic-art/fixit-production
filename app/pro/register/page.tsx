@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
 import { useTranslation } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
+import { useSearchParams } from 'next/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,7 @@ function getAllowedMetiers(nafCode: string | undefined): string[] | null {
 
 function FormulaireArtisan() {
   const { t } = useTranslation()
+  const searchParams = useSearchParams()
   const METIERS = getMetiers(t)
   const [step, setStep] = useState<1 | 2>(1)
   const [formData, setFormData] = useState({ nom: '', prenom: '', email: '', telephone: '', password: '', confirmPassword: '', companyName: '', siret: '', bio: '', plan: 'freemium' as 'freemium' | 'pro' })
@@ -188,6 +190,23 @@ function FormulaireArtisan() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
+  const [referralParrainName, setReferralParrainName] = useState<string | null>(null)
+
+  // Lire le code parrainage depuis cookie, localStorage ou searchParams
+  useEffect(() => {
+    // Priorité : searchParams > cookie > localStorage
+    const refParam = searchParams.get('ref')?.toUpperCase().trim()
+    if (refParam && refParam.length >= 4) { setReferralCode(refParam); return }
+
+    const cookieMatch = document.cookie.match(/(?:^|;\s*)vitfix_ref=([A-Z0-9]+)/)
+    if (cookieMatch?.[1]) { setReferralCode(cookieMatch[1]); return }
+
+    try {
+      const stored = localStorage.getItem('vtfx_referral_code')
+      if (stored) setReferralCode(stored)
+    } catch {}
+  }, [searchParams])
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null)
   const [insurancePreview, setInsurancePreview] = useState<string>('')
   const [kbisFile, setKbisFile] = useState<File | null>(null)
@@ -307,6 +326,26 @@ function FormulaireArtisan() {
             idFile ? uploadDocument(idFile, 'identity', profileData.id, 'id_document_url') : Promise.resolve(),
             insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
           ])
+
+          // ── Parrainage : lier le filleul au parrain (silencieux, non-bloquant) ──
+          if (referralCode && profileData?.id && authData.user?.id) {
+            try {
+              const refRes = await fetch('/api/referral/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: referralCode, artisan_id: profileData.id, user_id: authData.user.id }),
+              })
+              const refData = await refRes.json()
+              if (refData.referral && refData.parrain_name) {
+                setReferralParrainName(refData.parrain_name)
+              }
+            } catch {
+              // Erreur parrainage non-bloquante, l'inscription est déjà réussie
+            }
+            // Supprimer le cookie vitfix_ref
+            document.cookie = 'vitfix_ref=; max-age=0; path=/; SameSite=Lax; Secure'
+            try { localStorage.removeItem('vtfx_referral_code') } catch {}
+          }
         }
         setSuccess(true)
       }
@@ -318,6 +357,12 @@ function FormulaireArtisan() {
     <div className="text-center py-8">
       <div className="text-6xl mb-4">🎉</div>
       <h2 className="text-2xl font-display font-black tracking-[-0.03em] mb-2">{t('register.successTitle')}</h2>
+      {referralParrainName && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-4">
+          <p className="text-amber-800 font-semibold">🎁 Parrainé par {referralParrainName}</p>
+          <p className="text-sm text-amber-600 mt-1">Votre 1er mois sera offert lors de votre abonnement !</p>
+        </div>
+      )}
       <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
         <p className="text-green-700 font-semibold">✅ {t('register.taxIdVerified')} — {verifiedCompany?.name}</p>
       </div>
@@ -332,6 +377,12 @@ function FormulaireArtisan() {
 
   return (
     <div className="space-y-6">
+      {referralCode && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center gap-2">
+          <span className="text-lg">🎁</span>
+          <span className="text-sm text-amber-800 font-medium">1er mois offert grâce à votre lien de parrainage</span>
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-2">
         <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-2xl">🔧</div>
         <div>

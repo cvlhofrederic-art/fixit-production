@@ -231,6 +231,8 @@ export const devisSignSchema = z.object({
   booking_id: z.string().uuid('booking_id doit \u00eatre un UUID valide'),
   message_id: z.string().uuid('message_id doit \u00eatre un UUID valide'),
   signer_name: z.string().min(1, 'Nom du signataire requis').max(200),
+  signature_svg: z.string().min(10, 'Signature requise').max(50000).optional(),
+  signature_hash: z.string().max(128).optional(),
 })
 
 // ── Artisan Settings (POST) schema ───────────────────────────────────────────

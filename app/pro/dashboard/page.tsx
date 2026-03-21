@@ -35,6 +35,7 @@ const BourseAuxMarchesSection = dynamic(() => import('@/components/marches/Bours
 const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'), { ssr: false })
 const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSection'), { ssr: false })
 const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'), { ssr: false })
+const ParrainageSection = dynamic(() => import('@/components/dashboard/ParrainageSection'), { ssr: false })
 const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), { ssr: false })
 
 // BTP sections
@@ -136,7 +137,7 @@ export default function DashboardPage() {
   // Settings state
   const [settingsForm, setSettingsForm] = useState({ company_name: '', email: '', phone: '', bio: '', auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30 })
   const [savingSettings, setSavingSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'profil' | 'modules'>('profil')
+  const [settingsTab, setSettingsTab] = useState<'profil' | 'modules' | 'parrainage'>('profil')
 
   // ── Modules config (toggle + order) — memoized pour éviter recréation à chaque render ──
   const ALL_MODULES = useMemo(() => [
@@ -160,6 +161,7 @@ export default function DashboardPage() {
     { id: 'chantiers_v22', icon: '🏗️', label: 'Chantiers', description: 'Gestion des chantiers en cours', category: t('proDash.categories.activity') },
     { id: 'pipeline', icon: '📊', label: 'Pipeline', description: 'Suivi commercial des devis', category: t('proDash.categories.billing') },
     { id: 'bibliotheque', icon: '📚', label: 'Bibliothèque', description: 'Ouvrages, matériaux et main-d\'œuvre', category: t('proDash.categories.billing') },
+    { id: 'parrainage', icon: '🎁', label: 'Parrainage', description: 'Parrainez des artisans, gagnez des mois gratuits', category: t('proDash.categories.proProfil') },
     { id: 'settings', icon: '⚙️', label: t('proDash.modules.settings'), description: t('proDash.modules.settingsDesc'), category: t('proDash.categories.account'), locked: true },
   ], [t])
 
@@ -1429,18 +1431,19 @@ export default function DashboardPage() {
             )}
           </div>
           {/* Profil Pro */}
-          {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio')) && (
+          {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
             <div className="mb-5">
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
               {isModuleEnabled('wallet') && <V22SidebarItem label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
               {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
+              {isModuleEnabled('parrainage') && <V22SidebarItem label="🎁 Parrainage" active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
             </div>
           )}
         </div>
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
-          <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab !== 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
+          <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
           <V22SidebarItem label={t('proDash.modules.modules')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
         </div>
@@ -2002,6 +2005,13 @@ export default function DashboardPage() {
           {activePage === 'bibliotheque' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans la bibliothèque">
               <BibliothequeSection artisan={artisan} navigateTo={navigateTo} />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── PARRAINAGE ────── */}
+          {activePage === 'parrainage' && (
+            <SectionErrorBoundary fallbackTitle="Erreur dans le module parrainage">
+              <ParrainageSection artisan={artisan} />
             </SectionErrorBoundary>
           )}
 
