@@ -192,7 +192,7 @@ async function handleReferralPaymentVerification(userId: string, stripeCustomerI
             }
           }
         } catch (err) {
-          log.warn('Stripe PM comparison failed', {}, err as Error)
+          log.warn('Stripe PM comparison failed', { error: (err as Error).message })
         }
       }
     }
