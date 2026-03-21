@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslation } from '@/lib/i18n/context'
+import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 
 interface MotifsSectionProps {
   services: any[]
@@ -281,6 +282,11 @@ export default function MotifsSection({
                     ))}
                   </div>
                   <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
+                </div>
+
+                {/* Étapes par défaut */}
+                <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14 }}>
+                  <ServiceEtapesEditor serviceId={editingMotif?.id || null} />
                 </div>
               </div>
             </div>
