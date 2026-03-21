@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getLocaleFormats, type Locale } from '@/lib/i18n/config'
+import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
 
 // ── Signature types (inline to avoid cross-dependency with syndic) ──
 interface SignatureData {
@@ -296,6 +297,7 @@ export default function DevisFactureForm({
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
   const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
+  const [showReceiptScanner, setShowReceiptScanner] = useState(false)
   const [sendingVitfix, setSendingVitfix] = useState(false)
 
   // ─── Attached Rapport ───
@@ -2633,13 +2635,20 @@ export default function DevisFactureForm({
                   </table>
                 </div>
 
-                <div style={{ padding: 14 }}>
+                <div style={{ padding: 14, display: 'flex', gap: 8 }}>
                   <button
                     onClick={addLine}
                     className="v22-btn"
-                    style={{ width: '100%', border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)' }}
+                    style={{ flex: 1, border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)' }}
                   >
                     + {t('devis.addLine')}
+                  </button>
+                  <button
+                    onClick={() => setShowReceiptScanner(true)}
+                    className="v22-btn"
+                    style={{ flex: 1, border: '1px solid #FFC107', background: 'linear-gradient(135deg, #FFF8E1, #FFFDE7)', color: '#F57F17', fontWeight: 600 }}
+                  >
+                    📷 Scanner ticket
                   </button>
                 </div>
               </div>
@@ -3203,6 +3212,29 @@ export default function DevisFactureForm({
       )}
 
       {/* ═══ PDF is now generated with vector-based jsPDF + autoTable — no hidden HTML template needed ═══ */}
+
+      {/* ═══ Receipt Scanner Modal ═══ */}
+      {showReceiptScanner && (
+        <ReceiptScanner
+          mode="modal"
+          onClose={() => setShowReceiptScanner(false)}
+          onInject={(receiptLines: DevisReceiptLine[]) => {
+            setShowReceiptScanner(false)
+            const defaultTva = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
+            const newLines: ProductLine[] = receiptLines.map((rl, i) => ({
+              id: Date.now() + i,
+              description: rl.description,
+              qty: rl.qty,
+              unit: rl.unit,
+              priceHT: rl.priceHT,
+              tvaRate: defaultTva,
+              totalHT: rl.totalHT,
+              source: 'manual' as const,
+            }))
+            setLines(prev => [...prev, ...newLines])
+          }}
+        />
+      )}
     </div>
   )
 }

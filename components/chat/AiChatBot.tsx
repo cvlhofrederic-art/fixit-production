@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MessageSquare, Send, X, Calendar, FileText, Loader2, Mic } from 'lucide-react'
+import { MessageSquare, Send, X, Calendar, FileText, Loader2, Mic, Camera } from 'lucide-react'
 import { FixyAvatar } from '@/components/common/RobotAvatars'
+import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
 import { useLocale } from '@/lib/i18n/context'
 
 type Message = {
@@ -475,6 +476,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
   const [clientsLoaded, setClientsLoaded] = useState(false)
 
   // ─── Voice Recording (Push-to-Talk) ───
+  const [showReceiptScanner, setShowReceiptScanner] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [voiceTranscript, setVoiceTranscript] = useState('')
@@ -1233,6 +1235,18 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                 disabled={processing || isRecording}
               />
 
+              {/* Receipt scanner button */}
+              {!processing && !isRecording && (
+                <button
+                  type="button"
+                  onClick={() => setShowReceiptScanner(true)}
+                  className="p-2.5 bg-gray-100 hover:bg-amber-100 text-gray-600 hover:text-amber-700 rounded-xl transition flex-shrink-0"
+                  title="Scanner un ticket de caisse"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              )}
+
               {/* Voice button (toggle: clic = start, reclic = stop & send) */}
               {voiceSupported && !processing && (
                 <button
@@ -1272,6 +1286,38 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
             )}
           </form>
         </div>
+      )}
+      {/* Receipt Scanner Modal */}
+      {showReceiptScanner && (
+        <ReceiptScanner
+          mode="modal"
+          onClose={() => setShowReceiptScanner(false)}
+          onInject={(lines: DevisReceiptLine[], storeName?: string) => {
+            setShowReceiptScanner(false)
+            // Add a message showing what was scanned
+            const summary = lines.map(l => `• ${l.description} (x${l.qty}) — ${l.priceHT.toFixed(2)} EUR HT`).join('\n')
+            const totalHT = lines.reduce((s, l) => s + l.totalHT, 0)
+            setMessages(prev => [
+              ...prev,
+              {
+                id: `scan-${Date.now()}`,
+                role: 'assistant',
+                content: `📋 **Ticket scanné${storeName ? ` — ${storeName}` : ''}**\n\n${summary}\n\n**Total HT (avec marge) : ${totalHT.toFixed(2)} EUR**\n\nLes ${lines.length} article(s) ont été préparés. Rendez-vous dans l'onglet Devis pour les retrouver.`,
+                action: {
+                  type: 'create_devis',
+                  data: { receiptLines: lines, storeName },
+                },
+              },
+            ])
+            // Store in localStorage for DevisFactureForm to pick up
+            try {
+              const key = `fixit_receipt_pending_${artisan?.id || 'unknown'}`
+              const pending = JSON.parse(localStorage.getItem(key) || '[]')
+              pending.push({ lines, storeName, scannedAt: new Date().toISOString() })
+              localStorage.setItem(key, JSON.stringify(pending))
+            } catch { /* ignore */ }
+          }}
+        />
       )}
     </>
   )
