@@ -837,6 +837,92 @@ function MobilePasswordChange() {
   )
 }
 
+// ─── Rapport IA Bandeau ─────────────────────────────────────────────────────────
+function RapportIABandeau({ bookingId }: { bookingId: string }) {
+  const [contenu, setContenu] = useState<{ introduction?: string; travaux_realises?: string; observations?: string; conclusion?: string; source?: string } | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editData, setEditData] = useState({ introduction: '', travaux_realises: '', observations: '', conclusion: '' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!bookingId) return
+    supabase.from('bookings').select('rapport_ia_texte_brut, rapport_ia_source').eq('id', bookingId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.rapport_ia_texte_brut) {
+          try {
+            const parsed = JSON.parse(data.rapport_ia_texte_brut)
+            setContenu(parsed)
+            setEditData({
+              introduction: parsed.introduction || '',
+              travaux_realises: parsed.travaux_realises || '',
+              observations: parsed.observations || '',
+              conclusion: parsed.conclusion || '',
+            })
+          } catch { /* invalid JSON */ }
+        }
+      })
+  }, [bookingId])
+
+  if (!contenu?.introduction) return null
+
+  const handleSave = async () => {
+    setSaving(true)
+    const updated = { ...contenu, ...editData }
+    await supabase.from('bookings').update({
+      rapport_ia_texte_brut: JSON.stringify(updated),
+      rapport_ia_source: 'manuel',
+    }).eq('id', bookingId)
+    setContenu(updated)
+    setEditing(false)
+    setSaving(false)
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-bold text-emerald-700">
+          ✨ Texte rédigé automatiquement
+        </span>
+        <button
+          onClick={() => setEditing(!editing)}
+          className="text-xs font-semibold text-emerald-600 underline"
+        >
+          {editing ? 'Fermer' : 'Modifier'}
+        </button>
+      </div>
+      <p className="text-[11px] text-emerald-600 mb-1">
+        Généré depuis les données du chantier. Modifiable avant envoi.
+      </p>
+      {editing && (
+        <div className="space-y-2 mt-2">
+          {(['introduction', 'travaux_realises', 'observations', 'conclusion'] as const).map(field => (
+            <div key={field}>
+              <label className="text-[10px] font-bold text-gray-500 uppercase">{
+                field === 'travaux_realises' ? 'Travaux réalisés' :
+                field.charAt(0).toUpperCase() + field.slice(1)
+              }</label>
+              <textarea
+                value={editData[field]}
+                onChange={e => setEditData(prev => ({ ...prev, [field]: e.target.value }))}
+                rows={2}
+                className="w-full text-xs border border-gray-200 rounded-lg p-2 mt-0.5 resize-none focus:ring-1 focus:ring-emerald-300 focus:border-emerald-300"
+              />
+            </div>
+          ))}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-emerald-600 text-white text-xs font-bold py-2 rounded-xl active:scale-95 transition"
+            style={{ opacity: saving ? 0.5 : 1 }}
+          >
+            {saving ? '⏳ Enregistrement...' : '💾 Sauvegarder les modifications'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function MobileDashboard() {
   const router = useRouter()
@@ -1514,7 +1600,21 @@ export default function MobileDashboard() {
             // 1. Mettre à jour le statut booking
             await updateBookingStatus(proofBooking.id, 'completed')
 
-            // 2. Si booking a un syndic_id → envoyer rapport automatiquement
+            // 2. Génération IA du texte rapport (non-bloquant)
+            try {
+              fetch('/api/rapport-ia', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  booking_id: proofBooking.id,
+                  description: proof.description || undefined,
+                  texte_dictee: proof.description || undefined,
+                  notes: proofBooking.notes || undefined,
+                }),
+              }).catch(() => { /* silencieux — le fallback est en base */ })
+            } catch { /* non-bloquant */ }
+
+            // 3. Si booking a un syndic_id → envoyer rapport automatiquement
             const syndicId = proofBooking?.syndic_id || proofBooking?.metadata?.syndic_id
             if (syndicId && artisan) {
               try {
@@ -2038,14 +2138,26 @@ export default function MobileDashboard() {
                           ))}
                         </div>
                       )}
-                      {/* Rapport fin de chantier PDF */}
+                      {/* Indicateur IA + Rapport fin de chantier PDF */}
+                      {isModuleEnabled('rapport_pdf') && <RapportIABandeau bookingId={p.bookingId} />}
                       {isModuleEnabled('rapport_pdf') && (
                       <button
-                        onClick={() => {
+                        onClick={async () => {
+                          // Charger le texte IA depuis la DB si disponible
+                          const bk = bookings.find(b => b.id === p.bookingId)
+                          let contenuIA: { introduction?: string; travaux_realises?: string; observations?: string; conclusion?: string; source?: string } | null = null
+                          if (bk?.id) {
+                            try {
+                              const { data: bkData } = await supabase.from('bookings').select('rapport_ia_texte_brut, rapport_ia_source').eq('id', bk.id).maybeSingle()
+                              if (bkData?.rapport_ia_texte_brut) {
+                                contenuIA = JSON.parse(bkData.rapport_ia_texte_brut)
+                              }
+                            } catch { /* pas de texte IA — on continue avec le texte manuel */ }
+                          }
+
                           import('jspdf').then(({ default: jsPDF }) => {
                             const doc = new jsPDF()
                             const nom = artisan?.company_name || 'Artisan'
-                            const bk = bookings.find(b => b.id === p.bookingId)
                             // Header
                             doc.setFillColor(255, 193, 7)
                             doc.rect(0, 0, 210, 30, 'F')
@@ -2061,9 +2173,58 @@ export default function MobileDashboard() {
                             doc.text(`Adresse : ${bk?.address || 'N/A'}`, 15, 61)
                             if (p.gpsLat && p.gpsLng) doc.text(`GPS : ${p.gpsLat.toFixed(5)}, ${p.gpsLng.toFixed(5)}`, 15, 68)
                             if (bk?.price_ttc) doc.text(`Montant TTC : ${(bk.price_ttc / 100 >= 1 ? bk.price_ttc : bk.price_ttc).toFixed(2)} \u20AC`, 15, 75)
-                            // Description
+
                             let y = 88
-                            if (p.description) {
+
+                            // Contenu IA structuré (si disponible)
+                            if (contenuIA?.introduction) {
+                              // Introduction
+                              doc.setFontSize(11)
+                              doc.setTextColor(33, 33, 33)
+                              doc.text('Contexte :', 15, y); y += 6
+                              doc.setFontSize(10)
+                              doc.setTextColor(60, 60, 60)
+                              const introLines = doc.splitTextToSize(contenuIA.introduction, 180)
+                              doc.text(introLines, 15, y)
+                              y += introLines.length * 5 + 6
+
+                              // Travaux réalisés
+                              if (contenuIA.travaux_realises) {
+                                doc.setFontSize(11)
+                                doc.setTextColor(33, 33, 33)
+                                doc.text('Travaux réalisés :', 15, y); y += 6
+                                doc.setFontSize(10)
+                                doc.setTextColor(60, 60, 60)
+                                const trLines = doc.splitTextToSize(contenuIA.travaux_realises, 180)
+                                doc.text(trLines, 15, y)
+                                y += trLines.length * 5 + 6
+                              }
+
+                              // Observations
+                              if (contenuIA.observations) {
+                                doc.setFontSize(11)
+                                doc.setTextColor(33, 33, 33)
+                                doc.text('Observations :', 15, y); y += 6
+                                doc.setFontSize(10)
+                                doc.setTextColor(60, 60, 60)
+                                const obsLines = doc.splitTextToSize(contenuIA.observations, 180)
+                                doc.text(obsLines, 15, y)
+                                y += obsLines.length * 5 + 6
+                              }
+
+                              // Conclusion
+                              if (contenuIA.conclusion) {
+                                doc.setFontSize(11)
+                                doc.setTextColor(33, 33, 33)
+                                doc.text('Conclusion :', 15, y); y += 6
+                                doc.setFontSize(10)
+                                doc.setTextColor(60, 60, 60)
+                                const concLines = doc.splitTextToSize(contenuIA.conclusion, 180)
+                                doc.text(concLines, 15, y)
+                                y += concLines.length * 5 + 8
+                              }
+                            } else if (p.description) {
+                              // Fallback : description manuelle (comportement d'avant)
                               doc.setFontSize(12)
                               doc.setTextColor(33, 33, 33)
                               doc.text('Description des travaux :', 15, y)
@@ -2073,6 +2234,7 @@ export default function MobileDashboard() {
                               doc.text(lines, 15, y)
                               y += lines.length * 5 + 8
                             }
+
                             // Photos résumé
                             doc.setFontSize(12)
                             doc.setTextColor(33, 33, 33)
@@ -2110,7 +2272,7 @@ export default function MobileDashboard() {
                             doc.setFontSize(8)
                             doc.setTextColor(150, 150, 150)
                             doc.text(`G\u00E9n\u00E9r\u00E9 par Vitfix Pro \u2014 ${new Date().toLocaleString(dateFmtLocale)}`, 15, 285)
-                            doc.text('Document \u00E0 valeur probante \u2014 GPS + horodatage + signature client', 15, 290)
+                            doc.text(contenuIA?.source === 'groq' ? `Rapport g\u00E9n\u00E9r\u00E9 automatiquement le ${new Date().toLocaleDateString(dateFmtLocale)}` : 'Document \u00E0 valeur probante \u2014 GPS + horodatage + signature client', 15, 290)
                             doc.save(`Rapport_${bk?.services?.name?.replace(/\s+/g, '_') || 'chantier'}_${p.completedAt ? new Date(p.completedAt).toISOString().split('T')[0] : 'date'}.pdf`)
                           }).catch(() => alert('Erreur lors de la g\u00E9n\u00E9ration du PDF'))
                         }}
