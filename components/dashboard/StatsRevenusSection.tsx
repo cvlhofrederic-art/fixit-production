@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import ResumeActivite from '@/components/stats/ResumeActivite'
 
 async function downloadCsv(type: 'clients' | 'bookings' | 'revenue') {
   const res = await fetch(`/api/user/export-csv?type=${type}`)
@@ -47,6 +48,7 @@ export default function StatsRevenusSection({
           </div>
         </div>
         <div style={{ padding: '20px' }}>
+          <ResumeActivite />
           <div className="v22-stats">
             <div className="v22-stat">
               <div className="v22-stat-label">{t('proDash.stats.interventionsTotales')}</div>
@@ -79,6 +81,7 @@ export default function StatsRevenusSection({
     <div>
       <ExportHeader t={t} />
       <div style={{ padding: '20px' }}>
+        <ResumeActivite />
         <div className="v22-stats" style={{ marginBottom: '20px' }}>
           <div className="v22-stat">
             <div className="v22-stat-label">{t('proDash.stats.totalEncaisse')}</div>
