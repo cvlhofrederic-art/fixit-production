@@ -28,6 +28,15 @@ interface ProductLine {
   priceHT: number
   tvaRate: number
   totalHT: number
+  source?: 'etape_motif' | 'manual'  // traçabilité étape → ligne
+  etape_id?: string  // lien vers l'étape source
+}
+
+interface DevisEtape {
+  id: string
+  ordre: number
+  designation: string
+  source_etape_id?: string  // id de l'étape template (null si ajoutée manuellement)
 }
 
 interface DevisFactureData {
@@ -77,6 +86,8 @@ interface DevisFactureData {
   bic: string
   // Lines
   lines: ProductLine[]
+  // Étapes d'intervention (descriptif pour le client)
+  etapes?: DevisEtape[]
   // Notes
   notes: string
 }
@@ -279,6 +290,7 @@ export default function DevisFactureForm({
   const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
+  const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
   // ─── Linked booking for Vitfix channel ───
@@ -657,18 +669,59 @@ export default function DevisFactureForm({
     return getDefaultUnitByServiceName(service?.name || '')
   }
 
-  const selectMotif = (lineId: number, serviceId: string) => {
+  const selectMotif = async (lineId: number, serviceId: string) => {
     if (serviceId === 'custom') {
       updateLine(lineId, 'description', '')
       return
     }
     const service = services.find(s => s.id === serviceId)
-    if (service) {
-      // Pour un AE/EI sans TVA → price_ttc = prix réel (pas de TVA)
-      // Pour une entreprise avec TVA → price_ttc inclut la TVA, price_ht = HT
-      const price = tvaEnabled ? (service.price_ht || 0) : (service.price_ttc || service.price_ht || 0)
-      // Unité automatique depuis le paramétrage du motif
-      const serviceUnit = parseServiceUnit(service)
+    if (!service) return
+
+    // Pour un AE/EI sans TVA → price_ttc = prix réel (pas de TVA)
+    // Pour une entreprise avec TVA → price_ttc inclut la TVA, price_ht = HT
+    const price = tvaEnabled ? (service.price_ht || 0) : (service.price_ttc || service.price_ht || 0)
+    // Unité automatique depuis le paramétrage du motif
+    const serviceUnit = parseServiceUnit(service)
+
+    // ── Charger les étapes template du motif ──
+    let etapesTemplate: { id: string; ordre: number; designation: string }[] = []
+    try {
+      const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
+      const json = await res.json()
+      if (json.etapes?.length) etapesTemplate = json.etapes
+    } catch { /* pas d'étapes = pas grave */ }
+
+    if (etapesTemplate.length > 0) {
+      // Copier les étapes sur le devis
+      const copiedEtapes: DevisEtape[] = etapesTemplate.map((et, i) => ({
+        id: `etape_${Date.now()}_${i}`,
+        ordre: et.ordre,
+        designation: et.designation,
+        source_etape_id: et.id,
+      }))
+      setDevisEtapes(copiedEtapes)
+
+      // Remplacer la ligne actuelle par N lignes (une par étape)
+      // La première reprend la ligne existante, les suivantes sont ajoutées
+      const newLines: ProductLine[] = etapesTemplate.map((et, i) => ({
+        id: Date.now() + i,
+        description: et.designation,
+        qty: 1,
+        unit: serviceUnit,
+        priceHT: 0,  // Prix NULL → artisan doit remplir
+        tvaRate: defaultTvaRate,
+        totalHT: 0,
+        source: 'etape_motif' as const,
+        etape_id: `etape_${Date.now()}_${i}`,
+      }))
+
+      // Remplacer la ligne placeholder par les lignes étapes
+      setLines(prev => {
+        const filtered = prev.filter(l => l.id !== lineId)
+        return [...filtered, ...newLines]
+      })
+    } else {
+      // Pas d'étapes → comportement classique (une seule ligne)
       setLines(prev => prev.map(line => {
         if (line.id !== lineId) return line
         return {
@@ -1801,6 +1854,7 @@ export default function DevisFactureForm({
     iban,
     bic,
     lines,
+    etapes: devisEtapes.length > 0 ? devisEtapes : undefined,
     notes,
   })
 
