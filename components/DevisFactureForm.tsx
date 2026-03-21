@@ -1173,6 +1173,37 @@ export default function DevisFactureForm({
       }
       y += 12
 
+      // ═══ 3b. DÉTAIL DE L'INTERVENTION (étapes) ═══
+      if (devisEtapes.length > 0) {
+        const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+        if (etapesSorted.length > 0) {
+          // Titre section
+          doc.setFillColor(249, 250, 251)
+          doc.rect(marginL, y, contentW, 8, 'F')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(9)
+          doc.setTextColor(50, 50, 50)
+          doc.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'DÉTAIL DE L\'INTERVENTION', marginL + 4, y + 5.5)
+          y += 12
+
+          // Liste numérotée
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(9)
+          doc.setTextColor(80, 80, 80)
+          for (let i = 0; i < etapesSorted.length; i++) {
+            const text = `${i + 1}. ${etapesSorted[i].designation}`
+            doc.text(text, marginL + 6, y)
+            y += 5
+            // Page break si nécessaire
+            if (y > pageH - 40) {
+              doc.addPage()
+              y = 20
+            }
+          }
+          y += 6
+        }
+      }
+
       // ═══ 4. TABLEAU PRESTATIONS (autoTable) ═══
       const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
       const tableHead = tvaEnabled
