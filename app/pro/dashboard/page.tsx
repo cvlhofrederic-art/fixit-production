@@ -1334,7 +1334,7 @@ export default function DashboardPage() {
           <button
             onClick={() => setShowNotifDropdown(!showNotifDropdown)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded v22-mono text-xs transition hover:bg-white/10"
-            style={{ border: '1px solid rgba(255,255,255,0.25)', color: unreadNotifCount > 0 ? '#fff' : 'rgba(255,255,255,0.5)' }}
+            style={{ border: '1px solid rgba(255,255,255,0.25)', color: '#fff' }}
             aria-label="Notifications"
           >
             <span>Notifications</span>
