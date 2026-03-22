@@ -96,6 +96,7 @@ export default function DashboardPage() {
   // ── Notifications temps réel ──
   const [notifications, setNotifications] = useState<any[]>([])
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false)
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
 
@@ -1114,30 +1115,32 @@ export default function DashboardPage() {
   }, [artisan?.user_id])
 
   // Load unread message count — paused when tab is hidden
+  const refreshUnreadMsgCount = useCallback(async () => {
+    if (!artisan?.user_id) return
+    try {
+      const token = await getDashAuthToken()
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const [clientsRes, proRes] = await Promise.all([
+        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=particulier`, { headers }),
+        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=pro`, { headers }),
+      ])
+      const [cd, pd] = await Promise.all([clientsRes.json(), proRes.json()])
+      const total = (cd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0) +
+                    (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
+      setUnreadMsgCount(total)
+    } catch {}
+  }, [artisan?.user_id])
+
   useEffect(() => {
     if (!artisan?.user_id) return
-    const loadUnread = async () => {
-      try {
-        const token = await getDashAuthToken()
-        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-        const [clientsRes, proRes] = await Promise.all([
-          fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=particulier`, { headers }),
-          fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=pro`, { headers }),
-        ])
-        const [cd, pd] = await Promise.all([clientsRes.json(), proRes.json()])
-        const total = (cd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0) +
-                      (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
-        setUnreadMsgCount(total)
-      } catch {}
-    }
-    loadUnread()
-    let interval = setInterval(loadUnread, POLL_MISSIONS)
+    refreshUnreadMsgCount()
+    let interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearInterval(interval)
       } else {
-        loadUnread()
-        interval = setInterval(loadUnread, POLL_MISSIONS)
+        refreshUnreadMsgCount()
+        interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -1329,6 +1332,105 @@ export default function DashboardPage() {
         <div className="v22-mono text-xs text-white/60 ml-auto border-l border-white/20 pl-4">
           {artisan?.company_name || firstName} · {orgRole === 'artisan' ? 'Artisan' : orgRole === 'pro_societe' ? 'Société' : orgRole === 'pro_conciergerie' ? 'Conciergerie' : 'Gestionnaire'}
         </div>
+        {/* ── Cloche notifications ── */}
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+            className="relative flex items-center justify-center w-8 h-8 rounded-full transition hover:bg-white/10"
+            aria-label="Notifications"
+          >
+            <span style={{ fontSize: 16, filter: unreadNotifCount > 0 ? 'none' : 'grayscale(1) opacity(0.5)' }}>🔔</span>
+            {unreadNotifCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[9px] font-bold v22-mono" style={{ background: 'var(--v22-red, #ef4444)', color: '#fff', lineHeight: 1 }}>
+                {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+              </span>
+            )}
+          </button>
+          {showNotifDropdown && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowNotifDropdown(false)} />
+              <div className="absolute right-0 top-full mt-1 z-50 overflow-hidden v22-card" style={{ width: 360, maxHeight: 480 }}>
+                <div className="flex items-center justify-between px-3 py-2.5" style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                  <span className="text-xs font-semibold" style={{ color: 'var(--v22-text)' }}>Notifications</span>
+                  {unreadNotifCount > 0 && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = await getDashAuthToken()
+                          await fetch('/api/syndic/notify-artisan', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                            body: JSON.stringify({ mark_all_read: true, artisan_id: artisan?.user_id }),
+                          })
+                          setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+                          setUnreadNotifCount(0)
+                        } catch {}
+                      }}
+                      className="text-[10px] v22-mono hover:underline" style={{ color: 'var(--v22-yellow)' }}
+                    >
+                      Tout marquer lu
+                    </button>
+                  )}
+                </div>
+                <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+                  {notifications.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--v22-text-muted)' }}>
+                      Aucune notification
+                    </div>
+                  ) : (
+                    notifications.slice(0, 20).map((n: any) => (
+                      <button
+                        key={n.id}
+                        onClick={async () => {
+                          // Marquer comme lue
+                          if (!n.read) {
+                            try {
+                              const token = await getDashAuthToken()
+                              await fetch('/api/syndic/notify-artisan', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                body: JSON.stringify({ notification_id: n.id, artisan_id: artisan?.user_id }),
+                              })
+                              setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
+                              setUnreadNotifCount(prev => Math.max(0, prev - 1))
+                            } catch {}
+                          }
+                          setShowNotifDropdown(false)
+                          // Navigation selon le type
+                          if (n.type === 'message' || n.type === 'booking_message') navigateTo('messages')
+                          else if (n.type === 'new_mission' || n.type === 'planning_change') navigateTo('calendar')
+                          else if (n.type === 'devis_signed') navigateTo('devis')
+                          else navigateTo('home')
+                        }}
+                        className="w-full px-3 py-2.5 text-left flex items-start gap-2.5 transition text-xs hover:bg-[var(--v22-bg)]"
+                        style={{ background: n.read ? 'transparent' : 'rgba(250, 204, 21, 0.04)', borderBottom: '1px solid var(--v22-border)' }}
+                      >
+                        <span style={{ fontSize: 8, marginTop: 4, color: n.read ? 'var(--v22-text-muted)' : 'var(--v22-yellow)' }}>
+                          {n.read ? '○' : '●'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate" style={{ color: 'var(--v22-text)' }}>{n.title}</div>
+                          {n.body && <div className="truncate mt-0.5" style={{ color: 'var(--v22-text-muted)', fontSize: 11 }}>{n.body}</div>}
+                          <div className="mt-1 v22-mono" style={{ color: 'var(--v22-text-muted)', fontSize: 10 }}>
+                            {(() => {
+                              const diff = Date.now() - new Date(n.created_at).getTime()
+                              const mins = Math.floor(diff / 60000)
+                              if (mins < 1) return 'à l\'instant'
+                              if (mins < 60) return `${mins}min`
+                              const hours = Math.floor(mins / 60)
+                              if (hours < 24) return `${hours}h`
+                              return `${Math.floor(hours / 24)}j`
+                            })()}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold v22-mono" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
           {initials}
         </div>
@@ -1345,7 +1447,7 @@ export default function DashboardPage() {
             <div className="v22-sidebar-label">{t('proDash.sidebar.main')}</div>
             <V22SidebarItem label={t('proDash.modules.home')} active={activePage === 'home'} onClick={() => navigateTo('home')} />
             {orgRole === 'artisan' && <>
-              <V22SidebarItem label={t('proDash.modules.calendar')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
+              <V22SidebarItem label={t('proDash.modules.calendar')} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />
               <V22SidebarItem label="Chantiers" active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} />
               <V22SidebarItem label={t('proDash.modules.motifs')} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
               <V22SidebarItem label={t('proDash.modules.hours')} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
@@ -1507,6 +1609,7 @@ export default function DashboardPage() {
               <div style={{ flex: 1, minHeight: 0, padding: '12px' }}>
             <MessagerieArtisan
               artisan={artisan}
+              onConversationRead={refreshUnreadMsgCount}
               onProposerDevis={(missionData) => {
                 // ── Matching intelligent : motif mission → service catalogue (prix) ──
                 const motif = (missionData.description || missionData.titre || '').toLowerCase()

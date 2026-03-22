@@ -49,6 +49,7 @@ type Message = {
 
 type Props = {
   artisan: { id: string; user_id: string; company_name?: string }
+  onConversationRead?: () => void
   onProposerDevis?: (missionData: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
 }
 
@@ -71,7 +72,7 @@ const getStatutConfig = (isPt: boolean): Record<string, { label: string; tagClas
 
 // ═══ COMPOSANT PRINCIPAL ═══
 
-export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
+export default function MessagerieArtisan({ artisan, onConversationRead, onProposerDevis }: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
@@ -149,6 +150,7 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
         try { localStorage.setItem(MSG_CACHE_KEY_PREFIX + convId, JSON.stringify(data.messages)) } catch { /* quota */ }
         loadUnreadCounts()
         loadConversations()
+        onConversationRead?.()
       }
     } catch (e) {
       console.error('[messagerie] load messages error:', e)
@@ -159,7 +161,7 @@ export default function MessagerieArtisan({ artisan, onProposerDevis }: Props) {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [artisan.user_id, loadUnreadCounts, loadConversations, MSG_CACHE_KEY_PREFIX])
+  }, [artisan.user_id, loadUnreadCounts, loadConversations, onConversationRead, MSG_CACHE_KEY_PREFIX])
 
   // ── Envoyer un message texte ──
   const sendMessage = async () => {
