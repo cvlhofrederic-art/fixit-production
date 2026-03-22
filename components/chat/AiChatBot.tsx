@@ -1365,12 +1365,67 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                             </button>
                           </div>
                         )}
-                        {msg.documentPreview.status === 'Confirmé' && (
+                        {msg.documentPreview.status === 'Confirmé' && msg.documentPreview.type === 'rapport' && (
+                          <div className="flex flex-col">
+                            <div className="px-3 py-1.5 text-[10px] text-gray-500 text-center" style={{ borderBottom: '1px solid #f0f0f0' }}>
+                              Joindre ce rapport à un document ?
+                            </div>
+                            <div className="flex">
+                              <button
+                                onClick={() => {
+                                  if (msg.documentPreview) {
+                                    onCreateDevis({ ...msg.documentPreview.data, linkToDevis: true })
+                                    setMessages(prev => prev.map(m =>
+                                      m.id === msg.id && m.documentPreview
+                                        ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Lié' } }
+                                        : m
+                                    ))
+                                    addMessage('assistant', '📋 **Rapport lié à un devis.** Sélectionnez le devis dans le formulaire.')
+                                  }
+                                }}
+                                className="flex-1 py-2 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 transition text-center"
+                                style={{ borderRight: '1px solid #f0f0f0' }}
+                              >
+                                📋 Joindre à un devis
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (msg.documentPreview) {
+                                    onCreateDevis({ ...msg.documentPreview.data, linkToFacture: true })
+                                    setMessages(prev => prev.map(m =>
+                                      m.id === msg.id && m.documentPreview
+                                        ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Lié' } }
+                                        : m
+                                    ))
+                                    addMessage('assistant', '🧾 **Rapport lié à une facture.** Sélectionnez la facture dans le formulaire.')
+                                  }
+                                }}
+                                className="flex-1 py-2 text-[10px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition text-center"
+                                style={{ borderRight: '1px solid #f0f0f0' }}
+                              >
+                                🧾 Joindre à une facture
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setMessages(prev => prev.map(m =>
+                                    m.id === msg.id && m.documentPreview
+                                      ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Envoi?' } }
+                                      : m
+                                  ))
+                                  addMessage('assistant', 'Voulez-vous envoyer ce rapport au client maintenant ?')
+                                }}
+                                className="flex-1 py-2 text-[10px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 transition text-center"
+                              >
+                                ⏭️ Continuer
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {(msg.documentPreview.status === 'Confirmé' && msg.documentPreview.type !== 'rapport') || msg.documentPreview.status === 'Envoi?' ? (
                           <div className="flex">
                             <button
                               onClick={() => {
                                 if (msg.documentPreview) {
-                                  // Ouvrir le formulaire avec flag envoi
                                   onCreateDevis({ ...msg.documentPreview.data, autoSendToClient: true })
                                   setMessages(prev => prev.map(m =>
                                     m.id === msg.id && m.documentPreview
@@ -1388,7 +1443,6 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                             <button
                               onClick={() => {
                                 if (msg.documentPreview) {
-                                  // Ouvrir le formulaire sans envoi
                                   onCreateDevis(msg.documentPreview.data)
                                   setMessages(prev => prev.map(m =>
                                     m.id === msg.id && m.documentPreview
@@ -1404,7 +1458,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                               📁 Non, garder
                             </button>
                           </div>
-                        )}
+                        ) : null}
                         {(msg.documentPreview.status === 'Envoyé' || msg.documentPreview.status === 'Sauvegardé' || msg.documentPreview.status === 'En modification') && (
                           <div className="py-2 text-center text-[10px] text-gray-400">
                             {msg.documentPreview.status === 'Envoyé' ? '📤 Envoyé' : msg.documentPreview.status === 'Sauvegardé' ? '📁 Sauvegardé' : '✏️ En modification'}

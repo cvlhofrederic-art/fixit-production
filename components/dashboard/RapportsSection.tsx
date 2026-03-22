@@ -41,6 +41,8 @@ interface RapportIntervention {
   status: 'termine' | 'en_cours' | 'a_reprendre' | 'sous_garantie'
   sentStatus?: 'envoye' | 'non_envoye'
   sentAt?: string
+  linkedDevisRef?: string
+  linkedFactureRef?: string
 }
 
 const RAPPORT_STATUS_MAP = {
@@ -1156,6 +1158,8 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                       <td>
                         <span className="v22-ref">{r.rapportNumber}</span>
                         {r.refDevisFact && <div className="v22-card-meta" style={{ marginTop: '2px' }}>{r.refDevisFact}</div>}
+                        {r.linkedDevisRef && <div className="v22-card-meta" style={{ marginTop: '2px', color: 'var(--v22-yellow)' }}>📋 Lié au devis {r.linkedDevisRef}</div>}
+                        {r.linkedFactureRef && <div className="v22-card-meta" style={{ marginTop: '2px', color: 'var(--v22-yellow)' }}>🧾 Lié à la facture {r.linkedFactureRef}</div>}
                       </td>
                       <td>
                         <span className="v22-client-name">{r.clientName || 'Client non defini'}</span>
