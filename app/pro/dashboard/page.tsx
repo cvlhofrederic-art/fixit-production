@@ -1329,28 +1329,8 @@ export default function DashboardPage() {
         <div className="v22-mono text-xs text-white/60 ml-auto border-l border-white/20 pl-4">
           {artisan?.company_name || firstName} · {orgRole === 'artisan' ? 'Artisan' : orgRole === 'pro_societe' ? 'Société' : orgRole === 'pro_conciergerie' ? 'Conciergerie' : 'Gestionnaire'}
         </div>
-        <div className="relative">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfileMenu(!showProfileMenu)}>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold v22-mono" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
-              {initials}
-            </div>
-          </div>
-          {showProfileMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 w-44 z-50 overflow-hidden v22-card">
-                <button onClick={() => { setShowProfileMenu(false); navigateTo('settings') }}
-                  className="w-full px-3 py-2.5 text-left text-xs hover:bg-[var(--v22-bg)] flex items-center gap-2 transition" style={{ color: 'var(--v22-text)' }}>
-                  ⚙️ {t('proDash.myProfile')}
-                </button>
-                <div style={{ borderTop: '1px solid var(--v22-border)' }} />
-                <button onClick={async () => { setShowProfileMenu(false); await supabase.auth.signOut(); window.location.href = `/${locale}/` }}
-                  className="w-full px-3 py-2.5 text-left text-xs flex items-center gap-2 transition" style={{ color: 'var(--v22-red)' }}>
-                  🚪 {t('proDash.logout')}
-                </button>
-              </div>
-            </>
-          )}
+        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold v22-mono" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
+          {initials}
         </div>
       </header>
 
@@ -1442,7 +1422,7 @@ export default function DashboardPage() {
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
-          <V22SidebarItem label={`⚙️ ${t('proDash.myProfile')}`} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
+          <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
           <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
           <V22SidebarItem label={`🚪 ${t('proDash.logout')}`} active={false} onClick={async () => { await supabase.auth.signOut(); window.location.href = `/${locale}/` }} />

@@ -110,11 +110,10 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
   }, [])
   const isPt = locale === 'pt'
 
-  // PRO GATE CHECK
-  // TEST MODE: bypass Pro restriction when NEXT_PUBLIC_TEST_MODE=true
-  // To re-enable in prod: set NEXT_PUBLIC_TEST_MODE=false (or remove the var)
-  const testMode = process.env.NEXT_PUBLIC_TEST_MODE === 'true'
-  const isPro = testMode || artisan?.subscription_tier === 'artisan_pro'
+  // PRO GATE CHECK — désactivé pour le moment (accès libre à tous les artisans)
+  // TODO: réactiver quand le système de subscription sera en place
+  // const isPro = artisan?.subscription_tier === 'artisan_pro'
+  const isPro = true
 
   // State
   const [activeTab, setActiveTab] = useState<'browse' | 'mybids' | 'won' | 'settings'>('browse')
