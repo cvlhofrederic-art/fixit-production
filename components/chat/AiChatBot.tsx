@@ -1330,34 +1330,86 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                           </span>
                         </div>
                       </div>
-                      <div className="flex">
-                        <button
-                          onClick={() => {
-                            if (msg.documentPreview) {
-                              onCreateDevis(msg.documentPreview.data)
-                              // Update status in preview
-                              setMessages(prev => prev.map(m =>
-                                m.id === msg.id && m.documentPreview
-                                  ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Ouvert' } }
-                                  : m
-                              ))
-                            }
-                          }}
-                          className="flex-1 py-2 text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 transition text-center"
-                          style={{ borderRight: '1px solid #f0f0f0' }}
-                        >
-                          ✅ Confirmer
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (msg.documentPreview) {
-                              onCreateDevis(msg.documentPreview.data)
-                            }
-                          }}
-                          className="flex-1 py-2 text-[11px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 transition text-center"
-                        >
-                          ✏️ Modifier
-                        </button>
+                      <div className="flex flex-col">
+                        {msg.documentPreview.status === 'Brouillon' && (
+                          <div className="flex">
+                            <button
+                              onClick={() => {
+                                // Passer à l'étape "envoyer ou garder ?"
+                                setMessages(prev => prev.map(m =>
+                                  m.id === msg.id && m.documentPreview
+                                    ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Confirmé' } }
+                                    : m
+                                ))
+                                addMessage('assistant', `Voulez-vous envoyer ce ${msg.documentPreview!.type} au client maintenant ?`)
+                              }}
+                              className="flex-1 py-2 text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 transition text-center"
+                              style={{ borderRight: '1px solid #f0f0f0' }}
+                            >
+                              ✅ Confirmer
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (msg.documentPreview) {
+                                  onCreateDevis(msg.documentPreview.data)
+                                  setMessages(prev => prev.map(m =>
+                                    m.id === msg.id && m.documentPreview
+                                      ? { ...m, documentPreview: { ...m.documentPreview!, status: 'En modification' } }
+                                      : m
+                                  ))
+                                }
+                              }}
+                              className="flex-1 py-2 text-[11px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 transition text-center"
+                            >
+                              ✏️ Modifier
+                            </button>
+                          </div>
+                        )}
+                        {msg.documentPreview.status === 'Confirmé' && (
+                          <div className="flex">
+                            <button
+                              onClick={() => {
+                                if (msg.documentPreview) {
+                                  // Ouvrir le formulaire avec flag envoi
+                                  onCreateDevis({ ...msg.documentPreview.data, autoSendToClient: true })
+                                  setMessages(prev => prev.map(m =>
+                                    m.id === msg.id && m.documentPreview
+                                      ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Envoyé' } }
+                                      : m
+                                  ))
+                                  addMessage('assistant', `✅ **${msg.documentPreview.type === 'devis' ? 'Devis' : msg.documentPreview.type === 'facture' ? 'Facture' : 'Rapport'} envoyé à ${msg.documentPreview.clientName || 'votre client'} via la messagerie !**`)
+                                }
+                              }}
+                              className="flex-1 py-2 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 transition text-center"
+                              style={{ borderRight: '1px solid #f0f0f0' }}
+                            >
+                              📤 Oui, envoyer au client
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (msg.documentPreview) {
+                                  // Ouvrir le formulaire sans envoi
+                                  onCreateDevis(msg.documentPreview.data)
+                                  setMessages(prev => prev.map(m =>
+                                    m.id === msg.id && m.documentPreview
+                                      ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Sauvegardé' } }
+                                      : m
+                                  ))
+                                  const docLabel = msg.documentPreview.type === 'devis' ? 'devis' : msg.documentPreview.type === 'facture' ? 'factures' : 'rapports'
+                                  addMessage('assistant', `📁 **Ajouté à vos ${docLabel}.** Vous pourrez l'envoyer quand vous le souhaitez.`)
+                                }
+                              }}
+                              className="flex-1 py-2 text-[11px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 transition text-center"
+                            >
+                              📁 Non, garder
+                            </button>
+                          </div>
+                        )}
+                        {(msg.documentPreview.status === 'Envoyé' || msg.documentPreview.status === 'Sauvegardé' || msg.documentPreview.status === 'En modification') && (
+                          <div className="py-2 text-center text-[10px] text-gray-400">
+                            {msg.documentPreview.status === 'Envoyé' ? '📤 Envoyé' : msg.documentPreview.status === 'Sauvegardé' ? '📁 Sauvegardé' : '✏️ En modification'}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
