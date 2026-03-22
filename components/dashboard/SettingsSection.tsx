@@ -425,6 +425,16 @@ export default function SettingsSection({
                 </div>
               </div>
             </div>
+
+            {/* Parrainage — intégré dans Mon profil */}
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <div className="v22-card-title">{'🎁'} Parrainage</div>
+              </div>
+              <div className="v22-card-body">
+                <ParrainageSettingsTab artisanId={artisan?.id as string} />
+              </div>
+            </div>
           </div>
 
           {/* RIGHT COLUMN */}

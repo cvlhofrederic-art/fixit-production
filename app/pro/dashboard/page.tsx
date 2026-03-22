@@ -1525,7 +1525,6 @@ export default function DashboardPage() {
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
           <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
           <V22SidebarItem label="Modules" active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
-          <V22SidebarItem label="Parrainage" active={activePage === 'settings' && settingsTab === 'parrainage'} onClick={() => { navigateTo('settings'); setSettingsTab('parrainage') }} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
           <V22SidebarItem label={t('proDash.logout')} active={false} onClick={async () => { await supabase.auth.signOut(); window.location.href = `/${locale}/` }} />
         </div>
