@@ -6,6 +6,17 @@ import { FixyAvatar } from '@/components/common/RobotAvatars'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
 import { useLocale } from '@/lib/i18n/context'
 
+type DocumentPreview = {
+  type: 'devis' | 'facture' | 'rapport'
+  clientName: string
+  address?: string
+  time?: string
+  service?: string
+  amount?: string
+  status: string
+  data: Record<string, unknown>
+}
+
 type Message = {
   id: string
   role: 'user' | 'assistant'
@@ -17,6 +28,7 @@ type Message = {
   }
   actionsExecuted?: Array<{ tool: string; result: string; detail: string }>
   pendingConfirmation?: { tool: string; params: Record<string, unknown>; description: string; confirm_token: string }
+  documentPreview?: DocumentPreview
 }
 
 type ClientData = {
@@ -884,10 +896,22 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       }
 
       // Handle client_actions (open forms, navigate, refresh)
+      let docPreview: DocumentPreview | undefined
       if (client_actions && Array.isArray(client_actions)) {
         for (const ca of client_actions) {
           if (ca.type === 'open_devis_form' || ca.type === 'open_facture_form') {
-            onCreateDevis({ ...ca.data, docType: ca.type === 'open_facture_form' ? 'facture' : 'devis' })
+            const docType = ca.type === 'open_facture_form' ? 'facture' : 'devis'
+            const caData = ca.data || {}
+            // Build preview card instead of opening form immediately
+            docPreview = {
+              type: docType as 'devis' | 'facture',
+              clientName: (caData.clientName as string) || '',
+              address: (caData.clientAddress as string) || (caData.address as string) || '',
+              service: (caData.service as string) || (caData.description as string) || '',
+              amount: caData.amount ? `${caData.amount}€` : caData.price ? `${caData.price}€` : '',
+              status: 'Brouillon',
+              data: { ...caData, docType },
+            }
           } else if (ca.type === 'navigate' && ca.page) {
             onNavigate(ca.page)
           } else if (ca.type === 'refresh_data' && onDataRefresh) {
@@ -896,12 +920,13 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         }
       }
 
-      // Display response with action badges
+      // Display response with action badges + document preview card
       const msg: Message = {
         id: Date.now().toString(),
         role: 'assistant',
         content: response || 'Action effectuée.',
         actionsExecuted: actions_executed?.length ? actions_executed : undefined,
+        documentPreview: docPreview,
       }
       setMessages(prev => [...prev, msg])
       return true
@@ -1281,6 +1306,59 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                           {a.result === 'success' ? '✓' : '✗'} {a.tool.replace(/_/g, ' ')}
                         </span>
                       ))}
+                    </div>
+                  )}
+                  {/* Document preview card */}
+                  {msg.documentPreview && (
+                    <div className="mt-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden" style={{ maxWidth: 300 }}>
+                      <div className="px-3 py-2.5" style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
+                          {msg.documentPreview.type === 'devis' ? '📋' : msg.documentPreview.type === 'facture' ? '🧾' : '📄'}
+                          {msg.documentPreview.type === 'devis' ? 'DEVIS' : msg.documentPreview.type === 'facture' ? 'FACTURE' : 'RAPPORT'}
+                          {msg.documentPreview.clientName && ` — ${msg.documentPreview.clientName}`}
+                        </div>
+                        {msg.documentPreview.address && (
+                          <div className="text-[10px] text-gray-500 mt-0.5">📍 {msg.documentPreview.address}</div>
+                        )}
+                        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
+                          {msg.documentPreview.service && <span>🔧 {msg.documentPreview.service}</span>}
+                          {msg.documentPreview.amount && <span>💶 {msg.documentPreview.amount}</span>}
+                        </div>
+                        <div className="mt-1">
+                          <span className="inline-block px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[9px] font-medium">
+                            {msg.documentPreview.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex">
+                        <button
+                          onClick={() => {
+                            if (msg.documentPreview) {
+                              onCreateDevis(msg.documentPreview.data)
+                              // Update status in preview
+                              setMessages(prev => prev.map(m =>
+                                m.id === msg.id && m.documentPreview
+                                  ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Ouvert' } }
+                                  : m
+                              ))
+                            }
+                          }}
+                          className="flex-1 py-2 text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 transition text-center"
+                          style={{ borderRight: '1px solid #f0f0f0' }}
+                        >
+                          ✅ Confirmer
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (msg.documentPreview) {
+                              onCreateDevis(msg.documentPreview.data)
+                            }
+                          }}
+                          className="flex-1 py-2 text-[11px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 transition text-center"
+                        >
+                          ✏️ Modifier
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
