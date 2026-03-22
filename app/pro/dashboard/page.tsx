@@ -1436,7 +1436,6 @@ export default function DashboardPage() {
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
               {isModuleEnabled('wallet') && <V22SidebarItem label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
               {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
-              {isModuleEnabled('parrainage') && <V22SidebarItem label="🎁 Parrainage" active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
             </div>
           )}
         </div>
@@ -1445,6 +1444,7 @@ export default function DashboardPage() {
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
           <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
           <V22SidebarItem label={t('proDash.modules.modules')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
+          {isModuleEnabled('parrainage') && <V22SidebarItem label="🎁 Parrainage" active={activePage === 'settings' && settingsTab === 'parrainage'} onClick={() => { navigateTo('settings'); setSettingsTab('parrainage') }} />}
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
         </div>
       </aside>
