@@ -1442,9 +1442,10 @@ export default function DashboardPage() {
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
-          <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
-          <V22SidebarItem label={t('proDash.modules.modules')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
+          <V22SidebarItem label={`⚙️ ${t('proDash.myProfile')}`} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
+          <V22SidebarItem label={t('proDash.modules.settings')} active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
+          <V22SidebarItem label={`🚪 ${t('proDash.logout')}`} active={false} onClick={async () => { await supabase.auth.signOut(); window.location.href = `/${locale}/` }} />
         </div>
       </aside>
 
