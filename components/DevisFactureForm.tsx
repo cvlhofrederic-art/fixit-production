@@ -1180,25 +1180,25 @@ export default function DevisFactureForm({
         const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
         if (etapesSorted.length > 0) {
           // Titre section
-          doc.setFillColor(249, 250, 251)
-          doc.rect(marginL, y, contentW, 8, 'F')
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(9)
-          doc.setTextColor(50, 50, 50)
-          doc.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'DÉTAIL DE L\'INTERVENTION', marginL + 4, y + 5.5)
+          pdf.setFillColor(249, 250, 251)
+          pdf.rect(mL, y, contentW, 8, 'F')
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(9)
+          pdf.setTextColor(50, 50, 50)
+          pdf.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'DÉTAIL DE L\'INTERVENTION', mL + 4, y + 5.5)
           y += 12
 
           // Liste numérotée
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(9)
-          doc.setTextColor(80, 80, 80)
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(9)
+          pdf.setTextColor(80, 80, 80)
           for (let i = 0; i < etapesSorted.length; i++) {
             const text = `${i + 1}. ${etapesSorted[i].designation}`
-            doc.text(text, marginL + 6, y)
+            pdf.text(text, mL + 6, y)
             y += 5
             // Page break si nécessaire
             if (y > pageH - 40) {
-              doc.addPage()
+              pdf.addPage()
               y = 20
             }
           }

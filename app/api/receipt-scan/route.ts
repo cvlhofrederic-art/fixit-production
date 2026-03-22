@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       const msg = groqErr instanceof Error ? groqErr.message : 'Unknown error'
       logger.error('Receipt scan Groq Vision error:', msg)
       return NextResponse.json({
-        result: { store: null, date: null, lines: [], totalTTC: 0, confidence: 'basse' } as ReceiptScanResult,
+        result: { store: '', date: '', lines: [], totalTTC: 0, confidence: 'basse' } satisfies ReceiptScanResult,
         error: 'Analyse vision échouée',
       })
     }
