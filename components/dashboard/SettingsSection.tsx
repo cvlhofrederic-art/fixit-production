@@ -312,37 +312,14 @@ export default function SettingsSection({
       {/* Page header */}
       <div className="v22-page-header">
         <div style={{ flex: 1 }}>
-          <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : settingsTab === 'parrainage' ? '🎁 Parrainage' : `⚙️ ${t('proDash.settings.title')}`}</div>
-          <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : t('proDash.settings.subtitle')}</div>
+          <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : settingsTab === 'parrainage' ? '🎁 Parrainage' : 'Mon profil'}</div>
+          <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : 'Gérez vos informations personnelles et professionnelles.'}</div>
         </div>
         {settingsTab === 'profil' && (
           <button onClick={saveSettings} disabled={savingSettings} className="v22-btn v22-btn-primary" style={{ opacity: savingSettings ? 0.5 : 1 }}>
             {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrer')}`}
           </button>
         )}
-      </div>
-
-      {/* Tabs navigation */}
-      <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', borderBottom: '1px solid var(--v22-border)' }}>
-        {(['profil', 'modules', 'parrainage'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setSettingsTab(tab)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: settingsTab === tab ? 600 : 400,
-              background: settingsTab === tab ? 'var(--v22-amber-bg, #FFF8E1)' : 'transparent',
-              color: settingsTab === tab ? '#F57F17' : 'var(--v22-text-secondary)',
-              border: settingsTab === tab ? '1px solid #FFC107' : '1px solid transparent',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-          >
-            {tab === 'profil' ? '⚙️ Profil' : tab === 'modules' ? '🧩 Modules' : '🎁 Parrainage'}
-          </button>
-        ))}
       </div>
 
       {/* Profil & Parametres */}
