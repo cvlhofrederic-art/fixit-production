@@ -322,6 +322,29 @@ export default function SettingsSection({
         )}
       </div>
 
+      {/* Tabs navigation */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', borderBottom: '1px solid var(--v22-border)' }}>
+        {(['profil', 'modules', 'parrainage'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setSettingsTab(tab)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: settingsTab === tab ? 600 : 400,
+              background: settingsTab === tab ? 'var(--v22-amber-bg, #FFF8E1)' : 'transparent',
+              color: settingsTab === tab ? '#F57F17' : 'var(--v22-text-secondary)',
+              border: settingsTab === tab ? '1px solid #FFC107' : '1px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {tab === 'profil' ? '⚙️ Profil' : tab === 'modules' ? '🧩 Modules' : '🎁 Parrainage'}
+          </button>
+        ))}
+      </div>
+
       {/* Profil & Parametres */}
       {settingsTab === 'profil' && (
       <div style={{ padding: '16px' }}>
