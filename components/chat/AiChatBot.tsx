@@ -328,6 +328,33 @@ function formatDateFr(dateStr: string, fmtLocale: string = 'fr-FR'): string {
 
 // ══════════════ COMPOSANT ══════════════
 
+// ══════════════ SIMILARITÉ (Levenshtein) ══════════════
+
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length, n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+    }
+  }
+  return dp[m][n]
+}
+
+function similarity(a: string, b: string): number {
+  const na = normalizeForSearch(a), nb = normalizeForSearch(b)
+  if (na === nb) return 1
+  const maxLen = Math.max(na.length, nb.length)
+  if (maxLen === 0) return 1
+  return 1 - levenshteinDistance(na, nb) / maxLen
+}
+
 // ══════════════ CLIENT MATCHER ══════════════
 
 function normalizeForSearch(str: string): string {
@@ -338,7 +365,7 @@ function findClientByName(name: string, clients: ClientData[]): ClientData | nul
   if (!name || clients.length === 0) return null
   const searchName = normalizeForSearch(name)
 
-  // 1. Exact match
+  // 1. Exact match (après normalisation)
   const exact = clients.find(c => normalizeForSearch(c.name) === searchName)
   if (exact) return exact
 
@@ -349,17 +376,16 @@ function findClientByName(name: string, clients: ClientData[]): ClientData | nul
   })
   if (contains) return contains
 
-  // 3. Partial match — check if all search words appear in client name (or vice versa)
+  // 3. Partial match — all search words appear in client name
   const searchWords = searchName.split(/\s+/).filter(w => w.length >= 2)
   if (searchWords.length > 0) {
     const partial = clients.find(c => {
       const cn = normalizeForSearch(c.name)
-      // All search words found in client name
       return searchWords.every(sw => cn.includes(sw))
     })
     if (partial) return partial
 
-    // 4. At least last name matches (last word)
+    // 4. Last name match (last word)
     const lastName = searchWords[searchWords.length - 1]
     if (lastName.length >= 3) {
       const lastNameMatch = clients.find(c => {
@@ -368,6 +394,121 @@ function findClientByName(name: string, clients: ClientData[]): ClientData | nul
       })
       if (lastNameMatch) return lastNameMatch
     }
+  }
+
+  // 5. Similarité Levenshtein ≥ 80% (tolérance aux déformations vocales)
+  let bestMatch: ClientData | null = null
+  let bestScore = 0
+  for (const c of clients) {
+    const score = similarity(name, c.name)
+    if (score >= 0.8 && score > bestScore) {
+      bestScore = score
+      bestMatch = c
+    }
+    // Vérifier aussi chaque mot individuellement (nom de famille)
+    const cWords = normalizeForSearch(c.name).split(/\s+/)
+    for (const sw of searchWords) {
+      for (const cw of cWords) {
+        if (cw.length >= 3 && sw.length >= 3) {
+          const wordScore = similarity(sw, cw)
+          if (wordScore >= 0.8 && wordScore > bestScore) {
+            bestScore = wordScore
+            bestMatch = c
+          }
+        }
+      }
+    }
+  }
+  if (bestMatch) return bestMatch
+
+  // 6. Début de mot (mots partiels vocaux : "lep" → "lepore")
+  if (searchWords.length > 0) {
+    const prefixMatch = clients.find(c => {
+      const cnWords = normalizeForSearch(c.name).split(/\s+/)
+      return searchWords.some(sw => sw.length >= 3 && cnWords.some(cw => cw.startsWith(sw)))
+    })
+    if (prefixMatch) return prefixMatch
+  }
+
+  return null
+}
+
+// ══════════════ SERVICE/MOTIF MATCHER ══════════════
+
+interface ServiceItem {
+  id: string
+  name: string
+  price_ht?: number
+  price_ttc?: number
+  duration_minutes?: number
+}
+
+function findServiceByVoice(text: string, services: ServiceItem[]): ServiceItem | null {
+  if (!text || services.length === 0) return null
+  const searchText = normalizeForSearch(text)
+
+  // 1. Correspondance exacte
+  const exact = services.find(s => normalizeForSearch(s.name) === searchText)
+  if (exact) return exact
+
+  // 2. Contient le mot-clé complet
+  const contains = services.find(s => {
+    const sn = normalizeForSearch(s.name)
+    return sn.includes(searchText) || searchText.includes(sn)
+  })
+  if (contains) return contains
+
+  // 3. Correspondance sémantique par mots-clés
+  const searchWords = searchText.split(/\s+/).filter(w => w.length >= 3)
+  if (searchWords.length > 0) {
+    // Tous les mots du search trouvés dans le nom du service
+    const allWords = services.find(s => {
+      const sn = normalizeForSearch(s.name)
+      return searchWords.every(sw => sn.includes(sw))
+    })
+    if (allWords) return allWords
+
+    // Au moins un mot significatif matche
+    const anyWord = services.find(s => {
+      const sn = normalizeForSearch(s.name)
+      return searchWords.some(sw => sn.includes(sw))
+    })
+    if (anyWord) return anyWord
+  }
+
+  // 4. Similarité Levenshtein ≥ 80%
+  let bestMatch: ServiceItem | null = null
+  let bestScore = 0
+  for (const s of services) {
+    // Score global
+    const score = similarity(text, s.name)
+    if (score >= 0.8 && score > bestScore) {
+      bestScore = score
+      bestMatch = s
+    }
+    // Score par mots (ex: "élag" vs "élagage")
+    const sWords = normalizeForSearch(s.name).split(/\s+/)
+    for (const sw of searchWords) {
+      for (const sWord of sWords) {
+        if (sWord.length >= 3 && sw.length >= 3) {
+          const wordScore = similarity(sw, sWord)
+          if (wordScore >= 0.75 && wordScore > bestScore) {
+            bestScore = wordScore
+            bestMatch = s
+          }
+        }
+      }
+    }
+  }
+  if (bestMatch) return bestMatch
+
+  // 5. Préfixe (mots partiels vocaux : "élag" → "élagage", "nettoy" → "nettoyage")
+  if (searchWords.length > 0) {
+    const prefixMatch = services.find(s => {
+      const sWords = normalizeForSearch(s.name).split(/\s+/)
+      return searchWords.some(sw => sw.length >= 3 && sWords.some(sWord => sWord.startsWith(sw) || sw.startsWith(sWord)))
+    })
+    if (prefixMatch) return prefixMatch
   }
 
   return null

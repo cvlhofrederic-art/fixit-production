@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
+import { normalizeForSearch, fuzzyFind } from '@/lib/fuzzy-match'
 
 /* ══════════ RAPPORTS D'INTERVENTION ══════════ */
 
@@ -79,6 +80,91 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
   const [photosLoading, setPhotosLoading] = useState(false)
   const [linkedPhotos, setLinkedPhotos] = useState<string[]>([])
   const [showPhotoPicker, setShowPhotoPicker] = useState(false)
+
+  // ── Auto-complétion client + motif ──
+  const [clientSuggestions, setClientSuggestions] = useState<{ name: string; phone?: string; email?: string; address?: string }[]>([])
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false)
+  const [motifSuggestions, setMotifSuggestions] = useState<{ name: string; id?: string | undefined }[]>([])
+  const [showMotifSuggestions, setShowMotifSuggestions] = useState(false)
+
+  // Extraire les clients uniques des bookings
+  const knownClients = useMemo(() => {
+    const map = new Map<string, { name: string; phone?: string; email?: string; address?: string }>()
+    for (const b of bookings) {
+      const name = b.client_name || b.name || ''
+      if (name && !map.has(normalizeForSearch(name))) {
+        map.set(normalizeForSearch(name), {
+          name,
+          phone: b.client_phone || b.phone || '',
+          email: b.client_email || b.email || '',
+          address: b.address || b.client_address || '',
+        })
+      }
+    }
+    return Array.from(map.values())
+  }, [bookings])
+
+  // Noms de services/motifs
+  const knownMotifs = useMemo(() => {
+    return services.map((s: any) => ({ name: s.name || s.label || '', id: s.id })).filter((m: any) => m.name)
+  }, [services])
+
+  // Recherche client quand l'utilisateur tape
+  const handleClientNameChange = (value: string) => {
+    setForm(p => ({ ...p, clientName: value }))
+    if (value.length >= 2 && knownClients.length > 0) {
+      const matches = knownClients.filter(c => {
+        const cn = normalizeForSearch(c.name)
+        const sv = normalizeForSearch(value)
+        return cn.includes(sv) || sv.includes(cn) || cn.split(/\s+/).some(w => w.startsWith(sv)) || sv.split(/\s+/).some(w => cn.includes(w))
+      }).slice(0, 5)
+      // Ajouter fuzzy match si rien trouvé
+      if (matches.length === 0) {
+        const fuzzy = fuzzyFind(value, knownClients, c => c.name, 0.7)
+        if (fuzzy) matches.push(fuzzy)
+      }
+      setClientSuggestions(matches)
+      setShowClientSuggestions(matches.length > 0)
+    } else {
+      setShowClientSuggestions(false)
+    }
+  }
+
+  const selectClientSuggestion = (client: typeof knownClients[0]) => {
+    setForm(p => ({
+      ...p,
+      clientName: client.name,
+      clientPhone: client.phone || p.clientPhone || '',
+      clientEmail: client.email || p.clientEmail || '',
+      clientAddress: client.address || p.clientAddress || '',
+    }))
+    setShowClientSuggestions(false)
+  }
+
+  // Recherche motif quand l'utilisateur tape
+  const handleMotifChange = (value: string) => {
+    setForm(p => ({ ...p, motif: value }))
+    if (value.length >= 2 && knownMotifs.length > 0) {
+      const matches = knownMotifs.filter(m => {
+        const mn = normalizeForSearch(m.name)
+        const sv = normalizeForSearch(value)
+        return mn.includes(sv) || sv.includes(mn)
+      }).slice(0, 5)
+      if (matches.length === 0) {
+        const fuzzy = fuzzyFind(value, knownMotifs, m => m.name, 0.7)
+        if (fuzzy) matches.push(fuzzy)
+      }
+      setMotifSuggestions(matches)
+      setShowMotifSuggestions(matches.length > 0)
+    } else {
+      setShowMotifSuggestions(false)
+    }
+  }
+
+  const selectMotifSuggestion = (motif: { name: string; id?: string }) => {
+    setForm(p => ({ ...p, motif: motif.name }))
+    setShowMotifSuggestions(false)
+  }
 
   // Load missions from localStorage (syndic + gestionnaire)
   const [availableMissions, setAvailableMissions] = useState<any[]>([])
@@ -752,10 +838,22 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                 </div>
                 <div className="v22-card-body" style={{ padding: '14px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div className="v22-form-group">
+                    <div className="v22-form-group" style={{ position: 'relative' }}>
                       <label className="v22-form-label">Nom / Raison sociale *</label>
-                      <input type="text" value={fv(form.clientName)} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))}
-                        placeholder="Jean Dupont" className="v22-form-input" />
+                      <input type="text" value={fv(form.clientName)} onChange={e => handleClientNameChange(e.target.value)}
+                        onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
+                        placeholder="Jean Dupont" className="v22-form-input" autoComplete="off" />
+                      {showClientSuggestions && clientSuggestions.length > 0 && (
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 180, overflowY: 'auto' }}>
+                          {clientSuggestions.map((c, i) => (
+                            <button key={i} onMouseDown={() => selectClientSuggestion(c)}
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                              <div style={{ fontWeight: 600 }}>{c.name}</div>
+                              {c.phone && <div style={{ color: 'var(--v22-text-muted)', fontSize: 10 }}>{c.phone}</div>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="v22-form-group">
                       <label className="v22-form-label">Telephone</label>
@@ -804,11 +902,22 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                     <input type="text" value={fv(form.siteAddress)} onChange={e => setForm(p => ({ ...p, siteAddress: e.target.value }))}
                       placeholder="Adresse d'intervention..." className="v22-form-input" />
                   </div>
-                  <div className="v22-form-group">
+                  <div className="v22-form-group" style={{ position: 'relative' }}>
                     <label className="v22-form-label">Motif / Description du probleme *</label>
-                    <textarea value={fv(form.motif)} onChange={e => setForm(p => ({ ...p, motif: e.target.value }))}
+                    <textarea value={fv(form.motif)} onChange={e => handleMotifChange(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowMotifSuggestions(false), 200)}
                       rows={2} placeholder="Fuite sous evier cuisine, remplacement robinet defectueux..."
                       className="v22-form-input" style={{ resize: 'none' }} />
+                    {showMotifSuggestions && motifSuggestions.length > 0 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 160, overflowY: 'auto' }}>
+                        {motifSuggestions.map((m, i) => (
+                          <button key={i} onMouseDown={() => selectMotifSuggestion(m)}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                            {m.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
