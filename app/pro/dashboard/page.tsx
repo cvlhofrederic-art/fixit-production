@@ -1329,22 +1329,21 @@ export default function DashboardPage() {
           <span style={{ color: 'var(--v22-yellow)' }}>VIT</span><span className="text-white">FIX</span>
         </a>
         <span className="v22-mono text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-sm" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>Espace Pro</span>
-        <div className="v22-mono text-xs text-white/60 ml-auto border-l border-white/20 pl-4">
-          {artisan?.company_name || firstName} · {orgRole === 'artisan' ? 'Artisan' : orgRole === 'pro_societe' ? 'Société' : orgRole === 'pro_conciergerie' ? 'Conciergerie' : 'Gestionnaire'}
-        </div>
-        {/* ── Cloche notifications ── */}
-        <div className="relative">
+        {/* ── Bouton Notifications ── */}
+        <div className="relative ml-auto">
           <button
             onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-            className="relative flex items-center justify-center w-8 h-8 rounded-full transition hover:bg-white/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded v22-mono text-xs transition hover:bg-white/10"
+            style={{ border: '1px solid rgba(255,255,255,0.25)', color: unreadNotifCount > 0 ? '#fff' : 'rgba(255,255,255,0.5)' }}
             aria-label="Notifications"
           >
-            <span style={{ fontSize: 16, filter: unreadNotifCount > 0 ? 'none' : 'grayscale(1) opacity(0.5)' }}>🔔</span>
+            <span>Notifications</span>
             {unreadNotifCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[9px] font-bold v22-mono" style={{ background: 'var(--v22-red, #ef4444)', color: '#fff', lineHeight: 1 }}>
+              <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold" style={{ background: 'var(--v22-red, #ef4444)', color: '#fff' }}>
                 {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
               </span>
             )}
+            <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
           </button>
           {showNotifDropdown && (
             <>
