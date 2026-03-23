@@ -535,7 +535,7 @@ export default function SettingsSection({
                   </div>
                 )}
 
-                {/* Photo de profil */}
+                {/* Photo de profil — base64 direct en DB */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                   <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                     {profilePhotoPreview ? (
@@ -547,31 +547,30 @@ export default function SettingsSection({
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} className="v22-btn v22-btn-sm">
-                      {'📷'} {t('proDash.settings.choisirPhoto')}
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                    <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: profilePhotoUploading ? 0.5 : 1 }} className="v22-btn v22-btn-sm">
+                      {profilePhotoUploading ? '⏳ Enregistrement...' : `📷 ${t('proDash.settings.choisirPhoto')}`}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
                         const f = e.target.files?.[0]
                         if (!f) return
-                        setProfilePhotoFile(f)
-                        const reader = new FileReader()
-                        reader.onload = (ev) => setProfilePhotoPreview(ev.target?.result as string)
-                        reader.readAsDataURL(f)
+                        if (f.size > 500 * 1024) { setUploadMsg({ text: 'Photo trop lourde (max 500 Ko)', type: 'error' }); return }
+                        setProfilePhotoUploading(true)
+                        try {
+                          const base64 = await new Promise<string>((resolve) => {
+                            const reader = new FileReader()
+                            reader.onload = (ev) => resolve(ev.target?.result as string)
+                            reader.readAsDataURL(f)
+                          })
+                          setProfilePhotoPreview(base64)
+                          const { error } = await supabase.from('profiles_artisan').update({ profile_photo_url: base64 }).eq('id', artisan.id)
+                          if (error) throw new Error(error.message)
+                          setUploadMsg({ text: '✅ Photo enregistrée !', type: 'success' })
+                        } catch (err: any) {
+                          setUploadMsg({ text: `❌ ${err.message}`, type: 'error' })
+                        } finally {
+                          setProfilePhotoUploading(false)
+                        }
                       }} />
                     </label>
-                    {profilePhotoFile && (
-                      <button
-                        onClick={() => {
-                          uploadDocument(profilePhotoFile, 'profiles', 'profile_photo_url', setProfilePhotoUploading)
-                          setProfilePhotoFile(null)
-                          setProfilePhotoPreview('')
-                        }}
-                        disabled={profilePhotoUploading}
-                        className="v22-btn v22-btn-primary v22-btn-sm"
-                        style={{ marginLeft: 6, opacity: profilePhotoUploading ? 0.5 : 1 }}
-                      >
-                        {profilePhotoUploading ? `⏳ ${t('proDash.settings.uploading')}` : `⬆️ ${t('proDash.settings.upload')}`}
-                      </button>
-                    )}
                     <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
                   </div>
                 </div>
@@ -589,7 +588,7 @@ export default function SettingsSection({
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className="v22-btn v22-btn-sm">
-                      {logoUploading ? '⏳ Enregistrement...' : '🏢 Logo entreprise (PDF)'}
+                      {logoUploading ? '⏳ Enregistrement...' : '🏢 Logo entreprise (visible sur devis)'}
                       <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
                         const f = e.target.files?.[0]
                         if (!f) return
