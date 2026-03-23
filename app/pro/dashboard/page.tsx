@@ -1440,7 +1440,7 @@ export default function DashboardPage() {
 
       {/* ══════════ V22 SIDEBAR ══════════ */}
       <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[220px] h-[calc(100vh-48px)] overflow-y-auto transition-transform duration-200 v22-sidebar flex flex-col flex-shrink-0`} style={{ borderRight: '1px solid var(--v22-yellow)' }}>
-        <div className="flex-1 overflow-y-auto pt-5">
+        <div className="flex-1 pt-5">
           {/* Principal */}
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.main')}</div>
