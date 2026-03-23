@@ -1695,22 +1695,7 @@ export default function DevisFactureForm({
 
       y += totH + 6
 
-      // ═══ 8b. ACOMPTES (côté GAUCHE, entre TOTAL NET et CONDITIONS) ═══
-      if (acomptesEnabled && acomptes.length > 0) {
-        checkPageBreak(30)
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
-        for (const ac of acomptes) {
-          if (ac.pourcentage <= 0) continue
-          const montant = acompteTotal * ac.pourcentage / 100
-          const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
-          pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur} = ${localeFormats.currencyFormat(montant)}`, mL, y)
-          y += ptToMm(13)
-        }
-        y += 4
-      }
-
-      // ═══ 9. CONDITIONS + BON POUR ACCORD (devis) ou RÈGLEMENT (facture) ═══
+      // ═══ 9. CONDITIONS + BON POUR ACCORD + ACOMPTES (devis) ou RÈGLEMENT (facture) ═══
       checkPageBreak(55)
 
       if (docType === 'devis') {
@@ -1794,7 +1779,36 @@ export default function DevisFactureForm({
           pdf.text(`Signature :`, sigX + boxPadX, sy)
         }
 
-        y = condStartY + sigContentH + 6
+        y = condStartY + sigContentH + 4
+
+        // ═══ ACOMPTES — carré gris sous BON POUR ACCORD (côté droit) ═══
+        if (acomptesEnabled && acomptes.length > 0) {
+          const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
+          const validAcomptes = acomptes.filter(ac => ac.pourcentage > 0)
+          if (validAcomptes.length > 0) {
+            const acBlockH = 6 + validAcomptes.length * ptToMm(13) + 3
+            checkPageBreak(acBlockH + 4)
+            // Carré gris — même largeur et x que BON POUR ACCORD
+            pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+            pdf.rect(sigX, y, sigW, acBlockH, 'FD')
+            // Titre
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+            pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, y + 4)
+            let ay = y + 8
+            // Lignes acomptes
+            pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+            for (const ac of validAcomptes) {
+              const montant = acompteTotal * ac.pourcentage / 100
+              const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
+              pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
+              pdf.setFont('helvetica', 'bold')
+              pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
+              pdf.setFont('helvetica', 'normal')
+              ay += ptToMm(13)
+            }
+            y += acBlockH + 4
+          }
+        }
 
       } else if (docType === 'facture') {
         // ── Section RÈGLEMENT pour facture ──
