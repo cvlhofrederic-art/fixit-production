@@ -518,8 +518,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // 9. BLOC TOTAL NET (moitié droite)
   // ═══════════════════════════════════════════════════════════
 
-  drawHLine(ML + 2, y + 1, xRight - 2, COLOR.TEXT, 0.4)
-  y += 3
+  y += 2
   const totH = ptToMm(27)
   pdf.setFillColor(COLOR.BG_GRAY)
   pdf.rect(DEST_X0, y, DEST_W, totH, 'F')

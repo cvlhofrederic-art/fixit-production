@@ -1677,9 +1677,7 @@ export default function DevisFactureForm({
       }
 
       // ═══ 8. BLOC TOTAL NET ═══
-      // Trait séparateur noir au-dessus
-      drawHLine(mL + 2, y + 1, xRight - 2, COLOR_TEXT, 0.4)
-      y += 3
+      y += 2
 
       const totalVal = tvaEnabled ? totalTTC : subtotalHT
       const totBoxX = boxX_dest
