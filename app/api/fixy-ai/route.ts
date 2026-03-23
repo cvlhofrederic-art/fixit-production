@@ -140,7 +140,9 @@ Si pas trouvé → crée une ligne personnalisée.
 → Utiliser create_facture avec les données extraites
 
 📄 **RAPPORT** : "rapport", "rapport d'intervention", "créer un rapport"
-→ Extraire : client, adresse, date, travaux réalisés, observations
+→ Extraire : client, adresse, date, motif, travaux réalisés, observations, recommandations, statut
+→ Utiliser create_rapport avec les données extraites
+→ Le formulaire s'ouvrira côté client avec aperçu
 → Le rapport n'est JAMAIS envoyé au client via Fixy
 
 📅 **RDV** : "rendez-vous", "RDV", "planifier", "réserver", "programmer"
@@ -235,7 +237,7 @@ ${dateMappingStr}
    ⚠️ UTILISE TOUJOURS les dates de cette table. Ne calcule JAMAIS une date toi-même.
    "la semaine prochaine" = semaine qui commence lundi prochain.
 
-7. create_devis / create_facture : retourne-les dans "client_actions" car c'est le client qui ouvre le formulaire.
+7. create_devis / create_facture / create_rapport : retourne-les dans "client_actions" car c'est le client qui ouvre le formulaire.
 
 8. NAVIGATION : "ouvre la comptabilité", "va aux factures", "montre mes stats" → actions: [{ "tool": "navigate_to", "params": { "page": "..." } }]
    Le résultat de navigate_to sera automatiquement converti en client_action navigate.
@@ -285,6 +287,10 @@ EXEMPLES :
 - "j'suis pas dispo demain" → actions: [{ "tool": "create_absence", "params": { "start_date": "(demain date)", "end_date": "(demain date)", "reason": "Personnel" } }]
 - "mes absences" → actions: [{ "tool": "list_absences" }]
 - "supprime mon absence" → pending_confirmation avec delete_absence
+- "fait un devis pour dupont résidence la sauvagère élagage huit cent cinquante euros" → client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Dupont", "clientAddress": "Résidence La Sauvagère", "service": "Élagage", "amount": 850 } }]
+- "rapport pour martin rue des lilas nettoyage de façade terminé" → client_actions: [{ "type": "open_rapport_form", "data": { "clientName": "Martin", "clientAddress": "Rue des Lilas", "motif": "Nettoyage de façade", "status": "termine" } }]
+- "devis lepore bâtiment b res l'aurore taille de haies deux cent euros" → match client Lepore, client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Lepore", "clientAddress": "Bâtiment B Res L'Aurore", "service": "Taille de haies", "amount": 200 } }]
+- "rapport d'intervention chez fontaine fuite salle de bain réparée observations joints changés" → client_actions: [{ "type": "open_rapport_form", "data": { "clientName": "Fontaine", "motif": "Fuite salle de bain", "travaux": "Réparation fuite", "observations": "Joints changés", "status": "termine" } }]
 
 NE JAMAIS inclure de texte avant ou après le JSON.`
 
@@ -472,9 +478,14 @@ export async function POST(request: NextRequest) {
 
     // Also handle legacy intents: if AI returns create_devis/create_facture as action
     for (const action of actions) {
-      if (action.tool === 'create_devis' || action.tool === 'create_facture') {
+      if (action.tool === 'create_devis' || action.tool === 'create_facture' || action.tool === 'create_rapport') {
+        const typeMap: Record<string, string> = {
+          create_devis: 'open_devis_form',
+          create_facture: 'open_facture_form',
+          create_rapport: 'open_rapport_form',
+        }
         clientActions.push({
-          type: action.tool === 'create_devis' ? 'open_devis_form' : 'open_facture_form',
+          type: typeMap[action.tool],
           data: action.params || {},
         })
       }

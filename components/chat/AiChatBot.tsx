@@ -899,15 +899,16 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       let docPreview: DocumentPreview | undefined
       if (client_actions && Array.isArray(client_actions)) {
         for (const ca of client_actions) {
-          if (ca.type === 'open_devis_form' || ca.type === 'open_facture_form') {
-            const docType = ca.type === 'open_facture_form' ? 'facture' : 'devis'
+          if (ca.type === 'open_devis_form' || ca.type === 'open_facture_form' || ca.type === 'open_rapport_form') {
+            const docType = ca.type === 'open_facture_form' ? 'facture' : ca.type === 'open_rapport_form' ? 'rapport' : 'devis'
             const caData = ca.data || {}
             // Build preview card instead of opening form immediately
             docPreview = {
-              type: docType as 'devis' | 'facture',
+              type: docType as 'devis' | 'facture' | 'rapport',
               clientName: (caData.clientName as string) || '',
               address: (caData.clientAddress as string) || (caData.address as string) || '',
-              service: (caData.service as string) || (caData.description as string) || '',
+              time: (caData.interventionDate as string) || '',
+              service: (caData.service as string) || (caData.motif as string) || (caData.description as string) || '',
               amount: caData.amount ? `${caData.amount}€` : caData.price ? `${caData.price}€` : '',
               status: 'Brouillon',
               data: { ...caData, docType },
@@ -1320,6 +1321,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                         {msg.documentPreview.address && (
                           <div className="text-[10px] text-gray-500 mt-0.5">📍 {msg.documentPreview.address}</div>
                         )}
+                        {msg.documentPreview.time && (
+                          <div className="text-[10px] text-gray-500 mt-0.5">🕐 {msg.documentPreview.time}</div>
+                        )}
                         <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
                           {msg.documentPreview.service && <span>🔧 {msg.documentPreview.service}</span>}
                           {msg.documentPreview.amount && <span>💶 {msg.documentPreview.amount}</span>}
@@ -1335,13 +1339,36 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                           <div className="flex">
                             <button
                               onClick={() => {
-                                // Passer à l'étape "envoyer ou garder ?"
-                                setMessages(prev => prev.map(m =>
-                                  m.id === msg.id && m.documentPreview
-                                    ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Confirmé' } }
-                                    : m
-                                ))
-                                addMessage('assistant', `Voulez-vous envoyer ce ${msg.documentPreview!.type} au client maintenant ?`)
+                                if (msg.documentPreview?.type === 'rapport') {
+                                  // Save rapport to localStorage
+                                  const rapportData = {
+                                    id: `rapport_${Date.now()}`,
+                                    ...msg.documentPreview.data,
+                                    clientName: msg.documentPreview.clientName,
+                                    address: msg.documentPreview.address,
+                                    motif: msg.documentPreview.service,
+                                    createdAt: new Date().toISOString(),
+                                    status: (msg.documentPreview.data.status as string) || 'termine',
+                                  }
+                                  const key = `fixit_rapports_${artisan.id}`
+                                  const existing = JSON.parse(localStorage.getItem(key) || '[]')
+                                  existing.push(rapportData)
+                                  localStorage.setItem(key, JSON.stringify(existing))
+                                  setMessages(prev => prev.map(m =>
+                                    m.id === msg.id && m.documentPreview
+                                      ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Confirmé' } }
+                                      : m
+                                  ))
+                                  addMessage('assistant', `✅ **Rapport sauvegardé !** Client : ${msg.documentPreview.clientName || 'N/A'}. Retrouvez-le dans vos rapports.`)
+                                } else {
+                                  // Devis/Facture: passer à l'étape "envoyer ou garder ?"
+                                  setMessages(prev => prev.map(m =>
+                                    m.id === msg.id && m.documentPreview
+                                      ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Confirmé' } }
+                                      : m
+                                  ))
+                                  addMessage('assistant', `Voulez-vous envoyer ce ${msg.documentPreview!.type} au client maintenant ?`)
+                                }
                               }}
                               className="flex-1 py-2 text-[11px] font-semibold text-green-700 bg-green-50 hover:bg-green-100 transition text-center"
                               style={{ borderRight: '1px solid #f0f0f0' }}
@@ -1351,7 +1378,11 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                             <button
                               onClick={() => {
                                 if (msg.documentPreview) {
-                                  onCreateDevis(msg.documentPreview.data)
+                                  if (msg.documentPreview.type === 'rapport') {
+                                    onNavigate('rapports')
+                                  } else {
+                                    onCreateDevis(msg.documentPreview.data)
+                                  }
                                   setMessages(prev => prev.map(m =>
                                     m.id === msg.id && m.documentPreview
                                       ? { ...m, documentPreview: { ...m.documentPreview!, status: 'En modification' } }
