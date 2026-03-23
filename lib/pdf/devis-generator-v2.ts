@@ -1,5 +1,6 @@
 /**
  * Devis PDF Generator V2
+ * Matches spec: SPEC_PDF_VITFIX_PRO.md + devis_lepore_logo_arbre.pdf reference
  * Standalone generator — does NOT replace components/DevisFactureForm.tsx
  * Rollback: delete lib/pdf/ directory
  */
@@ -71,18 +72,26 @@ export interface SignatureData {
   ip_address?: string
 }
 
-// ─── Colors & Layout constants ────────────────────────────────
+// ─── Colors — spec palette, 7 couleurs uniquement ────────────
 
-const ACCENT = '#FFD600'        // Reference: (1.0, 0.839, 0.0) — pure golden yellow
-const TABLE_HEAD_BG = '#0D0D0D'  // Reference: (0.051, 0.051, 0.051) — near black
-const TABLE_HEAD_TEXT = '#FFFFFF'
-const GRAY_LABEL = '#888888'
-const BORDER = '#E0E0DC'         // Reference: (0.878, 0.878, 0.863) — warm gray
-const ALT_ROW = '#F5F5F3'       // Reference: (0.961, 0.961, 0.953) — warm light gray
-const DEST_BG = '#F5F5F3'       // Destinataire box background
-const MARGIN = 18               // Reference: x0=51pt ≈ 18mm
+const COLOR = {
+  TEXT:       '#0D0D0D',
+  TEXT_LIGHT: '#888888',
+  WHITE:      '#FFFFFF',
+  BG_GRAY:    '#F5F5F3',
+  BORDER:     '#E0E0DC',
+  ACCENT:     '#E8A020',
+  BLACK:      '#0D0D0D',
+}
 
-// ─── Helpers ──────────────────────────────────────────────────
+// ─── Layout constants (mm) ───────────────────────────────────
+
+const ML = 18.0            // marge gauche
+const MR = 18.0            // marge droite
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+const ptToMm = (pt: number) => pt / 2.835
 
 function formatPrice(n: number): string {
   const parts = n.toFixed(2).split('.')
@@ -109,7 +118,6 @@ function formatUnitForPdf(unit: string): string {
 }
 
 function cleanDescription(desc: string): string {
-  // Remove [unit:...], [min:...], [max:...] metadata patterns
   return desc.replace(/\[unit:[^\]]*\]/gi, '').replace(/\[min:[^\]]*\]/gi, '').replace(/\[max:[^\]]*\]/gi, '').replace(/\s{2,}/g, ' ').trim()
 }
 
@@ -120,7 +128,7 @@ const SECTION_LABELS: Record<string, string> = {
   location: 'LOCATION',
 }
 
-// ─── Main export ──────────────────────────────────────────────
+// ─── Main export ─────────────────────────────────────────────
 
 export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const { jsPDF } = await import('jspdf')
@@ -128,29 +136,44 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pageW = pdf.internal.pageSize.getWidth()   // 210
   const pageH = pdf.internal.pageSize.getHeight()   // 297
-  const contentW = pageW - MARGIN * 2
-  let y = MARGIN
+  const contentW = pageW - ML - MR                   // ~174mm
+  const xRight = pageW - MR                          // 192mm
+  let y = 0
+
+  // Box dimensions (spec values converted to mm)
+  const gapBoxes = ptToMm(11)          // ~3.88mm
+  const emBoxW = ptToMm(235.62)        // ~83.1mm
+  const destBoxW = contentW - emBoxW - gapBoxes
+  const boxPadX = ptToMm(11)           // ~3.88mm
+  const boxPadTop = ptToMm(8)          // ~2.82mm
 
   // ── Helpers bound to this pdf instance ──
 
-  const drawHLine = (x1: number, yPos: number, x2: number, color = BORDER, width = 0.3) => {
+  const drawHLine = (x1: number, yPos: number, x2: number, color = COLOR.BORDER, width = 0.18) => {
     pdf.setDrawColor(color)
     pdf.setLineWidth(width)
     pdf.line(x1, yPos, x2, yPos)
   }
 
-  const ensureSpace = (needed: number) => {
-    if (y + needed > pageH - 20) {
+  const drawVLine = (x: number, y1: number, y2: number, color = COLOR.BORDER, width = 0.18) => {
+    pdf.setDrawColor(color)
+    pdf.setLineWidth(width)
+    pdf.line(x, y1, x, y2)
+  }
+
+  const checkPageBreak = (needed: number): boolean => {
+    if (y + needed > pageH - 15) {
       pdf.addPage()
-      y = MARGIN
+      y = 18
+      return true
     }
+    return false
   }
 
   // ═══════════════════════════════════════════════════════════
-  // PAGE 1: HEADER
+  // 1. LOGO (coin haut-gauche)
   // ═══════════════════════════════════════════════════════════
 
-  // Logo (left) — if available, fetch and embed
   if (input.artisan.logo_url) {
     try {
       const resp = await fetch(input.artisan.logo_url)
@@ -160,548 +183,493 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
         reader.onloadend = () => resolve(reader.result as string)
         reader.readAsDataURL(blob)
       })
-      pdf.addImage(dataUrl, 'PNG', MARGIN, y, 25, 25)
+      // Spec: x=15pt, y=8pt, max 65×65pt
+      const logoMaxMm = ptToMm(65)  // ~22.9mm
+      pdf.addImage(dataUrl, 'PNG', ptToMm(15), ptToMm(8), logoMaxMm, logoMaxMm)
     } catch {
-      // Logo fetch failed — skip silently
+      // Logo fetch failed — skip
     }
   }
 
-  // Title — centered on page
+  // ═══════════════════════════════════════════════════════════
+  // 2. TITRE DOCUMENT (centré)
+  // ═══════════════════════════════════════════════════════════
+
+  y = ptToMm(71)  // ~25mm — spec: y ≈ 71pt
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(22)
-  pdf.setTextColor('#000000')
-  pdf.text(input.devis.titre, pageW / 2, y + 10, { align: 'center' })
+  pdf.setFontSize(16)
+  pdf.setTextColor(COLOR.TEXT)
+  pdf.text(input.devis.titre, pageW / 2, y, { align: 'center' })
 
-  // Subtitle: numero — centered
+  // ═══════════════════════════════════════════════════════════
+  // 3. NUMÉRO DE DOCUMENT
+  // ═══════════════════════════════════════════════════════════
+
+  y += ptToMm(20)  // spec: titre + 20pt
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(11)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text(input.devis.numero, pageW / 2, y + 18, { align: 'center' })
-
-  y += 24
-
-  // Yellow separator bar
-  pdf.setFillColor(...hexToRgb(ACCENT))
-  pdf.rect(MARGIN, y, contentW, 0.7, 'F')
-  y += 5
+  pdf.setFontSize(9)
+  pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.text(input.devis.numero, pageW / 2, y, { align: 'center' })
 
   // ═══════════════════════════════════════════════════════════
-  // ÉMETTEUR / DESTINATAIRE
+  // 4. LIGNE D'ACCENT
   // ═══════════════════════════════════════════════════════════
 
-  const boxW = (contentW - 6) / 2
-  const boxPad = 4
+  y += ptToMm(12)  // spec: numéro + 12pt
+  pdf.setFillColor(COLOR.ACCENT)
+  pdf.rect(ML, y, contentW, ptToMm(3), 'F')
+  y += ptToMm(3) + 5
+
+  // ═══════════════════════════════════════════════════════════
+  // 5. ENCADRÉS ÉMETTEUR & DESTINATAIRE
+  // ═══════════════════════════════════════════════════════════
+
+  const boxX_em = ML
+  const boxX_dest = ML + emBoxW + gapBoxes
   const boxStartY = y
 
-  // ── Émetteur (LEFT) ──
-  const emX = MARGIN
-  const emLx = emX + boxPad
-  const emMaxW = boxW - boxPad * 2
+  // --- Mesurer la hauteur nécessaire pour chaque box ---
 
-  // CORRECTION 2: Title left-aligned within box, small caps style, no underline
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(7)
-  pdf.setTextColor('#000000')
-  pdf.text('ÉMETTEUR', emX + boxPad, boxStartY + boxPad)
+  // Émetteur content height
+  const emTx = boxX_em + boxPadX
+  const emMaxW = emBoxW - boxPadX * 2
+  let ey = boxStartY + boxPadTop
 
-  let ey = boxStartY + boxPad + 4
-
-  // Name — bold, standalone
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
-  pdf.setTextColor('#000000')
-  pdf.text(input.artisan.nom, emLx, ey)
-  ey += 4
-
-  // Remaining lines — normal weight, with or without prefix
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(7.5)
-  pdf.setTextColor('#333333')
-
-  const emLines: string[] = []
-  emLines.push(`SIRET : ${input.artisan.siret}`)
-  if (input.artisan.rm) emLines.push(input.artisan.rm)
-  // Address — split by comma to wrap naturally
-  const addrWrapped = pdf.splitTextToSize(input.artisan.adresse, emMaxW - 4)
-  emLines.push(...addrWrapped)
-  emLines.push(`Tél : ${input.artisan.telephone}`)
-  emLines.push(input.artisan.email)
-  if (input.artisan.rc_pro) emLines.push(`RC Pro ${input.artisan.rc_pro}`)
-
-  for (const line of emLines) {
-    pdf.text(line, emLx, ey)
-    ey += 3.5
+  // Label
+  ey += ptToMm(18)  // après le label ÉMETTEUR
+  // Nom
+  ey += ptToMm(14)
+  // Lignes info
+  if (input.artisan.siret) ey += ptToMm(14)
+  if (input.artisan.rm) ey += ptToMm(14)
+  if (input.artisan.adresse) {
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'normal')
+    const addrLines = pdf.splitTextToSize(`Adresse : ${input.artisan.adresse}`, emMaxW)
+    ey += addrLines.length * ptToMm(14)
   }
+  if (input.artisan.telephone) ey += ptToMm(14)
+  if (input.artisan.email) ey += ptToMm(14)
 
-  // ── Destinataire (RIGHT) ──
-  const destX = emX + boxW + 6
-  const destLx = destX + boxPad
-  const destMaxW = boxW - boxPad * 2
+  // Destinataire content height
+  const destTx = boxX_dest + boxPadX
+  const destMaxW = destBoxW - boxPadX * 2
+  let dy = boxStartY + boxPadTop
 
-  // CORRECTION 2: Title left-aligned within box, small caps style, no underline
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(7)
-  pdf.setTextColor('#000000')
-  pdf.text('DESTINATAIRE', destX + boxPad, boxStartY + boxPad)
-
-  let dy = boxStartY + boxPad + 4
-
-  // Name — bold, standalone
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
-  pdf.setTextColor('#000000')
-  pdf.text(input.client.nom, destLx, dy)
-  dy += 4
-
-  // Remaining lines — normal weight
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(7.5)
-  pdf.setTextColor('#333333')
-
-  const destLines: string[] = []
+  dy += ptToMm(18)  // après le label DESTINATAIRE
+  dy += ptToMm(14)  // Nom
   if (input.client.adresse) {
-    const addrLines = pdf.splitTextToSize(input.client.adresse, destMaxW - 4)
-    destLines.push(...addrLines)
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'normal')
+    const cAddrLines = pdf.splitTextToSize(`Adresse : ${input.client.adresse}`, destMaxW)
+    dy += cAddrLines.length * ptToMm(14)
   }
-  if (input.client.telephone) destLines.push(`Tél : ${input.client.telephone}`)
-  if (input.client.email) destLines.push(input.client.email)
+  if (input.client.telephone) dy += ptToMm(14)
+  if (input.client.email) dy += ptToMm(14)
 
-  for (const line of destLines) {
-    pdf.text(line, destLx, dy)
-    dy += 3.5
+  const boxH = Math.max(ey, dy) - boxStartY + boxPadTop
+
+  // --- Dessiner les fonds D'ABORD ---
+  pdf.setFillColor(COLOR.BG_GRAY)
+  pdf.setDrawColor(COLOR.BORDER)
+  pdf.setLineWidth(0.18)
+  pdf.rect(boxX_em, boxStartY, emBoxW, boxH, 'FD')
+  pdf.rect(boxX_dest, boxStartY, destBoxW, boxH, 'FD')
+
+  // --- Puis dessiner le texte PAR-DESSUS ---
+
+  // ── Émetteur ──
+  let ey2 = boxStartY + boxPadTop
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.text('ÉMETTEUR', emTx, ey2)
+  ey2 += ptToMm(18)
+
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text(input.artisan.nom, emTx, ey2)
+  ey2 += ptToMm(14)
+
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  if (input.artisan.siret) {
+    pdf.text(`SIRET : ${input.artisan.siret}`, emTx, ey2)
+    ey2 += ptToMm(14)
+  }
+  if (input.artisan.rm) {
+    // Spec: si la donnée commence déjà par "RM ", ne pas doubler
+    const rmText = input.artisan.rm.startsWith('RM ') ? input.artisan.rm : `RM ${input.artisan.rm}`
+    // Ajouter " : " entre label et numéro si pas déjà présent
+    const rmDisplay = rmText.includes(' : ') ? rmText : rmText.replace(/^(RM\s+\S+)\s+/, '$1 : ')
+    pdf.text(rmDisplay, emTx, ey2)
+    ey2 += ptToMm(14)
+  }
+  if (input.artisan.adresse) {
+    const addrLines = pdf.splitTextToSize(`Adresse : ${input.artisan.adresse}`, emMaxW)
+    pdf.text(addrLines, emTx, ey2)
+    ey2 += addrLines.length * ptToMm(14)
+  }
+  if (input.artisan.telephone) {
+    pdf.text(`Tél : ${input.artisan.telephone}`, emTx, ey2)
+    ey2 += ptToMm(14)
+  }
+  if (input.artisan.email) {
+    pdf.text(`E-mail : ${input.artisan.email}`, emTx, ey2)
+    ey2 += ptToMm(14)
   }
 
-  const boxH = Math.max(ey, dy) - boxStartY + 3
-  // ÉMETTEUR: border only (no fill) — matches reference
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.5)
-  pdf.rect(emX, boxStartY, boxW, boxH, 'S')
-  // DESTINATAIRE: light gray fill + border — matches reference
-  pdf.setFillColor(...hexToRgb(DEST_BG))
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.5)
-  pdf.rect(destX, boxStartY, boxW, boxH, 'FD')
+  // ── Destinataire ──
+  let dy2 = boxStartY + boxPadTop
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.text('DESTINATAIRE', destTx, dy2)
+  dy2 += ptToMm(18)
 
-  y = boxStartY + boxH + 5
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text(input.client.nom || '---', destTx, dy2)
+  dy2 += ptToMm(14)
+
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  if (input.client.adresse) {
+    const cAddrLines = pdf.splitTextToSize(`Adresse : ${input.client.adresse}`, destMaxW)
+    pdf.text(cAddrLines, destTx, dy2)
+    dy2 += cAddrLines.length * ptToMm(14)
+  }
+  if (input.client.telephone) {
+    pdf.text(`Tél : ${input.client.telephone}`, destTx, dy2)
+    dy2 += ptToMm(14)
+  }
+  if (input.client.email) {
+    pdf.text(`E-mail : ${input.client.email}`, destTx, dy2)
+    dy2 += ptToMm(14)
+  }
+
+  y = boxStartY + boxH + 4
 
   // ═══════════════════════════════════════════════════════════
-  // INFO BAND (4 columns)
+  // 7. TABLEAU DES DATES (4 colonnes)
   // ═══════════════════════════════════════════════════════════
 
-  pdf.setFillColor(...hexToRgb(ALT_ROW))
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.5)
-  pdf.rect(MARGIN, y, contentW, 17, 'FD')
+  const dateBoxH = ptToMm(49)  // ~17.3mm
+  const dateSepY = y + ptToMm(20)
 
-  const colW = contentW / 4
-  const bandY = y + 5
-  const bandValY = y + 12
+  pdf.setFillColor(COLOR.BG_GRAY)
+  pdf.setDrawColor(COLOR.BORDER)
+  pdf.setLineWidth(0.18)
+  pdf.rect(ML, y, contentW, dateBoxH, 'FD')
 
-  const drawInfoCol = (label: string, value: string, colIdx: number) => {
-    const cx = MARGIN + colW * colIdx + colW / 2
-    pdf.setFontSize(6)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(GRAY_LABEL)
-    pdf.text(label, cx, bandY, { align: 'center' })
-    pdf.setFontSize(9)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor('#0D0D0D')
-    pdf.text(value, cx, bandValY, { align: 'center' })
+  const dateCols = [
+    { label: "DATE D'ÉMISSION", value: formatDate(input.devis.date_emission) },
+    { label: 'VALIDITÉ', value: `${input.devis.validite_jours} jours` },
+    { label: "DÉLAI D'EXÉCUTION", value: input.devis.delai_execution },
+    { label: 'DATE PRESTATION', value: input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—' },
+  ]
+
+  const colW = contentW / dateCols.length
+  // Séparateur horizontal
+  drawHLine(ML, dateSepY, xRight, COLOR.BORDER, 0.18)
+  // Séparateurs verticaux
+  for (let i = 1; i < dateCols.length; i++) {
+    drawVLine(ML + colW * i, y, y + dateBoxH, COLOR.BORDER, 0.18)
   }
 
-  drawInfoCol("DATE D'ÉMISSION", formatDate(input.devis.date_emission), 0)
-  drawInfoCol('VALIDITÉ', `${input.devis.validite_jours} jours`, 1)
-  drawInfoCol("DÉLAI D'EXÉCUTION", input.devis.delai_execution, 2)
-  drawInfoCol('DATE PRESTATION', input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—', 3)
+  // Labels (ligne du haut)
+  dateCols.forEach((c, i) => {
+    const cx = ML + colW * i + colW / 2
+    pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.text(c.label, cx, y + ptToMm(14), { align: 'center' })
+  })
+  // Valeurs (ligne du bas, bold)
+  dateCols.forEach((c, i) => {
+    const cx = ML + colW * i + colW / 2
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+    pdf.text(c.value, cx, dateSepY + ptToMm(17), { align: 'center' })
+  })
 
-  // CORRECTION 4: Vertical separators between the 4 info columns
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.5)
-  for (let i = 1; i < 4; i++) {
-    const sepX = MARGIN + colW * i
-    pdf.line(sepX, y, sepX, y + 17)
-  }
-
-  y += 22  // reference: 14pt gap between info band bottom and table header
+  y += dateBoxH + 4
 
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPES D'INTERVENTION (optional)
+  // ÉTAPES D'INTERVENTION (optionnel)
   // ═══════════════════════════════════════════════════════════
 
   if (input.etapes && input.etapes.length > 0) {
     const sorted = [...input.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
     if (sorted.length > 0) {
-      ensureSpace(10 + sorted.length * 5)
+      checkPageBreak(15 + sorted.length * 5)
 
-      pdf.setFillColor(248, 248, 248)
-      pdf.rect(MARGIN, y, contentW, 7, 'F')
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(9)
-      pdf.setTextColor('#333333')
-      pdf.text("DÉTAIL DE L'INTERVENTION", MARGIN + 4, y + 5)
-      y += 10
+      pdf.setFillColor(COLOR.BG_GRAY)
+      pdf.rect(ML, y, contentW, 8, 'F')
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
+      pdf.text("ÉTAPES DU CHANTIER", ML + 4, y + 5.5)
+      y += 12
 
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(8.5)
-      pdf.setTextColor('#505050')
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
       for (let i = 0; i < sorted.length; i++) {
-        pdf.text(`${i + 1}. ${sorted[i].designation}`, MARGIN + 6, y)
-        y += 5
-        if (y > pageH - 40) {
-          pdf.addPage()
-          y = MARGIN
-        }
+        const bgColor = i % 2 === 0 ? COLOR.WHITE : COLOR.BG_GRAY
+        pdf.setFillColor(bgColor)
+        pdf.rect(ML, y - 3, contentW, 5.5, 'F')
+        pdf.setTextColor(COLOR.TEXT)
+        pdf.text(`${i + 1}. ${sorted[i].designation}`, ML + 6, y)
+        y += 5.5
+        if (y > pageH - 40) { pdf.addPage(); y = 20 }
       }
       y += 4
     }
   }
 
   // ═══════════════════════════════════════════════════════════
-  // LINES TABLE
+  // 8. TABLEAU PRESTATIONS (manual drawing, pas autoTable)
   // ═══════════════════════════════════════════════════════════
 
-  const colWidths = {
+  const tColWidths = {
     designation: contentW * 0.50,
     quantite: contentW * 0.08,
     unite: contentW * 0.08,
     prixUnit: contentW * 0.16,
     total: contentW * 0.18,
   }
-  const headerH = 10  // reference: ~29pt = ~10mm
-  const rowH = 11     // reference: ~32pt = ~11mm
+  const headerH = ptToMm(29)  // ~10.2mm
+  const minRowH = ptToMm(32)  // ~11.3mm
 
   const drawTableHeader = () => {
-    pdf.setFillColor(...hexToRgb(TABLE_HEAD_BG))
-    pdf.rect(MARGIN, y, contentW, headerH, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(8)
-    pdf.setTextColor(TABLE_HEAD_TEXT)
+    // Bandeau noir plein
+    pdf.setFillColor(COLOR.BLACK)
+    pdf.rect(ML, y, contentW, headerH, 'F')
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.WHITE)
 
-    let hx = MARGIN + 3
-    pdf.text('DÉSIGNATION', hx, y + 6.5)
-    hx += colWidths.designation
-    pdf.text('QTÉ', hx, y + 6.5, { align: 'center' })
-    hx += colWidths.quantite
-    pdf.text('UNITÉ', hx, y + 6.5, { align: 'center' })
-    hx += colWidths.unite
-    pdf.text('PRIX U. TTC', hx + colWidths.prixUnit - 3, y + 6.5, { align: 'right' })
-    hx += colWidths.prixUnit
-    pdf.text('TOTAL TTC', hx + colWidths.total - 3, y + 6.5, { align: 'right' })
+    const hTextY = y + headerH / 2 + 1
+    pdf.text('DÉSIGNATION', ML + 3, hTextY)
+    const qteX = ML + tColWidths.designation + tColWidths.quantite / 2
+    pdf.text('QTÉ', qteX, hTextY, { align: 'center' })
+    const uniteX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite / 2
+    pdf.text('UNITÉ', uniteX, hTextY, { align: 'center' })
+    const prixX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite + tColWidths.prixUnit - 3
+    pdf.text('PRIX U. TTC', prixX, hTextY, { align: 'right' })
+    const totalX = ML + contentW - 3
+    pdf.text('TOTAL TTC', totalX, hTextY, { align: 'right' })
+
     y += headerH
-    // Yellow line under header — reference: (1.0, 0.839, 0.0) width=1.0
-    drawHLine(MARGIN, y, MARGIN + contentW, ACCENT, 1.0)
   }
 
   const drawRow = (line: LigneDevis, rowIdx: number) => {
-    // Wrap designation to calculate actual row height
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    const desigLines = pdf.splitTextToSize(cleanDescription(line.designation), colWidths.designation - 6)
-    const actualRowH = Math.max(rowH, desigLines.length * 4 + 4)
+    const cleaned = cleanDescription(line.designation)
+    // Séparer titre et description (si multilignes)
+    const parts = cleaned.split('\n')
+    const title = parts[0]
+    const detail = parts.slice(1).join('\n').trim()
+
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10)
+    const titleLines = pdf.splitTextToSize(title, tColWidths.designation - 6)
+    let descLines: string[] = []
+    if (detail) {
+      pdf.setFontSize(8)
+      descLines = pdf.splitTextToSize(detail, tColWidths.designation - 6)
+    }
+    const textBlockH = titleLines.length * ptToMm(14) + descLines.length * ptToMm(12) + 4
+    const actualRowH = Math.max(minRowH, textBlockH)
 
     if (y + actualRowH > pageH - 25) {
-      pdf.addPage()
-      y = MARGIN
+      pdf.addPage(); y = 18
       drawTableHeader()
     }
 
-    // Alternating row bg
+    // Fond alterné
     if (rowIdx % 2 === 1) {
-      pdf.setFillColor(...hexToRgb(ALT_ROW))
-      pdf.rect(MARGIN, y, contentW, actualRowH, 'F')
+      pdf.setFillColor(COLOR.BG_GRAY)
+      pdf.rect(ML, y, contentW, actualRowH, 'F')
     }
 
-    const textY = y + actualRowH / 2 + 1  // vertically centered in row
+    // Titre de la prestation (10pt TEXT)
+    let textY = y + 5
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
+    pdf.text(titleLines, ML + 3, textY)
+    textY += titleLines.length * ptToMm(14)
 
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    pdf.setTextColor('#0D0D0D')
+    // Description (8pt TEXT_LIGHT)
+    if (descLines.length > 0) {
+      pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
+      pdf.text(descLines, ML + 3, textY)
+    }
 
-    let rx = MARGIN + 3
-    // Designation — all wrapped lines, top-aligned
-    pdf.text(desigLines, rx, y + 5)
+    // Données numériques (centrées verticalement)
+    const numY = y + actualRowH / 2 + 1
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
 
-    rx += colWidths.designation
-    pdf.text(String(line.quantite), rx, textY, { align: 'center' })
-    rx += colWidths.quantite
-    pdf.text(formatUnitForPdf(line.unite), rx, textY, { align: 'center' })
-    rx += colWidths.unite
-    pdf.text(formatPrice(line.prix_unitaire), rx + colWidths.prixUnit - 3, textY, { align: 'right' })
-    rx += colWidths.prixUnit
-    // Total in bold
+    const qteX = ML + tColWidths.designation + tColWidths.quantite / 2
+    pdf.text(String(line.quantite), qteX, numY, { align: 'center' })
+    const uniteX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite / 2
+    pdf.text(formatUnitForPdf(line.unite), uniteX, numY, { align: 'center' })
+    const prixX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite + tColWidths.prixUnit - 3
+    pdf.text(formatPrice(line.prix_unitaire), prixX, numY, { align: 'right' })
+
+    // Total en bold
     pdf.setFont('helvetica', 'bold')
-    pdf.text(formatPrice(line.total), rx + colWidths.total - 3, textY, { align: 'right' })
+    const totalX = ML + contentW - 3
+    pdf.text(formatPrice(line.total), totalX, numY, { align: 'right' })
 
-    // Bottom border — reference: 0.5 width warm gray
-    pdf.setDrawColor(BORDER)
-    pdf.setLineWidth(0.5)
-    pdf.line(MARGIN, y + actualRowH, MARGIN + contentW, y + actualRowH)
+    // Bordure bas
+    pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
+    pdf.line(ML, y + actualRowH, ML + contentW, y + actualRowH)
 
     y += actualRowH
   }
 
   if (input.mode_affichage === 'bloc') {
-    // ── Mode bloc: flat table ──
     drawTableHeader()
     input.lignes.forEach((line, idx) => drawRow(line, idx))
   } else {
-    // ── Mode sections: grouped ──
     const grouped: Record<string, LigneDevis[]> = {}
     for (const line of input.lignes) {
       const key = line.section || 'autres'
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(line)
     }
-
     for (const [section, lines] of Object.entries(grouped)) {
-      ensureSpace(headerH + rowH * lines.length + 12)
-
-      // Section title
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(9)
-      pdf.setTextColor('#333333')
-      pdf.text(SECTION_LABELS[section] || section.toUpperCase(), MARGIN, y + 4)
+      checkPageBreak(headerH + minRowH * lines.length + 12)
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
+      pdf.text(SECTION_LABELS[section] || section.toUpperCase(), ML, y + 4)
       y += 7
-
       drawTableHeader()
       let sectionTotal = 0
-      lines.forEach((line, idx) => {
-        drawRow(line, idx)
-        sectionTotal += line.total
-      })
-
-      // Section subtotal
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(8)
-      pdf.setTextColor('#333333')
-      pdf.text(`Sous-total : ${formatPrice(sectionTotal)}`, MARGIN + contentW - 3, y + 4, { align: 'right' })
+      lines.forEach((line, idx) => { drawRow(line, idx); sectionTotal += line.total })
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
+      pdf.text(`Sous-total : ${formatPrice(sectionTotal)}`, ML + contentW - 3, y + 4, { align: 'right' })
       y += 8
     }
   }
 
   // ═══════════════════════════════════════════════════════════
-  // CORRECTION 5: Sous-total as a table row (not separate box)
+  // 7. SOUS-TOTAL + TVA (fond gris, pleine largeur)
   // ═══════════════════════════════════════════════════════════
 
   const totalNet = input.lignes.reduce((sum, l) => sum + l.total, 0)
+  const stH = ptToMm(27)
 
-  // TVA mention + Sous-total on same row (no background)
+  pdf.setFillColor(COLOR.BG_GRAY)
+  pdf.setDrawColor(COLOR.BORDER)
+  pdf.setLineWidth(0.18)
+  pdf.rect(ML, y, contentW, stH, 'FD')
+
+  // Mention TVA (gauche)
+  pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.text(input.artisan.tva_mention, ML + boxPadX, y + stH / 2 + 1)
+
+  // Sous-total (droite)
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text('Sous-total', xRight - 60, y + stH / 2 + 1)
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text(formatPrice(totalNet), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
+
+  y += stH
+
+  // ═══════════════════════════════════════════════════════════
+  // 9. BLOC TOTAL NET (moitié droite)
+  // ═══════════════════════════════════════════════════════════
+
+  // Trait séparateur noir au-dessus
+  drawHLine(ML + 2, y + 1, xRight - 2, COLOR.TEXT, 0.4)
   y += 3
-  pdf.setFont('helvetica', 'italic')
-  pdf.setFontSize(7.5)
-  pdf.setTextColor('#808080')
-  pdf.text(input.artisan.tva_mention, MARGIN, y + 3)
 
-  // Sous-total right-aligned
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor('#808080')
-  const stLabelX = MARGIN + contentW - colWidths.total - 3
-  pdf.text('Sous-total', stLabelX, y + 3, { align: 'right' })
-  pdf.setTextColor('#0D0D0D')
-  pdf.text(formatPrice(totalNet), MARGIN + contentW - 3, y + 3, { align: 'right' })
-  y += 10
+  const totBoxX = boxX_dest
+  const totBoxW = destBoxW
+  const totH = ptToMm(27)
+
+  pdf.setFillColor(COLOR.BG_GRAY)
+  pdf.rect(totBoxX, y, totBoxW, totH, 'F')
+  pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text('TOTAL NET', totBoxX + boxPadX, y + totH / 2 + 1.5)
+  pdf.text(formatPrice(totalNet), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
+
+  y += totH + 4
 
   // ═══════════════════════════════════════════════════════════
-  // TOTAL NET — yellow line above, gray bg box, right-aligned
-  // Reference: half-page right, yellow line 1.5pt, gray fill
-  // ═══════════════════════════════════════════════════════════
-
-  const totBoxW = contentW / 2  // right half of page
-  const totBoxX = MARGIN + contentW - totBoxW
-  const totBoxH = 10
-
-  // Yellow line above the box
-  drawHLine(totBoxX, y, totBoxX + totBoxW, ACCENT, 1.5)
-  y += 2
-
-  // Light gray background
-  pdf.setFillColor(...hexToRgb(ALT_ROW))
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.5)
-  pdf.rect(totBoxX, y, totBoxW, totBoxH, 'FD')
-
-  // "TOTAL NET" label bold left
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
-  pdf.setTextColor('#0D0D0D')
-  pdf.text('TOTAL NET', totBoxX + 4, y + 7)
-
-  // Amount bold right
-  pdf.text(formatPrice(totalNet), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
-  y += totBoxH + 6
-
-  // ═══════════════════════════════════════════════════════════
-  // ÉCHÉANCIER DE PAIEMENT (optional)
+  // 10. ACOMPTES (optionnel — côté droit, texte simple)
   // ═══════════════════════════════════════════════════════════
 
   if (input.acomptes && input.acomptes.length > 0) {
-    ensureSpace(10 + input.acomptes.length * 8 + 10)
-
-    // Section title
-    pdf.setFillColor(248, 248, 248)
-    pdf.rect(MARGIN, y, contentW, 7, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.setTextColor('#333333')
-    pdf.text('ÉCHÉANCIER DE PAIEMENT', MARGIN + 4, y + 5)
-    y += 9
-
-    // Table header
-    const ecColW = { desc: contentW * 0.40, montant: contentW * 0.20, declencheur: contentW * 0.25, statut: contentW * 0.15 }
-    pdf.setFillColor(...hexToRgb(TABLE_HEAD_BG))
-    pdf.rect(MARGIN, y, contentW, 7, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7)
-    pdf.setTextColor(TABLE_HEAD_TEXT)
-    pdf.text('Description', MARGIN + 3, y + 5)
-    pdf.text('Montant', MARGIN + ecColW.desc + 3, y + 5)
-    pdf.text('Déclencheur', MARGIN + ecColW.desc + ecColW.montant + 3, y + 5)
-    pdf.text('Statut', MARGIN + ecColW.desc + ecColW.montant + ecColW.declencheur + 3, y + 5)
-    y += 8
-
-    // Rows
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
     for (const ac of input.acomptes) {
-      if (y + 7 > pageH - 25) {
-        pdf.addPage()
-        y = MARGIN
-      }
-
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(8)
-      pdf.setTextColor('#000000')
-      pdf.text(ac.label, MARGIN + 3, y + 4.5)
-      pdf.text(formatPrice(ac.montant), MARGIN + ecColW.desc + 3, y + 4.5)
-      pdf.text(ac.declencheur, MARGIN + ecColW.desc + ecColW.montant + 3, y + 4.5)
-
-      // Status with color
-      if (ac.statut === 'payé') {
-        pdf.setTextColor('#16A34A') // green
-      } else {
-        pdf.setTextColor('#EA580C') // orange
-      }
-      pdf.setFont('helvetica', 'bold')
-      pdf.text(ac.statut, MARGIN + ecColW.desc + ecColW.montant + ecColW.declencheur + 3, y + 4.5)
-
-      pdf.setDrawColor(BORDER)
-      pdf.setLineWidth(0.1)
-      pdf.line(MARGIN, y + 7, MARGIN + contentW, y + 7)
-      y += 7
+      pdf.text(`${ac.label} : ${ac.declencheur} = ${formatPrice(ac.montant)}`, totBoxX + boxPadX, y)
+      y += ptToMm(13)
     }
-    y += 6
+    y += 2
   }
 
   // ═══════════════════════════════════════════════════════════
-  // CONDITIONS / BON POUR ACCORD
+  // 11. CONDITIONS (gauche) + 12. BON POUR ACCORD (droite)
   // ═══════════════════════════════════════════════════════════
 
-  ensureSpace(45)
+  checkPageBreak(55)
 
-  const condW = contentW * 0.55
-  const sigW = contentW - condW - 6
-  const condX = MARGIN
-  const sigX = MARGIN + condW + 6
-  const blockStartY = y
+  const condX = ML
+  const condW = emBoxW
+  const sigX = boxX_dest
+  const sigW = destBoxW
+  const condStartY = y
 
-  // ── CORRECTION 7: Conditions (LEFT) — no enclosing box, title left-aligned ──
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
-  pdf.setTextColor('#000000')
-  pdf.text('CONDITIONS', condX, blockStartY + 4)
+  // ── CONDITIONS (fond blanc, pas de bordure) ──
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text('CONDITIONS', condX, condStartY + 4)
+  let cy = condStartY + 10
 
-  let cy = blockStartY + 10
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(7)
-  pdf.setTextColor('#555555')
-
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
   const validStr = `${input.devis.validite_jours} jours`
-  const conditions = [
+  const condTextLines = [
     `Validité du devis : ${validStr} à compter de la date d'émission.`,
-    `Délai d'exécution estimé : ${input.devis.delai_execution}.`,
-    'Tout travail supplémentaire fera l\'objet d\'un avenant signé par les deux parties.',
+    `Délai d'exécution : ${input.devis.delai_execution}.`,
+    "Toute modification fera l'objet d'un avenant signé par les deux parties.",
     `Mode de règlement : ${input.artisan.mode_paiement}.`,
   ]
-  for (const cond of conditions) {
-    const wrapped = pdf.splitTextToSize(cond, condW - 8)
-    pdf.text(wrapped, condX + 4, cy)
-    cy += wrapped.length * 3
+  condTextLines.forEach(line => {
+    const wrapped = pdf.splitTextToSize(line, condW - 4)
+    pdf.text(wrapped, condX, cy)
+    cy += wrapped.length * ptToMm(13)
+  })
+
+  // Notes intégrées en italic dans les conditions (spec section 11)
+  if (input.notes && input.notes.trim()) {
+    cy += 2
+    pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
+    const noteWrapped = pdf.splitTextToSize(input.notes.trim(), condW - 4)
+    pdf.text(noteWrapped, condX, cy)
+    cy += noteWrapped.length * ptToMm(13)
   }
 
-  // BON POUR ACCORD (RIGHT) — gray fill + border box, title left-aligned
-  // Reference: rect fill=(0.96,0.96,0.95) + stroke border
-  const condH = Math.max(cy - blockStartY + 3, 55)
-  pdf.setFillColor(...hexToRgb(ALT_ROW))
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.5)
-  pdf.rect(sigX, blockStartY, sigW, condH, 'FD')
+  // ── BON POUR ACCORD (fond gris, bordure) ──
+  const sigContentH = Math.max(cy - condStartY, 46)
+  pdf.setFillColor(COLOR.BG_GRAY)
+  pdf.setDrawColor(COLOR.BORDER)
+  pdf.setLineWidth(0.18)
+  pdf.rect(sigX, condStartY, sigW, sigContentH, 'FD')
 
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9)
-  pdf.setTextColor('#0D0D0D')
-  pdf.text('BON POUR ACCORD', sigX + 4, blockStartY + 6)
+  pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text('BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
+
+  let sy = condStartY + 12
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
 
   if (input.signature) {
-    // Signature present
     try {
-      pdf.addImage(input.signature.image_base64, 'PNG', sigX + 4, blockStartY + 10, sigW - 8, 18)
+      pdf.addImage(input.signature.image_base64, 'PNG', sigX + boxPadX, sy, sigW - boxPadX * 2 - 10, 18)
+      sy += 20
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold')
+      pdf.text(input.signature.signe_par, sigX + boxPadX, sy)
+      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+      pdf.text(formatDate(input.signature.signe_le), sigX + boxPadX, sy + 3)
     } catch {
-      // If image fails, skip
-    }
-    const sigInfoY = blockStartY + 30
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(7)
-    pdf.setTextColor('#333333')
-    pdf.text(`Signé électroniquement le ${formatDate(input.signature.signe_le)}`, sigX + 4, sigInfoY)
-    pdf.text(`Par : ${input.signature.signe_par}`, sigX + 4, sigInfoY + 3.5)
-    if (input.signature.ip_address) {
-      pdf.setFontSize(5)
-      pdf.setTextColor(GRAY_LABEL)
-      pdf.text(`IP : ${input.signature.ip_address}`, sigX + 4, sigInfoY + 7)
+      pdf.text(input.signature.signe_par, sigX + boxPadX, sy)
     }
   } else {
-    // No signature — reference layout: text + date + signature fields
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    pdf.setTextColor('#0D0D0D')
-    const bonText = pdf.splitTextToSize('Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.', sigW - 12)
-    pdf.text(bonText, sigX + 4, blockStartY + 14)
-
-    pdf.text('Date : ___ / ___ / ______', sigX + 4, blockStartY + 30)
-    pdf.text('Signature :', sigX + 4, blockStartY + 40)
+    const approvalText = 'Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.'
+    const appWrapped = pdf.splitTextToSize(approvalText, sigW - boxPadX * 2)
+    pdf.text(appWrapped, sigX + boxPadX, sy)
+    sy += appWrapped.length * ptToMm(13) + 4
+    pdf.text('Date : ___ / ___ / ______', sigX + boxPadX, sy)
+    sy += ptToMm(18)
+    pdf.text('Signature :', sigX + boxPadX, sy)
   }
 
-  // condH already computed above for BON POUR ACCORD box
-
-  y = blockStartY + condH + 6
+  y = condStartY + sigContentH + 6
 
   // ═══════════════════════════════════════════════════════════
-  // NOTES (optional)
+  // 13. MENTIONS LÉGALES (bas de page 1)
   // ═══════════════════════════════════════════════════════════
 
-  if (input.notes && input.notes.trim()) {
-    ensureSpace(20)
-
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(8)
-    pdf.setTextColor('#000000')
-    pdf.text('NOTES', MARGIN + 4, y + 4)
-    const notesY = y + 8
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(7)
-    pdf.setTextColor('#555555')
-    const notesWrapped = pdf.splitTextToSize(input.notes.trim(), contentW - 12)
-    pdf.text(notesWrapped, MARGIN + 4, notesY)
-    const notesBoxH = 10 + notesWrapped.length * 3
-    pdf.setDrawColor(BORDER)
-    pdf.setLineWidth(0.3)
-    pdf.roundedRect(MARGIN, y, contentW, notesBoxH, 1.5, 1.5, 'S')
-    y += notesBoxH + 4
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // CORRECTION 10: FOOTER LEGAL — single continuous paragraph
-  // ═══════════════════════════════════════════════════════════
-
+  // Construire le texte légal
   const rcProStr = input.artisan.rc_pro || 'N/A'
   const genDate = formatDate(new Date())
   const legalParagraph = [
@@ -717,142 +685,106 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     `Document g\u00E9n\u00E9r\u00E9 par Vitfix Pro le ${genDate}.`,
   ].join(' ')
 
-  // Place footer at bottom of current page
-  const footerY = pageH - 22
-  if (y < footerY - 2) {
-    y = footerY
+  // Toujours placer les mentions en bas de la page courante
+  const legalY = pageH - 18
+  if (y < legalY - 2) {
+    // Il reste de la place — aller en bas
+    drawHLine(ML, legalY, xRight, COLOR.BORDER, 0.18)
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    const legalWrapped = pdf.splitTextToSize(legalParagraph, contentW)
+    pdf.text(legalWrapped, ML, legalY + 3)
   } else {
-    // Content already reached footer zone — just continue
+    // Le contenu a débordé — mettre les mentions juste après
     y += 4
+    drawHLine(ML, y, xRight, COLOR.BORDER, 0.18)
+    y += 3
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    const legalWrapped = pdf.splitTextToSize(legalParagraph, contentW)
+    pdf.text(legalWrapped, ML, y)
+    y += legalWrapped.length * ptToMm(10)
   }
-
-  drawHLine(MARGIN, y, MARGIN + contentW, BORDER, 0.2)
-  y += 2
-
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(5.5)
-  pdf.setTextColor(GRAY_LABEL)
-  const legalWrapped = pdf.splitTextToSize(legalParagraph, contentW - 10)
-  pdf.text(legalWrapped, pageW / 2, y, { align: 'center' })
 
   // ═══════════════════════════════════════════════════════════
   // PAGE 2: DROIT DE RÉTRACTATION
   // ═══════════════════════════════════════════════════════════
 
   pdf.addPage()
-  y = MARGIN
+  let ry = 8
 
-  // CORRECTION 11: Title left-aligned at MARGIN + subtitle
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(14)
-  pdf.setTextColor('#000000')
-  pdf.text('DROIT DE RÉTRACTATION', MARGIN, y)
-  y += 5
+  // Ligne d'accent or en haut
+  pdf.setFillColor(COLOR.ACCENT)
+  pdf.rect(ML, ry, contentW, ptToMm(3), 'F')
+  ry += ptToMm(3) + 8
 
-  // Subtitle — smaller gray font, left-aligned
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text('Article L. 221-18 du Code de la consommation', MARGIN, y)
-  y += 4
+  // Titre
+  pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text('DROIT DE RÉTRACTATION', ML, ry)
+  ry += 5
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text('Article L. 221-18 du Code de la consommation', ML, ry)
+  ry += 8
 
-  drawHLine(MARGIN, y, MARGIN + contentW, ACCENT, 0.7)
-  y += 6
-
-  // CORRECTION 12: Shorter, more readable retractation text
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
-  pdf.setTextColor('#333333')
-
-  const retractText = [
-    "Le client dispose d'un d\u00E9lai de 14 jours calendaires \u00E0 compter de la signature du pr\u00E9sent devis pour exercer son droit de r\u00E9tractation, sans avoir \u00E0 justifier de motifs ni \u00E0 payer de p\u00E9nalit\u00E9s.",
-    "",
-    "Pour exercer ce droit, le client peut utiliser le formulaire ci-dessous ou adresser toute d\u00E9claration d\u00E9nu\u00E9e d'ambigu\u00EFt\u00E9 exprimant sa volont\u00E9 de se r\u00E9tracter.",
-    "",
-    "Aucun paiement ne peut \u00EAtre exig\u00E9 avant l'expiration d'un d\u00E9lai de 7 jours \u00E0 compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents demand\u00E9s express\u00E9ment par le client.",
+  // Texte légal
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  const retTexts = [
+    "Le client dispose d'un délai de 14 jours calendaires à compter de la signature du présent devis pour exercer son droit de rétractation, sans avoir à justifier de motifs ni à payer de pénalités.",
+    "Pour exercer ce droit, le client peut utiliser le formulaire ci-dessous ou adresser toute déclaration dénuée d'ambiguïté exprimant sa volonté de se rétracter.",
+    "Aucun paiement ne peut être exigé avant l'expiration d'un délai de 7 jours à compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents demandés expressément par le client.",
   ]
+  retTexts.forEach(txt => {
+    const wrapped = pdf.splitTextToSize(txt, contentW)
+    pdf.text(wrapped, ML, ry)
+    ry += wrapped.length * ptToMm(13) + 4
+  })
 
-  for (const para of retractText) {
-    if (para === '') {
-      y += 2
-      continue
-    }
-    const wrapped = pdf.splitTextToSize(para, contentW - 4)
-    pdf.text(wrapped, MARGIN + 2, y)
-    y += wrapped.length * 3.5
-    if (y > pageH - 40) {
-      pdf.addPage()
-      y = MARGIN
-    }
-  }
+  ry += 4
 
-  y += 8
+  // Formulaire de rétractation — bandeau noir
+  pdf.setFillColor(COLOR.TEXT)
+  pdf.rect(ML, ry, contentW, 8, 'F')
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.WHITE)
+  pdf.text('FORMULAIRE DE RÉTRACTATION', ML + boxPadX, ry + 5.5)
+  ry += 12
 
-  // ═══════════════════════════════════════════════════════════
-  // FORMULAIRE DE RÉTRACTATION
-  // ═══════════════════════════════════════════════════════════
-
-  ensureSpace(80)
-
-  // Black banner — 8mm height, title LEFT-aligned
-  pdf.setFillColor(...hexToRgb('#333333'))
-  pdf.rect(MARGIN, y, contentW, 8, 'F')
+  // Contenu formulaire
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  const formAttention = `À l'attention de : `
+  pdf.text(formAttention, ML + boxPadX, ry)
+  const atW = pdf.getTextWidth(formAttention)
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
-  pdf.setTextColor('#FFFFFF')
-  pdf.text('FORMULAIRE DE RÉTRACTATION', MARGIN + 4, y + 5.5)
-  y += 14
+  pdf.text(`${input.artisan.nom}, ${input.artisan.adresse}`, ML + boxPadX + atW, ry)
+  ry += 6
 
-  // "À l'attention de" with bold name+address
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor('#333333')
-  pdf.text('\u00C0 l\u2019attention de : ', MARGIN + 4, y)
-  const attnLabelW = pdf.getTextWidth('\u00C0 l\u2019attention de : ')
-  pdf.setFont('helvetica', 'bold')
-  pdf.text(`${input.artisan.nom}, ${input.artisan.adresse}`, MARGIN + 4 + attnLabelW, y)
-  y += 10
+  pdf.text('Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.', ML + boxPadX, ry)
+  ry += 8
 
-  // Notification text
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor('#333333')
-  const notifText = 'Je notifie par la pr\u00E9sente ma r\u00E9tractation du contrat portant sur la prestation de services ci-dessus.'
-  const notifWrapped = pdf.splitTextToSize(notifText, contentW - 8)
-  pdf.text(notifWrapped, MARGIN + 4, y)
-  y += notifWrapped.length * 4 + 10
-
-  // Simple fields with underlines — 28pt spacing between fields
-  const formFieldsSimple = [
-    'Command\u00E9 le / re\u00E7u le :    _________________________',
-    'Nom du client :    _________________________',
-    'Adresse :    _________________________',
+  const formFields = [
+    'Commandé le / reçu le :',
+    'Nom du client :',
+    'Adresse :',
+    'Date : ___ / ___ / ______',
+    'Signature :',
   ]
-
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9)
-  pdf.setTextColor('#333333')
-  for (const field of formFieldsSimple) {
-    pdf.text(field, MARGIN + 4, y)
-    y += 10 // ~28pt spacing
-  }
-
-  y += 4
-  pdf.text('Date : ___ / ___ / ______', MARGIN + 4, y)
-  y += 12
-  pdf.text('Signature :', MARGIN + 4, y)
+  formFields.forEach(f => {
+    pdf.text(f, ML + boxPadX, ry)
+    if (!f.startsWith('Date') && !f.startsWith('Signature')) {
+      const fw = pdf.getTextWidth(f) + 2
+      pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.2)
+      pdf.line(ML + boxPadX + fw, ry + 0.5, xRight - boxPadX, ry + 0.5)
+    }
+    ry += 8
+  })
 
   // ═══════════════════════════════════════════════════════════
-  // PAGE NUMBERING — stamp "Page X/Y" on every page
+  // PAGINATION — "Page X/Y" sur chaque page
   // ═══════════════════════════════════════════════════════════
 
   const totalPages = pdf.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     pdf.setPage(i)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(7)
-    pdf.setTextColor(GRAY_LABEL)
-    pdf.text(`Page ${i}/${totalPages}`, pageW - MARGIN, pageH - 5, { align: 'right' })
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.text(`Page ${i}/${totalPages}`, xRight - 2, pageH - 3.2, { align: 'right' })
   }
 
   return pdf
