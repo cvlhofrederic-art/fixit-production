@@ -25,12 +25,62 @@ interface ProductLine {
   id: number
   description: string
   qty: number
-  unit: string  // 'u' | 'm²' | 'm³' | 'ml' | 'h' | 'forfait' | 'kg' | 'lot'
+  unit: string  // valeur courte : u, m2, ml, m3, h, j, f, lot, m, kg, L, t, pce, ens, pt, ou valeur personnalisée
+  customUnit?: string  // si unit === 'autre', contient la valeur saisie (max 8 chars)
   priceHT: number
   tvaRate: number
   totalHT: number
   source?: 'etape_motif' | 'manual'  // traçabilité étape → ligne
   etape_id?: string  // lien vers l'étape source
+}
+
+// ═══════════════════════════════════════════════
+// UNITÉS DE MESURE DEVIS
+// ═══════════════════════════════════════════════
+const UNITES_DEVIS = [
+  { value: 'u',    label: 'u — Unité'           },
+  { value: 'm2',   label: 'm² — Mètre carré'    },
+  { value: 'ml',   label: 'ml — Mètre linéaire' },
+  { value: 'm3',   label: 'm³ — Mètre cube'     },
+  { value: 'h',    label: 'h — Heure'           },
+  { value: 'j',    label: 'j — Jour'            },
+  { value: 'f',    label: 'f — Forfait'         },
+  { value: 'lot',  label: 'lot — Lot'           },
+  { value: 'm',    label: 'm — Mètre'           },
+  { value: 'kg',   label: 'kg — Kilogramme'     },
+  { value: 'L',    label: 'L — Litre'           },
+  { value: 't',    label: 't — Tonne'           },
+  { value: 'pce',  label: 'pce — Pièce'         },
+  { value: 'ens',  label: 'ens — Ensemble'      },
+  { value: 'pt',   label: 'pt — Point'          },
+  { value: 'autre', label: '✏️ Personnalisé...' },
+]
+
+const UNITE_VALUES = new Set(UNITES_DEVIS.map(u => u.value))
+
+/** Convertit la valeur stockée en affichage PDF lisible (m2→m², m3→m³) */
+const formatUnitForPdf = (unit: string, customUnit?: string): string => {
+  if (unit === 'autre') return customUnit || 'u'
+  if (unit === 'm2' || unit === 'm²') return 'm²'
+  if (unit === 'm3' || unit === 'm³') return 'm³'
+  return unit || 'u'
+}
+
+/** Résout l'unité effective d'une ligne (gère 'autre' + rétrocompat anciens formats) */
+const resolveLineUnit = (line: ProductLine): string => {
+  if (line.unit === 'autre') return line.customUnit || 'u'
+  return line.unit || 'u'
+}
+
+/** Pour le select : si la valeur existante n'est pas dans la liste, traiter comme 'autre' */
+const getSelectValue = (line: ProductLine): string => {
+  // Rétrocompat : anciennes valeurs m², m³, forfait, tonne → mapper vers nouvelles
+  const legacyMap: Record<string, string> = {
+    'm²': 'm2', 'm³': 'm3', 'forfait': 'f', 'tonne': 't',
+  }
+  const mapped = legacyMap[line.unit] || line.unit
+  if (UNITE_VALUES.has(mapped)) return mapped
+  return 'autre'
 }
 
 interface DevisEtape {
@@ -641,24 +691,24 @@ export default function DevisFactureForm({
     // Mapping mot-clé → unité par défaut
     const keywordMap: [RegExp, string][] = [
       [/plomberie|plombier|debouchage|fuite|robinet|chauffe[- ]?eau|ballon|cumulus|sanitaire|salle de bain|wc|toilette/, 'h'],
-      [/peinture|peintre|ravalement|enduit|revetement mural/, 'm²'],
-      [/electricite|electri(?:que|cien)|tableau|prise|interrupteur|eclairage|domotique/, 'forfait'],
-      [/carrelage|carreleur|faience|mosaique|sol|revetement de sol/, 'm²'],
-      [/maconnerie|macon|beton|dalle|fondation|agglo|parpaing|mur/, 'm²'],
+      [/peinture|peintre|ravalement|enduit|revetement mural/, 'm2'],
+      [/electricite|electri(?:que|cien)|tableau|prise|interrupteur|eclairage|domotique/, 'f'],
+      [/carrelage|carreleur|faience|mosaique|sol|revetement de sol/, 'm2'],
+      [/maconnerie|macon|beton|dalle|fondation|agglo|parpaing|mur/, 'm2'],
       [/menuiserie|menuisier|porte|fenetre|volet|placard|escalier|bois/, 'u'],
-      [/chauffage|chauffagiste|chaudiere|radiateur|clim|climatisation|pac|pompe a chaleur/, 'forfait'],
-      [/toiture|couvreur|couverture|toit|gouttiere|zinguerie|ardoise|tuile/, 'm²'],
-      [/nettoyage|menage|entretien|proprete|lavage|desinfection/, 'm²'],
-      [/serrurerie|serrurier|serrure|verrou|blindage|ouverture de porte/, 'forfait'],
+      [/chauffage|chauffagiste|chaudiere|radiateur|clim|climatisation|pac|pompe a chaleur/, 'f'],
+      [/toiture|couvreur|couverture|toit|gouttiere|zinguerie|ardoise|tuile/, 'm2'],
+      [/nettoyage|menage|entretien|proprete|lavage|desinfection/, 'm2'],
+      [/serrurerie|serrurier|serrure|verrou|blindage|ouverture de porte/, 'f'],
       [/vitrerie|vitrier|vitre|vitrage|double vitrage|miroir/, 'u'],
       [/elagage|abattage|arbre|haie|taille de|souche/, 'u'],
       [/jardinage|jardinier|espaces verts|tonte|debroussaillage|gazon|pelouse/, 'h'],
-      [/demenagement|demenageur/, 'forfait'],
-      [/isolation|isolant|combles|laine|polystyrene/, 'm²'],
-      [/platrerie|platrier|placo|placoplatre|cloison|faux plafond/, 'm²'],
-      [/terrassement|demolition|evacuation|deblai/, 'm³'],
-      [/diagnostic|expertise|audit|controle|inspection/, 'forfait'],
-      [/depannage|urgence|intervention/, 'forfait'],
+      [/demenagement|demenageur/, 'f'],
+      [/isolation|isolant|combles|laine|polystyrene/, 'm2'],
+      [/platrerie|platrier|placo|placoplatre|cloison|faux plafond/, 'm2'],
+      [/terrassement|demolition|evacuation|deblai/, 'm3'],
+      [/diagnostic|expertise|audit|controle|inspection/, 'f'],
+      [/depannage|urgence|intervention/, 'f'],
       [/metre lineaire|pose de|canalisation|conduit|goulotte|cable/, 'ml'],
     ]
     for (const [regex, unit] of keywordMap) {
@@ -675,9 +725,9 @@ export default function DevisFactureForm({
     const match = desc.match(/\[unit:([^|]+)\|/)
     if (match) {
       const unitMap: Record<string, string> = {
-        'm2': 'm²', 'ml': 'ml', 'm3': 'm³', 'heure': 'h',
-        'forfait': 'forfait', 'unite': 'u', 'arbre': 'u',
-        'tonne': 'kg', 'kg': 'kg', 'lot': 'lot',
+        'm2': 'm2', 'ml': 'ml', 'm3': 'm3', 'heure': 'h',
+        'forfait': 'f', 'unite': 'u', 'arbre': 'u',
+        'tonne': 't', 'kg': 'kg', 'lot': 'lot',
       }
       return unitMap[match[1]] || 'u'
     }
@@ -1227,7 +1277,7 @@ export default function DevisFactureForm({
         : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
-        const unitStr = l.unit ? (l.unit === 'u' ? 'u' : l.unit) : 'u'
+        const unitStr = formatUnitForPdf(l.unit, l.customUnit)
         const row = [l.description, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
         row.push(localeFormats.currencyFormat(l.totalHT))
@@ -2525,7 +2575,7 @@ export default function DevisFactureForm({
                         id: Date.now(),
                         description: '',
                         qty: 1,
-                        unit: 'forfait',
+                        unit: 'f',
                         priceHT: 0,
                         tvaRate: defaultTvaRate,
                         totalHT: 0,
@@ -2616,21 +2666,39 @@ export default function DevisFactureForm({
                             />
                           </td>
                           <td>
-                            <select
-                              value={line.unit || 'u'}
-                              onChange={(e) => updateLine(line.id, 'unit', e.target.value)}
-                              className="v22-form-input"
-                            >
-                              <option value="u">{t('devis.unitOptions.u')}</option>
-                              <option value="m²">{t('devis.unitOptions.m2')}</option>
-                              <option value="m³">{t('devis.unitOptions.m3')}</option>
-                              <option value="ml">{t('devis.unitOptions.ml')}</option>
-                              <option value="h">{t('devis.unitOptions.h')}</option>
-                              <option value="forfait">{t('devis.unitOptions.forfait')}</option>
-                              <option value="kg">{t('devis.unitOptions.kg')}</option>
-                              <option value="tonne">{t('devis.unitOptions.tonne')}</option>
-                              <option value="lot">{t('devis.unitOptions.lot')}</option>
-                            </select>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              <select
+                                value={getSelectValue(line)}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  updateLine(line.id, 'unit', val)
+                                  if (val !== 'autre') {
+                                    // Effacer customUnit si on quitte "autre"
+                                    setLines(prev => prev.map(l => l.id === line.id ? { ...l, customUnit: undefined } : l))
+                                  }
+                                }}
+                                className="v22-form-input"
+                                style={{ flex: 1, minWidth: 0 }}
+                              >
+                                {UNITES_DEVIS.map(u => (
+                                  <option key={u.value} value={u.value}>{u.label}</option>
+                                ))}
+                              </select>
+                              {getSelectValue(line) === 'autre' && (
+                                <input
+                                  type="text"
+                                  value={line.customUnit || (line.unit !== 'autre' && !UNITE_VALUES.has(line.unit) ? line.unit : '')}
+                                  onChange={(e) => {
+                                    const v = e.target.value.slice(0, 8)
+                                    setLines(prev => prev.map(l => l.id === line.id ? { ...l, unit: 'autre', customUnit: v } : l))
+                                  }}
+                                  placeholder="Ex: plant, sujet..."
+                                  maxLength={8}
+                                  className="v22-form-input"
+                                  style={{ width: 80, flex: 'none' }}
+                                />
+                              )}
+                            </div>
                           </td>
                           <td>
                             <input
