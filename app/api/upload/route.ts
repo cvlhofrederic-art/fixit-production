@@ -133,7 +133,18 @@ export async function POST(request: NextRequest) {
           .select('user_id, portfolio_photos')
           .eq('id', artisanId)
           .single()
-        if (!artisanRow || artisanRow.user_id !== user.id) {
+        // Fallback: si artisanId = user.id (admin override), chercher par user_id
+        let verifiedArtisanId = artisanId
+        if (!artisanRow) {
+          const { data: byUserId } = await supabaseAdmin.from('profiles_artisan').select('id, user_id').eq('user_id', artisanId).single()
+          if (byUserId) {
+            verifiedArtisanId = byUserId.id
+          } else {
+            logger.error('[UPLOAD] Artisan not found:', artisanId)
+            return NextResponse.json({ error: 'Artisan non trouvé' }, { status: 404 })
+          }
+        } else if (artisanRow.user_id !== user.id) {
+          logger.error('[UPLOAD] IDOR mismatch:', { artisanUserId: artisanRow.user_id, authUserId: user.id })
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
         }
 
@@ -158,7 +169,7 @@ export async function POST(request: NextRequest) {
               portfolio_photos: [newEntry, ...existing],
               updated_at: new Date().toISOString(),
             })
-            .eq('id', artisanId)
+            .eq('id', verifiedArtisanId)
           if (updateError) {
             logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
           }
@@ -166,7 +177,7 @@ export async function POST(request: NextRequest) {
           const { error: updateError } = await supabaseAdmin
             .from('profiles_artisan')
             .update({ [field]: publicUrl, updated_at: new Date().toISOString() })
-            .eq('id', artisanId)
+            .eq('id', verifiedArtisanId)
           if (updateError) {
             logger.error('[UPLOAD] Erreur mise à jour profil:', updateError)
             // On retourne quand même l'URL car l'upload a réussi
