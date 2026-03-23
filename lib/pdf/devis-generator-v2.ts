@@ -26,6 +26,7 @@ export interface DevisGeneratorInput {
   }
   client: {
     nom: string
+    siret?: string | null
     adresse: string | null
     telephone: string | null
     email: string | null
@@ -46,6 +47,8 @@ export interface DevisGeneratorInput {
   notes?: string
   mediateur?: string
   mediateur_url?: string
+  penalite_retard?: string
+  dechets_chantier?: string // FIX FINAL #6: mention optionnelle déchets
 }
 
 export interface LigneDevis {
@@ -65,6 +68,7 @@ export interface EtapeIntervention {
 export interface Acompte {
   label: string
   montant: number
+  pourcentage?: number // FIX FINAL #4
   declencheur: string
   statut: 'payé' | 'en attente'
 }
@@ -139,7 +143,8 @@ function titleCaseAddress(addr: string): string {
     'CHEMIN': 'Chemin', 'PLACE': 'Place', 'ROUTE': 'Route', 'COURS': 'Cours',
     'CEDEX': 'Cedex', 'ST': 'St', 'STE': 'Ste',
   }
-  return addr.split(/(\s+|,\s*)/g).map((part, idx) => {
+  // First pass: split on spaces/commas, handle abbreviations and title case
+  let result = addr.split(/(\s+|,\s*)/g).map((part, idx) => {
     const trimmed = part.trim()
     if (!trimmed || /^[\s,]+$/.test(part)) return part
     if (/^\d{5}$/.test(trimmed)) return trimmed
@@ -148,6 +153,13 @@ function titleCaseAddress(addr: string): string {
     if (idx > 0 && lowerWords.has(lower)) return lower
     return lower.charAt(0).toUpperCase() + lower.slice(1)
   }).join('')
+  // FIX FINAL #2: Restore apostrophes — "L Aurore" → "L'Aurore", "D Azur" → "D'Azur"
+  result = result.replace(/\b([LlDd])\s+([A-Za-zÀ-ÿ])/g, (_, letter, next) => {
+    return letter.toUpperCase() + '\'' + next.toUpperCase()
+  })
+  // Capitalize after apostrophe if needed: "l'aurore" → "L'Aurore"
+  result = result.replace(/'([a-zà-ÿ])/g, (_, c) => '\'' + c.toUpperCase())
+  return result
 }
 
 /**
@@ -343,15 +355,17 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   dy += ptToMm(18)
 
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(`Société : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
+  // FIX FINAL #3: "Société" si SIRET client, "Nom" si particulier
+  const clientLabel = input.client.siret ? 'Société' : 'Nom'
+  pdf.text(`${clientLabel} : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
   dy += ptToMm(14)
 
-  // FIX #4: Même split Adresse/Ville côté destinataire
-  if (input.client.adresse) {
+  // FIX #4 + FIX FINAL #5: Adresse destinataire — ne pas afficher si vide
+  if (input.client.adresse && input.client.adresse.trim().length > 3) {
     const parts = splitAddress(input.client.adresse)
-    if (parts) {
+    if (parts && parts.rue && parts.rue.trim().length > 1) {
       pdf.text(`Adresse : ${parts.rue}`, TEXT_X_DEST, dy); dy += ptToMm(14)
-      if (parts.ville) { pdf.text(`Ville : ${parts.ville}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+      if (parts.ville && parts.ville.trim().length > 1) { pdf.text(`Ville : ${parts.ville}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
     }
   }
 
@@ -567,6 +581,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     `Délai d'exécution : ${input.devis.delai_execution || 'À convenir'}.`,
     "Toute modification fera l'objet d'un avenant signé par les deux parties.",
     `Mode de règlement : ${input.artisan.mode_paiement}.`,
+    ...(input.dechets_chantier ? [input.dechets_chantier] : []), // FIX FINAL #6
   ]
   condLines.forEach(line => {
     const wrapped = pdf.splitTextToSize(line, EM_W - 4)
@@ -581,6 +596,19 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text(noteWrapped, ML, cy)
     cy += noteWrapped.length * ptToMm(13)
   }
+
+  // FIX FINAL #1: Pénalités de retard (obligation légale, toujours affiché)
+  cy += 3
+  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#888888')
+  const penaltyRate = input.penalite_retard || '3 fois le taux d\'intérêt légal'
+  const penaltyLines = [
+    `Pénalités de retard : ${penaltyRate}.`,
+    'Indemnité forfaitaire de recouvrement : 40 €.',
+  ]
+  penaltyLines.forEach(line => {
+    pdf.text(line, ML, cy)
+    cy += ptToMm(10)
+  })
 
   // BON POUR ACCORD — FIX #7: fond gris + bordure DROITE et BAS uniquement
   const sigH = Math.max(cy - condStartY, 46)
@@ -636,7 +664,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     let ay = y + 12
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
     for (const ac of input.acomptes) {
-      pdf.text(`${ac.label} : ${ac.declencheur}`, DEST_X0 + boxPadX, ay)
+      // FIX FINAL #4: afficher pourcentage si disponible
+      const pctStr = ac.pourcentage ? `${ac.pourcentage}% ` : ''
+      pdf.text(`${ac.label} : ${pctStr}${ac.declencheur}`, DEST_X0 + boxPadX, ay)
       pdf.setFont('helvetica', 'bold')
       pdf.text(formatPrice(ac.montant), DEST_X0 + DEST_W - boxPadX, ay, { align: 'right' })
       pdf.setFont('helvetica', 'normal')

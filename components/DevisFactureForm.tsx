@@ -1139,6 +1139,7 @@ export default function DevisFactureForm({
         },
         client: {
           nom: clientName || '',
+          siret: clientSiret || null,
           adresse: clientAddress || null,
           telephone: clientPhone || null,
           email: clientEmail || null,
