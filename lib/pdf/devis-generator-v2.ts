@@ -518,7 +518,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // 9. BLOC TOTAL NET (moitié droite)
   // ═══════════════════════════════════════════════════════════
 
-  y += 2
+  y += 4  // même gap que sous TOTAL NET → BON POUR ACCORD
   const totH = ptToMm(27)
   pdf.setFillColor(COLOR.BG_GRAY)
   pdf.rect(DEST_X0, y, DEST_W, totH, 'F')

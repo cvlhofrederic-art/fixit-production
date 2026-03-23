@@ -1099,9 +1099,15 @@ export default function DevisFactureForm({
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
+      // Re-fetch logo_url from DB (may have been updated after page load)
+      let freshLogoUrl = (artisan?.logo_url as string) || null
+      try {
+        const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
+        if (freshArtisan?.logo_url) freshLogoUrl = freshArtisan.logo_url
+      } catch { /* use cached value */ }
       const input = {
         artisan: {
-          logo_url: (artisan?.logo_url as string) || null,
+          logo_url: freshLogoUrl,
           nom: companyName || artisan?.company_name || '',
           siret: companySiret || '',
           rm: (artisan?.rm as string) || null,
@@ -1269,7 +1275,12 @@ export default function DevisFactureForm({
       }
 
       // ═══ 1. LOGO (coin haut-gauche) ═══
-      const logoUrl = artisan?.logo_url as string | undefined
+      // Re-fetch logo from DB (may have been uploaded after page load)
+      let logoUrl = artisan?.logo_url as string | undefined
+      try {
+        const { data: freshA } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
+        if (freshA?.logo_url) logoUrl = freshA.logo_url
+      } catch { /* use cached */ }
       if (logoUrl) {
         try {
           const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -1677,7 +1688,7 @@ export default function DevisFactureForm({
       }
 
       // ═══ 8. BLOC TOTAL NET ═══
-      y += 2
+      y += 4  // même gap que sous TOTAL NET → BON POUR ACCORD
 
       const totalVal = tvaEnabled ? totalTTC : subtotalHT
       const totBoxX = boxX_dest
