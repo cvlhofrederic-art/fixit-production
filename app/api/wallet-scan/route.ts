@@ -13,7 +13,7 @@ export const maxDuration = 30 // 30s timeout for PDF parsing
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface ScanResult {
-  docType: 'rc_pro' | 'decennale' | 'kbis' | 'urssaf' | 'unknown'
+  docType: string // rc_pro, decennale, kbis, urssaf, qualibat, qualigaz, rge, habilitation_elec, etc.
   confidence: number // 0-1
   extractedData: {
     // Assurance
@@ -77,6 +77,125 @@ const DOC_PATTERNS = {
     /cotisations\s+sociales/i,
     /s[ée]curit[ée]\s+sociale/i,
     /attestation.*jour.*obligations/i,
+  ],
+  qualibat: [
+    /qualibat/i,
+    /qualification\s+professionnelle/i,
+    /certificat\s+qualibat/i,
+    /organisme\s+de\s+qualification/i,
+  ],
+  qualigaz: [
+    /qualigaz/i,
+    /certification\s+gaz/i,
+    /installation.*gaz/i,
+    /professionnel.*gaz.*naturel/i,
+  ],
+  quali_eau: [
+    /quali.?eau/i,
+    /qualit[ée]\s+eau/i,
+    /r[ée]seau\s+d.?eau\s+potable/i,
+    /l[ée]gionellose/i,
+  ],
+  fluides_frigorigenes: [
+    /fluides?\s+frigorig[èe]nes?/i,
+    /attestation\s+de\s+capacit[ée]/i,
+    /manipulation.*fluide/i,
+    /r[èe]glement.*f-gaz/i,
+    /cat[ée]gorie\s+[IViv]{1,3}/i,
+  ],
+  rge: [
+    /reconnu\s+garant\s+de\s+l.?environnement/i,
+    /\brge\b/i,
+    /certificat\s+rge/i,
+    /qualit.?enr/i,
+    /maprim.*r[ée]nov/i,
+  ],
+  carte_btp: [
+    /carte\s+(?:d.?identification\s+)?(?:professionnelle\s+)?btp/i,
+    /carte\s+pro\s+btp/i,
+    /cibtp/i,
+    /carte.*identification.*professionnel/i,
+  ],
+  habilitation_elec: [
+    /habilitation\s+[ée]lectr/i,
+    /nf\s+c\s*18[\s-]*510/i,
+    /\b(?:BR|B1|B2|BC|H0|H1|H2)\b.*[ée]lectr/i,
+    /titre\s+d.?habilitation/i,
+  ],
+  qualifelec: [
+    /qualifelec/i,
+    /qualification.*[ée]lectri/i,
+    /certificat\s+qualifelec/i,
+  ],
+  irve: [
+    /\birve\b/i,
+    /borne.*recharge/i,
+    /v[ée]hicule.*[ée]lectrique/i,
+    /infrastructure.*recharge/i,
+  ],
+  amiante_ss4: [
+    /amiante/i,
+    /sous[\s-]*section\s+[34]/i,
+    /\bss[34]\b/i,
+    /d[ée]samiantage/i,
+    /rep[ée]rage.*amiante/i,
+  ],
+  certiphyto: [
+    /certiphyto/i,
+    /certificat\s+individuel.*phyto/i,
+    /produits?\s+phyto(?:sanitaire|pharmaceutique)/i,
+    /phytopharmaceutique/i,
+  ],
+  qualipaysage: [
+    /qualipaysage/i,
+    /qualification.*paysag/i,
+    /unep/i,
+  ],
+  certibiocide: [
+    /certibiocide/i,
+    /certificat.*biocide/i,
+    /produits?\s+biocides?/i,
+    /tp\s*(?:14|18|20)/i,
+    /d[ée]sinfect.*biocide/i,
+  ],
+  nf_proprete: [
+    /nf\s+(?:service\s+)?propret[ée]/i,
+    /certification.*propret/i,
+    /afnor.*propret/i,
+  ],
+  agrement_3d: [
+    /agr[ée]ment.*(?:3d|d[ée]rat|d[ée]sinsect|d[ée]sinfect)/i,
+    /d[ée]ratisation.*d[ée]sinsectisation/i,
+    /minist[èe]re.*agriculture.*3d/i,
+    /draaf/i,
+  ],
+  cepa: [
+    /\bcepa\b/i,
+    /cen\s+16636/i,
+    /european\s+pest/i,
+    /pest\s+management/i,
+  ],
+  licence_transport: [
+    /licence.*transport/i,
+    /lti\b/i,
+    /transport\s+int[ée]rieur/i,
+    /drieat|dreal/i,
+    /commissionnaire.*transport/i,
+  ],
+  nf_demenagement: [
+    /nf\s+d[ée]m[ée]nagement/i,
+    /certification.*d[ée]m[ée]nag/i,
+    /afnor.*d[ée]m[ée]nag/i,
+  ],
+  qualitoit: [
+    /qualitoit/i,
+    /label.*couvreur/i,
+  ],
+  qualipv: [
+    /qualipv/i,
+    /qualisol/i,
+    /qualit.?enr.*photovolta/i,
+    /installation.*solaire.*certifi/i,
   ],
 }
 
@@ -442,10 +561,36 @@ export async function POST(request: NextRequest) {
 
     // 4. Vérification type de document vs slot
     const typeMapping: Record<string, string[]> = {
-      'rc_pro': ['rc_pro', 'decennale'], // RC Pro accepte aussi décennale
-      'decennale': ['decennale'],
+      'rc_pro': ['rc_pro', 'decennale'],
+      'decennale': ['decennale', 'rc_pro'],
+      'decennale_paysage': ['decennale', 'rc_pro'],
       'kbis': ['kbis'],
       'urssaf': ['urssaf'],
+      'qualibat': ['qualibat'],
+      'qualibat_rge': ['qualibat', 'rge'],
+      'qualigaz': ['qualigaz'],
+      'quali_eau': ['quali_eau'],
+      'fluides_frigorigenes': ['fluides_frigorigenes'],
+      'rge': ['rge', 'qualibat', 'qualifelec', 'qualipv'],
+      'rge_qualifelec': ['rge', 'qualifelec'],
+      'carte_btp': ['carte_btp'],
+      'habilitation_elec': ['habilitation_elec'],
+      'qualifelec': ['qualifelec'],
+      'irve': ['irve', 'qualifelec'],
+      'amiante_ss4': ['amiante_ss4'],
+      'certiphyto': ['certiphyto'],
+      'certiphyto_nuisibles': ['certiphyto'],
+      'qualipaysage': ['qualipaysage'],
+      'labels_ecocert_paysage': ['qualipaysage'],
+      'certibiocide': ['certibiocide'],
+      'certibiocide_nuisibles': ['certibiocide'],
+      'nf_proprete': ['nf_proprete'],
+      'agrement_3d': ['agrement_3d'],
+      'cepa': ['cepa'],
+      'licence_transport': ['licence_transport'],
+      'nf_demenagement': ['nf_demenagement'],
+      'qualitoit': ['qualitoit'],
+      'qualipv': ['qualipv'],
     }
     const expectedTypes = typeMapping[docKey] || []
     const typeCorrect = expectedTypes.length === 0 || expectedTypes.includes(detectedType)
@@ -478,7 +623,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Sauvegarder les données d'assurance si RC Pro/Décennale ───────────
-    if ((detectedType === 'rc_pro' || detectedType === 'decennale') && !suspicious) {
+    if ((detectedType === 'rc_pro' || detectedType === 'decennale' || docKey === 'rc_pro' || docKey === 'decennale' || docKey === 'decennale_paysage') && !suspicious) {
       const updateData: Record<string, any> = {
         insurance_scan_data: scanResult,
         insurance_verified: !suspicious && nameMatch,
