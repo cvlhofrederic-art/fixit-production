@@ -176,18 +176,32 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   if (input.artisan.logo_url) {
     try {
-      const resp = await fetch(input.artisan.logo_url)
-      const blob = await resp.blob()
-      const dataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.readAsDataURL(blob)
+      // Utiliser Image + canvas (même approche que V3) pour éviter CORS Supabase
+      const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error('Logo load failed'))
+        img.src = input.artisan.logo_url!
       })
-      // Spec: x=15pt, y=8pt, max 65×65pt
-      const logoMaxMm = ptToMm(65)  // ~22.9mm
-      pdf.addImage(dataUrl, 'PNG', ptToMm(15), ptToMm(8), logoMaxMm, logoMaxMm)
-    } catch {
-      // Logo fetch failed — skip
+      const canvas = document.createElement('canvas')
+      const maxPx = 500
+      const ratio = logoImg.width / logoImg.height
+      canvas.width = Math.min(logoImg.width, maxPx)
+      canvas.height = Math.round(canvas.width / ratio)
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(logoImg, 0, 0, canvas.width, canvas.height)
+        const logoData = canvas.toDataURL('image/png')
+        // Spec: x=15pt, y=8pt, max 65×65pt — garder proportions
+        const logoMaxW = ptToMm(65)  // ~22.9mm
+        const logoMaxH = ptToMm(65)
+        let lw = logoMaxW, lh = logoMaxH
+        if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
+        pdf.addImage(logoData, 'PNG', ptToMm(15), ptToMm(8), lw, lh)
+      }
+    } catch (e) {
+      console.warn('[PDF V2] Logo load failed:', e)
     }
   }
 
@@ -443,6 +457,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text('TOTAL TTC', totalX, hTextY, { align: 'right' })
 
     y += headerH
+    // Ligne d'accent or sous le header (visible dans le PDF de référence)
+    drawHLine(ML, y, ML + contentW, COLOR.ACCENT, 0.7)
   }
 
   const drawRow = (line: LigneDevis, rowIdx: number) => {
