@@ -649,12 +649,27 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // 13. MENTIONS LÉGALES (bas de page 1)
   // ═══════════════════════════════════════════════════════════
 
-  const rcProStr = input.artisan.rc_pro || 'N/A'
   const genDate = formatDate(new Date())
+  // Build insurance mention from new fields, fallback to rc_pro
+  const insName = input.artisan.insurance_name
+  const insNumber = input.artisan.insurance_number
+  const insCoverage = input.artisan.insurance_coverage || 'France m\u00E9tropolitaine'
+  const insTypeLabel = input.artisan.insurance_type === 'decennale' ? 'D\u00E9cennale'
+    : input.artisan.insurance_type === 'both' ? 'RC Pro + D\u00E9cennale' : 'RC Pro'
+  let insuranceLine: string
+  if (insName && insNumber) {
+    insuranceLine = `${insTypeLabel} ${insName}, contrat n\u00B0 ${insNumber}, couverture ${insCoverage}.`
+  } else if (insName) {
+    insuranceLine = `${insTypeLabel} ${insName}, couverture ${insCoverage}.`
+  } else if (input.artisan.rc_pro) {
+    insuranceLine = `RC Pro ${input.artisan.rc_pro}, couverture ${insCoverage}.`
+  } else {
+    insuranceLine = `${insTypeLabel} N/A, couverture ${insCoverage}.`
+  }
   const legalParagraph = [
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',
     'TVA non applicable, article 293 B du CGI.',
-    `RC Pro ${rcProStr}, couverture France m\u00E9tropolitaine.`,
+    insuranceLine,
     "Devis gratuit, conform\u00E9ment \u00E0 l'article L. 111-1 du Code de la consommation.",
     'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).',
     'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.',
