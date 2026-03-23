@@ -73,13 +73,14 @@ export interface SignatureData {
 
 // ─── Colors & Layout constants ────────────────────────────────
 
-const ACCENT = '#F5C518'
-const TABLE_HEAD_BG = '#333333'
+const ACCENT = '#FFD600'        // Reference: (1.0, 0.839, 0.0) — pure golden yellow
+const TABLE_HEAD_BG = '#0D0D0D'  // Reference: (0.051, 0.051, 0.051) — near black
 const TABLE_HEAD_TEXT = '#FFFFFF'
 const GRAY_LABEL = '#888888'
-const BORDER = '#E0E0E0'
-const ALT_ROW = '#F9F9F9'
-const MARGIN = 15 // mm each side
+const BORDER = '#E0E0DC'         // Reference: (0.878, 0.878, 0.863) — warm gray
+const ALT_ROW = '#F5F5F3'       // Reference: (0.961, 0.961, 0.953) — warm light gray
+const DEST_BG = '#F5F5F3'       // Destinataire box background
+const MARGIN = 18               // Reference: x0=51pt ≈ 18mm
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -270,12 +271,16 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     dy += 3.5
   }
 
-  // CORRECTION 3: Straight corner boxes (no rounding)
   const boxH = Math.max(ey, dy) - boxStartY + 3
+  // ÉMETTEUR: border only (no fill) — matches reference
   pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.3)
+  pdf.setLineWidth(0.5)
   pdf.rect(emX, boxStartY, boxW, boxH, 'S')
-  pdf.rect(destX, boxStartY, boxW, boxH, 'S')
+  // DESTINATAIRE: light gray fill + border — matches reference
+  pdf.setFillColor(...hexToRgb(DEST_BG))
+  pdf.setDrawColor(BORDER)
+  pdf.setLineWidth(0.5)
+  pdf.rect(destX, boxStartY, boxW, boxH, 'FD')
 
   y = boxStartY + boxH + 5
 
@@ -283,15 +288,14 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // INFO BAND (4 columns)
   // ═══════════════════════════════════════════════════════════
 
-  // CORRECTION 3: Straight corner box for info band
-  pdf.setFillColor(248, 248, 248)
+  pdf.setFillColor(...hexToRgb(ALT_ROW))
   pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.3)
-  pdf.rect(MARGIN, y, contentW, 10, 'FD')
+  pdf.setLineWidth(0.5)
+  pdf.rect(MARGIN, y, contentW, 17, 'FD')
 
   const colW = contentW / 4
-  const bandY = y + 3.5
-  const bandValY = y + 7.5
+  const bandY = y + 5
+  const bandValY = y + 12
 
   const drawInfoCol = (label: string, value: string, colIdx: number) => {
     const cx = MARGIN + colW * colIdx + colW / 2
@@ -299,9 +303,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFont('helvetica', 'normal')
     pdf.setTextColor(GRAY_LABEL)
     pdf.text(label, cx, bandY, { align: 'center' })
-    pdf.setFontSize(8)
+    pdf.setFontSize(9)
     pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor('#000000')
+    pdf.setTextColor('#0D0D0D')
     pdf.text(value, cx, bandValY, { align: 'center' })
   }
 
@@ -312,13 +316,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   // CORRECTION 4: Vertical separators between the 4 info columns
   pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.2)
+  pdf.setLineWidth(0.5)
   for (let i = 1; i < 4; i++) {
     const sepX = MARGIN + colW * i
-    pdf.line(sepX, y, sepX, y + 10)
+    pdf.line(sepX, y, sepX, y + 17)
   }
 
-  y += 14
+  y += 22  // reference: 14pt gap between info band bottom and table header
 
   // ═══════════════════════════════════════════════════════════
   // ÉTAPES D'INTERVENTION (optional)
@@ -363,35 +367,37 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     prixUnit: contentW * 0.16,
     total: contentW * 0.18,
   }
-  const headerH = 8
-  const rowH = 7
+  const headerH = 10  // reference: ~29pt = ~10mm
+  const rowH = 11     // reference: ~32pt = ~11mm
 
   const drawTableHeader = () => {
     pdf.setFillColor(...hexToRgb(TABLE_HEAD_BG))
     pdf.rect(MARGIN, y, contentW, headerH, 'F')
     pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7.5)
+    pdf.setFontSize(8)
     pdf.setTextColor(TABLE_HEAD_TEXT)
 
     let hx = MARGIN + 3
-    pdf.text('DÉSIGNATION', hx, y + 5.5)
+    pdf.text('DÉSIGNATION', hx, y + 6.5)
     hx += colWidths.designation
-    pdf.text('QTÉ', hx, y + 5.5, { align: 'center' })
+    pdf.text('QTÉ', hx, y + 6.5, { align: 'center' })
     hx += colWidths.quantite
-    pdf.text('UNITÉ', hx, y + 5.5, { align: 'center' })
+    pdf.text('UNITÉ', hx, y + 6.5, { align: 'center' })
     hx += colWidths.unite
-    pdf.text('PRIX U. TTC', hx + colWidths.prixUnit - 3, y + 5.5, { align: 'right' })
+    pdf.text('PRIX U. TTC', hx + colWidths.prixUnit - 3, y + 6.5, { align: 'right' })
     hx += colWidths.prixUnit
-    pdf.text('TOTAL TTC', hx + colWidths.total - 3, y + 5.5, { align: 'right' })
+    pdf.text('TOTAL TTC', hx + colWidths.total - 3, y + 6.5, { align: 'right' })
     y += headerH
+    // Yellow line under header — reference: (1.0, 0.839, 0.0) width=1.0
+    drawHLine(MARGIN, y, MARGIN + contentW, ACCENT, 1.0)
   }
 
   const drawRow = (line: LigneDevis, rowIdx: number) => {
     // Wrap designation to calculate actual row height
     pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
+    pdf.setFontSize(9)
     const desigLines = pdf.splitTextToSize(cleanDescription(line.designation), colWidths.designation - 6)
-    const actualRowH = Math.max(rowH, desigLines.length * 3.5 + 3)
+    const actualRowH = Math.max(rowH, desigLines.length * 4 + 4)
 
     if (y + actualRowH > pageH - 25) {
       pdf.addPage()
@@ -405,26 +411,30 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.rect(MARGIN, y, contentW, actualRowH, 'F')
     }
 
+    const textY = y + actualRowH / 2 + 1  // vertically centered in row
+
     pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    pdf.setTextColor('#000000')
+    pdf.setFontSize(9)
+    pdf.setTextColor('#0D0D0D')
 
     let rx = MARGIN + 3
-    // Designation — all wrapped lines
-    pdf.text(desigLines, rx, y + 4.5)
+    // Designation — all wrapped lines, top-aligned
+    pdf.text(desigLines, rx, y + 5)
 
     rx += colWidths.designation
-    pdf.text(String(line.quantite), rx, y + 5, { align: 'center' })
+    pdf.text(String(line.quantite), rx, textY, { align: 'center' })
     rx += colWidths.quantite
-    pdf.text(formatUnitForPdf(line.unite), rx, y + 5, { align: 'center' })
+    pdf.text(formatUnitForPdf(line.unite), rx, textY, { align: 'center' })
     rx += colWidths.unite
-    pdf.text(formatPrice(line.prix_unitaire), rx + colWidths.prixUnit - 3, y + 5, { align: 'right' })
+    pdf.text(formatPrice(line.prix_unitaire), rx + colWidths.prixUnit - 3, textY, { align: 'right' })
     rx += colWidths.prixUnit
-    pdf.text(formatPrice(line.total), rx + colWidths.total - 3, y + 5, { align: 'right' })
+    // Total in bold
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(formatPrice(line.total), rx + colWidths.total - 3, textY, { align: 'right' })
 
-    // Bottom border
+    // Bottom border — reference: 0.5 width warm gray
     pdf.setDrawColor(BORDER)
-    pdf.setLineWidth(0.1)
+    pdf.setLineWidth(0.5)
     pdf.line(MARGIN, y + actualRowH, MARGIN + contentW, y + actualRowH)
 
     y += actualRowH
@@ -475,59 +485,47 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   const totalNet = input.lignes.reduce((sum, l) => sum + l.total, 0)
 
-  // Sous-total row inside the table
-  const stRowH = 7
-  if (y + stRowH > pageH - 25) {
-    pdf.addPage()
-    y = MARGIN
-  }
-  pdf.setFillColor(248, 248, 248)
-  pdf.rect(MARGIN, y, contentW, stRowH, 'F')
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.1)
-  pdf.line(MARGIN, y + stRowH, MARGIN + contentW, y + stRowH)
-
-  // TVA mention left-aligned
+  // TVA mention + Sous-total on same row (no background)
+  y += 3
   pdf.setFont('helvetica', 'italic')
-  pdf.setFontSize(7)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text(input.artisan.tva_mention, MARGIN + 3, y + 4.5)
+  pdf.setFontSize(7.5)
+  pdf.setTextColor('#808080')
+  pdf.text(input.artisan.tva_mention, MARGIN, y + 3)
 
-  // "Sous-total" label in the prix unitaire column area
-  const stLabelX = MARGIN + colWidths.designation + colWidths.quantite + colWidths.unite + colWidths.prixUnit - 3
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
-  pdf.setTextColor('#000000')
-  pdf.text('Sous-total', stLabelX, y + 4.5, { align: 'right' })
-
-  // Amount in the total column
-  const stAmountX = MARGIN + contentW - 3
-  pdf.text(formatPrice(totalNet), stAmountX, y + 4.5, { align: 'right' })
-  y += stRowH + 3
+  // Sous-total right-aligned
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor('#808080')
+  const stLabelX = MARGIN + contentW - colWidths.total - 3
+  pdf.text('Sous-total', stLabelX, y + 3, { align: 'right' })
+  pdf.setTextColor('#0D0D0D')
+  pdf.text(formatPrice(totalNet), MARGIN + contentW - 3, y + 3, { align: 'right' })
+  y += 10
 
   // ═══════════════════════════════════════════════════════════
-  // CORRECTION 6: TOTAL NET — white bg + yellow left accent bar
+  // TOTAL NET — yellow line above, gray bg box, right-aligned
+  // Reference: half-page right, yellow line 1.5pt, gray fill
   // ═══════════════════════════════════════════════════════════
 
-  const totBoxW = 65
+  const totBoxW = contentW / 2  // right half of page
   const totBoxX = MARGIN + contentW - totBoxW
   const totBoxH = 10
 
-  // White background with border
-  pdf.setFillColor(255, 255, 255)
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.3)
-  pdf.rect(totBoxX, y, totBoxW, totBoxH, 'FD')
+  // Yellow line above the box
+  drawHLine(totBoxX, y, totBoxX + totBoxW, ACCENT, 1.5)
+  y += 2
 
-  // Yellow accent bar on the left edge (2mm wide)
-  pdf.setFillColor(...hexToRgb(ACCENT))
-  pdf.rect(totBoxX, y, 2, totBoxH, 'F')
+  // Light gray background
+  pdf.setFillColor(...hexToRgb(ALT_ROW))
+  pdf.setDrawColor(BORDER)
+  pdf.setLineWidth(0.5)
+  pdf.rect(totBoxX, y, totBoxW, totBoxH, 'FD')
 
   // "TOTAL NET" label bold left
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
-  pdf.setTextColor('#000000')
-  pdf.text('TOTAL NET', totBoxX + 5, y + 7)
+  pdf.setTextColor('#0D0D0D')
+  pdf.text('TOTAL NET', totBoxX + 4, y + 7)
 
   // Amount bold right
   pdf.text(formatPrice(totalNet), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
@@ -629,11 +627,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     cy += wrapped.length * 3
   }
 
-  // ── CORRECTION 8: Bon pour accord (RIGHT) — no enclosing box, title left-aligned ──
+  // BON POUR ACCORD (RIGHT) — gray fill + border box, title left-aligned
+  // Reference: rect fill=(0.96,0.96,0.95) + stroke border
+  const condH = Math.max(cy - blockStartY + 3, 55)
+  pdf.setFillColor(...hexToRgb(ALT_ROW))
+  pdf.setDrawColor(BORDER)
+  pdf.setLineWidth(0.5)
+  pdf.rect(sigX, blockStartY, sigW, condH, 'FD')
+
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
-  pdf.setTextColor('#000000')
-  pdf.text('BON POUR ACCORD', sigX, blockStartY + 4)
+  pdf.setFontSize(9)
+  pdf.setTextColor('#0D0D0D')
+  pdf.text('BON POUR ACCORD', sigX + 4, blockStartY + 6)
 
   if (input.signature) {
     // Signature present
@@ -654,24 +659,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.text(`IP : ${input.signature.ip_address}`, sigX + 4, sigInfoY + 7)
     }
   } else {
-    // No signature — blank fields, CORRECTION 8: normal weight (not italic)
+    // No signature — reference layout: text + date + signature fields
     pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(6.5)
-    pdf.setTextColor('#777777')
-    const bonText = pdf.splitTextToSize('Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.', sigW - 10)
-    pdf.text(bonText, sigX + 4, blockStartY + 12)
+    pdf.setFontSize(8)
+    pdf.setTextColor('#0D0D0D')
+    const bonText = pdf.splitTextToSize('Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.', sigW - 12)
+    pdf.text(bonText, sigX + 4, blockStartY + 14)
 
-    drawHLine(sigX + 4, blockStartY + 24, sigX + sigW - 4, '#D1D5DB', 0.2)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(6.5)
-    pdf.setTextColor('#777777')
-    // CORRECTION 9: spaces around slashes in date field
-    pdf.text('Date : ___ / ___ / ______', sigX + 4, blockStartY + 28)
-    pdf.text('Signature :', sigX + 4, blockStartY + 32)
+    pdf.text('Date : ___ / ___ / ______', sigX + 4, blockStartY + 30)
+    pdf.text('Signature :', sigX + 4, blockStartY + 40)
   }
 
-  const condH = Math.max(cy - blockStartY + 3, 40)
-  // No enclosing rectangles for CONDITIONS or BON POUR ACCORD (corrections 7 & 8)
+  // condH already computed above for BON POUR ACCORD box
 
   y = blockStartY + condH + 6
 
