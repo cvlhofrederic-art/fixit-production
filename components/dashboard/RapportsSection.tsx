@@ -723,8 +723,8 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
       {/* ── Form Modal ── */}
       <div className={`v22-modal-overlay${showForm ? ' open' : ''}`}>
         {showForm && (
-          <div className="v22-modal" style={{ maxWidth: '720px' }}>
-            <div className="v22-modal-head">
+          <div className="v22-modal" style={{ maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="v22-modal-head" style={{ flexShrink: 0 }}>
               <span className="v22-modal-title">
                 {editingId ? 'Modifier le rapport' : 'Nouveau rapport d\'intervention'}
               </span>
@@ -732,7 +732,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
               <button onClick={() => setShowForm(false)} className="v22-modal-close">✕</button>
             </div>
 
-            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
               {/* Liaison intervention / mission */}
               <div className="v22-card">
                 <div className="v22-card-head">
@@ -1081,7 +1081,7 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
               </div>
             </div>
 
-            <div className="v22-modal-foot">
+            <div className="v22-modal-foot" style={{ flexShrink: 0 }}>
               <button onClick={() => setShowForm(false)} className="v22-btn" style={{ flex: 1 }}>
                 Annuler
               </button>
