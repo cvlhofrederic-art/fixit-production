@@ -369,8 +369,8 @@ export default function DevisFactureForm({
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
   // Acomptes
-  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled || false)
-  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || [])
+  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled !== undefined ? initialData.acomptesEnabled : true)
+  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || [{ ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }])
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
   const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
