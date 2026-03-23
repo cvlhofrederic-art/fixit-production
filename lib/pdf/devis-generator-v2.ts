@@ -537,7 +537,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // CONDITIONS (fond blanc, pas de bordure) — aligné avec BON POUR ACCORD (+5mm)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('CONDITIONS', ML, condStartY + 5)
-  let cy = condStartY + 12
+  let cy = condStartY + 13
 
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
   const condLines = [
