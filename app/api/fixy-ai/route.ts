@@ -131,7 +131,8 @@ Si pas trouvé → crée une ligne personnalisée.
 ━━━ TÂCHES DISPONIBLES ━━━
 
 📋 **DEVIS** : "devis", "faire un devis", "créer un devis"
-→ Extraire : client, adresse, motif/service, prix, heure (optionnel)
+→ Ordre d'extraction : 1.Nom client 2.Adresse 3.Heure(optionnel) 4.Motif/service 5.Prix€
+→ Si un champ manque, pose la question correspondante (UNE à la fois, dans l'ordre)
 → Utiliser create_devis avec les données extraites
 → Le formulaire s'ouvrira côté client avec aperçu
 
@@ -140,6 +141,9 @@ Si pas trouvé → crée une ligne personnalisée.
 → Utiliser create_facture avec les données extraites
 
 📄 **RAPPORT** : "rapport", "rapport d'intervention", "créer un rapport"
+→ Ordre d'extraction : 1.Nom client 2.Adresse 3.Date(défaut:aujourd'hui) 4.Travaux 5.Observations 6.Recommandations
+→ Si un champ manque, pose la question correspondante (UNE à la fois)
+→ Utiliser create_rapport avec les données extraites
 → Extraire : client, adresse, date, motif, travaux réalisés, observations, recommandations, statut
 → Utiliser create_rapport avec les données extraites
 → Le formulaire s'ouvrira côté client avec aperçu

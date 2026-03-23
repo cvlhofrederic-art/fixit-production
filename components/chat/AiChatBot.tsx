@@ -786,7 +786,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         role: 'assistant',
         content: locale === 'pt'
           ? `Olá! Sou o Fixy, o seu assistente pessoal! 🔧\n\nGiro **tudo** na sua conta:\n\n📅 **Marcações** : "Marcação terça 14h Sr. Silva"\n⏰ **Disponibilidades** : "Ativa segunda a sexta 9h-18h"\n🔧 **Motivos** : "Ativa todos os meus motivos"\n📄 **Orçamentos/Faturas** : "Orçamento poda 150€ Silva"\n👥 **Clientes** : "A minha lista de clientes"\n💰 **Receitas** : "Quanto ganhei este mês?"\n📊 **Declaração** : "A minha declaração trimestral"\n💬 **Mensagens** : "Mensagens da marcação de Silva"\n🏢 **Empresa** : "O meu NIF"\n🧭 **Navegação** : "Abre a contabilidade"\n\n💡 Escreva como quiser, mesmo com erros, eu percebo!\n\nO que fazemos?`
-          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?`
+          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?\n\n📋 **Pour créer un devis par commande vocale, suivez cet ordre :**\n👤 1. Nom du client\n📍 2. À [adresse ou résidence]\n🕐 3. À [heure] ← optionnel\n🔧 4. [Type d'intervention]\n💶 5. [Prix]€\n\n✅ **Exemple** : "Dupont à La Sauvagère à 14h ${services[0]?.name || 'élagage'} 850€"\n➕ **Nouveau motif** : "Martin rue des Lilas nettoyage de façade 600€"\n\nJe confirmerai toujours ce que j'ai compris avant d'agir !`
       }])
       setTimeout(() => inputRef.current?.focus(), 300)
     }
@@ -1210,6 +1210,49 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       setPendingAction(null)
     }
 
+    // Check if user is selecting a document to link to a rapport
+    const pendingLinkRaw = sessionStorage.getItem('fixit_pending_rapport_link')
+    if (pendingLinkRaw) {
+      try {
+        const pendingLink = JSON.parse(pendingLinkRaw) as { type: 'devis' | 'facture'; rapportMsgId: string; docs: Array<{ id: string; clientName?: string; service?: string; totalTTC?: number; [k: string]: unknown }> }
+        const num = parseInt(input.trim(), 10)
+        if (num >= 1 && num <= pendingLink.docs.length) {
+          const selectedDoc = pendingLink.docs[num - 1]
+          addMessage('user', input)
+          setInput('')
+          sessionStorage.removeItem('fixit_pending_rapport_link')
+          // Update the rapport in localStorage with the linked document ID
+          const rapportsKey = `fixit_rapports_${artisan.id}`
+          try {
+            const rapports: Array<{ id: string; linkedDevisId?: string | null; linkedFactureId?: string | null; linkedDevisRef?: string; linkedFactureRef?: string; [k: string]: unknown }> = JSON.parse(localStorage.getItem(rapportsKey) || '[]')
+            // Find the most recently added rapport (the one just confirmed)
+            const lastRapport = rapports[rapports.length - 1]
+            if (lastRapport) {
+              const docLabel = selectedDoc.service || selectedDoc.clientName || selectedDoc.id
+              if (pendingLink.type === 'devis') {
+                lastRapport.linkedDevisId = selectedDoc.id
+                lastRapport.linkedDevisRef = `Devis ${docLabel}`
+              } else {
+                lastRapport.linkedFactureId = selectedDoc.id
+                lastRapport.linkedFactureRef = `Facture ${docLabel}`
+              }
+              localStorage.setItem(rapportsKey, JSON.stringify(rapports))
+            }
+          } catch { /* ignore localStorage errors */ }
+          // Update preview status to Lié
+          setMessages(prev => prev.map(m =>
+            m.id === pendingLink.rapportMsgId && m.documentPreview
+              ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Envoi?' } }
+              : m
+          ))
+          const docTypeLabel = pendingLink.type === 'devis' ? 'devis' : 'facture'
+          addMessage('assistant', `${pendingLink.type === 'devis' ? '📋' : '🧾'} **Rapport lié à la ${docTypeLabel} : ${selectedDoc.clientName} — ${selectedDoc.service || 'Service'} — ${selectedDoc.totalTTC ?? '—'}€**\n\nVoulez-vous envoyer ce rapport au client maintenant ?`)
+          return
+        }
+      } catch { /* ignore parse errors */ }
+      sessionStorage.removeItem('fixit_pending_rapport_link')
+    }
+
     processMessage(input)
   }
 
@@ -1349,6 +1392,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                                     motif: msg.documentPreview.service,
                                     createdAt: new Date().toISOString(),
                                     status: (msg.documentPreview.data.status as string) || 'termine',
+                                    linkedDevisId: null,
+                                    linkedFactureId: null,
                                   }
                                   const key = `fixit_rapports_${artisan.id}`
                                   const existing = JSON.parse(localStorage.getItem(key) || '[]')
@@ -1404,14 +1449,37 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                             <div className="flex">
                               <button
                                 onClick={() => {
-                                  if (msg.documentPreview) {
-                                    onCreateDevis({ ...msg.documentPreview.data, linkToDevis: true })
+                                  if (!msg.documentPreview) return
+                                  const clientName = msg.documentPreview.clientName || ''
+                                  const docsKey = `fixit_documents_${artisan.id}`
+                                  try {
+                                    const allDocs: Array<{ id: string; docType?: string; clientName?: string; service?: string; totalTTC?: number; date?: string; createdAt?: string; [k: string]: unknown }> = JSON.parse(localStorage.getItem(docsKey) || '[]')
+                                    const devisList = allDocs
+                                      .filter(d => (!d.docType || d.docType === 'devis') && d.clientName && clientName && d.clientName.toLowerCase().includes(clientName.toLowerCase()))
+                                      .sort((a, b) => new Date(b.createdAt || b.date || '').getTime() - new Date(a.createdAt || a.date || '').getTime())
+                                      .slice(0, 5)
+                                    if (devisList.length === 0) {
+                                      addMessage('assistant', `Aucun devis trouvé pour **${clientName}**. Voulez-vous continuer sans joindre ?`)
+                                      setMessages(prev => prev.map(m =>
+                                        m.id === msg.id && m.documentPreview
+                                          ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Envoi?' } }
+                                          : m
+                                      ))
+                                      return
+                                    }
+                                    const listText = devisList.map((d, i) => {
+                                      const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : (d.date || '')
+                                      return `**${i + 1}.** Devis — ${d.clientName} — ${d.service || 'Service'} — ${d.totalTTC ?? '—'}€ — ${dateStr}`
+                                    }).join('\n')
+                                    addMessage('assistant', `📋 **Devis trouvés pour ${clientName} :**\n\n${listText}\n\nRépondez avec le numéro du devis à lier (ex: 1, 2…)`)
+                                    sessionStorage.setItem('fixit_pending_rapport_link', JSON.stringify({ type: 'devis', rapportMsgId: msg.id, docs: devisList }))
                                     setMessages(prev => prev.map(m =>
                                       m.id === msg.id && m.documentPreview
-                                        ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Lié' } }
+                                        ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Sélection devis…' } }
                                         : m
                                     ))
-                                    addMessage('assistant', '📋 **Rapport lié à un devis.** Sélectionnez le devis dans le formulaire.')
+                                  } catch {
+                                    addMessage('assistant', 'Erreur lors de la lecture des devis.')
                                   }
                                 }}
                                 className="flex-1 py-2 text-[10px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 transition text-center"
@@ -1421,14 +1489,37 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                               </button>
                               <button
                                 onClick={() => {
-                                  if (msg.documentPreview) {
-                                    onCreateDevis({ ...msg.documentPreview.data, linkToFacture: true })
+                                  if (!msg.documentPreview) return
+                                  const clientName = msg.documentPreview.clientName || ''
+                                  const docsKey = `fixit_documents_${artisan.id}`
+                                  try {
+                                    const allDocs: Array<{ id: string; docType?: string; clientName?: string; service?: string; totalTTC?: number; date?: string; createdAt?: string; [k: string]: unknown }> = JSON.parse(localStorage.getItem(docsKey) || '[]')
+                                    const factureList = allDocs
+                                      .filter(d => d.docType === 'facture' && d.clientName && clientName && d.clientName.toLowerCase().includes(clientName.toLowerCase()))
+                                      .sort((a, b) => new Date(b.createdAt || b.date || '').getTime() - new Date(a.createdAt || a.date || '').getTime())
+                                      .slice(0, 5)
+                                    if (factureList.length === 0) {
+                                      addMessage('assistant', `Aucune facture trouvée pour **${clientName}**. Voulez-vous continuer sans joindre ?`)
+                                      setMessages(prev => prev.map(m =>
+                                        m.id === msg.id && m.documentPreview
+                                          ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Envoi?' } }
+                                          : m
+                                      ))
+                                      return
+                                    }
+                                    const listText = factureList.map((d, i) => {
+                                      const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : (d.date || '')
+                                      return `**${i + 1}.** Facture — ${d.clientName} — ${d.service || 'Service'} — ${d.totalTTC ?? '—'}€ — ${dateStr}`
+                                    }).join('\n')
+                                    addMessage('assistant', `🧾 **Factures trouvées pour ${clientName} :**\n\n${listText}\n\nRépondez avec le numéro de la facture à lier (ex: 1, 2…)`)
+                                    sessionStorage.setItem('fixit_pending_rapport_link', JSON.stringify({ type: 'facture', rapportMsgId: msg.id, docs: factureList }))
                                     setMessages(prev => prev.map(m =>
                                       m.id === msg.id && m.documentPreview
-                                        ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Lié' } }
+                                        ? { ...m, documentPreview: { ...m.documentPreview!, status: 'Sélection facture…' } }
                                         : m
                                     ))
-                                    addMessage('assistant', '🧾 **Rapport lié à une facture.** Sélectionnez la facture dans le formulaire.')
+                                  } catch {
+                                    addMessage('assistant', 'Erreur lors de la lecture des factures.')
                                   }
                                 }}
                                 className="flex-1 py-2 text-[10px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition text-center"
@@ -1450,6 +1541,11 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                                 ⏭️ Continuer
                               </button>
                             </div>
+                          </div>
+                        )}
+                        {(msg.documentPreview.status === 'Sélection devis…' || msg.documentPreview.status === 'Sélection facture…') && (
+                          <div className="py-2 text-center text-[10px] text-gray-400">
+                            {msg.documentPreview.status === 'Sélection devis…' ? '📋 Sélection en cours…' : '🧾 Sélection en cours…'}
                           </div>
                         )}
                         {(msg.documentPreview.status === 'Confirmé' && msg.documentPreview.type !== 'rapport') || msg.documentPreview.status === 'Envoi?' ? (
