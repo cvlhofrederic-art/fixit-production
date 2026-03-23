@@ -534,10 +534,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   checkPageBreak(55)
   const condStartY = y
 
-  // CONDITIONS (fond blanc, pas de bordure)
+  // CONDITIONS (fond blanc, pas de bordure) — aligné avec BON POUR ACCORD (+5mm)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text('CONDITIONS', ML, condStartY + 4)
-  let cy = condStartY + 10
+  pdf.text('CONDITIONS', ML, condStartY + 5)
+  let cy = condStartY + 12
 
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
   const condLines = [

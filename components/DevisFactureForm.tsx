@@ -1716,8 +1716,8 @@ export default function DevisFactureForm({
 
         // ── CONDITIONS (côté gauche, fond blanc, pas de bordure) ──
         pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text('CONDITIONS', condX, condStartY + 4)
-        let cy = condStartY + 10
+        pdf.text('CONDITIONS', condX, condStartY + 5)
+        let cy = condStartY + 12
 
         pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
         const validityStr = docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : `30 ${locale === 'pt' ? 'dias' : 'jours'}`
