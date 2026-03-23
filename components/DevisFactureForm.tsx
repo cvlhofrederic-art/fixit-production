@@ -392,7 +392,7 @@ export default function DevisFactureForm({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
   // Acomptes
   const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled !== undefined ? initialData.acomptesEnabled : true)
-  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || [{ ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }])
+  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || [{ id: 'default-1', ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }])
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
   const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
@@ -2984,8 +2984,8 @@ export default function DevisFactureForm({
                                       {detail && <div style={{ width: BTN_W, flexShrink: 0 }} />}
                                     </div>
                                     {detail && (
-                                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 4 }}>
-                                        {/* Carré gris — même largeur que l'input au-dessus */}
+                                      <div style={{ position: 'relative', marginTop: 4 }}>
+                                        {/* Rectangle gris description — pleine largeur du td */}
                                         {editingDescLineId === line.id ? (
                                           <textarea
                                             autoFocus
@@ -2997,8 +2997,8 @@ export default function DevisFactureForm({
                                               setEditingDescLineId(null)
                                             }}
                                             style={{
-                                              flex: 1, minWidth: 0, boxSizing: 'border-box',
-                                              padding: '4px 8px',
+                                              width: '100%', boxSizing: 'border-box',
+                                              padding: '4px 8px', paddingRight: 56,
                                               background: '#f9fafb', border: '1px solid #93c5fd',
                                               borderRadius: 4, fontSize: 11, color: '#374151',
                                               lineHeight: 1.4, resize: 'vertical', outline: 'none',
@@ -3006,8 +3006,8 @@ export default function DevisFactureForm({
                                           />
                                         ) : (
                                           <div style={{
-                                            flex: 1, minWidth: 0, boxSizing: 'border-box',
-                                            padding: '4px 8px',
+                                            width: '100%', boxSizing: 'border-box',
+                                            padding: '4px 8px', paddingRight: 56,
                                             background: '#f9fafb', border: '1px solid #e5e7eb',
                                             borderRadius: 4, fontSize: 11, color: '#6b7280',
                                             lineHeight: 1.4,
@@ -3015,28 +3015,28 @@ export default function DevisFactureForm({
                                             {detail}
                                           </div>
                                         )}
-                                        {/* Boutons à droite, en dehors du carré */}
-                                        <button
-                                          title="Modifier la description"
-                                          onClick={() => setEditingDescLineId(editingDescLineId === line.id ? null : line.id)}
-                                          style={{
-                                            flexShrink: 0,
-                                            background: editingDescLineId === line.id ? '#dbeafe' : 'none',
-                                            border: '1px solid #e5e7eb', borderRadius: 4,
-                                            padding: '2px 6px', cursor: 'pointer',
-                                            fontSize: 11, color: '#6b7280', lineHeight: 1,
-                                          }}
-                                        >✏️</button>
-                                        <button
-                                          title="Supprimer la description"
-                                          onClick={() => { updateLine(line.id, 'description', title); setEditingDescLineId(null) }}
-                                          style={{
-                                            flexShrink: 0,
-                                            background: 'none', border: '1px solid #e5e7eb',
-                                            borderRadius: 4, padding: '2px 6px', cursor: 'pointer',
-                                            fontSize: 11, color: '#9ca3af', lineHeight: 1,
-                                          }}
-                                        >✕</button>
+                                        {/* Boutons positionnés en absolu à droite — ne poussent pas la largeur */}
+                                        <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
+                                          <button
+                                            title="Modifier la description"
+                                            onClick={() => setEditingDescLineId(editingDescLineId === line.id ? null : line.id)}
+                                            style={{
+                                              background: editingDescLineId === line.id ? '#dbeafe' : '#fff',
+                                              border: '1px solid #e5e7eb', borderRadius: 4,
+                                              padding: '2px 6px', cursor: 'pointer',
+                                              fontSize: 11, color: '#6b7280', lineHeight: 1,
+                                            }}
+                                          >✏️</button>
+                                          <button
+                                            title="Supprimer la description"
+                                            onClick={() => { updateLine(line.id, 'description', title); setEditingDescLineId(null) }}
+                                            style={{
+                                              background: '#fff', border: '1px solid #e5e7eb',
+                                              borderRadius: 4, padding: '2px 6px', cursor: 'pointer',
+                                              fontSize: 11, color: '#9ca3af', lineHeight: 1,
+                                            }}
+                                          >✕</button>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
