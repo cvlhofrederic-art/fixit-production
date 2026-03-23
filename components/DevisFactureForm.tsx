@@ -1729,6 +1729,23 @@ export default function DevisFactureForm({
         y = qrY + qrSize + 4
       }
 
+      // ═══ 9b. MÉDIATEUR DE LA CONSOMMATION (si renseigné + client B2C) ═══
+      if (mediatorName && clientSiret.trim().length === 0) {
+        if (y > pageH - 20) { pdf.addPage(); y = 18 }
+        const medLabel = locale === 'pt'
+          ? 'Resolução alternativa de litígios (Lei n.º 144/2015)'
+          : 'Médiation de la consommation (art. L. 612-1 C. conso.)'
+        const medH = mediatorUrl ? 13 : 9
+        pdf.setFillColor('#F5F3FF'); pdf.setDrawColor('#DDD6FE'); pdf.setLineWidth(0.3)
+        pdf.roundedRect(mL, y, contentW, medH, 1.5, 1.5, 'FD')
+        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#5B21B6')
+        pdf.text('⚖ ' + medLabel, mL + 4, y + 5)
+        pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6D28D9')
+        const nameLabel = locale === 'pt' ? 'Entidade RAL : ' : 'Médiateur : '
+        pdf.text(nameLabel + mediatorName + (mediatorUrl ? '   |   ' + mediatorUrl : ''), mL + 4, y + 9.5)
+        y += medH + 4
+      }
+
       // ═══ 10. MENTIONS LÉGALES ═══
       if (y > pageH - 20) { pdf.addPage(); y = 18 }
       drawLine(mL, y, pageW - mR, '#E5E7EB', 0.2)
