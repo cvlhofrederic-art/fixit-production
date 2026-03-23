@@ -43,6 +43,8 @@ interface RapportIntervention {
   sentAt?: string
   linkedDevisRef?: string
   linkedFactureRef?: string
+  linkedDevisId?: string | null
+  linkedFactureId?: string | null
 }
 
 const RAPPORT_STATUS_MAP = {
@@ -52,7 +54,7 @@ const RAPPORT_STATUS_MAP = {
   sous_garantie: { label: '🛡️ Sous garantie', tagClass: 'v22-tag v22-tag-gray' },
 }
 
-export default function RapportsSection({ artisan, bookings, services }: { artisan: any; bookings: any[]; services: any[] }) {
+export default function RapportsSection({ artisan, bookings, services, onNavigate }: { artisan: any; bookings: any[]; services: any[]; onNavigate?: (page: string) => void }) {
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_rapports_${artisan?.id}`
@@ -1158,8 +1160,44 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                       <td>
                         <span className="v22-ref">{r.rapportNumber}</span>
                         {r.refDevisFact && <div className="v22-card-meta" style={{ marginTop: '2px' }}>{r.refDevisFact}</div>}
-                        {r.linkedDevisRef && <div className="v22-card-meta" style={{ marginTop: '2px', color: 'var(--v22-yellow)' }}>📋 Lié au devis {r.linkedDevisRef}</div>}
-                        {r.linkedFactureRef && <div className="v22-card-meta" style={{ marginTop: '2px', color: 'var(--v22-yellow)' }}>🧾 Lié à la facture {r.linkedFactureRef}</div>}
+                        {(r.linkedDevisId || r.linkedDevisRef) && (() => {
+                          let label = r.linkedDevisRef || ''
+                          if (r.linkedDevisId && artisan?.id) {
+                            try {
+                              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+                              const doc = docs.find((d: { id: string }) => d.id === r.linkedDevisId)
+                              if (doc) label = `Devis ${doc.service || doc.clientName || doc.id}`
+                            } catch { /* ignore */ }
+                          }
+                          return (
+                            <div
+                              className="v22-card-meta"
+                              style={{ marginTop: '2px', color: 'var(--v22-yellow)', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
+                              onClick={() => onNavigate?.('devis')}
+                            >
+                              📋 Lié au devis: {label}
+                            </div>
+                          )
+                        })()}
+                        {(r.linkedFactureId || r.linkedFactureRef) && (() => {
+                          let label = r.linkedFactureRef || ''
+                          if (r.linkedFactureId && artisan?.id) {
+                            try {
+                              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+                              const doc = docs.find((d: { id: string }) => d.id === r.linkedFactureId)
+                              if (doc) label = `Facture ${doc.service || doc.clientName || doc.id}`
+                            } catch { /* ignore */ }
+                          }
+                          return (
+                            <div
+                              className="v22-card-meta"
+                              style={{ marginTop: '2px', color: 'var(--v22-yellow)', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
+                              onClick={() => onNavigate?.('devis')}
+                            >
+                              🧾 Lié à la facture: {label}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td>
                         <span className="v22-client-name">{r.clientName || 'Client non defini'}</span>
@@ -1255,6 +1293,42 @@ export default function RapportsSection({ artisan, bookings, services }: { artis
                   <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>Ref : {previewRapport.refDevisFact}</div>
                 </div>
               )}
+              {(previewRapport.linkedDevisId || previewRapport.linkedDevisRef) && (() => {
+                let label = previewRapport.linkedDevisRef || ''
+                if (previewRapport.linkedDevisId && artisan?.id) {
+                  try {
+                    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+                    const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedDevisId)
+                    if (doc) label = `Devis ${doc.service || doc.clientName || doc.id}`
+                  } catch { /* ignore */ }
+                }
+                return (
+                  <div
+                    style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
+                    onClick={() => onNavigate?.('devis')}
+                  >
+                    📋 Lié au devis: {label}
+                  </div>
+                )
+              })()}
+              {(previewRapport.linkedFactureId || previewRapport.linkedFactureRef) && (() => {
+                let label = previewRapport.linkedFactureRef || ''
+                if (previewRapport.linkedFactureId && artisan?.id) {
+                  try {
+                    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+                    const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedFactureId)
+                    if (doc) label = `Facture ${doc.service || doc.clientName || doc.id}`
+                  } catch { /* ignore */ }
+                }
+                return (
+                  <div
+                    style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
+                    onClick={() => onNavigate?.('devis')}
+                  >
+                    🧾 Lié à la facture: {label}
+                  </div>
+                )
+              })()}
             </div>
             {/* Bande jaune decorative */}
             <div style={{ height: '4px', background: 'linear-gradient(90deg, #FFC107 0%, #FFD54F 50%, #FFC107 100%)', margin: '0 -48px 28px -48px' }}></div>

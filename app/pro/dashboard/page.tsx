@@ -2060,7 +2060,7 @@ export default function DashboardPage() {
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
-              <RapportsSection artisan={artisan} bookings={bookings} services={services} />
+              <RapportsSection artisan={artisan} bookings={bookings} services={services} onNavigate={navigateTo} />
             </SectionErrorBoundary>
           )}
 

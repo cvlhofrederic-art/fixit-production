@@ -927,6 +927,15 @@ export const TOOLS: Record<string, ToolDef> = {
       return { success: true, detail: 'Ouverture du formulaire facture', data: { type: 'open_facture_form', ...p } }
     },
   },
+
+  create_rapport: {
+    description: "Ouvrir le formulaire de rapport d'intervention pré-rempli (action côté client)",
+    params: '{ clientName, clientAddress, interventionDate, motif, travaux, materiaux, observations, recommendations, status }',
+    requiresConfirmation: false,
+    execute: async (p) => {
+      return { success: true, detail: "Ouverture du formulaire rapport", data: { type: 'open_rapport_form', ...p } }
+    },
+  },
 }
 
 // ── Build tool descriptions for system prompt ──────────────────────────────
