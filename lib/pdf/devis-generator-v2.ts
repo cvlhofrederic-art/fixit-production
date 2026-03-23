@@ -532,20 +532,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   y += totH + 4
 
   // ═══════════════════════════════════════════════════════════
-  // 10. ACOMPTES (optionnel)
-  // ═══════════════════════════════════════════════════════════
-
-  if (input.acomptes && input.acomptes.length > 0) {
-    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
-    for (const ac of input.acomptes) {
-      pdf.text(`${ac.label} : ${ac.declencheur} = ${formatPrice(ac.montant)}`, DEST_X0 + boxPadX, y)
-      y += ptToMm(13)
-    }
-    y += 2
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // 11. CONDITIONS + 12. BON POUR ACCORD — FIX #7 (bordure droite+bas)
+  // 11. CONDITIONS + 12. BON POUR ACCORD + 10. ACOMPTES
   // ═══════════════════════════════════════════════════════════
 
   checkPageBreak(55)
@@ -611,7 +598,33 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text('Signature :', DEST_X0 + boxPadX, sy)
   }
 
-  y = condStartY + sigH + 6
+  y = condStartY + sigH + 4
+
+  // ═══════════════════════════════════════════════════════════
+  // 10. ACOMPTES — carré gris sous BON POUR ACCORD (côté droit)
+  // ═══════════════════════════════════════════════════════════
+
+  if (input.acomptes && input.acomptes.length > 0) {
+    const acBlockH = 6 + input.acomptes.length * ptToMm(13) + 3
+    checkPageBreak(acBlockH + 4)
+    // Carré gris — même x et largeur que BON POUR ACCORD
+    pdf.setFillColor(COLOR.BG_GRAY); pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
+    pdf.rect(DEST_X0, y, DEST_W, acBlockH, 'FD')
+    // Titre
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+    pdf.text('ÉCHÉANCIER DE PAIEMENT', DEST_X0 + boxPadX, y + 4)
+    let ay = y + 8
+    // Lignes
+    pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+    for (const ac of input.acomptes) {
+      pdf.text(`${ac.label} : ${ac.declencheur}`, DEST_X0 + boxPadX, ay)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(formatPrice(ac.montant), DEST_X0 + DEST_W - boxPadX, ay, { align: 'right' })
+      pdf.setFont('helvetica', 'normal')
+      ay += ptToMm(13)
+    }
+    y += acBlockH + 4
+  }
 
   // ═══════════════════════════════════════════════════════════
   // 13. MENTIONS LÉGALES (bas de page 1)
