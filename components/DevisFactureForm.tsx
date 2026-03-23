@@ -296,6 +296,18 @@ export default function DevisFactureForm({
   dueDate.setDate(dueDate.getDate() + 30)
   const dueDateStr = dueDate.toISOString().split('T')[0]
 
+  // ─── Template settings (persisted across new devis) ───
+  // Champs récurrents sauvegardés une fois et auto-remplis sur chaque nouveau devis
+  const savedTemplate = (() => {
+    try {
+      const raw = typeof window !== 'undefined'
+        ? localStorage.getItem(`fixit_devis_template_${artisan?.id}`)
+        : null
+      return raw ? JSON.parse(raw) : {}
+    } catch { return {} }
+  })()
+  const tpl = (key: string) => initialData ? undefined : savedTemplate[key]
+
   // ─── PDF (vector-based jsPDF + autoTable) ───
   const [pdfLoading, setPdfLoading] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
@@ -307,29 +319,29 @@ export default function DevisFactureForm({
 
   // ─── State ───
   const [docType, setDocType] = useState<'devis' | 'facture'>(initialData?.docType || initialDocType)
-  const [companyStatus, setCompanyStatus] = useState(initialData?.companyStatus || 'ei')
+  const [companyStatus, setCompanyStatus] = useState(initialData?.companyStatus || tpl('companyStatus') || 'ei')
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
-  const [companyRCS, setCompanyRCS] = useState(initialData?.companyRCS || '')
-  const [companyCapital, setCompanyCapital] = useState(initialData?.companyCapital || '')
+  const [companyRCS, setCompanyRCS] = useState(initialData?.companyRCS || tpl('companyRCS') || '')
+  const [companyCapital, setCompanyCapital] = useState(initialData?.companyCapital || tpl('companyCapital') || '')
   const [companyPhone, setCompanyPhone] = useState(initialData?.companyPhone || artisan?.phone || '')
   const [companyEmail, setCompanyEmail] = useState(initialData?.companyEmail || artisan?.email || '')
-  const [insuranceNumber, setInsuranceNumber] = useState(initialData?.insuranceNumber || '')
-  const [insuranceName, setInsuranceName] = useState(initialData?.insuranceName || '')
-  const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || (locale === 'pt' ? 'Portugal Continental' : 'France métropolitaine'))
-  const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(initialData?.insuranceType || 'rc_pro')
+  const [insuranceNumber, setInsuranceNumber] = useState(initialData?.insuranceNumber || tpl('insuranceNumber') || '')
+  const [insuranceName, setInsuranceName] = useState(initialData?.insuranceName || tpl('insuranceName') || '')
+  const [insuranceCoverage, setInsuranceCoverage] = useState(initialData?.insuranceCoverage || tpl('insuranceCoverage') || (locale === 'pt' ? 'Portugal Continental' : 'France métropolitaine'))
+  const [insuranceType, setInsuranceType] = useState<'rc_pro' | 'decennale' | 'both'>(initialData?.insuranceType || tpl('insuranceType') || 'rc_pro')
   // Médiateur de la consommation (obligatoire depuis 01/01/2016)
-  const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || '')
-  const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || '')
+  const [mediatorName, setMediatorName] = useState(initialData?.mediatorName || tpl('mediatorName') || '')
+  const [mediatorUrl, setMediatorUrl] = useState(initialData?.mediatorUrl || tpl('mediatorUrl') || '')
   // Droit de rétractation (contrat hors établissement)
   const [isHorsEtablissement, setIsHorsEtablissement] = useState(initialData?.isHorsEtablissement ?? true)
   const [companySiren, setCompanySiren] = useState('')
   const [companyNafLabel, setCompanyNafLabel] = useState('')
   const [officialLegalForm, setOfficialLegalForm] = useState('')
 
-  const [tvaEnabled, setTvaEnabled] = useState(initialData?.tvaEnabled || false)
-  const [tvaNumber, setTvaNumber] = useState(initialData?.tvaNumber || '')
+  const [tvaEnabled, setTvaEnabled] = useState(initialData?.tvaEnabled ?? tpl('tvaEnabled') ?? false)
+  const [tvaNumber, setTvaNumber] = useState(initialData?.tvaNumber || tpl('tvaNumber') || '')
 
   const [clientName, setClientName] = useState(initialData?.clientName || '')
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '')
@@ -347,8 +359,8 @@ export default function DevisFactureForm({
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || t('devis.paymentModeOptions.transfer'))
   const [paymentDue, setPaymentDue] = useState(dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
-  const [iban, setIban] = useState(initialData?.iban || '')
-  const [bic, setBic] = useState(initialData?.bic || '')
+  const [iban, setIban] = useState(initialData?.iban || tpl('iban') || '')
+  const [bic, setBic] = useState(initialData?.bic || tpl('bic') || '')
   const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
@@ -1896,6 +1908,20 @@ export default function DevisFactureForm({
         : docNumber
       const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
       pdf.save(filename)
+
+      // Auto-sauvegarder le template de settings pour les prochains devis
+      if (artisan?.id) {
+        try {
+          const template = {
+            companyStatus, companyRCS, companyCapital,
+            insuranceNumber, insuranceName, insuranceCoverage, insuranceType,
+            mediatorName, mediatorUrl,
+            tvaEnabled, tvaNumber,
+            iban, bic,
+          }
+          localStorage.setItem(`fixit_devis_template_${artisan.id}`, JSON.stringify(template))
+        } catch {}
+      }
 
       // Auto-sauvegarder le document dans l'historique à chaque génération PDF
       const data = buildData()
