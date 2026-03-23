@@ -1373,7 +1373,8 @@ export default function DevisFactureForm({
 
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
         const unitStr = formatUnitForPdf(l.unit, l.customUnit)
-        const row = [l.description, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
+        const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
+        const row = [cleanDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
         row.push(localeFormats.currencyFormat(l.totalHT))
         return row
