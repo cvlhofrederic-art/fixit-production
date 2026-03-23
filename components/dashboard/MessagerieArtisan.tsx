@@ -360,13 +360,12 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
     return d.toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short' })
   }
 
-  // ── Filtered conversations ──
+  // ── Filtered conversations (toutes, sans onglets) ──
   const filteredConversations = conversations.filter(conv => {
     const matchSearch = !search.trim() ||
       (conv.contact_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (conv.last_message_preview || '').toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filterUnread === 'all' || conv.unread_count > 0
-    return matchSearch && matchFilter
+    return matchSearch
   })
 
   // Quick templates
@@ -385,72 +384,34 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
       {/* ═══ PANNEAU GAUCHE — Liste conversations ═══ */}
       <div className={`v22-msg-left ${activeConv ? 'v22-msg-left-hidden' : 'v22-msg-left-full'}`}>
 
-        {/* ── Switcher Particuliers / Professionnels ── */}
-        <div className="v22-msg-tabs">
-          <button
-            onClick={() => { setTab('clients'); setActiveConv(null) }}
-            className={`v22-msg-tab ${tab === 'clients' ? 'active' : ''}`}
-          >
-            {'\uD83C\uDFE0'} Particuliers
-            {unreadClients > 0 && (
-              <span className="v22-msg-tab-count">{unreadClients > 9 ? '9+' : unreadClients}</span>
-            )}
-          </button>
-          <button
-            onClick={() => { setTab('donneurs'); setActiveConv(null) }}
-            className={`v22-msg-tab ${tab === 'donneurs' ? 'active' : ''}`}
-          >
-            {'\uD83C\uDFE2'} Professionnels
-            {unreadPro > 0 && (
-              <span className="v22-msg-tab-count">{unreadPro > 9 ? '9+' : unreadPro}</span>
-            )}
-          </button>
+        {/* ── Header avec compteur non lus ── */}
+        <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>Messagerie</span>
+          {(unreadClients + unreadPro) > 0 && (
+            <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{unreadClients + unreadPro} non lu{(unreadClients + unreadPro) > 1 ? 's' : ''}</span>
+          )}
         </div>
 
-        {/* ── Count ── */}
-        <div className="v22-msg-count">
-          {filteredConversations.length} conversation{filteredConversations.length > 1 ? 's' : ''}{' '}
-          {tab === 'clients' ? 'client' : 'pro'}{filteredConversations.length > 1 && tab === 'clients' ? 's' : ''}
-        </div>
-
-        {/* ── Recherche + filtres ── */}
-        <div className="v22-msg-search">
+        {/* ── Recherche ── */}
+        <div style={{ padding: '0 16px 8px' }}>
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder={tab === 'clients' ? 'Rechercher un client\u2026' : 'Rechercher un professionnel\u2026'}
+            placeholder="Rechercher..."
             className="v22-form-input"
-            style={{ width: '100%' }}
+            style={{ width: '100%', fontSize: 12 }}
           />
-          <div className="v22-msg-filters">
-            <button
-              onClick={() => setFilterUnread('all')}
-              className={`v22-msg-filter ${filterUnread === 'all' ? 'active' : ''}`}
-            >
-              Toutes
-            </button>
-            <button
-              onClick={() => setFilterUnread('unread')}
-              className={`v22-msg-filter ${filterUnread === 'unread' ? 'active' : ''}`}
-            >
-              {'\u2709\uFE0F'} Non lues
-            </button>
-          </div>
         </div>
 
         {/* ── Liste des conversations ── */}
         <div className="v22-msg-list">
           {filteredConversations.length === 0 ? (
             <div className="v22-msg-empty">
-              <div style={{ fontSize: 28, marginBottom: 8 }}>{tab === 'clients' ? '\uD83C\uDFE0' : '\uD83C\uDFE2'}</div>
-              <div>{search.trim() ? 'Aucun r\u00E9sultat' : tab === 'clients' ? 'Aucune conversation client' : 'Aucune conversation pro'}</div>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{'\uD83D\uDCAC'}</div>
+              <div>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</div>
               <div style={{ marginTop: 4, color: 'var(--v22-text-muted)', fontSize: 11 }}>
-                {search.trim()
-                  ? 'Essayez un autre terme'
-                  : tab === 'clients'
-                    ? 'Les conversations avec vos clients particuliers appara\u00EEtront ici'
-                    : "Les conversations avec les syndics et donneurs d'ordres appara\u00EEtront ici"}
+                {search.trim() ? 'Essayez un autre terme' : 'Vos conversations apparaîtront ici'}
               </div>
             </div>
           ) : (
@@ -498,7 +459,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>{'\uD83D\uDCAC'}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-text)' }}>S\u00E9lectionnez une conversation</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-text)' }}>Sélectionnez une conversation</div>
               <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
             </div>
           </div>
