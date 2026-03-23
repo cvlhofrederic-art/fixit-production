@@ -1147,7 +1147,6 @@ export default function DevisFactureForm({
       try {
         [jsPDFMod, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
       } catch (chunkErr) {
-        // Chunk stale après déploiement → recharger la page
         window.location.reload()
         return
       }
@@ -1196,177 +1195,310 @@ export default function DevisFactureForm({
         }
       }
 
+      // ════════════════════════════════════════════════════════════════
+      // NOUVEAU DESIGN PDF V3 — spec devis_lepore_logo_arbre.pdf
+      // ════════════════════════════════════════════════════════════════
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()  // 210mm
-      const pageH = pdf.internal.pageSize.getHeight() // 297mm
-      const mL = 18, mR = 18  // margins
-      const contentW = pageW - mL - mR
-      const col = '#1E293B', colLight = '#64748B', colAccent = '#FFC107'
-      let y = 18
+      const pageW = pdf.internal.pageSize.getWidth()   // 210mm
+      const pageH = pdf.internal.pageSize.getHeight()   // 297mm
 
-      // ─── Helper functions ───
-      const drawLine = (x1: number, yPos: number, x2: number, color = '#E2E8F0', width = 0.3) => {
+      // ─── Couleurs spec ───
+      const COLOR_TEXT = '#0D0D0D'
+      const COLOR_TEXT_LIGHT = '#888888'
+      const COLOR_BG_GRAY = '#F5F5F3'
+      const COLOR_BORDER = '#E0E0DC'
+      const COLOR_ACCENT = '#E8A020'
+      const COLOR_WHITE = '#FFFFFF'
+
+      // ─── Marges (mm) ───
+      const mL = 18.0
+      const mR = 18.0
+      const contentW = pageW - mL - mR  // ~174mm
+      const xRight = pageW - mR          // 192mm
+      let y = 0  // curseur vertical courant
+
+      // ─── Helpers ───
+      const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+      const ptToMm = (pt: number) => pt / 2.835
+      const totalPages = () => (pdf as any).internal.getNumberOfPages()
+
+      const drawHLine = (x1: number, yPos: number, x2: number, color = COLOR_BORDER, width = 0.18) => {
         pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
       }
-      const centerText = (text: string, yPos: number, size: number, style: string = 'normal', color: string = col) => {
-        pdf.setFontSize(size); pdf.setFont('helvetica', style); pdf.setTextColor(color)
-        pdf.text(text, pageW / 2, yPos, { align: 'center' })
+      const drawVLine = (x: number, y1: number, y2: number, color = COLOR_BORDER, width = 0.18) => {
+        pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x, y1, x, y2)
       }
-      const labelValue = (label: string, value: string, x: number, yPos: number, maxW: number) => {
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-        pdf.text(label, x, yPos)
-        const labelW = pdf.getTextWidth(label)
-        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        const valLines = pdf.splitTextToSize(value, maxW - labelW - 1)
-        pdf.text(valLines, x + labelW + 1, yPos)
-        return valLines.length * 3.2
+      const addPageNumber = (pageNum: number, total: number) => {
+        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+        pdf.text(`Page ${pageNum}/${total}`, xRight - 2, pageH - 3.2, { align: 'right' })
+      }
+      const checkPageBreak = (needed: number): boolean => {
+        if (y + needed > pageH - 15) { pdf.addPage(); y = 18; return true }
+        return false
       }
 
-      const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-
-      // ═══ 1. TITRE ═══
-      // Titre de l'intervention/projet en gros
-      if (docTitle) {
-        centerText(docTitle.toUpperCase(), y, 14, 'bold')
-        y += 5
-      }
-      // Numéro du document — pour PT afficher le numéro fiscal AT (ex: "FT VTF/1"), sinon numéro interne
-      const displayDocNumber = (ptFiscalData?.docNumber) ? ptFiscalData.docNumber : docNumber
-      centerText(displayDocNumber, y, 8, 'normal', colLight)
-      y += 4
-
-      // ── PT Fiscal: ATCUD + Hash (Portugal invoices only) ──
-      if (ptFiscalData) {
-        centerText(ptFiscalData.atcudDisplay, y, 7, 'bold', '#1D4ED8')
-        y += 3.5
-        centerText(`Hash: ${ptFiscalData.hashDisplay}`, y, 6, 'normal', colLight)
-        y += 3.5
-      }
-
-      // Petit trait centré
-      drawLine(pageW / 2 - 15, y, pageW / 2 + 15, colAccent, 0.8)
-      y += 6
-
-      // ═══ 2. ÉMETTEUR + DESTINATAIRE ═══
-      const boxW = (contentW - 6) / 2
-      const boxStartY = y
-      const boxPad = 4
-
-      // ── Émetteur box ──
-      const emX = mL
-      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-      // Header — centré dans la box gauche (pas au milieu de la page)
-      const emCenterX = emX + boxW / 2
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(t('devis.pdf.emitter'), emCenterX, boxStartY + boxPad, { align: 'center' })
-      // petit trait centré sous le header
-      drawLine(emCenterX - 8, boxStartY + boxPad + 2, emCenterX + 8, '#E2E8F0', 0.2)
-      let ey = boxStartY + boxPad + 5
-      const emMaxW = boxW - boxPad * 2
-      // We need to position text within the left box
-      const emLx = emX + boxPad
-      ey += labelValue(t('devis.pdf.company'), companyName, emLx, ey, emMaxW)
-      if (companySiret) ey += labelValue(t('devis.pdf.siret'), companySiret, emLx, ey, emMaxW)
-      if (companyRCS) ey += labelValue(t('devis.pdf.rcsRm'), companyRCS, emLx, ey, emMaxW)
-      if (companyCapital) ey += labelValue(t('devis.pdf.capital'), `${companyCapital} €`, emLx, ey, emMaxW)
-      if (companyAddress) ey += labelValue(t('devis.pdf.address'), companyAddress, emLx, ey, emMaxW)
-      if (companyPhone) ey += labelValue(t('devis.pdf.tel'), companyPhone, emLx, ey, emMaxW)
-      if (companyEmail) ey += labelValue(t('devis.pdf.email'), companyEmail, emLx, ey, emMaxW)
-      if (tvaEnabled && tvaNumber) ey += labelValue(t('devis.pdf.tvaNumber'), tvaNumber, emLx, ey, emMaxW)
-      if (insuranceName) {
-        ey += 1
-        const insLabel = insuranceType === 'rc_pro' ? t('devis.pdf.rcPro') : insuranceType === 'decennale' ? t('devis.pdf.decennale') : t('devis.pdf.rcProDec')
-        ey += labelValue(`${insLabel} : `, insuranceName, emLx, ey, emMaxW)
-      }
-      if (insuranceNumber) ey += labelValue(t('devis.pdf.contractNumber'), insuranceNumber, emLx, ey, emMaxW)
-      if (insuranceCoverage) ey += labelValue(t('devis.pdf.coverage'), insuranceCoverage, emLx, ey, emMaxW)
-
-      // ── Destinataire box ──
-      const destX = emX + boxW + 6
-      const destCenterX = destX + boxW / 2
-      // Header — centré dans la box droite
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(t('devis.pdf.recipient'), destCenterX, boxStartY + boxPad, { align: 'center' })
-      drawLine(destCenterX - 8, boxStartY + boxPad + 2, destCenterX + 8, '#E2E8F0', 0.2)
-      let dy = boxStartY + boxPad + 5
-      const destLx = destX + boxPad
-      const destMaxW = boxW - boxPad * 2
-      dy += labelValue(t('devis.pdf.name'), clientName, destLx, dy, destMaxW)
-      if (clientAddress) dy += labelValue(t('devis.pdf.address'), clientAddress, destLx, dy, destMaxW)
-      if (interventionAddress) dy += labelValue(t('devis.pdf.interventionLocation'), interventionAddress, destLx, dy, destMaxW)
-      if (clientPhone) dy += labelValue(t('devis.pdf.tel'), clientPhone, destLx, dy, destMaxW)
-      if (clientEmail) dy += labelValue(t('devis.pdf.email'), clientEmail, destLx, dy, destMaxW)
-      if (clientSiret) dy += labelValue(t('devis.pdf.siret'), clientSiret, destLx, dy, destMaxW)
-
-      const boxH = Math.max(ey, dy) - boxStartY + 2
-      // Draw box borders
-      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-      pdf.roundedRect(emX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
-      pdf.roundedRect(destX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
-      // Les headers ÉMETTEUR et DESTINATAIRE sont déjà correctement centrés dans leurs boxes respectives
-
-      y = boxStartY + boxH + 6
-
-      // ═══ 3. DATE / VALIDITÉ / DÉLAI ═══
-      pdf.setFillColor('#F8FAFC'); pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-      pdf.roundedRect(mL, y, contentW, 8, 1.5, 1.5, 'FD')
-      let infoX = mL + 4
-      const infoY = y + 5.5
-      pdf.setFontSize(7.5)
-      const drawInfo = (label: string, val: string) => {
-        pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-        pdf.text(label, infoX, infoY)
-        infoX += pdf.getTextWidth(label) + 0.5
-        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(val, infoX, infoY)
-        infoX += pdf.getTextWidth(val) + 6
-      }
-      // Date d'émission = TOUJOURS la date de création du document (aujourd'hui)
-      drawInfo(t('devis.pdf.issueDate'), docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : docDate)
-      if (docType === 'devis') {
-        if (docValidity) drawInfo(t('devis.pdf.validity'), `${docValidity} ${t('devis.pdf.days')}`)
-        if (executionDelay) drawInfo(t('devis.pdf.executionDelay'), executionDelay)
-        if (prestationDate) drawInfo(t('devis.pdf.prestationDate'), new Date(prestationDate).toLocaleDateString(dateLocaleStr))
-      }
-      if (docType === 'facture') {
-        if (prestationDate) drawInfo(t('devis.pdf.prestation'), new Date(prestationDate).toLocaleDateString(dateLocaleStr))
-        if (paymentDue) drawInfo(t('devis.pdf.dueDate'), new Date(paymentDue).toLocaleDateString(dateLocaleStr))
-        if (sourceDevisRef) drawInfo(t('devis.pdf.devisRef'), sourceDevisRef)
-      }
-      y += 12
-
-      // ═══ 3b. DÉTAIL DE L'INTERVENTION (étapes) ═══
-      if (devisEtapes.length > 0) {
-        const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-        if (etapesSorted.length > 0) {
-          // Titre section
-          pdf.setFillColor(249, 250, 251)
-          pdf.rect(mL, y, contentW, 8, 'F')
-          pdf.setFont('helvetica', 'bold')
-          pdf.setFontSize(9)
-          pdf.setTextColor(50, 50, 50)
-          pdf.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'DÉTAIL DE L\'INTERVENTION', mL + 4, y + 5.5)
-          y += 12
-
-          // Liste numérotée
-          pdf.setFont('helvetica', 'normal')
-          pdf.setFontSize(9)
-          pdf.setTextColor(80, 80, 80)
-          for (let i = 0; i < etapesSorted.length; i++) {
-            const text = `${i + 1}. ${etapesSorted[i].designation}`
-            pdf.text(text, mL + 6, y)
-            y += 5
-            // Page break si nécessaire
-            if (y > pageH - 40) {
-              pdf.addPage()
-              y = 20
-            }
+      // ═══ 1. LOGO (coin haut-gauche) ═══
+      const logoUrl = artisan?.logo_url as string | undefined
+      if (logoUrl) {
+        try {
+          const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image()
+            img.crossOrigin = 'anonymous'
+            img.onload = () => resolve(img)
+            img.onerror = () => reject(new Error('Logo load failed'))
+            img.src = logoUrl
+          })
+          const canvas = document.createElement('canvas')
+          const maxSize = 500
+          const ratio = logoImg.width / logoImg.height
+          canvas.width = Math.min(logoImg.width, maxSize)
+          canvas.height = Math.round(canvas.width / ratio)
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.drawImage(logoImg, 0, 0, canvas.width, canvas.height)
+            const logoData = canvas.toDataURL('image/png')
+            // 23mm max box (65pt / 2.835)
+            const logoMaxW = 23, logoMaxH = 23
+            let lw = logoMaxW, lh = logoMaxH
+            if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
+            pdf.addImage(logoData, 'PNG', 5.3, 2.8, lw, lh)
           }
-          y += 6
+        } catch {
+          // pas de logo = on saute
         }
       }
 
-      // ═══ 4. TABLEAU PRESTATIONS (autoTable) ═══
+      // ═══ 2. TITRE DOCUMENT (centré) ═══
+      y = 25  // ~71pt du haut
+      const displayDocNumber = ptFiscalData?.docNumber || docNumber
+      if (docTitle) {
+        pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(docTitle, pageW / 2, y, { align: 'center' })
+        y += 7
+      } else {
+        // Titre générique
+        const genericTitle = docType === 'devis'
+          ? (locale === 'pt' ? 'Orçamento' : 'Devis')
+          : (locale === 'pt' ? 'Fatura' : 'Facture')
+        pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(genericTitle, pageW / 2, y, { align: 'center' })
+        y += 7
+      }
+
+      // Numéro document
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
+      y += 3
+
+      // ── PT Fiscal: ATCUD + Hash ──
+      if (ptFiscalData) {
+        y += 1
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
+        pdf.text(ptFiscalData.atcudDisplay, pageW / 2, y, { align: 'center' })
+        y += 3
+        pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+        pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, pageW / 2, y, { align: 'center' })
+        y += 3
+      }
+
+      // ═══ 3. LIGNE D'ACCENT OR ═══
+      y += 1
+      pdf.setFillColor(COLOR_ACCENT)
+      pdf.rect(mL, y, contentW, ptToMm(3), 'F')  // ~1.06mm de haut
+      y += ptToMm(3) + 5  // ~5mm gap
+
+      // ═══ 4. BLOCS ÉMETTEUR & DESTINATAIRE ═══
+      const gapBoxes = ptToMm(11)  // ~3.88mm gap
+      const emBoxW = ptToMm(235.62)  // ~83.1mm
+      const destBoxW = contentW - emBoxW - gapBoxes  // ~87mm
+      const boxX_em = mL
+      const boxX_dest = mL + emBoxW + gapBoxes
+      const boxStartY = y
+      const boxPadX = ptToMm(11)  // ~3.88mm padding intérieur
+      const boxPadTop = ptToMm(8)  // ~2.82mm padding top
+
+      // ── Contenu émetteur ──
+      let ey = boxStartY + boxPadTop
+      const emTx = boxX_em + boxPadX
+      const emMaxW = emBoxW - boxPadX * 2
+
+      // Label "ÉMETTEUR"
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey)
+      ey += ptToMm(18)  // ~6.35mm
+
+      // Nom entreprise (bold 10pt)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(companyName, emTx, ey)
+      ey += ptToMm(14)  // ~4.94mm espacement standard
+
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+      if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey); ey += ptToMm(14) }
+      if (companyRCS) { pdf.text(`RM ${companyRCS}`, emTx, ey); ey += ptToMm(14) }
+      if (companyAddress) {
+        const addrLines = pdf.splitTextToSize(`Adresse : ${companyAddress}`, emMaxW)
+        pdf.text(addrLines, emTx, ey); ey += addrLines.length * ptToMm(14)
+      }
+      if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey); ey += ptToMm(14) }
+      if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey); ey += ptToMm(14) }
+      if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey); ey += ptToMm(14) }
+      if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey); ey += ptToMm(14) }
+
+      // ── Contenu destinataire ──
+      let dy2 = boxStartY + boxPadTop
+      const destTx = boxX_dest + boxPadX
+      const destMaxW = destBoxW - boxPadX * 2
+
+      // Label "DESTINATAIRE"
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      pdf.text(locale === 'pt' ? 'DESTINATÁRIO' : 'DESTINATAIRE', destTx, dy2)
+      dy2 += ptToMm(18)
+
+      // Nom client (bold 10pt)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(clientName || '---', destTx, dy2)
+      dy2 += ptToMm(14)
+
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+      if (clientAddress) {
+        const cAddrLines = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
+        pdf.text(cAddrLines, destTx, dy2); dy2 += cAddrLines.length * ptToMm(14)
+      }
+      if (interventionAddress) {
+        const iAddrLines = pdf.splitTextToSize(`${locale === 'pt' ? 'Local' : 'Intervention'} : ${interventionAddress}`, destMaxW)
+        pdf.text(iAddrLines, destTx, dy2); dy2 += iAddrLines.length * ptToMm(14)
+      }
+      if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy2); dy2 += ptToMm(14) }
+      if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy2); dy2 += ptToMm(14) }
+      if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy2); dy2 += ptToMm(14) }
+
+      // Calculer la hauteur max et dessiner les encadrés
+      const boxH = Math.max(ey, dy2) - boxStartY + boxPadTop
+      // Fond gris + bordure
+      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+      pdf.rect(boxX_em, boxStartY, emBoxW, boxH, 'FD')
+      pdf.rect(boxX_dest, boxStartY, destBoxW, boxH, 'FD')
+
+      // Re-dessiner le texte PAR-DESSUS les fonds (jsPDF dessine dans l'ordre)
+      // Émetteur
+      let ey2 = boxStartY + boxPadTop
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey2)
+      ey2 += ptToMm(18)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(companyName, emTx, ey2)
+      ey2 += ptToMm(14)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+      if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
+      if (companyRCS) { pdf.text(`RM ${companyRCS}`, emTx, ey2); ey2 += ptToMm(14) }
+      if (companyAddress) {
+        const addrL = pdf.splitTextToSize(`Adresse : ${companyAddress}`, emMaxW)
+        pdf.text(addrL, emTx, ey2); ey2 += addrL.length * ptToMm(14)
+      }
+      if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
+      if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
+      if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey2); ey2 += ptToMm(14) }
+      if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey2); ey2 += ptToMm(14) }
+
+      // Destinataire
+      let dy3 = boxStartY + boxPadTop
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      pdf.text(locale === 'pt' ? 'DESTINATÁRIO' : 'DESTINATAIRE', destTx, dy3)
+      dy3 += ptToMm(18)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(clientName || '---', destTx, dy3)
+      dy3 += ptToMm(14)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+      if (clientAddress) {
+        const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
+        pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
+      }
+      if (interventionAddress) {
+        const iAL = pdf.splitTextToSize(`${locale === 'pt' ? 'Local' : 'Intervention'} : ${interventionAddress}`, destMaxW)
+        pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
+      }
+      if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
+      if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
+      if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
+
+      y = boxStartY + boxH + 4
+
+      // ═══ 5. TABLEAU DES DATES ═══
+      const dateBoxH = ptToMm(49)  // ~17.3mm
+      const dateSepY = y + ptToMm(20)  // séparateur horizontal labels/valeurs
+
+      // Fond + bordure
+      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+      pdf.rect(mL, y, contentW, dateBoxH, 'FD')
+
+      // Séparateurs verticaux (4 colonnes)
+      const dateCols = docType === 'devis'
+        ? [
+            { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
+            { label: locale === 'pt' ? 'VALIDADE' : 'VALIDITÉ', value: docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : '---' },
+            { label: locale === 'pt' ? 'PRAZO DE EXECUÇÃO' : 'DÉLAI D\'EXÉCUTION', value: executionDelay || '---' },
+            { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : '---' },
+          ]
+        : [
+            { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
+            { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : '---' },
+            { label: locale === 'pt' ? 'VENCIMENTO' : 'ÉCHÉANCE', value: paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---' },
+            { label: locale === 'pt' ? 'MODO PAGAMENTO' : 'MODE RÈGLEMENT', value: paymentMode || '---' },
+          ]
+
+      const colW = contentW / dateCols.length
+      // Séparateur horizontal
+      drawHLine(mL, dateSepY, xRight, COLOR_BORDER, 0.18)
+      // Séparateurs verticaux
+      for (let i = 1; i < dateCols.length; i++) {
+        drawVLine(mL + colW * i, y, y + dateBoxH, COLOR_BORDER, 0.18)
+      }
+
+      // Labels (ligne du haut, centrés)
+      dateCols.forEach((c, i) => {
+        const cx = mL + colW * i + colW / 2
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+        pdf.text(c.label, cx, y + ptToMm(14), { align: 'center' })
+      })
+      // Valeurs (ligne du bas, centrées, bold)
+      dateCols.forEach((c, i) => {
+        const cx = mL + colW * i + colW / 2
+        pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(c.value, cx, dateSepY + ptToMm(17), { align: 'center' })
+      })
+
+      y += dateBoxH + 4
+
+      // ═══ 5b. DÉTAIL DE L'INTERVENTION (étapes) ═══
+      if (devisEtapes.length > 0) {
+        const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+        if (etapesSorted.length > 0) {
+          checkPageBreak(15 + etapesSorted.length * 5)
+          // Titre
+          pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+          pdf.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'ÉTAPES DU CHANTIER', mL + 4, y + 5.5)
+          // Fond alterné header
+          pdf.setFillColor(COLOR_BG_GRAY)
+          pdf.rect(mL, y, contentW, 8, 'F')
+          pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+          pdf.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'ÉTAPES DU CHANTIER', mL + 4, y + 5.5)
+          y += 12
+          // Liste
+          pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+          for (let i = 0; i < etapesSorted.length; i++) {
+            const bgColor = i % 2 === 0 ? COLOR_WHITE : COLOR_BG_GRAY
+            pdf.setFillColor(bgColor)
+            pdf.rect(mL, y - 3, contentW, 5.5, 'F')
+            pdf.setTextColor(COLOR_TEXT)
+            pdf.text(`${i + 1}. ${etapesSorted[i].designation}`, mL + 6, y)
+            y += 5.5
+            if (y > pageH - 40) { pdf.addPage(); y = 20 }
+          }
+          y += 4
+        }
+      }
+
+      // ═══ 6. TABLEAU PRESTATIONS (autoTable) ═══
       const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
       const tableHead = tvaEnabled
         ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
@@ -1375,7 +1507,12 @@ export default function DevisFactureForm({
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
         const unitStr = formatUnitForPdf(l.unit, l.customUnit)
         const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
-        const row = [cleanDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
+        // Séparer titre et description
+        const parts = cleanDesc.split('\n')
+        const title = parts[0]
+        const detail = parts.slice(1).join('\n').trim()
+        const displayDesc = detail ? `${title}\n${detail}` : title
+        const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
         row.push(localeFormats.currencyFormat(l.totalHT))
         return row
@@ -1388,31 +1525,30 @@ export default function DevisFactureForm({
         )
       }
 
-      const colStyles: any = {
-        0: { cellWidth: contentW * 0.36, halign: 'left' },    // Désignation — aligné à gauche
-        1: { cellWidth: contentW * 0.08, halign: 'center' },  // Qté — centré
-        2: { cellWidth: contentW * 0.08, halign: 'center' },  // Unité — centré
-        3: { cellWidth: contentW * 0.16, halign: 'right' },   // Prix U.
+      const colStyles: Record<number, { cellWidth: number; halign: string }> = {
+        0: { cellWidth: contentW * 0.40, halign: 'left' },
+        1: { cellWidth: contentW * 0.08, halign: 'center' },
+        2: { cellWidth: contentW * 0.08, halign: 'center' },
+        3: { cellWidth: contentW * 0.16, halign: 'right' },
       }
       if (tvaEnabled) {
-        colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }  // TVA
-        colStyles[5] = { cellWidth: contentW * 0.22, halign: 'right' }   // Total
+        colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
+        colStyles[5] = { cellWidth: contentW * 0.18, halign: 'right' }
       } else {
-        colStyles[4] = { cellWidth: contentW * 0.32, halign: 'right' }   // Total
+        colStyles[4] = { cellWidth: contentW * 0.28, halign: 'right' }
       }
 
-      // Head styles par colonne — alignement identique header/body
-      const headColStyles: any = {
-        0: { halign: 'left' },     // Désignation
-        1: { halign: 'center' },   // Qté
-        2: { halign: 'center' },   // Unité
-        3: { halign: 'right' },    // Prix U.
+      const headColStyles: Record<number, { halign: string }> = {
+        0: { halign: 'left' },
+        1: { halign: 'center' },
+        2: { halign: 'center' },
+        3: { halign: 'right' },
       }
       if (tvaEnabled) {
-        headColStyles[4] = { halign: 'center' }  // TVA
-        headColStyles[5] = { halign: 'right' }   // Total
+        headColStyles[4] = { halign: 'center' }
+        headColStyles[5] = { halign: 'right' }
       } else {
-        headColStyles[4] = { halign: 'right' }   // Total
+        headColStyles[4] = { halign: 'right' }
       }
 
       autoTable(pdf, {
@@ -1422,200 +1558,230 @@ export default function DevisFactureForm({
         margin: { left: mL, right: mR },
         theme: 'plain',
         headStyles: {
-          fillColor: [255, 193, 7],
-          textColor: [30, 41, 59],
+          fillColor: [13, 13, 13],       // Noir #0D0D0D
+          textColor: [255, 255, 255],     // Blanc
           fontStyle: 'bold',
-          fontSize: 7,
-          cellPadding: 3,
+          fontSize: 8,
+          cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
           halign: 'left',
+          minCellHeight: ptToMm(29),     // 29pt = ~10.2mm
         },
         bodyStyles: {
-          fontSize: 8,
-          cellPadding: 3,
-          textColor: [30, 41, 59],
-          lineWidth: 0.1,
-          lineColor: [241, 245, 249],
+          fontSize: 10,
+          cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+          textColor: [13, 13, 13],
+          lineWidth: 0,
+          minCellHeight: ptToMm(32),     // 32pt = ~11.3mm
         },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: colStyles,
-        tableLineColor: [226, 232, 240],
-        tableLineWidth: 0.3,
+        alternateRowStyles: { fillColor: [245, 245, 243] },  // #F5F5F3
+        columnStyles: colStyles as any,
+        tableLineColor: [224, 224, 220],
+        tableLineWidth: 0,
         didDrawPage: () => {},
         didParseCell: (data: any) => {
-          // Appliquer l'alignement cohérent aux headers
           if (data.section === 'head' && headColStyles[data.column.index]) {
             data.cell.styles.halign = headColStyles[data.column.index].halign
+          }
+          // Description en gris sous le titre
+          if (data.section === 'body' && data.column.index === 0 && data.cell.raw) {
+            const raw = String(data.cell.raw)
+            if (raw.includes('\n')) {
+              // On laisse autoTable gérer le multiline, mais on peut pas changer la couleur
+              // La description sera affichée en gris via didDrawCell
+            }
+          }
+          // Total ligne en bold
+          const lastCol = tvaEnabled ? 5 : 4
+          if (data.section === 'body' && data.column.index === lastCol) {
+            data.cell.styles.fontStyle = 'bold'
+          }
+        },
+        willDrawCell: (data: any) => {
+          // Pour les lignes alternées, dessiner le fond blanc pour les impaires
+          if (data.section === 'body' && data.row.index % 2 === 0) {
+            data.cell.styles.fillColor = [255, 255, 255]
           }
         },
       })
 
-      y = (pdf as any).lastAutoTable.finalY + 6
+      y = (pdf as any).lastAutoTable.finalY
 
-      // ═══ 5. TOTAUX (aligné à droite) ═══
-      const totBoxW = 70, totBoxX = pageW - mR - totBoxW
-      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-      // Sous-total
-      pdf.setFillColor('#F8FAFC')
-      pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
-      pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-      pdf.text(tvaEnabled ? t('devis.pdf.subtotalHT') : t('devis.pdf.subtotal'), totBoxX + 3, y + 5)
-      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(localeFormats.currencyFormat(subtotalHT), totBoxX + totBoxW - 3, y + 5, { align: 'right' })
-      y += 7
+      // ═══ 7. SOUS-TOTAL + TVA ═══
+      // Bande sous-total (fond gris, pleine largeur)
+      const stH = ptToMm(27)  // ~9.5mm
+      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+      pdf.rect(mL, y, contentW, stH, 'FD')
 
+      // Mention TVA (gauche)
+      if (!tvaEnabled) {
+        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+        pdf.text(locale === 'pt' ? 'IVA não aplicável, art. 53.º CIVA' : 'TVA non applicable, art. 293 B CGI', mL + boxPadX, y + stH / 2 + 1)
+      }
+
+      // Sous-total (droite)
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+      const stLabel = tvaEnabled ? (locale === 'pt' ? 'Subtotal HT' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
+      pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
+      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
+
+      y += stH
+
+      // Détail TVA par taux (si TVA active)
       if (tvaEnabled) {
-        pdf.setFillColor('#F8FAFC')
-        pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
-        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-        pdf.text(t('devis.pdf.tva'), totBoxX + 3, y + 5)
-        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(localeFormats.currencyFormat(totalTVA), totBoxX + totBoxW - 3, y + 5, { align: 'right' })
-        y += 7
+        // Calculer TVA par taux
+        const tvaByRate: Record<number, { base: number; amount: number }> = {}
+        lines.filter(l => l.description.trim()).forEach(l => {
+          if (!tvaByRate[l.tvaRate]) tvaByRate[l.tvaRate] = { base: 0, amount: 0 }
+          tvaByRate[l.tvaRate].base += l.totalHT
+          tvaByRate[l.tvaRate].amount += l.totalHT * l.tvaRate / 100
+        })
+        Object.entries(tvaByRate).forEach(([rate, { base, amount }]) => {
+          if (Number(rate) === 0) return
+          pdf.setFillColor(COLOR_WHITE)
+          pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
+          pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+          pdf.text(`TVA ${rate}% sur ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
+          pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+          pdf.text(localeFormats.currencyFormat(amount), xRight - boxPadX, y + 4, { align: 'right' })
+          y += 6
+        })
       }
 
-      if (docType === 'facture' && discount) {
-        pdf.setFillColor('#F8FAFC')
-        pdf.rect(totBoxX, y, totBoxW, 7, 'FD')
-        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-        pdf.text(t('devis.pdf.discount'), totBoxX + 3, y + 5)
-        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(discount, totBoxX + totBoxW - 3, y + 5, { align: 'right' })
-        y += 7
-      }
-
-      // Total final — bande accent
-      const totalVal = tvaEnabled ? totalTTC : subtotalHT
-      pdf.setFillColor(colAccent)
-      pdf.rect(totBoxX, y, totBoxW, 10, 'F')
-      pdf.setFontSize(11); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(tvaEnabled ? t('devis.pdf.totalTTC') : t('devis.pdf.totalNet'), totBoxX + 3, y + 7)
-      pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
-      y += 16
-
-      // ═══ 5b. ÉCHÉANCIER DE PAIEMENT (si acomptes) ═══
-      if (acomptesEnabled && acomptes.length > 0) {
-        if (y > pageH - 50) { pdf.addPage(); y = 18 }
-        // Header
-        pdf.setFillColor(249, 250, 251)
-        pdf.rect(mL, y, contentW, 7, 'F')
-        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(50, 50, 50)
-        pdf.text(locale === 'pt' ? 'CALENDÁRIO DE PAGAMENTO' : 'ÉCHÉANCIER DE PAIEMENT', mL + 3, y + 5)
-        y += 9
-        // Table header
-        pdf.setFillColor(240, 240, 240)
-        pdf.rect(mL, y, contentW, 6, 'F')
-        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(80, 80, 80)
-        pdf.text(locale === 'pt' ? 'Descrição' : 'Description', mL + 3, y + 4)
-        pdf.text(locale === 'pt' ? 'Montante' : 'Montant', mL + contentW * 0.6, y + 4)
-        pdf.text(locale === 'pt' ? 'Prazo' : 'Échéance', mL + contentW * 0.8, y + 4)
-        y += 8
-        // Rows
-        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8)
-        const totalVal = tvaEnabled ? totalTTC : subtotalHT
-        for (const ac of acomptes) {
-          if (ac.pourcentage <= 0) continue
-          const montant = totalVal * ac.pourcentage / 100
-          pdf.setTextColor(60, 60, 60)
-          pdf.text(ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`, mL + 3, y + 4)
-          pdf.text(localeFormats.currencyFormat(montant), mL + contentW * 0.6, y + 4)
-          pdf.text(ac.declencheur, mL + contentW * 0.8, y + 4)
-          pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.2)
-          pdf.line(mL, y + 6, mL + contentW, y + 6)
-          y += 7
-          if (y > pageH - 30) { pdf.addPage(); y = 18 }
-        }
+      // Remise (si applicable)
+      if (discount) {
+        pdf.setFillColor(COLOR_WHITE)
+        pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(locale === 'pt' ? 'Desconto' : 'Remise', xRight - 60, y + 4)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text(`-${discount}`, xRight - boxPadX, y + 4, { align: 'right' })
         y += 6
       }
 
-      // ═══ 6. CONDITIONS + SIGNATURE (devis) ou CONDITIONS DE PAIEMENT (facture) ═══
-      if (y > pageH - 80) { pdf.addPage(); y = 18 }
+      // ═══ 8. BLOC TOTAL NET ═══
+      // Trait séparateur noir au-dessus
+      drawHLine(mL + 2, y + 1, xRight - 2, COLOR_TEXT, 0.4)
+      y += 3
+
+      const totalVal = tvaEnabled ? totalTTC : subtotalHT
+      const totBoxX = boxX_dest
+      const totBoxW = destBoxW
+      const totH = ptToMm(27)  // ~9.5mm
+
+      pdf.setFillColor(COLOR_BG_GRAY)
+      pdf.rect(totBoxX, y, totBoxW, totH, 'F')
+      pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      const totalLabel = tvaEnabled ? (locale === 'pt' ? 'TOTAL TTC' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
+      pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
+      pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
+
+      y += totH + 6
+
+      // ═══ 8b. ÉCHÉANCIER DE PAIEMENT (si acomptes) ═══
+      if (acomptesEnabled && acomptes.length > 0) {
+        checkPageBreak(30)
+        // Même layout que spec section 8 : moitié droite
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
+        for (const ac of acomptes) {
+          if (ac.pourcentage <= 0) continue
+          const montant = acompteTotal * ac.pourcentage / 100
+          const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
+          pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur} = ${localeFormats.currencyFormat(montant)}`, totBoxX + boxPadX, y)
+          y += ptToMm(13)
+        }
+        y += 4
+      }
+
+      // ═══ 9. CONDITIONS + BON POUR ACCORD (devis) ou RÈGLEMENT (facture) ═══
+      checkPageBreak(55)
 
       if (docType === 'devis') {
-        const condW = contentW * 0.55
-        const sigW = contentW - condW - 6
-        const condX = mL, sigX = mL + condW + 6
+        const condX = mL
+        const condW = emBoxW
+        const sigX = boxX_dest
+        const sigW = destBoxW
         const condStartY = y
 
-        // Conditions box
-        pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        const condCenterX = condX + condW / 2
-        pdf.text(t('devis.pdf.conditions'), condCenterX, condStartY + 4, { align: 'center' })
-        drawLine(condCenterX - 8, condStartY + 6, condCenterX + 8, '#E2E8F0', 0.2)
+        // ── CONDITIONS (côté gauche, fond blanc, pas de bordure) ──
+        pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text('CONDITIONS', condX, condStartY + 4)
         let cy = condStartY + 10
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
-        const validityStr = docValidity ? `${docValidity} ${t('devis.pdf.days')}` : `30 ${t('devis.pdf.days')}`
-        const condLines = [
+
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        const validityStr = docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : `30 ${locale === 'pt' ? 'dias' : 'jours'}`
+        const condTextLines = [
           t('devis.pdf.validityCondition').replace('{validity}', validityStr),
           ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
           t('devis.pdf.amendmentClause'),
           ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
+          ...(iban ? [`IBAN : ${iban}${bic ? ` | BIC : ${bic}` : ''}`] : []),
         ]
-        condLines.forEach(line => {
-          const wrapped = pdf.splitTextToSize(line, condW - 8)
-          pdf.text(wrapped, condX + 4, cy)
-          cy += wrapped.length * 3
+        condTextLines.forEach(line => {
+          const wrapped = pdf.splitTextToSize(line, condW - 4)
+          pdf.text(wrapped, condX, cy)
+          cy += wrapped.length * ptToMm(13)
         })
-        const condH = Math.max(cy - condStartY + 2, 35)
-        pdf.roundedRect(condX, condStartY, condW, condH, 1.5, 1.5, 'S')
+        if (notes) {
+          cy += 2
+          pdf.setFont('helvetica', 'italic')
+          const noteWrapped = pdf.splitTextToSize(notes, condW - 4)
+          pdf.text(noteWrapped, condX, cy)
+          cy += noteWrapped.length * ptToMm(13)
+        }
 
-        // Signature box
-        const sigCenterX = sigX + sigW / 2
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(t('devis.pdf.approvalTitle'), sigCenterX, condStartY + 4, { align: 'center' })
-        drawLine(sigCenterX - 10, condStartY + 6, sigCenterX + 10, '#E2E8F0', 0.2)
+        // ── BON POUR ACCORD (côté droit, fond gris, bordure) ──
+        const sigContentH = Math.max(cy - condStartY, 46)
+        // Fond gris
+        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+        pdf.rect(sigX, condStartY, sigW, sigContentH, 'FD')
+
+        // Titre
+        pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text('BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
+
+        let sy = condStartY + 12
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        const approvalText = locale === 'pt'
+          ? 'Orçamento recebido antes da execução dos trabalhos, lido e aprovado, bom para acordo.'
+          : 'Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.'
+        const appWrapped = pdf.splitTextToSize(approvalText, sigW - boxPadX * 2)
+        pdf.text(appWrapped, sigX + boxPadX, sy)
+        sy += appWrapped.length * ptToMm(13) + 4
 
         if (signatureData) {
-          // ── Signature électronique présente → embed dans le PDF ──
-          pdf.setFontSize(6); pdf.setFont('helvetica', 'italic'); pdf.setTextColor('#6B7280')
-          pdf.text(locale === 'pt' ? 'Bom para acordo' : 'Bon pour accord', sigX + 4, condStartY + 10)
-
-          // Render SVG signature as PNG image
+          // Signature électronique
           try {
             const sigImgDataUrl = await svgToImageDataUrl(signatureData.svg_data, 400, 140)
-            const sigImgW = sigW - 8
-            const sigImgH = sigImgW * (140 / 400) // maintain aspect ratio
-            pdf.addImage(sigImgDataUrl, 'PNG', sigX + 4, condStartY + 12, sigImgW, sigImgH)
-
-            // Signer name + date below signature
-            const sigInfoY = condStartY + 12 + sigImgH + 2
-            pdf.setFontSize(6); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-            pdf.text(signatureData.signataire, sigX + 4, sigInfoY)
-            pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-            const sigDateStr = new Date(signatureData.timestamp).toLocaleString(dateLocaleStr)
-            pdf.text(sigDateStr, sigX + 4, sigInfoY + 3.5)
+            const sigImgW = sigW - boxPadX * 2 - 10
+            const sigImgH = sigImgW * (140 / 400)
+            pdf.addImage(sigImgDataUrl, 'PNG', sigX + boxPadX, sy, sigImgW, sigImgH)
+            sy += sigImgH + 2
+            pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+            pdf.text(signatureData.signataire, sigX + boxPadX, sy)
+            pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+            pdf.text(new Date(signatureData.timestamp).toLocaleString(dateLocaleStr), sigX + boxPadX, sy + 3)
+            sy += 8
+            // Audit trail eIDAS
+            pdf.setFontSize(4.5); pdf.setTextColor('#9CA3AF')
+            pdf.text(`SHA-256: ${signatureData.hash_sha256.substring(0, 32)}...`, sigX + boxPadX, sy)
+            pdf.text(locale === 'pt' ? 'Assinatura eletrónica simples art. 25.1 eIDAS' : 'Signature électronique simple art. 25.1 eIDAS', sigX + boxPadX, sy + 2.5)
           } catch {
-            // Fallback: just show text if SVG render fails
-            pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
-            pdf.text(signatureData.signataire, sigX + 4, condStartY + 14)
-            pdf.setFontSize(6); pdf.setTextColor('#6B7280')
-            pdf.text(new Date(signatureData.timestamp).toLocaleString(dateLocaleStr), sigX + 4, condStartY + 18)
+            pdf.setFontSize(9); pdf.setTextColor(COLOR_TEXT)
+            pdf.text(signatureData.signataire, sigX + boxPadX, sy)
           }
-
-          // Audit trail (eIDAS art. 25.1)
-          pdf.setFontSize(4.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#9CA3AF')
-          const auditY = condStartY + condH - 8
-          pdf.text(`SHA-256: ${signatureData.hash_sha256.substring(0, 32)}...`, sigX + 4, auditY)
-          pdf.text(locale === 'pt' ? 'Assinatura eletrónica simples — art. 25.1 eIDAS' : 'Signature électronique simple — art. 25.1 eIDAS', sigX + 4, auditY + 3)
         } else {
-          // ── Pas de signature → zones vierges à remplir à la main ──
-          pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-          pdf.text(t('devis.pdf.handwrittenMention'), sigX + 4, condStartY + 10)
-          pdf.setFont('helvetica', 'italic'); pdf.setFontSize(5.5); pdf.setTextColor('#9CA3AF')
-          const mentionText = t('devis.pdf.approvalText')
-          const mentionWrapped = pdf.splitTextToSize(mentionText, sigW - 8)
-          pdf.text(mentionWrapped, sigX + 4, condStartY + 14)
-          const mentionEndY = condStartY + 14 + mentionWrapped.length * 2.5
-          drawLine(sigX + 4, mentionEndY + 3, sigX + sigW - 4, '#D1D5DB', 0.2)
-          pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-          pdf.text(t('devis.pdf.dateField'), sigX + 4, mentionEndY + 7)
-          pdf.text(t('devis.pdf.signatureField'), sigX + 4, mentionEndY + 11)
+          // Zones vierges
+          pdf.text(`Date : ___ / ___ / ______`, sigX + boxPadX, sy)
+          sy += ptToMm(18)
+          pdf.text(`Signature :`, sigX + boxPadX, sy)
         }
-        pdf.roundedRect(sigX, condStartY, sigW, condH, 1.5, 1.5, 'S')
 
-        y = condStartY + condH + 6
+        y = condStartY + sigContentH + 6
+
       } else if (docType === 'facture') {
-        // Section complète CONDITIONS DE RÈGLEMENT pour facture
+        // ── Section RÈGLEMENT pour facture ──
         const payLines: string[] = []
         if (paymentCondition) payLines.push(paymentCondition)
         if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
@@ -1633,184 +1799,205 @@ export default function DevisFactureForm({
         }
         payLines.push(t('devis.pdf.contestationClause'))
 
-        // Calcul hauteur dynamique d'abord
         const condStartY = y
-        const condCenterX = mL + contentW / 2
         let measureY = condStartY + 10
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal')
         payLines.forEach(line => {
           const wrapped = pdf.splitTextToSize(line, contentW - 8)
-          measureY += wrapped.length * 3 + 0.5
+          measureY += wrapped.length * ptToMm(13) + 0.5
         })
         const condH = Math.max(measureY - condStartY + 2, 20)
 
-        // Dessiner le fond en premier
-        pdf.setFillColor('#EFF6FF'); pdf.setDrawColor('#BFDBFE'); pdf.setLineWidth(0.3)
-        pdf.roundedRect(mL, condStartY, contentW, condH, 1.5, 1.5, 'FD')
+        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+        pdf.rect(mL, condStartY, contentW, condH, 'FD')
 
-        // Header
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
-        pdf.text(t('devis.pdf.paymentConditionsTitle'), condCenterX, condStartY + 4, { align: 'center' })
-        drawLine(condCenterX - 15, condStartY + 6, condCenterX + 15, '#BFDBFE', 0.2)
+        pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(locale === 'pt' ? 'CONDIÇÕES DE PAGAMENTO' : 'CONDITIONS DE RÈGLEMENT', mL + boxPadX, condStartY + 5)
 
-        // Contenu
-        let cy = condStartY + 10
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#1E40AF')
+        let cy = condStartY + 12
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
         payLines.forEach(line => {
-          const wrapped = pdf.splitTextToSize(line, contentW - 8)
-          pdf.text(wrapped, mL + 4, cy)
-          cy += wrapped.length * 3 + 0.5
+          const wrapped = pdf.splitTextToSize(line, contentW - boxPadX * 2)
+          pdf.text(wrapped, mL + boxPadX, cy)
+          cy += wrapped.length * ptToMm(13) + 0.5
         })
         y = condStartY + condH + 4
       }
 
-      // ═══ 7. NOTES ═══
-      if (notes && y < pageH - 30) {
-        pdf.setFillColor('#FFFBEB'); pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
-        const noteWrapped = pdf.splitTextToSize(t('devis.pdf.notes').replace('{notes}', notes), contentW - 8)
-        const noteH = noteWrapped.length * 3.5 + 6
-        pdf.roundedRect(mL, y, contentW, noteH, 1.5, 1.5, 'FD')
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#78350F')
-        pdf.text(noteWrapped, mL + 4, y + 4)
-        y += noteH + 4
+      // ═══ 10. RAPPORT JOINT (optionnel) ═══
+      if (attachedRapport && !checkPageBreak(20)) {
+        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+        const rapportTextLines: string[] = []
+        rapportTextLines.push(t('devis.pdf.attachedReport').replace('{number}', attachedRapport.rapportNumber))
+        if (attachedRapport.interventionDate) rapportTextLines.push(t('devis.pdf.reportDate').replace('{date}', new Date(attachedRapport.interventionDate).toLocaleDateString(dateLocaleStr)) + (attachedRapport.startTime ? ` ${locale === 'pt' ? 'das' : 'de'} ${attachedRapport.startTime}` : '') + (attachedRapport.endTime ? ` ${locale === 'pt' ? 'às' : 'à'} ${attachedRapport.endTime}` : ''))
+        if (attachedRapport.motif) rapportTextLines.push(t('devis.pdf.reportMotif').replace('{motif}', attachedRapport.motif))
+        if (attachedRapport.siteAddress) rapportTextLines.push(t('devis.pdf.reportLocation').replace('{location}', attachedRapport.siteAddress))
+        const rapH = rapportTextLines.length * 4 + 4
+        pdf.rect(mL, y, contentW, rapH, 'FD')
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(rapportTextLines[0], mL + boxPadX, y + 4)
+        pdf.setFont('helvetica', 'normal')
+        rapportTextLines.slice(1).forEach((rl, i) => pdf.text(rl, mL + boxPadX, y + 4 + (i + 1) * 3.5))
+        y += rapH + 4
       }
 
-      // ═══ 8. RAPPORT JOINT ═══
-      if (attachedRapport && y < pageH - 25) {
-        pdf.setFillColor('#FFF7ED'); pdf.setDrawColor('#FED7AA'); pdf.setLineWidth(0.3)
-        const rapportLines: string[] = []
-        rapportLines.push(t('devis.pdf.attachedReport').replace('{number}', attachedRapport.rapportNumber))
-        if (attachedRapport.interventionDate) rapportLines.push(t('devis.pdf.reportDate').replace('{date}', new Date(attachedRapport.interventionDate).toLocaleDateString(dateLocaleStr)) + (attachedRapport.startTime ? ` ${locale === 'pt' ? 'das' : 'de'} ${attachedRapport.startTime}` : '') + (attachedRapport.endTime ? ` ${locale === 'pt' ? 'às' : 'à'} ${attachedRapport.endTime}` : ''))
-        if (attachedRapport.motif) rapportLines.push(t('devis.pdf.reportMotif').replace('{motif}', attachedRapport.motif))
-        if (attachedRapport.siteAddress) rapportLines.push(t('devis.pdf.reportLocation').replace('{location}', attachedRapport.siteAddress))
-        const rapportH = rapportLines.length * 3.5 + 6
-        pdf.roundedRect(mL, y, contentW, rapportH, 1.5, 1.5, 'FD')
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#9A3412')
-        pdf.text(rapportLines[0], mL + 4, y + 4)
-        pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#78350F')
-        rapportLines.slice(1).forEach((rl, i) => pdf.text(rl, mL + 4, y + 4 + (i + 1) * 3.5))
-        y += rapportH + 4
-      }
-
-      // ═══ 9. PT FISCAL: QR CODE + CERTIFICATION ═══
+      // ═══ 11. PT FISCAL: QR CODE + CERTIFICATION ═══
       if (ptFiscalData) {
-        if (y > pageH - 55) { pdf.addPage(); y = 18 }
-
-        // QR Code — bottom right
-        const qrSize = 28 // 28mm QR code
+        checkPageBreak(35)
+        const qrSize = 28
         const qrX = pageW - mR - qrSize
         const qrY = y
-
         try {
           const QRCode = (await import('qrcode')).default
-          const qrDataUrl = await QRCode.toDataURL(ptFiscalData.qrCodeString, {
-            width: 200,
-            margin: 1,
-            errorCorrectionLevel: 'M',
-          })
+          const qrDataUrl = await QRCode.toDataURL(ptFiscalData.qrCodeString, { width: 200, margin: 1, errorCorrectionLevel: 'M' })
           pdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize)
-        } catch (qrErr) {
-          console.warn('[PT Fiscal] QR code generation failed:', qrErr)
-          // Fallback: draw placeholder
-          pdf.setDrawColor('#D1D5DB'); pdf.setLineWidth(0.3)
+        } catch {
+          pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.3)
           pdf.rect(qrX, qrY, qrSize, qrSize)
-          pdf.setFontSize(5); pdf.setTextColor('#9CA3AF')
+          pdf.setFontSize(5); pdf.setTextColor(COLOR_TEXT_LIGHT)
           pdf.text('QR Code', qrX + qrSize / 2, qrY + qrSize / 2, { align: 'center' })
         }
-
-        // Certification mention — left of QR code
         const certY = qrY + 2
         pdf.setFontSize(6); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
         pdf.text(ptFiscalData.atcudDisplay, mL, certY)
-
-        pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
+        pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
         pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, mL, certY + 3.5)
         pdf.text(`Processado por programa certificado n.º ${ptFiscalData.certNumber}`, mL, certY + 7)
         pdf.text('Vitfix Pro — https://vitfix.pt', mL, certY + 10.5)
-
         y = qrY + qrSize + 4
       }
 
-      // ═══ 9b. MÉDIATEUR DE LA CONSOMMATION (si renseigné + client B2C) ═══
-      if (mediatorName && clientSiret.trim().length === 0) {
-        if (y > pageH - 20) { pdf.addPage(); y = 18 }
-        const medLabel = locale === 'pt'
-          ? 'Resolução alternativa de litígios (Lei n.º 144/2015)'
-          : 'Médiation de la consommation (art. L. 612-1 C. conso.)'
-        const medH = mediatorUrl ? 13 : 9
-        pdf.setFillColor('#F5F3FF'); pdf.setDrawColor('#DDD6FE'); pdf.setLineWidth(0.3)
-        pdf.roundedRect(mL, y, contentW, medH, 1.5, 1.5, 'FD')
-        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#5B21B6')
-        pdf.text('⚖ ' + medLabel, mL + 4, y + 5)
-        pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6D28D9')
-        const nameLabel = locale === 'pt' ? 'Entidade RAL : ' : 'Médiateur : '
-        pdf.text(nameLabel + mediatorName + (mediatorUrl ? '   |   ' + mediatorUrl : ''), mL + 4, y + 9.5)
-        y += medH + 4
+      // ═══ 12. MENTIONS LÉGALES ═══
+      checkPageBreak(25)
+      // Trait séparateur optionnel
+      drawHLine(mL, y, xRight, COLOR_BORDER, 0.18)
+      y += 3
+
+      pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+
+      // Ligne 1 : Statut + TVA + Assurance
+      const statusLabel = getStatusLabel(companyStatus, t)
+      let legal1 = `${statusLabel}.`
+      if (companyStatus === 'ei') legal1 += ' Loi n°2022-172 du 14 février 2022.'
+      if (!tvaEnabled) {
+        legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
+      } else if (tvaNumber) {
+        legal1 += ` TVA intracommunautaire : ${tvaNumber}.`
+      }
+      if (insuranceName) {
+        const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Décennale'
+        legal1 += ` ${insLabel} ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'}.`
       }
 
-      // ═══ 10. MENTIONS LÉGALES ═══
-      if (y > pageH - 20) { pdf.addPage(); y = 18 }
-      drawLine(mL, y, pageW - mR, '#E5E7EB', 0.2)
-      y += 3
-      pdf.setFontSize(5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#9CA3AF')
-      const legalMentionsJoined = getLegalMentions().join(' — ')
-      const tvaIntraSuffix = tvaEnabled && tvaNumber ? ` — ${t('devis.legal.tvaIntraNumber').replace('{number}', tvaNumber)}` : ''
-      const legalText = t('devis.pdf.legalMentionsFull')
-        .replace('{mentions}', legalMentionsJoined + tvaIntraSuffix)
-        .replace('{date}', new Date().toLocaleDateString(dateLocaleStr))
-      const legalWrapped = pdf.splitTextToSize(legalText, ptFiscalData ? contentW - 32 : contentW)
+      // Ligne 2 : Devis gratuit + rétractation
+      let legal2 = locale === 'pt'
+        ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
+        : 'Devis gratuit, conformément à l\'article L. 111-1 du Code de la consommation.'
+      if (isHorsEtablissement && clientSiret.trim().length === 0) {
+        legal2 += locale === 'pt'
+          ? ' Direito de retratação: 14 dias (Lei n.º 24/96, art. 8.º).'
+          : ' Droit de rétractation : 14 jours calendaires à compter de la signature (art. L. 221-18 C. conso.).'
+      }
+
+      // Ligne 3 : Paiement + médiation
+      let legal3 = ''
+      if (isHorsEtablissement && clientSiret.trim().length === 0) {
+        legal3 += locale === 'pt'
+          ? 'Nenhum pagamento exigível antes de 7 dias após assinatura (Lei n.º 24/96), salvo trabalhos urgentes.'
+          : 'Aucun paiement exigible avant 7 jours après signature (art. L. 221-10 C. conso.), sauf travaux urgents.'
+      }
+      if (locale === 'pt') {
+        legal3 += ' Resolução alternativa de litígios (Lei n.º 144/2015).'
+      } else {
+        legal3 += ' Médiation de la consommation (art. L. 612-1 C. conso.).'
+      }
+      if (mediatorName) {
+        legal3 += ` ${mediatorName}${mediatorUrl ? ` — ${mediatorUrl}` : ''}.`
+      }
+
+      // Ligne 4 : Générateur
+      const legal4 = `Document généré par Vitfix Pro le ${new Date().toLocaleDateString(dateLocaleStr)}.`
+
+      const fullLegal = `${legal1} ${legal2} ${legal3} ${legal4}`
+      const legalWrapped = pdf.splitTextToSize(fullLegal, ptFiscalData ? contentW - 32 : contentW)
       pdf.text(legalWrapped, mL, y)
+      y += legalWrapped.length * ptToMm(10)
 
       // ═══ PAGE 2 — RÉTRACTATION ═══
       if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0) {
         pdf.addPage()
-        let ry = 18
-        // Petit trait accent en haut
-        drawLine(pageW / 2 - 15, ry - 4, pageW / 2 + 15, colAccent, 0.8)
-        const docLabel = docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')
-        centerText(`${docLabel} ${docNumber} — ${companyName} — ${t('devis.pdf.page2of2')}`, ry, 7, 'normal', colLight)
+        let ry = 8
+
+        // Ligne d'accent or en haut
+        pdf.setFillColor(COLOR_ACCENT)
+        pdf.rect(mL, ry, contentW, ptToMm(3), 'F')
+        ry += ptToMm(3) + 8
+
+        // Titre
+        pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(locale === 'pt' ? 'DIREITO DE RETRATAÇÃO' : 'DROIT DE RÉTRACTATION', mL, ry)
+        ry += 5
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(locale === 'pt' ? 'Lei n.º 24/96, artigo 8.º' : 'Article L. 221-18 du Code de la consommation', mL, ry)
         ry += 8
 
-        // Encadré rétractation
-        pdf.setFillColor('#FFF8F0'); pdf.setDrawColor('#F59E0B'); pdf.setLineWidth(0.5)
-        const retBoxH = 110
-        pdf.roundedRect(mL, ry, contentW, retBoxH, 2, 2, 'FD')
-
-        centerText(t('devis.pdf.withdrawalTitle'), ry + 7, 9, 'bold', '#B45309')
-        ry += 14
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#92400E')
-        const retLines = [
+        // Texte légal
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        const retTexts = [
           t('devis.pdf.withdrawalText1'),
-          "",
           t('devis.pdf.withdrawalText2'),
+          t('devis.pdf.withdrawalPayment'),
         ]
-        retLines.forEach(rl => {
-          if (rl === '') { ry += 2; return }
-          const wrapped = pdf.splitTextToSize(rl, contentW - 12)
-          pdf.text(wrapped, mL + 6, ry)
-          ry += wrapped.length * 3.2
+        retTexts.forEach(txt => {
+          const wrapped = pdf.splitTextToSize(txt, contentW)
+          pdf.text(wrapped, mL, ry)
+          ry += wrapped.length * ptToMm(13) + 4
         })
-        ry += 2
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#92400E')
-        const urgentText = t('devis.pdf.withdrawalPayment')
-        const urgentWrapped = pdf.splitTextToSize(urgentText, contentW - 12)
-        pdf.text(urgentWrapped, mL + 6, ry)
-        ry += urgentWrapped.length * 3.2 + 4
 
-        // Formulaire
-        drawLine(mL + 10, ry, pageW - mR - 10, '#F59E0B', 0.3)
-        ry += 5
-        centerText(t('devis.pdf.withdrawalFormTitle'), ry, 8, 'bold', '#B45309')
-        ry += 5
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#92400E')
-        pdf.text(t('devis.pdf.withdrawalFormTo').replace('{company}', companyName).replace('{address}', companyAddress), mL + 6, ry); ry += 4
-        pdf.text(t('devis.pdf.withdrawalFormNotice'), mL + 6, ry); ry += 6
-        const formFields = [t('devis.pdf.withdrawalFormOrderDate'), t('devis.pdf.withdrawalFormClientName'), t('devis.pdf.withdrawalFormClientAddress'), t('devis.pdf.withdrawalFormClientSignature'), t('devis.pdf.withdrawalFormDate')]
+        ry += 4
+
+        // Formulaire de rétractation
+        // Bandeau noir header
+        pdf.setFillColor(COLOR_TEXT)
+        pdf.rect(mL, ry, contentW, 8, 'F')
+        pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_WHITE)
+        pdf.text(locale === 'pt' ? 'FORMULÁRIO DE RETRATAÇÃO' : 'FORMULAIRE DE RÉTRACTATION', mL + boxPadX, ry + 5.5)
+        ry += 12
+
+        // Contenu formulaire
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+        const formAttention = locale === 'pt'
+          ? `À atenção de : ${companyName}, ${companyAddress}`
+          : `À l'attention de : ${companyName}, ${companyAddress}`
+        pdf.setFont('helvetica', 'normal')
+        const attParts = formAttention.split(companyName)
+        pdf.text(attParts[0], mL + boxPadX, ry)
+        const atW = pdf.getTextWidth(attParts[0])
+        pdf.setFont('helvetica', 'bold')
+        pdf.text(`${companyName}${attParts[1] || ''}`, mL + boxPadX + atW, ry)
+        ry += 6
+
+        pdf.setFont('helvetica', 'normal')
+        const noticeText = locale === 'pt'
+          ? 'Notifico pela presente a minha retratação do contrato relativo à prestação de serviços acima.'
+          : 'Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.'
+        pdf.text(noticeText, mL + boxPadX, ry)
+        ry += 8
+
+        const formFields = [
+          locale === 'pt' ? 'Encomendado em / recebido em :' : 'Commandé le / reçu le :',
+          locale === 'pt' ? 'Nome do cliente :' : 'Nom du client :',
+          locale === 'pt' ? 'Morada :' : 'Adresse :',
+          'Date : ___ / ___ / ______',
+          'Signature :',
+        ]
         formFields.forEach(f => {
-          pdf.text(f, mL + 6, ry)
-          const fw = pdf.getTextWidth(f) + 2
-          drawLine(mL + 6 + fw, ry + 0.5, pageW - mR - 10, '#D1D5DB', 0.2)
-          ry += 6
+          pdf.text(f, mL + boxPadX, ry)
+          if (!f.startsWith('Date') && !f.startsWith('Signature')) {
+            const fw = pdf.getTextWidth(f) + 2
+            drawHLine(mL + boxPadX + fw, ry + 0.5, xRight - boxPadX, COLOR_BORDER, 0.2)
+          }
+          ry += 8
         })
       }
 
@@ -1830,10 +2017,14 @@ export default function DevisFactureForm({
         // Photo annexe page(s)
         pdf.addPage()
         let py = 18
-        drawLine(pageW / 2 - 15, py - 4, pageW / 2 + 15, colAccent, 0.8)
-        centerText(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotos')}`, py, 9, 'bold', col)
+        pdf.setFillColor(COLOR_ACCENT)
+        pdf.rect(mL, py - 4, contentW, ptToMm(3), 'F')
+        py += 2
+        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+        pdf.text(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotos')}`, pageW / 2, py, { align: 'center' })
         py += 5
-        centerText(t('devis.pdf.photosGeotagged').replace('{count}', String(selectedPhotos.length)), py, 7, 'normal', colLight)
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+        pdf.text(t('devis.pdf.photosGeotagged').replace('{count}', String(selectedPhotos.length)), pageW / 2, py, { align: 'center' })
         py += 8
 
         // 2 columns layout, 3 rows per page max = 6 photos per page
@@ -1849,7 +2040,8 @@ export default function DevisFactureForm({
           if (py + photoH + 12 > pageH - 10 && col2 === 0) {
             pdf.addPage()
             py = 18
-            centerText(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotosSuite')}`, py, 7, 'normal', colLight)
+            pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+            pdf.text(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotosSuite')}`, pageW / 2, py, { align: 'center' })
             py += 8
           }
 
