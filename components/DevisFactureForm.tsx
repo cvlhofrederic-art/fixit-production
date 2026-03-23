@@ -2756,21 +2756,28 @@ export default function DevisFactureForm({
                                 const parts = cleaned.split('\n')
                                 const title = parts[0]
                                 const detail = parts.slice(1).join('\n').trim()
+                                // Largeur des boutons : 2 × ~26px + gap 4px = 56px de réservation
+                                const BTN_W = 56
                                 return (
                                   <div>
-                                    <input
-                                      type="text"
-                                      value={title}
-                                      onChange={(e) => {
-                                        const newVal = detail ? `${e.target.value}\n${detail}` : e.target.value
-                                        updateLine(line.id, 'description', newVal)
-                                      }}
-                                      className="v22-form-input"
-                                      style={{ fontWeight: 600 }}
-                                    />
+                                    {/* Ligne titre : input + espace réservé = même largeur totale que ligne desc */}
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                      <input
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => {
+                                          const newVal = detail ? `${e.target.value}\n${detail}` : e.target.value
+                                          updateLine(line.id, 'description', newVal)
+                                        }}
+                                        className="v22-form-input"
+                                        style={{ fontWeight: 600, flex: 1, minWidth: 0 }}
+                                      />
+                                      {/* Espace invisible = largeur des boutons, visible seulement si description présente */}
+                                      {detail && <div style={{ width: BTN_W, flexShrink: 0 }} />}
+                                    </div>
                                     {detail && (
                                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 4 }}>
-                                        {/* Carré gris — pleine largeur disponible */}
+                                        {/* Carré gris — même largeur que l'input au-dessus */}
                                         {editingDescLineId === line.id ? (
                                           <textarea
                                             autoFocus
@@ -2800,7 +2807,7 @@ export default function DevisFactureForm({
                                             {detail}
                                           </div>
                                         )}
-                                        {/* Boutons en dehors du carré */}
+                                        {/* Boutons à droite, en dehors du carré */}
                                         <button
                                           title="Modifier la description"
                                           onClick={() => setEditingDescLineId(editingDescLineId === line.id ? null : line.id)}
