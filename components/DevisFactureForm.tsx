@@ -1784,15 +1784,15 @@ export default function DevisFactureForm({
           const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
           const validAcomptes = acomptes.filter(ac => ac.pourcentage > 0)
           if (validAcomptes.length > 0) {
-            const acBlockH = 6 + validAcomptes.length * ptToMm(13) + 3
+            const acBlockH = 12 + validAcomptes.length * ptToMm(13) + 4
             checkPageBreak(acBlockH + 4)
             // Carré gris — même largeur et x que BON POUR ACCORD
             pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
             pdf.rect(sigX, y, sigW, acBlockH, 'FD')
-            // Titre
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-            pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, y + 4)
-            let ay = y + 8
+            // Titre — même espacement que BON POUR ACCORD
+            pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+            pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, y + 5)
+            let ay = y + 12
             // Lignes acomptes
             pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
             for (const ac of validAcomptes) {

@@ -601,16 +601,17 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // ═══════════════════════════════════════════════════════════
 
   if (input.acomptes && input.acomptes.length > 0) {
-    const acBlockH = 6 + input.acomptes.length * ptToMm(13) + 3
+    // Même espacement que BON POUR ACCORD : titre à +5, contenu à +12, lignes +4.6mm
+    const acBlockH = 12 + input.acomptes.length * ptToMm(13) + 4
     checkPageBreak(acBlockH + 4)
     // Carré gris — même x et largeur que BON POUR ACCORD
     pdf.setFillColor(COLOR.BG_GRAY); pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
     pdf.rect(DEST_X0, y, DEST_W, acBlockH, 'FD')
-    // Titre
-    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
-    pdf.text('ÉCHÉANCIER DE PAIEMENT', DEST_X0 + boxPadX, y + 4)
-    let ay = y + 8
-    // Lignes
+    // Titre — même position relative que BON POUR ACCORD (+5mm)
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+    pdf.text('ÉCHÉANCIER DE PAIEMENT', DEST_X0 + boxPadX, y + 5)
+    // Première ligne à +12mm (même gap que BON POUR ACCORD titre→contenu)
+    let ay = y + 12
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
     for (const ac of input.acomptes) {
       pdf.text(`${ac.label} : ${ac.declencheur}`, DEST_X0 + boxPadX, ay)
