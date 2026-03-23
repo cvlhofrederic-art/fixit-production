@@ -788,11 +788,15 @@ export default function DevisFactureForm({
       })
     } else {
       // Pas d'étapes → comportement classique (une seule ligne)
+      // Inclure la description du motif si elle existe
+      const fullDesc = service.description?.trim()
+        ? `${service.name}\n${service.description.trim()}`
+        : service.name
       setLines(prev => prev.map(line => {
         if (line.id !== lineId) return line
         return {
           ...line,
-          description: service.name,
+          description: fullDesc,
           unit: serviceUnit,
           priceHT: price,
           tvaRate: defaultTvaRate,
@@ -829,9 +833,12 @@ export default function DevisFactureForm({
       // Récupérer l'unité du service lié au booking
       const linkedService = services.find(s => s.id === booking.service_id)
       const serviceUnit = parseServiceUnit(linkedService ?? null)
+      const serviceDesc = linkedService?.description?.trim()
+        ? `${serviceName}\n${linkedService.description.trim()}`
+        : serviceName
       setLines([{
         id: Date.now(),
-        description: serviceName,
+        description: serviceDesc,
         qty: 1,
         unit: serviceUnit,
         priceHT: linePrice,
@@ -2689,11 +2696,12 @@ export default function DevisFactureForm({
                         <tr key={line.id}>
                           <td>
                             {line.description ? (
-                              <input
-                                type="text"
+                              <textarea
                                 value={line.description}
                                 onChange={(e) => updateLine(line.id, 'description', e.target.value)}
                                 className="v22-form-input"
+                                rows={line.description.includes('\n') ? 3 : 1}
+                                style={{ resize: 'vertical', minHeight: 32 }}
                               />
                             ) : (
                               <div>
