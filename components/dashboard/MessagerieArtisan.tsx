@@ -70,6 +70,46 @@ const getStatutConfig = (isPt: boolean): Record<string, { label: string; tagClas
   termine:    { label: isPt ? 'Terminado' : 'Terminé',    tagClass: 'v22-tag v22-tag-green' },
 })
 
+// ═══ TYPES CLIENT ═══
+
+const TYPES_CLIENT: Record<string, { badge: string; couleur: string }> = {
+  particulier:            { badge: 'Particulier',    couleur: 'gris' },
+  particulier_bailleur:   { badge: 'Bailleur',       couleur: 'gris' },
+  particulier_secondaire: { badge: 'Résid. sec.',    couleur: 'gris' },
+  professionnel:          { badge: 'Pro',             couleur: 'bleu' },
+  societe:                { badge: 'Société',         couleur: 'bleu' },
+  artisan_sous_traitant:  { badge: 'Sous-traitant',  couleur: 'bleu' },
+  syndic:                 { badge: 'Syndic',          couleur: 'violet' },
+  conciergerie:           { badge: 'Conciergerie',    couleur: 'violet' },
+  agence_immobiliere:     { badge: 'Agence immo',     couleur: 'violet' },
+  promoteur:              { badge: 'Promoteur',       couleur: 'orange' },
+  architecte:             { badge: 'Architecte',      couleur: 'orange' },
+  collectivite:           { badge: 'Collectivité',    couleur: 'vert' },
+  association:            { badge: 'Association',     couleur: 'vert' },
+  pro:                    { badge: 'Pro',             couleur: 'bleu' },
+}
+
+const AVATAR_COLORS = [
+  { bg: '#FFF3E0', color: '#E65100' },
+  { bg: '#E8EAF6', color: '#283593' },
+  { bg: '#E0F2F1', color: '#00695C' },
+  { bg: '#FCE4EC', color: '#AD1457' },
+  { bg: '#F3E5F5', color: '#6A1B9A' },
+  { bg: '#E1F5FE', color: '#01579B' },
+  { bg: '#FFF8E1', color: '#F57F17' },
+  { bg: '#EFEBE9', color: '#4E342E' },
+]
+
+function getAvatarColor(name: string) {
+  const idx = (name || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % AVATAR_COLORS.length
+  return AVATAR_COLORS[idx]
+}
+
+function getClientTypeBadge(contactType: string) {
+  const config = TYPES_CLIENT[contactType] || TYPES_CLIENT.particulier
+  return config
+}
+
 // ═══ COMPOSANT PRINCIPAL ═══
 
 export default function MessagerieArtisan({ artisan, onConversationRead, onProposerDevis }: Props) {
@@ -416,7 +456,9 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
           ) : (
             filteredConversations.map(conv => {
               const isSelected = activeConv?.id === conv.id
-              const isPro = conv.contact_type === 'pro'
+              const avatarCol = getAvatarColor(conv.contact_name || '')
+              const typeBadge = getClientTypeBadge(conv.contact_type)
+              const initials = (conv.contact_name || '?').split(' ').map(w => w.charAt(0).toUpperCase()).slice(0, 2).join('')
 
               return (
                 <div
@@ -425,20 +467,23 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                   className={`v22-msg-item ${isSelected ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`}
                 >
                   {/* Avatar */}
-                  <div className={`v22-msg-avatar ${isPro ? 'v22-msg-avatar-pro' : ''}`}>
-                    {conv.contact_name?.charAt(0)?.toUpperCase() || '?'}
+                  <div className="v22-msg-avatar" style={{ background: avatarCol.bg, color: avatarCol.color, border: 'none', width: 36, height: 36, fontSize: 13 }}>
+                    {initials}
                   </div>
                   {/* Body */}
                   <div className="v22-msg-body">
-                    <div className="v22-msg-name">{conv.contact_name || 'Contact'}</div>
+                    <div className="v22-msg-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {conv.contact_name || 'Contact'}
+                      <span className={`v22-msg-type-badge type-${typeBadge.couleur}`}>{typeBadge.badge}</span>
+                    </div>
                     <div className="v22-msg-preview">
-                      {conv.last_message_preview || (isPro ? 'Nouvelle conversation pro' : 'Nouvelle conversation')}
+                      {conv.last_message_preview || 'Nouvelle conversation'}
                     </div>
                   </div>
                   {/* Meta */}
                   <div className="v22-msg-meta">
                     <span className="v22-msg-time">{formatDate(conv.last_message_at)}</span>
-                    {conv.unread_count > 0 && <div className="v22-msg-unread-dot" />}
+                    {conv.unread_count > 0 && <div className="v22-msg-unread-badge">{conv.unread_count > 99 ? '99+' : conv.unread_count}</div>}
                   </div>
                 </div>
               )
@@ -462,14 +507,14 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
             {/* ── Header conversation ── */}
             <div className="v22-msg-header">
               <button onClick={() => setActiveConv(null)} className="v22-msg-back">{'\u2190'}</button>
-              <div className={`v22-msg-header-avatar ${activeConv.contact_type === 'pro' ? 'v22-msg-avatar-pro' : ''}`}>
-                {activeConv.contact_name?.charAt(0)?.toUpperCase() || '?'}
+              <div className="v22-msg-header-avatar" style={{ background: getAvatarColor(activeConv.contact_name || '').bg, color: getAvatarColor(activeConv.contact_name || '').color, border: 'none' }}>
+                {(activeConv.contact_name || '?').split(' ').map(w => w.charAt(0).toUpperCase()).slice(0, 2).join('')}
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span className="v22-msg-header-name">{activeConv.contact_name || 'Contact'}</span>
-                  <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>
-                    {activeConv.contact_type === 'pro' ? 'Professionnel' : 'Particulier'}
+                  <span className={`v22-msg-type-badge type-${getClientTypeBadge(activeConv.contact_type).couleur}`} style={{ fontSize: 10 }}>
+                    {getClientTypeBadge(activeConv.contact_type).badge}
                   </span>
                 </div>
                 <div className="v22-msg-header-sub">

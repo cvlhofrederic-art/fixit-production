@@ -3,8 +3,24 @@
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
+const CLIENT_TYPES = [
+  { value: 'particulier', label: 'Particulier', group: 'b2c' },
+  { value: 'particulier_bailleur', label: 'Propriétaire bailleur', group: 'b2c' },
+  { value: 'particulier_secondaire', label: 'Résidence secondaire', group: 'b2c' },
+  { value: 'professionnel', label: 'Professionnel', group: 'b2b' },
+  { value: 'societe', label: 'Société / Entreprise', group: 'b2b' },
+  { value: 'artisan_sous_traitant', label: 'Artisan / Sous-traitant', group: 'b2b' },
+  { value: 'syndic', label: 'Syndic de copropriété', group: 'b2b' },
+  { value: 'conciergerie', label: 'Conciergerie / Gestion locative', group: 'b2b' },
+  { value: 'agence_immobiliere', label: 'Agence immobilière', group: 'b2b' },
+  { value: 'promoteur', label: 'Promoteur immobilier', group: 'b2b' },
+  { value: 'architecte', label: "Architecte / Maître d'œuvre", group: 'b2b' },
+  { value: 'collectivite', label: 'Collectivité / Mairie', group: 'b2b' },
+  { value: 'association', label: 'Association', group: 'b2b' },
+] as const
+
 const EMPTY_CLIENT_FORM = {
-  type: 'particulier' as 'particulier' | 'professionnel',
+  type: 'particulier' as string,
   name: '',
   email: '',
   phone: '',
@@ -66,7 +82,10 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
     ...manualClients.map(c => ({ ...c, source: 'manual' })),
   ]
 
-  const isEntreprise = (c: any) => c.type === 'professionnel' || Boolean(c.siret && c.siret.trim())
+  const isEntreprise = (c: any) => {
+    const b2bTypes = CLIENT_TYPES.filter(t => t.group === 'b2b').map(t => t.value)
+    return b2bTypes.includes(c.type) || Boolean(c.siret && c.siret.trim())
+  }
 
   const filtered = allClients.filter(c => {
     const searchFields = [c.name, c.email, c.phone, c.mainAddress || c.address, c.siret, c.notes]
@@ -173,25 +192,33 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
               <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Type toggle */}
+              {/* Type client dropdown */}
               <div>
                 <label className="v22-form-label">{t('proDash.clients.typeDeClient')}</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {(['particulier', 'professionnel'] as const).map(ct => (
-                    <button
-                      key={ct}
-                      onClick={() => setClientForm(prev => ({
-                        ...prev,
-                        type: ct,
-                        mainAddressLabel: ct === 'professionnel' ? t('proDash.clients.siegeSocial') : t('proDash.clients.domicile'),
-                      }))}
-                      className={`v22-btn ${clientForm.type === ct ? 'v22-btn-primary' : ''}`}
-                      style={{ flex: 1 }}
-                    >
-                      {ct === 'particulier' ? t('proDash.clients.particulierType') : t('proDash.clients.professionnelType')}
-                    </button>
-                  ))}
-                </div>
+                <select
+                  value={clientForm.type}
+                  onChange={e => {
+                    const ct = e.target.value
+                    const isB2B = CLIENT_TYPES.find(t => t.value === ct)?.group === 'b2b'
+                    setClientForm(prev => ({
+                      ...prev,
+                      type: ct,
+                      mainAddressLabel: isB2B ? t('proDash.clients.siegeSocial') : t('proDash.clients.domicile'),
+                    }))
+                  }}
+                  className="v22-form-input"
+                >
+                  <optgroup label="Particuliers (B2C)">
+                    {CLIENT_TYPES.filter(ct => ct.group === 'b2c').map(ct => (
+                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Professionnels (B2B)">
+                    {CLIENT_TYPES.filter(ct => ct.group === 'b2b').map(ct => (
+                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
 
               {/* Name */}
