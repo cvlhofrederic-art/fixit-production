@@ -38,6 +38,8 @@ export interface DevisGeneratorInput {
   etapes?: EtapeIntervention[]
   acomptes?: Acompte[]
   signature?: SignatureData
+  notes?: string
+  mediateur?: string
 }
 
 export interface LigneDevis {
@@ -81,7 +83,9 @@ const MARGIN = 15 // mm each side
 // ─── Helpers ──────────────────────────────────────────────────
 
 function formatPrice(n: number): string {
-  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20AC'
+  const parts = n.toFixed(2).split('.')
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+  return intPart + ',' + parts[1] + ' \u20AC'
 }
 
 function formatDate(d: Date): string {
@@ -223,13 +227,33 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   drawHLine(emX + boxW / 2 - 10, boxStartY + boxPad + 2, emX + boxW / 2 + 10, BORDER, 0.2)
 
   let ey = boxStartY + boxPad + 5
-  ey += writeLabelValue('Entreprise : ', input.artisan.nom, emLx, ey, emMaxW)
-  ey += writeLabelValue('SIRET : ', input.artisan.siret, emLx, ey, emMaxW)
-  if (input.artisan.rm) ey += writeLabelValue('RM : ', input.artisan.rm, emLx, ey, emMaxW)
-  ey += writeLabelValue('Adresse : ', input.artisan.adresse, emLx, ey, emMaxW)
-  ey += writeLabelValue('Tél : ', input.artisan.telephone, emLx, ey, emMaxW)
-  ey += writeLabelValue('Email : ', input.artisan.email, emLx, ey, emMaxW)
-  if (input.artisan.rc_pro) ey += writeLabelValue('RC Pro : ', input.artisan.rc_pro, emLx, ey, emMaxW)
+
+  // Name — bold, standalone
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  pdf.setTextColor('#000000')
+  pdf.text(input.artisan.nom, emLx, ey)
+  ey += 4
+
+  // Remaining lines — normal weight, with or without prefix
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.5)
+  pdf.setTextColor('#333333')
+
+  const emLines: string[] = []
+  emLines.push(`SIRET : ${input.artisan.siret}`)
+  if (input.artisan.rm) emLines.push(input.artisan.rm)
+  // Address — split by comma to wrap naturally
+  const addrWrapped = pdf.splitTextToSize(input.artisan.adresse, emMaxW - 4)
+  emLines.push(...addrWrapped)
+  emLines.push(`Tél : ${input.artisan.telephone}`)
+  emLines.push(input.artisan.email)
+  if (input.artisan.rc_pro) emLines.push(`RC Pro ${input.artisan.rc_pro}`)
+
+  for (const line of emLines) {
+    pdf.text(line, emLx, ey)
+    ey += 3.5
+  }
 
   // ── Destinataire (RIGHT) ──
   const destX = emX + boxW + 6
@@ -243,10 +267,31 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   drawHLine(destX + boxW / 2 - 10, boxStartY + boxPad + 2, destX + boxW / 2 + 10, BORDER, 0.2)
 
   let dy = boxStartY + boxPad + 5
-  dy += writeLabelValue('Nom : ', input.client.nom, destLx, dy, destMaxW)
-  if (input.client.adresse) dy += writeLabelValue('Adresse : ', input.client.adresse, destLx, dy, destMaxW)
-  if (input.client.telephone) dy += writeLabelValue('Tél : ', input.client.telephone, destLx, dy, destMaxW)
-  if (input.client.email) dy += writeLabelValue('Email : ', input.client.email, destLx, dy, destMaxW)
+
+  // Name — bold, standalone
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  pdf.setTextColor('#000000')
+  pdf.text(input.client.nom, destLx, dy)
+  dy += 4
+
+  // Remaining lines — normal weight
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.5)
+  pdf.setTextColor('#333333')
+
+  const destLines: string[] = []
+  if (input.client.adresse) {
+    const addrLines = pdf.splitTextToSize(input.client.adresse, destMaxW - 4)
+    destLines.push(...addrLines)
+  }
+  if (input.client.telephone) destLines.push(`Tél : ${input.client.telephone}`)
+  if (input.client.email) destLines.push(input.client.email)
+
+  for (const line of destLines) {
+    pdf.text(line, destLx, dy)
+    dy += 3.5
+  }
 
   const boxH = Math.max(ey, dy) - boxStartY + 3
   pdf.setDrawColor(BORDER)
@@ -608,8 +653,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFont('helvetica', 'italic')
     pdf.setFontSize(6.5)
     pdf.setTextColor('#777777')
-    pdf.text('Mention manuscrite "Bon pour accord"', sigX + 4, blockStartY + 12)
-    pdf.text('Lu et approuvé, bon pour travaux.', sigX + 4, blockStartY + 16)
+    const bonText = pdf.splitTextToSize('Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.', sigW - 10)
+    pdf.text(bonText, sigX + 4, blockStartY + 12)
 
     drawHLine(sigX + 4, blockStartY + 24, sigX + sigW - 4, '#D1D5DB', 0.2)
     pdf.setFont('helvetica', 'normal')
@@ -626,6 +671,30 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   y = blockStartY + condH + 6
 
   // ═══════════════════════════════════════════════════════════
+  // NOTES (optional)
+  // ═══════════════════════════════════════════════════════════
+
+  if (input.notes && input.notes.trim()) {
+    ensureSpace(20)
+
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    pdf.setTextColor('#000000')
+    pdf.text('NOTES', MARGIN + 4, y + 4)
+    const notesY = y + 8
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+    pdf.setTextColor('#555555')
+    const notesWrapped = pdf.splitTextToSize(input.notes.trim(), contentW - 12)
+    pdf.text(notesWrapped, MARGIN + 4, notesY)
+    const notesBoxH = 10 + notesWrapped.length * 3
+    pdf.setDrawColor(BORDER)
+    pdf.setLineWidth(0.3)
+    pdf.roundedRect(MARGIN, y, contentW, notesBoxH, 1.5, 1.5, 'S')
+    y += notesBoxH + 4
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // FOOTER LEGAL (7px)
   // ═══════════════════════════════════════════════════════════
 
@@ -638,7 +707,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     "Devis gratuit, conform\u00E9ment \u00E0 l'article L. 111-1 du Code de la consommation.",
     'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).',
     'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.',
-    'M\u00E9diation de la consommation (art. L. 612-1 C. conso.).',
+    input.mediateur
+      ? `M\u00E9diation de la consommation : ${input.mediateur} (art. L. 612-1 C. conso.).`
+      : 'M\u00E9diation de la consommation (art. L. 612-1 C. conso.).',
     `Document g\u00E9n\u00E9r\u00E9 par Vitfix Pro le ${genDate}.`,
   ]
 
@@ -720,14 +791,14 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   ensureSpace(80)
 
+  // Black banner — 8mm height
+  pdf.setFillColor(...hexToRgb('#333333'))
+  pdf.rect(MARGIN, y, contentW, 8, 'F')
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(12)
-  pdf.setTextColor('#000000')
-  pdf.text('FORMULAIRE DE RÉTRACTATION', pageW / 2, y, { align: 'center' })
-  y += 6
-
-  drawHLine(MARGIN, y, MARGIN + contentW, ACCENT, 0.7)
-  y += 6
+  pdf.setFontSize(11)
+  pdf.setTextColor('#FFFFFF')
+  pdf.text('FORMULAIRE DE RÉTRACTATION', pageW / 2, y + 5.5, { align: 'center' })
+  y += 12
 
   pdf.setFont('helvetica', 'italic')
   pdf.setFontSize(7)
@@ -793,6 +864,19 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFontSize(6)
   pdf.setTextColor(GRAY_LABEL)
   pdf.text('(*) Rayez la mention inutile.', MARGIN + 4, y)
+
+  // ═══════════════════════════════════════════════════════════
+  // PAGE NUMBERING — stamp "Page X/Y" on every page
+  // ═══════════════════════════════════════════════════════════
+
+  const totalPages = pdf.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+    pdf.setTextColor(GRAY_LABEL)
+    pdf.text(`Page ${i}/${totalPages}`, pageW - MARGIN, pageH - 5, { align: 'right' })
+  }
 
   return pdf
 }

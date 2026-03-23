@@ -1105,6 +1105,8 @@ export default function DevisFactureForm({
             statut: 'en attente' as const,
           }
         }) : undefined,
+        notes: notes || undefined,
+        mediateur: mediatorName || undefined,
       }
       const pdf = await generateDevisPdfV2(input)
       pdf.save(`TEST-V2_${docNumber || 'devis'}.pdf`)
