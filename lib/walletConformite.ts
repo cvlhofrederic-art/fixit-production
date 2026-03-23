@@ -318,10 +318,22 @@ export const WALLET_PAR_METIER: Record<string, MetierConfig> = {
   },
 }
 
-// ── Mapping catégorie artisan → clé wallet ───────────────────
-// Le champ artisan.category contient le label français du métier
+// ── Mapping slug d'inscription → clé wallet ──────────────────
+// Les slugs viennent du formulaire d'inscription (ex: 'espaces-verts' → 'espaces_verts')
+export function slugToWalletKey(slug: string): string | null {
+  const key = slug.replace(/-/g, '_').toLowerCase()
+  return WALLET_PAR_METIER[key] ? key : null
+}
+
+// ── Mapping label français → clé wallet (fallback texte libre) ─
 export function categoryToWalletKey(category: string | undefined | null): string | null {
   if (!category) return null
+
+  // 1. Essai direct via slug (ex: 'espaces-verts', 'nettoyage')
+  const direct = slugToWalletKey(category)
+  if (direct) return direct
+
+  // 2. Regex sur label français normalisé (accents supprimés)
   const c = category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
   const MAP: [RegExp, string][] = [
@@ -337,10 +349,10 @@ export function categoryToWalletKey(category: string | undefined | null): string
     [/carrela|carrel|faience|mosaiq/, 'carrelage'],
     [/renov|rehabilit|restaur/, 'renovation'],
     [/amena.ext|exterieu|jardin.*amenag/, 'amenagement_exterieur'],
-    [/espac.vert|paysag|jardin|elagage|tonte/, 'espaces_verts'],
+    [/espac.vert|paysag|elagu|jardin|tonte/, 'espaces_verts'],
     [/nettoy|propret|menage/, 'nettoyage'],
     [/nuisib|desrat|desinsect|3d\b/, 'traitement_nuisibles'],
-    [/demenag|transport|demenag/, 'demenagement'],
+    [/demenag|transport/, 'demenagement'],
     [/vitrer|vitr|vitrail|glassier/, 'vitrerie'],
     [/petit.trav|handyman|multi.serv/, 'petits_travaux'],
     [/ferronn|metalier|soudure|grille/, 'ferronnerie'],
@@ -353,10 +365,37 @@ export function categoryToWalletKey(category: string | undefined | null): string
 }
 
 // ── Obtenir les documents pour un artisan ───────────────────
-export function getWalletDocuments(category: string | undefined | null): { docs: WalletDocConfig[]; metierLabel: string | null; fallback: boolean } {
-  const key = categoryToWalletKey(category)
-  if (key && WALLET_PAR_METIER[key]) {
-    return { docs: WALLET_PAR_METIER[key].documents, metierLabel: WALLET_PAR_METIER[key].label, fallback: false }
+// categories peut être un tableau de slugs (artisan.categories) ou un string (legacy)
+export function getWalletDocuments(
+  categories: string | string[] | undefined | null
+): { docs: WalletDocConfig[]; metierLabel: string | null; fallback: boolean } {
+  const slugs = Array.isArray(categories)
+    ? categories
+    : categories ? [categories] : []
+
+  // Résoudre les clés wallet pour chaque slug/label
+  const keys = [...new Set(slugs.map(s => categoryToWalletKey(s)).filter(Boolean) as string[])]
+
+  if (keys.length === 0) {
+    return { docs: DOCUMENTS_COMMUNS, metierLabel: null, fallback: true }
   }
-  return { docs: DOCUMENTS_COMMUNS, metierLabel: null, fallback: true }
+
+  if (keys.length === 1) {
+    const cfg = WALLET_PAR_METIER[keys[0]]
+    return { docs: cfg.documents, metierLabel: cfg.label, fallback: false }
+  }
+
+  // Multi-métier : fusionner en dédupliquant par id (les communs Kbis/URSSAF/RC Pro n'apparaissent qu'une fois)
+  const seen = new Set<string>()
+  const merged: WalletDocConfig[] = []
+  for (const key of keys) {
+    for (const doc of WALLET_PAR_METIER[key].documents) {
+      if (!seen.has(doc.id)) {
+        seen.add(doc.id)
+        merged.push(doc)
+      }
+    }
+  }
+  const labels = keys.map(k => WALLET_PAR_METIER[k].label).join(' · ')
+  return { docs: merged, metierLabel: labels, fallback: false }
 }

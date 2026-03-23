@@ -243,12 +243,29 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_wallet_${artisan?.id}`
 
-  // Docs dynamiques selon le métier de l'artisan
-  const { docs: WALLET_DOCS, metierLabel, fallback } = getWalletDocuments(artisan?.category)
+  // Docs dynamiques selon le/les métier(s) de l'artisan
+  // artisan.categories est un tableau de slugs ex: ['espaces-verts', 'nettoyage']
+  const { docs: WALLET_DOCS, metierLabel, fallback } = getWalletDocuments(artisan?.categories ?? artisan?.category)
 
   const [docs, setDocs] = useState<Record<string, WalletDoc>>(() => {
     if (typeof window === 'undefined') return {}
-    try { return JSON.parse(localStorage.getItem(storageKey) || '{}') } catch { return {} }
+    try {
+      const raw = JSON.parse(localStorage.getItem(storageKey) || '{}')
+      // Migration des anciens IDs (avant refacto dynamique)
+      const LEGACY_MAP: Record<string, string> = {
+        assurance_decennale: 'decennale',
+        carte_pro_btp: 'carte_btp',
+        passeport_prevention: 'carte_btp', // fusionné dans carte BTP
+      }
+      const migrated = { ...raw }
+      for (const [oldKey, newKey] of Object.entries(LEGACY_MAP)) {
+        if (migrated[oldKey] && !migrated[newKey]) {
+          migrated[newKey] = migrated[oldKey]
+          delete migrated[oldKey]
+        }
+      }
+      return migrated
+    } catch { return {} }
   })
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [editExpiry, setEditExpiry] = useState<string | null>(null)
