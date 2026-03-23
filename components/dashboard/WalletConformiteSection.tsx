@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
-import { getWalletDocuments, type WalletDocConfig } from '@/lib/walletConformite'
+import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
 
 interface WalletDoc {
   url?: string
@@ -12,76 +12,50 @@ interface WalletDoc {
   name?: string
 }
 
-// ── Bouton "Obtenir" avec gestion des doubles liens ──────────
-function ObtainButton({ doc }: { doc: WalletDocConfig }) {
-  const [open, setOpen] = useState(false)
+// ── Auto-detect lien selon legal_form de l'artisan ──────────
+function resolveObtainLink(o: WalletDocObtenir, legalForm: string | null): string | null {
+  // Lien unique → toujours celui-là
+  if (o.lien) return o.lien
+
+  const lf = (legalForm || '').toLowerCase()
+  const isSociete = lf.includes('sarl') || lf.includes('sas') || lf.includes('eurl') || lf.includes('sa ')
+    || lf.includes('sci') || lf.includes('sci') || lf.includes('société') || lf.includes('societe')
+  const isAuto = lf.includes('auto') || lf.includes('micro')
+  const isEI = lf.includes('individuel') || lf.includes('artisan') || lf.includes(' ei')
+    || lf === 'ei' || lf.includes('personne physique')
+
+  // Priorité : match exact legal_form → fallback premier lien dispo
+  if (isSociete && o.lien_societe) return o.lien_societe
+  if (isAuto && o.lien_autoentrepreneur) return o.lien_autoentrepreneur
+  if (isAuto && o.lien_independant) return o.lien_independant
+  if (isEI && o.lien_artisan) return o.lien_artisan
+  if (isEI && o.lien_independant) return o.lien_independant
+
+  // Fallback : premier lien disponible
+  return o.lien_independant || o.lien_artisan || o.lien_autoentrepreneur || o.lien_societe || null
+}
+
+// ── Bouton "Obtenir" — envoi direct selon le type de compte ──────────
+function ObtainButton({ doc, legalForm }: { doc: WalletDocConfig; legalForm: string | null }) {
   const o = doc.obtenir
 
-  // Aucun lien → pas de bouton (ex: RC Pro, Décennale)
   const hasLink = o.lien || o.lien_societe || o.lien_artisan || o.lien_independant || o.lien_autoentrepreneur
   if (!hasLink) return null
 
-  // Lien unique
-  if (o.lien && !o.lien_societe && !o.lien_artisan && !o.lien_independant && !o.lien_autoentrepreneur) {
-    return (
-      <a
-        href={o.lien}
-        target="_blank"
-        rel="noreferrer"
-        className="v22-btn v22-btn-sm"
-        style={{ fontSize: 11, color: 'var(--v22-blue, #3B82F6)', border: '1px solid var(--v22-blue, #3B82F6)', background: 'transparent', textDecoration: 'none', whiteSpace: 'nowrap' }}
-        title={o.note}
-      >
-        Obtenir ↗
-      </a>
-    )
-  }
-
-  // Double lien → dropdown
-  const links: { label: string; href: string }[] = []
-  if (o.lien_societe) links.push({ label: 'Société (SARL, SAS…)', href: o.lien_societe })
-  if (o.lien_artisan) links.push({ label: 'Artisan / EI / micro', href: o.lien_artisan })
-  if (o.lien_independant) links.push({ label: 'Indépendant / Artisan', href: o.lien_independant })
-  if (o.lien_autoentrepreneur) links.push({ label: 'Auto-entrepreneur', href: o.lien_autoentrepreneur })
+  const resolvedLink = resolveObtainLink(o, legalForm)
+  if (!resolvedLink) return null
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="v22-btn v22-btn-sm"
-        style={{ fontSize: 11, color: 'var(--v22-blue, #3B82F6)', border: '1px solid var(--v22-blue, #3B82F6)', background: 'transparent', whiteSpace: 'nowrap' }}
-      >
-        Obtenir ↗
-      </button>
-      {open && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
-          <div style={{
-            position: 'absolute', right: 0, top: '100%', marginTop: 4,
-            background: 'var(--v22-card)', border: '1px solid var(--v22-border)',
-            borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-            zIndex: 51, minWidth: 200, overflow: 'hidden',
-          }}>
-            {links.map(l => (
-              <a
-                key={l.href}
-                href={l.href}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => setOpen(false)}
-                style={{
-                  display: 'block', padding: '8px 14px', fontSize: 12,
-                  color: 'var(--v22-text)', textDecoration: 'none',
-                  borderBottom: '1px solid var(--v22-border)',
-                }}
-              >
-                {l.label} ↗
-              </a>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <a
+      href={resolvedLink}
+      target="_blank"
+      rel="noreferrer"
+      className="v22-btn v22-btn-sm"
+      style={{ fontSize: 11, color: 'var(--v22-blue, #3B82F6)', border: '1px solid var(--v22-blue, #3B82F6)', background: 'transparent', textDecoration: 'none', whiteSpace: 'nowrap' }}
+      title={o.note}
+    >
+      Obtenir ↗
+    </a>
   )
 }
 
@@ -105,12 +79,13 @@ interface DocumentRowProps {
   t: (key: string) => string
   scanResult?: any
   scanning?: boolean
+  legalForm?: string | null
 }
 
 function DocumentRow({
   docDef, doc, status, isLast, uploading, editExpiry, dateLocale,
   onUploadClick, onEditExpiry, onSetExpiry, onCancelExpiry, onView, onRemove,
-  fileInputRef, onFileChange, t, scanResult, scanning,
+  fileInputRef, onFileChange, t, scanResult, scanning, legalForm,
 }: DocumentRowProps) {
   const statusTagClass = {
     missing: 'v22-tag v22-tag-gray',
@@ -278,7 +253,7 @@ function DocumentRow({
           )}
 
           {/* Bouton Obtenir */}
-          <ObtainButton doc={docDef} />
+          <ObtainButton doc={docDef} legalForm={legalForm || null} />
         </div>
       </div>
     </div>
@@ -536,6 +511,7 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
               t={t}
               scanResult={scanResults[docDef.id]}
               scanning={!!scanning[docDef.id]}
+              legalForm={(artisan?.legal_form as string) || null}
             />
           ))}
         </div>
