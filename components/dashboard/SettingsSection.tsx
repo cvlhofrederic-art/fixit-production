@@ -37,6 +37,194 @@ interface SettingsSectionProps {
   moveModule: (moduleId: string, direction: 'up' | 'down') => void
 }
 
+// ── Payment Info Card ─────────────────────────────────────────────────────
+
+interface PaymentMode {
+  type: 'virement' | 'stripe' | 'cheque' | 'especes' | 'autre'
+  iban?: string
+  bic?: string
+  titulaire?: string
+  lien?: string
+  ordre?: string
+  description?: string
+  actif: boolean
+}
+
+const DEFAULT_MODES: PaymentMode[] = [
+  { type: 'virement', iban: '', bic: '', titulaire: '', actif: false },
+  { type: 'stripe', lien: '', actif: false },
+  { type: 'cheque', ordre: '', actif: false },
+  { type: 'especes', actif: false },
+  { type: 'autre', description: '', actif: false },
+]
+
+const MODE_LABELS: Record<string, string> = {
+  virement: 'Virement bancaire',
+  stripe: 'Paiement en ligne Stripe',
+  cheque: 'Chèque',
+  especes: 'Espèces',
+  autre: 'Autre',
+}
+
+function formatIban(raw: string): string {
+  return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim()
+}
+
+function isValidIban(iban: string): boolean {
+  const clean = iban.replace(/\s/g, '')
+  return /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(clean)
+}
+
+function PaymentInfoCard({ artisanId }: { artisanId: string }) {
+  const [modes, setModes] = useState<PaymentMode[]>(DEFAULT_MODES)
+  const [mentionDevis, setMentionDevis] = useState(true)
+  const [mentionFacture, setMentionFacture] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!artisanId) return
+    fetch('/api/artisan-payment-info')
+      .then(r => r.json())
+      .then(data => {
+        if (data.paiement_modes) setModes(data.paiement_modes)
+        setMentionDevis(data.paiement_mention_devis ?? true)
+        setMentionFacture(data.paiement_mention_facture ?? true)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [artisanId])
+
+  const updateMode = (idx: number, patch: Partial<PaymentMode>) => {
+    const updated = [...modes]
+    updated[idx] = { ...updated[idx], ...patch }
+    setModes(updated)
+    setSaved(false)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/artisan-payment-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paiement_modes: modes, paiement_mention_devis: mentionDevis, paiement_mention_facture: mentionFacture }),
+      })
+      if (res.ok) setSaved(true)
+    } catch {}
+    setSaving(false)
+  }
+
+  const activeModes = modes.filter(m => m.actif)
+
+  if (loading) return <div className="v22-card"><div className="v22-card-body" style={{ textAlign: 'center', padding: 20, color: 'var(--v22-text-muted)' }}>Chargement...</div></div>
+
+  return (
+    <div className="v22-card">
+      <div className="v22-card-head">
+        <div className="v22-card-title">Informations de paiement</div>
+      </div>
+      <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+          Ces informations apparaîtront sur vos devis et factures envoyés aux clients.
+        </div>
+
+        {modes.map((mode, idx) => (
+          <div key={mode.type} style={{ borderBottom: '1px solid var(--v22-border)', paddingBottom: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+              <input type="checkbox" checked={mode.actif} onChange={(e) => updateMode(idx, { actif: e.target.checked })} />
+              {MODE_LABELS[mode.type]}
+            </label>
+
+            {mode.actif && mode.type === 'virement' && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, width: 60 }}>IBAN</label>
+                  <input className="v22-form-input" value={mode.iban || ''} onChange={(e) => updateMode(idx, { iban: e.target.value.toUpperCase() })} placeholder="FR76 XXXX XXXX XXXX" style={{ flex: 1, fontSize: 12 }} />
+                  {mode.iban && mode.iban.replace(/\s/g, '').length > 4 && (
+                    <span style={{ fontSize: 14 }}>{isValidIban(mode.iban) ? '✅' : '⚠️'}</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, width: 60 }}>BIC</label>
+                  <input className="v22-form-input" value={mode.bic || ''} onChange={(e) => updateMode(idx, { bic: e.target.value.toUpperCase() })} placeholder="BNPAFRPP" style={{ flex: 1, fontSize: 12 }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, width: 60 }}>Titulaire</label>
+                  <input className="v22-form-input" value={mode.titulaire || ''} onChange={(e) => updateMode(idx, { titulaire: e.target.value })} placeholder="Nom du titulaire" style={{ flex: 1, fontSize: 12 }} />
+                </div>
+              </div>
+            )}
+
+            {mode.actif && mode.type === 'stripe' && (
+              <div style={{ marginTop: 8, paddingLeft: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, width: 60 }}>Lien</label>
+                  <input className="v22-form-input" value={mode.lien || ''} onChange={(e) => updateMode(idx, { lien: e.target.value })} placeholder="https://buy.stripe.com/..." style={{ flex: 1, fontSize: 12 }} />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, paddingLeft: 66 }}>Le client paiera directement depuis ce lien</div>
+              </div>
+            )}
+
+            {mode.actif && mode.type === 'cheque' && (
+              <div style={{ marginTop: 8, paddingLeft: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, width: 60 }}>À l{"'"}ordre de</label>
+                  <input className="v22-form-input" value={mode.ordre || ''} onChange={(e) => updateMode(idx, { ordre: e.target.value })} placeholder="Nom" style={{ flex: 1, fontSize: 12 }} />
+                </div>
+              </div>
+            )}
+
+            {mode.actif && mode.type === 'especes' && (
+              <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 11, color: 'var(--v22-text-muted)' }}>Aucune info supplémentaire requise</div>
+            )}
+
+            {mode.actif && mode.type === 'autre' && (
+              <div style={{ marginTop: 8, paddingLeft: 24 }}>
+                <input className="v22-form-input" value={mode.description || ''} onChange={(e) => updateMode(idx, { description: e.target.value })} placeholder="PayPal, Lydia, virement étranger..." style={{ fontSize: 12 }} />
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Toggles affichage */}
+        <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={mentionDevis} onChange={(e) => { setMentionDevis(e.target.checked); setSaved(false) }} />
+            Afficher sur les devis
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="checkbox" checked={mentionFacture} onChange={(e) => { setMentionFacture(e.target.checked); setSaved(false) }} />
+            Afficher sur les factures
+          </label>
+        </div>
+
+        {/* Aperçu */}
+        {activeModes.length > 0 && (
+          <div style={{ background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 8, padding: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6, color: 'var(--v22-text-muted)' }}>APERÇU SUR LE DOCUMENT</div>
+            <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MODE DE RÈGLEMENT</div>
+            {activeModes.map(m => (
+              <div key={m.type} style={{ fontSize: 11, color: 'var(--v22-text-secondary)', marginBottom: 2 }}>
+                {m.type === 'virement' && `Virement : ${formatIban(m.iban || '...')} — ${m.titulaire || '...'}`}
+                {m.type === 'stripe' && `Paiement en ligne : ${m.lien || '...'}`}
+                {m.type === 'cheque' && `Chèque à l'ordre de : ${m.ordre || '...'}`}
+                {m.type === 'especes' && 'Espèces'}
+                {m.type === 'autre' && (m.description || 'Autre mode de paiement')}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={handleSave} disabled={saving} className="v22-btn v22-btn-primary" style={{ alignSelf: 'flex-start' }}>
+          {saving ? 'Enregistrement...' : saved ? '✅ Enregistré' : 'Enregistrer les infos paiement'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Parrainage Settings Tab ────────────────────────────────────────────────
 
 function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
@@ -425,6 +613,9 @@ export default function SettingsSection({
                 </div>
               </div>
             </div>
+
+            {/* Informations de paiement */}
+            <PaymentInfoCard artisanId={artisan?.id as string} />
 
             {/* Parrainage — intégré dans Mon profil */}
             <div className="v22-card">
