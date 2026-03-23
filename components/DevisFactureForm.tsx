@@ -1051,6 +1051,71 @@ export default function DevisFactureForm({
     setTimeout(() => setSavedMsg(''), 3000)
   }
 
+  // ─── TEST PDF V2 (parallel generator, rollback-safe) ───
+  const handleTestPdfV2 = async () => {
+    setPdfLoading(true)
+    try {
+      const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
+      const input = {
+        artisan: {
+          logo_url: (artisan?.logo_url as string) || null,
+          nom: companyName || artisan?.company_name || '',
+          siret: companySiret || '',
+          rm: (artisan?.rm as string) || null,
+          adresse: companyAddress || '',
+          telephone: companyPhone || '',
+          email: companyEmail || '',
+          rc_pro: (artisan?.rc_pro as string) || null,
+          tva_mention: tvaEnabled ? 'TVA applicable' : 'TVA non applicable, article 293 B du CGI.',
+          mode_paiement: paymentMode || 'Virement bancaire',
+        },
+        client: {
+          nom: clientName || '',
+          adresse: clientAddress || null,
+          telephone: clientPhone || null,
+          email: clientEmail || null,
+        },
+        devis: {
+          numero: docNumber || 'DEVIS-TEST',
+          titre: docTitle || (docType === 'devis' ? 'DEVIS' : 'FACTURE'),
+          date_emission: new Date(docDate),
+          validite_jours: docValidity || 30,
+          delai_execution: executionDelay || 'À convenir',
+          date_prestation: prestationDate ? new Date(prestationDate) : null,
+        },
+        mode_affichage: 'bloc' as const,
+        lignes: lines.filter(l => l.description.trim()).map(l => ({
+          designation: l.description,
+          quantite: l.qty,
+          unite: l.unit || 'u',
+          prix_unitaire: l.priceHT,
+          total: l.totalHT,
+          section: null,
+        })),
+        etapes: devisEtapes.filter(e => e.designation.trim()).map(e => ({
+          ordre: e.ordre,
+          designation: e.designation,
+        })),
+        acomptes: acomptesEnabled ? acomptes.map(ac => {
+          const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
+          return {
+            label: ac.label,
+            montant: totalNet * ac.pourcentage / 100,
+            declencheur: ac.declencheur,
+            statut: 'en attente' as const,
+          }
+        }) : undefined,
+      }
+      const pdf = await generateDevisPdfV2(input)
+      pdf.save(`TEST-V2_${docNumber || 'devis'}.pdf`)
+    } catch (err) {
+      console.error('PDF V2 error:', err)
+      alert('Erreur PDF V2: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
   const handleGeneratePDF = async () => {
     setPdfLoading(true)
     try {
@@ -3266,6 +3331,14 @@ export default function DevisFactureForm({
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer' }}
                 >
                   {pdfLoading ? t('devis.generatingPdf') : t('devis.downloadPdf')}
+                </button>
+                <button
+                  onClick={handleTestPdfV2}
+                  disabled={pdfLoading}
+                  className="v22-btn"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer', border: '1px dashed var(--v22-yellow)', color: 'var(--v22-text-mid)', fontSize: 12 }}
+                >
+                  🧪 Tester PDF v2
                 </button>
                 <button
                   onClick={handleValidateAndSend}
