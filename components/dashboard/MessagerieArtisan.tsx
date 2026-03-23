@@ -121,7 +121,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
   const CONV_CACHE_KEY = `fixit_messagerie_convs_${artisan.id}`
   const MSG_CACHE_KEY_PREFIX = `fixit_messagerie_msgs_${artisan.id}_`
 
-  const [tab, setTab] = useState<'clients' | 'donneurs'>('clients')
+  const [tab, setTab] = useState<'all' | 'clients' | 'donneurs'>('all')
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     try { return JSON.parse(localStorage.getItem(CONV_CACHE_KEY) || '[]') } catch { return [] }
   })
@@ -144,16 +144,19 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
   const [arrivalTime, setArrivalTime] = useState('09:00')
   const [durationHours, setDurationHours] = useState(2)
 
-  // ── Charger les conversations ──
+  // ── Charger les conversations (toutes : particulier + pro) ──
   const loadConversations = useCallback(async () => {
-    const contactType = tab === 'clients' ? 'particulier' : 'pro'
     try {
-      const res = await fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=${contactType}`, { headers: await authHeader() })
-      const data = await res.json()
-      if (data.conversations) {
-        setConversations(data.conversations)
-        try { localStorage.setItem(CONV_CACHE_KEY, JSON.stringify(data.conversations)) } catch { /* quota */ }
-      }
+      const h = await authHeader()
+      const [clientsRes, proRes] = await Promise.all([
+        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=particulier`, { headers: h }),
+        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=pro`, { headers: h }),
+      ])
+      const [clientsData, proData] = await Promise.all([clientsRes.json(), proRes.json()])
+      const allConvs = [...(clientsData.conversations || []), ...(proData.conversations || [])]
+        .sort((a: Conversation, b: Conversation) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
+      setConversations(allConvs)
+      try { localStorage.setItem(CONV_CACHE_KEY, JSON.stringify(allConvs)) } catch { /* quota */ }
     } catch (e) {
       console.error('[messagerie] load conversations error:', e)
       try {
@@ -161,7 +164,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
         if (cached) setConversations(JSON.parse(cached))
       } catch { /* ignore */ }
     }
-  }, [artisan.user_id, tab, CONV_CACHE_KEY])
+  }, [artisan.user_id, CONV_CACHE_KEY])
 
   // ── Charger les compteurs non-lus ──
   const loadUnreadCounts = useCallback(async () => {
@@ -360,12 +363,15 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
     return d.toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short' })
   }
 
-  // ── Filtered conversations (toutes, sans onglets) ──
+  // ── Filtered conversations (par onglet + recherche) ──
   const filteredConversations = conversations.filter(conv => {
     const matchSearch = !search.trim() ||
       (conv.contact_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (conv.last_message_preview || '').toLowerCase().includes(search.toLowerCase())
-    return matchSearch
+    const matchTab = tab === 'all' ||
+      (tab === 'clients' && conv.contact_type === 'particulier') ||
+      (tab === 'donneurs' && conv.contact_type === 'pro')
+    return matchSearch && matchTab
   })
 
   // Quick templates
@@ -390,6 +396,27 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
           {(unreadClients + unreadPro) > 0 && (
             <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{unreadClients + unreadPro} non lu{(unreadClients + unreadPro) > 1 ? 's' : ''}</span>
           )}
+        </div>
+
+        {/* ── Onglets filtre Tous / Particuliers / Pro ── */}
+        <div style={{ display: 'flex', gap: 4, padding: '0 16px 8px' }}>
+          {(['all', 'clients', 'donneurs'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t as typeof tab)}
+              style={{
+                flex: 1, padding: '5px 0', fontSize: 11, fontWeight: tab === t ? 700 : 500,
+                background: tab === t ? 'var(--v22-yellow)' : 'transparent',
+                color: tab === t ? '#1a1a2e' : 'var(--v22-text-muted)',
+                border: tab === t ? 'none' : '1px solid var(--v22-border)',
+                borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+              }}
+            >
+              {t === 'all' ? 'Tous' : t === 'clients' ? 'Particuliers' : 'Pro'}
+              {t === 'clients' && unreadClients > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadClients}</span>}
+              {t === 'donneurs' && unreadPro > 0 && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700 }}>{unreadPro}</span>}
+            </button>
+          ))}
         </div>
 
         {/* ── Recherche ── */}
