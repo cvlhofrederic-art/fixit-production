@@ -2955,10 +2955,10 @@ export default function DevisFactureForm({
               <div className="v22-card-body" style={{ padding: 0 }}>
                 {/* Table */}
                 <div style={{ overflowX: 'auto' }}>
-                  <table className="v22-devis-table" style={{ minWidth: 600 }}>
+                  <table className="v22-devis-table" style={{ minWidth: 600, tableLayout: 'fixed', width: '100%' }}>
                     <thead>
                       <tr>
-                        <th style={{ width: '30%' }}>{t('devis.designation')}</th>
+                        <th style={{ width: '30%', overflow: 'hidden' }}>{t('devis.designation')}</th>
                         <th style={{ width: '8%' }}>{t('devis.qty')}</th>
                         <th style={{ width: '10%' }}>{t('devis.unit')}</th>
                         <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
