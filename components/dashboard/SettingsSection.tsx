@@ -589,17 +589,28 @@ export default function SettingsSection({
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className="v22-btn v22-btn-sm">
-                      {logoUploading ? '⏳ Upload en cours...' : '🏢 Logo entreprise (PDF)'}
-                      <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={(e) => {
+                      {logoUploading ? '⏳ Enregistrement...' : '🏢 Logo entreprise (PDF)'}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
                         const f = e.target.files?.[0]
                         if (!f) return
-                        if (f.size > 2 * 1024 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 2 Mo)', type: 'error' }); return }
-                        // Preview immédiat
-                        const reader = new FileReader()
-                        reader.onload = (ev) => setLogoPreview(ev.target?.result as string)
-                        reader.readAsDataURL(f)
-                        // Upload auto — pas de bouton Envoyer
-                        uploadDocument(f, 'logos', 'logo_url', setLogoUploading)
+                        if (f.size > 500 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 500 Ko)', type: 'error' }); return }
+                        setLogoUploading(true)
+                        try {
+                          // Convertir en base64 et sauver directement en DB (bypass Storage)
+                          const base64 = await new Promise<string>((resolve) => {
+                            const reader = new FileReader()
+                            reader.onload = (ev) => resolve(ev.target?.result as string)
+                            reader.readAsDataURL(f)
+                          })
+                          setLogoPreview(base64)
+                          const { error } = await supabase.from('profiles_artisan').update({ logo_url: base64 }).eq('id', artisan.id)
+                          if (error) throw new Error(error.message)
+                          setUploadMsg({ text: '✅ Logo enregistré !', type: 'success' })
+                        } catch (err: any) {
+                          setUploadMsg({ text: `❌ ${err.message}`, type: 'error' })
+                        } finally {
+                          setLogoUploading(false)
+                        }
                       }} />
                     </label>
                     <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>PNG, JPG ou WebP. Max 2 Mo. Apparaît en haut à gauche des devis.</div>
