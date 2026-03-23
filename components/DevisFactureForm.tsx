@@ -207,6 +207,28 @@ interface DevisFactureFormProps {
 // ═══════════════════════════════════════════════
 
 // Map official legal form labels from API to internal codes
+/** Normalise une adresse ALL CAPS (API BAN) en Title Case */
+function titleCaseAddress(addr: string): string {
+  if (!addr) return addr
+  if (addr !== addr.toUpperCase()) return addr
+  const lowerWords = new Set(['de', 'du', 'des', 'le', 'la', 'les', 'l', 'en', 'et', 'au', 'aux', 'sur'])
+  const abbrMap: Record<string, string> = {
+    'RES': 'Rés.', 'RESIDENCE': 'Résidence', 'BAT': 'Bât.', 'BATIMENT': 'Bâtiment',
+    'AV': 'Av.', 'AVENUE': 'Avenue', 'BD': 'Bd', 'BOULEVARD': 'Boulevard',
+    'RUE': 'Rue', 'IMPASSE': 'Impasse', 'ALLEE': 'Allée', 'CHEMIN': 'Chemin',
+    'PLACE': 'Place', 'ROUTE': 'Route', 'COURS': 'Cours', 'CEDEX': 'Cedex',
+  }
+  return addr.split(/(\s+|,\s*)/g).map((part, idx) => {
+    const t = part.trim()
+    if (!t || /^[\s,]+$/.test(part)) return part
+    if (/^\d{5}$/.test(t)) return t
+    if (abbrMap[t]) return abbrMap[t]
+    const lo = t.toLowerCase()
+    if (idx > 0 && lowerWords.has(lo)) return lo
+    return lo.charAt(0).toUpperCase() + lo.slice(1)
+  }).join('')
+}
+
 function mapLegalFormToCode(legalForm: string): string {
   if (!legalForm) return 'ei'
   const lower = legalForm.toLowerCase()
@@ -1326,60 +1348,33 @@ export default function DevisFactureForm({
       const boxPadX = ptToMm(11)  // ~3.88mm padding intérieur
       const boxPadTop = ptToMm(8)  // ~2.82mm padding top
 
-      // ── Contenu émetteur ──
+      // ── Mesure hauteur émetteur (PAS de pdf.text ici — FIX doublon V5) ──
       let ey = boxStartY + boxPadTop
       const emTx = boxX_em + boxPadX
       const emMaxW = emBoxW - boxPadX * 2
 
-      // Label "ÉMETTEUR"
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey)
-      ey += ptToMm(18)  // ~6.35mm
+      ey += ptToMm(18)  // label ÉMETTEUR
+      ey += ptToMm(14)  // nom entreprise
+      if (companySiret) ey += ptToMm(14)
+      if (companyRCS) ey += ptToMm(14)
+      if (companyAddress) ey += ptToMm(14)  // adresse sur 1 ligne
+      if (companyPhone) ey += ptToMm(14)
+      if (companyEmail) ey += ptToMm(14)
+      if (tvaEnabled && tvaNumber) ey += ptToMm(14)
+      if (companyCapital) ey += ptToMm(14)
 
-      // Nom entreprise (bold 10pt)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      pdf.text(companyName, emTx, ey)
-      ey += ptToMm(14)  // ~4.94mm espacement standard
-
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey); ey += ptToMm(14) }
-      if (companyRCS) { pdf.text(`RM ${companyRCS}`, emTx, ey); ey += ptToMm(14) }
-      if (companyAddress) {
-        const addrLines = pdf.splitTextToSize(`Adresse : ${companyAddress}`, emMaxW)
-        pdf.text(addrLines, emTx, ey); ey += addrLines.length * ptToMm(14)
-      }
-      if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey); ey += ptToMm(14) }
-      if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey); ey += ptToMm(14) }
-      if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey); ey += ptToMm(14) }
-      if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey); ey += ptToMm(14) }
-
-      // ── Contenu destinataire ──
+      // ── Mesure hauteur destinataire (PAS de pdf.text ici) ──
       let dy2 = boxStartY + boxPadTop
       const destTx = boxX_dest + boxPadX
       const destMaxW = destBoxW - boxPadX * 2
 
-      // Label "DESTINATAIRE"
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(locale === 'pt' ? 'DESTINATÁRIO' : 'DESTINATAIRE', destTx, dy2)
-      dy2 += ptToMm(18)
-
-      // Nom client (bold 10pt)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      pdf.text(clientName || '---', destTx, dy2)
-      dy2 += ptToMm(14)
-
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      if (clientAddress) {
-        const cAddrLines = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
-        pdf.text(cAddrLines, destTx, dy2); dy2 += cAddrLines.length * ptToMm(14)
-      }
-      if (interventionAddress) {
-        const iAddrLines = pdf.splitTextToSize(`${locale === 'pt' ? 'Local' : 'Intervention'} : ${interventionAddress}`, destMaxW)
-        pdf.text(iAddrLines, destTx, dy2); dy2 += iAddrLines.length * ptToMm(14)
-      }
-      if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy2); dy2 += ptToMm(14) }
-      if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy2); dy2 += ptToMm(14) }
-      if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy2); dy2 += ptToMm(14) }
+      dy2 += ptToMm(18)  // label DESTINATAIRE
+      dy2 += ptToMm(14)  // nom client
+      if (clientAddress) dy2 += ptToMm(14)
+      if (interventionAddress) dy2 += ptToMm(14)
+      if (clientPhone) dy2 += ptToMm(14)
+      if (clientEmail) dy2 += ptToMm(14)
+      if (clientSiret) dy2 += ptToMm(14)
 
       // Calculer la hauteur max et dessiner les encadrés
       const boxH = Math.max(ey, dy2) - boxStartY + boxPadTop
@@ -1399,10 +1394,23 @@ export default function DevisFactureForm({
       ey2 += ptToMm(14)
       pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
       if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
-      if (companyRCS) { pdf.text(`RM ${companyRCS}`, emTx, ey2); ey2 += ptToMm(14) }
+      if (companyRCS) {
+        // FIX RM anti-doublon : ne pas ajouter "RM" si déjà présent
+        let rmRaw = companyRCS.trim()
+        if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
+        const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
+        pdf.text(rmDisplay, emTx, ey2); ey2 += ptToMm(14)
+      }
       if (companyAddress) {
-        const addrL = pdf.splitTextToSize(`Adresse : ${companyAddress}`, emMaxW)
-        pdf.text(addrL, emTx, ey2); ey2 += addrL.length * ptToMm(14)
+        // FIX adresse : titleCase + single line (réduire police si trop long)
+        const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
+        const addrText = `Adresse : ${addrNorm}`
+        let addrFs = 10
+        pdf.setFontSize(addrFs)
+        if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 9; pdf.setFontSize(addrFs) }
+        if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 8; pdf.setFontSize(addrFs) }
+        pdf.text(addrText, emTx, ey2); ey2 += ptToMm(14)
+        pdf.setFontSize(10)
       }
       if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
       if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
@@ -1687,17 +1695,16 @@ export default function DevisFactureForm({
 
       y += totH + 6
 
-      // ═══ 8b. ÉCHÉANCIER DE PAIEMENT (si acomptes) ═══
+      // ═══ 8b. ACOMPTES (côté GAUCHE, entre TOTAL NET et CONDITIONS) ═══
       if (acomptesEnabled && acomptes.length > 0) {
         checkPageBreak(30)
-        // Même layout que spec section 8 : moitié droite
         pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
         const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
         for (const ac of acomptes) {
           if (ac.pourcentage <= 0) continue
           const montant = acompteTotal * ac.pourcentage / 100
           const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
-          pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur} = ${localeFormats.currencyFormat(montant)}`, totBoxX + boxPadX, y)
+          pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur} = ${localeFormats.currencyFormat(montant)}`, mL, y)
           y += ptToMm(13)
         }
         y += 4
