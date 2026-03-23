@@ -535,49 +535,8 @@ export default function SettingsSection({
                   </div>
                 )}
 
-                {/* Avatar */}
+                {/* Logo entreprise — remplace photo de profil */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    {profilePhotoPreview ? (
-                      <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
-                    ) : (artisan as any)?.profile_photo_url ? (
-                      <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="64px" />
-                    ) : (
-                      <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-text-muted)' }}>{initials}</span>
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} className="v22-btn v22-btn-sm">
-                      {'📷'} {t('proDash.settings.choisirPhoto')}
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
-                        const f = e.target.files?.[0]
-                        if (!f) return
-                        setProfilePhotoFile(f)
-                        const reader = new FileReader()
-                        reader.onload = (ev) => setProfilePhotoPreview(ev.target?.result as string)
-                        reader.readAsDataURL(f)
-                      }} />
-                    </label>
-                    {profilePhotoFile && (
-                      <button
-                        onClick={() => {
-                          uploadDocument(profilePhotoFile, 'profiles', 'profile_photo_url', setProfilePhotoUploading)
-                          setProfilePhotoFile(null)
-                          setProfilePhotoPreview('')
-                        }}
-                        disabled={profilePhotoUploading}
-                        className="v22-btn v22-btn-primary v22-btn-sm"
-                        style={{ marginLeft: 6, opacity: profilePhotoUploading ? 0.5 : 1 }}
-                      >
-                        {profilePhotoUploading ? `⏳ ${t('proDash.settings.uploading')}` : `⬆️ ${t('proDash.settings.upload')}`}
-                      </button>
-                    )}
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
-                  </div>
-                </div>
-
-                {/* Logo entreprise (pour devis/factures PDF) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 0', borderTop: '1px solid var(--v22-border)' }}>
                   <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: '2px dashed var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                     {logoPreview ? (
                       <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
