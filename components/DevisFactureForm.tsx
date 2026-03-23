@@ -1147,7 +1147,16 @@ export default function DevisFactureForm({
       try {
         [jsPDFMod, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
       } catch (chunkErr) {
-        window.location.reload()
+        // Chunk invalide (déploiement Vercel en cours) — retry une fois après reload
+        const retryKey = 'pdf_chunk_retry'
+        if (!sessionStorage.getItem(retryKey)) {
+          sessionStorage.setItem(retryKey, '1')
+          window.location.reload()
+        } else {
+          sessionStorage.removeItem(retryKey)
+          alert('Erreur de chargement PDF. Rechargez la page (Ctrl+R) et réessayez.')
+        }
+        setPdfLoading(false)
         return
       }
       const { jsPDF } = jsPDFMod
