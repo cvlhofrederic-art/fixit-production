@@ -80,7 +80,7 @@ const COLOR = {
   WHITE:      '#FFFFFF',
   BG_GRAY:    '#F5F5F3',
   BORDER:     '#E0E0DC',
-  ACCENT:     '#E8A020',
+  ACCENT:     '#FFD600',
   BLACK:      '#0D0D0D',
 }
 
@@ -119,6 +119,36 @@ function formatUnitForPdf(unit: string): string {
 
 function cleanDescription(desc: string): string {
   return desc.replace(/\[unit:[^\]]*\]/gi, '').replace(/\[min:[^\]]*\]/gi, '').replace(/\[max:[^\]]*\]/gi, '').replace(/\s{2,}/g, ' ').trim()
+}
+
+/** Normalise une adresse ALL CAPS venant de l'API BAN en Title Case lisible */
+function titleCaseAddress(addr: string): string {
+  if (!addr) return addr
+  // Si déjà en casse mixte (contient des minuscules), ne pas toucher
+  if (addr !== addr.toUpperCase()) return addr
+  // Mots à garder en minuscules (sauf en début)
+  const lowerWords = new Set(['de', 'du', 'des', 'le', 'la', 'les', 'l', 'en', 'et', 'au', 'aux', 'sur'])
+  // Abréviations courantes
+  const abbrMap: Record<string, string> = {
+    'RES': 'Rés.', 'RESIDENCE': 'Résidence', 'BAT': 'Bât.', 'BATIMENT': 'Bâtiment',
+    'AV': 'Av.', 'AVENUE': 'Avenue', 'BD': 'Bd', 'BOULEVARD': 'Boulevard',
+    'RUE': 'Rue', 'IMPASSE': 'Impasse', 'ALLEE': 'Allée', 'ALLÉE': 'Allée',
+    'CHEMIN': 'Chemin', 'PLACE': 'Place', 'ROUTE': 'Route', 'COURS': 'Cours',
+    'CEDEX': 'Cedex', 'ST': 'St', 'STE': 'Ste',
+  }
+  return addr.split(/(\s+|,\s*)/g).map((part, idx) => {
+    const trimmed = part.trim()
+    if (!trimmed || /^[\s,]+$/.test(part)) return part
+    // Code postal = garder tel quel
+    if (/^\d{5}$/.test(trimmed)) return trimmed
+    // Abréviation connue
+    if (abbrMap[trimmed]) return abbrMap[trimmed]
+    // Mot court = minuscule (sauf premier mot)
+    const lower = trimmed.toLowerCase()
+    if (idx > 0 && lowerWords.has(lower)) return lower
+    // Title case standard
+    return lower.charAt(0).toUpperCase() + lower.slice(1)
+  }).join('')
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -257,9 +287,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (input.artisan.siret) ey += ptToMm(14)
   if (input.artisan.rm) ey += ptToMm(14)
   if (input.artisan.adresse) {
-    pdf.setFontSize(10); pdf.setFont('helvetica', 'normal')
-    const addrLines = pdf.splitTextToSize(`Adresse : ${input.artisan.adresse}`, emMaxW)
-    ey += addrLines.length * ptToMm(14)
+    ey += ptToMm(14)  // une seule ligne, pas de wrap
   }
   if (input.artisan.telephone) ey += ptToMm(14)
   if (input.artisan.email) ey += ptToMm(14)
@@ -306,17 +334,29 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     ey2 += ptToMm(14)
   }
   if (input.artisan.rm) {
-    // Spec: si la donnée commence déjà par "RM ", ne pas doubler
-    const rmText = input.artisan.rm.startsWith('RM ') ? input.artisan.rm : `RM ${input.artisan.rm}`
-    // Ajouter " : " entre label et numéro si pas déjà présent
-    const rmDisplay = rmText.includes(' : ') ? rmText : rmText.replace(/^(RM\s+\S+)\s+/, '$1 : ')
+    // Données Supabase: "RM Marseille 953951589" ou "Marseille 953951589" ou "953951589"
+    let rmRaw = input.artisan.rm.trim()
+    // Ne pas doubler le préfixe RM
+    if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
+    // Insérer " : " entre le label (RM Ville) et le numéro
+    // Pattern: "RM Marseille 953951589" → "RM Marseille : 953951589"
+    const rmDisplay = rmRaw.includes(' : ')
+      ? rmRaw
+      : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
     pdf.text(rmDisplay, emTx, ey2)
     ey2 += ptToMm(14)
   }
   if (input.artisan.adresse) {
-    const addrLines = pdf.splitTextToSize(`Adresse : ${input.artisan.adresse}`, emMaxW)
-    pdf.text(addrLines, emTx, ey2)
-    ey2 += addrLines.length * ptToMm(14)
+    // Normaliser ALL CAPS + jamais sur 2 lignes (réduire police si trop long)
+    const addrNorm = titleCaseAddress(input.artisan.adresse)
+    const addrText = `Adresse : ${addrNorm}`
+    let addrFontSize = 10
+    pdf.setFontSize(addrFontSize)
+    if (pdf.getTextWidth(addrText) > emMaxW) { addrFontSize = 9; pdf.setFontSize(addrFontSize) }
+    if (pdf.getTextWidth(addrText) > emMaxW) { addrFontSize = 8; pdf.setFontSize(addrFontSize) }
+    pdf.text(addrText, emTx, ey2)
+    pdf.setFontSize(10) // reset
+    ey2 += ptToMm(14)
   }
   if (input.artisan.telephone) {
     pdf.text(`Tél : ${input.artisan.telephone}`, emTx, ey2)
@@ -373,25 +413,29 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     { label: 'DATE PRESTATION', value: input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—' },
   ]
 
-  const colW = contentW / dateCols.length
+  // Séparateurs verticaux — coordonnées exactes du PDF de référence
+  const dateVSeps = [60.52, 103.05, 147.51]
+  // Centres de chaque colonne (milieu entre séparateurs)
+  const dateCenters = [
+    (ML + dateVSeps[0]) / 2,                   // ~39.26
+    (dateVSeps[0] + dateVSeps[1]) / 2,         // ~81.78
+    (dateVSeps[1] + dateVSeps[2]) / 2,         // ~125.28
+    (dateVSeps[2] + xRight) / 2,               // ~169.74
+  ]
   // Séparateur horizontal
   drawHLine(ML, dateSepY, xRight, COLOR.BORDER, 0.18)
   // Séparateurs verticaux
-  for (let i = 1; i < dateCols.length; i++) {
-    drawVLine(ML + colW * i, y, y + dateBoxH, COLOR.BORDER, 0.18)
-  }
+  dateVSeps.forEach(x => drawVLine(x, y, y + dateBoxH, COLOR.BORDER, 0.18))
 
   // Labels (ligne du haut)
   dateCols.forEach((c, i) => {
-    const cx = ML + colW * i + colW / 2
     pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
-    pdf.text(c.label, cx, y + ptToMm(14), { align: 'center' })
+    pdf.text(c.label, dateCenters[i], y + ptToMm(14), { align: 'center' })
   })
   // Valeurs (ligne du bas, bold)
   dateCols.forEach((c, i) => {
-    const cx = ML + colW * i + colW / 2
     pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
-    pdf.text(c.value, cx, dateSepY + ptToMm(17), { align: 'center' })
+    pdf.text(c.value, dateCenters[i], dateSepY + ptToMm(17), { align: 'center' })
   })
 
   y += dateBoxH + 4
@@ -445,16 +489,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.rect(ML, y, contentW, headerH, 'F')
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.WHITE)
 
+    // Coordonnées exactes du PDF de référence (JSPDF_COORDINATES.js)
     const hTextY = y + headerH / 2 + 1
-    pdf.text('DÉSIGNATION', ML + 3, hTextY)
-    const qteX = ML + tColWidths.designation + tColWidths.quantite / 2
-    pdf.text('QTÉ', qteX, hTextY, { align: 'center' })
-    const uniteX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite / 2
-    pdf.text('UNITÉ', uniteX, hTextY, { align: 'center' })
-    const prixX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite + tColWidths.prixUnit - 3
-    pdf.text('PRIX U. TTC', prixX, hTextY, { align: 'right' })
-    const totalX = ML + contentW - 3
-    pdf.text('TOTAL TTC', totalX, hTextY, { align: 'right' })
+    pdf.text('DÉSIGNATION', 21.16, hTextY)          // ~ML+3.16
+    pdf.text('QTÉ', 121.92, hTextY, { align: 'center' })
+    pdf.text('UNITÉ', 135.41, hTextY, { align: 'center' })
+    pdf.text('PRIX U. TTC', 162.26, hTextY, { align: 'right' })
+    pdf.text('TOTAL TTC', 188.71, hTextY, { align: 'right' })
 
     y += headerH
     // Ligne d'accent or sous le header (visible dans le PDF de référence)
@@ -501,21 +542,17 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.text(descLines, ML + 3, textY)
     }
 
-    // Données numériques (centrées verticalement)
+    // Données numériques — mêmes x que les headers (JSPDF_COORDINATES.js)
     const numY = y + actualRowH / 2 + 1
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
 
-    const qteX = ML + tColWidths.designation + tColWidths.quantite / 2
-    pdf.text(String(line.quantite), qteX, numY, { align: 'center' })
-    const uniteX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite / 2
-    pdf.text(formatUnitForPdf(line.unite), uniteX, numY, { align: 'center' })
-    const prixX = ML + tColWidths.designation + tColWidths.quantite + tColWidths.unite + tColWidths.prixUnit - 3
-    pdf.text(formatPrice(line.prix_unitaire), prixX, numY, { align: 'right' })
+    pdf.text(String(line.quantite), 121.92, numY, { align: 'center' })
+    pdf.text(formatUnitForPdf(line.unite), 135.41, numY, { align: 'center' })
+    pdf.text(formatPrice(line.prix_unitaire), 162.26, numY, { align: 'right' })
 
     // Total en bold
     pdf.setFont('helvetica', 'bold')
-    const totalX = ML + contentW - 3
-    pdf.text(formatPrice(line.total), totalX, numY, { align: 'right' })
+    pdf.text(formatPrice(line.total), 188.71, numY, { align: 'right' })
 
     // Bordure bas
     pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
@@ -560,15 +597,15 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setLineWidth(0.18)
   pdf.rect(ML, y, contentW, stH, 'FD')
 
-  // Mention TVA (gauche)
+  // Mention TVA (gauche) — coord ref: x=21.16
   pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
-  pdf.text(input.artisan.tva_mention, ML + boxPadX, y + stH / 2 + 1)
+  pdf.text(input.artisan.tva_mention, 21.16, y + stH / 2 + 1)
 
-  // Sous-total (droite)
+  // Sous-total (droite) — coord ref: label x=148.15, montant x=188.71
   pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text('Sous-total', xRight - 60, y + stH / 2 + 1)
+  pdf.text('Sous-total', 148.15, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(formatPrice(totalNet), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
+  pdf.text(formatPrice(totalNet), 188.71, y + stH / 2 + 1, { align: 'right' })
 
   y += stH
 
