@@ -588,32 +588,20 @@ export default function SettingsSection({
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} className="v22-btn v22-btn-sm">
-                      {'🏢'} Logo entreprise (PDF)
-                      <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={(e) => {
+                    <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className="v22-btn v22-btn-sm">
+                      {logoUploading ? '⏳ Upload en cours...' : '🏢 Logo entreprise (PDF)'}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={(e) => {
                         const f = e.target.files?.[0]
                         if (!f) return
                         if (f.size > 2 * 1024 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 2 Mo)', type: 'error' }); return }
-                        setLogoFile(f)
+                        // Preview immédiat
                         const reader = new FileReader()
                         reader.onload = (ev) => setLogoPreview(ev.target?.result as string)
                         reader.readAsDataURL(f)
+                        // Upload auto — pas de bouton Envoyer
+                        uploadDocument(f, 'logos', 'logo_url', setLogoUploading)
                       }} />
                     </label>
-                    {logoFile && (
-                      <button
-                        onClick={() => {
-                          uploadDocument(logoFile, 'logos', 'logo_url', setLogoUploading)
-                          setLogoFile(null)
-                          setLogoPreview('')
-                        }}
-                        disabled={logoUploading}
-                        className="v22-btn v22-btn-primary v22-btn-sm"
-                        style={{ marginLeft: 6, opacity: logoUploading ? 0.5 : 1 }}
-                      >
-                        {logoUploading ? '⏳ Upload...' : '⬆️ Envoyer'}
-                      </button>
-                    )}
                     <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>PNG, JPG ou WebP. Max 2 Mo. Apparaît en haut à gauche des devis.</div>
                   </div>
                 </div>

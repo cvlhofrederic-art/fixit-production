@@ -1061,7 +1061,12 @@ export default function DashboardPage() {
       fd.append('folder', folder)
       fd.append('artisan_id', artisan.id)
       fd.append('field', field)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: fd,
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur upload')
       setArtisan({ ...artisan, [field]: data.url })
