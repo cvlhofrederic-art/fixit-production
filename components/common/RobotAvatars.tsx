@@ -1,18 +1,54 @@
 // Avatars robot centralisés — Fixy (doré), Max (bleu indigo), Léa (violet)
 // Source de vérité : public/robots-design.html
 
-// ═══ FIXY — Robot doré (image PNG) ═══
-// Backup SVG : voir fixy-avatar-backup-svg.tsx si rollback nécessaire
+// ═══ FIXY — Robot jaune avec loupe (SVG) ═══
 export function FixyAvatar({ size = 40 }: { size?: number }) {
   return (
-    <img
-      src="/fixy-avatar.png"
-      alt="Fixy — Assistant IA"
-      width={size}
-      height={size}
-      style={{ width: size, height: size, objectFit: 'cover', borderRadius: size > 36 ? 12 : 8 }}
-      draggable={false}
-    />
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Body */}
+      <ellipse cx="50" cy="68" rx="22" ry="20" fill="#FFC107"/>
+      <ellipse cx="50" cy="68" rx="18" ry="16" fill="#FFD54F"/>
+      {/* Belly circle */}
+      <circle cx="50" cy="70" r="6" fill="#FF9800" opacity="0.3"/>
+      {/* Head */}
+      <ellipse cx="50" cy="34" rx="20" ry="18" fill="#FFD54F"/>
+      <ellipse cx="50" cy="34" rx="18" ry="16" fill="#FFECB3"/>
+      {/* Screen/face area */}
+      <rect x="34" y="24" width="32" height="18" rx="6" fill="#1a1a2e"/>
+      {/* Eyes */}
+      <ellipse cx="43" cy="32" rx="4" ry="4.5" fill="white"/>
+      <ellipse cx="57" cy="32" rx="4" ry="4.5" fill="white"/>
+      <circle cx="43" cy="32" r="2.5" fill="#1a1a2e"/>
+      <circle cx="57" cy="32" r="2.5" fill="#1a1a2e"/>
+      {/* Eye shine */}
+      <circle cx="44.5" cy="30.5" r="1" fill="white"/>
+      <circle cx="58.5" cy="30.5" r="1" fill="white"/>
+      {/* Smile */}
+      <path d="M44 37 Q50 41 56 37" stroke="#FFD54F" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+      {/* Antenna */}
+      <line x1="50" y1="16" x2="50" y2="8" stroke="#FFC107" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="50" cy="6" r="3.5" fill="#FF9800"/>
+      <circle cx="50" cy="6" r="2" fill="#FFC107"/>
+      {/* Ears */}
+      <rect x="14" y="28" width="6" height="10" rx="3" fill="#FFC107"/>
+      <rect x="80" y="28" width="6" height="10" rx="3" fill="#FFC107"/>
+      {/* Arms */}
+      <ellipse cx="22" cy="62" rx="6" ry="5" fill="#FFD54F"/>
+      <ellipse cx="78" cy="62" rx="6" ry="5" fill="#FFD54F"/>
+      {/* Magnifying glass in right hand */}
+      <g transform="translate(78, 52) rotate(-30)">
+        <rect x="-2" y="8" width="4" height="14" rx="2" fill="#78909C"/>
+        <circle cx="0" cy="4" r="8" fill="none" stroke="#90CAF9" strokeWidth="3"/>
+        <circle cx="0" cy="4" r="5" fill="#E3F2FD" opacity="0.6"/>
+        <circle cx="-2" cy="2" r="2" fill="white" opacity="0.5"/>
+      </g>
+      {/* Legs */}
+      <rect x="38" y="86" width="8" height="8" rx="4" fill="#FFC107"/>
+      <rect x="54" y="86" width="8" height="8" rx="4" fill="#FFC107"/>
+      {/* Feet */}
+      <ellipse cx="42" cy="95" rx="6" ry="3" fill="#FF9800"/>
+      <ellipse cx="58" cy="95" rx="6" ry="3" fill="#FF9800"/>
+    </svg>
   )
 }
 
