@@ -364,6 +364,7 @@ export default function DevisFactureForm({
   const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
 
   const [lines, setLines] = useState<ProductLine[]>(initialData?.lines || [])
+  const [editingDescLineId, setEditingDescLineId] = useState<string | null>(null)
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
@@ -2768,34 +2769,61 @@ export default function DevisFactureForm({
                                       style={{ fontWeight: 600 }}
                                     />
                                     {detail && (
-                                      <div style={{
-                                        marginTop: 4,
-                                        display: 'flex',
-                                        alignItems: 'flex-start',
-                                        gap: 4,
-                                      }}>
+                                      <div style={{ position: 'relative', marginTop: 4 }}>
+                                        {editingDescLineId === line.id ? (
+                                          <textarea
+                                            autoFocus
+                                            defaultValue={detail}
+                                            rows={2}
+                                            onBlur={(e) => {
+                                              const newDetail = e.target.value.trim()
+                                              updateLine(line.id, 'description', newDetail ? `${title}\n${newDetail}` : title)
+                                              setEditingDescLineId(null)
+                                            }}
+                                            style={{
+                                              width: '100%', boxSizing: 'border-box',
+                                              padding: '4px 56px 4px 8px',
+                                              background: '#f9fafb', border: '1px solid #93c5fd',
+                                              borderRadius: 4, fontSize: 11, color: '#374151',
+                                              lineHeight: 1.4, resize: 'vertical', outline: 'none',
+                                            }}
+                                          />
+                                        ) : (
+                                          <div style={{
+                                            width: '100%', boxSizing: 'border-box',
+                                            padding: '4px 56px 4px 8px',
+                                            background: '#f9fafb', border: '1px solid #e5e7eb',
+                                            borderRadius: 4, fontSize: 11, color: '#6b7280',
+                                            lineHeight: 1.4, minHeight: 24,
+                                          }}>
+                                            {detail}
+                                          </div>
+                                        )}
+                                        {/* Boutons absolus sur le coin droit */}
                                         <div style={{
-                                          flex: 1,
-                                          padding: '3px 8px',
-                                          background: '#f9fafb',
-                                          border: '1px solid #e5e7eb',
-                                          borderRadius: 4,
-                                          fontSize: 11,
-                                          color: '#6b7280',
-                                          lineHeight: 1.4,
+                                          position: 'absolute', top: 4, right: 4,
+                                          display: 'flex', gap: 2,
                                         }}>
-                                          {detail}
+                                          <button
+                                            title="Modifier la description"
+                                            onClick={() => setEditingDescLineId(editingDescLineId === line.id ? null : line.id)}
+                                            style={{
+                                              background: editingDescLineId === line.id ? '#dbeafe' : 'none',
+                                              border: '1px solid #e5e7eb', borderRadius: 3,
+                                              padding: '1px 5px', cursor: 'pointer',
+                                              fontSize: 10, color: '#6b7280', lineHeight: 1.4,
+                                            }}
+                                          >✏️</button>
+                                          <button
+                                            title="Supprimer la description"
+                                            onClick={() => { updateLine(line.id, 'description', title); setEditingDescLineId(null) }}
+                                            style={{
+                                              background: 'none', border: '1px solid #e5e7eb',
+                                              borderRadius: 3, padding: '1px 5px', cursor: 'pointer',
+                                              fontSize: 10, color: '#9ca3af', lineHeight: 1.4,
+                                            }}
+                                          >✕</button>
                                         </div>
-                                        {/* Bouton supprimer la description */}
-                                        <button
-                                          title="Supprimer la description"
-                                          onClick={() => updateLine(line.id, 'description', title)}
-                                          style={{
-                                            flexShrink: 0, background: 'none', border: '1px solid #e5e7eb',
-                                            borderRadius: 4, padding: '2px 5px', cursor: 'pointer',
-                                            fontSize: 11, color: '#9ca3af', lineHeight: 1,
-                                          }}
-                                        >✕</button>
                                       </div>
                                     )}
                                   </div>
