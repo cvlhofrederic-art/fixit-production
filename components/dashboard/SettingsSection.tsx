@@ -561,8 +561,14 @@ export default function SettingsSection({
                             reader.readAsDataURL(f)
                           })
                           setProfilePhotoPreview(base64)
-                          const { error } = await supabase.from('profiles_artisan').update({ profile_photo_url: base64 }).eq('id', artisan.id)
-                          if (error) throw new Error(error.message)
+                          const token = (await supabase.auth.getSession()).data.session?.access_token
+                          const res = await fetch('/api/save-logo', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                            body: JSON.stringify({ base64, field: 'profile_photo_url' }),
+                          })
+                          const data = await res.json()
+                          if (!res.ok) throw new Error(data.error || 'Erreur')
                           setUploadMsg({ text: '✅ Photo enregistrée !', type: 'success' })
                         } catch (err: any) {
                           setUploadMsg({ text: `❌ ${err.message}`, type: 'error' })
@@ -602,8 +608,15 @@ export default function SettingsSection({
                             reader.readAsDataURL(f)
                           })
                           setLogoPreview(base64)
-                          const { error } = await supabase.from('profiles_artisan').update({ logo_url: base64 }).eq('id', artisan.id)
-                          if (error) throw new Error(error.message)
+                          // Sauver via API server (bypass RLS)
+                          const token = (await supabase.auth.getSession()).data.session?.access_token
+                          const res = await fetch('/api/save-logo', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                            body: JSON.stringify({ base64, field: 'logo_url' }),
+                          })
+                          const data = await res.json()
+                          if (!res.ok) throw new Error(data.error || 'Erreur')
                           setUploadMsg({ text: '✅ Logo enregistré !', type: 'success' })
                         } catch (err: any) {
                           setUploadMsg({ text: `❌ ${err.message}`, type: 'error' })
