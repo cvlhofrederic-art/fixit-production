@@ -2982,21 +2982,17 @@ export default function DevisFactureForm({
                                 const BTN_W = 56
                                 return (
                                   <div>
-                                    {/* Ligne titre : input + espace réservé = même largeur totale que ligne desc */}
-                                    <div style={{ display: 'flex', gap: 4 }}>
-                                      <input
-                                        type="text"
-                                        value={title}
-                                        onChange={(e) => {
-                                          const newVal = detail ? `${e.target.value}\n${detail}` : e.target.value
-                                          updateLine(line.id, 'description', newVal)
-                                        }}
-                                        className="v22-form-input"
-                                        style={{ fontWeight: 600, flex: 1, minWidth: 0 }}
-                                      />
-                                      {/* Espace invisible = largeur des boutons, visible seulement si description présente */}
-                                      {detail && <div style={{ width: BTN_W, flexShrink: 0 }} />}
-                                    </div>
+                                    {/* Ligne titre — pleine largeur */}
+                                    <input
+                                      type="text"
+                                      value={title}
+                                      onChange={(e) => {
+                                        const newVal = detail ? `${e.target.value}\n${detail}` : e.target.value
+                                        updateLine(line.id, 'description', newVal)
+                                      }}
+                                      className="v22-form-input"
+                                      style={{ fontWeight: 600, width: '100%', boxSizing: 'border-box' }}
+                                    />
                                     {detail && (
                                       <div style={{ position: 'relative', marginTop: 4 }}>
                                         {/* Rectangle gris description — pleine largeur du td */}
