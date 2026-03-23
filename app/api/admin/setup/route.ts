@@ -275,6 +275,48 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── ÉTAPE 3 : Colonnes assurance + scan anti-fraude ──────────────────────
+  if (step === 'insurance' || step === 'all') {
+    const insuranceSql = `
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_name TEXT;
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_number TEXT;
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_coverage TEXT DEFAULT 'France métropolitaine';
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_type TEXT DEFAULT 'rc_pro';
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_expiry DATE;
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_verified BOOLEAN DEFAULT false;
+      ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_scan_data JSONB;
+    `
+    try {
+      // supabaseAdmin can execute raw SQL via rpc if available, otherwise use individual updates
+      // Try adding columns one by one via Supabase's postgrest
+      const colDefs = [
+        { col: 'insurance_name', type: 'TEXT' },
+        { col: 'insurance_number', type: 'TEXT' },
+        { col: 'insurance_coverage', type: 'TEXT', default: "'France métropolitaine'" },
+        { col: 'insurance_type', type: 'TEXT', default: "'rc_pro'" },
+        { col: 'insurance_expiry', type: 'DATE' },
+        { col: 'insurance_verified', type: 'BOOLEAN', default: 'false' },
+        { col: 'insurance_scan_data', type: 'JSONB' },
+      ]
+
+      // Test if columns already exist by trying to select them
+      const { error: testErr } = await supabaseAdmin.from('profiles_artisan').select('insurance_name').limit(0)
+      if (testErr) {
+        // Columns don't exist yet — we need to add them via Supabase Dashboard SQL editor
+        results.insurance = {
+          success: false,
+          action: 'manual_sql_needed',
+          sql: insuranceSql,
+          message: 'Run this SQL in Supabase Dashboard > SQL Editor to add the columns',
+        }
+      } else {
+        results.insurance = { success: true, action: 'columns_exist' }
+      }
+    } catch (e: any) {
+      results.insurance = { success: false, error: e.message }
+    }
+  }
+
   return NextResponse.json({
     ...results,
     timestamp: new Date().toISOString(),

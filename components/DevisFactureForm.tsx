@@ -1101,9 +1101,24 @@ export default function DevisFactureForm({
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
       // Re-fetch logo_url from DB (may have been updated after page load)
       let freshLogoUrl = (artisan?.logo_url as string) || null
+      let freshInsuranceName = insuranceName
+      let freshInsuranceNumber = insuranceNumber
+      let freshInsuranceCoverage = insuranceCoverage
+      let freshInsuranceType = insuranceType
+      let freshInsuranceExpiry: string | null = null
       try {
-        const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
+        const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type, insurance_expiry').eq('id', artisan?.id).single()
         if (freshArtisan?.logo_url) freshLogoUrl = freshArtisan.logo_url
+        if (freshArtisan?.insurance_name && !insuranceName) freshInsuranceName = freshArtisan.insurance_name
+        if (freshArtisan?.insurance_number && !insuranceNumber) freshInsuranceNumber = freshArtisan.insurance_number
+        if (freshArtisan?.insurance_coverage) freshInsuranceCoverage = freshArtisan.insurance_coverage
+        if (freshArtisan?.insurance_type) freshInsuranceType = freshArtisan.insurance_type
+        if (freshArtisan?.insurance_expiry) freshInsuranceExpiry = freshArtisan.insurance_expiry
+        // Alerte si assurance expirée
+        if (freshInsuranceExpiry && new Date(freshInsuranceExpiry) < new Date()) {
+          const proceed = confirm(`⚠️ Votre assurance ${freshInsuranceName || 'RC Pro'} a expiré le ${new Date(freshInsuranceExpiry).toLocaleDateString('fr-FR')}.\n\nLe document sera généré mais les mentions légales indiqueront une assurance potentiellement non valide.\n\nVoulez-vous continuer ?`)
+          if (!proceed) { setGeneratingPdf(false); return }
+        }
       } catch { /* use cached value */ }
       const input = {
         artisan: {
@@ -1115,6 +1130,10 @@ export default function DevisFactureForm({
           telephone: companyPhone || '',
           email: companyEmail || '',
           rc_pro: (artisan?.rc_pro as string) || null,
+          insurance_name: freshInsuranceName || null,
+          insurance_number: freshInsuranceNumber || null,
+          insurance_coverage: freshInsuranceCoverage || null,
+          insurance_type: freshInsuranceType || null,
           tva_mention: tvaEnabled ? 'TVA applicable' : 'TVA non applicable, article 293 B du CGI.',
           mode_paiement: paymentMode || 'Virement bancaire',
         },

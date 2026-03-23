@@ -17,6 +17,10 @@ export interface DevisGeneratorInput {
     telephone: string
     email: string
     rc_pro: string | null
+    insurance_name: string | null
+    insurance_number: string | null
+    insurance_coverage: string | null
+    insurance_type: 'rc_pro' | 'decennale' | 'both' | null
     tva_mention: string
     mode_paiement: string
   }
@@ -257,6 +261,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   if (input.artisan.adresse) { emContentH += ptToMm(14); if (splitAddress(input.artisan.adresse)?.ville) emContentH += ptToMm(14) }
   if (input.artisan.telephone) emContentH += ptToMm(14)
   if (input.artisan.email) emContentH += ptToMm(14)
+  if (input.artisan.insurance_name) emContentH += ptToMm(14)
   emContentH += boxPadTop
 
   let destContentH = boxPadTop + ptToMm(18) + ptToMm(14) // label + nom
@@ -313,6 +318,23 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   if (input.artisan.telephone) { pdf.text(`Tél : ${input.artisan.telephone}`, TEXT_X_EM, ey); ey += ptToMm(14) }
   if (input.artisan.email) { pdf.text(`E-mail : ${input.artisan.email}`, TEXT_X_EM, ey); ey += ptToMm(14) }
+
+  // Assurance (même espacement 14pt que les lignes au-dessus)
+  if (input.artisan.insurance_name) {
+    const insLabel = input.artisan.insurance_type === 'rc_pro' ? 'RC Pro'
+      : input.artisan.insurance_type === 'decennale' ? 'Décennale'
+      : input.artisan.insurance_type === 'both' ? 'RC Pro + Décennale' : 'Assurance'
+    const emMaxW = EM_W - boxPadX * 2
+    let insText = `${insLabel} : ${input.artisan.insurance_name}`
+    if (input.artisan.insurance_number) insText += `, n° ${input.artisan.insurance_number}`
+    // Réduire police si trop long
+    let insFontSize = 10
+    pdf.setFontSize(insFontSize)
+    if (pdf.getTextWidth(insText) > emMaxW) { insFontSize = 9; pdf.setFontSize(insFontSize) }
+    if (pdf.getTextWidth(insText) > emMaxW) { insFontSize = 8; pdf.setFontSize(insFontSize) }
+    pdf.text(insText, TEXT_X_EM, ey); ey += ptToMm(14)
+    pdf.setFontSize(10) // reset
+  }
 
   // ── Destinataire (texte par-dessus, UNE SEULE FOIS) ──
   let dy = boxStartY + boxPadTop

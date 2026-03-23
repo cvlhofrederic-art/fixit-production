@@ -103,12 +103,14 @@ interface DocumentRowProps {
   fileInputRef: (el: HTMLInputElement | null) => void
   onFileChange: (f: File) => void
   t: (key: string) => string
+  scanResult?: any
+  scanning?: boolean
 }
 
 function DocumentRow({
   docDef, doc, status, isLast, uploading, editExpiry, dateLocale,
   onUploadClick, onEditExpiry, onSetExpiry, onCancelExpiry, onView, onRemove,
-  fileInputRef, onFileChange, t,
+  fileInputRef, onFileChange, t, scanResult, scanning,
 }: DocumentRowProps) {
   const statusTagClass = {
     missing: 'v22-tag v22-tag-gray',
@@ -168,6 +170,53 @@ function DocumentRow({
           {doc?.expiryDate && (
             <div className="v22-mono" style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
               {t('proDash.wallet.expireLe')} {new Date(doc.expiryDate).toLocaleDateString(dateLocale)}
+            </div>
+          )}
+
+          {/* Scan en cours */}
+          {scanning && (
+            <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>🔍</span>
+              Vérification du document en cours...
+            </div>
+          )}
+
+          {/* Résultat scan anti-fraude */}
+          {scanResult && !scanning && (
+            <div style={{ marginTop: 4, padding: '6px 8px', borderRadius: 6, fontSize: 11, lineHeight: 1.4,
+              background: scanResult.antiFraud.suspicious ? '#FEF2F2' : '#F0FDF4',
+              border: `1px solid ${scanResult.antiFraud.suspicious ? '#FECACA' : '#BBF7D0'}`,
+            }}>
+              {scanResult.antiFraud.suspicious ? (
+                <>
+                  <div style={{ fontWeight: 700, color: '#DC2626', marginBottom: 2 }}>⚠️ Document suspect</div>
+                  {scanResult.antiFraud.reasons.map((r: string, i: number) => (
+                    <div key={i} style={{ color: '#991B1B' }}>• {r}</div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, color: '#16A34A', marginBottom: 2 }}>✅ Document vérifié</div>
+                  {scanResult.antiFraud.nameMatch && (
+                    <div style={{ color: '#166534' }}>• Nom correspondant : {scanResult.antiFraud.nameOnDoc}</div>
+                  )}
+                  {scanResult.extractedData?.insurerName && (
+                    <div style={{ color: '#166534' }}>• Assureur : {scanResult.extractedData.insurerName}</div>
+                  )}
+                  {scanResult.extractedData?.contractNumber && (
+                    <div style={{ color: '#166534' }}>• Contrat n° {scanResult.extractedData.contractNumber}</div>
+                  )}
+                  {scanResult.extractedData?.validTo && (
+                    <div style={{ color: '#166534' }}>• Valide jusqu&apos;au {new Date(scanResult.extractedData.validTo).toLocaleDateString(dateLocale)}</div>
+                  )}
+                  {scanResult.antiFraud.siretMatch === true && (
+                    <div style={{ color: '#166534' }}>• SIRET vérifié ✓</div>
+                  )}
+                </>
+              )}
+              <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                Type détecté : {scanResult.docType} — confiance : {Math.round(scanResult.confidence * 100)}%
+              </div>
             </div>
           )}
         </div>
@@ -271,6 +320,8 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
   const [editExpiry, setEditExpiry] = useState<string | null>(null)
   const [sendEmail, setSendEmail] = useState('')
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null)
+  const [scanResults, setScanResults] = useState<Record<string, any>>({})
+  const [scanning, setScanning] = useState<Record<string, boolean>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const saveToStorage = (updated: Record<string, WalletDoc>) => {
@@ -309,6 +360,43 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
         const updated = { ...docs, [docKey]: { ...docs[docKey], url: data.url, uploadedAt: new Date().toISOString(), name: file.name } }
         saveToStorage(updated)
         syncToSyndic(docKey, true, docs[docKey]?.expiryDate)
+
+        // ── Scan anti-fraude en arrière-plan (PDF uniquement) ──
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          setScanning(prev => ({ ...prev, [docKey]: true }))
+          try {
+            const reader = new FileReader()
+            const base64 = await new Promise<string>((resolve) => {
+              reader.onload = () => {
+                const result = reader.result as string
+                resolve(result.split(',')[1] || result) // Retirer le prefix data:...
+              }
+              reader.readAsDataURL(file)
+            })
+            const scanRes = await fetch('/api/wallet-scan', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+              },
+              body: JSON.stringify({ fileBase64: base64, fileName: file.name, docKey, artisanId: artisan.id }),
+            })
+            const scanData = await scanRes.json()
+            if (scanData.scan) {
+              setScanResults(prev => ({ ...prev, [docKey]: scanData.scan }))
+              // Auto-fill date d'expiration si détectée
+              if (scanData.scan.extractedData?.validTo && !docs[docKey]?.expiryDate) {
+                const updatedWithExpiry = { ...updated, [docKey]: { ...updated[docKey], expiryDate: scanData.scan.extractedData.validTo } }
+                saveToStorage(updatedWithExpiry)
+                syncToSyndic(docKey, true, scanData.scan.extractedData.validTo)
+              }
+            }
+          } catch (scanErr) {
+            console.error('Scan anti-fraude error:', scanErr)
+          } finally {
+            setScanning(prev => ({ ...prev, [docKey]: false }))
+          }
+        }
       }
     } catch (e) {
       console.error('Upload wallet doc error:', e)
@@ -446,6 +534,8 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
               fileInputRef={el => { fileInputRefs.current[docDef.id] = el }}
               onFileChange={(f) => handleUpload(docDef.id, f)}
               t={t}
+              scanResult={scanResults[docDef.id]}
+              scanning={!!scanning[docDef.id]}
             />
           ))}
         </div>
