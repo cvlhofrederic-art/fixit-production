@@ -200,6 +200,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // 1. LOGO (coin haut-gauche)
   // ═══════════════════════════════════════════════════════════
 
+  console.log('[PDF V2] Logo URL:', input.artisan.logo_url ? input.artisan.logo_url.substring(0, 80) + '...' : 'null/empty')
   if (input.artisan.logo_url) {
     try {
       const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -277,11 +278,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.text('ÉMETTEUR', TEXT_X_EM, ey)
   ey += ptToMm(18)
 
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(input.artisan.nom, TEXT_X_EM, ey)
-  ey += ptToMm(14)
-
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text(`Société : ${input.artisan.nom}`, TEXT_X_EM, ey)
+  ey += ptToMm(14)
   if (input.artisan.siret) { pdf.text(`SIRET : ${input.artisan.siret}`, TEXT_X_EM, ey); ey += ptToMm(14) }
 
   if (input.artisan.rm) {
@@ -321,11 +320,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.text('DESTINATAIRE', TEXT_X_DEST, dy)
   dy += ptToMm(18)
 
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
-  pdf.text(input.client.nom || '---', TEXT_X_DEST, dy)
-  dy += ptToMm(14)
-
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.text(`Société : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
+  dy += ptToMm(14)
 
   // FIX #4: Même split Adresse/Ville côté destinataire
   if (input.client.adresse) {
