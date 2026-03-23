@@ -40,6 +40,7 @@ export interface DevisGeneratorInput {
   signature?: SignatureData
   notes?: string
   mediateur?: string
+  mediateur_url?: string
 }
 
 export interface LigneDevis {
@@ -106,6 +107,11 @@ function formatUnitForPdf(unit: string): string {
   return MAP[unit] || unit
 }
 
+function cleanDescription(desc: string): string {
+  // Remove [unit:...], [min:...], [max:...] metadata patterns
+  return desc.replace(/\[unit:[^\]]*\]/gi, '').replace(/\[min:[^\]]*\]/gi, '').replace(/\[max:[^\]]*\]/gi, '').replace(/\s{2,}/g, ' ').trim()
+}
+
 const SECTION_LABELS: Record<string, string> = {
   main_oeuvre: "MAIN D'OEUVRE",
   materiaux: 'MATÉRIAUX',
@@ -159,18 +165,17 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     }
   }
 
-  // CORRECTION 1: Title left-aligned, right of logo area
-  const titleX = MARGIN + 30
+  // Title — centered on page
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(22)
   pdf.setTextColor('#000000')
-  pdf.text(input.devis.titre, titleX, y + 10)
+  pdf.text(input.devis.titre, pageW / 2, y + 10, { align: 'center' })
 
-  // Subtitle: numero — left-aligned at same x
+  // Subtitle: numero — centered
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(11)
   pdf.setTextColor(GRAY_LABEL)
-  pdf.text(input.devis.numero, titleX, y + 18)
+  pdf.text(input.devis.numero, pageW / 2, y + 18, { align: 'center' })
 
   y += 24
 
@@ -352,11 +357,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // ═══════════════════════════════════════════════════════════
 
   const colWidths = {
-    designation: contentW * 0.40,
-    quantite: contentW * 0.10,
-    unite: contentW * 0.10,
-    prixUnit: contentW * 0.18,
-    total: contentW * 0.22,
+    designation: contentW * 0.50,
+    quantite: contentW * 0.08,
+    unite: contentW * 0.08,
+    prixUnit: contentW * 0.16,
+    total: contentW * 0.18,
   }
   const headerH = 8
   const rowH = 7
@@ -385,7 +390,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     // Wrap designation to calculate actual row height
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8)
-    const desigLines = pdf.splitTextToSize(line.designation, colWidths.designation - 6)
+    const desigLines = pdf.splitTextToSize(cleanDescription(line.designation), colWidths.designation - 6)
     const actualRowH = Math.max(rowH, desigLines.length * 3.5 + 3)
 
     if (y + actualRowH > pageH - 25) {
@@ -518,11 +523,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFillColor(...hexToRgb(ACCENT))
   pdf.rect(totBoxX, y, 2, totBoxH, 'F')
 
-  // "TOTAL NET TTC" label bold left
+  // "TOTAL NET" label bold left
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor('#000000')
-  pdf.text('TOTAL NET TTC', totBoxX + 5, y + 7)
+  pdf.text('TOTAL NET', totBoxX + 5, y + 7)
 
   // Amount bold right
   pdf.text(formatPrice(totalNet), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
@@ -708,7 +713,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     'Droit de r\u00E9tractation : 14 jours calendaires \u00E0 compter de la signature (art. L. 221-18 C. conso.).',
     'Aucun paiement exigible avant 7 jours apr\u00E8s signature (art. L. 221-10 C. conso.), sauf travaux urgents.',
     input.mediateur
-      ? `M\u00E9diation de la consommation : ${input.mediateur} (art. L. 612-1 C. conso.).`
+      ? `M\u00E9diation de la consommation : ${input.mediateur}${input.mediateur_url ? ' \u2014 ' + input.mediateur_url : ''} (art. L. 612-1 C. conso.).`
       : 'M\u00E9diation de la consommation (art. L. 612-1 C. conso.).',
     `Document g\u00E9n\u00E9r\u00E9 par Vitfix Pro le ${genDate}.`,
   ].join(' ')
@@ -790,79 +795,53 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   ensureSpace(80)
 
-  // Black banner — 8mm height
+  // Black banner — 8mm height, title LEFT-aligned
   pdf.setFillColor(...hexToRgb('#333333'))
   pdf.rect(MARGIN, y, contentW, 8, 'F')
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor('#FFFFFF')
-  pdf.text('FORMULAIRE DE RÉTRACTATION', pageW / 2, y + 5.5, { align: 'center' })
-  y += 12
+  pdf.text('FORMULAIRE DE RÉTRACTATION', MARGIN + 4, y + 5.5)
+  y += 14
 
-  pdf.setFont('helvetica', 'italic')
-  pdf.setFontSize(7)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text('(Veuillez compl\u00E9ter et renvoyer le pr\u00E9sent formulaire uniquement si vous souhaitez vous r\u00E9tracter du contrat)', MARGIN + 2, y)
-  y += 6
-
+  // "À l'attention de" with bold name+address
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8.5)
+  pdf.setFontSize(9)
   pdf.setTextColor('#333333')
+  pdf.text('\u00C0 l\u2019attention de : ', MARGIN + 4, y)
+  const attnLabelW = pdf.getTextWidth('\u00C0 l\u2019attention de : ')
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(`${input.artisan.nom}, ${input.artisan.adresse}`, MARGIN + 4 + attnLabelW, y)
+  y += 10
 
-  const formFields = [
-    `\u00C0 l'attention de : ${input.artisan.nom}`,
-    `Adresse : ${input.artisan.adresse}`,
-    `Email : ${input.artisan.email}`,
-    '',
-    'Je/Nous (*) vous notifie/notifions (*) par la pr\u00E9sente ma/notre (*) r\u00E9tractation du contrat portant sur la prestation de services ci-dessous :',
-    '',
-  ]
+  // Notification text
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor('#333333')
+  const notifText = 'Je notifie par la pr\u00E9sente ma r\u00E9tractation du contrat portant sur la prestation de services ci-dessus.'
+  const notifWrapped = pdf.splitTextToSize(notifText, contentW - 8)
+  pdf.text(notifWrapped, MARGIN + 4, y)
+  y += notifWrapped.length * 4 + 10
 
-  for (const line of formFields) {
-    if (line === '') {
-      y += 3
-      continue
-    }
-    pdf.text(line, MARGIN + 4, y)
-    y += 4.5
-  }
-
-  // Dotted line fields
-  const dottedFields = [
-    "Num\u00E9ro du devis : ",
-    "Service concern\u00E9 : ",
-    "Command\u00E9 le : ",
-    "Nom du client : ",
-    "Adresse du client : ",
+  // Simple fields with underlines — 28pt spacing between fields
+  const formFieldsSimple = [
+    'Command\u00E9 le / re\u00E7u le :    _________________________',
+    'Nom du client :    _________________________',
+    'Adresse :    _________________________',
   ]
 
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8.5)
-  for (const field of dottedFields) {
-    pdf.setTextColor('#333333')
+  pdf.setFontSize(9)
+  pdf.setTextColor('#333333')
+  for (const field of formFieldsSimple) {
     pdf.text(field, MARGIN + 4, y)
-    const labelW = pdf.getTextWidth(field)
-    // Dotted line
-    pdf.setDrawColor('#AAAAAA')
-    pdf.setLineWidth(0.2)
-    pdf.setLineDashPattern([1, 1], 0)
-    pdf.line(MARGIN + 4 + labelW, y + 0.5, MARGIN + contentW - 4, y + 0.5)
-    pdf.setLineDashPattern([], 0) // reset
-    y += 6
+    y += 10 // ~28pt spacing
   }
 
-  y += 6
-  pdf.setFontSize(8)
-  pdf.text('Date :', MARGIN + 4, y)
-  drawHLine(MARGIN + 20, y + 0.5, MARGIN + 60, '#AAAAAA', 0.2)
-
-  y += 8
-  pdf.text('Signature du client :', MARGIN + 4, y)
-
-  y += 6
-  pdf.setFontSize(6)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text('(*) Rayez la mention inutile.', MARGIN + 4, y)
+  y += 4
+  pdf.text('Date : ___ / ___ / ______', MARGIN + 4, y)
+  y += 12
+  pdf.text('Signature :', MARGIN + 4, y)
 
   // ═══════════════════════════════════════════════════════════
   // PAGE NUMBERING — stamp "Page X/Y" on every page

@@ -1114,6 +1114,7 @@ export default function DevisFactureForm({
         }) : undefined,
         notes: notes || undefined,
         mediateur: mediatorName || undefined,
+        mediateur_url: mediatorUrl || undefined,
       }
       const pdf = await generateDevisPdfV2(input)
       pdf.save(`TEST-V2_${docNumber || 'devis'}.pdf`)
