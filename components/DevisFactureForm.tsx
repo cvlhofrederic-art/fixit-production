@@ -1130,8 +1130,15 @@ export default function DevisFactureForm({
   const handleGeneratePDF = async () => {
     setPdfLoading(true)
     try {
-      const { jsPDF } = await import('jspdf')
-      const autoTableModule = await import('jspdf-autotable')
+      let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
+      try {
+        [jsPDFMod, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
+      } catch (chunkErr) {
+        // Chunk stale après déploiement → recharger la page
+        window.location.reload()
+        return
+      }
+      const { jsPDF } = jsPDFMod
       const autoTable = autoTableModule.default
 
       // ── PT Fiscal: Register document with AT engine (Portugal only) ──
@@ -2698,13 +2705,41 @@ export default function DevisFactureForm({
                         <tr key={line.id}>
                           <td>
                             {line.description ? (
-                              <textarea
-                                value={line.description}
-                                onChange={(e) => updateLine(line.id, 'description', e.target.value)}
-                                className="v22-form-input"
-                                rows={line.description.includes('\n') ? 2 : 1}
-                                style={{ resize: 'vertical', minHeight: 32 }}
-                              />
+                              (() => {
+                                // Nettoyer les métadonnées [unit:...|min:...|max:...]
+                                const cleaned = line.description.replace(/\s*\[[^\]]*\]/g, '').trim()
+                                const parts = cleaned.split('\n')
+                                const title = parts[0]
+                                const detail = parts.slice(1).join('\n').trim()
+                                return (
+                                  <div>
+                                    <input
+                                      type="text"
+                                      value={title}
+                                      onChange={(e) => {
+                                        const newVal = detail ? `${e.target.value}\n${detail}` : e.target.value
+                                        updateLine(line.id, 'description', newVal)
+                                      }}
+                                      className="v22-form-input"
+                                      style={{ fontWeight: 600 }}
+                                    />
+                                    {detail && (
+                                      <div style={{
+                                        marginTop: 4,
+                                        padding: '3px 8px',
+                                        background: '#f9fafb',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: 4,
+                                        fontSize: 11,
+                                        color: '#6b7280',
+                                        lineHeight: 1.4,
+                                      }}>
+                                        {detail}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })()
                             ) : (
                               <div>
                                 <select
