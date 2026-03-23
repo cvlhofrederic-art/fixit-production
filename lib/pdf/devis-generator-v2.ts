@@ -159,17 +159,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     }
   }
 
-  // Title centered
+  // CORRECTION 1: Title left-aligned, right of logo area
+  const titleX = MARGIN + 30
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(22)
   pdf.setTextColor('#000000')
-  pdf.text(input.devis.titre, pageW / 2, y + 10, { align: 'center' })
+  pdf.text(input.devis.titre, titleX, y + 10)
 
-  // Subtitle: numero
+  // Subtitle: numero — left-aligned at same x
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(11)
   pdf.setTextColor(GRAY_LABEL)
-  pdf.text(input.devis.numero, pageW / 2, y + 18, { align: 'center' })
+  pdf.text(input.devis.numero, titleX, y + 18)
 
   y += 24
 
@@ -186,47 +187,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const boxPad = 4
   const boxStartY = y
 
-  // Helper: write label-value pairs, return dy consumed
-  const writeLabelValue = (label: string, value: string, x: number, yPos: number, maxW: number): number => {
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor(GRAY_LABEL)
-    pdf.text(label, x, yPos)
-    const lw = pdf.getTextWidth(label)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor('#000000')
-    const valW = maxW - lw - 2
-    if (valW < 20) {
-      // Label too wide — put value on next line
-      const lines = pdf.splitTextToSize(value, maxW - 4)
-      pdf.text(lines, x + 2, yPos + 3.5)
-      return 3.5 + lines.length * 3.5
-    }
-    const lines = pdf.splitTextToSize(value, valW)
-    if (lines.length === 1) {
-      pdf.text(value, x + lw + 1, yPos)
-      return 4
-    }
-    // First line next to label, rest below full width
-    pdf.text(lines[0], x + lw + 1, yPos)
-    for (let i = 1; i < lines.length; i++) {
-      pdf.text(lines[i], x + 2, yPos + i * 3.5)
-    }
-    return lines.length * 3.5
-  }
-
   // ── Émetteur (LEFT) ──
   const emX = MARGIN
   const emLx = emX + boxPad
   const emMaxW = boxW - boxPad * 2
 
+  // CORRECTION 2: Title left-aligned within box, small caps style, no underline
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
+  pdf.setFontSize(7)
   pdf.setTextColor('#000000')
-  pdf.text('ÉMETTEUR', emX + boxW / 2, boxStartY + boxPad, { align: 'center' })
-  drawHLine(emX + boxW / 2 - 10, boxStartY + boxPad + 2, emX + boxW / 2 + 10, BORDER, 0.2)
+  pdf.text('ÉMETTEUR', emX + boxPad, boxStartY + boxPad)
 
-  let ey = boxStartY + boxPad + 5
+  let ey = boxStartY + boxPad + 4
 
   // Name — bold, standalone
   pdf.setFont('helvetica', 'bold')
@@ -260,13 +232,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const destLx = destX + boxPad
   const destMaxW = boxW - boxPad * 2
 
+  // CORRECTION 2: Title left-aligned within box, small caps style, no underline
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(8)
+  pdf.setFontSize(7)
   pdf.setTextColor('#000000')
-  pdf.text('DESTINATAIRE', destX + boxW / 2, boxStartY + boxPad, { align: 'center' })
-  drawHLine(destX + boxW / 2 - 10, boxStartY + boxPad + 2, destX + boxW / 2 + 10, BORDER, 0.2)
+  pdf.text('DESTINATAIRE', destX + boxPad, boxStartY + boxPad)
 
-  let dy = boxStartY + boxPad + 5
+  let dy = boxStartY + boxPad + 4
 
   // Name — bold, standalone
   pdf.setFont('helvetica', 'bold')
@@ -293,11 +265,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     dy += 3.5
   }
 
+  // CORRECTION 3: Straight corner boxes (no rounding)
   const boxH = Math.max(ey, dy) - boxStartY + 3
   pdf.setDrawColor(BORDER)
   pdf.setLineWidth(0.3)
-  pdf.roundedRect(emX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
-  pdf.roundedRect(destX, boxStartY, boxW, boxH, 1.5, 1.5, 'S')
+  pdf.rect(emX, boxStartY, boxW, boxH, 'S')
+  pdf.rect(destX, boxStartY, boxW, boxH, 'S')
 
   y = boxStartY + boxH + 5
 
@@ -305,10 +278,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // INFO BAND (4 columns)
   // ═══════════════════════════════════════════════════════════
 
+  // CORRECTION 3: Straight corner box for info band
   pdf.setFillColor(248, 248, 248)
   pdf.setDrawColor(BORDER)
   pdf.setLineWidth(0.3)
-  pdf.roundedRect(MARGIN, y, contentW, 10, 1.5, 1.5, 'FD')
+  pdf.rect(MARGIN, y, contentW, 10, 'FD')
 
   const colW = contentW / 4
   const bandY = y + 3.5
@@ -330,6 +304,14 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   drawInfoCol('VALIDITÉ', `${input.devis.validite_jours} jours`, 1)
   drawInfoCol("DÉLAI D'EXÉCUTION", input.devis.delai_execution, 2)
   drawInfoCol('DATE PRESTATION', input.devis.date_prestation ? formatDate(input.devis.date_prestation) : '—', 3)
+
+  // CORRECTION 4: Vertical separators between the 4 info columns
+  pdf.setDrawColor(BORDER)
+  pdf.setLineWidth(0.2)
+  for (let i = 1; i < 4; i++) {
+    const sepX = MARGIN + colW * i
+    pdf.line(sepX, y, sepX, y + 10)
+  }
 
   y += 14
 
@@ -482,45 +464,69 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     }
   }
 
-  // TVA mention
-  pdf.setFont('helvetica', 'italic')
-  pdf.setFontSize(7)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text(input.artisan.tva_mention, MARGIN, y + 3)
-  y += 7
-
   // ═══════════════════════════════════════════════════════════
-  // TOTAL NET
+  // CORRECTION 5: Sous-total as a table row (not separate box)
   // ═══════════════════════════════════════════════════════════
 
   const totalNet = input.lignes.reduce((sum, l) => sum + l.total, 0)
 
+  // Sous-total row inside the table
+  const stRowH = 7
+  if (y + stRowH > pageH - 25) {
+    pdf.addPage()
+    y = MARGIN
+  }
+  pdf.setFillColor(248, 248, 248)
+  pdf.rect(MARGIN, y, contentW, stRowH, 'F')
+  pdf.setDrawColor(BORDER)
+  pdf.setLineWidth(0.1)
+  pdf.line(MARGIN, y + stRowH, MARGIN + contentW, y + stRowH)
+
+  // TVA mention left-aligned
+  pdf.setFont('helvetica', 'italic')
+  pdf.setFontSize(7)
+  pdf.setTextColor(GRAY_LABEL)
+  pdf.text(input.artisan.tva_mention, MARGIN + 3, y + 4.5)
+
+  // "Sous-total" label in the prix unitaire column area
+  const stLabelX = MARGIN + colWidths.designation + colWidths.quantite + colWidths.unite + colWidths.prixUnit - 3
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  pdf.setTextColor('#000000')
+  pdf.text('Sous-total', stLabelX, y + 4.5, { align: 'right' })
+
+  // Amount in the total column
+  const stAmountX = MARGIN + contentW - 3
+  pdf.text(formatPrice(totalNet), stAmountX, y + 4.5, { align: 'right' })
+  y += stRowH + 3
+
+  // ═══════════════════════════════════════════════════════════
+  // CORRECTION 6: TOTAL NET — white bg + yellow left accent bar
+  // ═══════════════════════════════════════════════════════════
+
   const totBoxW = 65
   const totBoxX = MARGIN + contentW - totBoxW
+  const totBoxH = 10
 
-  // Subtotal
-  pdf.setFillColor(248, 248, 248)
+  // White background with border
+  pdf.setFillColor(255, 255, 255)
   pdf.setDrawColor(BORDER)
   pdf.setLineWidth(0.3)
-  pdf.rect(totBoxX, y, totBoxW, 8, 'FD')
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8)
-  pdf.setTextColor(GRAY_LABEL)
-  pdf.text('Sous-total TTC', totBoxX + 3, y + 5.5)
-  pdf.setFont('helvetica', 'bold')
-  pdf.setTextColor('#000000')
-  pdf.text(formatPrice(totalNet), totBoxX + totBoxW - 3, y + 5.5, { align: 'right' })
-  y += 8
+  pdf.rect(totBoxX, y, totBoxW, totBoxH, 'FD')
 
-  // Total NET accent bar
+  // Yellow accent bar on the left edge (2mm wide)
   pdf.setFillColor(...hexToRgb(ACCENT))
-  pdf.rect(totBoxX, y, totBoxW, 10, 'F')
+  pdf.rect(totBoxX, y, 2, totBoxH, 'F')
+
+  // "TOTAL NET TTC" label bold left
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor('#000000')
-  pdf.text('TOTAL NET TTC', totBoxX + 3, y + 7)
+  pdf.text('TOTAL NET TTC', totBoxX + 5, y + 7)
+
+  // Amount bold right
   pdf.text(formatPrice(totalNet), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
-  y += 16
+  y += totBoxH + 6
 
   // ═══════════════════════════════════════════════════════════
   // ÉCHÉANCIER DE PAIEMENT (optional)
@@ -594,12 +600,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const sigX = MARGIN + condW + 6
   const blockStartY = y
 
-  // ── Conditions (LEFT) ──
+  // ── CORRECTION 7: Conditions (LEFT) — no enclosing box, title left-aligned ──
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.setTextColor('#000000')
-  pdf.text('CONDITIONS', condX + condW / 2, blockStartY + 4, { align: 'center' })
-  drawHLine(condX + condW / 2 - 10, blockStartY + 6, condX + condW / 2 + 10, BORDER, 0.2)
+  pdf.text('CONDITIONS', condX, blockStartY + 4)
 
   let cy = blockStartY + 10
   pdf.setFont('helvetica', 'normal')
@@ -618,17 +623,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text(wrapped, condX + 4, cy)
     cy += wrapped.length * 3
   }
-  const condH = Math.max(cy - blockStartY + 3, 40)
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.3)
-  pdf.roundedRect(condX, blockStartY, condW, condH, 1.5, 1.5, 'S')
 
-  // ── Bon pour accord (RIGHT) ──
+  // ── CORRECTION 8: Bon pour accord (RIGHT) — no enclosing box, title left-aligned ──
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.setTextColor('#000000')
-  pdf.text('BON POUR ACCORD', sigX + sigW / 2, blockStartY + 4, { align: 'center' })
-  drawHLine(sigX + sigW / 2 - 12, blockStartY + 6, sigX + sigW / 2 + 12, BORDER, 0.2)
+  pdf.text('BON POUR ACCORD', sigX, blockStartY + 4)
 
   if (input.signature) {
     // Signature present
@@ -649,8 +649,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.text(`IP : ${input.signature.ip_address}`, sigX + 4, sigInfoY + 7)
     }
   } else {
-    // No signature — blank fields
-    pdf.setFont('helvetica', 'italic')
+    // No signature — blank fields, CORRECTION 8: normal weight (not italic)
+    pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(6.5)
     pdf.setTextColor('#777777')
     const bonText = pdf.splitTextToSize('Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.', sigW - 10)
@@ -660,13 +660,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(6.5)
     pdf.setTextColor('#777777')
-    pdf.text('Date : ___/___/______', sigX + 4, blockStartY + 28)
+    // CORRECTION 9: spaces around slashes in date field
+    pdf.text('Date : ___ / ___ / ______', sigX + 4, blockStartY + 28)
     pdf.text('Signature :', sigX + 4, blockStartY + 32)
   }
 
-  pdf.setDrawColor(BORDER)
-  pdf.setLineWidth(0.3)
-  pdf.roundedRect(sigX, blockStartY, sigW, condH, 1.5, 1.5, 'S')
+  const condH = Math.max(cy - blockStartY + 3, 40)
+  // No enclosing rectangles for CONDITIONS or BON POUR ACCORD (corrections 7 & 8)
 
   y = blockStartY + condH + 6
 
@@ -695,12 +695,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // FOOTER LEGAL (7px)
+  // CORRECTION 10: FOOTER LEGAL — single continuous paragraph
   // ═══════════════════════════════════════════════════════════
 
   const rcProStr = input.artisan.rc_pro || 'N/A'
   const genDate = formatDate(new Date())
-  const legalLines = [
+  const legalParagraph = [
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',
     'TVA non applicable, article 293 B du CGI.',
     `RC Pro ${rcProStr}, couverture France m\u00E9tropolitaine.`,
@@ -711,7 +711,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       ? `M\u00E9diation de la consommation : ${input.mediateur} (art. L. 612-1 C. conso.).`
       : 'M\u00E9diation de la consommation (art. L. 612-1 C. conso.).',
     `Document g\u00E9n\u00E9r\u00E9 par Vitfix Pro le ${genDate}.`,
-  ]
+  ].join(' ')
 
   // Place footer at bottom of current page
   const footerY = pageH - 22
@@ -728,10 +728,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(5.5)
   pdf.setTextColor(GRAY_LABEL)
-  for (const line of legalLines) {
-    pdf.text(line, pageW / 2, y, { align: 'center' })
-    y += 2.5
-  }
+  const legalWrapped = pdf.splitTextToSize(legalParagraph, contentW - 10)
+  pdf.text(legalWrapped, pageW / 2, y, { align: 'center' })
 
   // ═══════════════════════════════════════════════════════════
   // PAGE 2: DROIT DE RÉTRACTATION
@@ -740,33 +738,34 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.addPage()
   y = MARGIN
 
-  // Title
+  // CORRECTION 11: Title left-aligned at MARGIN + subtitle
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(14)
   pdf.setTextColor('#000000')
-  pdf.text('DROIT DE RÉTRACTATION', pageW / 2, y, { align: 'center' })
-  y += 8
+  pdf.text('DROIT DE RÉTRACTATION', MARGIN, y)
+  y += 5
+
+  // Subtitle — smaller gray font, left-aligned
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.setTextColor(GRAY_LABEL)
+  pdf.text('Article L. 221-18 du Code de la consommation', MARGIN, y)
+  y += 4
 
   drawHLine(MARGIN, y, MARGIN + contentW, ACCENT, 0.7)
   y += 6
 
+  // CORRECTION 12: Shorter, more readable retractation text
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   pdf.setTextColor('#333333')
 
   const retractText = [
-    "Conform\u00E9ment aux articles L. 221-18 et suivants du Code de la consommation, le client dispose d'un d\u00E9lai de quatorze (14) jours calendaires \u00E0 compter de la signature du pr\u00E9sent devis pour exercer son droit de r\u00E9tractation, sans avoir \u00E0 motiver sa d\u00E9cision ni \u00E0 supporter de p\u00E9nalit\u00E9s.",
+    "Le client dispose d'un d\u00E9lai de 14 jours calendaires \u00E0 compter de la signature du pr\u00E9sent devis pour exercer son droit de r\u00E9tractation, sans avoir \u00E0 justifier de motifs ni \u00E0 payer de p\u00E9nalit\u00E9s.",
     "",
-    "Ce droit s'applique lorsque le contrat est conclu hors \u00E9tablissement (au domicile du consommateur, sur son lieu de travail, ou dans tout autre lieu qui n'est pas celui o\u00F9 le professionnel exerce son activit\u00E9 de mani\u00E8re permanente ou habituelle), conform\u00E9ment \u00E0 l'article L. 221-1 du Code de la consommation.",
+    "Pour exercer ce droit, le client peut utiliser le formulaire ci-dessous ou adresser toute d\u00E9claration d\u00E9nu\u00E9e d'ambigu\u00EFt\u00E9 exprimant sa volont\u00E9 de se r\u00E9tracter.",
     "",
-    "Le client peut notifier sa d\u00E9cision de r\u00E9tractation :",
-    "  \u2022 Par courrier recommand\u00E9 avec accus\u00E9 de r\u00E9ception ;",
-    "  \u2022 Par courriel, avec demande de confirmation de lecture ;",
-    "  \u2022 En utilisant le formulaire de r\u00E9tractation ci-dessous.",
-    "",
-    "Si le client a express\u00E9ment demand\u00E9 le commencement des travaux avant l'expiration du d\u00E9lai de r\u00E9tractation (article L. 221-25), il reste redevable d'un montant proportionnel au service fourni jusqu'\u00E0 la communication de sa d\u00E9cision de r\u00E9tractation.",
-    "",
-    "En l'absence de demande expresse de commencement anticip\u00E9, aucun paiement ne peut \u00EAtre exig\u00E9 avant l'expiration du d\u00E9lai de sept (7) jours suivant la signature du contrat (article L. 221-10).",
+    "Aucun paiement ne peut \u00EAtre exig\u00E9 avant l'expiration d'un d\u00E9lai de 7 jours \u00E0 compter de la signature (art. L. 221-10 C. conso.), sauf travaux urgents demand\u00E9s express\u00E9ment par le client.",
   ]
 
   for (const para of retractText) {
