@@ -181,7 +181,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   let y = 0
 
   const boxPadX = ptToMm(11)           // ~3.88mm
-  const boxPadTop = ptToMm(8)          // ~2.82mm
+  const boxPadTop = ptToMm(19)         // ~6.7mm — modèle: 18.5-19pt marge top
 
   // ── Helpers ──
 
