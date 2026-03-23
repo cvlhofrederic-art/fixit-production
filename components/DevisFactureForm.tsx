@@ -40,6 +40,14 @@ interface DevisEtape {
   source_etape_id?: string  // id de l'étape template (null si ajoutée manuellement)
 }
 
+interface DevisAcompte {
+  id: string
+  ordre: number
+  label: string
+  pourcentage: number
+  declencheur: string
+}
+
 interface DevisFactureData {
   docType: 'devis' | 'facture'
   docNumber: string
@@ -91,6 +99,9 @@ interface DevisFactureData {
   etapes?: DevisEtape[]
   // Notes
   notes: string
+  // Acomptes
+  acomptesEnabled?: boolean
+  acomptes?: DevisAcompte[]
 }
 
 interface ArtisanBasic {
@@ -294,6 +305,9 @@ export default function DevisFactureForm({
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
+  // Acomptes
+  const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled || false)
+  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || [])
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
   const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
@@ -1331,6 +1345,41 @@ export default function DevisFactureForm({
       pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - 3, y + 7, { align: 'right' })
       y += 16
 
+      // ═══ 5b. ÉCHÉANCIER DE PAIEMENT (si acomptes) ═══
+      if (acomptesEnabled && acomptes.length > 0) {
+        if (y > pageH - 50) { pdf.addPage(); y = 18 }
+        // Header
+        pdf.setFillColor(249, 250, 251)
+        pdf.rect(mL, y, contentW, 7, 'F')
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(50, 50, 50)
+        pdf.text(locale === 'pt' ? 'CALENDÁRIO DE PAGAMENTO' : 'ÉCHÉANCIER DE PAIEMENT', mL + 3, y + 5)
+        y += 9
+        // Table header
+        pdf.setFillColor(240, 240, 240)
+        pdf.rect(mL, y, contentW, 6, 'F')
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7); pdf.setTextColor(80, 80, 80)
+        pdf.text(locale === 'pt' ? 'Descrição' : 'Description', mL + 3, y + 4)
+        pdf.text(locale === 'pt' ? 'Montante' : 'Montant', mL + contentW * 0.6, y + 4)
+        pdf.text(locale === 'pt' ? 'Prazo' : 'Échéance', mL + contentW * 0.8, y + 4)
+        y += 8
+        // Rows
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8)
+        const totalVal = tvaEnabled ? totalTTC : subtotalHT
+        for (const ac of acomptes) {
+          if (ac.pourcentage <= 0) continue
+          const montant = totalVal * ac.pourcentage / 100
+          pdf.setTextColor(60, 60, 60)
+          pdf.text(ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`, mL + 3, y + 4)
+          pdf.text(localeFormats.currencyFormat(montant), mL + contentW * 0.6, y + 4)
+          pdf.text(ac.declencheur, mL + contentW * 0.8, y + 4)
+          pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.2)
+          pdf.line(mL, y + 6, mL + contentW, y + 6)
+          y += 7
+          if (y > pageH - 30) { pdf.addPage(); y = 18 }
+        }
+        y += 6
+      }
+
       // ═══ 6. CONDITIONS + SIGNATURE (devis) ou CONDITIONS DE PAIEMENT (facture) ═══
       if (y > pageH - 80) { pdf.addPage(); y = 18 }
 
@@ -1889,6 +1938,8 @@ export default function DevisFactureForm({
     lines,
     etapes: devisEtapes.length > 0 ? devisEtapes : undefined,
     notes,
+    acomptesEnabled,
+    acomptes: acomptesEnabled && acomptes.length > 0 ? acomptes : undefined,
   })
 
   // ─── Recent interventions for quick import ───
@@ -2653,6 +2704,99 @@ export default function DevisFactureForm({
                 </div>
               </div>
             </div>
+
+            {/* ─── Section: Acomptes & Paiement échelonné (Devis only) ─── */}
+            {docType === 'devis' && (
+              <div className="v22-card">
+                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="v22-card-title">{locale === 'pt' ? 'Adiantamentos & Pagamento faseado' : 'Acomptes & Paiement échelonné'}</span>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="checkbox" checked={acomptesEnabled} onChange={(e) => {
+                      setAcomptesEnabled(e.target.checked)
+                      if (e.target.checked && acomptes.length === 0) {
+                        setAcomptes([{ id: crypto.randomUUID(), ordre: 1, label: locale === 'pt' ? 'Adiantamento 1' : 'Acompte 1', pourcentage: 0, declencheur: locale === 'pt' ? 'Na assinatura' : 'À la signature' }])
+                      }
+                    }} />
+                    {acomptesEnabled ? 'ON' : 'OFF'}
+                  </label>
+                </div>
+                {acomptesEnabled && (
+                  <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {acomptes.map((ac, idx) => {
+                      const totalVal = tvaEnabled ? totalTTC : subtotalHT
+                      const montant = totalVal * ac.pourcentage / 100
+                      return (
+                        <div key={ac.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 32px', gap: 8, alignItems: 'center' }}>
+                          <select
+                            value={ac.declencheur}
+                            onChange={(e) => {
+                              const updated = [...acomptes]
+                              updated[idx] = { ...ac, declencheur: e.target.value }
+                              setAcomptes(updated)
+                            }}
+                            className={normalFieldClass}
+                          >
+                            <option>{locale === 'pt' ? 'Na assinatura' : 'À la signature'}</option>
+                            <option>{locale === 'pt' ? 'No início dos trabalhos' : 'Au démarrage des travaux'}</option>
+                            <option>{locale === 'pt' ? 'A meio do projeto' : 'À mi-parcours'}</option>
+                            <option>{locale === 'pt' ? 'Na entrega' : 'À la livraison'}</option>
+                            <option>{locale === 'pt' ? 'Personalizado' : 'Personnalisé'}</option>
+                          </select>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={ac.pourcentage || ''}
+                              onChange={(e) => {
+                                const updated = [...acomptes]
+                                updated[idx] = { ...ac, pourcentage: parseFloat(e.target.value) || 0 }
+                                setAcomptes(updated)
+                              }}
+                              className={normalFieldClass}
+                              style={{ width: 60, textAlign: 'right' }}
+                            />
+                            <span style={{ fontSize: 13 }}>%</span>
+                          </div>
+                          <span className="v22-mono" style={{ fontSize: 13, textAlign: 'right' }}>= {localeFormats.currencyFormat(montant)}</span>
+                          <button
+                            onClick={() => {
+                              const updated = acomptes.filter((_, i) => i !== idx).map((a, i) => ({ ...a, ordre: i + 1, label: `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${i + 1}` }))
+                              setAcomptes(updated)
+                              if (updated.length === 0) setAcomptesEnabled(false)
+                            }}
+                            className="v22-btn" style={{ padding: '2px 6px', fontSize: 14, color: 'var(--v22-red)' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )
+                    })}
+                    {acomptes.length < 4 ? (
+                      <button
+                        onClick={() => setAcomptes([...acomptes, { id: crypto.randomUUID(), ordre: acomptes.length + 1, label: `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${acomptes.length + 1}`, pourcentage: 0, declencheur: locale === 'pt' ? 'Na entrega' : 'À la livraison' }])}
+                        className="v22-btn" style={{ alignSelf: 'flex-start', border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)' }}
+                      >
+                        + {locale === 'pt' ? 'Adicionar adiantamento' : 'Ajouter un acompte'}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{locale === 'pt' ? 'Máximo 4 adiantamentos atingido' : 'Maximum 4 acomptes atteint'}</span>
+                    )}
+                    {(() => {
+                      const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
+                      const color = totalPct === 100 ? 'var(--v22-green)' : totalPct > 100 ? 'var(--v22-red)' : 'var(--v22-amber)'
+                      return (
+                        <div style={{ fontSize: 13, fontWeight: 600, color, marginTop: 4 }}>
+                          {locale === 'pt' ? 'Total faseado' : 'Total échelonné'} : {totalPct}% {totalPct === 100 ? '✅' : totalPct > 100 ? '❌' : '⚠️'}
+                          {totalPct > 100 && <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{locale === 'pt' ? 'O total dos adiantamentos excede 100%. Ajuste as percentagens.' : 'Le total des acomptes dépasse 100%. Ajustez les pourcentages.'}</div>}
+                          {totalPct < 100 && totalPct > 0 && <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>{locale === 'pt' ? `Os ${100 - totalPct}% restantes serão pagos separadamente.` : `Les ${100 - totalPct}% restants seront réglés séparément.`}</div>}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ─── Section: Payment (Facture only) ─── */}
             {docType === 'facture' && (
