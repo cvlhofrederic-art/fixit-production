@@ -175,6 +175,15 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
+  // Authenticated user on landing/login pages → redirect to their dashboard
+  const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' || strippedPathname === '/pro/login'
+  if (user && isLandingOrLogin) {
+    if (role === 'artisan') return localeRedirect('/pro/dashboard')
+    if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
+    if (role === 'coproprietaire') return localeRedirect('/coproprietaire/dashboard')
+    return localeRedirect('/client/dashboard')
+  }
+
   // Protected routes: redirect to login if not authenticated
   if (!user && (
     strippedPathname.startsWith('/client/dashboard') ||
