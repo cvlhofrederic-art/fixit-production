@@ -97,6 +97,11 @@ function hexToRgb(hex: string): [number, number, number] {
   ]
 }
 
+function formatUnitForPdf(unit: string): string {
+  const MAP: Record<string, string> = { m2: 'm²', m3: 'm³', ml: 'ml', h: 'h', j: 'j', f: 'Forfait', u: 'u', L: 'L', kg: 'kg', t: 't', pce: 'pce', ens: 'ens', pt: 'pt', lot: 'Lot', m: 'm' }
+  return MAP[unit] || unit
+}
+
 const SECTION_LABELS: Record<string, string> = {
   main_oeuvre: "MAIN D'OEUVRE",
   materiaux: 'MATÉRIAUX',
@@ -186,8 +191,23 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     const lw = pdf.getTextWidth(label)
     pdf.setFont('helvetica', 'bold')
     pdf.setTextColor('#000000')
-    const lines = pdf.splitTextToSize(value, maxW - lw - 2)
-    pdf.text(lines, x + lw + 1, yPos)
+    const valW = maxW - lw - 2
+    if (valW < 20) {
+      // Label too wide — put value on next line
+      const lines = pdf.splitTextToSize(value, maxW - 4)
+      pdf.text(lines, x + 2, yPos + 3.5)
+      return 3.5 + lines.length * 3.5
+    }
+    const lines = pdf.splitTextToSize(value, valW)
+    if (lines.length === 1) {
+      pdf.text(value, x + lw + 1, yPos)
+      return 4
+    }
+    // First line next to label, rest below full width
+    pdf.text(lines[0], x + lw + 1, yPos)
+    for (let i = 1; i < lines.length; i++) {
+      pdf.text(lines[i], x + 2, yPos + i * 3.5)
+    }
     return lines.length * 3.5
   }
 
@@ -335,7 +355,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   }
 
   const drawRow = (line: LigneDevis, rowIdx: number) => {
-    if (y + rowH > pageH - 25) {
+    // Wrap designation to calculate actual row height
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8)
+    const desigLines = pdf.splitTextToSize(line.designation, colWidths.designation - 6)
+    const actualRowH = Math.max(rowH, desigLines.length * 3.5 + 3)
+
+    if (y + actualRowH > pageH - 25) {
       pdf.addPage()
       y = MARGIN
       drawTableHeader()
@@ -344,7 +370,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     // Alternating row bg
     if (rowIdx % 2 === 1) {
       pdf.setFillColor(...hexToRgb(ALT_ROW))
-      pdf.rect(MARGIN, y, contentW, rowH, 'F')
+      pdf.rect(MARGIN, y, contentW, actualRowH, 'F')
     }
 
     pdf.setFont('helvetica', 'normal')
@@ -352,14 +378,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setTextColor('#000000')
 
     let rx = MARGIN + 3
-    // Designation — wrap if needed
-    const desigLines = pdf.splitTextToSize(line.designation, colWidths.designation - 6)
-    pdf.text(desigLines[0], rx, y + 5)
+    // Designation — all wrapped lines
+    pdf.text(desigLines, rx, y + 4.5)
 
     rx += colWidths.designation
     pdf.text(String(line.quantite), rx, y + 5, { align: 'center' })
     rx += colWidths.quantite
-    pdf.text(line.unite, rx, y + 5, { align: 'center' })
+    pdf.text(formatUnitForPdf(line.unite), rx, y + 5, { align: 'center' })
     rx += colWidths.unite
     pdf.text(formatPrice(line.prix_unitaire), rx + colWidths.prixUnit - 3, y + 5, { align: 'right' })
     rx += colWidths.prixUnit
@@ -368,9 +393,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     // Bottom border
     pdf.setDrawColor(BORDER)
     pdf.setLineWidth(0.1)
-    pdf.line(MARGIN, y + rowH, MARGIN + contentW, y + rowH)
+    pdf.line(MARGIN, y + actualRowH, MARGIN + contentW, y + actualRowH)
 
-    y += rowH
+    y += actualRowH
   }
 
   if (input.mode_affichage === 'bloc') {
