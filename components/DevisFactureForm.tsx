@@ -788,9 +788,10 @@ export default function DevisFactureForm({
       })
     } else {
       // Pas d'étapes → comportement classique (une seule ligne)
-      // Inclure la description du motif si elle existe
-      const fullDesc = service.description?.trim()
-        ? `${service.name}\n${service.description.trim()}`
+      // Inclure la description du motif si elle existe (sans les métadonnées [unit:...|min:...|max:...])
+      const cleanDesc = service.description?.trim().replace(/\s*\[[^\]]*\]/g, '').trim()
+      const fullDesc = cleanDesc
+        ? `${service.name}\n${cleanDesc}`
         : service.name
       setLines(prev => prev.map(line => {
         if (line.id !== lineId) return line
@@ -2701,7 +2702,7 @@ export default function DevisFactureForm({
                                 value={line.description}
                                 onChange={(e) => updateLine(line.id, 'description', e.target.value)}
                                 className="v22-form-input"
-                                rows={line.description.includes('\n') ? 3 : 1}
+                                rows={line.description.includes('\n') ? 2 : 1}
                                 style={{ resize: 'vertical', minHeight: 32 }}
                               />
                             ) : (
