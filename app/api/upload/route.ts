@@ -116,37 +116,50 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Signed URL (7 jours) au lieu de public URL pour sécurité
-    const { data: signedData } = await supabaseAdmin
-      .storage
-      .from(bucket)
-      .createSignedUrl(uploadData.path, 60 * 60 * 24 * 7)
-    const publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from(bucket).getPublicUrl(uploadData.path).data.publicUrl
+    // URL publique pour logos/photos (permanente), signed URL pour documents sensibles
+    const isPublicField = field === 'logo_url' || field === 'profile_photo_url'
+    let publicUrl: string
+    if (isPublicField) {
+      publicUrl = supabaseAdmin.storage.from(bucket).getPublicUrl(uploadData.path).data.publicUrl
+    } else {
+      const { data: signedData } = await supabaseAdmin.storage.from(bucket).createSignedUrl(uploadData.path, 60 * 60 * 24 * 7)
+      publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from(bucket).getPublicUrl(uploadData.path).data.publicUrl
+    }
 
     // Si artisan_id + field fournis, mettre à jour le profil
     if (artisanId && field) {
       const allowedFields = ['insurance_url', 'kbis_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
       if (allowedFields.includes(field)) {
-        // IDOR check : vérifier que l'utilisateur connecté est bien le propriétaire
-        const { data: artisanRow } = await supabaseAdmin
+        // Trouver l'artisan : d'abord par id, puis par user_id (fallback)
+        let artisanRow = (await supabaseAdmin
           .from('profiles_artisan')
-          .select('user_id, portfolio_photos')
+          .select('id, user_id, portfolio_photos')
           .eq('id', artisanId)
-          .single()
-        // Fallback: si artisanId = user.id (admin override), chercher par user_id
-        let verifiedArtisanId = artisanId
+          .single()).data
         if (!artisanRow) {
-          const { data: byUserId } = await supabaseAdmin.from('profiles_artisan').select('id, user_id').eq('user_id', artisanId).single()
-          if (byUserId) {
-            verifiedArtisanId = byUserId.id
-          } else {
-            logger.error('[UPLOAD] Artisan not found:', artisanId)
-            return NextResponse.json({ error: 'Artisan non trouvé' }, { status: 404 })
-          }
-        } else if (artisanRow.user_id !== user.id) {
-          logger.error('[UPLOAD] IDOR mismatch:', { artisanUserId: artisanRow.user_id, authUserId: user.id })
+          // Fallback : artisanId pourrait être le user_id (admin override ou mismatch)
+          artisanRow = (await supabaseAdmin
+            .from('profiles_artisan')
+            .select('id, user_id, portfolio_photos')
+            .eq('user_id', artisanId)
+            .single()).data
+        }
+        if (!artisanRow) {
+          // Dernier fallback : chercher par user_id de l'utilisateur connecté
+          artisanRow = (await supabaseAdmin
+            .from('profiles_artisan')
+            .select('id, user_id, portfolio_photos')
+            .eq('user_id', user.id)
+            .single()).data
+        }
+        if (!artisanRow) {
+          return NextResponse.json({ error: 'Profil artisan non trouvé' }, { status: 404 })
+        }
+        // Vérification propriétaire
+        if (artisanRow.user_id !== user.id) {
           return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
         }
+        const verifiedArtisanId = artisanRow.id
 
         if (field === 'portfolio_photo') {
           // Append to portfolio_photos JSONB array
