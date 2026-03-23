@@ -214,21 +214,25 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
         img.onerror = () => reject(new Error('Logo load failed'))
         img.src = input.artisan.logo_url!
       })
+      // Normaliser dans un carré 500×500px, centré, fond transparent
+      const canvasSize = 500
       const canvas = document.createElement('canvas')
-      const maxPx = 500
-      const ratio = logoImg.width / logoImg.height
-      canvas.width = Math.min(logoImg.width, maxPx)
-      canvas.height = Math.round(canvas.width / ratio)
+      canvas.width = canvasSize
+      canvas.height = canvasSize
       const ctx = canvas.getContext('2d')
       if (ctx) {
-        ctx.drawImage(logoImg, 0, 0, canvas.width, canvas.height)
+        // Calculer les dimensions pour centrer l'image dans le carré
+        const ratio = logoImg.width / logoImg.height
+        let drawW = canvasSize, drawH = canvasSize
+        if (ratio > 1) { drawH = canvasSize / ratio } else { drawW = canvasSize * ratio }
+        const offsetX = (canvasSize - drawW) / 2
+        const offsetY = (canvasSize - drawH) / 2
+        ctx.drawImage(logoImg, offsetX, offsetY, drawW, drawH)
         const logoData = canvas.toDataURL('image/png')
-        // Spec: x=15pt, y=8pt, max 65×65pt — garder proportions
-        const logoMaxW = ptToMm(65)  // ~22.9mm
-        const logoMaxH = ptToMm(65)
-        let lw = logoMaxW, lh = logoMaxH
-        if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
-        pdf.addImage(logoData, 'PNG', ptToMm(15), ptToMm(8), lw, lh)
+        // Spec: position fixe x=15pt y=8pt, taille fixe 65×65pt (~23×23mm)
+        // Même position et taille que le logo arbre du modèle de référence
+        const logoSize = ptToMm(65)  // ~22.9mm — carré fixe
+        pdf.addImage(logoData, 'PNG', ptToMm(15), ptToMm(8), logoSize, logoSize)
       }
     } catch (e) {
       console.warn('[PDF V2] Logo load failed:', e)

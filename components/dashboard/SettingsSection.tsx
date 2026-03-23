@@ -26,7 +26,7 @@ interface SettingsSectionProps {
   profilePhotoFile: File | null
   setProfilePhotoFile: (v: File | null) => void
   profilePhotoUploading: boolean
-  uploadDocument: (file: File, folder: 'profiles' | 'kbis' | 'insurance', field: 'profile_photo_url' | 'kbis_url' | 'insurance_url', setUploading: (v: boolean) => void) => Promise<void>
+  uploadDocument: (file: File, folder: 'profiles' | 'kbis' | 'insurance' | 'logos', field: 'profile_photo_url' | 'kbis_url' | 'insurance_url' | 'logo_url', setUploading: (v: boolean) => void) => Promise<void>
   setProfilePhotoUploading: (v: boolean) => void
   uploadMsg: { text: string; type: 'success' | 'error' } | null
   setUploadMsg: (v: { text: string; type: 'success' | 'error' } | null) => void
@@ -483,6 +483,9 @@ export default function SettingsSection({
   ALL_MODULES, modulesConfig, saveModulesConfig, moveModule,
 }: SettingsSectionProps) {
   const { t } = useTranslation()
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState('')
+  const [logoUploading, setLogoUploading] = useState(false)
 
   const isModuleEnabled = (moduleId: string): boolean => {
     if (modulesConfig.length === 0) return true
@@ -570,6 +573,48 @@ export default function SettingsSection({
                       </button>
                     )}
                     <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
+                  </div>
+                </div>
+
+                {/* Logo entreprise (pour devis/factures PDF) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 0', borderTop: '1px solid var(--v22-border)' }}>
+                  <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: '2px dashed var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    {logoPreview ? (
+                      <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
+                    ) : (artisan as any)?.logo_url ? (
+                      <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="64px" style={{ padding: 4 }} />
+                    ) : (
+                      <span style={{ fontSize: 10, color: 'var(--v22-text-muted)', textAlign: 'center', lineHeight: 1.2 }}>Logo<br/>PDF</span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} className="v22-btn v22-btn-sm">
+                      {'🏢'} Logo entreprise (PDF)
+                      <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (!f) return
+                        if (f.size > 2 * 1024 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 2 Mo)', type: 'error' }); return }
+                        setLogoFile(f)
+                        const reader = new FileReader()
+                        reader.onload = (ev) => setLogoPreview(ev.target?.result as string)
+                        reader.readAsDataURL(f)
+                      }} />
+                    </label>
+                    {logoFile && (
+                      <button
+                        onClick={() => {
+                          uploadDocument(logoFile, 'logos', 'logo_url', setLogoUploading)
+                          setLogoFile(null)
+                          setLogoPreview('')
+                        }}
+                        disabled={logoUploading}
+                        className="v22-btn v22-btn-primary v22-btn-sm"
+                        style={{ marginLeft: 6, opacity: logoUploading ? 0.5 : 1 }}
+                      >
+                        {logoUploading ? '⏳ Upload...' : '⬆️ Envoyer'}
+                      </button>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>PNG, JPG ou WebP. Max 2 Mo. Apparaît en haut à gauche des devis.</div>
                   </div>
                 </div>
 

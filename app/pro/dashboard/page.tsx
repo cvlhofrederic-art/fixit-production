@@ -1046,8 +1046,8 @@ export default function DashboardPage() {
   // ═══ UPLOAD DOCUMENT (photo profil, kbis, assurance) ═══
   const uploadDocument = async (
     file: File,
-    folder: 'profiles' | 'kbis' | 'insurance',
-    field: 'profile_photo_url' | 'kbis_url' | 'insurance_url',
+    folder: 'profiles' | 'kbis' | 'insurance' | 'logos',
+    field: 'profile_photo_url' | 'kbis_url' | 'insurance_url' | 'logo_url',
     setUploading: (v: boolean) => void
   ) => {
     if (!artisan) return
@@ -1056,7 +1056,8 @@ export default function DashboardPage() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('bucket', folder === 'profiles' ? 'profile-photos' : 'artisan-documents')
+      const bucketMap: Record<string, string> = { profiles: 'profile-photos', logos: 'profile-photos' }
+      fd.append('bucket', bucketMap[folder] || 'artisan-documents')
       fd.append('folder', folder)
       fd.append('artisan_id', artisan.id)
       fd.append('field', field)
