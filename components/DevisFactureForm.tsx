@@ -2728,8 +2728,8 @@ export default function DevisFactureForm({
                     </thead>
                     <tbody>
                       {lines.map((line) => (
-                        <tr key={line.id}>
-                          <td>
+                        <tr key={line.id} style={{ verticalAlign: 'top' }}>
+                          <td style={{ verticalAlign: 'top' }}>
                             {line.description ? (
                               (() => {
                                 // Nettoyer les métadonnées [unit:...|min:...|max:...]
@@ -2752,15 +2752,32 @@ export default function DevisFactureForm({
                                     {detail && (
                                       <div style={{
                                         marginTop: 4,
-                                        padding: '3px 8px',
-                                        background: '#f9fafb',
-                                        border: '1px solid #e5e7eb',
-                                        borderRadius: 4,
-                                        fontSize: 11,
-                                        color: '#6b7280',
-                                        lineHeight: 1.4,
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 4,
                                       }}>
-                                        {detail}
+                                        <div style={{
+                                          flex: 1,
+                                          padding: '3px 8px',
+                                          background: '#f9fafb',
+                                          border: '1px solid #e5e7eb',
+                                          borderRadius: 4,
+                                          fontSize: 11,
+                                          color: '#6b7280',
+                                          lineHeight: 1.4,
+                                        }}>
+                                          {detail}
+                                        </div>
+                                        {/* Bouton supprimer la description */}
+                                        <button
+                                          title="Supprimer la description"
+                                          onClick={() => updateLine(line.id, 'description', title)}
+                                          style={{
+                                            flexShrink: 0, background: 'none', border: '1px solid #e5e7eb',
+                                            borderRadius: 4, padding: '2px 5px', cursor: 'pointer',
+                                            fontSize: 11, color: '#9ca3af', lineHeight: 1,
+                                          }}
+                                        >✕</button>
                                       </div>
                                     )}
                                   </div>
@@ -2793,7 +2810,7 @@ export default function DevisFactureForm({
                               </div>
                             )}
                           </td>
-                          <td>
+                          <td style={{ verticalAlign: 'top' }}>
                             <input
                               type="number"
                               value={line.qty}
@@ -2803,7 +2820,7 @@ export default function DevisFactureForm({
                               style={{ textAlign: 'center' }}
                             />
                           </td>
-                          <td>
+                          <td style={{ verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                               <select
                                 value={getSelectValue(line)}
@@ -2838,7 +2855,7 @@ export default function DevisFactureForm({
                               )}
                             </div>
                           </td>
-                          <td>
+                          <td style={{ verticalAlign: 'top' }}>
                             <input
                               type="number"
                               value={line.priceHT}
@@ -2847,7 +2864,7 @@ export default function DevisFactureForm({
                               className="v22-form-input"
                             />
                           </td>
-                          <td>
+                          <td style={{ verticalAlign: 'top' }}>
                             <select
                               value={line.tvaRate}
                               onChange={(e) => updateLine(line.id, 'tvaRate', parseFloat(e.target.value))}
@@ -2872,12 +2889,12 @@ export default function DevisFactureForm({
                               )}
                             </select>
                           </td>
-                          <td>
+                          <td style={{ verticalAlign: 'top' }}>
                             <div className="v22-amount" style={{ padding: '7px 10px', background: 'var(--v22-bg)', borderRadius: 3 }}>
                               {localeFormats.currencyFormat(line.totalHT)}
                             </div>
                           </td>
-                          <td>
+                          <td style={{ verticalAlign: 'top' }}>
                             <button
                               onClick={() => removeLine(line.id)}
                               className="v22-btn v22-btn-danger v22-btn-sm"
