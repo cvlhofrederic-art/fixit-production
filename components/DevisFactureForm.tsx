@@ -3087,7 +3087,16 @@ export default function DevisFactureForm({
                             <input
                               type="number"
                               value={line.qty}
-                              onChange={(e) => updateLine(line.id, 'qty', parseInt(e.target.value) || 1)}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                // Accepter la saisie brute (y compris vide temporairement)
+                                updateLine(line.id, 'qty', v === '' ? 0 : parseInt(v) || 0)
+                              }}
+                              onBlur={(e) => {
+                                // Au blur, forcer minimum 1
+                                const v = parseInt(e.target.value)
+                                if (!v || v < 1) updateLine(line.id, 'qty', 1)
+                              }}
                               min={1}
                               className="v22-form-input"
                               style={{ textAlign: 'center' }}
