@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+// Suspense removed from root layout to fix React hydration error #419
 import { PHONE_FR, PHONE_PT } from "@/lib/constants";
 import { DM_Sans } from "next/font/google";
 import { Syne } from "next/font/google";
@@ -365,13 +365,7 @@ export default async function RootLayout({
           </a>
           <ConditionalLayout>
             <main id="main-content" role="main">
-              <Suspense fallback={
-                <div className="min-h-screen flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
-                </div>
-              }>
-                {children}
-              </Suspense>
+              {children}
             </main>
           </ConditionalLayout>
           <CookieConsent />
