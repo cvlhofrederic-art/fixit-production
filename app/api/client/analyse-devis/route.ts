@@ -1,15 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
+import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
-// ── Analyseur Devis/Factures CLIENT — Pipeline 3 étapes ──────────────────────
+// ── Analyseur Devis/Factures CLIENT — Pipeline 4 étapes ──────────────────────
 // 1. Préprocessing IA (conditionnel) : nettoyer le texte brut PDF
 // 2. Analyse experte 2025-2026 avec décomposition des coûts
 // 3. Extraction structurée JSON (parallèle avec l'analyse)
+// 4. Scoring : conformité /100, prix marché, confiance /100 + vérification SIRET
 
 // ── Étape 1 : Préprocessing du texte brut PDF ──────────────────────────────
 const PREPROCESS_PROMPT = `Tu es un expert en reconstruction de texte extrait de PDF de devis et factures du bâtiment en France.
@@ -262,6 +264,12 @@ const EXTRACT_PROMPT = `Tu es un extracteur de données de devis/factures du bâ
 - L'émetteur a souvent son nom en gros, en haut, avec ses coordonnées professionnelles (SIRET, RCS, TVA).
 - Le destinataire est souvent après "À l'attention de", "Client :", "Destinataire :", ou dans un encadré séparé.
 
+⚠️ DISTINCTION PRESTATIONS vs DESCRIPTIONS vs ÉTAPES :
+- Une ligne avec QTÉ + PRIX = PRESTATION (type: "prestation")
+- Une ligne sans prix, en petit, sous un titre = DESCRIPTION (type: "description")
+- Des lignes numérotées (1. 2. 3...) sans prix = ÉTAPES (type: "etape")
+- Un motif à 0€ ou "Sur devis" = PRESTATION FORFAITAIRE, pas une étape
+
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans markdown, sans backticks.
 
 Champs à extraire :
@@ -276,7 +284,7 @@ Champs à extraire :
   "date_document": "date au format YYYY-MM-DD (string, '' si non trouvé)",
   "description_travaux": "description courte des travaux (string, max 120 chars)",
   "prestations": [
-    { "designation": "nom prestation", "quantite": 1, "unite": "u/m²/h/ml/forfait", "prix_unitaire_ht": 0, "total_ht": 0 }
+    { "designation": "nom prestation", "type": "prestation|description|etape", "quantite": 1, "unite": "u/m²/h/ml/forfait", "prix_unitaire_ht": 0, "total_ht": 0 }
   ],
   "montant_ht": 0,
   "tva_taux": 0,
@@ -284,33 +292,32 @@ Champs à extraire :
   "montant_ttc": 0,
   "acompte": 0,
   "mentions_presentes": ["SIRET", "TVA", "RC Pro", ...],
-  "mentions_manquantes": ["Garantie décennale", ...]
+  "mentions_manquantes": ["Garantie décennale", ...],
+  "assurance_decennale": { "assureur": "", "numero": "", "couverture": "" },
+  "rc_pro": { "assureur": "", "numero": "" },
+  "conditions_paiement": "",
+  "duree_validite": "",
+  "penalites_retard": false,
+  "droit_retractation": false,
+  "mediateur": false,
+  "statut_juridique": ""
 }`
 
 // ── Détection PDF Vitfix (calque texte structuré) ──────────────────────────
 function isVitfixPdf(text: string): boolean {
-  return text.includes('[VITFIX-DEVIS-METADATA]')
+  return text.includes('[VITFIX-DEVIS-METADATA]') || /DEV-\d{4}-\d{3,}/.test(text)
 }
 
 // ── Heuristique : le texte PDF a-t-il besoin de préprocessing ? ─────────────
 function needsPreprocessing(text: string): boolean {
-  // Les PDFs Vitfix ont un calque texte déjà parfaitement structuré → jamais preprocesser
   if (isVitfixPdf(text)) return false
-
-  // Regex prix avec milliers séparés par espace : "1 800,00 €", "350,00€"
   const pricePatterns = (text.match(/\d[\d\s]*[.,]\d{2}\s*€/g) || []).length
   const lines = text.split('\n').filter(l => l.trim().length > 0).length
   const avgLineLen = text.length / Math.max(lines, 1)
   const hasTableHeaders = /prix\s*unitaire|total\s*ht|montant\s*ttc|quantit/i.test(text)
-
-  // Si le texte a des headers de tableau collés aux données → toujours preprocesser
   if (hasTableHeaders && avgLineLen > 100) return true
-
-  // Texte bien structuré : au moins 3 prix, lignes courtes, multi-lignes
   if (pricePatterns >= 3 && avgLineLen < 80 && lines > 10) return false
-  // Texte court et clair (collé manuellement par l'utilisateur)
   if (text.length < 500 && pricePatterns >= 1 && lines > 3) return false
-
   return true
 }
 
@@ -326,6 +333,73 @@ async function callGroq(systemPrompt: string, userContent: string, opts: { tempe
   })
 }
 
+// ── Vérification SIRET via API interne ──────────────────────────────────────
+async function verifySiret(siret: string, req: NextRequest): Promise<{ verified: boolean; company?: Record<string, unknown> }> {
+  if (!siret || siret.replace(/\s/g, '').length !== 14) return { verified: false }
+  try {
+    const cleanSiret = siret.replace(/\s/g, '')
+    const origin = req.nextUrl.origin
+    const res = await fetch(`${origin}/api/verify-siret?siret=${cleanSiret}`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return { verified: false }
+    const data = await res.json()
+    return { verified: data.verified === true, company: data.company }
+  } catch {
+    return { verified: false }
+  }
+}
+
+// ── Sauvegarde en DB ────────────────────────────────────────────────────────
+async function saveAnalysis(
+  userId: string,
+  data: {
+    filename?: string
+    pdfText?: string
+    isVitfix: boolean
+    artisanNom?: string
+    artisanSiret?: string
+    siretVerified: boolean
+    scores: AnalyseScores
+    extracted: Record<string, unknown>
+    analysisText: string
+    model?: string
+    tokens?: number
+  }
+) {
+  try {
+    const { supabaseAdmin } = await import('@/lib/supabase-server')
+    await supabaseAdmin.from('analyses_devis').insert({
+      user_id: userId,
+      user_type: 'client',
+      filename: data.filename || null,
+      pdf_text: data.pdfText?.substring(0, 10000) || null,
+      is_vitfix: data.isVitfix,
+      artisan_nom: data.artisanNom || null,
+      artisan_siret: data.artisanSiret || null,
+      siret_verified: data.siretVerified,
+      score_conformite: data.scores.conformite.total,
+      score_conformite_max: data.scores.conformite.max,
+      score_prix_ecart: data.scores.prix.ecart_moyen_pct,
+      score_confiance: data.scores.confiance,
+      action_recommandee: data.scores.action_recommandee,
+      extracted: data.extracted,
+      scores_details: {
+        conformite: data.scores.conformite.details,
+        prix: data.scores.prix.details,
+        messages_negociation: data.scores.messages_negociation,
+      },
+      messages_negociation: data.scores.messages_negociation,
+      analysis_text: data.analysisText,
+      model: data.model || null,
+      tokens_used: data.tokens || null,
+    })
+  } catch (err) {
+    logger.warn('[analyse-devis] Save to DB failed (non-bloquant):', err)
+  }
+}
+
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
   const rateOk = await checkRateLimit(`analyse-devis-client:${ip}`, 8, 60_000)
@@ -337,7 +411,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { content, filename } = body
+  const { content, filename, stream } = body
 
   if (!content || content.trim().length < 10) {
     return NextResponse.json({ error: 'Contenu du document trop court ou vide' }, { status: 400 })
@@ -350,6 +424,7 @@ export async function POST(req: NextRequest) {
   try {
     let processedContent = content.trim()
     let preprocessed = false
+    const vitfix = isVitfixPdf(processedContent)
 
     // ── Étape 1 : Préprocessing conditionnel ──
     if (needsPreprocessing(processedContent)) {
@@ -366,23 +441,95 @@ export async function POST(req: NextRequest) {
         }
       } catch (ppErr) {
         logger.warn('Preprocessing failed (non-bloquant):', ppErr)
-        // Continue with original text
       }
     }
 
-    // ── Étape 2 : Appels parallèles — Analyse + Extraction structurée ──
+    // ── Étape 2+3 : Appels parallèles — Analyse + Extraction + SIRET ──
     const userPrompt = filename
       ? `Voici le devis/facture "${filename}" que j'ai reçu d'un artisan :\n\n${processedContent}`
       : `Voici le devis/facture que j'ai reçu d'un artisan :\n\n${processedContent}`
 
+    // Si streaming demandé, on fait d'abord l'extraction pour les scores, puis on streame l'analyse
+    if (stream) {
+      // Extraction d'abord (rapide, ~2s)
+      const extractData = await callGroq(EXTRACT_PROMPT, `Document à analyser :\n\n${processedContent}`, { temperature: 0, max_tokens: 1200 })
+
+      let extracted: Record<string, unknown> = {}
+      try {
+        const rawJson = extractData.choices?.[0]?.message?.content || '{}'
+        const cleaned = rawJson.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        extracted = JSON.parse(cleaned)
+      } catch { /* */ }
+
+      // SIRET vérification en parallèle
+      const siretResult = await verifySiret(extracted.artisan_siret as string || '', req)
+
+      // Calcul des scores (instantané)
+      const scores = calculateScores(
+        (extracted.mentions_presentes || []) as string[],
+        (extracted.mentions_manquantes || []) as string[],
+        extracted,
+        siretResult.verified
+      )
+
+      // Streamer la réponse : scores d'abord, puis analyse narrative
+      const analyseStream = await callGroqStreaming({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 5000,
+      })
+
+      const encoder = new TextEncoder()
+      const transformStream = new TransformStream({
+        start(controller) {
+          // Envoyer les scores en premier chunk
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'scores',
+            scores,
+            extracted,
+            isVitfix: vitfix,
+            siret: siretResult,
+            preprocessed,
+          })}\n\n`))
+        },
+        transform(chunk, controller) {
+          controller.enqueue(chunk)
+        },
+        async flush(controller) {
+          // Sauvegarder en DB de manière asynchrone (ne bloque pas le stream)
+          saveAnalysis(user.id, {
+            filename, pdfText: content, isVitfix: vitfix,
+            artisanNom: extracted.artisan_nom as string,
+            artisanSiret: extracted.artisan_siret as string,
+            siretVerified: siretResult.verified,
+            scores, extracted, analysisText: '[streamed]',
+            model: 'llama-3.3-70b-versatile',
+          }).catch(() => {})
+        },
+      })
+
+      analyseStream.pipeTo(transformStream.writable).catch(() => {})
+
+      return new Response(transformStream.readable, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      })
+    }
+
+    // ── Mode non-streaming (rétrocompatible) ──
     const [analyseData, extractData] = await Promise.all([
       callGroq(SYSTEM_PROMPT, userPrompt, { temperature: 0.1, max_tokens: 5000 }),
-      callGroq(EXTRACT_PROMPT, `Document à analyser :\n\n${processedContent}`, { temperature: 0, max_tokens: 800 }),
+      callGroq(EXTRACT_PROMPT, `Document à analyser :\n\n${processedContent}`, { temperature: 0, max_tokens: 1200 }),
     ])
 
     const analysis = analyseData.choices?.[0]?.message?.content || ''
 
-    // Extraction structurée (best-effort)
     let extracted: Record<string, unknown> = {}
     try {
       const rawJson = extractData.choices?.[0]?.message?.content || '{}'
@@ -392,12 +539,35 @@ export async function POST(req: NextRequest) {
       logger.warn('Extraction JSON failed (non-bloquant):', e)
     }
 
+    // ── Étape 4 : SIRET + Scoring ──
+    const siretResult = await verifySiret(extracted.artisan_siret as string || '', req)
+
+    const scores = calculateScores(
+      (extracted.mentions_presentes || []) as string[],
+      (extracted.mentions_manquantes || []) as string[],
+      extracted,
+      siretResult.verified
+    )
+
     const totalTokens = (analyseData.usage?.total_tokens || 0) + (extractData.usage?.total_tokens || 0)
+
+    // Sauvegarder en DB
+    saveAnalysis(user.id, {
+      filename, pdfText: content, isVitfix: vitfix,
+      artisanNom: extracted.artisan_nom as string,
+      artisanSiret: extracted.artisan_siret as string,
+      siretVerified: siretResult.verified,
+      scores, extracted, analysisText: analysis,
+      model: analyseData.model, tokens: totalTokens,
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,
       analysis,
       extracted,
+      scores,
+      isVitfix: vitfix,
+      siret: siretResult,
       preprocessed,
       model: analyseData.model,
       tokens: totalTokens,

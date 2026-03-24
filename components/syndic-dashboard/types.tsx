@@ -253,16 +253,25 @@ export interface SignatureData {
 
 export interface DevisExtracted {
   artisan_nom?: string
+  artisan_siret?: string
   artisan_metier?: string
   type_document?: string
+  numero_document?: string
+  date_document?: string
   description_travaux?: string
   immeuble?: string
   montant_ht?: number
   montant_ttc?: number
+  tva_taux?: number
+  tva_montant?: number
   date_intervention?: string
   artisan_email?: string
   artisan_telephone?: string
   priorite?: 'urgente' | 'normale' | 'planifiee'
+  prestations?: Array<{ designation: string; type?: string; quantite?: number; unite?: string; prix_unitaire_ht?: number; total_ht?: number }>
+  mentions_presentes?: string[]
+  mentions_manquantes?: string[]
+  statut_juridique?: string
 }
 
 export type InputMode = 'drop' | 'paste'

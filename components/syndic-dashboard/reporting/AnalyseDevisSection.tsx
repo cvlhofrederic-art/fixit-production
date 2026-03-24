@@ -25,8 +25,12 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string; extracted?: DevisExtracted }[]>([])
+  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string; extracted?: DevisExtracted; scores?: any }[]>([])
   const [selectedHistory, setSelectedHistory] = useState<string | null>(null)
+  const [scores, setScores] = useState<any>(null)
+  const [siretResult, setSiretResult] = useState<any>(null)
+  const [isVitfix, setIsVitfix] = useState(false)
+  const [accordion, setAccordion] = useState<string | null>(null)
   const [showMissionModal, setShowMissionModal] = useState(false)
   const [missionForm, setMissionForm] = useState({
     artisan: '', immeuble: '', adresseImmeuble: '', batiment: '', etage: '', numLot: '',
@@ -127,6 +131,9 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
     setError('')
     setAnalysis(null)
     setExtracted(null)
+    setScores(null)
+    setSiretResult(null)
+    setAccordion(null)
     try {
       const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
       const res = await fetch('/api/syndic/analyse-devis', {
@@ -141,6 +148,9 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
       if (!res.ok) { setError(data.error || 'Erreur lors de l\'analyse'); return }
       setAnalysis(data.analysis)
       setExtracted(data.extracted || null)
+      setScores(data.scores || null)
+      setSiretResult(data.siret || null)
+      setIsVitfix(data.isVitfix || false)
       saveToHistory(filename || 'Document analysé', data.analysis, data.extracted)
     } catch {
       setError('Erreur réseau, veuillez réessayer.')
@@ -157,6 +167,10 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
     setError('')
     setPdfReady(false)
     setMissionSuccess(false)
+    setScores(null)
+    setSiretResult(null)
+    setIsVitfix(false)
+    setAccordion(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -579,6 +593,92 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Score cards */}
+              {scores && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900 text-base">Scores d{"'"}analyse</h3>
+                    <div className="flex items-center gap-2">
+                      {isVitfix && <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Devis Vitfix ✅</span>}
+                      {siretResult?.verified && <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">SIRET vérifié ✅</span>}
+                      {siretResult && !siretResult.verified && extracted?.artisan_siret && <span className="text-xs font-semibold bg-red-100 text-red-800 px-2 py-0.5 rounded-full">SIRET non vérifié ❌</span>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <div className="text-xs text-gray-500 font-medium mb-1">Conformité légale</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${scores.conformite.total / scores.conformite.max >= 0.9 ? 'bg-green-500' : scores.conformite.total / scores.conformite.max >= 0.7 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${(scores.conformite.total / scores.conformite.max) * 100}%` }} />
+                        </div>
+                        <span className="text-sm font-bold">{scores.conformite.total}/{scores.conformite.max}</span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <div className="text-xs text-gray-500 font-medium mb-1">Niveau de prix</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${Math.abs(scores.prix.ecart_moyen_pct) <= 15 ? 'bg-green-500' : Math.abs(scores.prix.ecart_moyen_pct) <= 30 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.max(10, 100 - Math.abs(scores.prix.ecart_moyen_pct))}%` }} />
+                        </div>
+                        <span className={`text-sm font-bold ${scores.prix.ecart_moyen_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>{scores.prix.ecart_moyen_pct > 0 ? '+' : ''}{scores.prix.ecart_moyen_pct}%</span>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <div className="text-xs text-gray-500 font-medium mb-1">Confiance</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${scores.confiance >= 80 ? 'bg-green-500' : scores.confiance >= 60 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${scores.confiance}%` }} />
+                        </div>
+                        <span className="text-sm font-bold">{scores.confiance}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conformité details accordion */}
+                  <button onClick={() => setAccordion(accordion === 'conformite' ? null : 'conformite')} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition text-sm font-semibold text-gray-700">
+                    <span>Détail conformité ({scores.conformite.total}/{scores.conformite.max})</span>
+                    <span className={`transition-transform ${accordion === 'conformite' ? 'rotate-90' : ''}`}>▶</span>
+                  </button>
+                  {accordion === 'conformite' && (
+                    <div className="px-3 space-y-1">
+                      {scores.conformite.details.map((c: any) => (
+                        <div key={c.id} className="flex items-center gap-2 text-xs">
+                          <span>{c.status === 'ok' ? '✅' : c.status === 'partial' ? '⚠️' : c.status === 'na' ? '➖' : '❌'}</span>
+                          <span className={c.status === 'ok' ? 'text-green-700' : c.status === 'missing' ? 'text-red-600' : 'text-gray-600'}>{c.label}</span>
+                          <span className="text-gray-400 ml-auto">{c.poids} pts</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* SIRET details accordion */}
+                  {siretResult && (
+                    <>
+                      <button onClick={() => setAccordion(accordion === 'siret' ? null : 'siret')} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition text-sm font-semibold text-gray-700">
+                        <span>Vérification entreprise {siretResult.verified ? '✅' : '❌'}</span>
+                        <span className={`transition-transform ${accordion === 'siret' ? 'rotate-90' : ''}`}>▶</span>
+                      </button>
+                      {accordion === 'siret' && (
+                        <div className="px-3 text-xs space-y-1">
+                          {siretResult.verified && siretResult.company ? (
+                            <>
+                              <div><span className="font-semibold text-gray-500">Entreprise :</span> {siretResult.company.name}</div>
+                              <div><span className="font-semibold text-gray-500">SIRET :</span> {siretResult.company.siret}</div>
+                              <div><span className="font-semibold text-gray-500">Activité :</span> {siretResult.company.nafLabel} ({siretResult.company.nafCode})</div>
+                              <div><span className="font-semibold text-gray-500">Forme :</span> {siretResult.company.legalForm}</div>
+                              <div><span className="font-semibold text-gray-500">Statut :</span> <span className="text-green-600 font-semibold">Active ✅</span></div>
+                            </>
+                          ) : (
+                            <div className="text-red-600 font-semibold">{extracted?.artisan_siret ? `SIRET ${extracted.artisan_siret} non trouvé` : 'Aucun SIRET détecté'}</div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 

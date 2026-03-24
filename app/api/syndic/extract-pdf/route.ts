@@ -95,12 +95,19 @@ export async function POST(req: NextRequest) {
       }, { status: 422 })
     }
 
+    const cleaned = text.trim()
+    // Détection Vitfix
+    const isVitfix = cleaned.includes('[VITFIX-DEVIS-METADATA]') ||
+      /DEV-\d{4}-\d{3,}/.test(cleaned) ||
+      (/[ÉE]METTEUR/i.test(cleaned) && /DESTINATAIRE/i.test(cleaned) && /TOTAL\s*NET/i.test(cleaned) && /Document g[ée]n[ée]r[ée] par Vitfix/i.test(cleaned))
+
     return NextResponse.json({
       success: true,
-      text: text.trim(),
+      text: cleaned,
       pages: numPages,
       filename: file.name,
-      chars: text.trim().length,
+      chars: cleaned.length,
+      isVitfix,
     })
 
   } catch (err: any) {
