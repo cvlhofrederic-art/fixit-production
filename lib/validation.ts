@@ -409,6 +409,39 @@ export const updateCandidatureStatusSchema = z.object({
 
 export { MARCHES_CATEGORIES }
 
+// ── Wallet Scan schema ───────────────────────────────────────────────────────
+export const walletScanSchema = z.object({
+  fileBase64: z.string().min(10).max(10_000_000), // Max ~7.5 MB
+  fileName: z.string().max(255),
+  docKey: z.string().max(50),
+  artisanId: z.string().uuid(),
+})
+
+// ── Save Logo schema ─────────────────────────────────────────────────────────
+export const saveLogoSchema = z.object({
+  artisan_id: z.string().uuid(),
+  logo_base64: z.string().min(10).max(2_000_000), // Max ~1.5 MB
+  field: z.enum(['logo_url', 'profile_photo_url']).default('logo_url'),
+})
+
+// ── Login Attempt schema ─────────────────────────────────────────────────────
+export const loginAttemptSchema = z.object({
+  email: z.string().email().max(254),
+  success: z.boolean(),
+  role: z.string().max(20).optional(),
+  reason: z.string().max(200).optional(),
+})
+
+// ── String sanitizer (XSS prevention) ────────────────────────────────────────
+export function sanitizeHtml(s: string): string {
+  return s
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]*\s+on\w+\s*=\s*["'][^"']*["'][^>]*>/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/data\s*:\s*text\/html/gi, '')
+    .trim()
+}
+
 // ── Helper: validate and return typed result ─────────────────────────────────
 export function validateBody<T>(schema: z.ZodSchema<T>, data: unknown):
   { success: true; data: T } | { success: false; error: string } {
