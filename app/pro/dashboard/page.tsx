@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { POLL_NOTIFICATIONS, POLL_MISSIONS, TOAST_LONG, TOAST_DEFAULT } from '@/lib/constants'
 import { useTranslation } from '@/lib/i18n/context'
@@ -17,36 +16,30 @@ import CanalProSection from '@/components/dashboard/CanalProSection'
 import MessagerieArtisan from '@/components/dashboard/MessagerieArtisan'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 
-const HomeSection = dynamic(() => import('@/components/dashboard/HomeSection'), { ssr: false })
-const CalendarSection = dynamic(() => import('@/components/dashboard/CalendarSection'), { ssr: false })
-const HorairesSection = dynamic(() => import('@/components/dashboard/HorairesSection'), { ssr: false })
-const MotifsSection = dynamic(() => import('@/components/dashboard/MotifsSection'), { ssr: false })
-const DevisSection = dynamic(() => import('@/components/dashboard/DevisSection'), { ssr: false })
-const FacturesSection = dynamic(() => import('@/components/dashboard/FacturesSection'), { ssr: false })
-const StatsRevenusSection = dynamic(() => import('@/components/dashboard/StatsRevenusSection'), { ssr: false })
-const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSection'), { ssr: false })
+// Direct imports — no dynamic() with ssr:false to avoid React hydration error #419
+import HomeSection from '@/components/dashboard/HomeSection'
+import CalendarSection from '@/components/dashboard/CalendarSection'
+import HorairesSection from '@/components/dashboard/HorairesSection'
+import MotifsSection from '@/components/dashboard/MotifsSection'
+import DevisSection from '@/components/dashboard/DevisSection'
+import FacturesSection from '@/components/dashboard/FacturesSection'
+import StatsRevenusSection from '@/components/dashboard/StatsRevenusSection'
+import SettingsSection from '@/components/dashboard/SettingsSection'
 
-const WalletConformiteSection = dynamic(() => import('@/components/dashboard/WalletConformiteSection'), { ssr: false })
-const CarnetDeVisiteSection = dynamic(() => import('@/components/dashboard/CarnetDeVisiteSection'), { ssr: false })
-const PhotosChantierSection = dynamic(() => import('@/components/dashboard/PhotosChantierSection'), { ssr: false })
-const BourseAuxMarchesSection = dynamic(() => import('@/components/marches/BourseAuxMarchesSection'), { ssr: false })
+import WalletConformiteSection from '@/components/dashboard/WalletConformiteSection'
+import CarnetDeVisiteSection from '@/components/dashboard/CarnetDeVisiteSection'
+import PhotosChantierSection from '@/components/dashboard/PhotosChantierSection'
+import BourseAuxMarchesSection from '@/components/marches/BourseAuxMarchesSection'
 
 // V22 new sections
-const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'), { ssr: false })
-const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSection'), { ssr: false })
-const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'), { ssr: false })
-const ParrainageSection = dynamic(() => import('@/components/dashboard/ParrainageSection'), { ssr: false })
-const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), { ssr: false })
+import ChantiersV22Section from '@/components/dashboard/ChantiersSection'
+import PipelineSection from '@/components/dashboard/PipelineSection'
+import BibliothequeSection from '@/components/dashboard/BibliothequeSection'
+import ParrainageSection from '@/components/dashboard/ParrainageSection'
+import AideSection from '@/components/dashboard/AideSection'
 
 // BTP sections
-const EquipesBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.EquipesBTPSection), { ssr: false })
-const ChantiersBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.ChantiersBTPSection), { ssr: false })
-const GanttSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.GanttSection), { ssr: false })
-const SituationsTravaux = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SituationsTravaux), { ssr: false })
-const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.RetenuesGarantieSection), { ssr: false })
-const PointageEquipesSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.PointageEquipesSection), { ssr: false })
-const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SousTraitanceDC4Section), { ssr: false })
-const DPGFSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.DPGFSection), { ssr: false })
+import { EquipesBTPSection, ChantiersBTPSection, GanttSection, SituationsTravaux, RetenuesGarantieSection, PointageEquipesSection, SousTraitanceDC4Section, DPGFSection } from '@/components/dashboard/BTPSections'
 
 // Conciergerie sections
 const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection), { ssr: false })
