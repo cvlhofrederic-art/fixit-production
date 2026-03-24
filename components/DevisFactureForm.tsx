@@ -3131,61 +3131,42 @@ export default function DevisFactureForm({
               </div>
             </div>
 
-            {/* ─── Section: Étapes de l'intervention (après prestations) ─── */}
+            {/* ─── Étapes : petit bloc gris compact comme la description ─── */}
             {devisEtapes.length > 0 && (
-              <div className="v22-card" style={{ marginTop: 16, marginBottom: 16 }}>
-                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="v22-card-title">{'📋'} {locale === 'pt' ? 'Etapas da intervenção' : 'Étapes de l\'intervention'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
-                    {locale === 'pt' ? 'Visível pelo cliente no orçamento' : 'Visible par le client sur le devis'}
+              <div style={{
+                margin: '8px 0 12px', padding: '8px 12px',
+                background: '#F5F5F3', borderRadius: 8, border: '1px solid #E8E8E5',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.5 }}>
+                    ÉTAPES DE L&apos;INTERVENTION
                   </span>
-                </div>
-                <div className="v22-card-body" style={{ padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-                    {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((etape, index) => (
-                      <div key={etape.id} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '6px 8px', borderRadius: 6,
-                        border: '1px solid var(--v22-border)', background: 'var(--v22-surface)',
-                        fontSize: 13,
-                      }}>
-                        <span style={{ color: 'var(--v22-text-muted)', fontSize: 11, minWidth: 22, textAlign: 'center' }}>
-                          {index + 1}.
-                        </span>
-                        <input
-                          type="text"
-                          value={etape.designation}
-                          onChange={(e) => {
-                            const newDesignation = e.target.value
-                            setDevisEtapes(prev => prev.map(et =>
-                              et.id === etape.id ? { ...et, designation: newDesignation } : et
-                            ))
-                          }}
-                          className="v22-form-input"
-                          style={{ flex: 1, padding: '4px 8px', fontSize: 13, border: 'none', background: 'transparent' }}
-                        />
-                        <button
-                          onClick={() => setDevisEtapes(prev => prev.filter(et => et.id !== etape.id))}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: 'var(--v22-red)' }}
-                          title={locale === 'pt' ? 'Remover' : 'Supprimer'}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                   <button
                     onClick={() => {
                       const newId = `etape_manual_${Date.now()}`
                       const newOrdre = devisEtapes.length > 0 ? Math.max(...devisEtapes.map(e => e.ordre)) + 1 : 0
                       setDevisEtapes(prev => [...prev, { id: newId, ordre: newOrdre, designation: '' }])
                     }}
-                    className="v22-btn v22-btn-sm"
-                    style={{ fontSize: 12 }}
+                    style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   >
-                    + {locale === 'pt' ? 'Adicionar etapa' : 'Ajouter une étape'}
+                    + Ajouter
                   </button>
                 </div>
+                {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((etape, index) => (
+                  <div key={etape.id} style={{ display: 'flex', alignItems: 'center', gap: 4, lineHeight: 1.5 }}>
+                    <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{index + 1}.</span>
+                    <input
+                      type="text"
+                      value={etape.designation}
+                      onChange={(e) => setDevisEtapes(prev => prev.map(et => et.id === etape.id ? { ...et, designation: e.target.value } : et))}
+                      style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', outline: 'none', padding: '1px 0' }}
+                    />
+                    <button
+                      onClick={() => setDevisEtapes(prev => prev.filter(et => et.id !== etape.id))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc', padding: '0 2px' }}
+                    >✕</button>
+                  </div>
+                ))}
               </div>
             )}
 
