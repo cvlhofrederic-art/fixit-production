@@ -152,7 +152,13 @@ export default function MotifsSection({
 
                 {/* Étapes par défaut — sous la description */}
                 <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14 }}>
-                  <ServiceEtapesEditor serviceId={editingMotif?.id || null} />
+                  {editingMotif?.id ? (
+                    <ServiceEtapesEditor serviceId={editingMotif.id} />
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
+                      💡 Sauvegardez le motif pour ajouter des étapes.
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration */}
