@@ -1,0 +1,198 @@
+{
+  "version": "1.0.0",
+  "description": "Motifs par défaut Vitfix — activés automatiquement à la création de profil artisan",
+  "metiers": [
+    {
+      "id": "electricien",
+      "label": "Électricien",
+      "motifs": [
+        { "id": "elec_01", "nom": "Mise en conformité tableau électrique", "description": "Remplacement ou mise aux normes du tableau électrique", "unite": "forfait", "prix_unitaire": null },
+        { "id": "elec_02", "nom": "Pose prise de courant", "description": "Installation d'une prise 2P+T encastrée avec boîte", "unite": "u", "prix_unitaire": null },
+        { "id": "elec_03", "nom": "Pose interrupteur / va-et-vient", "description": "Installation d'un interrupteur simple ou va-et-vient", "unite": "u", "prix_unitaire": null },
+        { "id": "elec_04", "nom": "Pose luminaire / point éclairage", "description": "Pose d'un point lumineux avec boîte DCL et raccordement (hors luminaire)", "unite": "u", "prix_unitaire": null },
+        { "id": "elec_05", "nom": "Passage de câble sous moulure", "description": "Pose de câble avec moulure PVC encastrable", "unite": "ml", "prix_unitaire": null },
+        { "id": "elec_06", "nom": "Installation VMC simple flux", "description": "Pose et raccordement VMC simple flux avec bouches", "unite": "forfait", "prix_unitaire": null },
+        { "id": "elec_07", "nom": "Pose disjoncteur différentiel", "description": "Remplacement ou ajout disjoncteur dans tableau", "unite": "u", "prix_unitaire": null },
+        { "id": "elec_08", "nom": "Mise à la terre", "description": "Vérification et mise en conformité de la mise à la terre", "unite": "forfait", "prix_unitaire": null },
+        { "id": "elec_09", "nom": "Câblage réseau / ethernet", "description": "Pose de câble RJ45 catégorie 6 avec prises murales", "unite": "point", "prix_unitaire": null },
+        { "id": "elec_10", "nom": "Installation borne de recharge VE", "description": "Pose et raccordement d'une borne IRVE jusqu'à 7kW", "unite": "forfait", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "plombier",
+      "label": "Plombier",
+      "motifs": [
+        { "id": "plomb_01", "nom": "Remplacement robinet / mitigeur", "description": "Dépose de l'ancien et pose d'un neuf (hors fourniture)", "unite": "u", "prix_unitaire": null },
+        { "id": "plomb_02", "nom": "Débouchage canalisation", "description": "Débouchage par furet ou haute pression", "unite": "forfait", "prix_unitaire": null },
+        { "id": "plomb_03", "nom": "Pose WC / sanitaire", "description": "Installation complète WC suspendu ou au sol", "unite": "u", "prix_unitaire": null },
+        { "id": "plomb_04", "nom": "Remplacement flexible alimentation", "description": "Remplacement flexible sous évier ou WC", "unite": "u", "prix_unitaire": null },
+        { "id": "plomb_05", "nom": "Pose siphon / bonde", "description": "Installation ou remplacement siphon sous lavabo/douche", "unite": "u", "prix_unitaire": null },
+        { "id": "plomb_06", "nom": "Installation chauffe-eau électrique", "description": "Pose et raccordement chauffe-eau (hors fourniture)", "unite": "forfait", "prix_unitaire": null },
+        { "id": "plomb_07", "nom": "Recherche de fuite", "description": "Diagnostic et localisation de fuite", "unite": "forfait", "prix_unitaire": null },
+        { "id": "plomb_08", "nom": "Pose robinet d'arrêt", "description": "Installation robinet d'arrêt sur canalisation", "unite": "u", "prix_unitaire": null },
+        { "id": "plomb_09", "nom": "Raccordement lave-linge / lave-vaisselle", "description": "Alimentation eau et évacuation électroménager", "unite": "forfait", "prix_unitaire": null },
+        { "id": "plomb_10", "nom": "Remplacement colonne de douche", "description": "Dépose et repose colonne de douche (hors fourniture)", "unite": "u", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "macon",
+      "label": "Maçon",
+      "motifs": [
+        { "id": "macon_01", "nom": "Reprise de fissures façade", "description": "Ouverture, traitement et rebouchage fissures extérieures", "unite": "ml", "prix_unitaire": null },
+        { "id": "macon_02", "nom": "Création d'une saignée", "description": "Saignée pour passage de câble ou canalisation", "unite": "ml", "prix_unitaire": null },
+        { "id": "macon_03", "nom": "Rebouchage saignée", "description": "Rebouchage et finition après passage de câble", "unite": "ml", "prix_unitaire": null },
+        { "id": "macon_04", "nom": "Pose de parpaings", "description": "Montage de mur en parpaings creux 20x20x50", "unite": "m²", "prix_unitaire": null },
+        { "id": "macon_05", "nom": "Coulage dalle béton", "description": "Coulage dalle béton armé (hors terrassement)", "unite": "m²", "prix_unitaire": null },
+        { "id": "macon_06", "nom": "Démolition cloison", "description": "Démolition d'une cloison non porteuse avec évacuation", "unite": "m²", "prix_unitaire": null },
+        { "id": "macon_07", "nom": "Pose linteau béton", "description": "Pose linteau béton précontraint (hors fourniture linteau)", "unite": "ml", "prix_unitaire": null },
+        { "id": "macon_08", "nom": "Enduit extérieur monocouche", "description": "Application enduit monocouche sur façade", "unite": "m²", "prix_unitaire": null },
+        { "id": "macon_09", "nom": "Ragréage sol", "description": "Application ragréage autolissant avant revêtement", "unite": "m²", "prix_unitaire": null },
+        { "id": "macon_10", "nom": "Seuil / marche béton", "description": "Coulage seuil ou marche en béton (hors coffrage)", "unite": "u", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "peintre",
+      "label": "Peintre / Décorateur",
+      "motifs": [
+        { "id": "peintre_01", "nom": "Peinture murs intérieurs", "description": "2 couches peinture vinylique (préparation incluse)", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_02", "nom": "Peinture plafond", "description": "2 couches peinture blanche plafond avec sous-couche", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_03", "nom": "Peinture boiseries / portes", "description": "Ponçage, sous-couche et 2 couches laque boiserie", "unite": "u", "prix_unitaire": null },
+        { "id": "peintre_04", "nom": "Pose papier peint", "description": "Pose papier peint vinylique (hors fourniture)", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_05", "nom": "Impression / sous-couche", "description": "Application d'une couche d'impression avant peinture", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_06", "nom": "Enduit de lissage", "description": "Application enduit de lissage sur mur avant peinture", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_07", "nom": "Peinture façade", "description": "Nettoyage HP + 2 couches peinture façade", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_08", "nom": "Décoration effet béton ciré", "description": "Application béton ciré décoratif mur ou sol", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_09", "nom": "Pose toile de verre", "description": "Collage toile de verre à peindre (hors peinture)", "unite": "m²", "prix_unitaire": null },
+        { "id": "peintre_10", "nom": "Remise en état après sinistre", "description": "Rebouchage, impression et finition peinture après dégât", "unite": "forfait", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "carreleur",
+      "label": "Carreleur",
+      "motifs": [
+        { "id": "carre_01", "nom": "Pose carrelage sol", "description": "Pose collée sur chape (hors fourniture carrelage)", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_02", "nom": "Pose carrelage mural", "description": "Pose faïence murale au mur (hors fourniture)", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_03", "nom": "Pose plinthes carrelées", "description": "Pose plinthes assorties au carrelage", "unite": "ml", "prix_unitaire": null },
+        { "id": "carre_04", "nom": "Joint carrelage", "description": "Rejointoiement carrelage existant", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_05", "nom": "Dépose carrelage ancien", "description": "Dépose carrelage avec évacuation (sans ragréage)", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_06", "nom": "Pose mosaïque / décor", "description": "Pose sur filet (hors fourniture)", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_07", "nom": "Ragréage avant carrelage", "description": "Application ragréage autolissant en préparation", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_08", "nom": "Pose margelles piscine", "description": "Pose margelles piscine en pierre naturelle ou carrelage (hors fourniture)", "unite": "ml", "prix_unitaire": null },
+        { "id": "carre_09", "nom": "Étanchéité douche (Schlüter)", "description": "Pose système d'étanchéité sous carrelage douche", "unite": "m²", "prix_unitaire": null },
+        { "id": "carre_10", "nom": "Pose carrelage extérieur", "description": "Pose antidérapant terrasse ou allée (hors fourniture)", "unite": "m²", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "menuisier",
+      "label": "Menuisier",
+      "motifs": [
+        { "id": "menu_01", "nom": "Pose porte intérieure", "description": "Dépose ancienne porte et pose porte prépeinte avec bâti (hors fourniture porte)", "unite": "u", "prix_unitaire": null },
+        { "id": "menu_02", "nom": "Pose fenêtre PVC / ALU", "description": "Dépose menuiserie ancienne et pose neuve (hors fourniture)", "unite": "u", "prix_unitaire": null },
+        { "id": "menu_03", "nom": "Pose parquet flottant", "description": "Pose parquet flottant sur sous-couche (hors fourniture)", "unite": "m²", "prix_unitaire": null },
+        { "id": "menu_04", "nom": "Pose parquet massif", "description": "Clouage ou collage parquet massif (hors fourniture)", "unite": "m²", "prix_unitaire": null },
+        { "id": "menu_05", "nom": "Pose portail / portillon", "description": "Fourniture et pose portail battant ou coulissant", "unite": "u", "prix_unitaire": null },
+        { "id": "menu_06", "nom": "Installation placard sur mesure", "description": "Fabrication et pose placard en panneau mélaminé", "unite": "forfait", "prix_unitaire": null },
+        { "id": "menu_07", "nom": "Pose plinthes / baguettes", "description": "Pose plinthes bois ou MDF peint", "unite": "ml", "prix_unitaire": null },
+        { "id": "menu_08", "nom": "Pose volet roulant électrique", "description": "Fourniture et pose volet roulant motorisé", "unite": "u", "prix_unitaire": null },
+        { "id": "menu_09", "nom": "Réglage / remise en état porte", "description": "Dégondage, rabotage, reprise ferrage", "unite": "u", "prix_unitaire": null },
+        { "id": "menu_10", "nom": "Pose bardage bois", "description": "Pose lame de bardage horizontal ou vertical (hors fourniture)", "unite": "m²", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "couvreur",
+      "label": "Couvreur / Zingueur",
+      "motifs": [
+        { "id": "couv_01", "nom": "Remplacement tuiles cassées", "description": "Dépose et repose de tuiles (hors fourniture tuiles)", "unite": "forfait", "prix_unitaire": null },
+        { "id": "couv_02", "nom": "Nettoyage toiture haute pression", "description": "Traitement mousse et nettoyage HP", "unite": "m²", "prix_unitaire": null },
+        { "id": "couv_03", "nom": "Traitement hydrofuge toiture", "description": "Application produit hydrofuge après nettoyage", "unite": "m²", "prix_unitaire": null },
+        { "id": "couv_04", "nom": "Réfection noue / arêtier", "description": "Rejointoiement ou remplacement noue faîtière", "unite": "ml", "prix_unitaire": null },
+        { "id": "couv_05", "nom": "Pose gouttière zinc / PVC", "description": "Fourniture et pose gouttière avec descente", "unite": "ml", "prix_unitaire": null },
+        { "id": "couv_06", "nom": "Remplacement velux / fenêtre de toit", "description": "Dépose et repose fenêtre de toit (hors fourniture)", "unite": "u", "prix_unitaire": null },
+        { "id": "couv_07", "nom": "Pose écran sous-toiture", "description": "Pose pare-pluie / écran HPV sous liteaux", "unite": "m²", "prix_unitaire": null },
+        { "id": "couv_08", "nom": "Réparation fuite toiture", "description": "Diagnostic + reprise étanchéité ponctuelle", "unite": "forfait", "prix_unitaire": null },
+        { "id": "couv_09", "nom": "Pose solin / bavette zinc", "description": "Étanchéité entre toiture et mur pignon", "unite": "ml", "prix_unitaire": null },
+        { "id": "couv_10", "nom": "Réfection faîtage au mortier", "description": "Rejointoiement au mortier de chaux", "unite": "ml", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "plaquier",
+      "label": "Plaquiste / Isolation",
+      "motifs": [
+        { "id": "plaq_01", "nom": "Pose cloison placo standard", "description": "Ossature métal + 1 plaque chaque côté BA13", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_02", "nom": "Pose faux-plafond BA13", "description": "Ossature CD + plaques BA13 (hors finition)", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_03", "nom": "Isolation mur intérieur (ITI)", "description": "Isolation thermique intérieure par doublage", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_04", "nom": "Isolation combles perdus", "description": "Soufflage laine minérale combles (hors matériaux)", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_05", "nom": "Pose bandes et enduits placo", "description": "Finition joints, bandes et enduit de lissage", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_06", "nom": "Ouverture passage entre 2 pièces", "description": "Découpe placo + pose habillage encadrement", "unite": "u", "prix_unitaire": null },
+        { "id": "plaq_07", "nom": "Pose placo hydrofuge salle de bain", "description": "Pose BA18 H hydrofuge + primaire d'accroche", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_08", "nom": "Isolation phonique cloison", "description": "Doublage acoustique avec laine haute densité", "unite": "m²", "prix_unitaire": null },
+        { "id": "plaq_09", "nom": "Pose trappes de visite", "description": "Découpe et pose trappe PVC ou métal", "unite": "u", "prix_unitaire": null },
+        { "id": "plaq_10", "nom": "Reprise / ragréage plafond", "description": "Rebouchage trous, fissures plafond plâtre ou placo", "unite": "m²", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "chauffagiste",
+      "label": "Chauffagiste / CVC",
+      "motifs": [
+        { "id": "chauf_01", "nom": "Entretien chaudière gaz", "description": "Nettoyage, vérification, rapport de contrôle annuel", "unite": "forfait", "prix_unitaire": null },
+        { "id": "chauf_02", "nom": "Remplacement chaudière gaz", "description": "Dépose ancienne + pose neuve condensation (hors fourniture)", "unite": "forfait", "prix_unitaire": null },
+        { "id": "chauf_03", "nom": "Installation PAC air/air", "description": "Pose unité intérieure + extérieure + raccordement", "unite": "forfait", "prix_unitaire": null },
+        { "id": "chauf_04", "nom": "Installation PAC air/eau", "description": "Pose pompe à chaleur air/eau + raccordement circuit chauffage", "unite": "forfait", "prix_unitaire": null },
+        { "id": "chauf_05", "nom": "Remplacement radiateur électrique", "description": "Dépose et pose radiateur à inertie (hors fourniture)", "unite": "u", "prix_unitaire": null },
+        { "id": "chauf_06", "nom": "Pose thermostat connecté", "description": "Fourniture et installation thermostat programmable", "unite": "u", "prix_unitaire": null },
+        { "id": "chauf_07", "nom": "Purge / équilibrage radiateurs", "description": "Purge réseau + rééquilibrage du circuit chauffage", "unite": "forfait", "prix_unitaire": null },
+        { "id": "chauf_08", "nom": "Pose radiateur eau chaude", "description": "Fourniture et pose radiateur sur circuit existant", "unite": "u", "prix_unitaire": null },
+        { "id": "chauf_09", "nom": "Installation VMC double flux", "description": "Pose centrale + gaines + bouches double flux", "unite": "forfait", "prix_unitaire": null },
+        { "id": "chauf_10", "nom": "Mise en service plancher chauffant", "description": "Vérification, remplissage et équilibrage circuit PC", "unite": "forfait", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "jardinier",
+      "label": "Jardinier / Paysagiste",
+      "motifs": [
+        { "id": "jard_01", "nom": "Tonte pelouse", "description": "Tonte et ramassage de l'herbe (avec évacuation)", "unite": "forfait", "prix_unitaire": null },
+        { "id": "jard_02", "nom": "Taille de haie", "description": "Taille haie basse ou moyenne (hors évacuation)", "unite": "ml", "prix_unitaire": null },
+        { "id": "jard_03", "nom": "Élagage arbre", "description": "Élagage et mise en forme d'un arbre adulte", "unite": "u", "prix_unitaire": null },
+        { "id": "jard_04", "nom": "Abattage arbre", "description": "Abattage directionnel avec évacuation bois", "unite": "u", "prix_unitaire": null },
+        { "id": "jard_05", "nom": "Débroussaillage", "description": "Nettoyage terrain envahi (hors évacuation)", "unite": "m²", "prix_unitaire": null },
+        { "id": "jard_06", "nom": "Création massif / plantation", "description": "Préparation sol, apport terreau et plantation", "unite": "m²", "prix_unitaire": null },
+        { "id": "jard_07", "nom": "Pose gazon synthétique", "description": "Terrassement léger + pose gazon synthétique", "unite": "m²", "prix_unitaire": null },
+        { "id": "jard_08", "nom": "Installation arrosage automatique", "description": "Pose réseau goutte-à-goutte ou asperseurs", "unite": "forfait", "prix_unitaire": null },
+        { "id": "jard_09", "nom": "Évacuation végétaux", "description": "Chargement et évacuation déchets verts en déchetterie", "unite": "m³", "prix_unitaire": null },
+        { "id": "jard_10", "nom": "Traitement antiparasitaire", "description": "Application produit phytosanitaire préventif/curatif", "unite": "forfait", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "serrurier",
+      "label": "Serrurier / Métallier",
+      "motifs": [
+        { "id": "serr_01", "nom": "Remplacement cylindre serrure", "description": "Fourniture et pose cylindre 3 clés (hors marque)", "unite": "u", "prix_unitaire": null },
+        { "id": "serr_02", "nom": "Ouverture porte claquée / bloquée", "description": "Ouverture sans destruction (certificat de propriété requis)", "unite": "forfait", "prix_unitaire": null },
+        { "id": "serr_03", "nom": "Pose verrou supplémentaire", "description": "Fourniture et pose verrou de sûreté encastré", "unite": "u", "prix_unitaire": null },
+        { "id": "serr_04", "nom": "Remplacement serrure multipoints", "description": "Dépose et pose serrure 3 ou 5 points (hors porte)", "unite": "u", "prix_unitaire": null },
+        { "id": "serr_05", "nom": "Pose judas optique", "description": "Perçage et pose judas grand angle", "unite": "u", "prix_unitaire": null },
+        { "id": "serr_06", "nom": "Blindage de porte", "description": "Renforcement porte palière avec blindage acier", "unite": "forfait", "prix_unitaire": null },
+        { "id": "serr_07", "nom": "Pose garde-corps / rampe d'escalier", "description": "Fourniture et pose garde-corps acier ou inox", "unite": "ml", "prix_unitaire": null },
+        { "id": "serr_08", "nom": "Soudure / réparation métallique", "description": "Soudure MIG/TIG sur pièce ou structure métal", "unite": "forfait", "prix_unitaire": null },
+        { "id": "serr_09", "nom": "Pose portail métallique", "description": "Fourniture et pose portail acier battant ou coulissant", "unite": "u", "prix_unitaire": null },
+        { "id": "serr_10", "nom": "Réparation serrure de portail", "description": "Diagnostic et réparation serrure ou gâche de portail", "unite": "forfait", "prix_unitaire": null }
+      ]
+    },
+    {
+      "id": "nettoyage",
+      "label": "Nettoyage / Entretien",
+      "motifs": [
+        { "id": "nett_01", "nom": "Nettoyage de fin de chantier", "description": "Évacuation gravats, nettoyage complet du chantier", "unite": "forfait", "prix_unitaire": null },
+        { "id": "nett_02", "nom": "Nettoyage haute pression façade", "description": "Démoussage et nettoyage HP façade ou dallage", "unite": "m²", "prix_unitaire": null },
+        { "id": "nett_03", "nom": "Nettoyage de vitres", "description": "Lavage intérieur/extérieur vitres et encadrements", "unite": "m²", "prix_unitaire": null },
+        { "id": "nett_04", "nom": "Débarras / vidage de logement", "description": "Évacuation meubles et objets (hors tri)", "unite": "forfait", "prix_unitaire": null },
+        { "id": "nett_05", "nom": "Entretien espaces communs", "description": "Nettoyage couloirs, hall et parties communes", "unite": "forfait", "prix_unitaire": null },
+        { "id": "nett_06", "nom": "Nettoyage après sinistre", "description": "Assèchement, nettoyage suite dégât des eaux ou incendie", "unite": "forfait", "prix_unitaire": null },
+        { "id": "nett_07", "nom": "Dégraissage sol industriel", "description": "Nettoyage chimique sol béton ou résine", "unite": "m²", "prix_unitaire": null },
+        { "id": "nett_08", "nom": "Décapage parquet", "description": "Ponçage et décapage parquet avant vitrification", "unite": "m²", "prix_unitaire": null },
+        { "id": "nett_09", "nom": "Nettoyage toiture / gouttières", "description": "Nettoyage mousse et débouchage gouttières", "unite": "forfait", "prix_unitaire": null },
+        { "id": "nett_10", "nom": "Désinfection / désinsectisation", "description": "Traitement contre nuisibles (cafards, punaises, souris)", "unite": "forfait", "prix_unitaire": null }
+      ]
+    }
+  ]
+}

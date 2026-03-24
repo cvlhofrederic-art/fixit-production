@@ -327,6 +327,15 @@ function FormulaireArtisan() {
             insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
           ])
 
+          // ── Motifs par défaut : insérer selon le métier (silencieux, non-bloquant) ──
+          try {
+            await fetch('/api/seed-motifs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ artisan_id: profileData.id, categories: selectedCategories }),
+            })
+          } catch { /* non-bloquant */ }
+
           // ── Parrainage : lier le filleul au parrain (silencieux, non-bloquant) ──
           if (referralCode && profileData?.id && authData.user?.id) {
             try {
