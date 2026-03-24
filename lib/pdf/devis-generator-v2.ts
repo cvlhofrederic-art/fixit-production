@@ -408,32 +408,6 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   y += dateBoxH + 4
 
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPES D'INTERVENTION (optionnel)
-  // ═══════════════════════════════════════════════════════════
-
-  if (input.etapes && input.etapes.length > 0) {
-    const sorted = [...input.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-    if (sorted.length > 0) {
-      checkPageBreak(15 + sorted.length * 5)
-      pdf.setFillColor(COLOR.BG_GRAY)
-      pdf.rect(ML, y, contentW, 8, 'F')
-      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
-      pdf.text("ÉTAPES DU CHANTIER", ML + 4, y + 5.5)
-      y += 12
-      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
-      for (let i = 0; i < sorted.length; i++) {
-        pdf.setFillColor(i % 2 === 0 ? COLOR.WHITE : COLOR.BG_GRAY)
-        pdf.rect(ML, y - 3, contentW, 5.5, 'F')
-        pdf.setTextColor(COLOR.TEXT)
-        pdf.text(`${i + 1}. ${sorted[i].designation}`, ML + 6, y)
-        y += 5.5
-        if (y > pageH - 40) { pdf.addPage(); y = 20 }
-      }
-      y += 4
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
   // 8. TABLEAU PRESTATIONS — FIX #1 (pas de doublon) + FIX #5 (alternance)
   // ═══════════════════════════════════════════════════════════
 
@@ -456,7 +430,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   }
 
   // FIX #1: Chaque texte rendu UNE SEULE FOIS, pas de boucle double
-  const drawRow = (line: LigneDevis, rowIdx: number) => {
+  const drawRow = (line: LigneDevis, rowIdx: number, lineEtapes: EtapeIntervention[] = []) => {
     const cleaned = cleanDescription(line.designation)
     const nlParts = cleaned.split('\n')
     const title = nlParts[0]
@@ -470,7 +444,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.setFontSize(8)
       descWrapped = pdf.splitTextToSize(detail, tColWidths.designation - 6)
     }
-    const textH = titleWrapped.length * ptToMm(14) + descWrapped.length * ptToMm(12) + 4
+    // Hauteur étapes (si présentes)
+    const etapesH = lineEtapes.length > 0 ? ptToMm(4) + lineEtapes.length * ptToMm(11) : 0
+    const textH = titleWrapped.length * ptToMm(14) + descWrapped.length * ptToMm(12) + etapesH + 4
     const rowH = Math.max(minRowH, textH)
 
     if (y + rowH > pageH - 25) { pdf.addPage(); y = 18; drawTableHeader() }
@@ -496,6 +472,16 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       }
     }
 
+    // Étapes du chantier (sous la description de chaque prestation, si associées)
+    if (lineEtapes.length > 0) {
+      textY += ptToMm(4)
+      pdf.setFontSize(7.5); pdf.setTextColor('#555555'); pdf.setFont('helvetica', 'normal')
+      for (let ei = 0; ei < lineEtapes.length; ei++) {
+        pdf.text(`${ei + 1}. ${lineEtapes[ei].designation}`, ML + 6, textY)
+        textY += ptToMm(11)
+      }
+    }
+
     // Données numériques (centrées verticalement)
     const numY = y + rowH / 2 + 1
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
@@ -511,9 +497,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     y += rowH
   }
 
+  // Étapes triées (à afficher sous la première prestation)
+  const sortedEtapes = input.etapes
+    ? [...input.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+    : []
+
   if (input.mode_affichage === 'bloc') {
     drawTableHeader()
-    input.lignes.forEach((line, idx) => drawRow(line, idx))
+    input.lignes.forEach((line, idx) => {
+      // Les étapes s'affichent sous la première ligne de prestation
+      const etapesForLine = idx === 0 ? sortedEtapes : []
+      drawRow(line, idx, etapesForLine)
+    })
   } else {
     const grouped: Record<string, LigneDevis[]> = {}
     for (const line of input.lignes) { const k = line.section || 'autres'; if (!grouped[k]) grouped[k] = []; grouped[k].push(line) }
@@ -523,8 +518,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.text(SECTION_LABELS[section] || section.toUpperCase(), ML, y + 4)
       y += 7
       drawTableHeader()
-      let st = 0
-      lines.forEach((l, i) => { drawRow(l, i); st += l.total })
+      let st = 0; let globalIdx = 0
+      lines.forEach((l, i) => { drawRow(l, i, globalIdx === 0 ? sortedEtapes : []); st += l.total; globalIdx++ })
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
       pdf.text(`Sous-total : ${formatPrice(st)}`, ML + contentW - 3, y + 4, { align: 'right' })
       y += 8
