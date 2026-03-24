@@ -1117,7 +1117,7 @@ export default function DevisFactureForm({
         // Alerte si assurance expirée
         if (freshInsuranceExpiry && new Date(freshInsuranceExpiry) < new Date()) {
           const proceed = confirm(`⚠️ Votre assurance ${freshInsuranceName || 'RC Pro'} a expiré le ${new Date(freshInsuranceExpiry).toLocaleDateString('fr-FR')}.\n\nLe document sera généré mais les mentions légales indiqueront une assurance potentiellement non valide.\n\nVoulez-vous continuer ?`)
-          if (!proceed) { setGeneratingPdf(false); return }
+          if (!proceed) { setPdfLoading(false); return }
         }
       } catch { /* use cached value */ }
       const input = {
