@@ -2974,6 +2974,31 @@ export default function DevisFactureForm({
                                         </div>
                                       </div>
                                     )}
+                                    {/* Étapes — petit bloc gris sous la description */}
+                                    {devisEtapes.length > 0 && (
+                                      <div style={{
+                                        marginTop: 4, padding: '4px 8px',
+                                        background: '#f3f4f6', border: '1px solid #e5e7eb',
+                                        borderRadius: 4, fontSize: 11, color: '#6b7280', lineHeight: 1.6,
+                                      }}>
+                                        {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((et, i) => (
+                                          <div key={et.id} style={{ display: 'flex', gap: 3, alignItems: 'baseline' }}>
+                                            <span style={{ color: '#9ca3af', minWidth: 14 }}>{i+1}.</span>
+                                            <input
+                                              type="text" value={et.designation}
+                                              onChange={(e) => setDevisEtapes(prev => prev.map(x => x.id === et.id ? {...x, designation: e.target.value} : x))}
+                                              style={{ flex: 1, fontSize: 11, color: '#6b7280', background: 'transparent', border: 'none', outline: 'none', padding: 0 }}
+                                            />
+                                            <button onClick={() => setDevisEtapes(prev => prev.filter(x => x.id !== et.id))}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, color: '#d1d5db', padding: 0 }}>✕</button>
+                                          </div>
+                                        ))}
+                                        <button onClick={() => {
+                                          const newId = `etape_manual_${Date.now()}`
+                                          setDevisEtapes(prev => [...prev, { id: newId, ordre: prev.length + 1, designation: '' }])
+                                        }} style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 0' }}>+ étape</button>
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })()
@@ -3131,44 +3156,7 @@ export default function DevisFactureForm({
               </div>
             </div>
 
-            {/* ─── Étapes : petit bloc gris compact comme la description ─── */}
-            {devisEtapes.length > 0 && (
-              <div style={{
-                margin: '8px 0 12px', padding: '8px 12px',
-                background: '#F5F5F3', borderRadius: 8, border: '1px solid #E8E8E5',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.5 }}>
-                    ÉTAPES DE L&apos;INTERVENTION
-                  </span>
-                  <button
-                    onClick={() => {
-                      const newId = `etape_manual_${Date.now()}`
-                      const newOrdre = devisEtapes.length > 0 ? Math.max(...devisEtapes.map(e => e.ordre)) + 1 : 0
-                      setDevisEtapes(prev => [...prev, { id: newId, ordre: newOrdre, designation: '' }])
-                    }}
-                    style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                  >
-                    + Ajouter
-                  </button>
-                </div>
-                {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((etape, index) => (
-                  <div key={etape.id} style={{ display: 'flex', alignItems: 'center', gap: 4, lineHeight: 1.5 }}>
-                    <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{index + 1}.</span>
-                    <input
-                      type="text"
-                      value={etape.designation}
-                      onChange={(e) => setDevisEtapes(prev => prev.map(et => et.id === etape.id ? { ...et, designation: e.target.value } : et))}
-                      style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', outline: 'none', padding: '1px 0' }}
-                    />
-                    <button
-                      onClick={() => setDevisEtapes(prev => prev.filter(et => et.id !== etape.id))}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc', padding: '0 2px' }}
-                    >✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Étapes moved inside prestation table, under description */}
 
             {/* ─── Section: Acomptes & Paiement échelonné (Devis only) ─── */}
             {docType === 'devis' && (
