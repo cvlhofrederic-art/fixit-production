@@ -117,8 +117,9 @@ export async function POST(request: NextRequest) {
         })
 
         // Stocker les étapes si présentes
-        if (motif.etapes && Array.isArray(motif.etapes) && motif.etapes.length > 0) {
-          etapesMap[motif.nom] = motif.etapes
+        const motifAny = motif as any
+        if (motifAny.etapes && Array.isArray(motifAny.etapes) && motifAny.etapes.length > 0) {
+          etapesMap[motif.nom] = motifAny.etapes
         }
       }
     }
