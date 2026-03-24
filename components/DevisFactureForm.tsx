@@ -793,7 +793,7 @@ export default function DevisFactureForm({
     } catch { /* pas d'étapes = pas grave */ }
 
     if (etapesTemplate.length > 0) {
-      // Copier les étapes sur le devis
+      // Copier les étapes sur le devis (affichées dans la section "Étapes de l'intervention")
       const copiedEtapes: DevisEtape[] = etapesTemplate.map((et, i) => ({
         id: `etape_${Date.now()}_${i}`,
         ordre: et.ordre,
@@ -801,27 +801,10 @@ export default function DevisFactureForm({
         source_etape_id: et.id,
       }))
       setDevisEtapes(copiedEtapes)
+    }
 
-      // Remplacer la ligne actuelle par N lignes (une par étape)
-      // La première reprend la ligne existante, les suivantes sont ajoutées
-      const newLines: ProductLine[] = etapesTemplate.map((et, i) => ({
-        id: Date.now() + i,
-        description: et.designation,
-        qty: 1,
-        unit: serviceUnit,
-        priceHT: 0,  // Prix NULL → artisan doit remplir
-        tvaRate: defaultTvaRate,
-        totalHT: 0,
-        source: 'etape_motif' as const,
-        etape_id: `etape_${Date.now()}_${i}`,
-      }))
-
-      // Remplacer la ligne placeholder par les lignes étapes
-      setLines(prev => {
-        const filtered = prev.filter(l => l.id !== lineId)
-        return [...filtered, ...newLines]
-      })
-    } else {
+    // Comportement unique : une seule ligne avec nom + description
+    {
       // Pas d'étapes → comportement classique (une seule ligne)
       // Inclure la description du motif si elle existe (sans les métadonnées [unit:...|min:...|max:...])
       const cleanDesc = service.description?.trim().replace(/\s*\[[^\]]*\]/g, '').trim()

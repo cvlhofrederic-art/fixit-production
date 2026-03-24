@@ -150,6 +150,11 @@ export default function MotifsSection({
                     className="v22-form-input" style={{ resize: 'none' }} />
                 </div>
 
+                {/* Étapes par défaut — sous la description */}
+                <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14 }}>
+                  <ServiceEtapesEditor serviceId={editingMotif?.id || null} />
+                </div>
+
                 {/* Duration */}
                 <div>
                   <label className="v22-form-label">
@@ -284,10 +289,7 @@ export default function MotifsSection({
                   <div className="v22-ref" style={{ marginTop: 4 }}>{t('proDash.motifs.delaiNote')}</div>
                 </div>
 
-                {/* Étapes par défaut */}
-                <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14 }}>
-                  <ServiceEtapesEditor serviceId={editingMotif?.id || null} />
-                </div>
+                {/* Étapes moved above, under Description */}
               </div>
             </div>
             <div className="v22-modal-foot">
