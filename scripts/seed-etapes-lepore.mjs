@@ -37,7 +37,7 @@ const ETAPES = {
   'Traitement charançon rouge (palmier)': ['Diagnostic visuel', 'Choix du protocole', 'Injection par endothérapie dans le stipe', 'Traitement complémentaire si nécessaire', 'Planification du suivi', 'Déclaration DRAAF si infestation confirmée'],
   'Entretien copropriété / Espaces verts': ['Visite du site et état des lieux', 'Cahier des charges avec le syndic', 'Planification du calendrier d\'intervention', 'Interventions régulières selon contrat', 'Compte-rendu après chaque passage', 'Bilan annuel et ajustement'],
   'Devis': ['Prise de rendez-vous', 'Déplacement sur site', 'Diagnostic et relevé des besoins', 'Chiffrage et rédaction du devis', 'Envoi au client'],
-  'Élagage': ['Diagnostic visuel et évaluation sanitaire', 'Sécurisation et balisage du périmètre', 'Mise en place du matériel', 'Taille raisonnée selon les règles de l\'art', 'Descente contrôlée des branches', 'Broyage des rémanents sur place', 'Nettoyage complet du chantier'],
+  'Élagage': ['Diagnostic visuel et évaluation sanitaire', 'Sécurisation et balisage du périmètre', 'Mise en place du matériel', 'Taille raisonnée selon les règles de l\'art', 'Descente contrôlée des branches', 'Broyage des rémanents sur place', 'Nettoyage de la zone'],
 }
 
 async function run() {
