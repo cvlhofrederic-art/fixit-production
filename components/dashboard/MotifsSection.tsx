@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 
@@ -29,6 +30,11 @@ export default function MotifsSection({
   getPriceRangeLabel, getPricingUnit, getCleanDescription,
 }: MotifsSectionProps) {
   const { t } = useTranslation()
+  const [localEtapes, setLocalEtapes] = useState<string[]>([])
+
+  // Reset local étapes when modal opens/closes
+  const origOpenNewMotif = openNewMotif
+  const wrappedOpenNewMotif = () => { setLocalEtapes([]); origOpenNewMotif() }
 
   return (
     <div>
@@ -38,7 +44,7 @@ export default function MotifsSection({
           <div className="v22-page-title">{'🔧'} {t('proDash.motifs.title')}</div>
           <div className="v22-page-sub">{t('proDash.motifs.subtitle')}</div>
         </div>
-        <button onClick={openNewMotif} className="v22-btn v22-btn-primary">
+        <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className="v22-btn v22-btn-primary">
           {t('proDash.motifs.nouveauMotif')}
         </button>
       </div>
@@ -112,7 +118,7 @@ export default function MotifsSection({
                   <div style={{ fontSize: 28, marginBottom: 8 }}>{'🔧'}</div>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('proDash.motifs.aucunMotif')}</div>
                   <div className="v22-ref" style={{ marginBottom: 12 }}>{t('proDash.motifs.aucunMotifDesc')}</div>
-                  <button onClick={openNewMotif} className="v22-btn v22-btn-primary">
+                  <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className="v22-btn v22-btn-primary">
                     {t('proDash.motifs.creerMotif')}
                   </button>
                 </td>
@@ -150,14 +156,38 @@ export default function MotifsSection({
                     className="v22-form-input" style={{ resize: 'none' }} />
                 </div>
 
-                {/* Étapes par défaut — sous la description */}
-                <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14 }}>
+                {/* Étapes — sous la description, même style que dans le devis */}
+                <div style={{
+                  marginTop: 8, padding: '6px 10px',
+                  background: '#f3f4f6', border: '1px solid #e5e7eb',
+                  borderRadius: 6,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>ÉTAPES</span>
+                    {editingMotif?.id ? null : (
+                      <button onClick={() => setLocalEtapes(prev => [...prev, ''])}
+                        style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>+ Ajouter</button>
+                    )}
+                  </div>
                   {editingMotif?.id ? (
                     <ServiceEtapesEditor serviceId={editingMotif.id} />
                   ) : (
-                    <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
-                      💡 Sauvegardez le motif pour ajouter des étapes.
-                    </div>
+                    <>
+                      {localEtapes.length === 0 && (
+                        <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Aucune étape. Cliquez + Ajouter.</div>
+                      )}
+                      {localEtapes.map((et, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
+                          <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
+                          <input type="text" value={et} placeholder="Ex: Diagnostic visuel"
+                            onChange={(e) => setLocalEtapes(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                            style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
+                          />
+                          <button onClick={() => setLocalEtapes(prev => prev.filter((_, j) => j !== i))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: '#ccc' }}>✕</button>
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
 
@@ -302,7 +332,24 @@ export default function MotifsSection({
               <button onClick={() => setShowMotifModal(false)} className="v22-btn">
                 {t('proDash.motifs.annuler')}
               </button>
-              <button onClick={saveMotif} disabled={!motifForm.name || savingMotif}
+              <button onClick={async () => {
+                const etapesToSave = !editingMotif ? localEtapes.filter(e => e.trim()) : []
+                await saveMotif()
+                // Nouveau motif avec étapes → insérer après sauvegarde
+                if (etapesToSave.length > 0) {
+                  try {
+                    const { supabase } = await import('@/lib/supabase')
+                    const { data: found } = await supabase.from('services').select('id').eq('name', motifForm.name).order('created_at', { ascending: false }).limit(1)
+                    if (found?.[0]) {
+                      for (let i = 0; i < etapesToSave.length; i++) {
+                        await fetch('/api/service-etapes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ service_id: found[0].id, designation: etapesToSave[i], ordre: i + 1 }) })
+                      }
+                    }
+                  } catch { /* non-bloquant */ }
+                  setLocalEtapes([])
+                }
+              }} disabled={!motifForm.name || savingMotif}
                 className="v22-btn v22-btn-primary"
                 style={{ opacity: (!motifForm.name || savingMotif) ? 0.4 : 1, cursor: (!motifForm.name || savingMotif) ? 'not-allowed' : 'pointer' }}>
                 {savingMotif ? t('proDash.motifs.sauvegarde') : editingMotif ? `💾 ${t('proDash.motifs.modifier')}` : t('proDash.motifs.creerLeMotif')}
