@@ -2872,93 +2872,6 @@ export default function DevisFactureForm({
               </div>
             </div>
 
-            {/* ─── Section: Étapes de l'intervention ─── */}
-            {devisEtapes.length > 0 && (
-              <div className="v22-card" style={{ marginBottom: 16 }}>
-                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="v22-card-title">{'📋'} {locale === 'pt' ? 'Etapas da intervenção' : 'Étapes de l\'intervention'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
-                    {locale === 'pt' ? 'Visível pelo cliente no orçamento' : 'Visible par le client sur le devis'}
-                  </span>
-                </div>
-                <div className="v22-card-body" style={{ padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-                    {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((etape, index) => (
-                      <div key={etape.id} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '6px 8px', borderRadius: 6,
-                        border: '1px solid var(--v22-border)', background: 'var(--v22-surface)',
-                        fontSize: 13,
-                      }}>
-                        <span style={{ color: 'var(--v22-text-muted)', fontSize: 11, minWidth: 22, textAlign: 'center' }}>
-                          {index + 1}.
-                        </span>
-                        <input
-                          type="text"
-                          value={etape.designation}
-                          onChange={(e) => {
-                            const newDesignation = e.target.value
-                            setDevisEtapes(prev => prev.map(et =>
-                              et.id === etape.id ? { ...et, designation: newDesignation } : et
-                            ))
-                            // Sync: mettre à jour la ligne de devis liée
-                            setLines(prev => prev.map(l =>
-                              l.etape_id === etape.id ? { ...l, description: newDesignation } : l
-                            ))
-                          }}
-                          className="v22-form-input"
-                          style={{ flex: 1, padding: '4px 8px', fontSize: 13, border: 'none', background: 'transparent' }}
-                        />
-                        <button
-                          onClick={() => {
-                            setDevisEtapes(prev => prev.filter(et => et.id !== etape.id))
-                            // Proposer de supprimer la ligne de devis liée
-                            const linkedLine = lines.find(l => l.etape_id === etape.id)
-                            if (linkedLine) {
-                              setLines(prev => prev.filter(l => l.etape_id !== etape.id))
-                            }
-                          }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: 'var(--v22-red)' }}
-                          title={locale === 'pt' ? 'Remover' : 'Supprimer'}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Ajouter une étape manuellement */}
-                  <button
-                    onClick={() => {
-                      const newId = `etape_manual_${Date.now()}`
-                      const newOrdre = devisEtapes.length > 0 ? Math.max(...devisEtapes.map(e => e.ordre)) + 1 : 0
-                      setDevisEtapes(prev => [...prev, { id: newId, ordre: newOrdre, designation: '' }])
-                      // Créer aussi une ligne de devis vide
-                      setLines(prev => [...prev, {
-                        id: Date.now(),
-                        description: '',
-                        qty: 1,
-                        unit: 'f',
-                        priceHT: 0,
-                        tvaRate: defaultTvaRate,
-                        totalHT: 0,
-                        source: 'etape_motif',
-                        etape_id: newId,
-                      }])
-                    }}
-                    className="v22-btn v22-btn-sm"
-                    style={{ fontSize: 12 }}
-                  >
-                    + {locale === 'pt' ? 'Adicionar etapa' : 'Ajouter une étape'}
-                  </button>
-                  <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 8, fontStyle: 'italic' }}>
-                    {'ℹ️'} {locale === 'pt'
-                      ? 'Estas etapas não modificam o template do motivo nos seus parâmetros.'
-                      : 'Ces étapes ne modifient pas le template du motif dans vos paramètres.'}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* ─── Section: Prestations ─── */}
             <div className="v22-card">
               <div className="v22-card-head">
@@ -3217,6 +3130,64 @@ export default function DevisFactureForm({
                 </div>
               </div>
             </div>
+
+            {/* ─── Section: Étapes de l'intervention (après prestations) ─── */}
+            {devisEtapes.length > 0 && (
+              <div className="v22-card" style={{ marginTop: 16, marginBottom: 16 }}>
+                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="v22-card-title">{'📋'} {locale === 'pt' ? 'Etapas da intervenção' : 'Étapes de l\'intervention'}</span>
+                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
+                    {locale === 'pt' ? 'Visível pelo cliente no orçamento' : 'Visible par le client sur le devis'}
+                  </span>
+                </div>
+                <div className="v22-card-body" style={{ padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                    {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((etape, index) => (
+                      <div key={etape.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 8px', borderRadius: 6,
+                        border: '1px solid var(--v22-border)', background: 'var(--v22-surface)',
+                        fontSize: 13,
+                      }}>
+                        <span style={{ color: 'var(--v22-text-muted)', fontSize: 11, minWidth: 22, textAlign: 'center' }}>
+                          {index + 1}.
+                        </span>
+                        <input
+                          type="text"
+                          value={etape.designation}
+                          onChange={(e) => {
+                            const newDesignation = e.target.value
+                            setDevisEtapes(prev => prev.map(et =>
+                              et.id === etape.id ? { ...et, designation: newDesignation } : et
+                            ))
+                          }}
+                          className="v22-form-input"
+                          style={{ flex: 1, padding: '4px 8px', fontSize: 13, border: 'none', background: 'transparent' }}
+                        />
+                        <button
+                          onClick={() => setDevisEtapes(prev => prev.filter(et => et.id !== etape.id))}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: 'var(--v22-red)' }}
+                          title={locale === 'pt' ? 'Remover' : 'Supprimer'}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const newId = `etape_manual_${Date.now()}`
+                      const newOrdre = devisEtapes.length > 0 ? Math.max(...devisEtapes.map(e => e.ordre)) + 1 : 0
+                      setDevisEtapes(prev => [...prev, { id: newId, ordre: newOrdre, designation: '' }])
+                    }}
+                    className="v22-btn v22-btn-sm"
+                    style={{ fontSize: 12 }}
+                  >
+                    + {locale === 'pt' ? 'Adicionar etapa' : 'Ajouter une étape'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ─── Section: Acomptes & Paiement échelonné (Devis only) ─── */}
             {docType === 'devis' && (
