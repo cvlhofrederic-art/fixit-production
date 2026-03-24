@@ -89,16 +89,16 @@ export async function POST(request: NextRequest) {
     // Collecter les motifs à insérer (dédupliqués par nom)
     const seenNames = new Set<string>()
     const motifsToInsert: any[] = []
+    const etapesMap: Record<string, string[]> = {} // nom → étapes
 
     for (const metierId of metierIds) {
-      const metierConfig = defaultMotifs.metiers.find(m => m.id === metierId)
+      const metierConfig = defaultMotifs.metiers.find((m: any) => m.id === metierId)
       if (!metierConfig) continue
 
       for (const motif of metierConfig.motifs) {
         if (seenNames.has(motif.nom)) continue
         seenNames.add(motif.nom)
 
-        // Encoder l'unité dans la description comme le fait le système existant
         const unitMap: Record<string, string> = {
           'forfait': 'forfait', 'u': 'unite', 'm²': 'm2', 'ml': 'ml',
           'm³': 'm3', 'point': 'unite', 'h': 'heure',
@@ -115,6 +115,11 @@ export async function POST(request: NextRequest) {
           active: true,
           validation_auto: false,
         })
+
+        // Stocker les étapes si présentes
+        if (motif.etapes && Array.isArray(motif.etapes) && motif.etapes.length > 0) {
+          etapesMap[motif.nom] = motif.etapes
+        }
       }
     }
 
@@ -122,7 +127,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ skipped: true, reason: 'Aucun motif à insérer' })
     }
 
-    // Insérer en batch
+    // Insérer les motifs en batch
     const { data: inserted, error } = await supabaseAdmin
       .from('services')
       .insert(motifsToInsert)
@@ -133,9 +138,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Insérer les étapes pour les motifs qui en ont
+    let etapesCount = 0
+    if (inserted) {
+      for (const svc of inserted) {
+        const etapes = etapesMap[svc.name]
+        if (!etapes) continue
+        const rows = etapes.map((d: string, i: number) => ({
+          service_id: svc.id,
+          ordre: i + 1,
+          designation: d,
+        }))
+        const { error: etErr } = await supabaseAdmin.from('service_etapes').insert(rows)
+        if (!etErr) etapesCount += rows.length
+      }
+    }
+
     return NextResponse.json({
       success: true,
       count: inserted?.length || 0,
+      etapes_count: etapesCount,
       metiers: Array.from(metierIds),
     })
 
