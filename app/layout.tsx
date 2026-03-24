@@ -319,7 +319,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <meta name="csrf-protection" content="same-origin" />
         <meta name="theme-color" content="#FFC107" />
@@ -358,7 +358,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} ${playfairDisplay.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} ${playfairDisplay.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
         <Providers locale={locale}>
           <a href="#main-content" className="skip-to-content">
             {locale === 'en' || locale === 'nl' ? 'Skip to main content' : locale === 'pt' ? 'Ir para o conte\u00fado principal' : locale === 'es' ? 'Ir al contenido principal' : 'Aller au contenu principal'}
