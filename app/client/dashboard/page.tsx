@@ -11,6 +11,8 @@ import Image from 'next/image'
 import { Calendar, Clock, MapPin, Star, LogOut, User, Search, ChevronRight, Pencil, Save, X, Home, Shield, FileText, CheckCircle, AlertTriangle, Copy, Filter, FileSearch, MessageSquare, Send, LayoutDashboard, Wrench, Zap, Paintbrush, Hammer, Snowflake, BrickWall, Calculator } from 'lucide-react'
 import FixyChatGeneric from '@/components/chat/FixyChatGeneric'
 import SimulateurDevisClient from '@/app/fr/simulateur-devis/SimulateurDevisClient'
+import dynamic from 'next/dynamic'
+const SimulateurChat = dynamic(() => import('@/components/simulateur/SimulateurChat'), { ssr: false })
 
 type Booking = {
   id: string
@@ -2161,18 +2163,27 @@ export default function ClientDashboardPage() {
           {/* ── SIMULATEUR TAB ── */}
           {activeTab === 'simulateur' && (
           <div>
-            <div className="mb-6">
+            <div className="mb-4">
               <h2 className="text-xl font-display font-black tracking-[-0.02em] flex items-center gap-2">
                 <Calculator className="w-5 h-5" />
-                {locale === 'pt' ? 'Simulador de Orçamento' : 'Simulateur de Devis'}
+                {locale === 'pt' ? 'Estimador de Obras' : 'Estimateur de travaux'}
               </h2>
-              <p className="text-mid text-sm mt-1">
+              <p className="text-text-muted text-sm mt-1">
                 {locale === 'pt'
-                  ? 'Descreva o seu projeto para obter uma estimativa de preço instantânea.'
-                  : 'Décrivez votre projet pour obtenir une estimation de prix instantanée.'}
+                  ? 'Descreva as suas obras e obtenha uma estimativa de preço em algumas perguntas.'
+                  : 'Décrivez vos travaux et obtenez une estimation de prix en quelques questions.'}
               </p>
             </div>
-            <SimulateurDevisClient initialCity={profileData.city || ''} />
+            <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-[0_4px_30px_rgba(0,0,0,0.08)] overflow-hidden" style={{ height: '600px' }}>
+              <SimulateurChat
+                userId={user?.id}
+                embedded={true}
+                onPublishBourse={(data) => {
+                  // Switch to marches tab with pre-filled data
+                  setActiveTab('marches')
+                }}
+              />
+            </div>
           </div>
           )}
 
