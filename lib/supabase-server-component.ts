@@ -5,8 +5,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// Placeholder JWT that passes Supabase client validation during CI builds (no env vars)
-const BUILD_PLACEHOLDER_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MTkwMDAwMDAwMH0.placeholder'
+// Placeholder for CI builds when env vars are absent (prevents build crash)
+const BUILD_PLACEHOLDER_KEY = 'placeholder-key-for-build'
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies()

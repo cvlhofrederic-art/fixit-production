@@ -31,19 +31,9 @@ const sql = `
   ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS company_postal_code text;
   ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS phone text;
   ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS email text;
-
-  UPDATE profiles_artisan SET
-    legal_form = 'Entrepreneur individuel',
-    siren = '953951589',
-    naf_code = '81.30Z',
-    naf_label = 'Services d''aménagement paysager',
-    company_address = 'Rés L''aurore Bat B, 13600 La Ciotat',
-    company_city = 'La Ciotat',
-    company_postal_code = '13600',
-    phone = '06 51 46 66 98',
-    email = 'leporesebastien.pro@gmail.com'
-  WHERE siret = '95395158900019';
 `
+// Note: seed data removed for security (contained PII).
+// Use Supabase dashboard to update artisan profiles.
 
 async function tryConnection(connStr, label) {
   const pool = new Pool({

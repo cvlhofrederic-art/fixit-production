@@ -31,19 +31,19 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Initialiser CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@480db559a14342288b67e54bd959dd52dc3ee68f # v3
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@480db559a14342288b67e54bd959dd52dc3ee68f # v3
 
       - name: Exécuter l'analyse CodeQL
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@480db559a14342288b67e54bd959dd52dc3ee68f # v3
         with:
           category: "/language:${{ matrix.language }}"
 
@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
@@ -83,7 +83,7 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Exécuter Semgrep
         run: >
@@ -94,7 +94,7 @@ jobs:
           --sarif --output semgrep-results.sarif .
 
       - name: Uploader les résultats dans GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@480db559a14342288b67e54bd959dd52dc3ee68f # v3
         if: always()
         with:
           sarif_file: semgrep-results.sarif
@@ -108,11 +108,11 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Vérifier si des fichiers IA ont changé
         id: ai-changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
         with:
           filters: |
             ai:
@@ -132,7 +132,7 @@ jobs:
 
       - name: Configurer Python
         if: steps.ai-changes.outputs.ai == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
@@ -182,7 +182,7 @@ jobs:
 
       - name: Poster résultat sur la PR
         if: steps.ai-changes.outputs.ai == 'true' && always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             await github.rest.issues.createComment({
