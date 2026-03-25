@@ -67,8 +67,8 @@ export async function middleware(request: NextRequest) {
     "object-src 'none'",
   ].join('; ')
 
-  // ── Skip locale logic for API routes and internal Next.js routes ──
-  const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/')
+  // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
+  const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')
 
   // ── CSRF Protection : vérifier Origin pour les requêtes mutantes sur /api/ ──
   if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
