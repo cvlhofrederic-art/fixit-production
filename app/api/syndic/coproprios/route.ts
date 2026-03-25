@@ -3,6 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger, parsePagination } from '@/lib/logger'
+import { z } from 'zod'
+import { validateBody, syndicCoproprioPOSTSchema } from '@/lib/validation'
+
+const syndicCopropriosBatchSchema = z.object({
+  coproprios: z.array(z.record(z.string(), z.unknown())).max(500).optional(),
+  coproprio: z.record(z.string(), z.unknown()).optional(),
+}).passthrough()
 
 // ── GET /api/syndic/coproprios ──────────────────────────────────────────────
 // Retourne tous les copropriétaires du cabinet
@@ -75,6 +82,10 @@ export async function POST(request: NextRequest) {
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
     const body = await request.json()
+    const batchValidation = validateBody(syndicCopropriosBatchSchema, body)
+    if (!batchValidation.success) {
+      return NextResponse.json({ error: batchValidation.error }, { status: 400 })
+    }
 
     // Supporte un seul copropriétaire ou un tableau (batch import)
     const items: any[] = Array.isArray(body.coproprios) ? body.coproprios : (body.coproprio ? [body.coproprio] : [body])

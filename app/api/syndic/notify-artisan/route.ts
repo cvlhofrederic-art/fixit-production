@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicNotifyArtisanSchema } from '@/lib/validation'
 
 // ── Envoie une notification in-app à un artisan ───────────────────────────────
 // ⚠️ SÉCURISÉ : auth obligatoire + vérification rôle syndic
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`notify_artisan_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   try {
+    const rawBody = await request.json()
+    const v = validateBody(syndicNotifyArtisanSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const {
       artisan_id,
       syndic_id,
@@ -27,11 +31,7 @@ export async function POST(request: NextRequest) {
       title,
       body,
       data_json = {},
-    } = await request.json()
-
-    if (!artisan_id || !title) {
-      return NextResponse.json({ error: 'artisan_id et title requis' }, { status: 400 })
-    }
+    } = v.data
 
     // Insérer la notification dans la table artisan_notifications
     const { data, error } = await supabaseAdmin
@@ -74,7 +74,10 @@ export async function PATCH(request: NextRequest) {
   }
   try {
     const body = await request.json()
-    const { notification_id, artisan_id, syndic_id, mark_all_read } = body
+    // PATCH accepts notification_id or mark_all_read — flexible payload
+    const { notification_id, artisan_id, syndic_id, mark_all_read } = body as {
+      notification_id?: string; artisan_id?: string; syndic_id?: string; mark_all_read?: boolean
+    }
 
     // Marquer toutes les notifs syndic comme lues — vérifier ownership
     if (mark_all_read && syndic_id) {

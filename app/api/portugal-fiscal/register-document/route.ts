@@ -19,6 +19,7 @@ import {
   type InvoiceLine,
   type FiscalSpace,
 } from '@/lib/portugal-fiscal'
+import { validateBody, ptFiscalRegisterDocSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   // ── Auth ──
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    const validation = validateBody(ptFiscalRegisterDocSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
     const {
       docType,          // 'devis' | 'facture'
       issuerNIF,        // NIF do emitente
@@ -48,12 +53,7 @@ export async function POST(request: NextRequest) {
       lines,            // Array of { description, quantity, unitPrice, taxRate, lineTotal }
       issueDate,        // YYYY-MM-DD
       isSimplified,     // boolean
-    } = body
-
-    // ── Validation ──
-    if (!docType || !issuerNIF || !issueDate || !lines || !Array.isArray(lines)) {
-      return NextResponse.json({ error: 'Campos obrigatórios em falta' }, { status: 400 })
-    }
+    } = validation.data as any
 
     if (!validateNIF(issuerNIF)) {
       return NextResponse.json({ error: 'NIF do emitente inválido' }, { status: 400 })

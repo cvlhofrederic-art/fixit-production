@@ -3,6 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { validateBody, syndicAssembleeSchema } from '@/lib/validation'
+
+const syndicAssembleePostSchema = z.object({
+  assemblees: z.array(z.record(z.string(), z.unknown())).max(50).optional(),
+  assemblee: z.record(z.string(), z.unknown()).optional(),
+}).passthrough()
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/syndic/assemblees
@@ -121,6 +128,10 @@ export async function POST(request: NextRequest) {
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
     const body = await request.json()
+    const postValidation = validateBody(syndicAssembleePostSchema, body)
+    if (!postValidation.success) {
+      return NextResponse.json({ error: postValidation.error }, { status: 400 })
+    }
 
     // ── Batch import (migration depuis localStorage) ──────────────────
     if (Array.isArray(body.assemblees)) {
@@ -209,9 +220,9 @@ export async function POST(request: NextRequest) {
 
     // ── Création simple d'une AG ──────────────────────────────────────
     const ag = body.assemblee || body
-
-    if (!ag.titre?.trim()) {
-      return NextResponse.json({ error: 'Titre requis' }, { status: 400 })
+    const agValidation = validateBody(syndicAssembleeSchema, ag)
+    if (!agValidation.success) {
+      return NextResponse.json({ error: agValidation.error }, { status: 400 })
     }
 
     const { data, error } = await supabaseAdmin

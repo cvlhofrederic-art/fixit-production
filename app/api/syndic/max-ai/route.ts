@@ -3,6 +3,7 @@ import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, callGroqStreaming, type GroqResponse } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
 
 export const maxDuration = 30
 
@@ -278,12 +279,12 @@ export async function POST(request: NextRequest) {
 
     const userRole = user.user_metadata?.role || 'syndic'
 
-    const body = await request.json()
-    const { message, syndic_context = {}, conversation_history = [], locale, stream } = body
-
-    if (!message?.trim()) {
-      return NextResponse.json({ error: 'message requis' }, { status: 400 })
-    }
+    const rawBody = await request.json()
+    const v = validateBody(syndicMaxAiSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- syndic_context has dynamic shape
+    const syndic_context = (v.data.syndic_context || {}) as Record<string, any>
+    const { message, conversation_history = [], locale, stream } = v.data
 
     const isPt = locale === 'pt'
 

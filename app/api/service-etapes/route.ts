@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { validateBody, serviceEtapesPostSchema, serviceEtapesPatchSchema } from '@/lib/validation'
 
 // ══════════════════════════════════════════════════════════════
 // API /api/service-etapes
@@ -76,10 +77,11 @@ export async function POST(request: NextRequest) {
     const artisan = await getArtisan(user.id)
     if (!artisan) return NextResponse.json({ error: 'Artisan introuvable' }, { status: 404 })
 
-    const body = await request.json()
+    const rawBody = await request.json()
+    const v = validateBody(serviceEtapesPostSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const body = v.data
     const { service_id, action } = body
-
-    if (!service_id) return NextResponse.json({ error: 'service_id requis' }, { status: 400 })
 
     const owns = await verifyServiceOwnership(artisan.id, service_id)
     if (!owns) return NextResponse.json({ error: 'Service non trouvé' }, { status: 404 })
@@ -142,10 +144,10 @@ export async function PATCH(request: NextRequest) {
     const artisan = await getArtisan(user.id)
     if (!artisan) return NextResponse.json({ error: 'Artisan introuvable' }, { status: 404 })
 
-    const body = await request.json()
-    const { id, service_id, designation, ordre } = body
-
-    if (!id || !service_id) return NextResponse.json({ error: 'id et service_id requis' }, { status: 400 })
+    const rawBody = await request.json()
+    const v2 = validateBody(serviceEtapesPatchSchema, rawBody)
+    if (!v2.success) return NextResponse.json({ error: v2.error }, { status: 400 })
+    const { id, service_id, designation, ordre } = v2.data
 
     const owns = await verifyServiceOwnership(artisan.id, service_id)
     if (!owns) return NextResponse.json({ error: 'Service non trouvé' }, { status: 404 })

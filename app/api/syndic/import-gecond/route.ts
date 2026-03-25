@@ -12,6 +12,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId, getUserRole } from '@/lib/auth-helpers'
 import { parseGecondCSV, gecondToFixit } from '@/lib/gecond-parser'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicImportGecondSchema } from '@/lib/validation'
 
 // supabaseAdmin imported from @/lib/supabase-server (lazy init, safe at build time)
 
@@ -60,7 +61,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { action } = body
+    const validation = validateBody(syndicImportGecondSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+    const { action } = validation.data as any
 
     // ═════════════════════════════════════════════════════════════════════
     // ACTION : PARSE (preview)

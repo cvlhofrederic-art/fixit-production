@@ -316,7 +316,8 @@ export const syndicImmeubleSchema = z.object({
 export const syndicTeamInviteSchema = z.object({
   email: strictEmail,
   full_name: z.string().min(1, 'Nom requis').max(200),
-  role: z.enum(['admin', 'gestionnaire', 'comptable', 'assistant']),
+  memberRole: z.string().min(1).max(50),
+  customModules: z.array(z.string().max(100)).max(50).optional(),
 })
 
 // ── Artisan Absence schema ─────────────────────────────────────────────────
@@ -508,9 +509,9 @@ export const referralClickSchema = z.object({
 
 // ── Referral Signup schema ─────────────────────────────────────────────────
 export const referralSignupSchema = z.object({
-  referral_code: z.string().min(1).max(50),
-  new_user_id: z.string().uuid(),
-  new_user_email: z.string().email().optional(),
+  code: z.string().min(4).max(12),
+  artisan_id: z.string().uuid(),
+  user_id: z.string().uuid(),
 })
 
 // ── Declaration Sociale schema ─────────────────────────────────────────────
@@ -532,10 +533,21 @@ export const declarationSocialeSchema = z.object({
 })
 
 // ── Service Etapes schema ──────────────────────────────────────────────────
-export const serviceEtapesSchema = z.object({
-  artisan_id: z.string().uuid(),
+export const serviceEtapesPostSchema = z.object({
   service_id: z.string().uuid(),
-  etapes: z.array(z.record(z.string(), z.unknown())).max(50),
+  action: z.string().max(50).optional(),
+  designation: z.string().max(500).optional(),
+  ordre: z.union([
+    z.number().int(),
+    z.array(z.object({ id: z.string().uuid(), ordre: z.number().int() })),
+  ]).optional(),
+})
+
+export const serviceEtapesPatchSchema = z.object({
+  id: z.string().uuid(),
+  service_id: z.string().uuid(),
+  designation: z.string().max(500).optional(),
+  ordre: z.number().int().optional(),
 })
 
 // ── Rapport IA schema ──────────────────────────────────────────────────────
@@ -604,6 +616,164 @@ export const artisanPhotosSchema = z.object({
   photo_base64: z.string().max(2_000_000).optional(),
   description: z.string().max(500).optional(),
   category: z.string().max(100).optional(),
+})
+
+// ── Syndic Send Email schema ────────────────────────────────────────────────
+export const syndicSendEmailSchema = z.object({
+  template: z.enum(['unpaid_reminder', 'ag_invitation', 'intervention', 'team_invite', 'generic']),
+  recipients: z.union([
+    z.object({ email: z.string().email(), name: z.string().max(200) }),
+    z.array(z.object({ email: z.string().email(), name: z.string().max(200) })).max(100),
+  ]),
+  params: z.record(z.string(), z.unknown()).optional(),
+  locale: z.string().max(5).optional(),
+})
+
+// ── Syndic Notify Artisan schema ───────────────────────────────────────────
+export const syndicNotifyArtisanSchema = z.object({
+  artisan_id: z.string().uuid(),
+  syndic_id: z.string().uuid().optional(),
+  type: z.string().max(50).optional().default('new_mission'),
+  title: z.string().min(1).max(200),
+  body: z.string().max(5000).optional(),
+  data_json: z.record(z.string(), z.unknown()).optional(),
+})
+
+// ── Syndic Coproprios schema ───────────────────────────────────────────────
+export const syndicCoproprioPOSTSchema = z.object({
+  nom: z.string().min(1).max(200),
+  prenom: z.string().max(200).optional(),
+  email: z.string().email().optional(),
+  telephone: z.string().max(20).optional(),
+  immeuble_id: z.string().uuid().optional(),
+  fraction: z.string().max(20).optional(),
+  batiment: z.string().max(100).optional(),
+  etage: z.string().max(20).optional(),
+  est_proprietaire: z.boolean().optional(),
+  tantiemes: z.number().int().min(0).optional(),
+})
+
+// ── Syndic Assemblees schema ───────────────────────────────────────────────
+export const syndicAssembleeSchema = z.object({
+  titre: z.string().min(1).max(200),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  heure: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM').optional(),
+  lieu: z.string().max(500).optional(),
+  type: z.string().max(50).optional(),
+  immeuble_id: z.string().uuid().optional(),
+  description: z.string().max(5000).optional(),
+  ordre_du_jour: z.array(z.record(z.string(), z.unknown())).max(50).optional(),
+})
+
+// ── Syndic Max AI schema ───────────────────────────────────────────────────
+export const syndicMaxAiSchema = z.object({
+  message: z.string().min(1).max(5000),
+  syndic_context: z.record(z.string(), z.unknown()).optional(),
+  conversation_history: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(10000),
+  })).max(50).optional(),
+  stream: z.boolean().optional(),
+  locale: z.string().max(5).optional(),
+})
+
+// ── Syndic Mission Report schema ───────────────────────────────────────────
+export const syndicMissionReportSchema = z.object({
+  syndic_id: z.string().uuid(),
+  artisan_id: z.string().uuid(),
+  artisan_nom: z.string().max(200).optional(),
+  mission_id: z.string().uuid().optional().nullable(),
+  immeuble: z.string().max(500).optional(),
+  type_travaux: z.string().max(200).optional(),
+  description: z.string().max(5000).optional(),
+  photos_before: z.array(z.string()).max(10).optional(),
+  photos_after: z.array(z.string()).max(10).optional(),
+  signature_svg: z.string().max(50000).optional(),
+  gps_lat: z.number().min(-90).max(90).optional().nullable(),
+  gps_lng: z.number().min(-180).max(180).optional().nullable(),
+  started_at: z.string().max(50).optional(),
+  completed_at: z.string().max(50).optional(),
+  booking_id: z.string().uuid().optional().nullable(),
+})
+
+// ── Syndic Invite schema ───────────────────────────────────────────────────
+export const syndicInviteSchema = z.object({
+  token: z.string().min(1).max(200),
+  password: z.string().min(8).max(200),
+})
+
+// ── Syndic Import Gecond schema ────────────────────────────────────────────
+export const syndicImportGecondSchema = z.object({
+  action: z.enum(['parse', 'import']),
+  csvContent: z.string().max(5_500_000).optional(),
+  immeubleName: z.string().max(500).optional(),
+  createImmeuble: z.boolean().optional(),
+})
+
+// ── Pro Channel schema ─────────────────────────────────────────────────────
+export const proChannelPostSchema = z.object({
+  content: z.string().max(5000).optional(),
+  contact_id: z.string().uuid().optional(),
+  type: z.string().max(50).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+// ── Tracking Update schema ─────────────────────────────────────────────────
+export const trackingUpdatePostSchema = z.object({
+  token: z.string().min(1).max(200),
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
+  status: z.string().max(50).optional(),
+  artisanNom: z.string().max(200).optional(),
+  artisanInitiales: z.string().max(10).optional(),
+  missionTitre: z.string().max(500).optional(),
+  missionAdresse: z.string().max(500).optional(),
+  photos: z.array(z.string()).max(20).optional(),
+  startedAt: z.string().max(50).optional(),
+})
+
+// ── Email Agent Action schema ──────────────────────────────────────────────
+export const emailAgentActionPostSchema = z.object({
+  action: z.string().min(1).max(50),
+  email_id: z.string().max(200),
+  syndic_id: z.string().uuid(),
+  note: z.string().max(5000).optional(),
+})
+
+// ── Artisan Photos POST schema ─────────────────────────────────────────────
+export const artisanPhotosPostSchema = z.object({
+  artisan_id: z.string().uuid(),
+  photo_base64: z.string().min(10).max(2_000_000).optional(),
+  description: z.string().max(500).optional(),
+  category: z.string().max(100).optional(),
+})
+
+// ── Portugal Fiscal schemas ────────────────────────────────────────────────
+export const ptFiscalSeriesSchema = z.object({
+  seriesPrefix: z.string().max(20).optional(),
+  docType: z.string().min(1).max(10),
+  validationCode: z.string().min(1).max(100),
+  fiscalYear: z.number().int().min(2024).max(2100),
+  fiscalSpace: z.string().max(10).optional(),
+})
+
+export const ptFiscalRegisterDocSchema = z.object({
+  docType: z.string().min(1).max(50),
+  issuerNIF: z.string().min(1).max(20),
+  issuerName: z.string().max(200).optional(),
+  issuerAddress: z.string().max(500).optional(),
+  issuerCity: z.string().max(200).optional(),
+  issuerPostalCode: z.string().max(20).optional(),
+  clientNIF: z.string().max(20).optional(),
+  clientName: z.string().max(200).optional(),
+  clientAddress: z.string().max(500).optional(),
+  clientCity: z.string().max(200).optional(),
+  clientPostalCode: z.string().max(20).optional(),
+  clientCountry: z.string().max(5).optional(),
+  fiscalSpace: z.string().max(10).optional(),
+  lines: z.array(z.record(z.string(), z.unknown())).min(1).max(100),
+  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  isSimplified: z.boolean().optional(),
 })
 
 // ── String sanitizer (XSS prevention) ────────────────────────────────────────

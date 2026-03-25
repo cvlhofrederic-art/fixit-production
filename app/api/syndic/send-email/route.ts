@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicSendEmailSchema } from '@/lib/validation'
 import {
   sendEmail,
   sendBatchEmails,
@@ -35,17 +36,14 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`send_email_${ip}`, 15, 60_000))) return rateLimitResponse()
 
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
-  const body = await request.json()
-
-  const { template, recipients, params, locale = 'fr' } = body as {
+  const rawBody = await request.json()
+  const v = validateBody(syndicSendEmailSchema, rawBody)
+  if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+  const { template, recipients, params, locale = 'fr' } = v.data as {
     template: TemplateType
     recipients: { email: string; name: string }[] | { email: string; name: string }
     params: Record<string, any>
     locale?: string
-  }
-
-  if (!template || !recipients) {
-    return NextResponse.json({ error: 'template et recipients sont requis' }, { status: 400 })
   }
 
   // Récupérer le nom du cabinet pour les templates

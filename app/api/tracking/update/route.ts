@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, trackingUpdatePostSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,9 +15,11 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
     const body = await request.json()
-    const { token, lat, lng, status, artisanNom, artisanInitiales, missionTitre, missionAdresse, photos, startedAt } = body
-
-    if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 })
+    const validation = validateBody(trackingUpdatePostSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+    const { token, lat, lng, status, artisanNom, artisanInitiales, missionTitre, missionAdresse, photos, startedAt } = validation.data as any
 
     // Créer le bucket "tracking" s'il n'existe pas
     await supabaseAdmin.storage.createBucket('tracking', { public: false }).catch(err => logger.error('[tracking/update] Failed to create storage bucket:', err))

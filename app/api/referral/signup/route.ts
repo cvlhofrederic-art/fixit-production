@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getParrainByCode, checkAutoParrainage, computeRiskScore, generateReferralCode } from '@/lib/referral'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { validateBody, referralSignupSchema } from '@/lib/validation'
 import { sendReferralWelcomeFilleul, sendReferralNotifParrain } from '@/lib/email-referral'
 
 export async function POST(request: NextRequest) {
@@ -17,16 +18,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { code, artisan_id, user_id } = body as {
-      code?: string
-      artisan_id?: string
-      user_id?: string
-    }
-
-    // Validation basique
-    if (!code || !artisan_id || !user_id) {
-      return NextResponse.json({ error: 'Paramètres manquants' }, { status: 400 })
-    }
+    const v = validateBody(referralSignupSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { code, artisan_id, user_id } = v.data
 
     // 1. Vérifier le code
     const parrain = await getParrainByCode(code)

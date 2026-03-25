@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { validateBody, emailAgentActionPostSchema } from '@/lib/validation'
 
 // ── Applique une action sur un email analysé ──────────────────────────────────
 // Actions : 'archiver' | 'marquer_traite' | 'creer_mission' | 'ajouter_note'
@@ -13,11 +14,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { email_id, syndic_id, action, note } = await request.json()
-
-    if (!email_id || !syndic_id || !action) {
-      return NextResponse.json({ error: 'email_id, syndic_id et action requis' }, { status: 400 })
+    const _body = await request.json()
+    const validation = validateBody(emailAgentActionPostSchema, _body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
+    const { email_id, syndic_id, action, note } = validation.data as any
 
     // Sécurité : le syndic_id du body DOIT correspondre à l'utilisateur authentifié
     // ou être un membre du même cabinet

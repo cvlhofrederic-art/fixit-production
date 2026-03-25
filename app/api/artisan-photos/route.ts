@@ -3,6 +3,18 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
+import { validateBody } from '@/lib/validation'
+
+const artisanPhotosFormSchema = z.object({
+  artisan_id: z.string().uuid(),
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
+  taken_at: z.string().max(50).optional(),
+  booking_id: z.string().uuid().optional().nullable(),
+  label: z.string().max(200).optional(),
+  source: z.string().max(50).optional(),
+})
 
 /**
  * GET /api/artisan-photos?artisan_id=X&booking_id=Y
@@ -73,6 +85,19 @@ export async function POST(request: NextRequest) {
     const bookingId = (formData.get('booking_id') as string) || null
     const label = (formData.get('label') as string) || ''
     const source = (formData.get('source') as string) || 'mobile'
+
+    const fieldValidation = validateBody(artisanPhotosFormSchema, {
+      artisan_id: artisanId,
+      lat,
+      lng,
+      taken_at: takenAt,
+      booking_id: bookingId || undefined,
+      label,
+      source,
+    })
+    if (!fieldValidation.success) {
+      return NextResponse.json({ error: fieldValidation.error }, { status: 400 })
+    }
 
     if (!file || !artisanId) {
       return NextResponse.json({ error: 'file et artisan_id requis' }, { status: 400 })

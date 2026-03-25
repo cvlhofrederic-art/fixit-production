@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicInviteSchema } from '@/lib/validation'
 
 // ── GET /api/syndic/invite?token=xxx ─────────────────────────────────────────
 // Valider un token d'invitation (pour afficher la page d'accueil)
@@ -68,11 +69,11 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`invite_post_${ip}`, 5, 60_000))) return rateLimitResponse()
 
     const body = await request.json()
-    const { token, password } = body
-
-    if (!token || !password || password.length < 8) {
-      return NextResponse.json({ error: 'Token et mot de passe (8 caractères min) requis' }, { status: 400 })
+    const validation = validateBody(syndicInviteSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
+    const { token, password } = validation.data
 
     // Récupérer l'invitation
     const { data: invite, error: inviteError } = await supabaseAdmin

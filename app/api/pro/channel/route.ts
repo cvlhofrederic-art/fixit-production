@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { validateBody, proChannelPostSchema } from '@/lib/validation'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
@@ -71,7 +72,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { content, contact_id, type = 'text', metadata = {} } = body
+    const validation = validateBody(proChannelPostSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+    const { content, contact_id, type = 'text', metadata = {} } = validation.data as any
 
     if (!content?.trim() && type === 'text') {
       return NextResponse.json({ error: 'Contenu requis' }, { status: 400 })

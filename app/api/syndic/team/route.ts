@@ -5,6 +5,7 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { sendEmail, templateTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicTeamInviteSchema } from '@/lib/validation'
 
 // ── GET /api/syndic/team ──────────────────────────────────────────────────────
 // Retourne tous les membres de l'équipe du cabinet connecté
@@ -54,11 +55,11 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`team_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
   const body = await request.json()
-  const { email, full_name, memberRole, customModules } = body
-
-  if (!email || !full_name || !memberRole) {
-    return NextResponse.json({ error: 'email, full_name et role sont requis' }, { status: 400 })
+  const validation = validateBody(syndicTeamInviteSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 })
   }
+  const { email, full_name, memberRole, customModules } = validation.data as any
 
   const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
   if (!validRoles.includes(memberRole)) {

@@ -1,12 +1,18 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { validateBody, syndicMissionReportSchema } from '@/lib/validation'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
 // Stocke dans syndic_emails_analysed + syndic_notifications + Supabase Storage
 
 export async function POST(request: NextRequest) {
   try {
+    const _body = await request.json()
+    const validation = validateBody(syndicMissionReportSchema, _body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
     const {
       syndic_id,
       artisan_id,
@@ -23,11 +29,7 @@ export async function POST(request: NextRequest) {
       started_at,
       completed_at,
       booking_id,
-    } = await request.json()
-
-    if (!syndic_id || !artisan_id) {
-      return NextResponse.json({ error: 'syndic_id et artisan_id requis' }, { status: 400 })
-    }
+    } = validation.data as any
 
     const now = new Date().toISOString()
     const reportId = `rapport_${Date.now()}`

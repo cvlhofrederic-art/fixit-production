@@ -3,6 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { z } from 'zod'
+import { validateBody } from '@/lib/validation'
+
+const marchesPatchSchema = z.object({
+  access_token: z.string().max(200).optional(),
+  status: z.string().max(50).optional(),
+})
 
 // GET /api/marches/[id] — détail d'un appel d'offres
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -61,6 +68,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Corps de requête invalide' }, { status: 400 })
+  }
+
+  const validation = validateBody(marchesPatchSchema, body)
+  if (!validation.success) {
+    return NextResponse.json({ error: validation.error }, { status: 400 })
   }
 
   // Vérifier l'identité du publisher : via access_token OU via auth user

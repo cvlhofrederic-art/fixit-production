@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { validateBody, ptFiscalSeriesSchema } from '@/lib/validation'
 
 // GET /api/portugal-fiscal/series — List artisan's document series
 export async function GET(request: NextRequest) {
@@ -42,17 +43,17 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
     const body = await request.json()
+    const validation = validateBody(ptFiscalSeriesSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
     const {
       seriesPrefix = 'VTF',
       docType,           // "FT", "FR", "FS", "NC", "ND", "OR"
       validationCode,    // AT-assigned code
       fiscalYear,
       fiscalSpace = 'PT',
-    } = body
-
-    if (!docType || !validationCode || !fiscalYear) {
-      return NextResponse.json({ error: 'Campos obrigatórios: docType, validationCode, fiscalYear' }, { status: 400 })
-    }
+    } = validation.data as any
 
     // Valid doc types
     const validTypes = ['FT', 'FR', 'FS', 'NC', 'ND', 'OR']
