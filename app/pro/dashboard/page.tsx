@@ -17,6 +17,7 @@ import CanalProSection from '@/components/dashboard/CanalProSection'
 import MessagerieArtisan from '@/components/dashboard/MessagerieArtisan'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
+import { parseServiceRange, getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
 import type { Artisan, Service, Booking, Availability, Absence, Notification, ChatMessage, SavedDocument } from '@/lib/types'
 
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
@@ -715,27 +716,7 @@ export default function DashboardPage() {
   }
 
   // ═══ MOTIFS CRUD ═══
-  // ─── Helpers fourchette de prix ───────────────────────────────────
-  const parseServiceRange = (service: Service): { min: number; max: number; unit: string } => {
-    const desc = service.description || ''
-    const match = desc.match(/\[unit:([^|]+)\|min:([\d.]+)\|max:([\d.]+)\]/)
-    if (match) {
-      return { unit: match[1], min: parseFloat(match[2]), max: parseFloat(match[3]) }
-    }
-    // Fallback : ancien format
-    const unit = desc.includes('[m²]') ? 'm2' : desc.includes('[heure]') ? 'heure' : desc.includes('[unité]') ? 'unite' : 'forfait'
-    return { unit, min: service.price_ht || 0, max: service.price_ttc || 0 }
-  }
-
-  const getPriceRangeLabel = (service: Service): string => {
-    const { min, max, unit } = parseServiceRange(service)
-    if (min === 0 && max === 0) return t('proDash.onQuote')
-    const suffix: Record<string, string> = { m2: '€/m²', ml: '€/ml', m3: '€/m³', heure: '€/h', forfait: '€', unite: '€/u', arbre: '€/u', kg: '€/kg', tonne: '€/t', lot: '€/lot' }
-    const s = suffix[unit] || '€'
-    if (min === max) return `${min}${s}`
-    return `${min} – ${max}${s}`
-  }
-  // ──────────────────────────────────────────────────────────────────
+  // Helpers fourchette de prix → extracted to lib/service-utils.ts
 
   const openNewMotif = () => {
     setEditingMotif(null)
@@ -808,18 +789,7 @@ export default function DashboardPage() {
     setServices(services.filter((s) => s.id !== serviceId))
   }
 
-  const getPricingUnit = (service: Service) => {
-    const { unit } = parseServiceRange(service)
-    const labels: Record<string, string> = { m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', forfait: 'forfait', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' }
-    return labels[unit] || 'forfait'
-  }
-
-  const getCleanDescription = (service: Service) => {
-    return (service.description || '')
-      .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
-      .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
-      .trim()
-  }
+  // getPricingUnit, getCleanDescription → imported from lib/service-utils.ts
 
   // ═══ SETTINGS SAVE ═══
   const saveSettings = async () => {
@@ -1438,7 +1408,7 @@ export default function DashboardPage() {
               editingMotif={editingMotif} motifForm={motifForm} setMotifForm={setMotifForm}
               savingMotif={savingMotif} openNewMotif={openNewMotif} openEditMotif={openEditMotif}
               saveMotif={saveMotif} toggleMotifActive={toggleMotifActive} deleteMotif={deleteMotif}
-              getPriceRangeLabel={getPriceRangeLabel} getPricingUnit={getPricingUnit} getCleanDescription={getCleanDescription}
+              getPriceRangeLabel={(s: Service) => getPriceRangeLabel(s, t('proDash.onQuote'))} getPricingUnit={getPricingUnit} getCleanDescription={getCleanDescription}
             />
           )}
 
