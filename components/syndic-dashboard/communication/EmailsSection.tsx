@@ -18,6 +18,11 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
   const [selectedEmail, setSelectedEmail] = useState<EmailAnalysed | null>(null)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'liste' | 'rapport'>('liste')
+  // Response validation state
+  const [draftResponse, setDraftResponse] = useState('')
+  const [sendingResponse, setSendingResponse] = useState(false)
+  const [sendSuccess, setSendSuccess] = useState(false)
+  const [sendError, setSendError] = useState('')
 
   const loadEmails = async () => {
     setLoading(true)
@@ -60,6 +65,43 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
     await loadEmails()
   }
 
+  const handleSendResponse = async () => {
+    if (!selectedEmail || !draftResponse.trim() || sendingResponse) return
+    setSendingResponse(true)
+    setSendError('')
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      const res = await fetch('/api/email-agent/send-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          email_id: selectedEmail.id,
+          response_text: draftResponse.trim(),
+          syndic_id: syndicId,
+        }),
+      })
+      if (res.ok) {
+        setSendSuccess(true)
+        setTimeout(() => {
+          setSendSuccess(false)
+          setSelectedEmail(null)
+          setDraftResponse('')
+          loadEmails()
+        }, 2000)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setSendError(data.error || 'Erreur lors de l\'envoi')
+      }
+    } catch {
+      setSendError('Erreur réseau')
+    } finally {
+      setSendingResponse(false)
+    }
+  }
+
   const filtered = emails.filter(e => {
     const q = search.toLowerCase()
     const matchSearch = !search || [e.subject, e.from_email, e.from_name, e.resume_ia, e.immeuble_detecte || '', e.locataire_detecte || ''].some(v => v.toLowerCase().includes(q))
@@ -90,7 +132,8 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
     traite:       { label: 'Traité',       color: 'bg-green-100 text-green-700' },
     archive:      { label: 'Archivé',      color: 'bg-[#F7F4EE] text-gray-500' },
     mission_cree: { label: 'Mission créée', color: 'bg-[#F7F4EE] text-[#C9A84C]' },
-  }
+    repondu:      { label: 'Répondu',      color: 'bg-emerald-100 text-emerald-700' },
+  } as Record<string, { label: string; color: string }>
 
   return (
     <div className="space-y-4">
@@ -189,6 +232,7 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                   <option value="">Tous statuts</option>
                   <option value="nouveau">📬 Nouveaux</option>
                   <option value="traite">✅ Traités</option>
+                  <option value="repondu">📧 Répondus</option>
                   <option value="archive">📦 Archivés</option>
                 </select>
                 {/* Compteur */}
@@ -402,21 +446,58 @@ export default function EmailsSection({ syndicId, onNavigateParams }: { syndicId
                 </div>
               )}
 
-              {/* Réponse suggérée */}
-              {selectedEmail.reponse_suggeree && (
+              {/* Réponse suggérée — validation et envoi */}
+              {selectedEmail.reponse_suggeree && selectedEmail.statut !== 'repondu' && (
                 <div>
                   <p className="text-xs font-bold text-gray-500 mb-2">✉️ BROUILLON DE RÉPONSE (généré par Fixy)</p>
-                  <div className="bg-blue-50 rounded-xl p-4 text-sm text-gray-700 border border-blue-100">
-                    <p className="whitespace-pre-wrap">{selectedEmail.reponse_suggeree}</p>
-                    <button
-                      onClick={() => {
-                        const mailto = `mailto:${selectedEmail.from_email}?subject=Re: ${encodeURIComponent(selectedEmail.subject)}&body=${encodeURIComponent(selectedEmail.reponse_suggeree || '')}`
-                        window.open(mailto)
-                      }}
-                      className="mt-2 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition font-medium"
-                    >
-                      📧 Ouvrir dans ma messagerie
-                    </button>
+                  <div className="bg-blue-50 rounded-xl p-4 text-sm border border-blue-100">
+                    <textarea
+                      value={draftResponse || selectedEmail.reponse_suggeree}
+                      onChange={e => setDraftResponse(e.target.value)}
+                      onFocus={() => { if (!draftResponse) setDraftResponse(selectedEmail.reponse_suggeree || '') }}
+                      rows={6}
+                      className="w-full bg-white border border-blue-200 rounded-lg p-3 text-sm text-gray-700 resize-y focus:outline-none focus:border-blue-400"
+                      placeholder="Modifiez le brouillon si nécessaire..."
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1 mb-3">
+                      Destinataire : {selectedEmail.from_email} · Objet : Re: {selectedEmail.subject}
+                    </p>
+                    {sendError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-2 mb-3 text-xs text-red-600">
+                        {sendError}
+                      </div>
+                    )}
+                    {sendSuccess && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3 text-xs text-green-700 font-medium">
+                        ✅ Réponse envoyée avec succès !
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSendResponse}
+                        disabled={sendingResponse || sendSuccess}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-lg text-sm font-bold transition"
+                      >
+                        {sendingResponse ? '⏳ Envoi en cours...' : '✅ Approuver et envoyer'}
+                      </button>
+                      <button
+                        onClick={() => { setDraftResponse(''); setSendError('') }}
+                        className="px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2.5 rounded-lg text-sm font-semibold transition"
+                      >
+                        Réinitialiser
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {selectedEmail.statut === 'repondu' && (
+                <div>
+                  <p className="text-xs font-bold text-gray-500 mb-2">✅ RÉPONSE ENVOYÉE</p>
+                  <div className="bg-green-50 rounded-xl p-4 text-sm text-green-800 border border-green-200">
+                    <p className="whitespace-pre-wrap">{(selectedEmail as any).response_sent || selectedEmail.reponse_suggeree}</p>
+                    <p className="text-xs text-green-600 mt-2">
+                      Envoyé le {(selectedEmail as any).response_sent_at ? new Date((selectedEmail as any).response_sent_at).toLocaleString(dateFmtLocale) : '-'}
+                    </p>
                   </div>
                 </div>
               )}

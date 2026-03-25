@@ -47,6 +47,50 @@ export async function GET(request: NextRequest) {
   const budgetMax = url.searchParams.get('budget_max')
   const urgency = url.searchParams.get('urgency')
   const artisanUserId = url.searchParams.get('artisan_user_id')
+  const myBids = url.searchParams.get('my_bids')
+  const artisanId = url.searchParams.get('artisan_id')
+  const publisherUserId = url.searchParams.get('publisher_user_id')
+
+  // ── Publisher mode: return all marches published by a user ─────────────────
+  if (publisherUserId) {
+    const { data: publisherMarches, error: pubError } = await supabaseAdmin
+      .from('marches')
+      .select('id, title, description, category, location_city, budget_min, budget_max, deadline, urgency, candidatures_count, max_candidatures, status, access_token, created_at')
+      .eq('publisher_user_id', publisherUserId)
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (pubError) {
+      logger.error('[marches] GET publisher error', { error: pubError.message })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
+
+    return NextResponse.json({ marches: publisherMarches || [] })
+  }
+
+  // ── My bids mode: return all candidatures for an artisan ──────────────────
+  if (myBids === 'true' && artisanId) {
+    const { data: candidatures, error: candError } = await supabaseAdmin
+      .from('marches_candidatures')
+      .select('*, marches(id, title, category, location_city, budget_min, budget_max, deadline, urgency, status, publisher_name, publisher_type)')
+      .eq('artisan_id', artisanId)
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (candError) {
+      logger.error('[marches] GET my_bids error', { error: candError.message })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
+
+    // Flatten: merge marche data into each candidature
+    const enriched = (candidatures || []).map((c: any) => ({
+      ...c,
+      marche: c.marches,
+      my_candidature_id: c.id,
+    }))
+
+    return NextResponse.json({ candidatures: enriched })
+  }
 
   const today = new Date().toISOString().split('T')[0]
 

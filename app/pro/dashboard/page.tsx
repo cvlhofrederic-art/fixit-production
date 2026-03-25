@@ -1014,6 +1014,10 @@ export default function DashboardPage() {
             planning_change: `📅 ${t('proDash.notifs.planningChange')}`,
             message: `💬 ${t('proDash.notifs.message')}`,
             new_booking: `📅 ${t('proDash.notifs.newBooking')}`,
+            marche_new: isPt ? '🏛️ Novo mercado disponível' : '🏛️ Nouveau marché disponible',
+            marche_message: isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
+            marche_won: isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
+            marche_rejected: isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
           }
           sendBrowserNotif(
             typeLabels[n.type] || '🔔 Notification Vitfix',
@@ -1022,6 +1026,7 @@ export default function DashboardPage() {
               if (n.type === 'new_mission') setActivePage('missions')
               else if (n.type === 'message') setActivePage('messages')
               else if (n.type === 'new_booking') setActivePage('calendar')
+              else if (n.type?.startsWith('marche_')) setActivePage('marches')
             }
           )
         }

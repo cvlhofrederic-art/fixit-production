@@ -88,6 +88,24 @@ export default function ClientDashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'upcoming' | 'past' | 'messages' | 'documents' | 'logement' | 'analyse' | 'simulateur' | 'marches' | 'profile'>('dashboard')
+  const [myMarches, setMyMarches] = useState<any[]>([])
+  const [marchesLoading, setMarchesLoading] = useState(false)
+  const fetchMyMarches = useCallback(async (userId: string) => {
+    setMarchesLoading(true)
+    try {
+      const res = await fetch(`/api/marches?publisher_user_id=${userId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setMyMarches(data.marches || [])
+      }
+    } catch { /* silent */ }
+    finally { setMarchesLoading(false) }
+  }, [])
+  useEffect(() => {
+    if (activeTab === 'marches' && user?.id && myMarches.length === 0 && !marchesLoading) {
+      fetchMyMarches(user.id)
+    }
+  }, [activeTab, user?.id, myMarches.length, marchesLoading, fetchMyMarches])
   const [editingProfile, setEditingProfile] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileSuccess, setProfileSuccess] = useState('')
@@ -336,30 +354,121 @@ export default function ClientDashboardPage() {
     setCancelConfirm(null)
   }
 
-  // ── Soumettre une notation ──
+  // ── Soumettre une notation via API ──
   const submitRating = async () => {
     if (!ratingModal || !user) return
     setRatingSubmitting(true)
-    const newRatings = { ...ratings, [ratingModal.id]: { stars: ratingVal, comment: ratingComment } }
-    setRatings(newRatings)
-    try { localStorage.setItem(`fixit_client_ratings_${user.id}`, JSON.stringify(newRatings)) } catch {}
-    // Update artisan rating_avg in DB
     try {
-      const { data: artisanData } = await supabase
-        .from('profiles_artisan')
-        .select('rating_avg, rating_count')
-        .eq('user_id', ratingModal.profiles_artisan ? ratingModal.artisan_id || '' : '')
-        .single()
-      if (artisanData) {
-        const newCount = (artisanData.rating_count || 0) + 1
-        const newAvg = ((artisanData.rating_avg || 0) * (artisanData.rating_count || 0) + ratingVal) / newCount
-        await supabase.from('profiles_artisan').update({ rating_avg: Math.round(newAvg * 10) / 10, rating_count: newCount }).eq('user_id', ratingModal.artisan_id || '')
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          booking_id: ratingModal.id,
+          rating: ratingVal,
+          comment: ratingComment.trim() || '',
+        }),
+      })
+      if (res.ok) {
+        // Cache local pour éviter de re-afficher le bouton
+        const newRatings = { ...ratings, [ratingModal.id]: { stars: ratingVal, comment: ratingComment } }
+        setRatings(newRatings)
+        try { localStorage.setItem(`fixit_client_ratings_${user.id}`, JSON.stringify(newRatings)) } catch {}
       }
-    } catch {}
+    } catch { /* silent */ }
     setRatingSubmitting(false)
     setRatingModal(null)
     setRatingComment('')
     setRatingVal(5)
+  }
+
+  // ── Télécharger devis en PDF ──
+  const downloadDevisPdf = async (doc: BookingDocument) => {
+    try {
+      const { default: jsPDF } = await import('jspdf')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const w = 210
+      let y = 20
+
+      // Header
+      pdf.setFontSize(20)
+      pdf.setTextColor(26, 26, 26)
+      pdf.text(doc.companyName || 'Artisan', 14, y)
+      y += 10
+
+      pdf.setFontSize(12)
+      pdf.setTextColor(100)
+      pdf.text(`Devis N.${doc.docNumber || '---'}`, 14, y)
+      if (doc.prestationDate) pdf.text(`Date : ${doc.prestationDate}`, w - 14, y, { align: 'right' })
+      y += 8
+
+      if (doc.docTitle) {
+        pdf.setFontSize(14)
+        pdf.setTextColor(26, 26, 26)
+        pdf.text(doc.docTitle, 14, y)
+        y += 10
+      }
+
+      // Separator
+      pdf.setDrawColor(200)
+      pdf.line(14, y, w - 14, y)
+      y += 8
+
+      // Lines table
+      const lines = doc.lines || []
+      if (lines.length > 0) {
+        pdf.setFontSize(10)
+        pdf.setTextColor(100)
+        pdf.text('Désignation', 14, y)
+        pdf.text('Qté', 120, y)
+        pdf.text('P.U.', 140, y)
+        pdf.text('Total', w - 14, y, { align: 'right' })
+        y += 2
+        pdf.line(14, y, w - 14, y)
+        y += 6
+
+        pdf.setTextColor(26, 26, 26)
+        for (const line of lines) {
+          if (y > 270) { pdf.addPage(); y = 20 }
+          pdf.text(String(line.designation || ''), 14, y, { maxWidth: 100 })
+          pdf.text(String(line.quantite || 1), 120, y)
+          pdf.text(`${(line.prix_unitaire || 0).toFixed(2)}€`, 140, y)
+          pdf.text(`${(line.total || 0).toFixed(2)}€`, w - 14, y, { align: 'right' })
+          y += 7
+        }
+
+        y += 4
+        pdf.line(14, y, w - 14, y)
+        y += 8
+      }
+
+      // Total
+      pdf.setFontSize(14)
+      pdf.setTextColor(26, 26, 26)
+      pdf.text(`Total : ${doc.totalStr || '---'}`, w - 14, y, { align: 'right' })
+      y += 12
+
+      // Signature if signed
+      if (doc.signer_name) {
+        pdf.setFontSize(10)
+        pdf.setTextColor(100)
+        pdf.text(`Signé par : ${doc.signer_name}`, 14, y)
+        if (doc.signed_at) pdf.text(`Le : ${new Date(doc.signed_at).toLocaleDateString('fr-FR')}`, 14, y + 5)
+        if (doc.signature_hash) pdf.text(`Hash : ${doc.signature_hash.substring(0, 16)}...`, 14, y + 10)
+      }
+
+      // Footer
+      pdf.setFontSize(8)
+      pdf.setTextColor(150)
+      pdf.text('Document généré par Vitfix.io', w / 2, 290, { align: 'center' })
+
+      pdf.save(`devis-${doc.docNumber || 'vitfix'}.pdf`)
+    } catch (e) {
+      console.error('[downloadDevisPdf] Error:', e)
+    }
   }
 
   // ── Charger GPS tracking ──
@@ -1347,10 +1456,26 @@ export default function ClientDashboardPage() {
                               <FileSearch className="w-3 h-3" /> Analyser
                             </button>
                             <button
+                              onClick={() => downloadDevisPdf(doc)}
+                              className="text-xs font-semibold px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" /> PDF
+                            </button>
+                            <button
                               onClick={() => openMessages(booking)}
                               className="text-xs font-semibold px-3 py-2 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition"
                             >
                               Voir la conversation
+                            </button>
+                          </div>
+                        )}
+                        {(isSigned || isDevisSigned) && (
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => downloadDevisPdf(doc)}
+                              className="text-xs font-semibold px-3 py-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" /> Télécharger PDF signé
                             </button>
                           </div>
                         )}
@@ -2162,6 +2287,85 @@ export default function ClientDashboardPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* My published marches */}
+            <div className="mt-6">
+              <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                {locale === 'pt' ? 'Os meus pedidos publicados' : 'Mes appels d\'offres publiés'}
+              </h3>
+
+              {marchesLoading ? (
+                <div className="text-center py-8 text-text-muted text-sm animate-pulse">
+                  {locale === 'pt' ? 'A carregar...' : 'Chargement...'}
+                </div>
+              ) : myMarches.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-[#EFEFEF] p-8 text-center">
+                  <div className="text-3xl mb-3">📭</div>
+                  <p className="text-text-muted text-sm">
+                    {locale === 'pt'
+                      ? 'Ainda não publicou nenhum pedido de orçamento.'
+                      : 'Vous n\'avez pas encore publié d\'appel d\'offres.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myMarches.map((m: any) => {
+                    const statusColors: Record<string, string> = {
+                      open: 'bg-green-100 text-green-700',
+                      awarded: 'bg-blue-100 text-blue-700',
+                      closed: 'bg-gray-100 text-gray-600',
+                      cancelled: 'bg-red-100 text-red-600',
+                    }
+                    const statusLabels: Record<string, string> = locale === 'pt'
+                      ? { open: 'Aberto', awarded: 'Atribuído', closed: 'Fechado', cancelled: 'Cancelado' }
+                      : { open: 'Ouvert', awarded: 'Attribué', closed: 'Clôturé', cancelled: 'Annulé' }
+                    const catObj = [
+                      { id: 'canalizacao', fr: 'Plomberie', pt: 'Canalização' },
+                      { id: 'eletricidade', fr: 'Électricité', pt: 'Eletricidade' },
+                      { id: 'pintura', fr: 'Peinture', pt: 'Pintura' },
+                      { id: 'construcao', fr: 'Construction', pt: 'Construção' },
+                      { id: 'climatizacao', fr: 'Climatisation', pt: 'Climatização' },
+                      { id: 'renovacao', fr: 'Rénovation', pt: 'Renovação' },
+                    ].find(c => c.id === m.category)
+                    const catLabel = catObj ? (locale === 'pt' ? catObj.pt : catObj.fr) : m.category
+
+                    return (
+                      <div key={m.id} className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h4 className="font-bold text-sm truncate">{m.title}</h4>
+                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusColors[m.status] || 'bg-gray-100 text-gray-600'}`}>
+                              {statusLabels[m.status] || m.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-text-muted flex-wrap">
+                            <span>{catLabel}</span>
+                            {m.location_city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{m.location_city}</span>}
+                            {m.budget_min != null && m.budget_max != null && (
+                              <span>{formatPrice(m.budget_min)} – {formatPrice(m.budget_max)}</span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {m.candidatures_count || 0} {locale === 'pt' ? 'candidaturas' : 'candidatures'}
+                            </span>
+                            {m.deadline && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(m.deadline).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}</span>}
+                          </div>
+                        </div>
+                        <a
+                          href={`${locale === 'pt' ? '/pt/mercados/gerir' : '/fr/marches/gerer'}?id=${m.id}&token=${m.access_token}`}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0"
+                          style={{ background: '#FFC107', color: '#1A1A1A' }}
+                        >
+                          {locale === 'pt' ? 'Gerir' : 'Gérer'}
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
           )}

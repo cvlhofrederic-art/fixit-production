@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { formatPrice } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 interface Props {
   artisan: any
@@ -110,10 +111,28 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
   }, [])
   const isPt = locale === 'pt'
 
-  // PRO GATE CHECK — désactivé pour le moment (accès libre à tous les artisans)
-  // TODO: réactiver quand le système de subscription sera en place
-  // const isPro = artisan?.subscription_tier === 'artisan_pro'
-  const isPro = true
+  // PRO GATE CHECK — vérifie l'abonnement via la table subscriptions
+  const [isPro, setIsPro] = useState(false)
+  useEffect(() => {
+    if (!artisan?.user_id) return
+    const checkSub = async () => {
+      try {
+        const res = await fetch(`/api/stripe/subscription`, {
+          headers: { 'Authorization': `Bearer ${(await (await import('@/lib/supabase')).supabase.auth.getSession()).data.session?.access_token}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const plan = data.subscription?.subscription_plan || data.plan || 'starter'
+          setIsPro(plan !== 'starter')
+        } else {
+          setIsPro(false)
+        }
+      } catch {
+        setIsPro(false)
+      }
+    }
+    checkSub()
+  }, [artisan?.user_id])
 
   // State
   const [activeTab, setActiveTab] = useState<'browse' | 'mybids' | 'won' | 'settings'>('browse')
@@ -285,7 +304,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
         body: JSON.stringify({
           candidature_id: candidatureId,
           sender_type: 'artisan',
-          sender_id: artisan?.id,
+          sender_name: artisan?.company_name || artisan?.email || 'Artisan',
           content: msgInput.trim(),
         }),
       })
@@ -301,7 +320,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
   }
 
   // Submit evaluation
-  const submitEvaluation = async (marcheId: string) => {
+  const submitEvaluation = async (marcheId: string, candidatureId: string) => {
     if (evalRating < 1 || evalSubmitting) return
     setEvalSubmitting(true)
     try {
@@ -309,10 +328,10 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          artisan_id: artisan?.id,
+          candidature_id: candidatureId,
           evaluator_type: 'artisan',
           note_globale: evalRating,
-          comment: evalComment.trim() || null,
+          commentaire: evalComment.trim() || undefined,
         }),
       })
       if (res.ok) {
@@ -366,6 +385,38 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
     fetchMyBids()
     fetchMarchesPrefs()
   }, [fetchMarches, fetchMyBids, fetchMarchesPrefs])
+
+  // Realtime listener for marche notifications
+  const realtimeErrorCount = useRef(0)
+  useEffect(() => {
+    if (!artisan?.user_id) return
+    const channel = supabase
+      .channel(`marches_notifs_${artisan.user_id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'artisan_notifications',
+        filter: `artisan_id=eq.${artisan.user_id}`,
+      }, (payload) => {
+        const n = payload.new as any
+        if (n.type?.startsWith('marche_')) {
+          // Auto-refresh marches and bids
+          fetchMarches()
+          fetchMyBids()
+        }
+      })
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[BourseAuxMarches] Realtime error:', err?.message)
+          realtimeErrorCount.current += 1
+          if (realtimeErrorCount.current >= 3) {
+            console.warn('[BourseAuxMarches] Too many errors, unsubscribing')
+            supabase.removeChannel(channel)
+          }
+        }
+      })
+    return () => { supabase.removeChannel(channel) }
+  }, [artisan?.user_id, fetchMarches, fetchMyBids])
 
   // Submit bid
   const handleSubmitBid = async (e: React.FormEvent) => {
@@ -1386,7 +1437,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
                             </button>
                             <button
                               type="button"
-                              onClick={() => submitEvaluation(bid.marche_id)}
+                              onClick={() => submitEvaluation(bid.marche_id || bid.marche?.id, bid.id || bid.my_candidature_id)}
                               disabled={evalRating < 1 || evalSubmitting}
                               className="v22-btn v22-btn-primary"
                               style={{ flex: 1, opacity: (evalRating < 1 || evalSubmitting) ? 0.5 : 1, cursor: (evalRating < 1 || evalSubmitting) ? 'not-allowed' : 'pointer' }}
