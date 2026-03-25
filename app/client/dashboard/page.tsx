@@ -13,6 +13,7 @@ import FixyChatGeneric from '@/components/chat/FixyChatGeneric'
 import SimulateurDevisClient from '@/app/fr/simulateur-devis/SimulateurDevisClient'
 import dynamic from 'next/dynamic'
 import type { ChatMessage as SharedChatMessage } from '@/lib/types'
+import { type CILEntry, generateCILEntries, getCILHealthScore, getCategoryInfo as getCategoryInfoBase, getPonctualiteScore as getPonctualiteScoreBase } from '@/lib/cil-utils'
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
 const SimulateurChat = dynamic(() => import('@/components/simulateur/SimulateurChat'), { ssr: false })
 
@@ -76,26 +77,7 @@ type BookingDocument = SharedChatMessage & {
 
 type ProofEntry = { bookingId: string; [key: string]: unknown }
 
-type CILEntry = {
-  id: string
-  bookingId: string
-  date: string
-  artisanName: string
-  artisanId?: string
-  serviceName: string
-  category: 'plomberie' | 'electricite' | 'chauffage' | 'serrurerie' | 'peinture' | 'menuiserie' | 'autre'
-  description: string
-  address: string
-  priceTTC: number
-  hasProof: boolean
-  proofPhotosCount: number
-  hasSignature: boolean
-  hasGPS: boolean
-  warranty?: { type: string; endDate: string }
-  nextMaintenance?: string
-  notes?: string
-  documents?: { name: string; type: string }[]
-}
+// CILEntry type imported from lib/cil-utils.ts
 
 export default function ClientDashboardPage() {
   const router = useRouter()
@@ -707,104 +689,30 @@ export default function ClientDashboardPage() {
     setDocumentsLoading(false)
   }
 
-  // ── Générer le Carnet de Santé (CIL) depuis les bookings terminés ──
+  // ── Générer le Carnet de Santé (CIL) — logic extracted to lib/cil-utils.ts ──
   const generateCIL = (bks: Booking[]) => {
-    const proofs = JSON.parse(localStorage.getItem('fixit_proofs') || '[]')
-    const entries: CILEntry[] = bks
-      .filter(b => b.status === 'completed')
-      .map(b => {
-        const proof = proofs.find((p: ProofEntry) => p.bookingId === b.id)
-        const serviceName = (b.services?.name || '').toLowerCase()
-        let category: CILEntry['category'] = 'autre'
-        if (serviceName.match(/plomb|fuite|robinet|wc|sani|eau|tuyau/)) category = 'plomberie'
-        else if (serviceName.match(/electr|prise|tableau|disj|câbl|inter/)) category = 'electricite'
-        else if (serviceName.match(/chauff|chaudière|radiateur|thermo|clim/)) category = 'chauffage'
-        else if (serviceName.match(/serrur|porte|clé|verrou|blind/)) category = 'serrurerie'
-        else if (serviceName.match(/peint|mur|plaf|end/)) category = 'peinture'
-        else if (serviceName.match(/menuis|bois|parquet|meuble|étagère/)) category = 'menuiserie'
-
-        // Garantie par défaut : 2 ans structurel, 1 an pour le reste
-        const warrantyEnd = new Date(b.booking_date)
-        const isStructural = ['plomberie', 'electricite', 'chauffage'].includes(category)
-        warrantyEnd.setFullYear(warrantyEnd.getFullYear() + (isStructural ? 2 : 1))
-
-        // Prochaine maintenance suggérée à +1 an
-        const nextMaint = new Date(b.booking_date)
-        nextMaint.setFullYear(nextMaint.getFullYear() + 1)
-
-        return {
-          id: `cil-${b.id}`,
-          bookingId: b.id,
-          date: b.booking_date,
-          artisanName: b.profiles_artisan?.company_name || 'Artisan',
-          artisanId: b.artisan_id,
-          serviceName: b.services?.name || 'Intervention',
-          category,
-          description: b.notes || '',
-          address: b.address || '',
-          priceTTC: b.price_ttc || 0,
-          hasProof: !!proof,
-          proofPhotosCount: proof ? (proof.beforePhotos?.length || 0) + (proof.afterPhotos?.length || 0) : 0,
-          hasSignature: !!proof?.signature,
-          hasGPS: !!(proof?.gpsLat && proof?.gpsLng),
-          warranty: { type: isStructural ? t('clientDash.logement.warrantyBiennial') : t('clientDash.logement.warrantyAnnual'), endDate: warrantyEnd.toISOString().split('T')[0] },
-          nextMaintenance: nextMaint.toISOString().split('T')[0],
-        }
-      })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local Booking type compatible with lib/types.Booking
+    const entries = generateCILEntries(bks as any, {
+      warrantyBiennial: t('clientDash.logement.warrantyBiennial'),
+      warrantyAnnual: t('clientDash.logement.warrantyAnnual'),
+    })
     setCilEntries(entries)
   }
 
-  // ── Score de santé du logement ──
-  const getCILHealthScore = (): number => {
-    if (cilEntries.length === 0) return 0
-    let score = 0
-    let total = 0
-    const now = new Date()
-    cilEntries.forEach(e => {
-      // Proof coverage (+30 points max)
-      total += 30
-      if (e.hasProof) score += 15
-      if (e.hasSignature) score += 10
-      if (e.hasGPS) score += 5
+  // ── Score de santé — extracted to lib/cil-utils.ts ──
+  const cilHealthScore = getCILHealthScore(cilEntries)
 
-      // Warranty status (+40 points max)
-      total += 40
-      if (e.warranty) {
-        const wEnd = new Date(e.warranty.endDate)
-        if (wEnd > now) {
-          score += 40 // Under warranty
-        } else {
-          const monthsExpired = (now.getTime() - wEnd.getTime()) / (1000 * 60 * 60 * 24 * 30)
-          if (monthsExpired < 6) score += 20 // Recently expired
-        }
-      }
-
-      // Maintenance (+30 points max)
-      total += 30
-      if (e.nextMaintenance) {
-        const mDate = new Date(e.nextMaintenance)
-        if (mDate > now) score += 30
-        else {
-          const monthsOverdue = (now.getTime() - mDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-          if (monthsOverdue < 3) score += 15
-        }
-      }
-    })
-    return total > 0 ? Math.round((score / total) * 100) : 0
+  // ── Catégorie label + icône — extracted to lib/cil-utils.ts ──
+  const categoryLabels: Record<CILEntry['category'], string> = {
+    plomberie: t('clientDash.logement.categoryPlomberie'),
+    electricite: t('clientDash.logement.categoryElectricite'),
+    chauffage: t('clientDash.logement.categoryChauffage'),
+    serrurerie: t('clientDash.logement.categorySerrurerie'),
+    peinture: t('clientDash.logement.categoryPeinture'),
+    menuiserie: t('clientDash.logement.categoryMenuiserie'),
+    autre: t('clientDash.logement.categoryAutre'),
   }
-
-  // ── Catégorie label + icône CIL ──
-  const getCategoryInfo = (cat: CILEntry['category']): { label: string; icon: string; color: string } => {
-    switch (cat) {
-      case 'plomberie': return { label: t('clientDash.logement.categoryPlomberie'), icon: '\uD83D\uDEB0', color: 'bg-blue-100 text-blue-700' }
-      case 'electricite': return { label: t('clientDash.logement.categoryElectricite'), icon: '\u26A1', color: 'bg-yellow-100 text-yellow-700' }
-      case 'chauffage': return { label: t('clientDash.logement.categoryChauffage'), icon: '\uD83D\uDD25', color: 'bg-orange-100 text-orange-700' }
-      case 'serrurerie': return { label: t('clientDash.logement.categorySerrurerie'), icon: '\uD83D\uDD11', color: 'bg-purple-100 text-purple-700' }
-      case 'peinture': return { label: t('clientDash.logement.categoryPeinture'), icon: '\uD83C\uDFA8', color: 'bg-pink-100 text-pink-700' }
-      case 'menuiserie': return { label: t('clientDash.logement.categoryMenuiserie'), icon: '\uD83E\uDE9A', color: 'bg-amber-100 text-amber-700' }
-      default: return { label: t('clientDash.logement.categoryAutre'), icon: '\uD83D\uDD27', color: 'bg-warm-gray text-mid' }
-    }
-  }
+  const getCategoryInfo = (cat: CILEntry['category']) => getCategoryInfoBase(cat, categoryLabels)
 
   // ── Exporter le CIL en texte formaté ──
   const exportCIL = () => {
@@ -812,7 +720,7 @@ export default function ClientDashboardPage() {
     const lines: string[] = [
       `=== ${t('clientDash.export.title')} ===`,
       `${t('clientDash.export.generatedOn')} ${new Date().toLocaleDateString(intlLocale)}`,
-      `${t('clientDash.export.healthScore')} : ${getCILHealthScore()}%`,
+      `${t('clientDash.export.healthScore')} : ${cilHealthScore}%`,
       `${t('clientDash.export.interventionsCount')} : ${cilEntries.length}`,
       '',
       `--- ${t('clientDash.export.interventionsSection')} ---`,
@@ -844,15 +752,9 @@ export default function ClientDashboardPage() {
   const upcomingBookings = bookings.filter(b => b.booking_date >= today && b.status !== 'cancelled')
   const pastBookings = bookings.filter(b => b.booking_date < today || b.status === 'cancelled')
 
-  // ── Score de ponctualité par artisan (% interventions réalisées vs acceptées) ──
-  const getPonctualiteScore = (artisanId: string | undefined): number | null => {
-    if (!artisanId) return null
-    const artisanBookings = bookings.filter(b => b.artisan_id === artisanId)
-    const completed = artisanBookings.filter(b => b.status === 'completed').length
-    const total = artisanBookings.filter(b => ['completed', 'confirmed', 'cancelled'].includes(b.status)).length
-    if (total < 2) return null
-    return Math.round((completed / total) * 100)
-  }
+  // ── Score de ponctualité — extracted to lib/cil-utils.ts ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local Booking type compatible with lib/types.Booking
+  const getPonctualiteScore = (artisanId: string | undefined) => getPonctualiteScoreBase(bookings as any, artisanId)
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -1522,12 +1424,12 @@ export default function ClientDashboardPage() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold ${
-                    getCILHealthScore() >= 75 ? 'bg-green-100 text-green-700' :
-                    getCILHealthScore() >= 50 ? 'bg-amber-100 text-amber-700' :
-                    getCILHealthScore() >= 25 ? 'bg-orange-100 text-orange-700' :
+                    cilHealthScore >= 75 ? 'bg-green-100 text-green-700' :
+                    cilHealthScore >= 50 ? 'bg-amber-100 text-amber-700' :
+                    cilHealthScore >= 25 ? 'bg-orange-100 text-orange-700' :
                     'bg-red-100 text-red-700'
                   }`}>
-                    {getCILHealthScore()}%
+                    {cilHealthScore}%
                   </div>
                   <div>
                     <h2 className="text-xl font-display font-black tracking-[-0.02em] text-dark flex items-center gap-2">
@@ -1555,22 +1457,22 @@ export default function ClientDashboardPage() {
                 <div className="flex items-center justify-between text-xs text-text-muted mb-1.5">
                   <span>{t('clientDash.logement.globalHealthScore')}</span>
                   <span className={`font-semibold ${
-                    getCILHealthScore() >= 75 ? 'text-green-600' :
-                    getCILHealthScore() >= 50 ? 'text-amber-600' : 'text-red-600'
+                    cilHealthScore >= 75 ? 'text-green-600' :
+                    cilHealthScore >= 50 ? 'text-amber-600' : 'text-red-600'
                   }`}>
-                    {getCILHealthScore() >= 75 ? t('clientDash.logement.goodCondition') :
-                     getCILHealthScore() >= 50 ? t('clientDash.logement.attentionRequired') :
-                     getCILHealthScore() >= 25 ? t('clientDash.logement.maintenanceNeeded') : t('clientDash.logement.noData')}
+                    {cilHealthScore >= 75 ? t('clientDash.logement.goodCondition') :
+                     cilHealthScore >= 50 ? t('clientDash.logement.attentionRequired') :
+                     cilHealthScore >= 25 ? t('clientDash.logement.maintenanceNeeded') : t('clientDash.logement.noData')}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                   <div
                     className={`h-2.5 rounded-full transition-all duration-500 ${
-                      getCILHealthScore() >= 75 ? 'bg-green-500' :
-                      getCILHealthScore() >= 50 ? 'bg-amber-500' :
-                      getCILHealthScore() >= 25 ? 'bg-orange-500' : 'bg-red-500'
+                      cilHealthScore >= 75 ? 'bg-green-500' :
+                      cilHealthScore >= 50 ? 'bg-amber-500' :
+                      cilHealthScore >= 25 ? 'bg-orange-500' : 'bg-red-500'
                     }`}
-                    style={{ width: `${getCILHealthScore()}%` }}
+                    style={{ width: `${cilHealthScore}%` }}
                   />
                 </div>
               </div>
