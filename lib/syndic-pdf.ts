@@ -40,6 +40,17 @@ interface PDFContext {
   syndicSignature: SignatureData | null
 }
 
+/** Parse [DOC_PDF]...[/DOC_PDF] blocks from Max AI responses */
+export function parseDocPDF(content: string): { text: string; docData: Record<string, unknown> | null } {
+  const match = content.match(/\[DOC_PDF\]([\s\S]*?)\[\/DOC_PDF\]/)
+  if (!match) return { text: content, docData: null }
+  try {
+    const docData = JSON.parse(match[1].trim())
+    const text = content.replace(/\[DOC_PDF\][\s\S]*?\[\/DOC_PDF\]/, '').trim()
+    return { text, docData }
+  } catch { return { text: content, docData: null } }
+}
+
 export async function generateMaxPDF(docData: DocPDFData, ctx: PDFContext): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })

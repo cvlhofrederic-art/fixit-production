@@ -7,7 +7,7 @@ import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
-import { generateMaxPDF as generateMaxPDFUtil } from '@/lib/syndic-pdf'
+import { generateMaxPDF as generateMaxPDFUtil, parseDocPDF as parseDocPDFUtil } from '@/lib/syndic-pdf'
 import type { User } from '@supabase/supabase-js'
 
 // ─── Types (from shared types file) ──────────────────────────────────────────
@@ -240,18 +240,12 @@ interface TeamMemberRow {
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
-// ─── Données démo ─────────────────────────────────────────────────────────────
-
+// ─── Données démo (empty arrays) ──────────────────────────────────────────────
 const ARTISANS_DEMO: Artisan[] = []
-
 const MISSIONS_DEMO: Mission[] = []
-
 const ALERTES_DEMO: Alerte[] = []
-
 const PLANNING_EVENTS_DEMO: PlanningEvent[] = []
-
 const CANAL_INTERNE_DEMO: CanalInterneMsg[] = []
-
 const ECHEANCES_DEMO: EcheanceReglementaire[] = []
 
 // ─── Dashboard Principal ───────────────────────────────────────────────────────
@@ -1466,14 +1460,9 @@ export default function SyndicDashboard() {
   }
 
   // ── Parse [DOC_PDF] blocks from Max responses ──────────────────────────────
-  const parseDocPDF = (content: string): { text: string; docData: DocPDFData | null } => {
-    const match = content.match(/\[DOC_PDF\]([\s\S]*?)\[\/DOC_PDF\]/)
-    if (!match) return { text: content, docData: null }
-    try {
-      const docData = JSON.parse(match[1].trim())
-      const text = content.replace(/\[DOC_PDF\][\s\S]*?\[\/DOC_PDF\]/, '').trim()
-      return { text, docData }
-    } catch { return { text: content, docData: null } }
+  const parseDocPDF = (content: string) => {
+    const result = parseDocPDFUtil(content)
+    return { text: result.text, docData: result.docData as DocPDFData | null }
   }
 
   // ── Generate professional PDF from Max document data ──────────────────────
