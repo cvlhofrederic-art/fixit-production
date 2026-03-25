@@ -527,14 +527,18 @@ export default function DevisFactureForm({
     } catch { /* pas d'étapes = pas grave */ }
 
     if (etapesTemplate.length > 0) {
-      // Copier les étapes sur le devis (affichées dans la section "Étapes de l'intervention")
+      // Remplacer les étapes — chaque sélection de motif écrase les étapes précédentes
+      // Les étapes sont affichées sous la première prestation sur le PDF
       const copiedEtapes: DevisEtape[] = etapesTemplate.map((et, i) => ({
         id: `etape_${Date.now()}_${i}`,
-        ordre: et.ordre,
+        ordre: i + 1,
         designation: et.designation,
         source_etape_id: et.id,
       }))
       setDevisEtapes(copiedEtapes)
+    } else {
+      // Motif sans étapes → vider les étapes existantes
+      setDevisEtapes([])
     }
 
     // Comportement unique : une seule ligne avec nom + description

@@ -420,7 +420,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.rect(ML, y, contentW, headerH, 'F')
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.WHITE)
     const hTextY = y + headerH / 2 + 1
-    pdf.text('DÉSIGNATION', 21.16, hTextY)
+    pdf.text('DÉSIGNATION', ptToMm(62), hTextY)
     pdf.text('QTÉ', 121.92, hTextY, { align: 'center' })
     pdf.text('UNITÉ', 135.41, hTextY, { align: 'center' })
     pdf.text('PRIX U. TTC', 162.26, hTextY, { align: 'right' })
@@ -436,13 +436,14 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     const title = nlParts[0]
     const detail = nlParts.slice(1).join('\n').trim()
 
-    // Mesurer les hauteurs nécessaires
+    // Mesurer les hauteurs nécessaires — largeur = de x=62pt à la colonne QTÉ
+    const desigTextW = tColWidths.designation - (ptToMm(62) - ML) - 2
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10)
-    const titleWrapped = pdf.splitTextToSize(title, tColWidths.designation - 6)
+    const titleWrapped = pdf.splitTextToSize(title, desigTextW)
     let descWrapped: string[] = []
     if (detail) {
       pdf.setFontSize(8)
-      descWrapped = pdf.splitTextToSize(detail, tColWidths.designation - 6)
+      descWrapped = pdf.splitTextToSize(detail, desigTextW)
     }
     // Hauteur étapes (si présentes)
     const etapesH = lineEtapes.length > 0 ? ptToMm(4) + lineEtapes.length * ptToMm(11) : 0
@@ -455,11 +456,15 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFillColor(rowIdx % 2 === 0 ? COLOR.WHITE : COLOR.BG_GRAY)
     pdf.rect(ML, y, contentW, rowH, 'F')
 
+    // x=62pt (21.87mm) = TEXT_LEFT pour tout le texte aligné
+    const TEXT_LEFT = ptToMm(62)
+    const STEPS_LEFT = ptToMm(77) // étapes indentées de 15pt
+
     // Titre (10pt TEXT) — UNE SEULE FOIS
     let textY = y + 5
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
     for (let i = 0; i < titleWrapped.length; i++) {
-      pdf.text(titleWrapped[i], ML + 3, textY)
+      pdf.text(titleWrapped[i], TEXT_LEFT, textY)
       textY += ptToMm(14)
     }
 
@@ -467,23 +472,23 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     if (descWrapped.length > 0) {
       pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
       for (let i = 0; i < descWrapped.length; i++) {
-        pdf.text(descWrapped[i], ML + 3, textY)
+        pdf.text(descWrapped[i], TEXT_LEFT, textY)
         textY += ptToMm(12)
       }
     }
 
-    // Étapes du chantier (sous la description de chaque prestation, si associées)
+    // Étapes du chantier (indentées à x=77pt)
     if (lineEtapes.length > 0) {
       textY += ptToMm(4)
       pdf.setFontSize(7.5); pdf.setTextColor('#555555'); pdf.setFont('helvetica', 'normal')
       for (let ei = 0; ei < lineEtapes.length; ei++) {
-        pdf.text(`${ei + 1}. ${lineEtapes[ei].designation}`, ML + 6, textY)
+        pdf.text(`${ei + 1}. ${lineEtapes[ei].designation}`, STEPS_LEFT, textY)
         textY += ptToMm(11)
       }
     }
 
-    // Données numériques (centrées verticalement)
-    const numY = y + rowH / 2 + 1
+    // Données numériques — alignées avec le TITRE (y + 5), pas centrées verticalement
+    const numY = y + 5
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
     pdf.text(String(line.quantite), 121.92, numY, { align: 'center' })
     pdf.text(formatUnitForPdf(line.unite), 135.41, numY, { align: 'center' })
@@ -575,7 +580,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     `Validité du devis : ${input.devis.validite_jours} jours à compter de la date d'émission.`,
     `Délai d'exécution : ${input.devis.delai_execution || 'À convenir'}.`,
     "Toute modification fera l'objet d'un avenant signé par les deux parties.",
-    `Mode de règlement : ${input.artisan.mode_paiement}.`,
+    `Mode de règlement : ${input.artisan.mode_paiement === 'Transferência bancária' ? 'Virement bancaire' : input.artisan.mode_paiement}.`,
     ...(input.dechets_chantier ? [input.dechets_chantier] : []), // FIX FINAL #6
   ]
   condLines.forEach(line => {
@@ -658,10 +663,27 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     // Première ligne à +12mm (même gap que BON POUR ACCORD titre→contenu)
     let ay = y + 12
     pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
-    for (const ac of input.acomptes) {
+    // Normaliser les labels acomptes en FR (éviter mélange PT/FR)
+    const normLabel = (label: string, idx: number) => {
+      if (/adiantamento/i.test(label)) return `Acompte ${idx + 1}`
+      return label
+    }
+    const normTrigger = (t: string) => {
+      const MAP: Record<string, string> = {
+        'Na assinatura': 'À la signature',
+        'No início dos trabalhos': 'Au démarrage des travaux',
+        'A meio do projeto': 'À mi-parcours',
+        'Na entrega': 'À la livraison',
+      }
+      return MAP[t] || t
+    }
+    for (let aci = 0; aci < input.acomptes.length; aci++) {
+      const ac = input.acomptes[aci]
+      const label = input.locale === 'pt' ? ac.label : normLabel(ac.label, aci)
+      const trigger = input.locale === 'pt' ? ac.declencheur : normTrigger(ac.declencheur)
       // FIX FINAL #4: afficher pourcentage si disponible
       const pctStr = ac.pourcentage ? `${ac.pourcentage}% ` : ''
-      pdf.text(`${ac.label} : ${pctStr}${ac.declencheur}`, DEST_X0 + boxPadX, ay)
+      pdf.text(`${label} : ${pctStr}${trigger}`, DEST_X0 + boxPadX, ay)
       pdf.setFont('helvetica', 'bold')
       pdf.text(formatPrice(ac.montant), DEST_X0 + DEST_W - boxPadX, ay, { align: 'right' })
       pdf.setFont('helvetica', 'normal')
