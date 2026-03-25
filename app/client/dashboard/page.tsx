@@ -14,6 +14,7 @@ import SimulateurDevisClient from '@/app/fr/simulateur-devis/SimulateurDevisClie
 import dynamic from 'next/dynamic'
 import type { ChatMessage as SharedChatMessage } from '@/lib/types'
 import { type CILEntry, generateCILEntries, getCILHealthScore, getCategoryInfo as getCategoryInfoBase, getPonctualiteScore as getPonctualiteScoreBase } from '@/lib/cil-utils'
+import { useSignatureCanvas } from '@/hooks/useSignatureCanvas'
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
 const SimulateurChat = dynamic(() => import('@/components/simulateur/SimulateurChat'), { ssr: false })
 
@@ -138,11 +139,9 @@ export default function ClientDashboardPage() {
   const [signingDevis, setSigningDevis] = useState<string | null>(null) // message_id en cours de signature
   const [signName, setSignName] = useState('')
   const [signConfirm, setSignConfirm] = useState(false)
-  // ── Signature canvas ──
+  // ── Signature canvas (hook custom) ──
   const sigCanvasRef = useRef<HTMLCanvasElement>(null)
-  const [sigDrawing, setSigDrawing] = useState(false)
-  const [sigPoints, setSigPoints] = useState<{ x: number; y: number }[][]>([])
-  const [sigCurrentStroke, setSigCurrentStroke] = useState<{ x: number; y: number }[]>([])
+  const { sigStartDraw, sigDraw, sigEndDraw, sigClearCanvas, sigBuildSVG, sigPoints, hasSignature: hasSigPoints } = useSignatureCanvas(sigCanvasRef)
   const [fullscreenImg, setFullscreenImg] = useState<string | null>(null)
 
   // ── Carnet de Santé Logement ──
@@ -508,62 +507,10 @@ export default function ClientDashboardPage() {
     setMediaRecorderRef(null)
   }
 
-  // ── Signature Canvas Handlers ──
-  const getSigPos = useCallback((e: React.TouchEvent | React.MouseEvent, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    if ('touches' in e) {
-      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
-    }
-    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY }
-  }, [])
-
-  const sigStartDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    const canvas = sigCanvasRef.current; if (!canvas) return
-    e.preventDefault()
-    setSigDrawing(true)
-    const pos = getSigPos(e, canvas)
-    setSigCurrentStroke([pos])
-    const ctx = canvas.getContext('2d')!
-    ctx.beginPath(); ctx.moveTo(pos.x, pos.y)
-  }, [getSigPos])
-
-  const sigDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    if (!sigDrawing) return
-    const canvas = sigCanvasRef.current; if (!canvas) return
-    e.preventDefault()
-    const pos = getSigPos(e, canvas)
-    setSigCurrentStroke(prev => [...prev, pos])
-    const ctx = canvas.getContext('2d')!
-    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1E293B'
-    ctx.lineTo(pos.x, pos.y); ctx.stroke()
-  }, [sigDrawing, getSigPos])
-
-  const sigEndDraw = useCallback(() => {
-    if (!sigDrawing) return
-    setSigDrawing(false)
-    setSigPoints(prev => [...prev, sigCurrentStroke])
-    setSigCurrentStroke([])
-  }, [sigDrawing, sigCurrentStroke])
-
-  const sigClearCanvas = useCallback(() => {
-    const canvas = sigCanvasRef.current; if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    setSigPoints([]); setSigCurrentStroke([])
-  }, [])
-
-  const sigBuildSVG = useCallback(() => {
-    const paths = sigPoints.filter(s => s.length > 1).map(stroke => {
-      const d = stroke.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-      return `<path d="${d}" stroke="#1E293B" stroke-width="2.5" fill="none" stroke-linecap="round"/>`
-    }).join('')
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="140">${paths}</svg>`
-  }, [sigPoints])
+  // ── Signature Canvas — extracted to useSignatureCanvas hook ──
 
   const handleSignDevis = async (messageId: string) => {
-    if (!messageModal || !signName.trim() || sigPoints.length === 0) return
+    if (!messageModal || !signName.trim() || !hasSigPoints) return
     setSendingMessage(true)
     try {
       // Build SVG + SHA-256 hash
@@ -3062,16 +3009,16 @@ export default function ClientDashboardPage() {
                     style={{
                       width: '100%',
                       height: 100,
-                      border: `2px ${sigPoints.length > 0 ? 'solid #22c55e' : 'dashed #d1d5db'}`,
+                      border: `2px ${hasSigPoints ? 'solid #22c55e' : 'dashed #d1d5db'}`,
                       borderRadius: 8,
                       cursor: 'crosshair',
                       touchAction: 'none',
-                      background: sigPoints.length > 0 ? '#fff' : '#f9fafb',
+                      background: hasSigPoints ? '#fff' : '#f9fafb',
                     }}
                     onMouseDown={sigStartDraw} onMouseMove={sigDraw} onMouseUp={sigEndDraw} onMouseLeave={sigEndDraw}
                     onTouchStart={sigStartDraw} onTouchMove={sigDraw} onTouchEnd={sigEndDraw}
                   />
-                  {sigPoints.length === 0 && (
+                  {!hasSigPoints && (
                     <p className="text-[9px] text-gray-400 text-center mt-0.5">
                       {locale === 'pt' ? 'Desenhe a sua assinatura com o rato ou o dedo' : 'Dessinez votre signature avec la souris ou le doigt'}
                     </p>
@@ -3090,7 +3037,7 @@ export default function ClientDashboardPage() {
                   </button>
                   <button
                     onClick={() => handleSignDevis(signingDevis)}
-                    disabled={!signName.trim() || !signConfirm || sigPoints.length === 0 || sendingMessage}
+                    disabled={!signName.trim() || !signConfirm || !hasSigPoints || sendingMessage}
                     className="flex-1 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-bold disabled:opacity-50 transition"
                   >
                     {sendingMessage ? t('clientDash.devis.signing') : t('clientDash.devis.sign')}
