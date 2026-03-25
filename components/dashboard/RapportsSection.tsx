@@ -765,7 +765,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       </div>
 
       {/* ── Form Modal ── */}
-      <div className={`v22-modal-overlay${showForm ? ' open' : ''}`}>
+      {showForm && (
+      <div className="v22-modal-overlay open">
         {showForm && (
           <div className="v22-modal" style={{ maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div className="v22-modal-head" style={{ flexShrink: 0 }}>
@@ -1137,6 +1138,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
           </div>
         )}
       </div>
+      )}
 
       {/* ── Compteurs ── */}
       {rapports.length > 0 && (
