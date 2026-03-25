@@ -7,6 +7,7 @@ import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { generateMaxPDF as generateMaxPDFUtil } from '@/lib/syndic-pdf'
 import type { User } from '@supabase/supabase-js'
 
 // ─── Types (from shared types file) ──────────────────────────────────────────
@@ -1476,208 +1477,19 @@ export default function SyndicDashboard() {
   }
 
   // ── Generate professional PDF from Max document data ──────────────────────
+  // ── PDF generation — extracted to lib/syndic-pdf.ts ──
   const generateMaxPDF = async (docData: DocPDFData) => {
-    const { jsPDF } = await import('jspdf')
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const W = 210, M = 18, textW = W - 2 * M
-    const isPt = locale === 'pt'
-    let y = M
-
-    // Helper: check page break
-    const checkPageBreak = (needed: number) => {
-      if (y + needed > 275) { pdf.addPage(); y = M }
-    }
-
-    // ── 1. HEADER: Logo + Cabinet Info ──
-    const logoB64 = cabinetLogo
-    if (logoB64) {
-      try { pdf.addImage(logoB64, 'JPEG', M, y, 25, 25); } catch {}
-    }
-    const headerX = logoB64 ? M + 30 : M
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(14)
-    pdf.setTextColor(13, 27, 46) // #0D1B2E
-    pdf.text(cabinetNom || (isPt ? 'Gabinete' : 'Cabinet'), headerX, y + 6)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    pdf.setTextColor(100, 100, 100)
-    if (cabinetAddress) {
-      const addrLines = cabinetAddress.split('\n')
-      addrLines.forEach((line, i) => {
-        pdf.text(line.trim(), headerX, y + 12 + i * 4)
-      })
-      y += 12 + addrLines.length * 4
-    } else {
-      y += 14
-    }
-    if (cabinetEmail) {
-      pdf.text(cabinetEmail, headerX, y)
-      y += 5
-    }
-    y = Math.max(y, logoB64 ? M + 28 : y) + 4
-
-    // ── Separator line ──
-    pdf.setDrawColor(201, 168, 76) // #C9A84C gold
-    pdf.setLineWidth(0.8)
-    pdf.line(M, y, W - M, y)
-    y += 8
-
-    // ── 2. DOCUMENT TITLE ──
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(16)
-    pdf.setTextColor(13, 27, 46)
-    const title = (docData.title || docData.type || 'DOCUMENT').toUpperCase()
-    pdf.text(title, W / 2, y, { align: 'center' })
-    y += 8
-
-    // Reference & Date
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    pdf.setTextColor(100, 100, 100)
-    const refNum = `DOC-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`
-    const dateStr = new Date().toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-    pdf.text(`${isPt ? 'Referência' : 'Référence'}: ${refNum}`, M, y)
-    pdf.text(`${isPt ? 'Data' : 'Date'}: ${dateStr}`, W - M, y, { align: 'right' })
-    y += 10
-
-    // ── 3. RECIPIENT ──
-    if (docData.destinataire) {
-      const d = docData.destinataire
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(10)
-      pdf.setTextColor(13, 27, 46)
-      pdf.text(isPt ? 'DESTINATÁRIO:' : 'DESTINATAIRE:', M, y)
-      y += 5
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(10)
-      if (d.prenom || d.nom) pdf.text(`${d.prenom || ''} ${d.nom || ''}`.trim(), M, y)
-      y += 5
-      const addrParts: string[] = []
-      if (d.immeuble) addrParts.push(d.immeuble)
-      if (d.batiment) addrParts.push(`${isPt ? 'Bloco' : 'Bât.'} ${d.batiment}`)
-      if (d.etage) addrParts.push(`${d.etage}${isPt ? 'º andar' : 'e étage'}`)
-      if (d.porte) addrParts.push(`${isPt ? 'Porta' : 'Porte'} ${d.porte}`)
-      if (addrParts.length > 0) { pdf.text(addrParts.join(', '), M, y); y += 5 }
-      y += 5
-    }
-
-    // ── 4. OBJET ──
-    if (docData.objet) {
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(10)
-      pdf.setTextColor(13, 27, 46)
-      pdf.text(`${isPt ? 'Assunto' : 'Objet'}: ${docData.objet}`, M, y)
-      y += 8
-    }
-
-    // ── 5. BODY ──
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(10)
-    pdf.setTextColor(40, 40, 40)
-    const corps = docData.corps || []
-    for (const paragraph of corps) {
-      checkPageBreak(15)
-      const lines = pdf.splitTextToSize(paragraph, textW)
-      lines.forEach((line: string) => {
-        checkPageBreak(6)
-        pdf.text(line, M, y)
-        y += 5
-      })
-      y += 3 // Inter-paragraph spacing
-    }
-
-    // ── 6. LEGAL REFERENCES ──
-    if (docData.references && docData.references.length > 0) {
-      checkPageBreak(15)
-      y += 3
-      pdf.setFont('helvetica', 'italic')
-      pdf.setFontSize(8)
-      pdf.setTextColor(100, 100, 100)
-      pdf.text(`${isPt ? 'Referências legais' : 'Références légales'}: ${docData.references.join(' · ')}`, M, y)
-      y += 8
-    }
-
-    // ── 7. CLOSING FORMULA ──
-    if (docData.formule_politesse) {
-      checkPageBreak(10)
-      y += 3
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(10)
-      pdf.setTextColor(40, 40, 40)
-      const fpLines = pdf.splitTextToSize(docData.formule_politesse, textW)
-      fpLines.forEach((line: string) => { pdf.text(line, M, y); y += 5 })
-      y += 5
-    }
-
-    // ── 8. SIGNATURE ──
-    checkPageBreak(50)
-    y += 5
-    // Signature SVG → image
-    if (syndicSignature?.svg_data) {
-      try {
-        const canvas = document.createElement('canvas')
-        canvas.width = 400
-        canvas.height = 160
-        const ctx2d = canvas.getContext('2d')
-        if (ctx2d) {
-          ctx2d.fillStyle = '#ffffff'
-          ctx2d.fillRect(0, 0, 400, 160)
-          const img = new Image()
-          const svgBlob = new Blob([syndicSignature.svg_data], { type: 'image/svg+xml' })
-          const svgUrl = URL.createObjectURL(svgBlob)
-          await new Promise<void>((resolve) => {
-            img.onload = () => {
-              ctx2d.drawImage(img, 0, 0)
-              URL.revokeObjectURL(svgUrl)
-              resolve()
-            }
-            img.onerror = () => { URL.revokeObjectURL(svgUrl); resolve() }
-            img.src = svgUrl
-          })
-          const sigDataUrl = canvas.toDataURL('image/png')
-          pdf.addImage(sigDataUrl, 'PNG', W - M - 60, y, 50, 20)
-          y += 22
-        }
-      } catch { y += 5 }
-    }
-
-    // Signer name + role + timestamp
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(10)
-    pdf.setTextColor(13, 27, 46)
-    pdf.text(userName, W - M, y, { align: 'right' })
-    y += 5
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    pdf.setTextColor(100, 100, 100)
-    pdf.text(getRoleLabel(userRole, isPt ? 'pt' : 'fr'), W - M, y, { align: 'right' })
-    y += 4
-    const nowStr = new Date().toLocaleString(isPt ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    pdf.text(`${isPt ? 'Assinado em' : 'Fait le'} ${nowStr}`, W - M, y, { align: 'right' })
-    y += 4
-    if (syndicSignature?.hash_sha256) {
-      pdf.setFontSize(6)
-      pdf.text(`SHA-256: ${syndicSignature.hash_sha256.substring(0, 32)}...`, W - M, y, { align: 'right' })
-      y += 5
-    }
-
-    // ── 9. FOOTER ──
-    const pageCount = pdf.getNumberOfPages()
-    for (let p = 1; p <= pageCount; p++) {
-      pdf.setPage(p)
-      pdf.setDrawColor(201, 168, 76)
-      pdf.setLineWidth(0.5)
-      pdf.line(M, 285, W - M, 285)
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(7)
-      pdf.setTextColor(150, 150, 150)
-      pdf.text(`${cabinetNom || (isPt ? 'Gabinete' : 'Cabinet')}${cabinetAddress ? ' — ' + cabinetAddress.split('\n')[0] : ''}`, W / 2, 289, { align: 'center' })
-      pdf.text(`${p}/${pageCount}`, W - M, 289, { align: 'right' })
-    }
-
-    // ── Save ──
-    const fileName = `${docData.type || 'document'}_${new Date().toISOString().split('T')[0]}.pdf`
-    pdf.save(fileName)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local DocPDFData compatible with lib type
+    await generateMaxPDFUtil(docData as any, {
+      locale,
+      cabinetLogo,
+      cabinetNom,
+      cabinetAddress,
+      cabinetEmail,
+      userName,
+      userRole,
+      syndicSignature,
+    })
   }
 
   // ── Contexte complet cabinet ─────────────────────────────────────────────────
