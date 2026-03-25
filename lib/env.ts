@@ -8,23 +8,36 @@ const requiredServerVars = [
   'SUPABASE_SERVICE_ROLE_KEY',
 ] as const
 
+// Variables optionnelles — absence = fonctionnalité désactivée, pas d'erreur.
+// SENTRY_AUTH_TOKEN est build-only (source maps upload), pas besoin au runtime.
+// GOOGLE_CLIENT_ID/SECRET ne sont nécessaires que si OAuth Google est activé.
 const optionalServerVars = [
   'GROQ_API_KEY',
-  'GOOGLE_CLIENT_ID',
-  'GOOGLE_CLIENT_SECRET',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
-  'SENTRY_AUTH_TOKEN',
   'NEXT_PUBLIC_APP_URL',
 ] as const
 
+// Variables intentionnellement absentes en prod (build-only ou non utilisées)
+// Ne pas les logger en warning pour éviter le bruit dans les logs Vercel
+const buildOnlyVars = [
+  'SENTRY_AUTH_TOKEN',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+] as const
+
+let envValidated = false
+
 export function validateEnv() {
-  // Ne valider que côté serveur (pas pendant le build où les vars peuvent manquer)
-  if (typeof window !== 'undefined') return // skip client-side
-  if (process.env.NEXT_PHASE === 'phase-production-build') return // skip build
+  // Ne valider qu'une seule fois, côté serveur, hors build
+  if (envValidated) return
+  if (typeof window !== 'undefined') return
+  if (process.env.NEXT_PHASE === 'phase-production-build') return
+
+  envValidated = true
 
   const missing: string[] = []
   const warnings: string[] = []
@@ -43,14 +56,12 @@ export function validateEnv() {
   }
 
   if (warnings.length > 0) {
-    console.warn(`[env] Variables optionnelles manquantes (certaines fonctionnalités seront désactivées): ${warnings.join(', ')}`)
+    console.warn(`[env] Variables optionnelles manquantes: ${warnings.join(', ')}`)
   }
 
   if (missing.length > 0) {
-    const msg = `[env] Variables d'environnement CRITIQUES manquantes:\n  ${missing.join('\n  ')}\n\nL'application ne peut pas fonctionner sans ces variables.`
+    const msg = `[env] Variables CRITIQUES manquantes: ${missing.join(', ')}`
     console.error(msg)
-    // En production, log l'erreur mais ne crash pas (Vercel a ses propres checks)
-    // En dev, throw pour fail fast
     if (process.env.NODE_ENV === 'development') {
       throw new Error(msg)
     }
