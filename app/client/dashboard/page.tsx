@@ -12,6 +12,8 @@ import { Calendar, Clock, MapPin, Star, LogOut, User, Search, ChevronRight, Penc
 import FixyChatGeneric from '@/components/chat/FixyChatGeneric'
 import SimulateurDevisClient from '@/app/fr/simulateur-devis/SimulateurDevisClient'
 import dynamic from 'next/dynamic'
+import type { ChatMessage as SharedChatMessage } from '@/lib/types'
+import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
 const SimulateurChat = dynamic(() => import('@/components/simulateur/SimulateurChat'), { ssr: false })
 
 type Booking = {
@@ -30,6 +32,49 @@ type Booking = {
   services?: { name: string } | null
   profiles_artisan?: { company_name: string; rating_avg: number; rating_count?: number } | null
 }
+
+type SupabaseUser = SupabaseAuthUser
+
+type AnalyseConformiteDetail = {
+  id: string
+  label: string
+  status: 'ok' | 'partial' | 'missing' | 'na'
+  poids: number
+}
+
+type AnalysePrixDetail = {
+  designation: string
+  prix: number
+  fourchette_min?: number
+  fourchette_max?: number
+  status: 'ok' | 'bas' | 'eleve' | 'excessif' | 'inconnu'
+}
+
+type AnalyseScores = {
+  conformite: { total: number; max: number; details: AnalyseConformiteDetail[] }
+  confiance: number
+  prix?: { ecart_moyen_pct: number; details: AnalysePrixDetail[] }
+  action_recommandee?: string
+  [key: string]: unknown
+}
+
+type BookingDocument = SharedChatMessage & {
+  booking: Booking
+  metadata?: Record<string, unknown>
+  totalStr?: string
+  prestationDate?: string
+  signer_name?: string
+  signed_at?: string
+  docNumber?: string
+  docTitle?: string
+  companyName?: string
+  signature_svg?: string
+  signature_hash?: string
+  lines?: Array<{ designation: string; quantite: number; prix_unitaire: number; total: number }>
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+type ProofEntry = { bookingId: string; [key: string]: unknown }
 
 type CILEntry = {
   id: string
@@ -56,7 +101,7 @@ export default function ClientDashboardPage() {
   const router = useRouter()
   const { t } = useTranslation()
   const locale = useLocale()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'upcoming' | 'past' | 'messages' | 'documents' | 'logement' | 'analyse' | 'simulateur' | 'marches' | 'profile'>('dashboard')
@@ -94,7 +139,7 @@ export default function ClientDashboardPage() {
 
   // ── Messagerie ──
   const [messageModal, setMessageModal] = useState<Booking | null>(null)
-  const [messages, setMessages] = useState<any[]>([])
+  const [messages, setMessages] = useState<SharedChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
@@ -102,7 +147,7 @@ export default function ClientDashboardPage() {
   const [conversations, setConversations] = useState<{ bookingId: string; lastMessage: string; lastDate: string; unread: number; hasDevis: boolean }[]>([])
   const [conversationsLoading, setConversationsLoading] = useState(false)
   // ── Documents list (Documents tab) ──
-  const [documents, setDocuments] = useState<any[]>([])
+  const [documents, setDocuments] = useState<BookingDocument[]>([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
   // ── Messagerie enrichie : photos, voice, devis ──
   const [msgUploading, setMsgUploading] = useState(false)
@@ -132,9 +177,9 @@ export default function ClientDashboardPage() {
   const [analyseExtracting, setAnalyseExtracting] = useState(false)
   const [analysePdfReady, setAnalysePdfReady] = useState(false)
   const [analyseHistory, setAnalyseHistory] = useState<{id?: string; date: string; filename: string; verdict: string; score_conformite?: number; score_confiance?: number; action?: string}[]>([])
-  const [analyseScores, setAnalyseScores] = useState<any>(null)
-  const [analyseExtracted, setAnalyseExtracted] = useState<any>(null)
-  const [analyseSiret, setAnalyseSiret] = useState<any>(null)
+  const [analyseScores, setAnalyseScores] = useState<AnalyseScores | null>(null)
+  const [analyseExtracted, setAnalyseExtracted] = useState<Record<string, any> | null>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [analyseSiret, setAnalyseSiret] = useState<Record<string, any> | null>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [analyseIsVitfix, setAnalyseIsVitfix] = useState(false)
   const [analyseAccordion, setAnalyseAccordion] = useState<string | null>(null)
 
@@ -202,8 +247,8 @@ export default function ClientDashboardPage() {
     } catch {}
   }
 
-  const initProfileData = (userData: any) => {
-    const meta = userData?.user_metadata || {}
+  const initProfileData = (userData: SupabaseUser | null) => {
+    const meta = userData?.user_metadata || {} as Record<string, string>
     setProfileData({
       fullName: meta.full_name || '',
       phone: meta.phone || '',
@@ -279,16 +324,16 @@ export default function ClientDashboardPage() {
       await supabase.auth.updateUser({
         data: { profile_photo_url: data.url }
       })
-      setUser((prev: any) => ({
+      setUser((prev) => prev ? ({
         ...prev,
-        user_metadata: { ...(prev?.user_metadata || {}), profile_photo_url: data.url }
-      }))
+        user_metadata: { ...(prev.user_metadata || {}), profile_photo_url: data.url }
+      }) : prev)
       setClientPhotoFile(null)
       setClientPhotoPreview('')
       setProfileSuccess(t('clientDash.errors.photoUpdated'))
       setTimeout(() => setProfileSuccess(''), 3000)
-    } catch (err: any) {
-      setProfileError(`${t('clientDash.errors.uploadError')}: ${err.message}`)
+    } catch (err: unknown) {
+      setProfileError(`${t('clientDash.errors.uploadError')}: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setClientPhotoUploading(false)
     }
@@ -322,12 +367,12 @@ export default function ClientDashboardPage() {
       const { data: artisanData } = await supabase
         .from('profiles_artisan')
         .select('rating_avg, rating_count')
-        .eq('user_id', ratingModal.profiles_artisan ? (ratingModal as any).artisan_id : '')
+        .eq('user_id', ratingModal.profiles_artisan ? ratingModal.artisan_id || '' : '')
         .single()
       if (artisanData) {
         const newCount = (artisanData.rating_count || 0) + 1
         const newAvg = ((artisanData.rating_avg || 0) * (artisanData.rating_count || 0) + ratingVal) / newCount
-        await supabase.from('profiles_artisan').update({ rating_avg: Math.round(newAvg * 10) / 10, rating_count: newCount }).eq('user_id', (ratingModal as any).artisan_id)
+        await supabase.from('profiles_artisan').update({ rating_avg: Math.round(newAvg * 10) / 10, rating_count: newCount }).eq('user_id', ratingModal.artisan_id || '')
       }
     } catch {}
     setRatingSubmitting(false)
@@ -600,8 +645,8 @@ export default function ClientDashboardPage() {
             const msgs = json.data || []
             if (msgs.length > 0) {
               const last = msgs[msgs.length - 1]
-              const unread = msgs.filter((m: any) => m.sender_role !== 'client' && !m.read_at).length
-              const hasDevis = msgs.some((m: any) => m.type === 'devis_sent')
+              const unread = msgs.filter((m: Record<string, unknown>) => m.sender_role !== 'client' && !m.read_at).length
+              const hasDevis = msgs.some((m: Record<string, unknown>) => m.type === 'devis_sent')
               return {
                 bookingId: b.id,
                 lastMessage: last.type === 'photo' ? '📷 Photo' : last.type === 'voice' ? '🎤 Vocal' : last.type === 'devis_sent' ? '📄 Devis envoyé' : (last.content || '').substring(0, 60),
@@ -636,7 +681,7 @@ export default function ClientDashboardPage() {
     try {
       const token = await getAuthToken()
       const nonCancelled = bookings.filter(b => b.status !== 'cancelled')
-      const allDocs: any[] = []
+      const allDocs: BookingDocument[] = []
       const batchSize = 10
       for (let i = 0; i < nonCancelled.length; i += batchSize) {
         const batch = nonCancelled.slice(i, i + batchSize)
@@ -648,15 +693,15 @@ export default function ClientDashboardPage() {
             const json = await res.json()
             const msgs = json.data || []
             return msgs
-              .filter((m: any) => m.type === 'devis_sent' || m.type === 'devis_signed')
-              .map((m: any) => ({ ...m, booking: b }))
+              .filter((m: Record<string, unknown>) => m.type === 'devis_sent' || m.type === 'devis_signed')
+              .map((m: Record<string, unknown>) => ({ ...m, booking: b } as BookingDocument))
           })
         )
         for (const r of batchResults) {
           if (r.status === 'fulfilled' && r.value) allDocs.push(...r.value)
         }
       }
-      allDocs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      allDocs.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       setDocuments(allDocs)
     } catch (e) { console.error('Error fetching documents:', e) }
     setDocumentsLoading(false)
@@ -668,7 +713,7 @@ export default function ClientDashboardPage() {
     const entries: CILEntry[] = bks
       .filter(b => b.status === 'completed')
       .map(b => {
-        const proof = proofs.find((p: any) => p.bookingId === b.id)
+        const proof = proofs.find((p: ProofEntry) => p.bookingId === b.id)
         const serviceName = (b.services?.name || '').toLowerCase()
         let category: CILEntry['category'] = 'autre'
         if (serviceName.match(/plomb|fuite|robinet|wc|sani|eau|tuyau/)) category = 'plomberie'
@@ -1396,9 +1441,9 @@ export default function ClientDashboardPage() {
                 <p className="text-sm text-gray-400">{locale === 'pt' ? 'Quando um profissional lhe envia um orçamento via mensagens, aparecerá aqui.' : 'Quand un artisan vous envoie un devis via la messagerie, il sera listé ici.'}</p>
               </div>
             ) : (
-              documents.map((doc: any) => {
-                const booking = doc.booking as Booking
-                const m = doc.metadata || {}
+              documents.map((doc) => {
+                const booking = doc.booking
+                const m: any = doc.metadata || {} // eslint-disable-line @typescript-eslint/no-explicit-any
                 const isSigned = m.signed === true
                 const isDevisSent = doc.type === 'devis_sent'
                 const isDevisSigned = doc.type === 'devis_signed'
@@ -1427,14 +1472,14 @@ export default function ClientDashboardPage() {
                           </span>
                         </div>
                         <p className="text-sm text-text-muted mt-1">{booking?.profiles_artisan?.company_name || 'Artisan'} — {booking?.services?.name || 'Service'}</p>
-                        {m.totalStr && <p className="text-lg font-bold text-dark mt-2">{m.totalStr}</p>}
+                        {m.totalStr ? <p className="text-lg font-bold text-dark mt-2">{String(m.totalStr)}</p> : null}
                         <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                          <span>Reçu le {new Date(doc.created_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                          {m.prestationDate && <span>Prestation : {new Date(m.prestationDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short' })}</span>}
+                          <span>Reçu le {new Date(doc.created_at || '').toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                          {m.prestationDate ? <span>Prestation : {new Date(m.prestationDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short' })}</span> : null}
                         </div>
-                        {isSigned && m.signer_name && (
-                          <p className="text-xs text-green-600 font-medium mt-1.5">Signé par {m.signer_name}{m.signed_at ? ` le ${new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
-                        )}
+                        {isSigned && m.signer_name ? (
+                          <p className="text-xs text-green-600 font-medium mt-1.5">Signé par {String(m.signer_name)}{m.signed_at ? ` le ${new Date(m.signed_at).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</p>
+                        ) : null}
                         {isDevisSent && !isSigned && (
                           <div className="flex gap-2 mt-3">
                             <button
@@ -1898,12 +1943,12 @@ export default function ClientDashboardPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all ${Math.abs(analyseScores.prix.ecart_moyen_pct) <= 15 ? 'bg-green-500' : Math.abs(analyseScores.prix.ecart_moyen_pct) <= 30 ? 'bg-amber-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.max(10, 100 - Math.abs(analyseScores.prix.ecart_moyen_pct))}%` }}
+                              className={`h-full rounded-full transition-all ${Math.abs(analyseScores.prix!.ecart_moyen_pct) <= 15 ? 'bg-green-500' : Math.abs(analyseScores.prix!.ecart_moyen_pct) <= 30 ? 'bg-amber-500' : 'bg-red-500'}`}
+                              style={{ width: `${Math.max(10, 100 - Math.abs(analyseScores.prix!.ecart_moyen_pct))}%` }}
                             />
                           </div>
-                          <span className={`text-sm font-bold ${analyseScores.prix.ecart_moyen_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                            {analyseScores.prix.ecart_moyen_pct > 0 ? '+' : ''}{analyseScores.prix.ecart_moyen_pct}%
+                          <span className={`text-sm font-bold ${analyseScores.prix!.ecart_moyen_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                            {analyseScores.prix!.ecart_moyen_pct > 0 ? '+' : ''}{analyseScores.prix!.ecart_moyen_pct}%
                           </span>
                         </div>
                       </div>
@@ -1924,9 +1969,9 @@ export default function ClientDashboardPage() {
                     </div>
 
                     {/* Points d'attention count */}
-                    {analyseScores.conformite.details.filter((c: any) => c.status === 'missing').length > 0 && (
+                    {analyseScores.conformite.details.filter((c: AnalyseConformiteDetail) => c.status === 'missing').length > 0 && (
                       <div className="text-xs text-amber-700 font-medium">
-                        {'⚠️'} {analyseScores.conformite.details.filter((c: any) => c.status === 'missing').length} points d{"'"}attention détectés
+                        {'⚠️'} {analyseScores.conformite.details.filter((c: AnalyseConformiteDetail) => c.status === 'missing').length} points d{"'"}attention détectés
                       </div>
                     )}
                   </div>
@@ -1958,7 +2003,7 @@ export default function ClientDashboardPage() {
                 )}
 
                 {/* Negotiation messages panel */}
-                {analyseAccordion === 'negocier' && analyseScores?.messages_negociation?.length > 0 && (
+                {analyseAccordion === 'negocier' && analyseScores && Array.isArray(analyseScores.messages_negociation) && analyseScores.messages_negociation.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
                     <h4 className="font-bold text-sm text-amber-800">Messages de négociation suggérés</h4>
                     {analyseScores.messages_negociation.map((msg: string, i: number) => (
@@ -1996,7 +2041,7 @@ export default function ClientDashboardPage() {
                     </button>
                     {analyseAccordion === 'conformite' && (
                       <div className="px-4 py-3 space-y-1.5 bg-white">
-                        {analyseScores.conformite.details.map((c: any) => (
+                        {analyseScores.conformite.details.map((c: AnalyseConformiteDetail) => (
                           <div key={c.id} className="flex items-center gap-2 text-xs">
                             <span>{c.status === 'ok' ? '✅' : c.status === 'partial' ? '⚠️' : c.status === 'na' ? '➖' : '❌'}</span>
                             <span className={c.status === 'ok' ? 'text-green-700' : c.status === 'missing' ? 'text-red-600' : 'text-mid'}>{c.label}</span>
@@ -2009,7 +2054,7 @@ export default function ClientDashboardPage() {
                 )}
 
                 {/* Accordion: Prix details */}
-                {analyseScores?.prix?.details?.length > 0 && (
+                {analyseScores?.prix && analyseScores.prix.details.length > 0 && (
                   <div className="border border-[#E0E0E0] rounded-xl overflow-hidden">
                     <button onClick={() => setAnalyseAccordion(analyseAccordion === 'prix' ? null : 'prix')} className="w-full flex items-center justify-between px-4 py-3 bg-warm-gray hover:bg-gray-100 transition">
                       <span className="font-semibold text-sm text-dark">Analyse des prix ({analyseScores.prix.ecart_moyen_pct > 0 ? '+' : ''}{analyseScores.prix.ecart_moyen_pct}% vs marché)</span>
@@ -2027,7 +2072,7 @@ export default function ClientDashboardPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {analyseScores.prix.details.map((p: any, i: number) => (
+                            {analyseScores.prix!.details.map((p: AnalysePrixDetail, i: number) => (
                               <tr key={i} className="border-b border-[#E0E0E0]/50">
                                 <td className="py-1.5 text-dark">{p.designation.substring(0, 40)}</td>
                                 <td className="py-1.5 text-right font-medium">{p.prix}€</td>
@@ -2606,7 +2651,7 @@ export default function ClientDashboardPage() {
                 const isUpcoming = activeTab === 'upcoming'
                 const canCancel = isUpcoming && !['cancelled'].includes(booking.status)
                 const canRate = !isUpcoming && booking.status === 'completed' && !myRating && booking.price_ttc > 0
-                const artisanId = (booking as any).artisan_id
+                const artisanId = booking.artisan_id || ''
                 const isFavori = favoris.includes(artisanId)
                 return (
                 <div key={booking.id} className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-[0_4px_30px_rgba(0,0,0,0.08)] p-6 hover:shadow-lg hover:-translate-y-px transition">
@@ -2955,9 +3000,9 @@ export default function ClientDashboardPage() {
                   {t('clientDash.messaging.noMessages')}
                 </div>
               ) : (
-                messages.map((msg: any) => {
+                messages.map((msg) => {
                   const isMe = msg.sender_role === 'client'
-                  const time = new Date(msg.created_at).toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })
+                  const time = new Date(msg.created_at || '').toLocaleTimeString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })
 
                   // ── Photo message ──
                   if (msg.type === 'photo' && msg.attachment_url) {
@@ -2968,7 +3013,7 @@ export default function ClientDashboardPage() {
                             src={msg.attachment_url}
                             alt="Photo"
                             className="rounded-xl max-w-[220px] max-h-[220px] object-cover cursor-pointer"
-                            onClick={() => setFullscreenImg(msg.attachment_url)}
+                            onClick={() => setFullscreenImg(msg.attachment_url ?? null)}
                           />
                           {msg.content && <p className="text-xs mt-1 px-2">{msg.content}</p>}
                           <p className={`text-[10px] px-2 mt-0.5 ${isMe ? 'text-mid' : 'text-text-muted'}`}>{time}</p>
@@ -2995,7 +3040,7 @@ export default function ClientDashboardPage() {
 
                   // ── Devis sent (carte interactive côté client) ──
                   if (msg.type === 'devis_sent' && msg.metadata) {
-                    const m = msg.metadata
+                    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
                     const isSigned = m.signed === true
                     return (
                       <div key={msg.id} className="flex justify-start">
@@ -3044,7 +3089,7 @@ export default function ClientDashboardPage() {
 
                   // ── Devis signed ──
                   if (msg.type === 'devis_signed' && msg.metadata) {
-                    const m = msg.metadata
+                    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <div className="max-w-[85%] rounded-2xl border-2 border-green-300 bg-green-50 px-4 py-3">

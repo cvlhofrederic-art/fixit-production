@@ -2,6 +2,40 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { Artisan, Service, Booking } from '@/lib/types'
+
+interface InterventionAddress {
+  id: string
+  label: string
+  address: string
+}
+
+interface ClientBooking {
+  id: string
+  date: string
+  status: string
+  price?: number
+  price_ttc?: number
+  service?: string
+  address?: string
+}
+
+interface ClientRecord {
+  id: string
+  name: string
+  email?: string
+  phone?: string
+  type?: string
+  siret?: string
+  mainAddress?: string
+  address?: string
+  mainAddressLabel?: string
+  interventionAddresses?: InterventionAddress[]
+  notes?: string
+  source?: string
+  bookings?: ClientBooking[]
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
 
 const CLIENT_TYPES = [
   { value: 'particulier', label: 'Particulier', group: 'b2c' },
@@ -32,9 +66,9 @@ const EMPTY_CLIENT_FORM = {
 }
 
 export default function ClientsSection({ artisan, bookings, services, onNewRdv, onNewDevis }: {
-  artisan: any
-  bookings: any[]
-  services: any[]
+  artisan: Artisan | null
+  bookings: Booking[]
+  services: Service[]
   onNewRdv: (clientName: string) => void
   onNewDevis: (clientName: string) => void
 }) {
@@ -43,8 +77,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const manualStorageKey = `fixit_manual_clients_${artisan?.id}`
 
-  const [authClients, setAuthClients] = useState<any[]>([])
-  const [manualClients, setManualClients] = useState<any[]>(() => {
+  const [authClients, setAuthClients] = useState<ClientRecord[]>([])
+  const [manualClients, setManualClients] = useState<ClientRecord[]>(() => {
     if (typeof window === 'undefined') return []
     try { return JSON.parse(localStorage.getItem(`fixit_manual_clients_${artisan?.id}`) || '[]') } catch { return [] }
   })
@@ -71,7 +105,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   }, [artisan?.id])
 
   // Save manual clients to localStorage
-  const saveManualClients = (updated: any[]) => {
+  const saveManualClients = (updated: ClientRecord[]) => {
     setManualClients(updated)
     localStorage.setItem(manualStorageKey, JSON.stringify(updated))
   }
@@ -82,14 +116,14 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
     ...manualClients.map(c => ({ ...c, source: 'manual' })),
   ]
 
-  const isEntreprise = (c: any) => {
+  const isEntreprise = (c: ClientRecord) => {
     const b2bTypes = CLIENT_TYPES.filter(t => t.group === 'b2b').map(t => t.value)
-    return b2bTypes.includes(c.type) || Boolean(c.siret && c.siret.trim())
+    return b2bTypes.includes(c.type as any) || Boolean(c.siret && c.siret.trim()) // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
   const filtered = allClients.filter(c => {
     const searchFields = [c.name, c.email, c.phone, c.mainAddress || c.address, c.siret, c.notes]
-    const matchSearch = !search || searchFields.filter(Boolean).some((v: string) => v.toLowerCase().includes(search.toLowerCase()))
+    const matchSearch = !search || searchFields.filter(Boolean).some((v: any) => String(v).toLowerCase().includes(search.toLowerCase())) // eslint-disable-line @typescript-eslint/no-explicit-any
     const matchTab =
       activeTab === 'tous' ||
       (activeTab === 'entreprises' && isEntreprise(c)) ||
@@ -97,15 +131,15 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
     return matchSearch && matchTab
   })
 
-  const totalCA = (c: any) => {
-    const clientBookings = (c.bookings || []).filter((b: any) => b.status === 'completed')
-    return clientBookings.reduce((sum: number, b: any) => sum + (b.price || b.price_ttc || 0), 0)
+  const totalCA = (c: ClientRecord) => {
+    const clientBookings = (c.bookings || []).filter((b: ClientBooking) => b.status === 'completed')
+    return clientBookings.reduce((sum: number, b: ClientBooking) => sum + (b.price || b.price_ttc || 0), 0)
   }
 
-  const lastBookingDate = (c: any) => {
+  const lastBookingDate = (c: ClientRecord) => {
     const bks = c.bookings || []
     if (bks.length === 0) return null
-    const sorted = [...bks].sort((a: any, b: any) => b.date.localeCompare(a.date))
+    const sorted = [...bks].sort((a: ClientBooking, b: ClientBooking) => b.date.localeCompare(a.date))
     return sorted[0].date
   }
 
@@ -120,7 +154,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   }
 
   // Open modal for editing a manual client
-  const openEdit = (c: any) => {
+  const openEdit = (c: ClientRecord) => {
     setEditingId(c.id)
     setClientForm({
       type: c.type || 'particulier',
@@ -571,7 +605,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                       {t('proDash.clients.lieuxIntervention')}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {c.interventionAddresses.map((addr: any) => (
+                      {(c.interventionAddresses || []).map((addr: InterventionAddress) => (
                         <div key={addr.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 8px', background: 'var(--v22-bg)', borderRadius: 4, border: '1px solid var(--v22-border)' }}>
                           <span style={{ fontWeight: 500, color: 'var(--v22-amber)', flexShrink: 0, minWidth: 70 }}>{addr.label || t('proDash.clients.lieu')}</span>
                           <span style={{ color: 'var(--v22-text-mid)' }}>{addr.address}</span>
@@ -615,7 +649,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>{t('proDash.clients.aucuneIntervention')}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                    {[...bks].sort((a: any, b: any) => b.date.localeCompare(a.date)).map((bk: any) => (
+                    {[...bks].sort((a: ClientBooking, b: ClientBooking) => b.date.localeCompare(a.date)).map((bk: ClientBooking) => (
                       <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '6px 8px', background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 4 }}>
                         <span style={{
                           width: 6, height: 6, borderRadius: '50%', flexShrink: 0,

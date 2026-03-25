@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = `/${locale}${pathname}`
       const response = NextResponse.redirect(url)
-      response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax' })
+      response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
       response.headers.set('Content-Security-Policy', cspHeader)
       return response
     }
@@ -157,11 +157,11 @@ export async function middleware(request: NextRequest) {
     url.pathname = isInternalRoute ? path : `/${locale}${path}`
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
-      resp.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax' })
+      resp.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
     }
     // Propager les cookies Supabase rafraîchis vers le browser
     supabaseResponse.cookies.getAll().forEach(cookie => {
-      resp.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax' })
+      resp.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
     })
     resp.headers.set('Content-Security-Policy', cspHeader)
     return resp
@@ -169,7 +169,7 @@ export async function middleware(request: NextRequest) {
 
   // Super admin : accès libre à toutes les routes (pas de redirection forcée)
   if (role === 'super_admin') {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax' })
+    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
     return supabaseResponse
@@ -255,7 +255,7 @@ export async function middleware(request: NextRequest) {
 
   // Set locale cookie on all responses
   if (!isInternalRoute) {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax' })
+    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
   }
 
   supabaseResponse.headers.set('X-API-Version', '1.0.0')

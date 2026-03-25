@@ -1,0 +1,101 @@
+# ── Internationalisation — Vérification traductions FR/PT ─────────────────────
+# Compare les clés de traduction entre toutes les locales.
+# Poste un commentaire de synthèse sur la PR (warning, pas de blocage).
+# Déclenché sur TOUTES les PR (pas seulement locales/).
+
+name: "Internationalisation — FR/PT"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-translations:
+    name: "Vérifier les traductions manquantes"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Comparer les clés FR vs PT
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            function getKeys(obj, prefix = '') {
+              let keys = [];
+              for (const [key, value] of Object.entries(obj)) {
+                const fullKey = prefix ? `${prefix}.${key}` : key;
+                if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                  keys = keys.concat(getKeys(value, fullKey));
+                } else {
+                  keys.push(fullKey);
+                }
+              }
+              return keys;
+            }
+
+            const locales = {};
+            const localeFiles = ['fr', 'pt', 'en', 'es', 'nl'];
+
+            for (const locale of localeFiles) {
+              const path = `locales/${locale}.json`;
+              if (fs.existsSync(path)) {
+                locales[locale] = new Set(getKeys(JSON.parse(fs.readFileSync(path, 'utf8'))));
+              }
+            }
+
+            const fr = locales.fr;
+            const pt = locales.pt;
+            if (!fr || !pt) {
+              core.warning('Fichiers fr.json ou pt.json introuvables');
+              return;
+            }
+
+            const missingInPt = [...fr].filter(k => !pt.has(k));
+            const missingInFr = [...pt].filter(k => !fr.has(k));
+
+            let body = '## Rapport i18n — Traductions FR/PT\n\n';
+
+            if (missingInPt.length === 0 && missingInFr.length === 0) {
+              body += '✅ Toutes les clés sont synchronisées entre FR et PT.\n';
+            } else {
+              if (missingInPt.length > 0) {
+                body += `### ⚠️ ${missingInPt.length} clé(s) présentes en FR mais absentes en PT\n\n`;
+                body += '<details><summary>Voir les clés</summary>\n\n```\n' + missingInPt.join('\n') + '\n```\n</details>\n\n';
+              }
+              if (missingInFr.length > 0) {
+                body += `### ⚠️ ${missingInFr.length} clé(s) présentes en PT mais absentes en FR\n\n`;
+                body += '<details><summary>Voir les clés</summary>\n\n```\n' + missingInFr.join('\n') + '\n```\n</details>\n\n';
+              }
+              body += '> Ce workflow émet un warning. La PR n\'est pas bloquée.\n';
+            }
+
+            // Couverture par locale
+            body += '\n### Couverture par locale\n\n';
+            body += '| Locale | Clés | Couverture vs FR |\n';
+            body += '|--------|------|------------------|\n';
+
+            for (const [locale, keys] of Object.entries(locales)) {
+              const coverage = locale === 'fr' ? '100%' :
+                Math.round((1 - [...fr].filter(k => !keys.has(k)).length / fr.size) * 100) + '%';
+              body += `| ${locale.toUpperCase()} | ${keys.size} | ${coverage} |\n`;
+            }
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+            if (missingInPt.length > 0 || missingInFr.length > 0) {
+              core.warning(`Traductions désynchronisées : ${missingInPt.length} manquantes en PT, ${missingInFr.length} manquantes en FR`);
+            }

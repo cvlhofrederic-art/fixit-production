@@ -5,6 +5,48 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { normalizeForSearch, fuzzyFind } from '@/lib/fuzzy-match'
+import type { Artisan, Service, Booking } from '@/lib/types'
+
+interface CompanyData {
+  name?: string
+  address?: string
+  phone?: string
+  email?: string
+  siret?: string
+  insuranceName?: string
+  insuranceNumber?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+interface PhotoRecord {
+  id: string
+  url?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+interface MissionRecord {
+  id: string
+  source?: string
+  locataire?: string
+  titre?: string
+  immeuble?: string
+  lot?: string
+  type?: string
+  description?: string
+  dateIntervention?: string
+  date?: string
+  devis?: string
+  priorite?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+interface DevisFactureRef {
+  docNumber?: string
+  savedAt?: string
+  clientName?: string
+  docType?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
 
 /* ══════════ RAPPORTS D'INTERVENTION ══════════ */
 
@@ -54,7 +96,7 @@ const RAPPORT_STATUS_MAP = {
   sous_garantie: { label: '🛡️ Sous garantie', tagClass: 'v22-tag v22-tag-gray' },
 }
 
-export default function RapportsSection({ artisan, bookings, services, onNavigate }: { artisan: any; bookings: any[]; services: any[]; onNavigate?: (page: string) => void }) {
+export default function RapportsSection({ artisan, bookings, services, onNavigate }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void }) {
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_rapports_${artisan?.id}`
@@ -74,13 +116,13 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState<string | null>(null)
   const [previewRapport, setPreviewRapport] = useState<RapportIntervention | null>(null)
-  const [companyData, setCompanyData] = useState<any>(null)
+  const [companyData, setCompanyData] = useState<CompanyData | null>(null)
 
   const [form, setForm] = useState<Partial<RapportIntervention>>({})
   const [importSource, setImportSource] = useState<'intervention' | 'mission'>('intervention')
 
   // Photos chantier pour liaison
-  const [availablePhotos, setAvailablePhotos] = useState<any[]>([])
+  const [availablePhotos, setAvailablePhotos] = useState<PhotoRecord[]>([])
   const [photosLoading, setPhotosLoading] = useState(false)
   const [linkedPhotos, setLinkedPhotos] = useState<string[]>([])
   const [showPhotoPicker, setShowPhotoPicker] = useState(false)
@@ -110,7 +152,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   // Noms de services/motifs
   const knownMotifs = useMemo(() => {
-    return services.map((s: any) => ({ name: s.name || s.label || '', id: s.id })).filter((m: any) => m.name)
+    return services.map((s) => ({ name: s.name || '', id: s.id })).filter((m) => m.name)
   }, [services])
 
   // Recherche client quand l'utilisateur tape
@@ -171,22 +213,22 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   }
 
   // Load missions from localStorage (syndic + gestionnaire)
-  const [availableMissions, setAvailableMissions] = useState<any[]>([])
+  const [availableMissions, setAvailableMissions] = useState<MissionRecord[]>([])
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
     try {
-      const allMissions: any[] = []
+      const allMissions: MissionRecord[] = []
       // 1. Missions gestionnaire
       const gestKey = `fixit_missions_gest_${artisan.id}`
       try {
         const gest = JSON.parse(localStorage.getItem(gestKey) || '[]')
-        gest.forEach((m: any) => allMissions.push({ ...m, source: 'gestionnaire' }))
+        gest.forEach((m: MissionRecord) => allMissions.push({ ...m, source: 'gestionnaire' }))
       } catch {}
       // 2. Ordres de mission syndic (canal artisan)
       const artisanKey = `canal_artisan_${(artisan.company_name || artisan.nom || artisan.id || 'artisan').replace(/\s+/g, '_').toLowerCase()}`
       try {
         const ordres = JSON.parse(localStorage.getItem(artisanKey) || '[]')
-        ordres.forEach((m: any) => allMissions.push({ ...m, source: 'syndic' }))
+        ordres.forEach((m: MissionRecord) => allMissions.push({ ...m, source: 'syndic' }))
       } catch {}
       setAvailableMissions(allMissions)
     } catch {}
@@ -245,8 +287,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   }
 
   const openNew = () => {
-    const a = artisan || {}
-    const c = companyData || {}
+    const a: any = artisan || {} // eslint-disable-line @typescript-eslint/no-explicit-any
+    const c: any = companyData || {} // eslint-disable-line @typescript-eslint/no-explicit-any
     setEditingId(null)
     setLinkedPhotos([])
     setForm({
@@ -650,7 +692,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
           const x = mL + photoCol * (photoW + 6)
 
           try {
-            const img = await loadImage(photo.url)
+            const img = await loadImage(photo.url || '')
             pdf.setDrawColor('#E5E7EB'); pdf.setLineWidth(0.3)
             pdf.roundedRect(x, y, photoW, photoH + 10, 1.5, 1.5, 'S')
 
@@ -809,9 +851,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                         const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                         return [...docs, ...drafts]
-                          .filter((d: any) => d.docNumber)
-                          .sort((a: any, b: any) => (b.savedAt || '').localeCompare(a.savedAt || ''))
-                          .map((d: any) => (
+                          .filter((d: DevisFactureRef) => d.docNumber)
+                          .sort((a: DevisFactureRef, b: DevisFactureRef) => (b.savedAt || '').localeCompare(a.savedAt || ''))
+                          .map((d: DevisFactureRef) => (
                             <option key={d.docNumber} value={d.docNumber}>
                               {d.docNumber} — {d.clientName || 'Client'} — {d.docType === 'devis' ? 'Devis' : 'Facture'}
                             </option>
@@ -1013,7 +1055,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         return (
                           <div key={photoId} style={{ position: 'relative' }}>
                             {photo ? (
-                              <Image src={photo.url} alt="Photo chantier" width={80} height={80} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '6px', border: '2px solid var(--v22-green)' }} unoptimized />
+                              <Image src={photo.url || ''} alt="Photo chantier" width={80} height={80} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '6px', border: '2px solid var(--v22-green)' }} unoptimized />
                             ) : (
                               <div style={{ width: '80px', height: '80px', background: 'var(--v22-bg)', borderRadius: '6px', border: '2px solid var(--v22-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>📸</div>
                             )}
@@ -1061,7 +1103,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                                   onClick={() => togglePhotoLink(photo.id)}
                                   style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: isLinked ? '2px solid var(--v22-green)' : '2px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none' }}
                                 >
-                                  <Image src={photo.url} alt="" width={100} height={64} style={{ width: '100%', height: '64px', objectFit: 'cover', display: 'block' }} unoptimized />
+                                  <Image src={photo.url || ''} alt="" width={100} height={64} style={{ width: '100%', height: '64px', objectFit: 'cover', display: 'block' }} unoptimized />
                                   {isLinked && (
                                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       <span style={{ background: 'var(--v22-green)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</span>

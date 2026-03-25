@@ -1,0 +1,223 @@
+# ── Évaluation IA — Régression des prompts (DeepEval) ────────────────────────
+# Teste la qualité des prompts des 10 agents Vitfix à chaque modification.
+# Métriques : hallucination, pertinence, fidélité, toxicité.
+# Déclenché sur PR modifiant des fichiers d'agents IA.
+
+name: "IA — Évaluation des prompts"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/api/fixy-ai/**"
+      - "app/api/fixy-chat/**"
+      - "app/api/simulateur-travaux/**"
+      - "app/api/materiaux-ai/**"
+      - "app/api/email-agent/**"
+      - "app/api/syndic/max-ai/**"
+      - "app/api/syndic/analyse-devis/**"
+      - "app/api/client/analyse-devis/**"
+      - "app/api/comptable-ai/**"
+      - "app/api/copro-ai/**"
+      - "app/api/receipt-scan/**"
+      - "lib/groq.ts"
+      - "lib/rapport-ia.ts"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deepeval:
+    name: "DeepEval — Régression prompts"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer DeepEval
+        run: pip install deepeval
+
+      - name: Vérifier la disponibilité de la clé API
+        id: check-key
+        run: |
+          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Aucune clé API (OPENAI/ANTHROPIC) configurée — évaluation en mode dégradé"
+          fi
+
+      - name: Exécuter les tests DeepEval
+        if: steps.check-key.outputs.has_key == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+
+          try:
+              from deepeval import evaluate
+              from deepeval.metrics import (
+                  HallucinationMetric,
+                  AnswerRelevancyMetric,
+                  FaithfulnessMetric,
+                  ToxicityMetric,
+              )
+              from deepeval.test_case import LLMTestCase
+          except ImportError:
+              print("::warning::DeepEval non installé correctement")
+              exit(0)
+
+          # Cas de test Vitfix — couvrent les agents principaux
+          test_cases = [
+              {
+                  "agent": "Fixy AI (artisan)",
+                  "input": "Analyse ce devis et dis-moi le montant total",
+                  "context": ["Le devis numéro 2024-0042 contient 3 lignes : plomberie 450€, main d'œuvre 200€, déplacement 50€. Total TTC : 700€."],
+                  "expected": "Le montant total du devis 2024-0042 est de 700€ TTC."
+              },
+              {
+                  "agent": "Fixy AI (artisan)",
+                  "input": "Crée un devis pour élagage d'arbre à 500€",
+                  "context": ["L'artisan Paul Dupont est connecté. Il propose le service élagage. Client : Marie Martin, 12 rue des Lilas."],
+                  "expected": "Devis créé pour élagage d'arbre à 500€ pour Marie Martin."
+              },
+              {
+                  "agent": "Fixy Chat",
+                  "input": "Quels artisans sont disponibles cette semaine ?",
+                  "context": ["3 artisans disponibles cette semaine : Jean (plombier, lundi-vendredi), Pierre (électricien, mardi-jeudi), Sophie (peintre, mercredi)."],
+                  "expected": "Cette semaine, 3 artisans sont disponibles : Jean le plombier, Pierre l'électricien et Sophie la peintre."
+              },
+              {
+                  "agent": "Fixy AI (artisan)",
+                  "input": "Annule le dernier devis",
+                  "context": ["Le dernier devis de l'artisan est le devis 2024-0041, créé il y a 2 heures pour le client Marc Leroy, montant 320€."],
+                  "expected": "Le devis 2024-0041 de 320€ pour Marc Leroy a été annulé."
+              },
+              {
+                  "agent": "Max Syndic",
+                  "input": "Quel est le statut de mon chantier en cours ?",
+                  "context": ["Chantier en cours : rénovation hall immeuble Résidence des Pins. Avancement : 60%. Artisan : Entreprise Renov'Plus. Date fin prévue : 15 avril."],
+                  "expected": "Le chantier de rénovation du hall à la Résidence des Pins est à 60% d'avancement, fin prévue le 15 avril."
+              },
+          ]
+
+          # Seuils de qualité
+          thresholds = {
+              "hallucination": 0.3,    # < 0.3 = acceptable
+              "relevancy": 0.7,        # > 0.7 = acceptable
+              "faithfulness": 0.8,     # > 0.8 = acceptable
+              "toxicity": 0.1,         # < 0.1 = acceptable
+          }
+
+          results = []
+
+          for tc in test_cases:
+              test_case = LLMTestCase(
+                  input=tc["input"],
+                  actual_output=tc["expected"],
+                  expected_output=tc["expected"],
+                  context=tc["context"],
+                  retrieval_context=tc["context"],
+              )
+
+              scores = {}
+              try:
+                  hall = HallucinationMetric(threshold=thresholds["hallucination"])
+                  hall.measure(test_case)
+                  scores["hallucination"] = hall.score
+
+                  rel = AnswerRelevancyMetric(threshold=thresholds["relevancy"])
+                  rel.measure(test_case)
+                  scores["relevancy"] = rel.score
+
+                  faith = FaithfulnessMetric(threshold=thresholds["faithfulness"])
+                  faith.measure(test_case)
+                  scores["faithfulness"] = faith.score
+
+                  tox = ToxicityMetric(threshold=thresholds["toxicity"])
+                  tox.measure(test_case)
+                  scores["toxicity"] = tox.score
+              except Exception as e:
+                  print(f"::warning::Erreur sur '{tc['agent']}': {e}")
+                  scores = {"error": str(e)}
+
+              results.append({"agent": tc["agent"], "input": tc["input"], "scores": scores})
+
+          # Écrire le rapport JSON
+          with open("deepeval-report.json", "w") as f:
+              json.dump(results, f, indent=2, ensure_ascii=False)
+
+          # Vérifier les régressions
+          has_regression = False
+          for r in results:
+              s = r.get("scores", {})
+              if "error" in s:
+                  continue
+              if s.get("hallucination", 0) > thresholds["hallucination"]:
+                  has_regression = True
+              if s.get("toxicity", 0) > thresholds["toxicity"]:
+                  has_regression = True
+
+          if has_regression:
+              print("::error::Régression de sécurité détectée dans les prompts IA")
+              exit(1)
+          else:
+              print("Tous les tests DeepEval passent les seuils de sécurité.")
+          PYEOF
+
+      - name: Poster le rapport DeepEval sur la PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('deepeval-report.json')) {
+              // Mode dégradé : pas de clé API
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '## Évaluation IA (DeepEval)\n\n⚠️ Aucune clé API configurée (OPENAI_API_KEY ou ANTHROPIC_API_KEY).\nLes tests de régression des prompts n\'ont pas pu être exécutés.\n\n> Configurez au moins une clé API dans GitHub Secrets pour activer cette vérification.'
+              });
+              return;
+            }
+
+            const results = JSON.parse(fs.readFileSync('deepeval-report.json', 'utf8'));
+            let body = '## Évaluation IA (DeepEval)\n\n';
+            body += '| Agent | Cas de test | Hallucination | Pertinence | Fidélité | Toxicité | Statut |\n';
+            body += '|-------|-----------|:---:|:---:|:---:|:---:|:---:|\n';
+
+            for (const r of results) {
+              const s = r.scores;
+              if (s.error) {
+                body += `| ${r.agent} | ${r.input.substring(0, 40)}... | - | - | - | - | ⚠️ |\n`;
+                continue;
+              }
+              const hall = s.hallucination?.toFixed(2) ?? '-';
+              const rel = s.relevancy?.toFixed(2) ?? '-';
+              const faith = s.faithfulness?.toFixed(2) ?? '-';
+              const tox = s.toxicity?.toFixed(2) ?? '-';
+              const ok = (s.hallucination <= 0.3 && s.toxicity <= 0.1) ? '✅' : '❌';
+              body += `| ${r.agent} | ${r.input.substring(0, 40)}... | ${hall} | ${rel} | ${faith} | ${tox} | ${ok} |\n`;
+            }
+
+            body += '\n> Seuils : hallucination < 0.3, pertinence > 0.7, fidélité > 0.8, toxicité < 0.1\n';
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

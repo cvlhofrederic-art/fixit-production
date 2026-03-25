@@ -1,0 +1,248 @@
+# ── Tests — Vitest, Playwright E2E, Axe-core WCAG ────────────────────────────
+# Suite complète de tests : unitaires, E2E multi-navigateur, accessibilité.
+# Déclenché sur push main et toutes les PR.
+
+name: "Tests — Unitaires, E2E & Accessibilité"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ── Tests unitaires Vitest ─────────────────────────────────────────────────
+  unit:
+    name: "Tests unitaires (Vitest)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Lancer les tests unitaires
+        run: npm run test
+
+      - name: Générer le rapport de couverture
+        run: npm run test:coverage
+        continue-on-error: true
+
+      - name: Uploader la couverture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ── Tests E2E Playwright — multi-navigateur ────────────────────────────────
+  e2e:
+    name: "E2E Playwright (${{ matrix.browser }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Installer les navigateurs Playwright
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Build de production
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Lancer les tests E2E
+        run: npx playwright test --project=${{ matrix.browser }}
+        env:
+          CI: true
+
+      - name: Uploader le rapport HTML Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 14
+
+  # ── Axe-core — Accessibilité WCAG (EAA 2025) ──────────────────────────────
+  a11y:
+    name: "Accessibilité WCAG (Axe-core)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Installer Playwright + Axe
+        run: |
+          npx playwright install --with-deps chromium
+          npm install --no-save @axe-core/playwright
+
+      - name: Build de production
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Audit WCAG sur les pages critiques
+        run: |
+          node << 'SCRIPT'
+          const { chromium } = require('playwright');
+          const AxeBuilder = require('@axe-core/playwright').default;
+
+          const pages = [
+            '/',
+            '/fr/',
+            '/pt/',
+            '/fr/services/',
+            '/pt/servicos/',
+            '/contact/',
+            '/auth/login/',
+            '/pro/register/',
+          ];
+
+          (async () => {
+            const browser = await chromium.launch();
+            const results = [];
+            let hasBlocker = false;
+
+            // Démarrer le serveur Next.js
+            const { execSync } = require('child_process');
+            const server = require('child_process').spawn('npx', ['next', 'start'], {
+              env: { ...process.env, PORT: '3000' },
+              stdio: 'pipe'
+            });
+
+            // Attendre que le serveur démarre
+            await new Promise(r => setTimeout(r, 5000));
+
+            for (const url of pages) {
+              try {
+                const page = await browser.newPage();
+                await page.goto(`http://localhost:3000${url}`, { timeout: 15000 });
+                await page.waitForLoadState('networkidle');
+
+                const axeResults = await new AxeBuilder({ page })
+                  .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+                  .analyze();
+
+                const critical = axeResults.violations.filter(v => v.impact === 'critical');
+                const serious = axeResults.violations.filter(v => v.impact === 'serious');
+
+                if (critical.length > 0 || serious.length > 0) hasBlocker = true;
+
+                results.push({
+                  url,
+                  critical: critical.length,
+                  serious: serious.length,
+                  moderate: axeResults.violations.filter(v => v.impact === 'moderate').length,
+                  minor: axeResults.violations.filter(v => v.impact === 'minor').length,
+                  violations: [...critical, ...serious].map(v => ({
+                    id: v.id,
+                    impact: v.impact,
+                    description: v.description,
+                    nodes: v.nodes.length
+                  }))
+                });
+
+                await page.close();
+              } catch (e) {
+                console.log(`Erreur sur ${url}: ${e.message}`);
+              }
+            }
+
+            await browser.close();
+            server.kill();
+
+            // Écrire le rapport
+            const fs = require('fs');
+            fs.writeFileSync('axe-report.json', JSON.stringify(results, null, 2));
+
+            // Résumé console
+            for (const r of results) {
+              const status = (r.critical + r.serious) > 0 ? 'FAIL' : 'OK';
+              console.log(`${status} ${r.url} — ${r.critical} critiques, ${r.serious} sérieuses, ${r.moderate} modérées`);
+            }
+
+            if (hasBlocker) {
+              console.error('\nViolations WCAG critiques ou sérieuses détectées.');
+              process.exit(1);
+            }
+          })();
+          SCRIPT
+
+      - name: Poster le rapport accessibilité sur la PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('axe-report.json')) return;
+
+            const results = JSON.parse(fs.readFileSync('axe-report.json', 'utf8'));
+            let body = '## Rapport Accessibilité WCAG (Axe-core)\n\n';
+            body += '| Page | Critiques | Sérieuses | Modérées | Mineures | Statut |\n';
+            body += '|------|-----------|-----------|----------|----------|--------|\n';
+
+            for (const r of results) {
+              const status = (r.critical + r.serious) > 0 ? '❌' : '✅';
+              body += `| ${r.url} | ${r.critical} | ${r.serious} | ${r.moderate} | ${r.minor} | ${status} |\n`;
+            }
+
+            const blockers = results.flatMap(r => r.violations || []);
+            if (blockers.length > 0) {
+              body += '\n### Violations bloquantes\n\n';
+              for (const v of blockers.slice(0, 10)) {
+                body += `- **${v.id}** (${v.impact}) — ${v.description} (${v.nodes} élément(s))\n`;
+              }
+            }
+
+            body += '\n> Standards : WCAG 2.0 A/AA + WCAG 2.1 AA (conformité EAA 2025)\n';
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

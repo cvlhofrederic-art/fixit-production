@@ -1,0 +1,118 @@
+# ── Performance & SEO — Lighthouse CI ─────────────────────────────────────────
+# Audite les pages depuis le sitemap dynamique de Vitfix.
+# Bloque la PR si les seuils ne sont pas atteints.
+
+name: "Performance & SEO — Lighthouse"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lighthouse:
+    name: "Lighthouse CI — Audit sitemap"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Build de production
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Extraire les URLs depuis le sitemap
+        id: urls
+        run: |
+          # Démarrer le serveur Next.js en arrière-plan
+          npx next start &
+          SERVER_PID=$!
+          sleep 8
+
+          # Récupérer le sitemap et extraire les URLs
+          SITEMAP_URLS=$(curl -s http://localhost:3000/sitemap.xml \
+            | grep -oP '<loc>\K[^<]+' \
+            | head -20 \
+            | sed 's|https://vitfix.io|http://localhost:3000|g')
+
+          # Si le sitemap est vide, utiliser des URLs de fallback
+          if [ -z "$SITEMAP_URLS" ]; then
+            SITEMAP_URLS="http://localhost:3000/
+          http://localhost:3000/fr/
+          http://localhost:3000/pt/
+          http://localhost:3000/contact/"
+          fi
+
+          # Écrire les URLs dans un fichier
+          echo "$SITEMAP_URLS" > /tmp/lhci-urls.txt
+          echo "Nombre de pages à auditer : $(wc -l < /tmp/lhci-urls.txt)"
+          cat /tmp/lhci-urls.txt
+
+          kill $SERVER_PID 2>/dev/null || true
+
+      - name: Installer Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.x
+
+      - name: Exécuter Lighthouse CI
+        run: lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Poster le rapport sur la PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const lhciDir = '.lighthouseci';
+
+            if (!fs.existsSync(lhciDir)) {
+              console.log('Pas de résultats Lighthouse');
+              return;
+            }
+
+            const files = fs.readdirSync(lhciDir).filter(f => f.endsWith('.json') && f.startsWith('lhr-'));
+            let body = '## Rapport Lighthouse CI\n\n';
+
+            for (const file of files) {
+              const raw = JSON.parse(fs.readFileSync(path.join(lhciDir, file), 'utf8'));
+              const url = (raw.requestedUrl || raw.finalUrl || '').replace('http://localhost:3000', '');
+              const perf = Math.round((raw.categories?.performance?.score || 0) * 100);
+              const a11y = Math.round((raw.categories?.accessibility?.score || 0) * 100);
+              const seo = Math.round((raw.categories?.seo?.score || 0) * 100);
+              const bp = Math.round((raw.categories?.['best-practices']?.score || 0) * 100);
+
+              const icon = (score, threshold) => score >= threshold ? '✅' : '❌';
+
+              body += `### ${url || '/'}\n`;
+              body += `| Catégorie | Score | Seuil | Statut |\n`;
+              body += `|-----------|-------|-------|--------|\n`;
+              body += `| Performance | ${perf} | 80 | ${icon(perf, 80)} |\n`;
+              body += `| Accessibilité | ${a11y} | 90 | ${icon(a11y, 90)} |\n`;
+              body += `| SEO | ${seo} | 90 | ${icon(seo, 90)} |\n`;
+              body += `| Bonnes pratiques | ${bp} | 85 | ${icon(bp, 85)} |\n\n`;
+            }
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

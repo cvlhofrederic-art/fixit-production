@@ -1,0 +1,67 @@
+# ── Qualité de code — SonarCloud, ESLint, TypeScript ──────────────────────────
+# Analyse qualité, linting et vérification des types sur chaque PR.
+
+name: "Qualité de code"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ── ESLint & TypeScript — Linting et types ─────────────────────────────────
+  lint:
+    name: "ESLint & TypeScript"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Lancer ESLint
+        run: npm run lint
+
+      - name: Vérifier les types TypeScript
+        run: npx tsc --noEmit
+
+  # ── SonarCloud — Analyse qualité ──────────────────────────────────────────
+  # Requis : configurer SONAR_TOKEN dans GitHub Secrets
+  # Créer le projet sur https://sonarcloud.io et lier le repo GitHub
+  sonarcloud:
+    name: "SonarCloud — Analyse qualité"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyse SonarCloud
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ⚠️ À configurer dans GitHub > Settings > Secrets > SONAR_TOKEN
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
+            -Dsonar.organization=${{ github.repository_owner }}
+            -Dsonar.sources=app,lib,components,hooks
+            -Dsonar.tests=tests
+            -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.exclusions=node_modules/**,out/**,.next/**,android/**,ios/**

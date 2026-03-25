@@ -2,18 +2,39 @@
 
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
+import type { Artisan, Service, Booking } from '@/lib/types'
+
+interface DevisLine {
+  totalHT?: number
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+interface DevisDocument {
+  id: string
+  docType?: string
+  docNumber?: string
+  docTitle?: string
+  docDate?: string
+  savedAt?: string
+  sentAt?: string
+  clientName?: string
+  clientEmail?: string
+  status?: string
+  lines?: DevisLine[]
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
 
 interface DevisSectionProps {
-  artisan: any
-  services: any[]
-  bookings: any[]
-  savedDocuments: any[]
-  setSavedDocuments: (docs: any[]) => void
+  artisan: Artisan | null
+  services: Service[]
+  bookings: Booking[]
+  savedDocuments: DevisDocument[]
+  setSavedDocuments: (docs: DevisDocument[]) => void
   showDevisForm: boolean
   setShowDevisForm: (v: boolean) => void
-  convertingDevis: any
-  setConvertingDevis: (v: any) => void
-  convertDevisToFacture: (doc: any) => void
+  convertingDevis: DevisDocument | null
+  setConvertingDevis: (v: DevisDocument | null) => void
+  convertDevisToFacture: (doc: DevisDocument) => void
 }
 
 export default function DevisSection({
@@ -33,8 +54,8 @@ export default function DevisSection({
 
   if (showDevisForm) {
     return (
-      <DevisFactureForm artisan={artisan} services={services} bookings={bookings} initialDocType="devis"
-        initialData={convertingDevis}
+      <DevisFactureForm artisan={artisan as any} services={services as any} bookings={bookings as any} initialDocType="devis"
+        initialData={convertingDevis as any}
         onBack={() => { setShowDevisForm(false); setConvertingDevis(null); refreshDocuments() }}
         onSave={() => { setConvertingDevis(null); refreshDocuments() }}
       />
@@ -95,8 +116,8 @@ export default function DevisSection({
                 </tr>
               </thead>
               <tbody>
-                {devisDocs.sort((a, b) => new Date(b.savedAt || b.docDate).getTime() - new Date(a.savedAt || a.docDate).getTime()).map((doc, i) => {
-                  const totalHT = doc.lines?.reduce((s: number, l: any) => s + (l.totalHT || 0), 0) || 0
+                {devisDocs.sort((a: any, b: any) => new Date(b.savedAt || b.docDate || 0).getTime() - new Date(a.savedAt || a.docDate || 0).getTime()).map((doc: any, i: number) => {
+                  const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
                   return (
                     <tr key={`saved-dev-${i}`}>
                       <td><span className="v22-ref">{doc.docNumber}</span></td>
@@ -130,8 +151,8 @@ export default function DevisSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = docs.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = drafts.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = docs.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = drafts.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
@@ -148,8 +169,8 @@ export default function DevisSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = docs.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = drafts.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = docs.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = drafts.map((d: DevisDocument) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
@@ -162,8 +183,8 @@ export default function DevisSection({
                             if (!confirm(`${t('proDash.devis.supprimerDevisConfirm')} ${doc.docNumber} ?`)) return
                             const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                            const updDocs = docs.filter((d: any) => d.docNumber !== doc.docNumber)
-                            const updDrafts = drafts.filter((d: any) => d.docNumber !== doc.docNumber)
+                            const updDocs = docs.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
+                            const updDrafts = drafts.filter((d: DevisDocument) => d.docNumber !== doc.docNumber)
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                             setSavedDocuments([...updDocs, ...updDrafts])

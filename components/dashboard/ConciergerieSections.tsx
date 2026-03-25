@@ -2,14 +2,56 @@
 
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { Artisan } from '@/lib/types'
+
+interface ProprieteRecord {
+  id: string
+  nom: string
+  adresse?: string
+  proprietaire?: string
+  telephone?: string
+  typeLogement?: string
+  nombrePieces?: string
+  etage?: string
+  digicode?: string
+  notesAcces?: string
+  loyer?: string
+  etatMenage: string
+  createdAt?: string
+}
+
+interface AccesRecord {
+  id: string
+  propriete: string
+  typeAcces: string
+  localisation?: string
+  code?: string
+  responsable?: string
+  notes?: string
+  statut: string
+  createdAt?: string
+}
+
+interface ConciergerieReservation {
+  id: string
+  plateforme: string
+  logement: string
+  client: string
+  dateArrivee: string
+  dateDepart: string
+  montantTotal: number
+  commission: number
+  statut: string
+  notes?: string
+}
 
 /* ══════════ PROPRIÉTÉS CONCIERGERIE SECTION ══════════ */
-export function ProprietesConciergerieSection({ artisan }: { artisan: any }) {
+export function ProprietesConciergerieSection({ artisan }: { artisan: Artisan | null }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_proprietes_${artisan?.id}`
-  const [proprietes, setProprietes] = useState<any[]>(() => {
+  const [proprietes, setProprietes] = useState<ProprieteRecord[]>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
   })
   const [showModal, setShowModal] = useState(false)
@@ -150,12 +192,12 @@ export function ProprietesConciergerieSection({ artisan }: { artisan: any }) {
 }
 
 /* ══════════ ACCÈS & CLÉS CONCIERGERIE SECTION ══════════ */
-export function AccesConciergerieSection({ artisan }: { artisan: any }) {
+export function AccesConciergerieSection({ artisan }: { artisan: Artisan | null }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_acces_${artisan?.id}`
-  const [acces, setAcces] = useState<any[]>(() => {
+  const [acces, setAcces] = useState<AccesRecord[]>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
   })
   const [showModal, setShowModal] = useState(false)
@@ -757,25 +799,25 @@ export function RevPARSection({ userId }: { userId: string }) {
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY_CHANNEL = `channel_${userId}`
-  const [reservations] = useState<any[]>(() => {
+  const [reservations] = useState<ConciergerieReservation[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY_CHANNEL) || '[]') } catch { return [] }
   })
   const [filterLogement, setFilterLogement] = useState('')
   const [filterMois, setFilterMois] = useState(new Date().toISOString().slice(0, 7))
 
-  const logements = [...new Set(reservations.map((r: any) => r.logement).filter(Boolean))]
-  const resaFiltered = reservations.filter((r: any) => {
+  const logements = [...new Set(reservations.map((r: ConciergerieReservation) => r.logement).filter(Boolean))]
+  const resaFiltered = reservations.filter((r: ConciergerieReservation) => {
     const inMois = !filterMois || (r.dateArrivee && r.dateArrivee.startsWith(filterMois))
     const inLog = !filterLogement || r.logement === filterLogement
     return inMois && inLog && r.statut === 'confirmée'
   })
-  const getNuits = (r: any) => {
+  const getNuits = (r: ConciergerieReservation) => {
     if (!r.dateArrivee || !r.dateDepart) return 0
     return Math.max(0, (new Date(r.dateDepart).getTime() - new Date(r.dateArrivee).getTime()) / 86400000)
   }
-  const totalNuits = resaFiltered.reduce((s: number, r: any) => s + getNuits(r), 0)
-  const totalCA = resaFiltered.reduce((s: number, r: any) => s + (r.montantTotal || 0), 0)
-  const totalCommissions = resaFiltered.reduce((s: number, r: any) => s + (r.commission || 0), 0)
+  const totalNuits = resaFiltered.reduce((s: number, r: ConciergerieReservation) => s + getNuits(r), 0)
+  const totalCA = resaFiltered.reduce((s: number, r: ConciergerieReservation) => s + (r.montantTotal || 0), 0)
+  const totalCommissions = resaFiltered.reduce((s: number, r: ConciergerieReservation) => s + (r.commission || 0), 0)
   const [yr, mo] = filterMois ? filterMois.split('-').map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1]
   const daysInMonth = new Date(yr, mo, 0).getDate()
   const logCount = filterLogement ? 1 : Math.max(1, logements.length)
@@ -786,9 +828,9 @@ export function RevPARSection({ userId }: { userId: string }) {
 
   const plateformes = ['airbnb', 'booking', 'vrbo', 'direct', 'abritel', 'autre']
   const byPlateforme = plateformes.map(p => ({
-    p, count: resaFiltered.filter((r: any) => r.plateforme === p).length,
-    ca: resaFiltered.filter((r: any) => r.plateforme === p).reduce((s: number, r: any) => s + (r.montantTotal || 0), 0),
-    nuits: resaFiltered.filter((r: any) => r.plateforme === p).reduce((s: number, r: any) => s + getNuits(r), 0)
+    p, count: resaFiltered.filter((r: ConciergerieReservation) => r.plateforme === p).length,
+    ca: resaFiltered.filter((r: ConciergerieReservation) => r.plateforme === p).reduce((s: number, r: ConciergerieReservation) => s + (r.montantTotal || 0), 0),
+    nuits: resaFiltered.filter((r: ConciergerieReservation) => r.plateforme === p).reduce((s: number, r: ConciergerieReservation) => s + getNuits(r), 0)
   })).filter(p => p.count > 0)
 
   return (

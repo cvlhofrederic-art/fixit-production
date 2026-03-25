@@ -1,0 +1,57 @@
+# ── Dependabot — Mise à jour automatique des dépendances ─────────────────────
+# npm : hebdomadaire (avec groupe IA dédié)
+# GitHub Actions : mensuel
+# Majeures jamais auto-mergées.
+
+version: 2
+
+updates:
+  # ── Dépendances npm ──────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 10
+    reviewers:
+      - "elgato_fofo"
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      # Mises à jour mineures/patch groupées
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "@sentry/*"
+          - "langfuse"
+          - "deepeval"
+          - "giskard"
+      # Dépendances IA groupées séparément
+      ai-dependencies:
+        patterns:
+          - "@sentry/*"
+          - "langfuse"
+    versioning-strategy: increase
+
+  # ── GitHub Actions ───────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: monday
+      time: "08:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions-minor:
+        update-types:
+          - "minor"
+          - "patch"

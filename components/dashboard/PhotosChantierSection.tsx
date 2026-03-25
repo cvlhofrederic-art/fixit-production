@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { toast } from 'sonner'
 
 /* ========== PHOTOS CHANTIER ========== */
 export default function PhotosChantierSection({ artisan, bookings }: { artisan: any; bookings: any[] }) {
@@ -70,7 +71,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
       const json = await res.json()
       if (json.data) setPhotos(json.data)
-    } catch (e) { console.error('Error loading photos:', e) }
+    } catch (e) { console.error('Error loading photos:', e); toast.error('Erreur lors du chargement des photos') }
     finally { setLoading(false) }
   }
 
@@ -87,7 +88,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
       })
       setAssigning(null)
       loadPhotos()
-    } catch (e) { console.error('Error assigning photo:', e) }
+    } catch (e) { console.error('Error assigning photo:', e); toast.error('Erreur lors de l\'attribution de la photo') }
   }
 
   const deletePhoto = async (photoId: string) => {
@@ -100,7 +101,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
         headers: { 'Authorization': `Bearer ${token}` },
       })
       loadPhotos()
-    } catch (e) { console.error('Error deleting photo:', e) }
+    } catch (e) { console.error('Error deleting photo:', e); toast.error('Erreur lors de la suppression') }
   }
 
   const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending' || b.status === 'completed')

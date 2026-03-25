@@ -16,6 +16,7 @@ import RapportsSection from '@/components/dashboard/RapportsSection'
 import CanalProSection from '@/components/dashboard/CanalProSection'
 import MessagerieArtisan from '@/components/dashboard/MessagerieArtisan'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
+import type { Artisan, Service, Booking, Availability, Absence, Notification, ChatMessage, SavedDocument } from '@/lib/types'
 
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
 // ssr:false was causing React hydration error #419 that broke all button handlers
@@ -485,13 +486,13 @@ export default function DashboardPage() {
   }
 
   // Clic sur un RDV existant → ouvrir détail
-  const handleBookingClick = (booking: any) => {
+  const handleBookingClick = (booking: Booking) => {
     setSelectedBooking(booking)
     setShowBookingDetail(true)
   }
 
   // Convertir un booking en devis pré-rempli
-  const transformBookingToDevis = (booking: any) => {
+  const transformBookingToDevis = (booking: Booking) => {
     const serviceName = booking.services?.name || (isPt ? 'Serviço' : 'Prestation')
     const priceHT = booking.price_ht || 0
     // Extract client name from notes if stored as "Client: X."
@@ -537,7 +538,7 @@ export default function DashboardPage() {
   }
 
   // Convertir un devis en facture
-  const convertDevisToFacture = (devis: any) => {
+  const convertDevisToFacture = (devis: Record<string, unknown>) => {
     setConvertingDevis(devis)
     setShowFactureForm(true)
     setActivePage('factures')
@@ -560,7 +561,7 @@ export default function DashboardPage() {
 
   const isDateAbsent = useCallback((date: Date) => {
     const dateStr = date.toISOString().split('T')[0]
-    const match = absences.find((a: any) => dateStr >= a.start_date && dateStr <= a.end_date)
+    const match = absences.find((a: Absence) => dateStr >= a.start_date && dateStr <= a.end_date)
     return match ? { absent: true, reason: match.reason || '', label: match.label || '', source: match.source || 'manual', id: match.id } : { absent: false, reason: '', label: '', source: '', id: '' }
   }, [absences])
 
@@ -568,7 +569,7 @@ export default function DashboardPage() {
   const getWorkingWeekDates = useCallback(() => {
     const allDates = getWeekDates()
     if (availability.length === 0) return allDates.filter(d => d.getDay() !== 0 && d.getDay() !== 6)
-    const workingDows = availability.filter((a: any) => a.is_available).map((a: any) => a.day_of_week)
+    const workingDows = availability.filter((a: Availability) => a.is_available).map((a: Availability) => a.day_of_week)
     if (workingDows.length === 0) return allDates.filter(d => d.getDay() !== 0 && d.getDay() !== 6)
     return allDates.filter(d => workingDows.includes(d.getDay()))
   }, [getWeekDates, availability])
@@ -603,7 +604,7 @@ export default function DashboardPage() {
   }
 
   const deleteAbsence = async (absenceId: string) => {
-    const updated = absences.filter((a: any) => a.id !== absenceId)
+    const updated = absences.filter((a: Absence) => a.id !== absenceId)
     setAbsences(updated)
     if (artisan?.id) localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
     try {
@@ -701,7 +702,7 @@ export default function DashboardPage() {
 
   // ═══ MOTIFS CRUD ═══
   // ─── Helpers fourchette de prix ───────────────────────────────────
-  const parseServiceRange = (service: any): { min: number; max: number; unit: string } => {
+  const parseServiceRange = (service: Service): { min: number; max: number; unit: string } => {
     const desc = service.description || ''
     const match = desc.match(/\[unit:([^|]+)\|min:([\d.]+)\|max:([\d.]+)\]/)
     if (match) {
@@ -712,7 +713,7 @@ export default function DashboardPage() {
     return { unit, min: service.price_ht || 0, max: service.price_ttc || 0 }
   }
 
-  const getPriceRangeLabel = (service: any): string => {
+  const getPriceRangeLabel = (service: Service): string => {
     const { min, max, unit } = parseServiceRange(service)
     if (min === 0 && max === 0) return t('proDash.onQuote')
     const suffix: Record<string, string> = { m2: '€/m²', ml: '€/ml', m3: '€/m³', heure: '€/h', forfait: '€', unite: '€/u', arbre: '€/u', kg: '€/kg', tonne: '€/t', lot: '€/lot' }
@@ -728,7 +729,7 @@ export default function DashboardPage() {
     setShowMotifModal(true)
   }
 
-  const openEditMotif = (service: any) => {
+  const openEditMotif = (service: Service) => {
     const { min, max, unit } = parseServiceRange(service)
     const cleanDesc = (service.description || '')
       .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
@@ -793,13 +794,13 @@ export default function DashboardPage() {
     setServices(services.filter((s) => s.id !== serviceId))
   }
 
-  const getPricingUnit = (service: any) => {
+  const getPricingUnit = (service: Service) => {
     const { unit } = parseServiceRange(service)
     const labels: Record<string, string> = { m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', forfait: 'forfait', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' }
     return labels[unit] || 'forfait'
   }
 
-  const getCleanDescription = (service: any) => {
+  const getCleanDescription = (service: Service) => {
     return (service.description || '')
       .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
       .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
@@ -865,7 +866,7 @@ export default function DashboardPage() {
   }
 
   // ═══ MESSAGERIE ARTISAN DASHBOARD ═══
-  const openDashMessages = async (booking: any) => {
+  const openDashMessages = async (booking: Booking) => {
     setDashMsgModal(booking)
     setDashMsgList([])
     setDashMsgText('')
@@ -988,9 +989,9 @@ export default function DashboardPage() {
     setDashMsgRecorderRef(null)
   }
 
-  const handleBlockAgendaFromDevis = async (msg: any) => {
+  const handleBlockAgendaFromDevis = async (msg: ChatMessage) => {
     if (!msg.metadata || !artisan) return
-    const m = msg.metadata
+    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
     setDashMsgBlockingAgenda(msg.id)
     try {
       const prDate = m.prestationDate
@@ -1100,7 +1101,7 @@ export default function DashboardPage() {
           const data = await res.json()
           if (data.notifications) {
             setNotifications(data.notifications)
-            setUnreadNotifCount(data.notifications.filter((n: any) => !n.read).length)
+            setUnreadNotifCount(data.notifications.filter((n: Notification) => !n.read).length)
           }
         }
       } catch {}
@@ -1385,7 +1386,7 @@ export default function DashboardPage() {
                       Aucune notification
                     </div>
                   ) : (
-                    notifications.slice(0, 20).map((n: any) => (
+                    notifications.slice(0, 20).map((n: Notification) => (
                       <button
                         key={n.id}
                         onClick={async () => {
@@ -1420,7 +1421,7 @@ export default function DashboardPage() {
                           {n.body && <div className="truncate mt-0.5" style={{ color: 'var(--v22-text-muted)', fontSize: 11 }}>{n.body}</div>}
                           <div className="mt-1 v22-mono" style={{ color: 'var(--v22-text-muted)', fontSize: 10 }}>
                             {(() => {
-                              const diff = Date.now() - new Date(n.created_at).getTime()
+                              const diff = Date.now() - new Date(n.created_at || '').getTime()
                               const mins = Math.floor(diff / 60000)
                               if (mins < 1) return 'à l\'instant'
                               if (mins < 60) return `${mins}min`
@@ -1620,7 +1621,7 @@ export default function DashboardPage() {
               onProposerDevis={(missionData) => {
                 // ── Matching intelligent : motif mission → service catalogue (prix) ──
                 const motif = (missionData.description || missionData.titre || '').toLowerCase()
-                const matchedService = services.find((s: any) => {
+                const matchedService = services.find((s: Service) => {
                   const sName = (s.name || '').toLowerCase()
                   return motif.includes(sName) || sName.includes(motif) || motif.split(' ').some((w: string) => w.length > 3 && sName.includes(w))
                 })
@@ -1639,7 +1640,7 @@ export default function DashboardPage() {
 
                 // ── Matching client : chercher email/téléphone dans bookings existants ──
                 const contactLower = (missionData.contactName || '').toLowerCase()
-                const matchedBooking = contactLower.length > 2 ? bookings.find((b: any) => (b.notes || '').toLowerCase().includes(contactLower)) : null
+                const matchedBooking = contactLower.length > 2 ? bookings.find((b: Booking) => (b.notes || '').toLowerCase().includes(contactLower)) : null
                 const clientEmail = matchedBooking?.client_email || ''
                 const clientPhone = matchedBooking?.client_phone || ''
 
@@ -1815,10 +1816,10 @@ export default function DashboardPage() {
           {activePage === 'devis' && (
             <DevisSection
               artisan={artisan} services={services} bookings={bookings}
-              savedDocuments={savedDocuments} setSavedDocuments={setSavedDocuments}
+              savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm}
-              convertingDevis={convertingDevis} setConvertingDevis={setConvertingDevis}
-              convertDevisToFacture={convertDevisToFacture}
+              convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
+              convertDevisToFacture={convertDevisToFacture as any}
             />
           )}
 
@@ -1826,9 +1827,9 @@ export default function DashboardPage() {
           {activePage === 'factures' && (
             <FacturesSection
               artisan={artisan} services={services} bookings={bookings}
-              savedDocuments={savedDocuments} setSavedDocuments={setSavedDocuments}
+              savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showFactureForm={showFactureForm} setShowFactureForm={setShowFactureForm}
-              convertingDevis={convertingDevis} setConvertingDevis={setConvertingDevis}
+              convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
             />
           )}
 
@@ -2132,13 +2133,13 @@ export default function DashboardPage() {
       {artisan && (
         <AiChatBot
           artisan={artisan}
-          bookings={bookings}
+          bookings={bookings as any}
           services={services}
-          availability={availability}
+          availability={availability as any}
           dayServices={dayServices}
-          absences={absences}
+          absences={absences as any}
           onCreateRdv={async (data) => {
-            const service = data.service_id ? services.find((s: any) => s.id === data.service_id) : services[0]
+            const service = data.service_id ? services.find((s: Service) => s.id === data.service_id) : services[0]
             const status = autoAccept ? 'confirmed' : 'pending'
             const { data: newBooking, error } = await supabase.from('bookings').insert({
               artisan_id: artisan.id,
@@ -2217,9 +2218,9 @@ export default function DashboardPage() {
                   {t('proDash.msg.noMessages')}
                 </div>
               ) : (
-                dashMsgList.map((msg: any) => {
+                dashMsgList.map((msg: ChatMessage) => {
                   const isMe = msg.sender_role === 'artisan'
-                  const time = new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })
+                  const time = new Date(msg.created_at || '').toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })
 
                   // ── Photo message ──
                   if (msg.type === 'photo' && msg.attachment_url) {
@@ -2231,7 +2232,7 @@ export default function DashboardPage() {
                             src={msg.attachment_url}
                             alt="Photo"
                             className="rounded-xl max-w-[220px] max-h-[220px] object-cover cursor-pointer"
-                            onClick={() => setDashMsgFullscreenImg(msg.attachment_url)}
+                            onClick={() => setDashMsgFullscreenImg(msg.attachment_url ?? null)}
                           />
                           {msg.content && <p className="text-xs mt-1 px-2">{msg.content}</p>}
                           <p className={`text-[10px] px-2 mt-0.5 ${isMe ? 'text-gray-700' : 'text-gray-500'}`}>{time}</p>
@@ -2259,7 +2260,7 @@ export default function DashboardPage() {
 
                   // ── Devis sent (côté artisan = carte informative) ──
                   if (msg.type === 'devis_sent' && msg.metadata) {
-                    const m = msg.metadata
+                    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
                     const isSigned = m.signed === true
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -2282,7 +2283,7 @@ export default function DashboardPage() {
 
                   // ── Devis signed (artisan voit avec bouton bloquer agenda) ──
                   if (msg.type === 'devis_signed' && msg.metadata) {
-                    const m = msg.metadata
+                    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
                     return (
                       <div key={msg.id} className="flex justify-start">
                         <div className="max-w-[85%] rounded-2xl border-2 border-green-400 bg-green-50 overflow-hidden">

@@ -155,7 +155,25 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
+  // Supprime les logs du build Sentry en CI
   silent: true,
+
+  // ── Source Maps ──────────────────────────────────────────────────────────
+  // Upload automatique des source maps pour des stack traces lisibles.
+  // Requiert les variables d'environnement :
+  //   SENTRY_AUTH_TOKEN  — jeton d'auth Sentry (Settings > Auth Tokens)
+  //   SENTRY_ORG         — slug de l'organisation Sentry
+  //   SENTRY_PROJECT     — slug du projet Sentry
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Ne pas inclure les source maps dans le bundle client déployé
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
+
+  // Optimisations de taille du bundle
   bundleSizeOptimizations: {
     excludeReplayIframe: true,
     excludeReplayShadowDom: true,

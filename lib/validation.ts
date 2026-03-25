@@ -432,6 +432,23 @@ export const loginAttemptSchema = z.object({
   reason: z.string().max(200).optional(),
 })
 
+// ── Financial routes schemas ─────────────────────────────────────────────────
+
+export const stripeCheckoutSchema = z.object({
+  planId: z.enum(['artisan_starter', 'artisan_pro', 'syndic_essential', 'syndic_premium']),
+})
+
+export const docNumberSchema = z.object({
+  docType: z.enum(['devis', 'facture', 'avoir']),
+  year: z.number().int().min(2024).max(2100).optional(),
+})
+
+export const walletSyncSchema = z.object({
+  docKey: z.string().min(1).max(50),
+  hasDocument: z.boolean().optional(),
+  expiryDate: z.string().max(20).optional().nullable(),
+})
+
 // ── String sanitizer (XSS prevention) ────────────────────────────────────────
 export function sanitizeHtml(s: string): string {
   return s

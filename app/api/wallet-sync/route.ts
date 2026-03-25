@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, walletSyncSchema } from '@/lib/validation'
 
 // ── POST /api/wallet-sync — Synchroniser les documents wallet artisan → syndic ──
 // Appelé par l'artisan après upload/suppression d'un document wallet
@@ -19,11 +20,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { docKey, hasDocument, expiryDate } = body
-
-    if (!docKey) {
-      return NextResponse.json({ error: 'docKey requis' }, { status: 400 })
-    }
+    const v = validateBody(walletSyncSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { docKey, hasDocument, expiryDate } = v.data
 
     // Trouver toutes les fiches syndic_artisans liées à cet artisan (par user_id)
     const { data: linkedRecords, error: fetchError } = await supabaseAdmin

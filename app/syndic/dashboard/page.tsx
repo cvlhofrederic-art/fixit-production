@@ -7,11 +7,12 @@ import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types (from shared types file) ──────────────────────────────────────────
 import type {
   Page, Immeuble, Artisan, SyndicMessage, CanalInterneMsg, Mission,
-  Alerte, PlanningEvent, Coproprio, EcheanceReglementaire,
+  Alerte, PlanningEvent, Coproprio, EcheanceReglementaire, SignatureData,
 } from '@/components/syndic-dashboard/types'
 import {
   ROLE_COLORS, getRoleLabel,
@@ -113,6 +114,131 @@ const AssinaturaCMDSection = d(() => import('@/components/syndic-dashboard/legal
 const DashboardMultiImmeublesSection = d(() => import('@/components/syndic-dashboard/reporting/DashboardMultiImmeublesSection'))
 const EFaturaATSection = d(() => import('@/components/syndic-dashboard/financial/EFaturaATSection'))
 
+// ─── Inline interfaces for syndic-specific types ─────────────────────────────
+
+/** Document data extracted from Max AI [DOC_PDF] blocks */
+interface DocPDFData {
+  title?: string
+  type?: string
+  objet?: string
+  destinataire?: {
+    nom?: string
+    prenom?: string
+    immeuble?: string
+    batiment?: string
+    etage?: string | number
+    porte?: string
+    _all?: boolean
+    [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+  corps?: string[]
+  references?: string[]
+  formule_politesse?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+/** An IA action produced by the Fixy assistant */
+interface IaAction {
+  type: string
+  artisan?: string
+  artisan_email?: string
+  artisan_user_id?: string | null
+  immeuble?: string
+  lieu?: string
+  description?: string
+  priorite?: string
+  statut?: string
+  mission_id?: string
+  date_intervention?: string
+  type_travaux?: string
+  page?: string
+  content?: string
+  message?: string
+  urgence?: string
+  contenu?: string
+  type_doc?: string
+  montant_devis?: number
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+/** A single message in the Fixy IA chat */
+interface IaMessage {
+  role: 'user' | 'assistant'
+  content: string
+  action?: IaAction
+  actionStatus?: 'pending' | 'confirmed' | 'cancelled' | 'error'
+}
+
+/** A copropriétaire row returned by the API (snake_case) */
+interface CoproAPIRow {
+  id: string
+  immeuble?: string
+  batiment?: string
+  etage?: number
+  numero_porte?: string
+  nom_proprietaire?: string
+  prenom_proprietaire?: string
+  email_proprietaire?: string
+  tel_proprietaire?: string
+  nom_locataire?: string
+  prenom_locataire?: string
+  email_locataire?: string
+  tel_locataire?: string
+  est_occupe?: boolean
+  notes?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+/** A raw artisan row returned by the API (mixed snake_case / camelCase) */
+interface ArtisanAPIRow {
+  id: string
+  nom?: string
+  prenom?: string
+  nom_famille?: string
+  metier: string
+  telephone: string
+  email: string
+  siret: string
+  rc_pro_valide?: boolean
+  rcProValide?: boolean
+  rc_pro_expiration?: string
+  rcProExpiration?: string
+  assurance_decennale_valide?: boolean
+  decennaleValide?: boolean
+  assurance_decennale_expiration?: string
+  decennaleExpiration?: string
+  nb_interventions?: number
+  nbInterventions?: number
+  vitfix_certifie?: boolean
+  vitfixCertifie?: boolean
+  note: number
+  statut: 'actif' | 'suspendu' | 'en_attente'
+  artisan_user_id?: string | null
+  compte_existant?: boolean
+  cabinet_id?: string
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+/** A canal-interne message row returned from the API */
+interface CanalInterneAPIRow {
+  id: string
+  texte: string
+  auteur?: string
+  auteurRole?: string
+  createdAt?: string
+  lu?: boolean
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
+/** A team member row from the API */
+interface TeamMemberRow {
+  id: string
+  full_name: string
+  role: string
+  is_active?: boolean
+  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
 // ─── Données démo ─────────────────────────────────────────────────────────────
 
 const ARTISANS_DEMO: Artisan[] = []
@@ -139,7 +265,7 @@ export default function SyndicDashboard() {
   const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>({})
   const [moduleOrder, setModuleOrder] = useState<string[]>([])
   const [customAllowedPages, setCustomAllowedPages] = useState<string[] | null>(null)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   // ── Données persistées en localStorage (clé par user.id, chargées après auth) ──
   const [immeubles, setImmeubles] = useState<Immeuble[]>([])
@@ -191,7 +317,7 @@ export default function SyndicDashboard() {
   const [cabinetEmail, setCabinetEmail] = useState('')
   const [cabinetAddress, setCabinetAddress] = useState('')
   const [cabinetLogo, setCabinetLogo] = useState<string | null>(null)
-  const [syndicSignature, setSyndicSignature] = useState<{ svg_data: string; signataire: string; timestamp: string; document_ref: string; hash_sha256: string } | null>(null)
+  const [syndicSignature, setSyndicSignature] = useState<SignatureData | null>(null)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [notifSettings, setNotifSettings] = useState([
     { label: locale === 'pt' ? 'Alertas RC Pro expirados' : 'Alertes RC Pro expirées', checked: true },
@@ -203,9 +329,9 @@ export default function SyndicDashboard() {
   const [paramSaved, setParamSaved] = useState(false)
   // ── PDF Modal ──────────────────────────────────────────────────────────────
   const [showPdfModal, setShowPdfModal] = useState(false)
-  const [pendingDocData, setPendingDocData] = useState<any>(null)
+  const [pendingDocData, setPendingDocData] = useState<DocPDFData | null>(null)
   const [pdfSelectedImmeuble, setPdfSelectedImmeuble] = useState('')
-  const [pdfSelectedCopro, setPdfSelectedCopro] = useState<any>(null)
+  const [pdfSelectedCopro, setPdfSelectedCopro] = useState<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [pdfObjet, setPdfObjet] = useState('')
   const [pdfGenerating, setPdfGenerating] = useState(false)
   // ── Artisan management ──────────────────────────────────────────────────────
@@ -223,20 +349,20 @@ export default function SyndicDashboard() {
   const [msgInput, setMsgInput] = useState('')
   const [msgLoading, setMsgLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
-  const [iaMessages, setIaMessages] = useState<{ role: 'user' | 'assistant'; content: string; action?: any; actionStatus?: 'pending' | 'confirmed' | 'cancelled' | 'error' }[]>([
+  const [iaMessages, setIaMessages] = useState<IaMessage[]>([
     { role: 'assistant', content: 'Bonjour ! Je suis **Fixy** 🤖, votre assistant d\'action Vitfix Pro.\n\nJ\'ai accès à **toutes vos données en temps réel** et je peux **agir directement** : créer missions, naviguer, générer courriers, alertes...\n\n🎙️ Cliquez sur le micro pour les commandes vocales !\n\nQue puis-je faire pour vous ?' }
   ])
   const [iaInput, setIaInput] = useState('')
   const [iaLoading, setIaLoading] = useState(false)
-  const [iaPendingAction, setIaPendingAction] = useState<{ action: any; iaToken: string } | null>(null)
+  const [iaPendingAction, setIaPendingAction] = useState<{ action: IaAction; iaToken: string } | null>(null)
   const iaEndRef = useRef<HTMLDivElement>(null)
   // ── Voice & Speech ─────────────────────────────────────────────────────────
   const [iaVoiceActive, setIaVoiceActive] = useState(false)
   const [iaVoiceSupported, setIaVoiceSupported] = useState(false)
   const [iaSpeechEnabled, setIaSpeechEnabled] = useState(false)
   const [iaSpeaking, setIaSpeaking] = useState(false)
-  const iaRecognitionRef = useRef<any>(null)
-  const iaSendTimerRef = useRef<any>(null)
+  const iaRecognitionRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const iaSendTimerRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   // ── Voice V2 — états enrichis ──────────────────────────────────────────────
   const [iaVoiceDuration, setIaVoiceDuration] = useState(0)
   const [iaVoiceInterim, setIaVoiceInterim] = useState('')
@@ -244,7 +370,7 @@ export default function SyndicDashboard() {
   const [iaVoiceSendTrigger, setIaVoiceSendTrigger] = useState<string | null>(null)
   const [iaVoiceConfidence, setIaVoiceConfidence] = useState(0)
   const [iaAvailableVoices, setIaAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
-  const iaVoiceDurationRef = useRef<any>(null)
+  const iaVoiceDurationRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const iaTranscriptRef = useRef('')
 
   // ── Max — Expert-Conseil (lecture seule) ───────────────────────────────────
@@ -352,7 +478,7 @@ export default function SyndicDashboard() {
           table: 'syndic_notifications',
           filter: `syndic_id=eq.${user.id}`,
         }, (payload) => {
-          const n = payload.new as any
+          const n = payload.new as any // eslint-disable-line @typescript-eslint/no-explicit-any
           setNotifs(prev => [{ id: n.id, title: n.title, body: n.body, type: n.type, read: false, created_at: n.created_at }, ...prev])
         })
         .subscribe((status, err) => {
@@ -514,7 +640,7 @@ export default function SyndicDashboard() {
             const parsed = JSON.parse(savedMissions)
             // Filtre les missions référençant des faux immeubles OU IDs courts
             const FAKE_IDS = ['1','2','3','4','5']
-            const real = parsed.filter((m: any) =>
+            const real = parsed.filter((m: Mission) =>
               !FAKE_IDS.includes(String(m.id)) &&
               !FAKE_BUILDING_NAMES.includes(m.immeuble)
             )
@@ -529,7 +655,7 @@ export default function SyndicDashboard() {
         if (savedImmeubles) {
           try {
             const parsed = JSON.parse(savedImmeubles)
-            const real = parsed.filter((i: any) =>
+            const real = parsed.filter((i: Immeuble) =>
               !['1','2','3'].includes(String(i.id)) &&
               !FAKE_BUILDING_NAMES.includes(i.nom)
             )
@@ -557,7 +683,7 @@ export default function SyndicDashboard() {
           try {
             const parsed = JSON.parse(savedCanalInterne)
             // Purge si contient des IDs de démo ou des références à de faux immeubles
-            const hasFake = parsed.some((m: any) =>
+            const hasFake = parsed.some((m: Record<string, unknown>) =>
               /^(ci|pe)-\d+$/.test(String(m.id)) ||
               ['ci-1','ci-2','ci-3'].includes(String(m.id)) ||
               FAKE_BUILDING_NAMES.some(n => String(m.texte || '').includes(n) || String(m.sujet || '').includes(n))
@@ -576,7 +702,7 @@ export default function SyndicDashboard() {
             const parsed = JSON.parse(savedPlanningEvents)
             // Filtrer les events assignés à de faux membres (IDs courts)
             const FAKE_PERSON_NAMES = ['Jean-Pierre Martin','Marie Dupont','Sophie Leroy','Bernard Petit','Directeur Général']
-            const real = parsed.filter((e: any) => !FAKE_PERSON_NAMES.includes(e.assigneA))
+            const real = parsed.filter((e: PlanningEvent) => !FAKE_PERSON_NAMES.includes(e.assigneA))
             setPlanningEvents(real)
             if (real.length < parsed.length) {
               localStorage.setItem(`fixit_planning_events_${uid}`, JSON.stringify(real))
@@ -602,7 +728,7 @@ export default function SyndicDashboard() {
           })
           if (coprosRes.ok) {
             const coprosData = await coprosRes.json()
-            const mapped = (coprosData.coproprios || []).map((row: any) => ({
+            const mapped = (coprosData.coproprios || []).map((row: CoproAPIRow) => ({
               id: row.id,
               immeuble: row.immeuble || '',
               batiment: row.batiment || '',
@@ -655,7 +781,7 @@ export default function SyndicDashboard() {
           if (artResEarly.ok) {
             const artDataEarly = await artResEarly.json()
             if (artDataEarly.artisans && artDataEarly.artisans.length > 0) {
-              const mappedEarly: Artisan[] = artDataEarly.artisans.map((a: any) => ({
+              const mappedEarly: Artisan[] = artDataEarly.artisans.map((a: ArtisanAPIRow) => ({
                 ...a,
                 nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
                 rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -692,8 +818,8 @@ export default function SyndicDashboard() {
           if (dbMissions) {
             // Séparer vraies missions des fausses missions de démo
             const FAKE_BUILDING_NAMES_DB = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
-            const fakeMissions = dbMissions.filter((m: any) => FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
-            const realMissions = dbMissions.filter((m: any) => !FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
+            const fakeMissions = dbMissions.filter((m: Mission) => FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
+            const realMissions = dbMissions.filter((m: Mission) => !FAKE_BUILDING_NAMES_DB.includes(m.immeuble))
             // AUTO-CLEANUP DB : supprimer définitivement les fausses missions de Supabase
             if (fakeMissions.length > 0) {
               for (const fm of fakeMissions) {
@@ -712,8 +838,8 @@ export default function SyndicDashboard() {
           if (dbImmeubles) {
             // Séparer vrais immeubles des faux immeubles de démo
             const FAKE_BUILDING_NAMES = ['Résidence Les Acacias', 'Le Clos Vendôme', 'Tour Horizon']
-            const fakeImmeubles = dbImmeubles.filter((i: any) => FAKE_BUILDING_NAMES.includes(i.nom))
-            const realImmeubles = dbImmeubles.filter((i: any) => !FAKE_BUILDING_NAMES.includes(i.nom))
+            const fakeImmeubles = dbImmeubles.filter((i: Immeuble) => FAKE_BUILDING_NAMES.includes(i.nom))
+            const realImmeubles = dbImmeubles.filter((i: Immeuble) => !FAKE_BUILDING_NAMES.includes(i.nom))
             // AUTO-CLEANUP DB : supprimer définitivement les faux immeubles de Supabase
             if (fakeImmeubles.length > 0) {
               for (const fi of fakeImmeubles) {
@@ -725,7 +851,7 @@ export default function SyndicDashboard() {
             if (realImmeubles.length > 0) {
               setImmeubles(realImmeubles)
               // Mettre à jour les bâtiments connus depuis Supabase (sans faux noms)
-              const noms = realImmeubles.map((i: any) => i.nom).filter(Boolean)
+              const noms = realImmeubles.map((i: Immeuble) => i.nom).filter(Boolean)
               if (noms.length > 0) {
                 setBatimentsConnus((prev: string[]) => {
                   const merged = Array.from(new Set([...prev, ...noms])).sort()
@@ -752,7 +878,7 @@ export default function SyndicDashboard() {
         if (ciRes.ok) {
           const { messages: dbMsgs } = await ciRes.json()
           if (dbMsgs && dbMsgs.length > 0) {
-            const converted: CanalInterneMsg[] = dbMsgs.map((m: any) => {
+            const converted: CanalInterneMsg[] = dbMsgs.map((m: CanalInterneAPIRow) => {
               // Le contenu est un JSON sérialisé du CanalInterneMsg complet
               try {
                 const parsed = JSON.parse(m.texte)
@@ -767,7 +893,7 @@ export default function SyndicDashboard() {
         // Charger membres de l'équipe depuis Supabase
         if (teamRes.ok) {
           const { members } = await teamRes.json()
-          if (members) setTeamMembers(members.filter((m: any) => m.is_active !== false))
+          if (members) setTeamMembers(members.filter((m: TeamMemberRow) => m.is_active !== false))
         }
 
         // Artisans déjà chargés en priorité plus haut (avant le Promise.all)
@@ -798,7 +924,7 @@ export default function SyndicDashboard() {
         if (ciRes.ok) {
           const { messages: dbMsgs } = await ciRes.json()
           if (dbMsgs && dbMsgs.length > 0) {
-            const converted: CanalInterneMsg[] = dbMsgs.map((m: any) => {
+            const converted: CanalInterneMsg[] = dbMsgs.map((m: CanalInterneAPIRow) => {
               try {
                 const p = JSON.parse(m.texte)
                 if (p?.contenu) return { ...p, id: m.id, lu: m.lu ?? true }
@@ -1271,7 +1397,7 @@ export default function SyndicDashboard() {
     // Suppression localStorage
     try {
       const stored = JSON.parse(localStorage.getItem(`fixit_syndic_missions_${user?.id}`) || '[]')
-      localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(stored.filter((m: any) => m.id !== id)))
+      localStorage.setItem(`fixit_syndic_missions_${user?.id}`, JSON.stringify(stored.filter((m: Mission) => m.id !== id)))
     } catch {}
     // Suppression Supabase
     try { await fetch(`/api/syndic/missions?id=${encodeURIComponent(id)}`, { method: 'DELETE' }) } catch {}
@@ -1339,7 +1465,7 @@ export default function SyndicDashboard() {
   }
 
   // ── Parse [DOC_PDF] blocks from Max responses ──────────────────────────────
-  const parseDocPDF = (content: string): { text: string; docData: any | null } => {
+  const parseDocPDF = (content: string): { text: string; docData: DocPDFData | null } => {
     const match = content.match(/\[DOC_PDF\]([\s\S]*?)\[\/DOC_PDF\]/)
     if (!match) return { text: content, docData: null }
     try {
@@ -1350,7 +1476,7 @@ export default function SyndicDashboard() {
   }
 
   // ── Generate professional PDF from Max document data ──────────────────────
-  const generateMaxPDF = async (docData: any) => {
+  const generateMaxPDF = async (docData: DocPDFData) => {
     const { jsPDF } = await import('jspdf')
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const W = 210, M = 18, textW = W - 2 * M
@@ -1609,7 +1735,7 @@ export default function SyndicDashboard() {
   }
 
   // ── Journal d'audit actions IA ──────────────────────────────────────────────
-  const logAiAction = (actionType: string, actionData: any, result: 'success' | 'error' | 'cancelled', details?: string) => {
+  const logAiAction = (actionType: string, actionData: IaAction, result: 'success' | 'error' | 'cancelled', details?: string) => {
     try {
       const key = `fixit_syndic_audit_${user?.id}`
       const existing = JSON.parse(localStorage.getItem(key) || '[]')
@@ -1855,7 +1981,7 @@ export default function SyndicDashboard() {
       }, 1000)
     }
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       let interim = ''
       finalTranscript = ''
 
@@ -1912,7 +2038,7 @@ export default function SyndicDashboard() {
       }
     }
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       if (process.env.NODE_ENV !== 'production') console.warn('Speech recognition error:', event.error)
 
       // Auto-restart sur timeout "no-speech" (micro ouvert mais pas de voix)
@@ -1991,7 +2117,7 @@ export default function SyndicDashboard() {
   }
 
   // ── Exécution réelle des actions IA (écriture DB) ─────────────────────────────
-  const executeIaAction = async (action: any, iaToken: string) => {
+  const executeIaAction = async (action: IaAction, iaToken: string) => {
     try {
       console.info(`[FIXY EXEC] ── Action reçue : type=${action.type} artisan="${action.artisan}" email="${action.artisan_email}" user_id="${action.artisan_user_id}" date="${action.date_intervention}"`)
       console.info(`[FIXY EXEC] État artisans local : ${artisans.length} artisans en mémoire`)
@@ -2016,7 +2142,7 @@ export default function SyndicDashboard() {
             if (emergencyRes.ok) {
               const emergencyData = await emergencyRes.json()
               if (emergencyData.artisans?.length > 0) {
-                const emergencyMapped = emergencyData.artisans.map((a: any) => ({
+                const emergencyMapped = emergencyData.artisans.map((a: ArtisanAPIRow) => ({
                   ...a,
                   nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
                   rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -2028,7 +2154,7 @@ export default function SyndicDashboard() {
                 setArtisansLoaded(true)
                 // Re-tenter findLocalArtisan avec les données fraîches
                 const retryArtisan = emergencyMapped.find((a: Artisan) => {
-                  const n = norm(action.artisan)
+                  const n = norm(action.artisan || '')
                   const aN = norm(a.nom || '')
                   const aParts = norm(`${a.prenom || ''} ${a.nom_famille || ''} ${a.nom || ''}`)
                   return aN === n || aParts.includes(n) || n.split(/\s+/).every((p: string) => aParts.includes(p))
@@ -2142,7 +2268,7 @@ export default function SyndicDashboard() {
           return
         }
 
-        const updatePayload: Record<string, any> = { id: action.mission_id }
+        const updatePayload: Record<string, unknown> = { id: action.mission_id }
         if (action.statut) updatePayload.statut = action.statut
         if (action.artisan) updatePayload.artisan = action.artisan
         if (action.priorite) updatePayload.priorite = action.priorite
@@ -2170,7 +2296,7 @@ export default function SyndicDashboard() {
           id: Date.now().toString(),
           type: 'mission',
           message: action.message || 'Alerte créée par Fixy',
-          urgence: action.urgence || 'moyenne',
+          urgence: (action.urgence as 'haute' | 'moyenne' | 'basse') || 'moyenne',
           date: new Date().toISOString().split('T')[0],
         }
         setAlertes(prev => [newAlerte, ...prev])
@@ -2221,12 +2347,13 @@ export default function SyndicDashboard() {
         }
         logAiAction('create_document', action, 'success', `Type: ${action.type_doc}`)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err)
       if (process.env.NODE_ENV !== 'production') console.error('[Fixy] Action execution error:', err)
-      logAiAction(action.type, action, 'error', err.message)
+      logAiAction(action.type, action, 'error', errMsg)
       setIaMessages(prev => [...prev, {
         role: 'assistant',
-        content: `❌ **Erreur lors de l'exécution** : ${err.message || 'Erreur inconnue'}. Réessayez ou créez la mission manuellement.`,
+        content: `❌ **Erreur lors de l'exécution** : ${errMsg || 'Erreur inconnue'}. Réessayez ou créez la mission manuellement.`,
       }])
     }
   }
@@ -2255,7 +2382,7 @@ export default function SyndicDashboard() {
           if (artReload.ok) {
             const artReloadData = await artReload.json()
             if (artReloadData.artisans && artReloadData.artisans.length > 0) {
-              const mappedReload: Artisan[] = artReloadData.artisans.map((a: any) => ({
+              const mappedReload: Artisan[] = artReloadData.artisans.map((a: ArtisanAPIRow) => ({
                 ...a,
                 nom: a.nom || `${a.prenom || ''} ${a.nom_famille || ''}`.trim(),
                 rcProValide: a.rc_pro_valide ?? a.rcProValide ?? false,
@@ -2538,8 +2665,8 @@ export default function SyndicDashboard() {
       // Build context — optionally filtered by immeuble
       const ctx = buildSyndicContext()
       if (maxSelectedImmeuble !== 'all') {
-        ctx.immeubles = ctx.immeubles.filter((i: any) => i.nom === maxSelectedImmeuble)
-        ctx.missions = ctx.missions.filter((m: any) => m.immeuble === maxSelectedImmeuble)
+        ctx.immeubles = ctx.immeubles.filter((i: { nom: string }) => i.nom === maxSelectedImmeuble)
+        ctx.missions = ctx.missions.filter((m: { immeuble: string }) => m.immeuble === maxSelectedImmeuble)
       }
       const res = await fetch('/api/syndic/max-ai', {
         method: 'POST',
@@ -4135,7 +4262,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                                       setPdfObjet(docData.objet || '')
                                       // Pre-select immeuble if specified by Max
                                       if (docData.destinataire?.immeuble) {
-                                        const match = immeubles.find(im => im.nom.toLowerCase().includes(docData.destinataire.immeuble.toLowerCase()))
+                                        const match = immeubles.find(im => im.nom.toLowerCase().includes(docData.destinataire!.immeuble!.toLowerCase()))
                                         setPdfSelectedImmeuble(match ? match.nom : '')
                                       } else {
                                         setPdfSelectedImmeuble(immeubles.length === 1 ? immeubles[0].nom : '')
@@ -4891,7 +5018,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           batimentsConnus={batimentsConnus}
           artisans={artisans}
           coproprios={coproprios}
-          onAdd={async (m: any) => {
+          onAdd={async (m: Partial<Mission> & Record<string, unknown>) => {
             // Mémoriser le bâtiment saisi
             if (m.immeuble?.trim()) enregistrerBatiment(m.immeuble)
             const missionId = Date.now().toString()
@@ -4918,13 +5045,13 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
             } catch { /* silencieux */ }
 
             // ── Notification au demandeur (canal copropriétaire) ──
-            if ((m as any).demandeurEmail || (m as any).locataire) {
-              const demandeurKey = `canal_demandeur_${((m as any).demandeurEmail || (m as any).locataire || '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`
+            if (m.demandeurEmail || m.locataire) {
+              const demandeurKey = `canal_demandeur_${(String(m.demandeurEmail || m.locataire || '')).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`
               const now = new Date()
               const dateIntervStr = m.dateIntervention
                 ? new Date(m.dateIntervention).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
                 : null
-              const heureStr = (m as any).heureIntervention || null
+              const heureStr = (m.heureIntervention as string) || null
               const notifMsg = {
                 id: Date.now().toString(),
                 date: now.toISOString(),
@@ -4968,9 +5095,9 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                       type_travaux: m.type || 'Intervention',
                       date_intervention: m.dateIntervention || undefined,
                       immeuble: m.immeuble || '',
-                      adresse: (m as any).adresseImmeuble || '',
+                      adresse: (m.adresseImmeuble as string) || '',
                       priorite: m.priorite || 'normale',
-                      notes: (m as any).locataire ? `Locataire : ${(m as any).locataire}` : '',
+                      notes: m.locataire ? `Locataire : ${m.locataire}` : '',
                     }),
                   })
                   const assignData = await assignRes.json().catch(() => ({}))
@@ -5760,7 +5887,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           documentRef={`CABINET_${cabinetNom.replace(/\s/g, '_')}`}
           signataire={userName}
           onClose={() => setShowSignatureModal(false)}
-          onSign={(sigData: any) => {
+          onSign={(sigData: SignatureData) => {
             setSyndicSignature(sigData)
             if (user) localStorage.setItem(`fixit_syndic_signature_${user.id}`, JSON.stringify(sigData))
             setShowSignatureModal(false)
@@ -5775,7 +5902,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
         // Get copropriétaires filtered by selected immeuble
         const allCopros = coproprios
         const filteredCopros = pdfSelectedImmeuble
-          ? allCopros.filter((c: any) => (c.immeuble || '').toLowerCase().includes(pdfSelectedImmeuble.toLowerCase()))
+          ? allCopros.filter((c: Coproprio) => (c.immeuble || '').toLowerCase().includes(pdfSelectedImmeuble.toLowerCase()))
           : allCopros
         const docTypeLabel = (pendingDocData.title || pendingDocData.type || 'Document').replace(/_/g, ' ')
 
@@ -5832,7 +5959,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                         {isPt ? '👥 Todos os condóminos' : '👥 Tous les copropriétaires'}
                       </option>
                     )}
-                    {filteredCopros.map((c: any, idx: number) => {
+                    {filteredCopros.map((c: any, idx: number) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                       const label = `${c.prenomProprietaire || c.prenom || ''} ${c.nomProprietaire || c.nom || ''}`.trim()
                       const details: string[] = []
                       if (c.batiment) details.push(`${isPt ? 'Bl.' : 'Bât.'} ${c.batiment}`)

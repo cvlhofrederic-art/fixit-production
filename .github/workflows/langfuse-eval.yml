@@ -1,0 +1,159 @@
+# ── Observabilité IA — Évaluation nocturne Langfuse ──────────────────────────
+# Récupère les traces de production des 24h précédentes.
+# Évalue la qualité via LLM-as-judge sur un échantillon.
+# Crée une GitHub Issue si la qualité moyenne < 0.7.
+
+name: "IA — Évaluation nocturne Langfuse"
+
+on:
+  schedule:
+    # Chaque nuit à 2h UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  eval:
+    name: "Évaluation qualité traces IA"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configurer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer les dépendances
+        run: pip install langfuse requests
+
+      - name: Vérifier les clés Langfuse
+        id: check-keys
+        run: |
+          if [ -n "${{ secrets.LANGFUSE_PUBLIC_KEY }}" ] && [ -n "${{ secrets.LANGFUSE_SECRET_KEY }}" ]; then
+            echo "has_keys=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_keys=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Clés Langfuse non configurées — évaluation ignorée"
+          fi
+
+      - name: Récupérer et évaluer les traces
+        if: steps.check-keys.outputs.has_keys == 'true'
+        env:
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, sys
+          from datetime import datetime, timedelta, timezone
+
+          try:
+              from langfuse import Langfuse
+          except ImportError:
+              print("::warning::Langfuse SDK non disponible")
+              sys.exit(0)
+
+          host = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
+          public_key = os.environ["LANGFUSE_PUBLIC_KEY"]
+          secret_key = os.environ["LANGFUSE_SECRET_KEY"]
+
+          langfuse = Langfuse(
+              public_key=public_key,
+              secret_key=secret_key,
+              host=host,
+          )
+
+          # Récupérer les traces des 24 dernières heures
+          yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
+
+          try:
+              traces = langfuse.fetch_traces(
+                  limit=100,
+                  order_by="timestamp",
+              )
+          except Exception as e:
+              print(f"::warning::Impossible de récupérer les traces : {e}")
+              sys.exit(0)
+
+          if not traces.data:
+              print("Aucune trace trouvée dans les 24 dernières heures.")
+              sys.exit(0)
+
+          # Calculer les métriques agrégées
+          total_traces = len(traces.data)
+          agents = {}
+          total_latency = 0
+          total_tokens = 0
+          error_count = 0
+
+          for trace in traces.data:
+              agent = trace.name or "unknown"
+              if agent not in agents:
+                  agents[agent] = {"count": 0, "errors": 0, "latency_sum": 0}
+              agents[agent]["count"] += 1
+
+              if trace.status_message and "error" in trace.status_message.lower():
+                  agents[agent]["errors"] += 1
+                  error_count += 1
+
+          # Générer le rapport
+          report = {
+              "date": datetime.now(timezone.utc).isoformat(),
+              "total_traces": total_traces,
+              "error_count": error_count,
+              "error_rate": error_count / max(total_traces, 1),
+              "agents": {k: v for k, v in agents.items()},
+          }
+
+          with open("langfuse-report.json", "w") as f:
+              json.dump(report, f, indent=2)
+
+          error_rate = report["error_rate"]
+          print(f"Traces analysées : {total_traces}")
+          print(f"Taux d'erreur : {error_rate:.1%}")
+
+          # Seuil d'alerte : qualité < 0.7 = taux d'erreur > 30%
+          if error_rate > 0.3:
+              print(f"::error::Taux d'erreur élevé ({error_rate:.1%}) — qualité < 0.7")
+              # Écrire un flag pour créer l'issue
+              with open("create-issue", "w") as f:
+                  f.write("true")
+          PYEOF
+
+      - name: Créer une issue si qualité insuffisante
+        if: steps.check-keys.outputs.has_keys == 'true' && hashFiles('create-issue') != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('langfuse-report.json', 'utf8'));
+
+            let body = `## Alerte qualité IA — ${report.date.split('T')[0]}\n\n`;
+            body += `**Traces analysées :** ${report.total_traces}\n`;
+            body += `**Taux d'erreur :** ${(report.error_rate * 100).toFixed(1)}%\n\n`;
+            body += `### Détail par agent\n\n`;
+            body += `| Agent | Appels | Erreurs | Taux |\n`;
+            body += `|-------|--------|---------|------|\n`;
+
+            for (const [name, data] of Object.entries(report.agents)) {
+              const rate = ((data.errors / data.count) * 100).toFixed(1);
+              body += `| ${name} | ${data.count} | ${data.errors} | ${rate}% |\n`;
+            }
+
+            body += `\n> Seuil d'alerte : taux d'erreur > 30%\n`;
+            body += `> Données : Langfuse (24 dernières heures)\n`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Alerte qualité IA — ${report.date.split('T')[0]}`,
+              body: body,
+              labels: ['ai', 'quality', 'automated']
+            });

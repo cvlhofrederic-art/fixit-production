@@ -17,4 +17,14 @@ Sentry.init({
   replaysOnErrorSampleRate: 0,
 
   debug: false,
+
+  // Contexte agents IA — enrichit les erreurs avec le type d'agent
+  beforeSend(event) {
+    // Ajouter le contexte IA si disponible dans l'URL ou les tags
+    const url = typeof window !== "undefined" ? window.location.pathname : "";
+    if (url.includes("/pro/dashboard")) {
+      event.tags = { ...event.tags, agent_context: "fixy-ai-artisan" };
+    }
+    return event;
+  },
 });

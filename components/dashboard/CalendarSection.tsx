@@ -2,13 +2,32 @@
 
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { Artisan, Service, Booking } from '@/lib/types'
+
+interface NewRdvForm {
+  client_name: string
+  service_id: string
+  date: string
+  time: string
+  address: string
+  notes: string
+  phone: string
+  duration: string
+}
+
+interface AbsenceForm {
+  start_date: string
+  end_date: string
+  reason: string
+  label: string
+}
 
 interface CalendarSectionProps {
-  artisan: any
-  bookings: any[]
-  services: any[]
-  pendingBookings: any[]
-  completedBookings: any[]
+  artisan: Artisan | null
+  bookings: Booking[]
+  services: Service[]
+  pendingBookings: Booking[]
+  completedBookings: Booking[]
   totalRevenue: number
   calendarView: 'day' | 'week' | 'month'
   setCalendarView: (v: 'day' | 'week' | 'month') => void
@@ -16,31 +35,31 @@ interface CalendarSectionProps {
   setSelectedDay: (v: string) => void
   showNewRdv: boolean
   setShowNewRdv: (v: boolean) => void
-  newRdv: { client_name: string; service_id: string; date: string; time: string; address: string; notes: string; phone: string; duration: string }
-  setNewRdv: (v: any) => void
+  newRdv: NewRdvForm
+  setNewRdv: (v: NewRdvForm) => void
   showAbsenceModal: boolean
   setShowAbsenceModal: (v: boolean) => void
-  newAbsence: { start_date: string; end_date: string; reason: string; label: string }
-  setNewAbsence: (v: any) => void
+  newAbsence: AbsenceForm
+  setNewAbsence: (v: AbsenceForm) => void
   showBookingDetail: boolean
   setShowBookingDetail: (v: boolean) => void
-  selectedBooking: any
-  setSelectedBooking: (v: any) => void
+  selectedBooking: Booking | null
+  setSelectedBooking: (v: Booking | null) => void
   getCalendarTitle: () => string
   navigateCalendar: (direction: number) => void
   getCalendarHours: () => string[]
-  getBookingsForDate: (date: Date) => any[]
+  getBookingsForDate: (date: Date) => Booking[]
   isDateAbsent: (date: Date) => { absent: boolean; reason: string; label: string; source: string; id: string }
   getWorkingWeekDates: () => Date[]
   getMonthDays: () => { days: Date[]; firstDay: Date; lastDay: Date }
   handleEmptyCellClick: (date: Date, hour: string) => void
-  handleBookingClick: (booking: any) => void
+  handleBookingClick: (booking: Booking) => void
   createRdvManual: () => void
   createAbsence: () => void
   deleteAbsence: (id: string) => void
   updateBookingStatus: (bookingId: string, newStatus: string) => void
-  transformBookingToDevis: (booking: any) => void
-  openDashMessages: (booking: any) => void
+  transformBookingToDevis: (booking: Booking) => void
+  openDashMessages: (booking: Booking) => void
   DAY_NAMES: string[]
   DAY_SHORT: string[]
 }
@@ -429,7 +448,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                   <label className="v22-form-label">Prestation *</label>
                   <select value={newRdv.service_id} onChange={(e) => setNewRdv({...newRdv, service_id: e.target.value})} className="v22-form-input">
                     <option value="">Choisir une prestation...</option>
-                    {services.filter(s => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} \u2014 {formatPrice(s.price_ttc)}</option>)}
+                    {services.filter(s => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} \u2014 {formatPrice(s.price_ttc ?? 0)}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -576,7 +595,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
                     <div className="v22-form-label" style={{ marginBottom: 2 }}>Date</div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{new Date(selectedBooking.booking_date).toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{new Date(selectedBooking.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
                   </div>
                   <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
                     <div className="v22-form-label" style={{ marginBottom: 2 }}>Heure</div>

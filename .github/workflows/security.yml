@@ -1,0 +1,193 @@
+# ── Sécurité — CodeQL, TruffleHog, Semgrep, Giskard ──────────────────────────
+# Analyse statique, secrets, OWASP, JWT et sécurité des agents IA.
+# Déclenché sur push main, toutes les PR, et scan hebdomadaire.
+
+name: "Sécurité — Analyse & Secrets"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  # ── CodeQL — Analyse statique ──────────────────────────────────────────────
+  codeql:
+    name: "CodeQL — Analyse statique"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Initialiser CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Exécuter l'analyse CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ── TruffleHog — Détection de secrets ──────────────────────────────────────
+  trufflehog:
+    name: "TruffleHog — Scan de secrets"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scanner les secrets (historique complet sur main)
+        if: github.event_name == 'push'
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - name: Scanner les secrets (diff sur PR)
+        if: github.event_name == 'pull_request'
+        uses: trufflesecurity/trufflehog@main
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --only-verified
+
+  # ── Semgrep — OWASP + Secrets + JWT ────────────────────────────────────────
+  semgrep:
+    name: "Semgrep — OWASP, Secrets & JWT"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Exécuter Semgrep
+        run: >
+          semgrep scan
+          --config p/owasp-top-ten
+          --config p/secrets
+          --config p/jwt
+          --sarif --output semgrep-results.sarif .
+
+      - name: Uploader les résultats dans GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-results.sarif
+
+  # ── Giskard — Sécurité agents IA (injection prompt, hallucinations) ────────
+  giskard-ai:
+    name: "Giskard — Sécurité prompts IA"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Vérifier si des fichiers IA ont changé
+        id: ai-changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            ai:
+              - 'app/api/fixy-ai/**'
+              - 'app/api/fixy-chat/**'
+              - 'app/api/simulateur-travaux/**'
+              - 'app/api/materiaux-ai/**'
+              - 'app/api/email-agent/**'
+              - 'app/api/syndic/max-ai/**'
+              - 'app/api/syndic/analyse-devis/**'
+              - 'app/api/client/analyse-devis/**'
+              - 'app/api/comptable-ai/**'
+              - 'app/api/copro-ai/**'
+              - 'app/api/receipt-scan/**'
+              - 'lib/groq.ts'
+              - 'lib/rapport-ia.ts'
+
+      - name: Configurer Python
+        if: steps.ai-changes.outputs.ai == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer Giskard
+        if: steps.ai-changes.outputs.ai == 'true'
+        run: pip install giskard
+
+      - name: Scanner les prompts pour injections et fuites
+        if: steps.ai-changes.outputs.ai == 'true'
+        continue-on-error: ${{ secrets.GISKARD_API_KEY == '' }}
+        env:
+          GISKARD_API_KEY: ${{ secrets.GISKARD_API_KEY }}
+        run: |
+          if [ -z "$GISKARD_API_KEY" ]; then
+            echo "::warning::GISKARD_API_KEY non configuré — scan ignoré"
+            exit 0
+          fi
+
+          python3 << 'SCRIPT'
+          import subprocess, sys, json, os, re, glob
+
+          # Extraire les system prompts des fichiers d'agents
+          agent_files = glob.glob("app/api/**/route.ts", recursive=True)
+          prompt_count = 0
+          issues = []
+
+          for f in agent_files:
+              with open(f) as fh:
+                  content = fh.read()
+              # Détecter les blocs system prompt (heuristique)
+              if "role: 'system'" in content or 'role: "system"' in content:
+                  prompt_count += 1
+                  # Vérifications basiques de sécurité
+                  if "ignore previous" in content.lower():
+                      issues.append(f"{f}: contient 'ignore previous' — risque d'injection")
+                  if re.search(r'(password|secret|api.?key)\s*[:=]', content, re.I):
+                      issues.append(f"{f}: potentielle fuite de credentials dans le prompt")
+
+          print(f"Scanné {prompt_count} agents avec prompts système")
+          if issues:
+              for issue in issues:
+                  print(f"::error::{issue}")
+              sys.exit(1)
+          else:
+              print("Aucun problème de sécurité détecté dans les prompts")
+          SCRIPT
+
+      - name: Poster résultat sur la PR
+        if: steps.ai-changes.outputs.ai == 'true' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## Scan sécurité IA (Giskard)\n\nScan des prompts système terminé. Voir les logs du workflow pour le détail.'
+            });

@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { getUserSubscription } from '@/lib/subscription'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, stripeCheckoutSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
@@ -13,7 +14,10 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`checkout_${user.id}`, 5, 60_000))) return rateLimitResponse()
 
   try {
-    const { planId } = (await request.json()) as { planId: PlanId }
+    const body = await request.json()
+    const v = validateBody(stripeCheckoutSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { planId } = v.data as { planId: PlanId }
     const plan = PLANS[planId]
     if (!plan || !('stripePriceId' in plan) || !plan.stripePriceId) {
       return NextResponse.json({ error: 'Plan invalide' }, { status: 400 })
