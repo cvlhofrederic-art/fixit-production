@@ -3,10 +3,13 @@ import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, resetPasswordSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
-  const { email } = await request.json()
-  if (!email) return NextResponse.json({ error: 'Email requis' }, { status: 400 })
+  const body = await request.json()
+  const v = validateBody(resetPasswordSchema, body)
+  if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+  const { email } = v.data
 
   // Rate limit: 3 requests per 5 minutes per IP (prevent brute force / email spam)
   const ip = getClientIP(request)

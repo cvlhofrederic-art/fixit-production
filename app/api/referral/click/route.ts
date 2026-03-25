@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getParrainByCode } from '@/lib/referral'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { validateBody, referralClickSchema } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   // Rate limit : 10 clics par IP par minute
@@ -17,11 +18,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { code, source } = body as { code?: string; source?: string }
-
-    if (!code || typeof code !== 'string' || code.length < 4 || code.length > 12) {
-      return NextResponse.json({ error: 'Code invalide' }, { status: 400 })
-    }
+    const v = validateBody(referralClickSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { code, source } = v.data
 
     // Vérifier que le code existe et que le parrain n'est pas flagged
     const parrain = await getParrainByCode(code)

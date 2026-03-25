@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { z } from 'zod'
+import { validateBody, syndicImmeubleSchema } from '@/lib/validation'
 
 // GET /api/syndic/immeubles — récupérer les immeubles du cabinet
 export async function GET(request: NextRequest) {
@@ -67,7 +69,10 @@ export async function POST(request: NextRequest) {
     if (!(await checkRateLimit(`immeubles_post_${ip}`, 10, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
-    const body = await request.json()
+    const rawBody = await request.json()
+    const v = validateBody(syndicImmeubleSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const body = v.data
 
     const { data, error } = await supabaseAdmin
       .from('syndic_immeubles')
@@ -117,10 +122,11 @@ export async function PATCH(request: NextRequest) {
     if (!(await checkRateLimit(`immeubles_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
     const cabinetId = await resolveCabinetId(user, supabaseAdmin)
-    const body = await request.json()
-    const { id, ...updates } = body
-
-    if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
+    const rawBody = await request.json()
+    const patchSchema = syndicImmeubleSchema.extend({ id: z.string().uuid() })
+    const v = validateBody(patchSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { id, ...updates } = v.data
 
     const dbUpdates: Record<string, any> = {
       updated_at: new Date().toISOString(),

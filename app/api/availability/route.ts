@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, availabilityToggleSchema, availabilityUpdateSchema } from '@/lib/validation'
 
 // GET: Fetch availability for an artisan (public — nécessaire pour la réservation)
 export async function GET(request: NextRequest) {
@@ -44,11 +45,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { artisan_id, day_of_week } = body
-
-    if (!artisan_id || day_of_week === undefined) {
-      return NextResponse.json({ error: 'artisan_id and day_of_week are required' }, { status: 400 })
-    }
+    const v = validateBody(availabilityToggleSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { artisan_id, day_of_week } = v.data
 
     // SÉCURITÉ : vérifier que l'utilisateur est propriétaire de cet artisan
     const { data: artisanProfile } = await supabaseAdmin
@@ -58,11 +57,6 @@ export async function POST(request: NextRequest) {
       .single()
     if (!artisanProfile || artisanProfile.user_id !== user.id) {
       return NextResponse.json({ error: 'Accès refusé : vous n\'êtes pas le propriétaire de ce profil' }, { status: 403 })
-    }
-
-    // Validate day_of_week is 0-6
-    if (typeof day_of_week !== 'number' || day_of_week < 0 || day_of_week > 6) {
-      return NextResponse.json({ error: 'day_of_week must be a number between 0 and 6' }, { status: 400 })
     }
 
     // Check if row exists
@@ -126,20 +120,9 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { availability_id, field, value } = body
-
-    if (!availability_id || !field || !value) {
-      return NextResponse.json({ error: 'availability_id, field, and value are required' }, { status: 400 })
-    }
-
-    if (!['start_time', 'end_time'].includes(field)) {
-      return NextResponse.json({ error: 'field must be start_time or end_time' }, { status: 400 })
-    }
-
-    // Validate time format HH:MM
-    if (!/^\d{2}:\d{2}$/.test(value)) {
-      return NextResponse.json({ error: 'value must be a valid time format (HH:MM)' }, { status: 400 })
-    }
+    const v = validateBody(availabilityUpdateSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { availability_id, field, value } = v.data
 
     // SÉCURITÉ : vérifier ownership — récupérer la row availability → artisan → user_id
     const { data: availRow } = await supabaseAdmin

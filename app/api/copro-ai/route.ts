@@ -3,6 +3,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { validateBody, coproAiSchema } from '@/lib/validation'
 
 export const maxDuration = 30
 
@@ -19,11 +20,9 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
     const body = await request.json()
-    const { messages, systemPrompt, stream } = body
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'messages array requis' }, { status: 400 })
-    }
+    const v = validateBody(coproAiSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { messages, systemPrompt, stream } = v.data
 
     if (!GROQ_API_KEY) {
       return NextResponse.json({ reply: '⚠️ Service IA temporairement indisponible. Veuillez réessayer plus tard.' })

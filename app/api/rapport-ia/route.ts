@@ -8,6 +8,7 @@ import { genererTexteRapport, type DonneesChantier } from '@/lib/rapport-ia'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { validateBody, rapportIaSchema } from '@/lib/validation'
 
 export const maxDuration = 30
 
@@ -26,11 +27,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { booking_id } = body
-
-    if (!booking_id) {
-      return NextResponse.json({ error: 'booking_id requis' }, { status: 400 })
-    }
+    const v = validateBody(rapportIaSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { booking_id } = v.data
 
     // Charger le booking avec ses relations
     const { data: booking, error: bErr } = await supabaseAdmin

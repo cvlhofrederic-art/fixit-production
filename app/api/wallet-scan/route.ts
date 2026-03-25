@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { validateBody, walletScanSchema } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30 // 30s timeout for PDF parsing
@@ -415,16 +416,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { fileBase64, fileName, docKey, artisanId } = body as {
-      fileBase64: string
-      fileName: string
-      docKey: string // 'rc_pro', 'decennale', 'kbis', 'urssaf', etc.
-      artisanId: string
-    }
-
-    if (!fileBase64 || !artisanId || !docKey) {
-      return NextResponse.json({ error: 'fileBase64, artisanId et docKey requis' }, { status: 400 })
-    }
+    const v = validateBody(walletScanSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { fileBase64, fileName, docKey, artisanId } = v.data
 
     // Vérifier que l'artisan appartient au user
     const { data: artisan } = await supabaseAdmin

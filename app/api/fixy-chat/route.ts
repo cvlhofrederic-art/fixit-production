@@ -3,6 +3,7 @@ import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, fixyChatSchema } from '@/lib/validation'
 
 export const maxDuration = 30
 
@@ -205,11 +206,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { message, role, context, conversation_history, locale, stream } = body
-
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      return NextResponse.json({ error: 'Message requis' }, { status: 400 })
-    }
+    const v = validateBody(fixyChatSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { message, role, context, conversation_history, locale, stream } = v.data
 
     const userRole = role || 'copro'
     const systemPrompt = buildSystemPrompt(userRole, context || {}, locale)

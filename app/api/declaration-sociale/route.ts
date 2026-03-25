@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { validateBody, declarationSocialeSchema } from '@/lib/validation'
 import {
   getPeriodeActuelle,
   calculerCotisations,
@@ -108,7 +109,10 @@ export async function POST(request: NextRequest) {
 
     if (!artisan) return NextResponse.json({ error: 'Artisan introuvable' }, { status: 404 })
 
-    const body = await request.json()
+    const rawBody = await request.json()
+    const v = validateBody(declarationSocialeSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const body = v.data
 
     // Action: configurer le profil fiscal
     if (body.action === 'configurer') {

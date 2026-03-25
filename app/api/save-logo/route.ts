@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { validateBody, saveLogoSchema } from '@/lib/validation'
 
 /**
  * POST /api/save-logo
@@ -14,15 +15,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { base64, field } = await request.json()
-    if (!base64 || typeof base64 !== 'string') {
-      return NextResponse.json({ error: 'Données manquantes' }, { status: 400 })
-    }
-
-    // Vérifier taille (~500KB en base64 = ~375KB fichier)
-    if (base64.length > 700000) {
-      return NextResponse.json({ error: 'Fichier trop lourd (max 500 Ko)' }, { status: 400 })
-    }
+    const body = await request.json()
+    const v = validateBody(saveLogoSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { base64, field } = v.data
 
     // Trouver l'artisan par user_id
     const { data: artisan } = await supabaseAdmin

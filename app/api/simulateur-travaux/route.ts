@@ -4,6 +4,7 @@
 
 import { callGroqStreaming } from '@/lib/groq'
 import { BASE_PRIX, COEFFICIENTS_GAMME, COEFFICIENTS_ZONE, COEFFICIENTS_ETAT } from '@/lib/prix-travaux'
+import { validateBody, simulateurTravauxSchema } from '@/lib/validation'
 
 export const maxDuration = 30
 export const runtime = 'nodejs'
@@ -78,11 +79,10 @@ ${JSON.stringify(COEFFICIENTS_ETAT, null, 0)}`
 
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json()
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return Response.json({ error: 'Messages requis' }, { status: 400 })
-    }
+    const body = await req.json()
+    const v = validateBody(simulateurTravauxSchema, body)
+    if (!v.success) return Response.json({ error: v.error }, { status: 400 })
+    const { messages } = v.data
 
     // Build conversation with system prompt
     const fullMessages = [

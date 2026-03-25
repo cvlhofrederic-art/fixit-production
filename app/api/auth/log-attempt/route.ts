@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { auditLog } from '@/lib/audit'
+import { validateBody, loginAttemptSchema } from '@/lib/validation'
 
 // POST /api/auth/log-attempt
 // Enregistre les tentatives de connexion (succès/échec) pour audit sécurité
@@ -15,11 +16,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { email, success, role, reason } = body
-
-    if (!email || typeof success !== 'boolean') {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
-    }
+    const v = validateBody(loginAttemptSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { email, success, role, reason } = v.data
 
     // Masquer l'email pour le log (RGPD)
     const maskedEmail = email.length > 5

@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { validateBody, comptableAiRequestSchema } from '@/lib/validation'
 
 export const maxDuration = 30
 
@@ -278,7 +279,10 @@ export async function POST(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await request.json()
+    const rawBody = await request.json()
+    const v = validateBody(comptableAiRequestSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const body = v.data
 
     // Verify artisan ownership if artisan_id provided
     if (body.financialContext?.artisan_id) {
@@ -291,7 +295,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Accès non autorisé à ces données' }, { status: 403 })
       }
     }
-    const { message, financialContext, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt, locale: bodyLocale } = body
+    const { message, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt, locale: bodyLocale } = body
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context has dynamic shape from frontend
+    const financialContext = body.financialContext as Record<string, any> | undefined
     const locale = bodyLocale || financialContext?.locale
 
     // ── Mode direct (agent copropriété) : messages + systemPrompt fournis directement ──

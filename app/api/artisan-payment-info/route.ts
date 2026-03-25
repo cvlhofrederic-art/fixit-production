@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, artisanPaymentInfoSchema } from '@/lib/validation'
 
 // GET — Récupérer les infos paiement de l'artisan
 export async function GET(request: NextRequest) {
@@ -51,12 +52,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { paiement_modes, paiement_mention_devis, paiement_mention_facture } = body
-
-    // Validation basique
-    if (!Array.isArray(paiement_modes)) {
-      return NextResponse.json({ error: 'paiement_modes doit être un tableau' }, { status: 400 })
-    }
+    const v = validateBody(artisanPaymentInfoSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { paiement_modes, paiement_mention_devis, paiement_mention_facture } = v.data
 
     const { error: updateError } = await supabaseAdmin
       .from('profiles_artisan')

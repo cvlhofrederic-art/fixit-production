@@ -51,6 +51,17 @@ export const availabilitySchema = z.object({
   is_available: z.boolean(),
 })
 
+export const availabilityToggleSchema = z.object({
+  artisan_id: z.string().uuid(),
+  day_of_week: z.number().int().min(0).max(6),
+})
+
+export const availabilityUpdateSchema = z.object({
+  availability_id: z.string().uuid(),
+  field: z.enum(['start_time', 'end_time']),
+  value: z.string().regex(/^\d{2}:\d{2}$/, 'Format: HH:MM'),
+})
+
 // ── Message schema ───────────────────────────────────────────────────────────
 export const messageSchema = z.object({
   booking_id: z.string().uuid(),
@@ -274,17 +285,31 @@ export const syndicMissionSchema = z.object({
 })
 
 // ── Syndic Immeuble schema ─────────────────────────────────────────────────
+// Frontend sends camelCase, DB expects snake_case — validation uses frontend names
 export const syndicImmeubleSchema = z.object({
-  nom: z.string().min(1, 'Nom requis').max(200),
-  adresse: z.string().min(1, 'Adresse requise').max(500),
-  ville: z.string().min(1, 'Ville requise').max(200),
-  code_postal: z.string().regex(/^\d{4,5}(-\d{3})?$/, 'Code postal invalide'),
-  nb_lots: z.number().int().min(1).max(9999).optional(),
-  annee_construction: z.number().int().min(1800).max(2100).optional().nullable(),
-  type_immeuble: z.string().max(100).optional().nullable(),
+  nom: z.string().max(200).optional(),
+  adresse: z.string().max(500).optional(),
+  ville: z.string().max(200).optional(),
+  codePostal: z.string().max(10).optional(),
+  nbLots: z.number().int().min(1).max(9999).optional(),
+  anneeConstruction: z.number().int().min(1800).max(2100).optional().nullable(),
+  typeImmeuble: z.string().max(100).optional().nullable(),
   gestionnaire: z.string().max(200).optional().nullable(),
   latitude: z.number().min(-90).max(90).optional().nullable(),
   longitude: z.number().min(-180).max(180).optional().nullable(),
+  prochainControle: z.string().max(20).optional().nullable(),
+  nbInterventions: z.number().int().min(0).optional(),
+  budgetAnnuel: z.number().min(0).optional(),
+  depensesAnnee: z.number().min(0).optional(),
+  geolocActivee: z.boolean().optional(),
+  rayonDetection: z.number().min(0).max(5000).optional(),
+  reglementTexte: z.string().max(50000).optional(),
+  reglementPdfNom: z.string().max(255).optional(),
+  reglementDateMaj: z.string().max(20).optional(),
+  reglementChargesRepartition: z.string().max(5000).optional(),
+  reglementMajoriteAg: z.string().max(5000).optional(),
+  reglementFondsTravaux: z.boolean().optional(),
+  reglementFondsRoulementPct: z.number().min(0).max(100).optional(),
 })
 
 // ── Syndic Team Invite schema ─────────────────────────────────────────────
@@ -304,9 +329,20 @@ export const artisanAbsenceSchema = z.object({
 
 // ── Comptable AI schema ────────────────────────────────────────────────────
 export const comptableAiRequestSchema = z.object({
-  message: z.string().min(1, 'Message requis').max(5000),
-  artisan_id: z.string().uuid('artisan_id doit être un UUID valide'),
+  message: z.string().min(1, 'Message requis').max(5000).optional(),
+  artisan_id: z.string().uuid('artisan_id doit être un UUID valide').optional(),
   context: z.record(z.string(), z.unknown()).optional(),
+  financialContext: z.record(z.string(), z.unknown()).optional(),
+  conversationHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(10000),
+  })).max(30).optional(),
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(10000),
+  })).max(30).optional(),
+  systemPrompt: z.string().max(20000).optional(),
+  locale: z.string().max(5).optional(),
 })
 
 // ── Reset Password schema ──────────────────────────────────────────────────
@@ -419,8 +455,7 @@ export const walletScanSchema = z.object({
 
 // ── Save Logo schema ─────────────────────────────────────────────────────────
 export const saveLogoSchema = z.object({
-  artisan_id: z.string().uuid(),
-  logo_base64: z.string().min(10).max(2_000_000), // Max ~1.5 MB
+  base64: z.string().min(10).max(700_000), // Max ~500KB file
   field: z.enum(['logo_url', 'profile_photo_url']).default('logo_url'),
 })
 
@@ -447,6 +482,128 @@ export const walletSyncSchema = z.object({
   docKey: z.string().min(1).max(50),
   hasDocument: z.boolean().optional(),
   expiryDate: z.string().max(20).optional().nullable(),
+})
+
+// ── Artisan Payment Info schema ──────────────────────────────────────────────
+export const artisanPaymentInfoSchema = z.object({
+  paiement_modes: z.array(z.record(z.string(), z.unknown())).max(10),
+  paiement_mention_devis: z.boolean().optional().default(true),
+  paiement_mention_facture: z.boolean().optional().default(true),
+})
+
+// ── Artisan Absence schema (POST) ──────────────────────────────────────────
+export const artisanAbsencePostSchema = z.object({
+  artisan_id: z.string().uuid(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  reason: z.string().max(500).optional(),
+  label: z.string().max(200).optional(),
+})
+
+// ── Referral Click schema ──────────────────────────────────────────────────
+export const referralClickSchema = z.object({
+  code: z.string().min(4).max(12),
+  source: z.string().max(50).optional(),
+})
+
+// ── Referral Signup schema ─────────────────────────────────────────────────
+export const referralSignupSchema = z.object({
+  referral_code: z.string().min(1).max(50),
+  new_user_id: z.string().uuid(),
+  new_user_email: z.string().email().optional(),
+})
+
+// ── Declaration Sociale schema ─────────────────────────────────────────────
+export const declarationSocialeSchema = z.object({
+  action: z.enum(['configurer', 'marquer_declaree']),
+  // Configurer fields
+  type_activite: z.string().max(100).optional(),
+  periodicite: z.string().max(50).optional(),
+  acre_actif: z.boolean().optional(),
+  acre_date_fin: z.string().max(20).optional().nullable(),
+  // Marquer déclarée fields
+  periode_label: z.string().max(50).optional(),
+  date_debut: z.string().max(20).optional(),
+  date_fin: z.string().max(20).optional(),
+  ca_periode: z.number().min(0).max(10_000_000).optional(),
+  taux_applique: z.number().min(0).max(1).optional(),
+  cotisations_estimees: z.number().min(0).max(10_000_000).optional(),
+  date_limite: z.string().max(20).optional(),
+})
+
+// ── Service Etapes schema ──────────────────────────────────────────────────
+export const serviceEtapesSchema = z.object({
+  artisan_id: z.string().uuid(),
+  service_id: z.string().uuid(),
+  etapes: z.array(z.record(z.string(), z.unknown())).max(50),
+})
+
+// ── Rapport IA schema ──────────────────────────────────────────────────────
+export const rapportIaSchema = z.object({
+  booking_id: z.string().uuid(),
+})
+
+// ── Pro Channel schema ─────────────────────────────────────────────────────
+export const proChannelSchema = z.object({
+  artisan_id: z.string().uuid(),
+  target_artisan_id: z.string().uuid().optional(),
+  content: z.string().max(5000).optional(),
+  type: z.string().max(50).optional(),
+})
+
+// ── Simulateur Travaux schema ──────────────────────────────────────────────
+export const simulateurTravauxSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(10000),
+  })).min(1).max(30),
+})
+
+// ── Copro AI schema ────────────────────────────────────────────────────────
+export const coproAiSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(10000),
+  })).min(1).max(30),
+  systemPrompt: z.string().max(20000).optional(),
+  stream: z.boolean().optional(),
+})
+
+// ── Fixy Chat schema ───────────────────────────────────────────────────────
+export const fixyChatSchema = z.object({
+  message: z.string().min(1).max(5000),
+  role: z.string().max(50).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
+  conversation_history: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string().max(10000),
+  })).max(30).optional(),
+  locale: z.string().max(5).optional(),
+  stream: z.boolean().optional(),
+})
+
+// ── Tracking Update schema ─────────────────────────────────────────────────
+export const trackingUpdateSchema = z.object({
+  token: z.string().min(1).max(100),
+  status: z.string().max(50),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+})
+
+// ── Email Agent Action schema ──────────────────────────────────────────────
+export const emailAgentActionSchema = z.object({
+  action: z.string().min(1).max(50),
+  email_id: z.string().max(200).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
+})
+
+// ── Artisan Photos schema ──────────────────────────────────────────────────
+export const artisanPhotosSchema = z.object({
+  artisan_id: z.string().uuid(),
+  photo_url: z.string().max(2_000_000).optional(),
+  photo_base64: z.string().max(2_000_000).optional(),
+  description: z.string().max(500).optional(),
+  category: z.string().max(100).optional(),
 })
 
 // ── String sanitizer (XSS prevention) ────────────────────────────────────────
