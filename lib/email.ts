@@ -375,3 +375,65 @@ export function templateGenericNotif(params: {
 
   return { subject, html: baseLayout(content, locale) }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BOOKING TRANSACTIONAL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function templateBookingCreated(p: { artisanName: string; clientName: string; serviceName: string; bookingDate: string; bookingTime?: string; address?: string; locale?: string }) {
+  const isPt = (p.locale || 'fr') === 'pt'
+  const subject = isPt ? `Nova marcação de ${p.clientName}` : `Nouvelle réservation de ${p.clientName}`
+  const content = `
+    <h2 style="color:#0D1B2E;font-size:20px;margin:0 0 16px;">${isPt ? 'Nova marcação recebida' : 'Nouvelle réservation reçue'}</h2>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Olá' : 'Bonjour'} <strong>${p.artisanName}</strong>,</p>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Recebeu um novo pedido de marcação.' : 'Vous avez reçu une nouvelle demande de réservation.'}</p>
+    <div style="background:#F7F4EE;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:0 0 8px;font-size:14px;"><strong>${isPt ? 'Cliente' : 'Client'} :</strong> ${p.clientName}</p>
+      <p style="margin:0 0 8px;font-size:14px;"><strong>${isPt ? 'Serviço' : 'Service'} :</strong> ${p.serviceName}</p>
+      <p style="margin:0;font-size:14px;"><strong>${isPt ? 'Data' : 'Date'} :</strong> ${p.bookingDate}${p.bookingTime ? ` ${isPt ? 'às' : 'à'} ${p.bookingTime}` : ''}</p>
+    </div>
+    <a href="https://vitfix.io/pro/dashboard" style="display:inline-block;background:#FFC107;color:#0D1B2E;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">${isPt ? 'Ver no meu dashboard' : 'Voir dans mon dashboard'}</a>`
+  return { subject, html: baseLayout(content, p.locale || 'fr') }
+}
+
+export function templateBookingConfirmed(p: { clientName: string; artisanName: string; companyName: string; serviceName: string; bookingDate: string; bookingTime?: string; locale?: string }) {
+  const isPt = (p.locale || 'fr') === 'pt'
+  const subject = isPt ? `Marcação confirmada — ${p.companyName}` : `Réservation confirmée — ${p.companyName}`
+  const content = `
+    <h2 style="color:#0D1B2E;font-size:20px;margin:0 0 16px;">${isPt ? '✅ Marcação confirmada' : '✅ Réservation confirmée'}</h2>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Olá' : 'Bonjour'} <strong>${p.clientName}</strong>,</p>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'A sua marcação foi confirmada.' : 'Votre réservation a été confirmée.'}</p>
+    <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:0 0 8px;font-size:14px;"><strong>${isPt ? 'Profissional' : 'Artisan'} :</strong> ${p.artisanName} (${p.companyName})</p>
+      <p style="margin:0 0 8px;font-size:14px;"><strong>${isPt ? 'Serviço' : 'Service'} :</strong> ${p.serviceName}</p>
+      <p style="margin:0;font-size:14px;"><strong>${isPt ? 'Data' : 'Date'} :</strong> ${p.bookingDate}${p.bookingTime ? ` ${isPt ? 'às' : 'à'} ${p.bookingTime}` : ''}</p>
+    </div>
+    <a href="https://vitfix.io/client/dashboard" style="display:inline-block;background:#FFC107;color:#0D1B2E;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">${isPt ? 'Ver detalhes' : 'Voir les détails'}</a>`
+  return { subject, html: baseLayout(content, p.locale || 'fr') }
+}
+
+export function templateBookingReminder(p: { clientName: string; artisanName: string; companyName: string; serviceName: string; bookingDate: string; bookingTime?: string; address?: string; locale?: string }) {
+  const isPt = (p.locale || 'fr') === 'pt'
+  const subject = isPt ? `Lembrete: marcação amanhã com ${p.companyName}` : `Rappel : intervention demain avec ${p.companyName}`
+  const content = `
+    <h2 style="color:#0D1B2E;font-size:20px;margin:0 0 16px;">${isPt ? '🔔 Lembrete para amanhã' : '🔔 Rappel pour demain'}</h2>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Olá' : 'Bonjour'} <strong>${p.clientName}</strong>,</p>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'A sua intervenção está agendada para amanhã.' : 'Votre intervention est prévue demain.'}</p>
+    <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:12px;padding:20px;margin:20px 0;">
+      <p style="margin:0 0 8px;font-size:14px;"><strong>${isPt ? 'Profissional' : 'Artisan'} :</strong> ${p.artisanName} (${p.companyName})</p>
+      <p style="margin:0 0 8px;font-size:14px;"><strong>${isPt ? 'Serviço' : 'Service'} :</strong> ${p.serviceName}</p>
+      <p style="margin:0;font-size:14px;"><strong>${isPt ? 'Data' : 'Date'} :</strong> ${p.bookingDate}${p.bookingTime ? ` ${isPt ? 'às' : 'à'} ${p.bookingTime}` : ''}</p>
+    </div>`
+  return { subject, html: baseLayout(content, p.locale || 'fr') }
+}
+
+export function templateBookingCompleted(p: { clientName: string; artisanName: string; companyName: string; serviceName: string; locale?: string }) {
+  const isPt = (p.locale || 'fr') === 'pt'
+  const subject = isPt ? 'Intervenção concluída — deixe a sua opinião' : 'Intervention terminée — donnez votre avis'
+  const content = `
+    <h2 style="color:#0D1B2E;font-size:20px;margin:0 0 16px;">${isPt ? '✅ Intervenção concluída' : '✅ Intervention terminée'}</h2>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Olá' : 'Bonjour'} <strong>${p.clientName}</strong>,</p>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? `A intervenção de <strong>${p.artisanName}</strong> (${p.companyName}) para <strong>${p.serviceName}</strong> foi concluída.` : `L'intervention de <strong>${p.artisanName}</strong> (${p.companyName}) pour <strong>${p.serviceName}</strong> est terminée.`}</p>
+    <a href="https://vitfix.io/client/dashboard" style="display:inline-block;background:#FFC107;color:#0D1B2E;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin-top:12px;">${isPt ? '⭐ Avaliar o profissional' : '⭐ Évaluer l\'artisan'}</a>`
+  return { subject, html: baseLayout(content, p.locale || 'fr') }
+}

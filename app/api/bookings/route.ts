@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { createBookingSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { sendEmail, templateBookingCreated } from '@/lib/email'
 
 // GET: Fetch future bookings for an artisan (public — only slot data, no personal info)
 export async function GET(request: NextRequest) {
@@ -180,6 +181,22 @@ export async function POST(request: NextRequest) {
             },
             created_at: new Date().toISOString(),
           })
+
+        // Send email to artisan
+        const { data: artisanAuthData } = await supabaseAdmin.auth.admin.getUserById(artisanProfile.user_id)
+        if (artisanAuthData?.user?.email) {
+          const emailData = templateBookingCreated({
+            artisanName: artisanProfile.company_name || 'Artisan',
+            clientName,
+            serviceName,
+            bookingDate: dateFormatted,
+            bookingTime: timeFormatted,
+            address: address || undefined,
+          })
+          sendEmail({ to: artisanAuthData.user.email, ...emailData }).catch(e =>
+            logger.warn('[bookings] Email send failed:', { error: String(e) })
+          )
+        }
       }
     } catch (notifErr) {
       // Don't fail booking creation if notification fails
