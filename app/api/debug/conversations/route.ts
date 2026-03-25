@@ -4,5 +4,10 @@ import { NextResponse } from 'next/server'
 // Exposait les conversations complètes, remplacé par 404 permanent.
 
 export async function GET() {
-  return NextResponse.json({ error: 'Endpoint supprimé' }, { status: 404 })
+  try {
+    return NextResponse.json({ error: 'Endpoint supprimé' }, { status: 404 })
+  } catch (err) {
+    console.error('[debug/conversations/GET] Unexpected error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
