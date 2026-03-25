@@ -110,6 +110,15 @@ export async function middleware(request: NextRequest) {
     // Has locale prefix → extract and strip for auth route checks
     locale = pathLocale
     strippedPathname = stripLocalePrefix(pathname, locale)
+
+    // Admin routes live outside locale folders — strip the prefix and redirect
+    if (strippedPathname.startsWith('/admin/') || strippedPathname === '/admin') {
+      const url = request.nextUrl.clone()
+      url.pathname = strippedPathname
+      const response = NextResponse.redirect(url)
+      response.headers.set('Content-Security-Policy', cspHeader)
+      return response
+    }
   }
 
   // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll) ──
