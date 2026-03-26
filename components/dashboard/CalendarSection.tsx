@@ -586,44 +586,75 @@ export default function CalendarSection(props: CalendarSectionProps) {
               </div>
 
               <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div>
-                    <div className="v22-form-label" style={{ marginBottom: 2 }}>Motif</div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{selectedBooking.services?.name || 'Service'}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
-                    <div className="v22-form-label" style={{ marginBottom: 2 }}>Date</div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{new Date(selectedBooking.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-                  </div>
-                  <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
-                    <div className="v22-form-label" style={{ marginBottom: 2 }}>Heure</div>
-                    <div className="v22-mono" style={{ fontWeight: 600, fontSize: 13 }}>{selectedBooking.booking_time?.substring(0, 5)}</div>
-                  </div>
-                </div>
-                {selectedBooking.duration_minutes && (
-                  <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
-                    <div className="v22-form-label" style={{ marginBottom: 2 }}>Duree</div>
-                    <div className="v22-mono" style={{ fontWeight: 600, fontSize: 13 }}>{Math.floor(selectedBooking.duration_minutes / 60)}h{selectedBooking.duration_minutes % 60 > 0 ? String(selectedBooking.duration_minutes % 60).padStart(2, '0') : '00'}</div>
-                  </div>
-                )}
-                <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
-                  <div className="v22-form-label" style={{ marginBottom: 2 }}>Adresse</div>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{selectedBooking.address || 'Non renseignee'}</div>
-                </div>
-                {selectedBooking.notes && (
-                  <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 4 }}>
-                    <div className="v22-form-label" style={{ marginBottom: 2 }}>Notes</div>
-                    <div style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{selectedBooking.notes}</div>
-                  </div>
-                )}
-                {selectedBooking.price_ttc && (
-                  <div style={{ padding: 10, background: 'var(--v22-green-light)', borderRadius: 4 }}>
-                    <div className="v22-form-label" style={{ marginBottom: 2 }}>Montant TTC</div>
-                    <div className="v22-amount" style={{ fontSize: 16 }}>{formatPrice(selectedBooking.price_ttc)}</div>
-                  </div>
-                )}
+                {/* Badge auto-accept vs validation requise */}
+                {(() => {
+                  const isAutoConfirmed = selectedBooking.status === 'confirmed' && selectedBooking.confirmed_at && selectedBooking.created_at &&
+                    Math.abs(new Date(selectedBooking.confirmed_at).getTime() - new Date(selectedBooking.created_at).getTime()) < 60000
+                  if (isAutoConfirmed) return (
+                    <div style={{ padding: '8px 12px', background: '#dcfce7', borderRadius: 6, border: '1px solid #bbf7d0', fontSize: 12, color: '#166534' }}>
+                      ✅ RDV automatiquement confirmé — aucune action requise
+                    </div>
+                  )
+                  if (selectedBooking.status === 'pending') return (
+                    <div style={{ padding: '8px 12px', background: '#fef9c3', borderRadius: 6, border: '1px solid #fde68a', fontSize: 12, color: '#92400e' }}>
+                      ⏳ Validation requise — acceptez ou refusez ce rendez-vous
+                    </div>
+                  )
+                  return null
+                })()}
+
+                {/* Infos client structurées */}
+                {(() => {
+                  const notes = selectedBooking.notes || ''
+                  const clientName = notes.match(/Client:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+                  const clientPhone = notes.match(/T[ée]l(?:[ée]phone)?:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+                  const clientEmail = notes.match(/Email:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+                  const cleanNotes = notes.replace(/Client:\s*[^|.\n]+/i, '').replace(/T[ée]l(?:[ée]phone)?:\s*[^|.\n]+/i, '').replace(/Email:\s*[^|.\n]+/i, '').replace(/\|/g, '').trim()
+                  return (
+                    <>
+                      {/* Tableau client */}
+                      <div style={{ border: '1px solid var(--v22-border)', borderRadius: 6, overflow: 'hidden' }}>
+                        <div style={{ padding: '6px 10px', background: '#0d0d0d', color: '#fff', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>INFORMATIONS CLIENT</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', fontSize: 13 }}>
+                          {clientName && <><div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Client</div><div style={{ padding: '6px 10px', borderBottom: '1px solid var(--v22-border)' }}>{clientName}</div></>}
+                          {clientPhone && <><div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Téléphone</div><div style={{ padding: '6px 10px', borderBottom: '1px solid var(--v22-border)' }}>{clientPhone}</div></>}
+                          {clientEmail && <><div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Email</div><div style={{ padding: '6px 10px', borderBottom: '1px solid var(--v22-border)' }}>{clientEmail}</div></>}
+                        </div>
+                      </div>
+
+                      {/* Tableau intervention */}
+                      <div style={{ border: '1px solid var(--v22-border)', borderRadius: 6, overflow: 'hidden' }}>
+                        <div style={{ padding: '6px 10px', background: '#0d0d0d', color: '#fff', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>DÉTAILS INTERVENTION</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', fontSize: 13 }}>
+                          <div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Motif</div>
+                          <div style={{ padding: '6px 10px', fontWeight: 600, borderBottom: '1px solid var(--v22-border)' }}>{selectedBooking.services?.name || 'Service'}</div>
+                          <div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Date</div>
+                          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--v22-border)' }}>{new Date(selectedBooking.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                          <div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Heure</div>
+                          <div style={{ padding: '6px 10px', fontFamily: 'monospace', borderBottom: '1px solid var(--v22-border)' }}>{selectedBooking.booking_time?.substring(0, 5) || '—'}</div>
+                          {selectedBooking.duration_minutes && <>
+                            <div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Durée</div>
+                            <div style={{ padding: '6px 10px', fontFamily: 'monospace', borderBottom: '1px solid var(--v22-border)' }}>{Math.floor(selectedBooking.duration_minutes / 60)}h{selectedBooking.duration_minutes % 60 > 0 ? String(selectedBooking.duration_minutes % 60).padStart(2, '0') : '00'}</div>
+                          </>}
+                          <div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500, borderBottom: '1px solid var(--v22-border)' }}>Adresse</div>
+                          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--v22-border)' }}>{selectedBooking.address || 'Non renseignée'}</div>
+                          {selectedBooking.price_ttc && <>
+                            <div style={{ padding: '6px 10px', background: 'var(--v22-bg)', fontWeight: 500 }}>Montant</div>
+                            <div style={{ padding: '6px 10px', fontWeight: 700, color: 'var(--v22-green)' }}>{formatPrice(selectedBooking.price_ttc)}</div>
+                          </>}
+                        </div>
+                      </div>
+
+                      {/* Notes additionnelles */}
+                      {cleanNotes && (
+                        <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 6, fontSize: 12, color: 'var(--v22-text-mid)' }}>
+                          <div className="v22-form-label" style={{ marginBottom: 4 }}>Notes</div>
+                          {cleanNotes}
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               <div className="v22-modal-foot" style={{ flexWrap: 'wrap' }}>

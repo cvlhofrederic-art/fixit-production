@@ -454,11 +454,12 @@ export default function DashboardPage() {
   const transformBookingToDevis = (booking: Booking) => {
     const serviceName = booking.services?.name || (isPt ? 'Serviço' : 'Prestation')
     const priceHT = booking.price_ht || 0
-    // Extract client name from notes if stored as "Client: X."
-    let clientName = ''
+    // Parse infos client depuis les notes
     const notesStr = booking.notes || ''
-    const clientMatch = notesStr.match(/Client:\s*([^.]+)/i)
-    if (clientMatch) clientName = clientMatch[1].trim()
+    const clientName = notesStr.match(/Client:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+    const clientPhone = notesStr.match(/T[ée]l(?:[ée]phone)?:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+    const clientEmail = notesStr.match(/Email:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+    const cleanNotes = notesStr.replace(/Client:\s*[^|.\n]+/i, '').replace(/T[ée]l(?:[ée]phone)?:\s*[^|.\n]+/i, '').replace(/Email:\s*[^|.\n]+/i, '').replace(/\|/g, '').trim()
 
     // Récupérer l'unité du motif lié au booking
     const linkedService = services.find(s => s.id === booking.service_id)
@@ -473,7 +474,7 @@ export default function DashboardPage() {
       lineUnit = unitMap[svcUnit] || 'u'
     }
 
-    const defaultTvaRate = isPt ? 23 : 10  // IVA normal PT 23% / TVA réduit FR 10% (rénovation)
+    const defaultTvaRate = isPt ? 23 : 10
     const lines = priceHT > 0
       ? [{ id: 1, description: serviceName, qty: 1, unit: lineUnit, priceHT, tvaRate: defaultTvaRate, totalHT: priceHT }]
       : [{ id: 1, description: serviceName, qty: 1, unit: lineUnit, priceHT: 0, tvaRate: defaultTvaRate, totalHT: 0 }]
@@ -482,12 +483,15 @@ export default function DashboardPage() {
       docType: 'devis' as const,
       docTitle: serviceName,
       clientName,
+      clientEmail,
+      clientPhone,
       clientAddress: booking.address || '',
+      interventionAddress: booking.address || '',
       prestationDate: booking.booking_date || '',
       lines,
       notes: [
         `Demande du ${booking.booking_date || ''}${booking.booking_time ? ' à ' + booking.booking_time.substring(0, 5) : ''}`,
-        notesStr && !notesStr.match(/Client:/i) ? notesStr : '',
+        cleanNotes || '',
       ].filter(Boolean).join(' — '),
     }
     setConvertingDevis(devisData)
@@ -960,6 +964,19 @@ export default function DashboardPage() {
                           setShowNotifDropdown(false)
                           // Navigation selon le type
                           if (n.type === 'message' || n.type === 'booking_message') navigateTo('messages')
+                          else if (n.type === 'new_booking') {
+                            // Ouvrir le booking detail directement
+                            const dataJson = typeof n.data_json === 'string' ? JSON.parse(n.data_json || '{}') : (n.data_json || {})
+                            const bookingId = dataJson.booking_id
+                            const found = bookingId ? bookings.find((b: any) => b.id === bookingId) : null
+                            if (found) {
+                              setSelectedBooking(found)
+                              setShowBookingDetail(true)
+                              navigateTo('calendar')
+                            } else {
+                              navigateTo('calendar')
+                            }
+                          }
                           else if (n.type === 'new_mission' || n.type === 'planning_change') navigateTo('calendar')
                           else if (n.type === 'devis_signed') navigateTo('devis')
                           else navigateTo('home')
