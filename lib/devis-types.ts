@@ -23,6 +23,7 @@ export interface ProductLine {
   totalHT: number
   source?: 'etape_motif' | 'manual'  // traçabilité étape → ligne
   etape_id?: string  // lien vers l'étape source
+  etapes?: DevisEtape[]  // étapes d'intervention rattachées à cette prestation
 }
 
 // ═══════════════════════════════════════════════

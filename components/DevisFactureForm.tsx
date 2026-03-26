@@ -581,20 +581,13 @@ export default function DevisFactureForm({
       if (json.etapes?.length) etapesTemplate = json.etapes
     } catch { /* pas d'étapes = pas grave */ }
 
-    if (etapesTemplate.length > 0) {
-      // Remplacer les étapes — chaque sélection de motif écrase les étapes précédentes
-      // Les étapes sont affichées sous la première prestation sur le PDF
-      const copiedEtapes: DevisEtape[] = etapesTemplate.map((et, i) => ({
-        id: `etape_${Date.now()}_${i}`,
-        ordre: i + 1,
-        designation: et.designation,
-        source_etape_id: et.id,
-      }))
-      setDevisEtapes(copiedEtapes)
-    } else {
-      // Motif sans étapes → vider les étapes existantes
-      setDevisEtapes([])
-    }
+    // Stocker les étapes sur la ligne (pas en global)
+    const copiedEtapes: DevisEtape[] = etapesTemplate.map((et, i) => ({
+      id: `etape_${Date.now()}_${i}`,
+      ordre: i + 1,
+      designation: et.designation,
+      source_etape_id: et.id,
+    }))
 
     // Comportement unique : une seule ligne avec nom + description
     {
@@ -613,6 +606,7 @@ export default function DevisFactureForm({
           priceHT: price,
           tvaRate: defaultTvaRate,
           totalHT: 1 * price,
+          etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined,
         }
       }))
     }
@@ -937,7 +931,7 @@ export default function DevisFactureForm({
           total: l.totalHT,
           section: null,
         })),
-        etapes: devisEtapes.filter(e => e.designation.trim()).map(e => ({
+        etapes: lines.flatMap(l => (l.etapes || []).filter(e => e.designation.trim())).map(e => ({
           ordre: e.ordre,
           designation: e.designation,
         })),
@@ -1319,13 +1313,6 @@ export default function DevisFactureForm({
         ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
         : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
 
-      // Build étapes text to inject into first prestation that has them
-      const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-      const etapesText = etapesSorted.length > 0
-        ? '\n' + etapesSorted.map((e, i) => `${i + 1}. ${e.designation}`).join('\n')
-        : ''
-      let etapesInjected = false
-
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
         const unitStr = formatUnitForPdf(l.unit, l.customUnit)
         const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
@@ -1334,10 +1321,12 @@ export default function DevisFactureForm({
         const title = parts[0]
         const detail = parts.slice(1).join('\n').trim()
         let displayDesc = detail ? `${title}\n${detail}` : title
-        // Inject étapes into the first prestation (aligned with description text, no extra indent)
-        if (!etapesInjected && etapesText) {
-          displayDesc += etapesText
-          etapesInjected = true
+        // Inject étapes de cette prestation (alignées avec le reste du texte)
+        if (l.etapes && l.etapes.length > 0) {
+          const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+          if (sortedEtapes.length > 0) {
+            displayDesc += '\n' + sortedEtapes.map((e, i) => `${i + 1}. ${e.designation}`).join('\n')
+          }
         }
         const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
@@ -2149,7 +2138,7 @@ export default function DevisFactureForm({
     iban,
     bic,
     lines,
-    etapes: devisEtapes.length > 0 ? devisEtapes : undefined,
+    etapes: lines.some(l => l.etapes?.length) ? lines.flatMap(l => l.etapes || []) : undefined,
     notes,
     acomptesEnabled,
     acomptes: acomptesEnabled && acomptes.length > 0 ? acomptes : undefined,
@@ -2900,28 +2889,28 @@ export default function DevisFactureForm({
                                         </div>
                                       </div>
                                     )}
-                                    {/* Étapes — petit bloc gris sous la description */}
-                                    {devisEtapes.length > 0 && (
+                                    {/* Étapes — petit bloc gris sous la description (par ligne) */}
+                                    {(line.etapes && line.etapes.length > 0) && (
                                       <div style={{
                                         marginTop: 4, padding: '4px 8px',
                                         background: '#f3f4f6', border: '1px solid #e5e7eb',
                                         borderRadius: 4, fontSize: 11, color: '#6b7280', lineHeight: 1.6,
                                       }}>
-                                        {devisEtapes.sort((a, b) => a.ordre - b.ordre).map((et, i) => (
+                                        {[...line.etapes].sort((a, b) => a.ordre - b.ordre).map((et, i) => (
                                           <div key={et.id} style={{ display: 'flex', gap: 3, alignItems: 'baseline' }}>
                                             <span style={{ color: '#9ca3af', minWidth: 14 }}>{i+1}.</span>
                                             <input
                                               type="text" value={et.designation}
-                                              onChange={(e) => setDevisEtapes(prev => prev.map(x => x.id === et.id ? {...x, designation: e.target.value} : x))}
+                                              onChange={(e) => setLines(prev => prev.map(ln => ln.id !== line.id ? ln : { ...ln, etapes: (ln.etapes || []).map(x => x.id === et.id ? {...x, designation: e.target.value} : x) }))}
                                               style={{ flex: 1, fontSize: 11, color: '#6b7280', background: 'transparent', border: 'none', outline: 'none', padding: 0 }}
                                             />
-                                            <button onClick={() => setDevisEtapes(prev => prev.filter(x => x.id !== et.id))}
+                                            <button onClick={() => setLines(prev => prev.map(ln => ln.id !== line.id ? ln : { ...ln, etapes: (ln.etapes || []).filter(x => x.id !== et.id) }))}
                                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, color: '#d1d5db', padding: 0 }}>✕</button>
                                           </div>
                                         ))}
                                         <button onClick={() => {
                                           const newId = `etape_manual_${Date.now()}`
-                                          setDevisEtapes(prev => [...prev, { id: newId, ordre: prev.length + 1, designation: '' }])
+                                          setLines(prev => prev.map(ln => ln.id !== line.id ? ln : { ...ln, etapes: [...(ln.etapes || []), { id: newId, ordre: (ln.etapes || []).length + 1, designation: '' }] }))
                                         }} style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 0' }}>+ étape</button>
                                       </div>
                                     )}
