@@ -134,26 +134,28 @@ export default function HomePage() {
     <div className={s.landingPage}>
 
       {/* ══════ NAV ══════ */}
-      <nav className={s.nav}>
-        <div className={s.navInner}>
-          <Link href="/" className={s.navLogo}>
-            <span className={s.logoText}>
-              <span className={s.logoVit}>VIT</span><span className={s.logoFix}>FIX</span>
-            </span>
-          </Link>
-          <ul className={s.navLinks}>
-            <li><a href="#services">{isPt ? 'Serviços' : 'Services'}</a></li>
-            <li><a href="#how">{isPt ? 'Como funciona' : 'Comment ça marche'}</a></li>
-            <li><a href="#espace-pro">{isPt ? 'Espaço Profissional' : 'Espace Artisan'}</a></li>
-            <li><a href="#pricing">{isPt ? 'Preços' : 'Tarifs'}</a></li>
-          </ul>
-          <div className={s.navRight}>
-            <Link href="/auth/login" className={s.btnConnect}>
-              {isPt ? 'Entrar' : 'Se connecter'}
+      <header>
+        <nav className={s.nav}>
+          <div className={s.navInner}>
+            <Link href="/" className={s.navLogo}>
+              <span className={s.logoText}>
+                <span className={s.logoVit}>VIT</span><span className={s.logoFix}>FIX</span>
+              </span>
             </Link>
+            <ul className={s.navLinks}>
+              <li><a href="#services">{isPt ? 'Serviços' : 'Services'}</a></li>
+              <li><a href="#how">{isPt ? 'Como funciona' : 'Comment ça marche'}</a></li>
+              <li><a href="#espace-pro">{isPt ? 'Espaço Profissional' : 'Espace Artisan'}</a></li>
+              <li><a href="#pricing">{isPt ? 'Preços' : 'Tarifs'}</a></li>
+            </ul>
+            <div className={s.navRight}>
+              <Link href="/auth/login" className={s.btnConnect}>
+                {isPt ? 'Entrar' : 'Se connecter'}
+              </Link>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </header>
 
       {/* ══════ HERO ══════ */}
       <section className={s.hero}>
