@@ -96,6 +96,8 @@ export interface DevisFactureData {
   interventionAddress: string
   interventionBatiment?: string
   interventionEtage?: string
+  interventionEspacesCommuns?: string
+  interventionExterieur?: string
   clientPhone: string
   clientSiret: string
   clientType?: string
