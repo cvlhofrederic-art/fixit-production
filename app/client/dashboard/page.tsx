@@ -8,7 +8,7 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import Image from 'next/image'
-import { Calendar, Clock, MapPin, Star, LogOut, User, Search, ChevronRight, Pencil, Save, X, Home, Shield, FileText, CheckCircle, AlertTriangle, Copy, Filter, FileSearch, MessageSquare, Send, LayoutDashboard, Wrench, Zap, Paintbrush, Hammer, Snowflake, BrickWall, Calculator } from 'lucide-react'
+import { Calendar, Clock, MapPin, Star, LogOut, User, Search, ChevronRight, Pencil, Save, X, Home, Shield, FileText, CheckCircle, AlertTriangle, Copy, Filter, FileSearch, MessageSquare, Send, LayoutDashboard, Wrench, Zap, Paintbrush, Hammer, Snowflake, BrickWall, Calculator, CreditCard } from 'lucide-react'
 import FixyChatGeneric from '@/components/chat/FixyChatGeneric'
 import SimulateurDevisClient from '@/app/fr/simulateur-devis/SimulateurDevisClient'
 import dynamic from 'next/dynamic'
@@ -87,7 +87,7 @@ export default function ClientDashboardPage() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'upcoming' | 'past' | 'messages' | 'documents' | 'logement' | 'analyse' | 'simulateur' | 'marches' | 'profile'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'upcoming' | 'past' | 'messages' | 'documents' | 'logement' | 'analyse' | 'simulateur' | 'marches' | 'paiements' | 'profile'>('dashboard')
   const [myMarches, setMyMarches] = useState<any[]>([])
   const [marchesLoading, setMarchesLoading] = useState(false)
   const fetchMyMarches = useCallback(async (userId: string) => {
@@ -908,6 +908,7 @@ export default function ClientDashboardPage() {
     { key: 'analyse', icon: <FileSearch className="w-[18px] h-[18px]" />, label: t('clientDash.tabs.analyseDevis') },
     { key: 'simulateur', icon: <Calculator className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Simulador' : 'Simulateur devis' },
     { key: 'marches', icon: <Hammer className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Bolsa de Mercados' : 'Bourse aux Marchés' },
+    { key: 'paiements', icon: <CreditCard className="w-[18px] h-[18px]" />, label: locale === 'pt' ? 'Pagamentos' : 'Mes paiements' },
   ]
   const accountItems: { key: typeof activeTab; icon: React.ReactNode; label: string }[] = [
     { key: 'profile', icon: <User className="w-[18px] h-[18px]" />, label: t('clientDash.tabs.profile') },
@@ -2369,6 +2370,64 @@ export default function ClientDashboardPage() {
             </div>
           </div>
           )}
+
+          {/* ── PAIEMENTS TAB ── */}
+          {activeTab === 'paiements' && (() => {
+            const completedBookings = bookings.filter(b => b.status === 'completed' && b.price_ttc > 0)
+            const totalSpent = completedBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0)
+            const avgSpent = completedBookings.length > 0 ? totalSpent / completedBookings.length : 0
+            return (
+              <div className="space-y-6">
+                <h2 className="text-xl font-display font-black tracking-[-0.02em] text-dark flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-amber-600" />
+                  {locale === 'pt' ? 'Os meus pagamentos' : 'Mes paiements'}
+                </h2>
+
+                {/* Stats cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-sm p-5 text-center">
+                    <div className="text-2xl font-bold text-dark">{formatPrice(totalSpent)}</div>
+                    <div className="text-sm text-text-muted mt-1">{locale === 'pt' ? 'Total gasto' : 'Total dépensé'}</div>
+                  </div>
+                  <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-sm p-5 text-center">
+                    <div className="text-2xl font-bold text-dark">{completedBookings.length}</div>
+                    <div className="text-sm text-text-muted mt-1">{locale === 'pt' ? 'Intervenções' : 'Interventions'}</div>
+                  </div>
+                  <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-sm p-5 text-center">
+                    <div className="text-2xl font-bold text-dark">{formatPrice(avgSpent)}</div>
+                    <div className="text-sm text-text-muted mt-1">{locale === 'pt' ? 'Média' : 'Dépense moyenne'}</div>
+                  </div>
+                </div>
+
+                {/* Payment list */}
+                {completedBookings.length === 0 ? (
+                  <div className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-sm p-12 text-center">
+                    <div className="text-5xl mb-4">💳</div>
+                    <h3 className="text-lg font-display font-bold text-dark mb-2">{locale === 'pt' ? 'Nenhum pagamento' : 'Aucun paiement'}</h3>
+                    <p className="text-text-muted">{locale === 'pt' ? 'Os seus pagamentos aparecerão aqui após as intervenções.' : 'Vos paiements apparaîtront ici après les interventions.'}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {completedBookings
+                      .sort((a, b) => new Date(b.booking_date || '').getTime() - new Date(a.booking_date || '').getTime())
+                      .map(b => (
+                        <div key={b.id} className="bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-lg flex-shrink-0">✅</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-sm text-dark">{(b as any).profiles_artisan?.company_name || 'Artisan'}</div>
+                            <div className="text-xs text-text-muted">{(b as any).services?.name || 'Service'}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {b.booking_date ? new Date(b.booking_date + 'T12:00:00').toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+                            </div>
+                          </div>
+                          <div className="text-lg font-bold text-dark">{formatPrice(b.price_ttc || 0)}</div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* ── PROFILE TAB ── */}
           {activeTab === 'profile' && (
