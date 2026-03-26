@@ -148,7 +148,7 @@ export default function DevisSection({
                             setShowDevisForm(true)
                           }}
                             className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Duplicar orçamento' : 'Dupliquer le devis'}>
-                            {'🔁'}
+                            {'🔄'}
                           </button>
                           <button onClick={() => convertDevisToFacture(doc)}
                             className="v22-btn v22-btn-sm v22-btn-primary" title={t('proDash.devis.convertirFacture')}>
