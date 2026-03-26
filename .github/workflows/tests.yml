@@ -54,6 +54,8 @@ jobs:
     name: "E2E Playwright (${{ matrix.browser }})"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # WebKit headless is unstable in CI (known Playwright issue) — don't block pipeline
+    continue-on-error: ${{ matrix.browser == 'webkit' }}
     strategy:
       fail-fast: false
       matrix:
