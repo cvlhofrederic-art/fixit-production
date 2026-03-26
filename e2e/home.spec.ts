@@ -51,8 +51,8 @@ test.describe('Homepage', () => {
     // Wait for content to hydrate
     await page.waitForSelector('h1', { timeout: 15_000 })
 
-    // The homepage displays service categories
-    await expect(page.getByText('Plomberie').first()).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText('Serrurerie').first()).toBeVisible({ timeout: 10_000 })
+    // The homepage displays service cards as headings (avoid matching hidden <option> in <select>)
+    await expect(page.getByRole('heading', { name: 'Plomberie' }).first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('heading', { name: 'Serrurerie' }).first()).toBeVisible({ timeout: 10_000 })
   })
 })
