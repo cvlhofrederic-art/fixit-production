@@ -3625,8 +3625,7 @@ export default function DevisFactureForm({
             {docType === 'devis' && (
               <div className="v22-card">
                 <div className="v22-card-head">
-                  <span className="v22-card-title">{locale === 'pt' ? 'Assinatura' : 'Signature'}</span>
-                  {signatureData && <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}>{locale === 'pt' ? 'Assinado' : 'Signé'}</span>}
+                  <span className="v22-card-title">{locale === 'pt' ? 'Pré-visualização' : 'Aperçu'}</span>
                 </div>
                 <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {signatureData ? (
