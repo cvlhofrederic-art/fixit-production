@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { supabase } from '@/lib/supabase'
 import DeclarationSocialeSection from '@/components/dashboard/DeclarationSocialeSection'
 
 /* ══════════ AGENT COMPTABLE LÉA ══════════ */
@@ -86,9 +87,15 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     setIsLoading(true)
 
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setMessages(prev => [...prev, { role: 'assistant', content: isPt ? '🔒 Sessão expirada. Por favor, reconecte-se.' : '🔒 Session expirée. Veuillez vous reconnecter.' }])
+        setIsLoading(false)
+        return
+      }
       const res = await fetch('/api/comptable-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({
           message: text.trim(),
           financialContext,
@@ -96,6 +103,16 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
           locale,
         }),
       })
+      if (!res.ok) {
+        const errMsg = res.status === 401
+          ? (isPt ? '🔒 Sessão expirada. Reconecte-se.' : '🔒 Session expirée. Reconnectez-vous.')
+          : res.status === 429
+            ? (isPt ? '⏳ Demasiados pedidos. Aguarde um momento.' : '⏳ Trop de requêtes. Patientez un instant.')
+            : (isPt ? `❌ Erro do servidor (${res.status})` : `❌ Erreur serveur (${res.status})`)
+        setMessages(prev => [...prev, { role: 'assistant', content: errMsg }])
+        setIsLoading(false)
+        return
+      }
       const data = await res.json()
       const responseText = data.response || (isPt ? 'Não foi possível gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Veuillez réessayer.')
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }])
