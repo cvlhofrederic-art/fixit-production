@@ -16,11 +16,13 @@ test.describe('Homepage', () => {
 
   test('header navigation is present', async ({ page }) => {
     await page.goto('/fr/', { waitUntil: 'networkidle' })
+    // Wait for React hydration
+    await page.waitForSelector('header', { timeout: 15_000 })
     const header = page.locator('header')
     await expect(header).toBeVisible()
 
     // VITFIX logo / brand name should be in the header
-    await expect(header.getByText('VITFIX', { exact: true }).first()).toBeVisible()
+    await expect(header.getByText('VITFIX', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
     // Desktop nav with role="navigation" exists
     const nav = header.locator('nav')
@@ -46,9 +48,11 @@ test.describe('Homepage', () => {
 
   test('services section lists artisan categories', async ({ page }) => {
     await page.goto('/fr/', { waitUntil: 'networkidle' })
+    // Wait for content to hydrate
+    await page.waitForSelector('h1', { timeout: 15_000 })
 
     // The homepage displays service cards (Plomberie, Electricite, etc.)
-    await expect(page.getByText('Plomberie').first()).toBeVisible()
-    await expect(page.getByText('Serrurerie').first()).toBeVisible()
+    await expect(page.getByText('Plomberie').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Serrurerie').first()).toBeVisible({ timeout: 10_000 })
   })
 })

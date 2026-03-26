@@ -3,10 +3,12 @@ import { test, expect } from '@playwright/test'
 test.describe('Accessibility (a11y)', () => {
   test('homepage has correct ARIA landmarks', async ({ page }) => {
     await page.goto('/fr/', { waitUntil: 'networkidle' })
+    // Wait for React hydration
+    await page.waitForSelector('header', { timeout: 15_000 })
 
     // Must have a <main> landmark
     const main = page.locator('main')
-    await expect(main.first()).toBeAttached()
+    await expect(main.first()).toBeAttached({ timeout: 10_000 })
 
     // Must have a <header> landmark
     const header = page.locator('header')
