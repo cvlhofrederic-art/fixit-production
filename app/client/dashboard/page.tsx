@@ -90,6 +90,8 @@ export default function ClientDashboardPage() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'upcoming' | 'past' | 'messages' | 'documents' | 'logement' | 'analyse' | 'simulateur' | 'marches' | 'paiements' | 'profile'>('dashboard')
   const [myMarches, setMyMarches] = useState<any[]>([])
   const [marchesLoading, setMarchesLoading] = useState(false)
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareSelection, setCompareSelection] = useState<string[]>([])
   const fetchMyMarches = useCallback(async (userId: string) => {
     setMarchesLoading(true)
     try {
@@ -1369,14 +1371,87 @@ export default function ClientDashboardPage() {
               <h2 className="text-xl font-display font-black tracking-[-0.02em] text-dark flex items-center gap-2">
                 <FileText className="w-5 h-5 text-amber-600" /> Devis & Factures
               </h2>
-              <button
-                onClick={fetchDocuments}
-                disabled={documentsLoading}
-                className="text-xs text-text-muted hover:text-[#FFC107] transition"
-              >
-                {documentsLoading ? (locale === 'pt' ? 'A carregar...' : 'Chargement...') : (locale === 'pt' ? 'Atualizar' : 'Actualiser')}
-              </button>
+              <div className="flex items-center gap-2">
+                {documents.filter(d => d.type === 'devis_sent').length >= 2 && (
+                  <button
+                    onClick={() => { setCompareMode(!compareMode); setCompareSelection([]) }}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${compareMode ? 'bg-[#FFC107] text-dark' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
+                  >
+                    {compareMode ? (locale === 'pt' ? '✕ Fechar' : '✕ Fermer') : (locale === 'pt' ? '⚖️ Comparar' : '⚖️ Comparer')}
+                  </button>
+                )}
+                <button
+                  onClick={fetchDocuments}
+                  disabled={documentsLoading}
+                  className="text-xs text-text-muted hover:text-[#FFC107] transition"
+                >
+                  {documentsLoading ? (locale === 'pt' ? 'A carregar...' : 'Chargement...') : (locale === 'pt' ? 'Atualizar' : 'Actualiser')}
+                </button>
+              </div>
             </div>
+
+            {/* Comparateur de devis */}
+            {compareMode && compareSelection.length >= 2 && (() => {
+              const selected = compareSelection.map(id => documents.find(d => d.id === id)).filter(Boolean) as BookingDocument[]
+              return (
+                <div className="bg-white rounded-2xl border-[1.5px] border-[#FFC107] shadow-lg p-6 mb-4">
+                  <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
+                    ⚖️ {locale === 'pt' ? 'Comparação de orçamentos' : 'Comparaison des devis'}
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-gray-100">
+                          <th className="text-left py-2 px-3 text-gray-500 font-medium">{locale === 'pt' ? 'Critério' : 'Critère'}</th>
+                          {selected.map(d => (
+                            <th key={d.id} className="text-center py-2 px-3 font-bold text-dark min-w-[140px]">
+                              {(d as any).booking?.profiles_artisan?.company_name || 'Artisan'}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-gray-50">
+                          <td className="py-2.5 px-3 text-gray-500">N° devis</td>
+                          {selected.map(d => <td key={d.id} className="py-2.5 px-3 text-center font-mono text-xs">{(d.metadata as any)?.docNumber || '-'}</td>)}
+                        </tr>
+                        <tr className="border-b border-gray-50 bg-amber-50/30">
+                          <td className="py-2.5 px-3 text-gray-500 font-semibold">{locale === 'pt' ? 'Montante' : 'Montant'}</td>
+                          {selected.map(d => {
+                            const amounts = selected.map(s => parseFloat(String((s.metadata as any)?.totalStr || '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0)
+                            const thisAmount = parseFloat(String((d.metadata as any)?.totalStr || '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0
+                            const isLowest = thisAmount === Math.min(...amounts.filter(a => a > 0))
+                            return <td key={d.id} className={`py-2.5 px-3 text-center font-bold text-lg ${isLowest ? 'text-green-600' : 'text-dark'}`}>{(d.metadata as any)?.totalStr || '-'} {isLowest && '✓'}</td>
+                          })}
+                        </tr>
+                        <tr className="border-b border-gray-50">
+                          <td className="py-2.5 px-3 text-gray-500">{locale === 'pt' ? 'Prestações' : 'Lignes'}</td>
+                          {selected.map(d => <td key={d.id} className="py-2.5 px-3 text-center">{((d.metadata as any)?.lines || []).length} {locale === 'pt' ? 'itens' : 'postes'}</td>)}
+                        </tr>
+                        <tr className="border-b border-gray-50">
+                          <td className="py-2.5 px-3 text-gray-500">{locale === 'pt' ? 'Data prestaç.' : 'Date presta.'}</td>
+                          {selected.map(d => <td key={d.id} className="py-2.5 px-3 text-center text-xs">{(d.metadata as any)?.prestationDate ? new Date((d.metadata as any).prestationDate).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short' }) : '-'}</td>)}
+                        </tr>
+                        <tr className="border-b border-gray-50">
+                          <td className="py-2.5 px-3 text-gray-500">{locale === 'pt' ? 'Estado' : 'Statut'}</td>
+                          {selected.map(d => <td key={d.id} className="py-2.5 px-3 text-center">{(d.metadata as any)?.signed ? <span className="text-green-600 font-semibold">✅ {locale === 'pt' ? 'Assinado' : 'Signé'}</span> : <span className="text-amber-600">⏳ {locale === 'pt' ? 'Pendente' : 'En attente'}</span>}</td>)}
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 px-3 text-gray-500">{locale === 'pt' ? 'Nota artesão' : 'Note artisan'}</td>
+                          {selected.map(d => <td key={d.id} className="py-2.5 px-3 text-center">⭐ {(d as any).booking?.profiles_artisan?.rating_avg || '5.0'}</td>)}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {compareMode && compareSelection.length < 2 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-700">
+                {locale === 'pt' ? `Selecione ${2 - compareSelection.length} orçamento(s) para comparar` : `Sélectionnez ${2 - compareSelection.length} devis pour comparer`}
+              </div>
+            )}
 
             {documentsLoading && documents.length === 0 ? (
               <div className="space-y-3">
@@ -1409,11 +1484,24 @@ export default function ClientDashboardPage() {
                 return (
                   <div
                     key={doc.id}
-                    className={`bg-white rounded-2xl border-[1.5px] border-[#EFEFEF] shadow-[0_4px_30px_rgba(0,0,0,0.08)] p-5 hover:shadow-lg transition border-l-4 ${
-                      isSigned || isDevisSigned ? 'border-green-400' : 'border-amber-400'
+                    className={`bg-white rounded-2xl border-[1.5px] shadow-[0_4px_30px_rgba(0,0,0,0.08)] p-5 hover:shadow-lg transition border-l-4 ${
+                      compareMode && compareSelection.includes(doc.id) ? 'border-[#FFC107] border-[#FFC107]' :
+                      isSigned || isDevisSigned ? 'border-green-400 border-[#EFEFEF]' : 'border-amber-400 border-[#EFEFEF]'
                     }`}
+                    onClick={() => {
+                      if (!compareMode || !isDevisSent) return
+                      setCompareSelection(prev =>
+                        prev.includes(doc.id) ? prev.filter(id => id !== doc.id) : prev.length < 4 ? [...prev, doc.id] : prev
+                      )
+                    }}
+                    style={compareMode && isDevisSent ? { cursor: 'pointer' } : undefined}
                   >
                     <div className="flex items-start gap-4">
+                      {compareMode && isDevisSent && (
+                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-3 transition ${compareSelection.includes(doc.id) ? 'bg-[#FFC107] border-[#FFC107] text-white' : 'border-gray-300'}`}>
+                          {compareSelection.includes(doc.id) && <Check className="w-4 h-4" />}
+                        </div>
+                      )}
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ${
                         isSigned || isDevisSigned ? 'bg-green-100' : 'bg-amber-100'
                       }`}>
