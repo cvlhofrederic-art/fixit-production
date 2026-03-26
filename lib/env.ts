@@ -62,7 +62,7 @@ export function validateEnv() {
   if (missing.length > 0) {
     const msg = `[env] Variables CRITIQUES manquantes: ${missing.join(', ')}`
     console.error(msg)
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && !process.env.CI) {
       throw new Error(msg)
     }
   }

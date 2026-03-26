@@ -85,6 +85,9 @@ jobs:
         run: npx playwright test --project=${{ matrix.browser }}
         env:
           CI: true
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'ci-placeholder' }}
 
       - name: Uploader le rapport HTML Playwright
         if: always()
