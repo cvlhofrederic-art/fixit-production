@@ -1321,7 +1321,7 @@ export default function DevisFactureForm({
             pdf.setFillColor(bgColor)
             pdf.rect(mL, y - 3, contentW, 5.5, 'F')
             pdf.setTextColor(COLOR_TEXT)
-            pdf.text(`${i + 1}. ${etapesSorted[i].designation}`, mL + 6, y)
+            pdf.text(`${i + 1}. ${etapesSorted[i].designation}`, mL + 4, y)
             y += 5.5
             if (y > pageH - 40) { pdf.addPage(); y = 20 }
           }
