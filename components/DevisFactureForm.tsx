@@ -103,8 +103,59 @@ export default function DevisFactureForm({
   const [clientEmail, setClientEmail] = useState(initialData?.clientEmail || '')
   const [clientAddress, setClientAddress] = useState(initialData?.clientAddress || '')
   const [interventionAddress, setInterventionAddress] = useState(initialData?.interventionAddress || '')
+  const [interventionBatiment, setInterventionBatiment] = useState(initialData?.interventionBatiment || '')
+  const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
   const [clientSiret, setClientSiret] = useState(initialData?.clientSiret || '')
+  const [clientType, setClientType] = useState(initialData?.clientType || '')
+
+  // ─── Client Database Picker ───
+  const [showClientPicker, setShowClientPicker] = useState(false)
+  const [clientDbList, setClientDbList] = useState<Array<{ id: string; name: string; email?: string; phone?: string; type?: string; siret?: string; mainAddress?: string; address?: string; interventionAddresses?: Array<{ id: string; label: string; address: string }> }>>([])
+  const [clientDbSearch, setClientDbSearch] = useState('')
+  const [clientDbLoading, setClientDbLoading] = useState(false)
+  const [selectedClientInterventionAddresses, setSelectedClientInterventionAddresses] = useState<Array<{ id: string; label: string; address: string }>>([])
+
+  // Fetch client database when picker opens
+  const loadClientDb = useCallback(async () => {
+    if (!artisan?.id) return
+    setClientDbLoading(true)
+    try {
+      // Fetch auth clients from API
+      const res = await fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
+      const data = await res.json()
+      const authClients = (data.clients || []).map((c: any) => ({ ...c, source: 'auth' }))
+      // Fetch manual clients from localStorage
+      const manualRaw = localStorage.getItem(`fixit_manual_clients_${artisan.id}`)
+      const manualClients = manualRaw ? JSON.parse(manualRaw).map((c: any) => ({ ...c, source: 'manual' })) : []
+      setClientDbList([...authClients, ...manualClients])
+    } catch { setClientDbList([]) }
+    setClientDbLoading(false)
+  }, [artisan?.id])
+
+  const openClientPicker = () => {
+    setShowClientPicker(true)
+    setClientDbSearch('')
+    loadClientDb()
+  }
+
+  const selectClientFromDb = (client: typeof clientDbList[0]) => {
+    setClientName(client.name || '')
+    setClientEmail(client.email || '')
+    setClientPhone(client.phone || '')
+    setClientAddress(client.mainAddress || client.address || '')
+    setClientSiret(client.siret || '')
+    setClientType(client.type || '')
+    // Store intervention addresses for dropdown
+    setSelectedClientInterventionAddresses(client.interventionAddresses || [])
+    // Reset intervention fields
+    setInterventionAddress('')
+    setInterventionBatiment('')
+    setInterventionEtage('')
+    setShowClientPicker(false)
+  }
+
+  const isProClient = clientSiret.trim().length > 0 || ['syndic', 'professionnel', 'societe', 'conciergerie', 'agence_immobiliere', 'promoteur', 'architecte', 'collectivite', 'association', 'artisan_sous_traitant'].includes(clientType)
 
   const [docDate, setDocDate] = useState(today)
   const [docValidity, setDocValidity] = useState(initialData?.docValidity || 30)
@@ -1123,7 +1174,8 @@ export default function DevisFactureForm({
       dy2 += ptToMm(18)  // label DESTINATAIRE
       dy2 += ptToMm(14)  // nom client
       if (clientAddress) dy2 += ptToMm(14)
-      if (interventionAddress) dy2 += ptToMm(14)
+      if (interventionAddress || interventionBatiment || interventionEtage) dy2 += ptToMm(14)
+      if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
       if (clientPhone) dy2 += ptToMm(14)
       if (clientEmail) dy2 += ptToMm(14)
       if (clientSiret) dy2 += ptToMm(14)
@@ -1182,9 +1234,19 @@ export default function DevisFactureForm({
         const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
         pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
       }
-      if (interventionAddress) {
-        const iAL = pdf.splitTextToSize(`${locale === 'pt' ? 'Local' : 'Intervention'} : ${interventionAddress}`, destMaxW)
-        pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
+      if (interventionAddress || interventionBatiment || interventionEtage) {
+        const interventionLabel = locale === 'pt' ? 'Local' : 'Intervention'
+        if (interventionAddress) {
+          const iAL = pdf.splitTextToSize(`${interventionLabel} : ${interventionAddress}`, destMaxW)
+          pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
+        }
+        // Bâtiment / Étage on a separate line
+        const batEtParts: string[] = []
+        if (interventionBatiment) batEtParts.push(`Bât. ${interventionBatiment}`)
+        if (interventionEtage) batEtParts.push(`Étage ${interventionEtage}`)
+        if (batEtParts.length > 0) {
+          pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
+        }
       }
       if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
       if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
@@ -2071,8 +2133,11 @@ export default function DevisFactureForm({
     clientEmail,
     clientAddress,
     interventionAddress,
+    interventionBatiment,
+    interventionEtage,
     clientPhone,
     clientSiret,
+    clientType,
     docDate,
     docValidity,
     prestationDate,
@@ -2471,8 +2536,13 @@ export default function DevisFactureForm({
 
             {/* ─── Section: Client ─── */}
             <div className="v22-card">
-              <div className="v22-card-head">
+              <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="v22-card-title">{t('devis.clientSection')}</span>
+                <button type="button" onClick={openClientPicker}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--v22-primary)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                  Ajouter client depuis base client
+                </button>
               </div>
               <div className="v22-card-body">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
@@ -2495,17 +2565,65 @@ export default function DevisFactureForm({
                     placeholder={t('devis.clientAddressPlaceholder')}
                     className={normalFieldClass} />
                 </div>
-                {/* Adresse d'intervention — apparaît dès qu'un SIRET client est renseigné (pro/syndic) */}
-                {clientSiret.trim().length > 0 && (
-                  <div className="v22-form-group">
-                    <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {t('devis.interventionAddress')}
-                      <span className="v22-tag v22-tag-amber">{t('devis.interventionAddressClientPro')}</span>
+                {/* Lieu d'intervention — apparaît pour les clients pro/syndic */}
+                {isProClient && (
+                  <div className="v22-form-group" style={{ background: 'var(--v22-bg-alt, #f9fafb)', borderRadius: 10, padding: 12, border: '1px solid var(--v22-border)' }}>
+                    <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      Lieu d&apos;intervention
+                      <span className="v22-tag v22-tag-amber">Client pro</span>
                     </label>
-                    <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
-                      placeholder={t('devis.interventionAddressPlaceholder')}
-                      className={normalFieldClass} />
-                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 3 }}>{t('devis.interventionAddressHint')}</div>
+                    {/* Dropdown of pre-registered addresses OR free text */}
+                    {selectedClientInterventionAddresses.length > 0 ? (
+                      <div style={{ marginBottom: 8 }}>
+                        <select
+                          value={interventionAddress}
+                          onChange={(e) => {
+                            setInterventionAddress(e.target.value)
+                            if (e.target.value === '__custom__') setInterventionAddress('')
+                          }}
+                          className={normalFieldClass}
+                          style={{ marginBottom: 6 }}>
+                          <option value="">-- Sélectionner un lieu enregistré --</option>
+                          {selectedClientInterventionAddresses.map(addr => (
+                            <option key={addr.id} value={addr.address}>
+                              {addr.label}{addr.address ? ` — ${addr.address}` : ''}
+                            </option>
+                          ))}
+                          <option value="__custom__">Saisir un autre lieu...</option>
+                        </select>
+                        {(interventionAddress === '' || !selectedClientInterventionAddresses.some(a => a.address === interventionAddress)) && (
+                          <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
+                            placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
+                            className={normalFieldClass} />
+                        )}
+                      </div>
+                    ) : (
+                      <input type="text" value={interventionAddress} onChange={(e) => setInterventionAddress(e.target.value)}
+                        placeholder="Ex: Résidence Le Mail, 15 rue des Lilas, 13001 Marseille"
+                        className={normalFieldClass}
+                        style={{ marginBottom: 8 }} />
+                    )}
+                    {/* Bâtiment + Étage */}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>Bâtiment</label>
+                        <input type="text" value={interventionBatiment} onChange={(e) => setInterventionBatiment(e.target.value)}
+                          placeholder="Ex: B"
+                          className={normalFieldClass}
+                          style={{ textAlign: 'center' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>Étage</label>
+                        <input type="text" value={interventionEtage} onChange={(e) => setInterventionEtage(e.target.value)}
+                          placeholder="Ex: 6"
+                          className={normalFieldClass}
+                          style={{ textAlign: 'center' }} />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 6 }}>
+                      Adresse du chantier si différente du siège social du client
+                    </div>
                   </div>
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -2524,6 +2642,63 @@ export default function DevisFactureForm({
                 </div>
               </div>
             </div>
+
+            {/* ─── Modal: Sélection client depuis base ─── */}
+            {showClientPicker && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                onClick={(e) => { if (e.target === e.currentTarget) setShowClientPicker(false) }}>
+                <div style={{ background: 'var(--v22-card-bg, #fff)', borderRadius: 14, width: '100%', maxWidth: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--v22-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Sélectionner un client</h3>
+                    <button type="button" onClick={() => setShowClientPicker(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: 'var(--v22-text-muted)' }}>&times;</button>
+                  </div>
+                  <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--v22-border)' }}>
+                    <input type="text" value={clientDbSearch} onChange={(e) => setClientDbSearch(e.target.value)}
+                      placeholder="Rechercher par nom, email, SIRET..."
+                      autoFocus
+                      className={normalFieldClass}
+                      style={{ width: '100%' }} />
+                  </div>
+                  <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+                    {clientDbLoading ? (
+                      <div style={{ textAlign: 'center', padding: 20, color: 'var(--v22-text-muted)' }}>Chargement...</div>
+                    ) : (() => {
+                      const searchLower = clientDbSearch.toLowerCase()
+                      const filteredClients = clientDbList.filter(c => {
+                        if (!clientDbSearch) return true
+                        return [c.name, c.email, c.phone, c.siret, c.mainAddress || c.address].filter(Boolean).some(v => String(v).toLowerCase().includes(searchLower))
+                      })
+                      if (filteredClients.length === 0) return <div style={{ textAlign: 'center', padding: 20, color: 'var(--v22-text-muted)' }}>Aucun client trouvé</div>
+                      return filteredClients.map(c => {
+                        const isPro = Boolean(c.siret?.trim()) || ['syndic', 'professionnel', 'societe', 'conciergerie', 'agence_immobiliere', 'promoteur', 'architecte', 'collectivite', 'association', 'artisan_sous_traitant'].includes(c.type || '')
+                        return (
+                          <button key={c.id} type="button" onClick={() => selectClientFromDb(c)}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', marginBottom: 6, cursor: 'pointer', transition: 'background 0.15s' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--v22-bg-hover, #f3f4f6)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--v22-bg)')}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</span>
+                              {isPro && <span className="v22-tag v22-tag-amber" style={{ fontSize: 10 }}>{c.type === 'syndic' ? 'Syndic' : 'Pro'}</span>}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                              {[c.email, c.phone, c.siret ? `SIRET: ${c.siret}` : null].filter(Boolean).join(' · ')}
+                            </div>
+                            {(c.mainAddress || c.address) && (
+                              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{c.mainAddress || c.address}</div>
+                            )}
+                            {c.interventionAddresses && c.interventionAddresses.length > 0 && (
+                              <div style={{ fontSize: 11, color: 'var(--v22-primary)', marginTop: 2 }}>
+                                {c.interventionAddresses.length} lieu{c.interventionAddresses.length > 1 ? 'x' : ''} d&apos;intervention enregistré{c.interventionAddresses.length > 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ─── Section: Document Info ─── */}
             <div className="v22-card">

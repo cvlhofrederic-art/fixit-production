@@ -93,8 +93,11 @@ export interface DevisFactureData {
   clientEmail: string
   clientAddress: string
   interventionAddress: string
+  interventionBatiment?: string
+  interventionEtage?: string
   clientPhone: string
   clientSiret: string
+  clientType?: string
   // Document
   docDate: string
   docValidity: number
