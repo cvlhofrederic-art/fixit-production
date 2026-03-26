@@ -513,6 +513,7 @@ export default function ArtisanProfilePage() {
 
   // Flow state
   const [step, setStep] = useState<Step>('profile')
+  const [isFavorited, setIsFavorited] = useState(false)
   const [selectedService, setSelectedService] = useState<any>(null)
   const [customMotif, setCustomMotif] = useState('')
   const [useCustomMotif, setUseCustomMotif] = useState(false)
@@ -601,6 +602,23 @@ export default function ArtisanProfilePage() {
   // Track current step in a ref so popstate handler always reads latest
   const stepRef = useRef(step)
   useEffect(() => { stepRef.current = step }, [step])
+
+  // Check if artisan is favorited
+  useEffect(() => {
+    if (!artisan?.id) return
+    const checkFav = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        const res = await fetch('/api/favorites', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.favorites?.some((f: any) => f.artisan_id === artisan.id)) setIsFavorited(true)
+        }
+      } catch { /* silent */ }
+    }
+    checkFav()
+  }, [artisan?.id])
 
   const fetchArtisan = async () => {
     const paramId = params.id as string
@@ -1012,6 +1030,26 @@ export default function ArtisanProfilePage() {
                         <Check className="w-4 h-4" /> {t('Vérifié', 'Verificado')}
                       </span>
                     )}
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { supabase: sb } = await import('@/lib/supabase')
+                          const { data: { session } } = await sb.auth.getSession()
+                          if (!session) { window.location.href = '/fr/login'; return }
+                          if (isFavorited) {
+                            await fetch(`/api/favorites?artisan_id=${artisan.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } })
+                            setIsFavorited(false)
+                          } else {
+                            await fetch('/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ artisan_id: artisan.id }) })
+                            setIsFavorited(true)
+                          }
+                        } catch { /* silent */ }
+                      }}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition ${isFavorited ? 'bg-red-500 text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                      title={isFavorited ? (isPt ? 'Remover dos favoritos' : 'Retirer des favoris') : (isPt ? 'Adicionar aos favoritos' : 'Ajouter aux favoris')}
+                    >
+                      {isFavorited ? '❤️' : '🤍'}
+                    </button>
                   </div>
                   <div className="flex items-center gap-2 opacity-90">
                     <MapPin className="w-4 h-4" />
