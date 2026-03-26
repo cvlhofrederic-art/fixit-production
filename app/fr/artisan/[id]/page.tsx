@@ -1019,6 +1019,15 @@ export default function ArtisanProfilePage() {
                 )}
                 <div className="flex-1 text-white">
                   <h1 className="font-display text-3xl font-black mb-2 tracking-[-0.03em]">{artisan.company_name}</h1>
+                  {/* Online status badge */}
+                  {(() => {
+                    const lastSeen = artisan.last_seen_at ? new Date(artisan.last_seen_at) : null
+                    const now = new Date()
+                    const diffMin = lastSeen ? (now.getTime() - lastSeen.getTime()) / 60000 : Infinity
+                    if (diffMin < 15) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold mb-2 bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full"><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />{isPt ? 'Online' : 'En ligne'}</span>
+                    if (diffMin < 1440) return <span className="inline-flex items-center gap-1.5 text-xs font-semibold mb-2 bg-white/10 text-white/70 px-2.5 py-1 rounded-full"><span className="w-2 h-2 bg-gray-400 rounded-full" />{isPt ? 'Ativo recentemente' : 'Actif récemment'}</span>
+                    return null
+                  })()}
                   <div className="flex flex-wrap items-center gap-4 mb-3">
                     <div className="flex items-center gap-1">
                       <Star className="w-5 h-5 fill-white" />

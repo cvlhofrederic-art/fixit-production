@@ -307,6 +307,8 @@ export default function DashboardPage() {
     }
 
     setArtisan(artisanData)
+    // Ping last_seen_at for online status
+    supabase.from('profiles_artisan').update({ last_seen_at: new Date().toISOString() }).eq('id', artisanData.id).then()
     const cleanBioForDisplay = (artisanData.bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
     setSettingsForm({
       company_name: artisanData.company_name || '',
