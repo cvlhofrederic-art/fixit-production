@@ -179,9 +179,30 @@ export default function DevisFactureForm({
   const [devisEtapes, setDevisEtapes] = useState<DevisEtape[]>(initialData?.etapes || [])
   const [notes, setNotes] = useState(initialData?.notes || (initialData?.docNumber ? (locale === 'pt' ? `Ref. orçamento: ${initialData.docNumber}` : `Réf. devis : ${initialData.docNumber}`) : ''))
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
-  // Acomptes
+  // Acomptes — charger l'échéancier par défaut si pas de données initiales
+  const echeancierStorageKey = `fixit_echeancier_default_${artisan?.id || 'default'}`
+  const loadDefaultEcheancier = (): DevisAcompte[] => {
+    if (typeof window === 'undefined') return [{ id: 'default-1', ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }]
+    try {
+      const saved = localStorage.getItem(echeancierStorageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved) as { label: string; pourcentage: number }[]
+        if (parsed.length > 0) return parsed.map((s, i) => ({ id: crypto.randomUUID(), ordre: i + 1, label: `Acompte ${i + 1}`, pourcentage: s.pourcentage, declencheur: s.label }))
+      }
+    } catch {}
+    return [{ id: 'default-1', ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }]
+  }
   const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled !== undefined ? initialData.acomptesEnabled : true)
-  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || [{ id: 'default-1', ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }])
+  const [acomptes, setAcomptes] = useState<DevisAcompte[]>(initialData?.acomptes || loadDefaultEcheancier())
+  const [echeancierSaved, setEcheancierSaved] = useState(false)
+  const saveEcheancierAsDefault = () => {
+    try {
+      const toSave = acomptes.filter(a => a.pourcentage > 0).map(a => ({ label: a.declencheur, pourcentage: a.pourcentage }))
+      localStorage.setItem(echeancierStorageKey, JSON.stringify(toSave))
+      setEcheancierSaved(true)
+      setTimeout(() => setEcheancierSaved(false), 2000)
+    } catch {}
+  }
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
   const [showSendModal, setShowSendModal] = useState<'pdf' | 'validate' | null>(null)
@@ -3138,16 +3159,25 @@ export default function DevisFactureForm({
                         </div>
                       )
                     })}
-                    {acomptes.length < 4 ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {acomptes.length < 4 ? (
+                        <button
+                          onClick={() => setAcomptes([...acomptes, { id: crypto.randomUUID(), ordre: acomptes.length + 1, label: `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${acomptes.length + 1}`, pourcentage: 0, declencheur: locale === 'pt' ? 'Na entrega' : 'À la livraison' }])}
+                          className="v22-btn" style={{ border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)' }}
+                        >
+                          + {locale === 'pt' ? 'Adicionar adiantamento' : 'Ajouter un acompte'}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{locale === 'pt' ? 'Máximo 4 adiantamentos atingido' : 'Maximum 4 acomptes atteint'}</span>
+                      )}
                       <button
-                        onClick={() => setAcomptes([...acomptes, { id: crypto.randomUUID(), ordre: acomptes.length + 1, label: `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${acomptes.length + 1}`, pourcentage: 0, declencheur: locale === 'pt' ? 'Na entrega' : 'À la livraison' }])}
-                        className="v22-btn" style={{ alignSelf: 'flex-start', border: '1px dashed var(--v22-border-dark)', background: 'var(--v22-surface)' }}
+                        onClick={saveEcheancierAsDefault}
+                        className="v22-btn"
+                        style={{ border: '1px solid var(--v22-border-dark)', background: echeancierSaved ? '#dcfce7' : 'var(--v22-surface)', color: echeancierSaved ? '#16a34a' : 'inherit', fontSize: 12, transition: 'all 0.2s' }}
                       >
-                        + {locale === 'pt' ? 'Adicionar adiantamento' : 'Ajouter un acompte'}
+                        {echeancierSaved ? '✓ Enregistré !' : '💾 Enregistrer comme défaut'}
                       </button>
-                    ) : (
-                      <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{locale === 'pt' ? 'Máximo 4 adiantamentos atingido' : 'Maximum 4 acomptes atteint'}</span>
-                    )}
+                    </div>
                     {(() => {
                       const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
                       const color = totalPct === 100 ? 'var(--v22-green)' : totalPct > 100 ? 'var(--v22-red)' : 'var(--v22-amber)'
