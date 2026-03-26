@@ -1393,6 +1393,7 @@ export default function DevisFactureForm({
         body: tableBody,
         startY: y,
         margin: { left: mL, right: mR },
+        showHead: 'firstPage',
         theme: 'plain',
         headStyles: {
           fillColor: [13, 13, 13],       // Noir #0D0D0D
