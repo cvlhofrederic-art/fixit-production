@@ -18,6 +18,7 @@ import MessagerieArtisan from '@/components/dashboard/MessagerieArtisan'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
+import { useNotifications } from '@/hooks/useNotifications'
 import { parseServiceRange, getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
 import type { Artisan, Service, Booking, Availability, Absence, Notification, ChatMessage, SavedDocument } from '@/lib/types'
 
@@ -81,7 +82,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [activePage, setActivePage] = useState('home')
   const calendarDataLoadedRef = useRef(false)
-  const realtimeErrorCount = useRef(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showDevisForm, setShowDevisForm] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
@@ -99,12 +99,8 @@ export default function DashboardPage() {
   const [showBookingDetail, setShowBookingDetail] = useState(false)
   const [convertingDevis, setConvertingDevis] = useState<any>(null)
   const [savingAvail, setSavingAvail] = useState(false)
-  // ── Notifications temps réel ──
-  const [notifications, setNotifications] = useState<any[]>([])
+  // ── Notifications (extracted to custom hook) ──
   const [showProfileMenu, setShowProfileMenu] = useState(false)
-  const [showNotifDropdown, setShowNotifDropdown] = useState(false)
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
-  const [unreadMsgCount, setUnreadMsgCount] = useState(0)
 
   // ── Messagerie artisan dashboard (hook custom) ──
   const messaging = useDashboardMessaging({
@@ -130,6 +126,23 @@ export default function DashboardPage() {
     uploadDashAttachment,
     getDashAuthToken,
   } = messaging
+
+  // ── Notifications hook ──
+  const notifCallbacks = useMemo(() => ({
+    onNavigate: (page: string) => setActivePage(page),
+    onNewBooking: (b: any) => setBookings(prev => [b, ...prev]),
+    getAuthToken: getDashAuthToken,
+    t,
+    isPt,
+  }), [getDashAuthToken, t, isPt])
+  const {
+    notifications, setNotifications,
+    showNotifDropdown, setShowNotifDropdown,
+    unreadNotifCount, setUnreadNotifCount,
+    unreadMsgCount,
+    refreshUnreadMsgCount,
+  } = useNotifications(artisan?.user_id, artisan?.id, notifCallbacks)
+
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('week')
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
@@ -823,207 +836,7 @@ export default function DashboardPage() {
     window.location.href = `/${locale}/`
   }
 
-  // ═══ NOTIFICATIONS TEMPS RÉEL ═══
-  // Load notifications from API — paused when tab is hidden to reduce server load
-  useEffect(() => {
-    if (!artisan?.user_id) return
-    const loadNotifs = async () => {
-      try {
-        const token = await getDashAuthToken()
-        const res = await fetch(`/api/syndic/notify-artisan?artisan_id=${artisan.user_id}&limit=30`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (res.ok) {
-          const data = await res.json()
-          if (data.notifications) {
-            setNotifications(data.notifications)
-            setUnreadNotifCount(data.notifications.filter((n: Notification) => !n.read).length)
-          }
-        }
-      } catch {}
-    }
-    loadNotifs()
-    let interval = setInterval(loadNotifs, POLL_NOTIFICATIONS)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        loadNotifs()
-        interval = setInterval(loadNotifs, POLL_NOTIFICATIONS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [artisan?.user_id])
-
-  // Load unread message count — paused when tab is hidden
-  const refreshUnreadMsgCount = useCallback(async () => {
-    if (!artisan?.user_id) return
-    try {
-      const token = await getDashAuthToken()
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-      const [clientsRes, proRes] = await Promise.all([
-        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=particulier`, { headers }),
-        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=pro`, { headers }),
-      ])
-      const [cd, pd] = await Promise.all([clientsRes.json(), proRes.json()])
-      const total = (cd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0) +
-                    (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
-      setUnreadMsgCount(total)
-    } catch {}
-  }, [artisan?.user_id])
-
-  useEffect(() => {
-    if (!artisan?.user_id) return
-    refreshUnreadMsgCount()
-    let interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        refreshUnreadMsgCount()
-        interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [artisan?.user_id])
-
-  // ── Browser notifications helper ──
-  const sendBrowserNotif = useCallback((title: string, body: string, onClick?: () => void) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission !== 'granted') return
-    // Don't send if tab is focused
-    if (document.visibilityState === 'visible') return
-    try {
-      const notif = new Notification(title, {
-        body,
-        icon: '/icon-192x192.png',
-        badge: '/icon-192x192.png',
-        tag: `vitfix-${Date.now()}`,
-      })
-      if (onClick) notif.onclick = () => { window.focus(); onClick(); notif.close() }
-      setTimeout(() => notif.close(), TOAST_LONG)
-    } catch {}
-  }, [])
-
-  // ── Request browser notification permission on mount ──
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission === 'default') {
-      // Ask after 3s so it doesn't feel intrusive
-      const timer = setTimeout(() => { Notification.requestPermission() }, TOAST_DEFAULT)
-      return () => clearTimeout(timer)
-    }
-  }, [])
-
-  // Realtime subscription for notifications + bookings + messages
-  useEffect(() => {
-    if (!artisan?.user_id) return
-    const channel = supabase
-      .channel(`notifs_${artisan.user_id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'artisan_notifications',
-        filter: `artisan_id=eq.${artisan.user_id}`,
-      }, (payload) => {
-        const n = payload.new as any
-        if (n.artisan_id === artisan.user_id) {
-          setNotifications(prev => [n, ...prev].slice(0, 30))
-          setUnreadNotifCount(prev => prev + 1)
-          // Browser notification
-          const typeLabels: Record<string, string> = {
-            new_mission: `📋 ${t('proDash.notifs.newMission')}`,
-            mission_update: `🔄 ${t('proDash.notifs.missionUpdate')}`,
-            planning_change: `📅 ${t('proDash.notifs.planningChange')}`,
-            message: `💬 ${t('proDash.notifs.message')}`,
-            new_booking: `📅 ${t('proDash.notifs.newBooking')}`,
-            marche_new: isPt ? '🏛️ Novo mercado disponível' : '🏛️ Nouveau marché disponible',
-            marche_message: isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
-            marche_won: isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
-            marche_rejected: isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
-          }
-          sendBrowserNotif(
-            typeLabels[n.type] || '🔔 Notification Vitfix',
-            n.message || n.title || t('proDash.notifs.newNotif'),
-            () => {
-              if (n.type === 'new_mission') setActivePage('missions')
-              else if (n.type === 'message') setActivePage('messages')
-              else if (n.type === 'new_booking') setActivePage('calendar')
-              else if (n.type?.startsWith('marche_')) setActivePage('marches')
-            }
-          )
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'conversation_messages',
-      }, (payload) => {
-        const msg = payload.new as any
-        // Only notify if message is NOT from this user
-        if (msg.sender_id !== artisan.user_id) {
-          setUnreadMsgCount(prev => prev + 1)
-          sendBrowserNotif(
-            '💬 Nouveau message',
-            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : t('proDash.notifs.newMsgReceived'),
-            () => setActivePage('messages')
-          )
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'bookings',
-        filter: `artisan_id=eq.${artisan.id}`,
-      }, (payload) => {
-        const b = payload.new as any
-        if (b.artisan_id === artisan.id) {
-          // Add to bookings list
-          setBookings(prev => [b, ...prev])
-          sendBrowserNotif(
-            isPt ? '📅 Nova marcação' : '📅 Nouveau rendez-vous',
-            `${b.booking_date || (isPt ? 'Data a confirmar' : 'Date à confirmer')} — ${b.client_name || (isPt ? 'Novo cliente' : 'Nouveau client')}`,
-            () => setActivePage('calendar')
-          )
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'booking_messages',
-      }, (payload) => {
-        const msg = payload.new as any
-        // Only notify if someone else sent the message (not the artisan)
-        if (msg.sender_role === 'client') {
-          sendBrowserNotif(
-            '💬 ' + (msg.sender_name || 'Client'),
-            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : 'Nouveau message',
-            () => setActivePage('calendar')
-          )
-        }
-      })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[pro/dashboard] Realtime channel error:', err?.message)
-          realtimeErrorCount.current += 1
-          if (realtimeErrorCount.current >= 3) {
-            console.warn('[pro/dashboard] Realtime: too many errors, unsubscribing')
-            supabase.removeChannel(channel)
-          }
-        }
-      })
-    return () => { supabase.removeChannel(channel) }
-  }, [artisan?.user_id, artisan?.id, sendBrowserNotif])
-
-  // Mark all notifications as read
+  // (Notifications logic moved to useNotifications hook)
   // ═══ NAVIGATION - reset form states ═══
   const navigateTo = useCallback((page: string) => {
     setActivePage(page)
