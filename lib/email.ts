@@ -437,3 +437,15 @@ export function templateBookingCompleted(p: { clientName: string; artisanName: s
     <a href="https://vitfix.io/client/dashboard" style="display:inline-block;background:#FFC107;color:#0D1B2E;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin-top:12px;">${isPt ? '⭐ Avaliar o profissional' : '⭐ Évaluer l\'artisan'}</a>`
   return { subject, html: baseLayout(content, p.locale || 'fr') }
 }
+
+export function templateDevisReminder(p: { clientName: string; artisanName: string; companyName: string; docNumber: string; totalStr: string; locale?: string }) {
+  const isPt = (p.locale || 'fr') === 'pt'
+  const subject = isPt ? `Lembrete: orçamento N.${p.docNumber} aguarda a sua assinatura` : `Rappel : devis N.${p.docNumber} en attente de signature`
+  const content = `
+    <h2 style="color:#0D1B2E;font-size:20px;margin:0 0 16px;">${isPt ? '📋 Orçamento em espera' : '📋 Devis en attente'}</h2>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Olá' : 'Bonjour'} <strong>${p.clientName}</strong>,</p>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? `O orçamento N.${p.docNumber} de <strong>${p.artisanName}</strong> (${p.companyName}) no valor de <strong>${p.totalStr}</strong> aguarda a sua assinatura.` : `Le devis N.${p.docNumber} de <strong>${p.artisanName}</strong> (${p.companyName}) d'un montant de <strong>${p.totalStr}</strong> est en attente de votre signature.`}</p>
+    <p style="color:#4A5E78;font-size:14px;">${isPt ? 'Assine diretamente no seu dashboard para confirmar a intervenção.' : 'Signez directement depuis votre dashboard pour confirmer l\'intervention.'}</p>
+    <a href="https://vitfix.io/client/dashboard" style="display:inline-block;background:#FFC107;color:#0D1B2E;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin-top:12px;">${isPt ? '✍️ Assinar o orçamento' : '✍️ Signer le devis'}</a>`
+  return { subject, html: baseLayout(content, p.locale || 'fr') }
+}
