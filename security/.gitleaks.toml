@@ -1,0 +1,31 @@
+title = "Gitleaks config — Vitfix.io"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known false positives"
+
+paths = [
+  '''node_modules/''',
+  '''\.next/''',
+  '''.vercel/''',
+  '''security/outputs/''',
+  '''android/gradle/''',
+  '''ios/''',
+  '''\.git/''',
+  '''package-lock\.json''',
+  '''pnpm-lock\.yaml''',
+]
+
+# Supabase anon key is public by design (exposed in frontend)
+regexTarget = "match"
+regexes = [
+  '''NEXT_PUBLIC_SUPABASE_ANON_KEY''',
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9''',
+]
+
+# Example entries — add specific commit hashes or paths as needed
+# commits = [
+#   "abc123def456",
+# ]

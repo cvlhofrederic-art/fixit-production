@@ -17,7 +17,13 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "scan:secrets": "gitleaks detect --source . --config security/.gitleaks.toml --report-path security/outputs/gitleaks.json --report-format json",
+    "scan:deps": "trivy fs . --severity HIGH,CRITICAL --ignorefile security/.trivyignore --format json --output security/outputs/trivy.json",
+    "scan:code": "semgrep scan --config security/.semgrep.yml --json --output security/outputs/semgrep.json",
+    "scan:web": "nuclei -u https://vitfix.io -config security/nuclei-config.yml -o security/outputs/nuclei.txt",
+    "scan:all": "npm run scan:secrets && npm run scan:deps && npm run scan:code",
+    "scan:lighthouse": "lhci autorun"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

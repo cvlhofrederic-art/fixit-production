@@ -1,0 +1,243 @@
+name: Security — Daily Scan
+
+on:
+  schedule:
+    - cron: '17 3 * * *'  # 3h17 UTC = 4h17 FR (heure creuse, minute décalée)
+  workflow_dispatch:  # Lancement manuel
+
+concurrency:
+  group: security-daily
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  trivy:
+    name: Trivy — Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy (filesystem)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          format: 'json'
+          output: 'trivy-results.json'
+          ignore-unfixed: true
+          ignorefile: 'security/.trivyignore'
+
+      - name: Check for critical vulnerabilities
+        id: trivy-check
+        run: |
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-results.json 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-results.json 2>/dev/null || echo "0")
+          echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+          echo "high=$HIGH" >> "$GITHUB_OUTPUT"
+          echo "### Trivy Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Critical: $CRITICAL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- High: $HIGH" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-results.json
+          retention-days: 7
+
+  gitleaks:
+    name: Gitleaks — Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: security/.gitleaks.toml
+          GITLEAKS_ENABLE_COMMENTS: false
+        continue-on-error: true
+        id: gitleaks
+
+      - name: Report
+        run: |
+          if [ "${{ steps.gitleaks.outcome }}" == "failure" ]; then
+            echo "### Gitleaks: Secrets detected" >> "$GITHUB_STEP_SUMMARY"
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          else
+            echo "### Gitleaks: Clean" >> "$GITHUB_STEP_SUMMARY"
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+          fi
+
+  nuclei:
+    name: Nuclei — DAST Web Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nuclei
+        run: |
+          wget -q https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_$(curl -s https://api.github.com/repos/projectdiscovery/nuclei/releases/latest | jq -r '.tag_name' | sed 's/v//')_linux_amd64.zip -O nuclei.zip
+          unzip -q nuclei.zip nuclei
+          chmod +x nuclei
+          sudo mv nuclei /usr/local/bin/
+
+      - name: Update Nuclei templates
+        run: nuclei -update-templates -silent
+
+      - name: Run Nuclei scan
+        run: |
+          nuclei \
+            -u https://vitfix.io \
+            -severity medium,high,critical \
+            -rate-limit 10 \
+            -bulk-size 5 \
+            -concurrency 3 \
+            -timeout 10 \
+            -retries 1 \
+            -exclude-templates fuzzing/ \
+            -exclude-templates headless/ \
+            -o nuclei-results.txt \
+            -silent || true
+
+      - name: Parse results
+        id: nuclei-check
+        run: |
+          if [ -f nuclei-results.txt ] && [ -s nuclei-results.txt ]; then
+            COUNT=$(wc -l < nuclei-results.txt)
+            CRITICAL=$(grep -c "\[critical\]" nuclei-results.txt || true)
+            HIGH=$(grep -c "\[high\]" nuclei-results.txt || true)
+            echo "findings=$COUNT" >> "$GITHUB_OUTPUT"
+            echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+            echo "### Nuclei Results" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Total findings: $COUNT" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Critical: $CRITICAL" >> "$GITHUB_STEP_SUMMARY"
+            echo "- High: $HIGH" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "findings=0" >> "$GITHUB_OUTPUT"
+            echo "critical=0" >> "$GITHUB_OUTPUT"
+            echo "### Nuclei: Clean" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nuclei-results
+          path: nuclei-results.txt
+          retention-days: 7
+
+  semgrep-full:
+    name: Semgrep — Full SAST Scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep (custom + OWASP)
+        run: |
+          semgrep scan \
+            --config security/.semgrep.yml \
+            --config p/owasp-top-ten \
+            --config p/nextjs \
+            --json \
+            --output semgrep-results.json \
+            --severity ERROR \
+            || true
+
+      - name: Parse results
+        id: semgrep-check
+        run: |
+          if [ -f semgrep-results.json ]; then
+            ERRORS=$(cat semgrep-results.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(len([r for r in d.get('results',[]) if r.get('extra',{}).get('severity','') == 'ERROR']))" 2>/dev/null || echo "0")
+            TOTAL=$(cat semgrep-results.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('results',[])))" 2>/dev/null || echo "0")
+            echo "errors=$ERRORS" >> "$GITHUB_OUTPUT"
+            echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+            echo "### Semgrep Results" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Errors: $ERRORS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Total findings: $TOTAL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "errors=0" >> "$GITHUB_OUTPUT"
+            echo "total=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
+          retention-days: 7
+
+  report:
+    name: Security Report
+    needs: [trivy, gitleaks, nuclei, semgrep-full]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: scan-results/
+        continue-on-error: true
+
+      - name: Generate report
+        id: report
+        run: |
+          TRIVY_STATUS="${{ needs.trivy.result }}"
+          GITLEAKS_STATUS="${{ needs.gitleaks.result }}"
+          NUCLEI_STATUS="${{ needs.nuclei.result }}"
+          SEMGREP_STATUS="${{ needs.semgrep-full.result }}"
+
+          HAS_FAILURES="false"
+          if [ "$TRIVY_STATUS" == "failure" ] || [ "$GITLEAKS_STATUS" == "failure" ]; then
+            HAS_FAILURES="true"
+          fi
+
+          echo "has_failures=$HAS_FAILURES" >> "$GITHUB_OUTPUT"
+
+          # Build report body
+          cat > report.md << 'REPORT_EOF'
+          ## Daily Security Scan Report
+
+          | Scanner | Status | Details |
+          |---------|--------|---------|
+          REPORT_EOF
+
+          echo "| Trivy (deps) | $( [ "$TRIVY_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $TRIVY_STATUS" ) | Dependency vulnerabilities |" >> report.md
+          echo "| Gitleaks | $( [ "$GITLEAKS_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $GITLEAKS_STATUS" ) | Secret detection |" >> report.md
+          echo "| Nuclei (DAST) | $( [ "$NUCLEI_STATUS" == "success" ] && echo "✅ Pass" || echo "⚠️ $NUCLEI_STATUS" ) | Web vulnerability scan |" >> report.md
+          echo "| Semgrep (SAST) | $( [ "$SEMGREP_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $SEMGREP_STATUS" ) | Static code analysis |" >> report.md
+
+          echo "" >> report.md
+          echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> report.md
+          echo "Date: $(date -u +'%Y-%m-%d %H:%M UTC')" >> report.md
+
+      - name: Create issue if failures
+        if: steps.report.outputs.has_failures == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('report.md', 'utf8');
+            const date = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔒 Security Alert — Daily Scan ${date}`,
+              body: body,
+              labels: ['security', 'automated']
+            });
+
+      - name: Summary
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY"

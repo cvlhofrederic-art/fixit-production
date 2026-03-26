@@ -1,0 +1,33 @@
+# Nuclei config — Vitfix.io DAST scanning
+# Safe templates only — no active exploitation
+
+severity: medium,high,critical
+
+# Rate limiting to avoid overloading prod
+rate-limit: 10
+bulk-size: 5
+concurrency: 3
+
+# Timeout per request
+timeout: 10
+
+# Retries
+retries: 1
+
+# Templates to include (safe reconnaissance + detection only)
+templates:
+  - cves/
+  - vulnerabilities/
+  - misconfiguration/
+  - exposed-panels/
+  - technologies/
+
+# Exclude destructive/fuzzing templates
+exclude-templates:
+  - fuzzing/
+  - headless/
+  - workflows/
+
+# Target URLs
+# Primary target set via CLI: -u https://vitfix.io
+# Additional paths to check

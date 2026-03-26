@@ -1,0 +1,6 @@
+# Trivy ignore file — Vitfix.io
+# Add CVE IDs here for accepted/mitigated vulnerabilities
+# Format: one CVE per line, optional comment after #
+#
+# Example:
+# CVE-2023-12345  # mitigated by WAF rule, low risk for our use case

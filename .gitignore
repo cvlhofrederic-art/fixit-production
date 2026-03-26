@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# security scan outputs (local only)
+security/outputs/*
+!security/outputs/.gitkeep

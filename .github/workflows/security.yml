@@ -1,5 +1,5 @@
-# ── Sécurité — CodeQL, TruffleHog, Semgrep, Giskard ──────────────────────────
-# Analyse statique, secrets, OWASP, JWT et sécurité des agents IA.
+# ── Sécurité — CodeQL, TruffleHog, Semgrep, Giskard, Trivy, Gitleaks ─────────
+# Analyse statique, secrets, dépendances, OWASP, JWT et sécurité des agents IA.
 # Déclenché sur push main, toutes les PR, et scan hebdomadaire.
 
 name: "Sécurité — Analyse & Secrets"
@@ -98,6 +98,57 @@ jobs:
         if: always()
         with:
           sarif_file: semgrep-results.sarif
+
+  # ── Trivy — Scan vulnérabilités dépendances ─────────────────────────────────
+  trivy:
+    name: "Trivy — Dépendances"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Run Trivy (filesystem)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          ignorefile: 'security/.trivyignore'
+
+      - name: Trivy (HIGH — warning only)
+        uses: aquasecurity/trivy-action@0.28.0
+        if: always()
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          ignorefile: 'security/.trivyignore'
+
+  # ── Gitleaks — Détection de secrets (complément TruffleHog) ────────────────
+  gitleaks:
+    name: "Gitleaks — Secrets"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: security/.gitleaks.toml
+          GITLEAKS_ENABLE_COMMENTS: false
 
   # ── Giskard — Sécurité agents IA (injection prompt, hallucinations) ────────
   giskard-ai:

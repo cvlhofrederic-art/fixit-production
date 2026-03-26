@@ -1,0 +1,86 @@
+rules:
+  # === INJECTION ===
+  - id: nextjs-dangerouslySetInnerHTML
+    patterns:
+      - pattern: dangerouslySetInnerHTML={{ __html: $VAR }}
+      - pattern-not: dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize($VAR) }}
+    message: "XSS risk: dangerouslySetInnerHTML without DOMPurify.sanitize()"
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  - id: sql-injection-supabase-rpc
+    pattern: supabase.rpc($FUNC, { ...($PARAMS) })
+    message: "Verify Supabase RPC parameters are sanitized — no raw user input"
+    languages: [typescript, javascript]
+    severity: WARNING
+
+  - id: eval-usage
+    pattern: eval($X)
+    message: "eval() is a code injection vector — use alternatives"
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # === AUTH & SESSION ===
+  - id: supabase-no-auth-check
+    patterns:
+      - pattern: |
+          const { data } = await supabase.from($TABLE).$METHOD(...)
+      - pattern-not-inside: |
+          const { data: { user } } = await supabase.auth.getUser(...)
+          ...
+    message: "Supabase query without prior auth check — verify RLS is enabled on this table"
+    languages: [typescript, javascript]
+    severity: WARNING
+
+  - id: hardcoded-secret
+    pattern-regex: "(sk_live_|sk_test_|supabase_service_role_|ghp_|ghs_)[a-zA-Z0-9]{20,}"
+    message: "Hardcoded secret detected — use environment variables"
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # === API SECURITY ===
+  - id: missing-rate-limit-api
+    patterns:
+      - pattern: |
+          export async function POST(req: ...) { ... }
+      - pattern-not-inside: |
+          ...
+          checkRateLimit(...)
+          ...
+    message: "API POST handler without rate limiting — add checkRateLimit()"
+    languages: [typescript]
+    severity: WARNING
+    paths:
+      include:
+        - app/api/
+
+  - id: no-cors-headers
+    patterns:
+      - pattern: |
+          export async function $METHOD(req: ...) {
+            ...
+            return new Response(...)
+          }
+      - pattern-not-inside: |
+          ...
+          headers: { ..., 'Access-Control-Allow-Origin': ... }
+          ...
+    message: "API route without explicit CORS headers — verify Next.js middleware handles CORS"
+    languages: [typescript]
+    severity: INFO
+    paths:
+      include:
+        - app/api/
+
+  # === SENSITIVE DATA ===
+  - id: console-log-sensitive
+    pattern-regex: "console\\.(log|info|debug)\\(.*(token|secret|password|key|auth|session).*\\)"
+    message: "Logging potentially sensitive data — remove before production"
+    languages: [typescript, javascript]
+    severity: WARNING
+
+  - id: localstorage-sensitive
+    pattern-regex: "localStorage\\.(setItem|getItem)\\(.*(token|secret|password|key|auth).*\\)"
+    message: "Storing sensitive data in localStorage — use httpOnly cookies or Supabase session"
+    languages: [typescript, javascript]
+    severity: WARNING
