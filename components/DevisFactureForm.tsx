@@ -105,6 +105,8 @@ export default function DevisFactureForm({
   const [interventionAddress, setInterventionAddress] = useState(initialData?.interventionAddress || '')
   const [interventionBatiment, setInterventionBatiment] = useState(initialData?.interventionBatiment || '')
   const [interventionEtage, setInterventionEtage] = useState(initialData?.interventionEtage || '')
+  const [interventionEspacesCommuns, setInterventionEspacesCommuns] = useState(initialData?.interventionEspacesCommuns || '')
+  const [interventionExterieur, setInterventionExterieur] = useState(initialData?.interventionExterieur || '')
   const [clientPhone, setClientPhone] = useState(initialData?.clientPhone || '')
   const [clientSiret, setClientSiret] = useState(initialData?.clientSiret || '')
   const [clientType, setClientType] = useState(initialData?.clientType || '')
@@ -152,6 +154,8 @@ export default function DevisFactureForm({
     setInterventionAddress('')
     setInterventionBatiment('')
     setInterventionEtage('')
+    setInterventionEspacesCommuns('')
+    setInterventionExterieur('')
     setShowClientPicker(false)
   }
 
@@ -1176,6 +1180,7 @@ export default function DevisFactureForm({
       if (clientAddress) dy2 += ptToMm(14)
       if (interventionAddress || interventionBatiment || interventionEtage) dy2 += ptToMm(14)
       if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
+      if (interventionEspacesCommuns || interventionExterieur) dy2 += ptToMm(14)
       if (clientPhone) dy2 += ptToMm(14)
       if (clientEmail) dy2 += ptToMm(14)
       if (clientSiret) dy2 += ptToMm(14)
@@ -1246,6 +1251,13 @@ export default function DevisFactureForm({
         if (interventionEtage) batEtParts.push(`Étage ${interventionEtage}`)
         if (batEtParts.length > 0) {
           pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
+        }
+        // Espaces communs / Extérieur
+        const locParts: string[] = []
+        if (interventionEspacesCommuns) locParts.push(`Espaces communs : ${interventionEspacesCommuns}`)
+        if (interventionExterieur) locParts.push(`Extérieur : ${interventionExterieur}`)
+        if (locParts.length > 0) {
+          pdf.text(locParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
         }
       }
       if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
@@ -2135,6 +2147,8 @@ export default function DevisFactureForm({
     interventionAddress,
     interventionBatiment,
     interventionEtage,
+    interventionEspacesCommuns,
+    interventionExterieur,
     clientPhone,
     clientSiret,
     clientType,
@@ -2619,6 +2633,21 @@ export default function DevisFactureForm({
                           placeholder="Ex: 6"
                           className={normalFieldClass}
                           style={{ textAlign: 'center' }} />
+                      </div>
+                    </div>
+                    {/* Espaces communs + Extérieur */}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>Espaces communs</label>
+                        <input type="text" value={interventionEspacesCommuns} onChange={(e) => setInterventionEspacesCommuns(e.target.value)}
+                          placeholder="Ex: Hall, cage d'escalier"
+                          className={normalFieldClass} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label className="v22-form-label" style={{ fontSize: 11, marginBottom: 3 }}>Extérieur</label>
+                        <input type="text" value={interventionExterieur} onChange={(e) => setInterventionExterieur(e.target.value)}
+                          placeholder="Ex: Parking, jardin"
+                          className={normalFieldClass} />
                       </div>
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 6 }}>
