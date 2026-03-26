@@ -17,6 +17,7 @@ import CanalProSection from '@/components/dashboard/CanalProSection'
 import MessagerieArtisan from '@/components/dashboard/MessagerieArtisan'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
+import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { parseServiceRange, getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
 import type { Artisan, Service, Booking, Availability, Absence, Notification, ChatMessage, SavedDocument } from '@/lib/types'
 
@@ -158,80 +159,8 @@ export default function DashboardPage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'profil' | 'modules' | 'parrainage'>('profil')
 
-  // ── Modules config (toggle + order) — memoized pour éviter recréation à chaque render ──
-  const ALL_MODULES = useMemo(() => [
-    { id: 'home', icon: '🏠', label: t('proDash.modules.home'), description: t('proDash.modules.homeDesc'), category: t('proDash.categories.activity'), locked: true },
-    { id: 'calendar', icon: '📅', label: t('proDash.modules.calendar'), description: t('proDash.modules.calendarDesc'), category: t('proDash.categories.activity') },
-    { id: 'motifs', icon: '🔧', label: t('proDash.modules.motifs'), description: t('proDash.modules.motifsDesc'), category: t('proDash.categories.activity') },
-    { id: 'horaires', icon: '🕐', label: t('proDash.modules.hours'), description: t('proDash.modules.hoursDesc'), category: t('proDash.categories.activity') },
-    { id: 'messages', icon: '💬', label: t('proDash.modules.messaging'), description: t('proDash.modules.messagingDesc'), category: t('proDash.categories.communication') },
-    { id: 'clients', icon: '👥', label: t('proDash.modules.clients'), description: t('proDash.modules.clientsDesc'), category: t('proDash.categories.communication') },
-    { id: 'devis', icon: '📄', label: t('proDash.modules.quotes'), description: t('proDash.modules.quotesDesc'), category: t('proDash.categories.billing') },
-    { id: 'factures', icon: '🧾', label: t('proDash.modules.invoices'), description: t('proDash.modules.invoicesDesc'), category: t('proDash.categories.billing') },
-    { id: 'rapports', icon: '📋', label: t('proDash.modules.reports'), description: t('proDash.modules.reportsDesc'), category: t('proDash.categories.billing') },
-    { id: 'contrats', icon: '📑', label: t('proDash.modules.contracts'), description: t('proDash.modules.contractsDesc'), category: t('proDash.categories.billing') },
-    { id: 'stats', icon: '📊', label: t('proDash.modules.stats'), description: t('proDash.modules.statsDesc'), category: t('proDash.categories.analysis') },
-    { id: 'revenus', icon: '💰', label: t('proDash.modules.revenue'), description: t('proDash.modules.revenueDesc'), category: t('proDash.categories.analysis') },
-    { id: 'comptabilite', icon: '🧮', label: t('proDash.modules.accounting'), description: t('proDash.modules.accountingDesc'), category: t('proDash.categories.analysis') },
-    { id: 'materiaux', icon: '🛒', label: t('proDash.modules.materials'), description: t('proDash.modules.materialsDesc'), category: t('proDash.categories.analysis') },
-    { id: 'marches', icon: '🏛️', label: t('proDash.modules.marches') || 'Bourse aux Marchés', description: t('proDash.modules.marchesDesc') || 'Appels d\'offres et candidatures', category: t('proDash.categories.activity') },
-    { id: 'wallet', icon: '🗂️', label: t('proDash.modules.wallet'), description: t('proDash.modules.walletDesc'), category: t('proDash.categories.proProfil') },
-    { id: 'portfolio', icon: '📸', label: t('proDash.modules.portfolio'), description: t('proDash.modules.portfolioDesc'), category: t('proDash.categories.proProfil') },
-    { id: 'chantiers_v22', icon: '🏗️', label: 'Chantiers', description: 'Gestion des chantiers en cours', category: t('proDash.categories.activity') },
-    { id: 'pipeline', icon: '📊', label: 'Pipeline', description: 'Suivi commercial des devis', category: t('proDash.categories.billing') },
-    { id: 'bibliotheque', icon: '📚', label: 'Bibliothèque', description: 'Ouvrages, matériaux et main-d\'œuvre', category: t('proDash.categories.billing') },
-    { id: 'parrainage', icon: '🎁', label: 'Parrainage', description: 'Parrainez des artisans, gagnez des mois gratuits', category: t('proDash.categories.proProfil') },
-    { id: 'settings', icon: '⚙️', label: t('proDash.modules.settings'), description: t('proDash.modules.settingsDesc'), category: t('proDash.categories.account'), locked: true },
-  ], [t])
-
-  const MODULES_STORAGE_KEY = useMemo(() => `fixit_modules_config_${artisan?.id || 'default'}`, [artisan?.id])
-
-  const [modulesConfig, setModulesConfig] = useState<{ id: string; enabled: boolean; order: number }[]>([])
-
-  // Load modules config from localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const saved = JSON.parse(localStorage.getItem(MODULES_STORAGE_KEY) || '[]')
-      if (saved.length > 0) {
-        // Merge saved config with ALL_MODULES (in case new modules were added)
-        const merged = ALL_MODULES.map(m => {
-          const s = saved.find((x: any) => x.id === m.id)
-          return s ? { id: m.id, enabled: m.locked ? true : s.enabled, order: s.order } : { id: m.id, enabled: true, order: 999 }
-        }).sort((a, b) => a.order - b.order)
-        setModulesConfig(merged)
-      } else {
-        setModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))
-      }
-    } catch {
-      setModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisan?.id])
-
-  const saveModulesConfig = (config: { id: string; enabled: boolean; order: number }[]) => {
-    setModulesConfig(config)
-    try { localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify(config)) } catch {}
-  }
-
-  const isModuleEnabled = (moduleId: string): boolean => {
-    if (modulesConfig.length === 0) return true // Default: all enabled
-    const m = modulesConfig.find(x => x.id === moduleId)
-    return m ? m.enabled : true
-  }
-
-  const moveModule = (moduleId: string, direction: 'up' | 'down') => {
-    const sorted = [...modulesConfig].sort((a, b) => a.order - b.order)
-    const idx = sorted.findIndex(x => x.id === moduleId)
-    if (idx < 0) return
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= sorted.length) return
-    // Swap orders
-    const temp = sorted[idx].order
-    sorted[idx] = { ...sorted[idx], order: sorted[swapIdx].order }
-    sorted[swapIdx] = { ...sorted[swapIdx], order: temp }
-    saveModulesConfig(sorted)
-  }
+  // ── Modules config (extracted to custom hook) ──
+  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule } = useModulesConfig(artisan?.id, t)
 
   // ── Communication tabs ──
   const [commTab, setCommTab] = useState<'particuliers' | 'pro'>('particuliers')
