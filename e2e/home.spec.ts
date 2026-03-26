@@ -2,20 +2,20 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Homepage', () => {
   test('loads with status 200', async ({ page }) => {
-    const response = await page.goto('/')
+    const response = await page.goto('/fr/')
     expect(response).not.toBeNull()
     expect(response!.status()).toBe(200)
   })
 
   test('has a visible main heading', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
     const heading = page.locator('h1').first()
     await expect(heading).toBeVisible()
     await expect(heading).toContainText('artisan')
   })
 
   test('header navigation is present', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
     const header = page.locator('header')
     await expect(header).toBeVisible()
 
@@ -29,7 +29,7 @@ test.describe('Homepage', () => {
 
   test('cookie consent banner appears', async ({ page }) => {
     // Clear localStorage to ensure cookie consent has not been dismissed
-    await page.goto('/')
+    await page.goto('/fr/')
     await page.evaluate(() => localStorage.removeItem('vitfix_cookie_consent'))
     await page.reload()
 
@@ -45,7 +45,7 @@ test.describe('Homepage', () => {
   })
 
   test('services section lists artisan categories', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     // The homepage displays service cards (Plomberie, Electricite, etc.)
     await expect(page.getByText('Plomberie')).toBeVisible()

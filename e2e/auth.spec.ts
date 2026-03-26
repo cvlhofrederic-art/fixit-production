@@ -2,13 +2,13 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Auth flow', () => {
   test('login page loads at /auth/login', async ({ page }) => {
-    const response = await page.goto('/auth/login')
+    const response = await page.goto('/fr/auth/login')
     expect(response).not.toBeNull()
     expect(response!.status()).toBe(200)
   })
 
   test('login page displays space selector and form', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/fr/auth/login')
 
     // The page has the VITFIX branding
     await expect(page.getByText('VITFIX', { exact: true }).first()).toBeVisible()
@@ -20,7 +20,7 @@ test.describe('Auth flow', () => {
   })
 
   test('login form has email and password inputs after selecting a space', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/fr/auth/login')
 
     // Click on the "Particulier" space to reveal the form
     await page.getByRole('button', { name: /Particulier/i }).click()
@@ -33,7 +33,7 @@ test.describe('Auth flow', () => {
   })
 
   test('submitting with empty fields shows validation or prevents submission', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/fr/auth/login')
 
     // Select Particulier space to reveal the form
     await page.getByRole('button', { name: /Particulier/i }).click()
@@ -56,7 +56,7 @@ test.describe('Auth flow', () => {
   })
 
   test('submitting with invalid credentials shows error message', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/fr/auth/login')
 
     // Select Particulier space
     await page.getByRole('button', { name: /Particulier/i }).click()

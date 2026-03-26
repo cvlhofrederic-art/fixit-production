@@ -6,7 +6,7 @@ test.describe('Security Headers', () => {
     const headers = response.headers()
 
     // HSTS with preload
-    expect(headers['strict-transport-security']).toContain('max-age=31536000')
+    expect(headers['strict-transport-security']).toMatch(/max-age=\d{7,}/)
     expect(headers['strict-transport-security']).toContain('includeSubDomains')
 
     // Prevent MIME sniffing

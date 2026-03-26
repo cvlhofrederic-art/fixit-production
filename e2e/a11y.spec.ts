@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Accessibility (a11y)', () => {
   test('homepage has correct ARIA landmarks', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     // Must have a <main> landmark
     const main = page.locator('main')
@@ -22,7 +22,7 @@ test.describe('Accessibility (a11y)', () => {
   })
 
   test('skip-to-content link exists and targets main', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     const skipLink = page.locator('a[href="#main-content"]')
     await expect(skipLink).toBeAttached()
@@ -33,7 +33,7 @@ test.describe('Accessibility (a11y)', () => {
   })
 
   test('all images have alt text', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     const images = page.locator('img')
     const count = await images.count()
@@ -54,7 +54,7 @@ test.describe('Accessibility (a11y)', () => {
   })
 
   test('form inputs have associated labels', async ({ page }) => {
-    await page.goto('/auth/login')
+    await page.goto('/fr/auth/login')
 
     // Select Particulier to reveal the form
     await page.getByRole('button', { name: /Particulier/i }).click()
@@ -87,7 +87,7 @@ test.describe('Accessibility (a11y)', () => {
   })
 
   test('interactive elements are keyboard focusable', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     // Tab through the page and check that focus is visible
     await page.keyboard.press('Tab')
@@ -101,7 +101,7 @@ test.describe('Accessibility (a11y)', () => {
   })
 
   test('page has proper heading hierarchy', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     // Must have exactly one h1
     const h1Count = await page.locator('h1').count()
@@ -113,7 +113,7 @@ test.describe('Accessibility (a11y)', () => {
   })
 
   test('color contrast: text is readable (basic check)', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/fr/')
 
     // Check that body text color is not too light
     const bodyColor = await page.evaluate(() => {
