@@ -130,7 +130,7 @@ export default function DashboardPage() {
   // ── Notifications hook ──
   const notifCallbacks = useMemo(() => ({
     onNavigate: (page: string) => setActivePage(page),
-    onNewBooking: (b: any) => setBookings(prev => [b, ...prev]),
+    onNewBooking: (b: any) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
     getAuthToken: getDashAuthToken,
     t,
     isPt,
@@ -271,6 +271,10 @@ export default function DashboardPage() {
     ])
     setBookings(bookingsRes.data || [])
     setServices(servicesRes.data || [])
+
+    // Auto-ajouter les clients des bookings confirmés à la base locale
+    const confirmedBookings = (bookingsRes.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
+    for (const b of confirmedBookings) autoAddClientFromBooking(b)
 
     // Load availability/absences/dayServices from localStorage immediately (no network wait)
     try {
@@ -426,6 +430,64 @@ export default function DashboardPage() {
     }
   }
 
+  // Auto-ajouter un client depuis un booking à la base client locale
+  const autoAddClientFromBooking = useCallback((booking: any) => {
+    if (!artisan?.id || !booking) return
+    const storageKey = `fixit_manual_clients_${artisan.id}`
+    let existing: any[] = []
+    try { existing = JSON.parse(localStorage.getItem(storageKey) || '[]') } catch {}
+
+    // Parser infos client depuis les notes
+    const notes = booking.notes || ''
+    const clientName = notes.match(/Client:\s*([^|.\n]+)/i)?.[1]?.trim() || booking.client_name || ''
+    const clientPhone = notes.match(/T[ée]l(?:[ée]phone)?:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+    const clientEmail = notes.match(/Email:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+    const clientSiret = notes.match(/SIRET:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+    const clientType = notes.match(/Type:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
+
+    if (!clientName) return
+
+    // Vérifier si le client existe déjà (par nom ou email)
+    const alreadyExists = existing.some((c: any) =>
+      (c.name && c.name.toLowerCase() === clientName.toLowerCase()) ||
+      (c.email && clientEmail && c.email.toLowerCase() === clientEmail.toLowerCase())
+    )
+    if (alreadyExists) {
+      // Mettre à jour l'adresse d'intervention si nouvelle
+      if (booking.address) {
+        const updated = existing.map((c: any) => {
+          if ((c.name && c.name.toLowerCase() === clientName.toLowerCase()) || (c.email && clientEmail && c.email.toLowerCase() === clientEmail.toLowerCase())) {
+            const addrs = c.interventionAddresses || []
+            const addrExists = addrs.some((a: any) => a.address === booking.address)
+            if (!addrExists && booking.address) {
+              return { ...c, interventionAddresses: [...addrs, { id: `addr_${Date.now()}`, label: booking.services?.name || 'Intervention', address: booking.address }] }
+            }
+          }
+          return c
+        })
+        localStorage.setItem(storageKey, JSON.stringify(updated))
+      }
+      return
+    }
+
+    // Créer le nouveau client
+    const newClient = {
+      id: `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: clientName,
+      email: clientEmail || undefined,
+      phone: clientPhone || undefined,
+      type: clientType || (clientSiret ? 'professionnel' : 'particulier'),
+      siret: clientSiret || undefined,
+      mainAddress: booking.address || undefined,
+      mainAddressLabel: clientSiret ? 'Siège social' : 'Domicile',
+      interventionAddresses: booking.address ? [{ id: `addr_${Date.now()}`, label: booking.services?.name || 'Intervention', address: booking.address }] : [],
+      notes: `Ajouté automatiquement depuis réservation du ${booking.booking_date || new Date().toISOString().split('T')[0]}`,
+      source: 'auto' as const,
+    }
+    const updated = [newClient, ...existing]
+    localStorage.setItem(storageKey, JSON.stringify(updated))
+  }, [artisan?.id])
+
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
     const updates: any = { status: newStatus }
     if (newStatus === 'confirmed') updates.confirmed_at = new Date().toISOString()
@@ -433,6 +495,11 @@ export default function DashboardPage() {
     if (newStatus === 'completed') updates.completed_at = new Date().toISOString()
     await supabase.from('bookings').update(updates).eq('id', bookingId)
     setBookings(bookings.map((b) => b.id === bookingId ? { ...b, ...updates } : b))
+    // Auto-ajouter le client à la base quand confirmé
+    if (newStatus === 'confirmed') {
+      const booking = bookings.find(b => b.id === bookingId)
+      if (booking) autoAddClientFromBooking(booking)
+    }
     setShowBookingDetail(false)
     setSelectedBooking(null)
   }
