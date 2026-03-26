@@ -30,6 +30,10 @@ export interface DevisGeneratorInput {
     adresse: string | null
     telephone: string | null
     email: string | null
+    intervention_adresse?: string | null
+    intervention_batiment?: string | null
+    intervention_etage?: string | null
+    intervention_espaces_communs?: string | null
   }
   devis: {
     numero: string
@@ -59,6 +63,7 @@ export interface LigneDevis {
   prix_unitaire: number
   total: number
   section?: 'main_oeuvre' | 'materiaux' | 'deplacement' | 'location' | null
+  etapes?: EtapeIntervention[]  // étapes rattachées à CETTE ligne
 }
 
 export interface EtapeIntervention {
@@ -279,6 +284,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   let destContentH = boxPadTop + ptToMm(18) + ptToMm(14) // label + nom
   if (input.client.adresse) { destContentH += ptToMm(14); if (splitAddress(input.client.adresse)?.ville) destContentH += ptToMm(14) }
+  if (input.client.siret) destContentH += ptToMm(14)
+  if (input.client.intervention_adresse) {
+    destContentH += ptToMm(12) + ptToMm(14) // label + adresse
+    if (input.client.intervention_batiment) destContentH += ptToMm(14)
+    if (input.client.intervention_etage) destContentH += ptToMm(14)
+    if (input.client.intervention_espaces_communs) destContentH += ptToMm(14)
+  }
   if (input.client.telephone) destContentH += ptToMm(14)
   if (input.client.email) destContentH += ptToMm(14)
   destContentH += boxPadTop
@@ -370,6 +382,16 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     }
   }
 
+  if (input.client.siret) { pdf.text(`SIRET : ${input.client.siret}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+  if (input.client.intervention_adresse) {
+    pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.text('Lieu d\'intervention :', TEXT_X_DEST, dy); dy += ptToMm(12)
+    pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
+    pdf.text(input.client.intervention_adresse, TEXT_X_DEST, dy); dy += ptToMm(14)
+    if (input.client.intervention_batiment) { pdf.text(`Bât. ${input.client.intervention_batiment}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+    if (input.client.intervention_etage) { pdf.text(`Étage : ${input.client.intervention_etage}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+    if (input.client.intervention_espaces_communs) { pdf.text(`Espaces : ${input.client.intervention_espaces_communs}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
+  }
   if (input.client.telephone) { pdf.text(`Tél : ${input.client.telephone}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
   if (input.client.email) { pdf.text(`E-mail : ${input.client.email}`, TEXT_X_DEST, dy); dy += ptToMm(14) }
 
@@ -459,7 +481,6 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
     // x=62pt (21.87mm) = TEXT_LEFT pour tout le texte aligné
     const TEXT_LEFT = ptToMm(62)
-    const STEPS_LEFT = ptToMm(77) // étapes indentées de 15pt
 
     // Titre (10pt TEXT) — UNE SEULE FOIS
     let textY = y + 5
@@ -478,12 +499,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       }
     }
 
-    // Étapes du chantier (indentées à x=77pt)
+    // Étapes du chantier — alignées avec TEXT_LEFT (même x que Désignation)
     if (lineEtapes.length > 0) {
       textY += ptToMm(4)
       pdf.setFontSize(7.5); pdf.setTextColor('#555555'); pdf.setFont('helvetica', 'normal')
       for (let ei = 0; ei < lineEtapes.length; ei++) {
-        pdf.text(`${ei + 1}. ${lineEtapes[ei].designation}`, STEPS_LEFT, textY)
+        pdf.text(`${ei + 1}. ${lineEtapes[ei].designation}`, TEXT_LEFT, textY)
         textY += ptToMm(11)
       }
     }
@@ -503,29 +524,38 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     y += rowH
   }
 
-  // Étapes triées (à afficher sous la première prestation)
-  const sortedEtapes = input.etapes
+  // Fallback: si input.etapes global existe mais pas line.etapes, on garde le comportement legacy
+  const globalEtapes = input.etapes
     ? [...input.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
     : []
+  const hasPerLineEtapes = input.lignes.some(l => l.etapes && l.etapes.length > 0)
+
+  const getEtapesForLine = (line: LigneDevis, idx: number): EtapeIntervention[] => {
+    if (hasPerLineEtapes) {
+      // Chaque ligne porte ses propres étapes
+      return (line.etapes || []).sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+    }
+    // Legacy: toutes les étapes sous la première ligne
+    return idx === 0 ? globalEtapes : []
+  }
 
   if (input.mode_affichage === 'bloc') {
     drawTableHeader()
     input.lignes.forEach((line, idx) => {
-      // Les étapes s'affichent sous la première ligne de prestation
-      const etapesForLine = idx === 0 ? sortedEtapes : []
-      drawRow(line, idx, etapesForLine)
+      drawRow(line, idx, getEtapesForLine(line, idx))
     })
   } else {
     const grouped: Record<string, LigneDevis[]> = {}
     for (const line of input.lignes) { const k = line.section || 'autres'; if (!grouped[k]) grouped[k] = []; grouped[k].push(line) }
+    let globalIdx = 0
     for (const [section, lines] of Object.entries(grouped)) {
       checkPageBreak(headerH + minRowH * lines.length + 12)
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
       pdf.text(SECTION_LABELS[section] || section.toUpperCase(), ML, y + 4)
       y += 7
       drawTableHeader()
-      let st = 0; let globalIdx = 0
-      lines.forEach((l, i) => { drawRow(l, i, globalIdx === 0 ? sortedEtapes : []); st += l.total; globalIdx++ })
+      let st = 0
+      lines.forEach((l, i) => { drawRow(l, i, getEtapesForLine(l, globalIdx)); st += l.total; globalIdx++ })
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
       pdf.text(`Sous-total : ${formatPrice(st)}`, ML + contentW - 3, y + 4, { align: 'right' })
       y += 8

@@ -934,6 +934,10 @@ export default function DevisFactureForm({
           adresse: clientAddress || null,
           telephone: clientPhone || null,
           email: clientEmail || null,
+          intervention_adresse: interventionAddress || null,
+          intervention_batiment: interventionBatiment || null,
+          intervention_etage: interventionEtage || null,
+          intervention_espaces_communs: interventionEspacesCommuns || null,
         },
         devis: {
           numero: docNumber || 'DEVIS-TEST',
@@ -951,10 +955,10 @@ export default function DevisFactureForm({
           prix_unitaire: l.priceHT,
           total: l.totalHT,
           section: null,
-        })),
-        etapes: lines.flatMap(l => (l.etapes || []).filter(e => e.designation.trim())).map(e => ({
-          ordre: e.ordre,
-          designation: e.designation,
+          etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
+            ordre: e.ordre,
+            designation: e.designation,
+          })),
         })),
         acomptes: acomptesEnabled ? acomptes.map(ac => {
           const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
@@ -1019,6 +1023,10 @@ export default function DevisFactureForm({
           adresse: clientAddress || null,
           telephone: clientPhone || null,
           email: clientEmail || null,
+          intervention_adresse: interventionAddress || null,
+          intervention_batiment: interventionBatiment || null,
+          intervention_etage: interventionEtage || null,
+          intervention_espaces_communs: interventionEspacesCommuns || null,
         },
         devis: {
           numero: docNumber || 'DEVIS-PREVIEW',
@@ -1036,10 +1044,10 @@ export default function DevisFactureForm({
           prix_unitaire: l.priceHT,
           total: l.totalHT,
           section: null,
-        })),
-        etapes: lines.flatMap(l => (l.etapes || []).filter(e => e.designation.trim())).map(e => ({
-          ordre: e.ordre,
-          designation: e.designation,
+          etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
+            ordre: e.ordre,
+            designation: e.designation,
+          })),
         })),
         acomptes: acomptesEnabled ? acomptes.map(ac => {
           const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
