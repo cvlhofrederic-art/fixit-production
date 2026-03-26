@@ -49,6 +49,7 @@ export interface DevisGeneratorInput {
   mediateur_url?: string
   penalite_retard?: string
   dechets_chantier?: string // FIX FINAL #6: mention optionnelle déchets
+  locale?: 'fr' | 'pt'
 }
 
 export interface LigneDevis {
