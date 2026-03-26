@@ -1312,40 +1312,19 @@ export default function DevisFactureForm({
 
       y += dateBoxH + 4
 
-      // ═══ 5b. DÉTAIL DE L'INTERVENTION (étapes) ═══
-      if (devisEtapes.length > 0) {
-        const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-        if (etapesSorted.length > 0) {
-          checkPageBreak(15 + etapesSorted.length * 5)
-          // Titre
-          pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-          pdf.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'ÉTAPES DU CHANTIER', mL + 4, y + 5.5)
-          // Fond alterné header
-          pdf.setFillColor(COLOR_BG_GRAY)
-          pdf.rect(mL, y, contentW, 8, 'F')
-          pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-          pdf.text(locale === 'pt' ? 'DETALHE DA INTERVENÇÃO' : 'ÉTAPES DU CHANTIER', mL + 4, y + 5.5)
-          y += 12
-          // Liste
-          pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-          for (let i = 0; i < etapesSorted.length; i++) {
-            const bgColor = i % 2 === 0 ? COLOR_WHITE : COLOR_BG_GRAY
-            pdf.setFillColor(bgColor)
-            pdf.rect(mL, y - 3, contentW, 5.5, 'F')
-            pdf.setTextColor(COLOR_TEXT)
-            pdf.text(`${i + 1}. ${etapesSorted[i].designation}`, mL + 4, y)
-            y += 5.5
-            if (y > pageH - 40) { pdf.addPage(); y = 20 }
-          }
-          y += 4
-        }
-      }
-
       // ═══ 6. TABLEAU PRESTATIONS (autoTable) ═══
+      // Étapes are injected into each prestation's description text below
       const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
       const tableHead = tvaEnabled
         ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
         : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
+
+      // Build étapes text to inject into first prestation that has them
+      const etapesSorted = [...devisEtapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
+      const etapesText = etapesSorted.length > 0
+        ? '\n' + etapesSorted.map((e, i) => `${i + 1}. ${e.designation}`).join('\n')
+        : ''
+      let etapesInjected = false
 
       const tableBody = lines.filter(l => l.description.trim()).map(l => {
         const unitStr = formatUnitForPdf(l.unit, l.customUnit)
@@ -1354,7 +1333,12 @@ export default function DevisFactureForm({
         const parts = cleanDesc.split('\n')
         const title = parts[0]
         const detail = parts.slice(1).join('\n').trim()
-        const displayDesc = detail ? `${title}\n${detail}` : title
+        let displayDesc = detail ? `${title}\n${detail}` : title
+        // Inject étapes into the first prestation (aligned with description text, no extra indent)
+        if (!etapesInjected && etapesText) {
+          displayDesc += etapesText
+          etapesInjected = true
+        }
         const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
         if (tvaEnabled) row.push(`${l.tvaRate}%`)
         row.push(localeFormats.currencyFormat(l.totalHT))
