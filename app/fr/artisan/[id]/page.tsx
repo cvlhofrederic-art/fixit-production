@@ -545,6 +545,27 @@ export default function ArtisanProfilePage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [bookingError, setBookingError] = useState<string | null>(null)
+  const [addressSuggestions, setAddressSuggestions] = useState<{ label: string; value: string }[]>([])
+  const [showAddrDropdown, setShowAddrDropdown] = useState(false)
+  const addrDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fetchAddressSuggestions = (query: string) => {
+    if (addrDebounceRef.current) clearTimeout(addrDebounceRef.current)
+    if (query.length < 3) { setAddressSuggestions([]); return }
+    addrDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=5`)
+        if (res.ok) {
+          const data = await res.json()
+          const suggestions = (data.features || []).map((f: any) => ({
+            label: f.properties?.label || '',
+            value: f.properties?.label || '',
+          }))
+          setAddressSuggestions(suggestions)
+          setShowAddrDropdown(suggestions.length > 0)
+        }
+      } catch { /* silent */ }
+    }, 300)
+  }
 
   useEffect(() => {
     fetchArtisan()
@@ -2244,13 +2265,41 @@ export default function ArtisanProfilePage() {
                         <MapPin className="w-3.5 h-3.5 text-gray-500" />
                         Adresse d&apos;intervention
                       </label>
-                      <input
-                        type="text"
-                        value={bookingForm.address}
-                        onChange={(e) => setBookingForm({ ...bookingForm, address: e.target.value })}
-                        placeholder="123 rue de la Paix, 13600 La Ciotat"
-                        className="w-full p-2.5 border-[1.5px] border-[#E0E0E0] bg-warm-gray rounded-xl focus:border-yellow focus:bg-white focus:outline-none transition text-sm"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={bookingForm.address}
+                          onChange={(e) => {
+                            setBookingForm({ ...bookingForm, address: e.target.value })
+                            fetchAddressSuggestions(e.target.value)
+                          }}
+                          onFocus={() => { if (addressSuggestions.length > 0) setShowAddrDropdown(true) }}
+                          onBlur={() => setTimeout(() => setShowAddrDropdown(false), 200)}
+                          placeholder="123 rue de la Paix, 13600 La Ciotat"
+                          className="w-full p-2.5 border-[1.5px] border-[#E0E0E0] bg-warm-gray rounded-xl focus:border-yellow focus:bg-white focus:outline-none transition text-sm"
+                          autoComplete="off"
+                        />
+                        {showAddrDropdown && addressSuggestions.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                            {addressSuggestions.map((s, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setBookingForm({ ...bookingForm, address: s.value })
+                                  setShowAddrDropdown(false)
+                                  setAddressSuggestions([])
+                                }}
+                                className="w-full text-left px-3 py-2.5 text-sm hover:bg-[#FFF8E1] transition flex items-center gap-2 border-b border-gray-50 last:border-0"
+                              >
+                                <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <span className="truncate">{s.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       {connectedUser && bookingForm.address && (
                         <p className="text-[11px] text-gray-500 mt-1">Adresse de votre profil par d&eacute;faut &mdash; modifiable si l&apos;intervention est ailleurs</p>
                       )}
