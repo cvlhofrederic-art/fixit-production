@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     }
 
     const response = NextResponse.json({ data })
-    response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+    response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=120, stale-while-revalidate=300')
     return response
   } catch (err) {
     logger.error('[booking-detail/GET] Unexpected error:', err)

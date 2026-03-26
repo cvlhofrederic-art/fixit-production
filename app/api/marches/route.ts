@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ marches })
-  response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=300')
   return response
 }
 
