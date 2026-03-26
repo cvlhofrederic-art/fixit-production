@@ -970,10 +970,97 @@ export default function DevisFactureForm({
         mediateur_url: mediatorUrl || undefined,
       }
       const pdf = await generateDevisPdfV2(input)
-      pdf.save(`TEST-V2_${docNumber || 'devis'}.pdf`)
+      pdf.save(`${docNumber || 'devis'}.pdf`)
     } catch (err) {
       console.error('PDF V2 error:', err)
       alert('Erreur PDF V2: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
+  const handlePreviewPdf = async () => {
+    setPdfLoading(true)
+    try {
+      const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
+      let freshLogoUrl = (artisan?.logo_url as string) || null
+      let freshInsuranceName = insuranceName
+      let freshInsuranceNumber = insuranceNumber
+      let freshInsuranceCoverage = insuranceCoverage
+      let freshInsuranceType = insuranceType
+      try {
+        const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type').eq('id', artisan?.id).single()
+        if (freshArtisan?.logo_url) freshLogoUrl = freshArtisan.logo_url
+        if (freshArtisan?.insurance_name && !insuranceName) freshInsuranceName = freshArtisan.insurance_name
+        if (freshArtisan?.insurance_number && !insuranceNumber) freshInsuranceNumber = freshArtisan.insurance_number
+        if (freshArtisan?.insurance_coverage) freshInsuranceCoverage = freshArtisan.insurance_coverage
+        if (freshArtisan?.insurance_type) freshInsuranceType = freshArtisan.insurance_type
+      } catch { /* use cached value */ }
+      const input = {
+        artisan: {
+          logo_url: freshLogoUrl,
+          nom: companyName || artisan?.company_name || '',
+          siret: companySiret || '',
+          rm: (artisan?.rm as string) || null,
+          adresse: companyAddress || '',
+          telephone: companyPhone || '',
+          email: companyEmail || '',
+          rc_pro: (artisan?.rc_pro as string) || null,
+          insurance_name: freshInsuranceName || null,
+          insurance_number: freshInsuranceNumber || null,
+          insurance_coverage: freshInsuranceCoverage || null,
+          insurance_type: freshInsuranceType || null,
+          tva_mention: tvaEnabled ? 'TVA applicable' : 'TVA non applicable, article 293 B du CGI.',
+          mode_paiement: paymentMode || 'Virement bancaire',
+        },
+        client: {
+          nom: clientName || '',
+          siret: clientSiret || null,
+          adresse: clientAddress || null,
+          telephone: clientPhone || null,
+          email: clientEmail || null,
+        },
+        devis: {
+          numero: docNumber || 'DEVIS-PREVIEW',
+          titre: docTitle || (docType === 'devis' ? 'DEVIS' : 'FACTURE'),
+          date_emission: new Date(docDate),
+          validite_jours: docValidity || 30,
+          delai_execution: executionDelay || 'À convenir',
+          date_prestation: prestationDate ? new Date(prestationDate) : null,
+        },
+        mode_affichage: 'bloc' as const,
+        lignes: lines.filter(l => l.description.trim()).map(l => ({
+          designation: l.description,
+          quantite: l.qty,
+          unite: l.unit || 'u',
+          prix_unitaire: l.priceHT,
+          total: l.totalHT,
+          section: null,
+        })),
+        etapes: lines.flatMap(l => (l.etapes || []).filter(e => e.designation.trim())).map(e => ({
+          ordre: e.ordre,
+          designation: e.designation,
+        })),
+        acomptes: acomptesEnabled ? acomptes.map(ac => {
+          const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
+          return {
+            label: ac.label,
+            montant: totalNet * ac.pourcentage / 100,
+            declencheur: ac.declencheur,
+            statut: 'en attente' as const,
+          }
+        }) : undefined,
+        notes: notes || undefined,
+        mediateur: mediatorName || undefined,
+        mediateur_url: mediatorUrl || undefined,
+      }
+      const pdf = await generateDevisPdfV2(input)
+      const blob = pdf.output('blob')
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, '_blank')
+    } catch (err) {
+      console.error('PDF Preview error:', err)
+      alert('Erreur aperçu: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setPdfLoading(false)
     }
@@ -3556,15 +3643,11 @@ export default function DevisFactureForm({
                       </button>
                     </div>
                   ) : (
-                    <>
-                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
-                        {locale === 'pt' ? 'Assine o documento antes de gerar o PDF' : 'Signez le document avant de générer le PDF'}
-                      </div>
-                      <button onClick={() => { setSigNom(companyName); setShowSignatureModal(true) }}
-                        className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px' }}>
-                        {locale === 'pt' ? 'Assinar o documento' : 'Signer le document'}
-                      </button>
-                    </>
+                    <button onClick={handlePreviewPdf}
+                      disabled={pdfLoading}
+                      className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer' }}>
+                      {pdfLoading ? '...' : (locale === 'pt' ? 'Pré-visualização' : 'Aperçu')}
+                    </button>
                   )}
                 </div>
               </div>
@@ -3589,20 +3672,12 @@ export default function DevisFactureForm({
                   {t('devis.saveDraft')}
                 </button>
                 <button
-                  onClick={handleGeneratePDF}
+                  onClick={handleTestPdfV2}
                   disabled={pdfLoading}
                   className="v22-btn v22-btn-primary"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer' }}
                 >
                   {pdfLoading ? t('devis.generatingPdf') : t('devis.downloadPdf')}
-                </button>
-                <button
-                  onClick={handleTestPdfV2}
-                  disabled={pdfLoading}
-                  className="v22-btn"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer', border: '1px dashed var(--v22-yellow)', color: 'var(--v22-text-mid)', fontSize: 12 }}
-                >
-                  🧪 Tester PDF v2
                 </button>
                 <button
                   onClick={handleValidateAndSend}
