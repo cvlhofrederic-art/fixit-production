@@ -2552,13 +2552,12 @@ export default function DevisFactureForm({
                     placeholder={t('devis.clientAddressPlaceholder')}
                     className={normalFieldClass} />
                 </div>
-                {/* Lieu d'intervention — apparaît pour les clients pro/syndic */}
-                {isProClient && (
-                  <div className="v22-form-group" style={{ background: 'var(--v22-bg-alt, #f9fafb)', borderRadius: 10, padding: 12, border: '1px solid var(--v22-border)' }}>
+                {/* Lieu d'intervention — tous types de clients */}
+                <div className="v22-form-group" style={{ background: 'var(--v22-bg-alt, #f9fafb)', borderRadius: 10, padding: 12, border: '1px solid var(--v22-border)' }}>
                     <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                       Lieu d&apos;intervention
-                      <span className="v22-tag v22-tag-amber">Client pro</span>
+                      {isProClient && <span className="v22-tag v22-tag-amber">Client pro</span>}
                     </label>
                     {/* Dropdown of pre-registered addresses OR free text */}
                     {selectedClientInterventionAddresses.length > 0 ? (
@@ -2626,8 +2625,7 @@ export default function DevisFactureForm({
                     <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 6 }}>
                       Adresse du chantier si différente du siège social du client
                     </div>
-                  </div>
-                )}
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
                     <label className="v22-form-label">{t('devis.clientPhone')}</label>
