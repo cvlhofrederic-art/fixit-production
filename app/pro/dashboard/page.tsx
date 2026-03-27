@@ -1158,8 +1158,11 @@ export default function DashboardPage() {
             {isModuleEnabled('stats') && <V22SidebarItem label={t('proDash.modules.stats')} active={activePage === 'stats'} onClick={() => navigateTo('stats')} />}
             {isModuleEnabled('revenus') && <V22SidebarItem label={t('proDash.modules.revenue')} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />}
             {isModuleEnabled('comptabilite') && <V22SidebarItem label={t('proDash.modules.accounting')} active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />}
-            {isModuleEnabled('materiaux') && orgRole === 'artisan' && (
-              <V22SidebarItem label={t('proDash.modules.materials')} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} />
+            {isModuleEnabled('materiaux') && (orgRole === 'artisan' || orgRole === 'pro_societe') && (
+              <V22SidebarItem
+                label={orgRole === 'pro_societe' ? (isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro') : t('proDash.modules.materials')}
+                active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')}
+              />
             )}
             {isModuleEnabled('marches') && (
               <V22SidebarItem label={t('proDash.modules.marches') || 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
@@ -1535,6 +1538,7 @@ export default function DashboardPage() {
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos materiais' : 'Erreur dans les matériaux'}>
               <MateriauxSection
                 artisan={artisan}
+                orgRole={orgRole}
                 onExportDevis={(lines: any[]) => {
                   setConvertingDevis({ docType: 'devis', lines })
                   setShowDevisForm(true)

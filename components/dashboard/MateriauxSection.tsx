@@ -19,6 +19,17 @@ const JOB_PRESETS_FR = [
   { label: '🔩 Robinetterie', q: 'Remplacement robinetterie cuisine et salle de bain' },
   { label: '🧱 Isolation combles', q: 'Isolation combles perdus 50m² laine de verre' },
 ]
+
+const JOB_PRESETS_SOCIETE_FR = [
+  { label: '🏗️ Béton structure', q: 'Béton armé fondations + plancher dalle 200m² chantier neuf' },
+  { label: '🪵 Charpente bois', q: 'Charpente traditionnelle bois 150m² + couverture tuile' },
+  { label: '🔩 Ossature métallique', q: 'Ossature métallique IPE HEA bardage 500m² bâtiment industriel' },
+  { label: '🧱 Gros œuvre', q: 'Parpaings + mortier + linteaux immeuble R+3 200m²' },
+  { label: '🌿 Isolation façade ITE', q: 'Isolation thermique extérieure polystyrène 300m² immeuble' },
+  { label: '🚧 VRD voirie', q: 'Enrobé bitumineux + bordures béton voirie 1000m² lotissement' },
+  { label: '🔌 Courant fort CFO', q: 'Câblage CFO + armoire électrique TGBT immeuble 20 lots' },
+  { label: '💧 Réseau plomberie', q: 'Réseau alimentation + évacuation PVC cuivre immeuble neuf 20 appartements' },
+]
 const JOB_PRESETS_PT = [
   { label: '🚿 Aquecedor', q: 'Substituição esquentador termostático 200L' },
   { label: '🪟 Azulejo 20m²', q: 'Colocação azulejo pavimento 20m² formato 60x60' },
@@ -120,7 +131,10 @@ const PRODUCT_PRESETS_PT = [
   { label: '🔨 Aparafusadora', q: 'aparafusadora de impacto 18V' },
 ]
 
-export default function MateriauxSection({ artisan, onExportDevis }: { artisan: any; onExportDevis: (lines: any[]) => void }) {
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
+export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { artisan: any; onExportDevis: (lines: any[]) => void; orgRole?: OrgRole }) {
+  const isSociete = orgRole === 'pro_societe'
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')
@@ -379,8 +393,16 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
       {/* Header */}
       <div className="v22-page-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
         <div style={{ flex: 1 }}>
-          <div className="v22-page-title">🛒 {locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}</div>
-          <div className="v22-page-sub">{locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne'}</div>
+          <div className="v22-page-title">
+            {isSociete
+              ? (locale === 'pt' ? '🧱 Materiais & Aprovisionamento BTP' : '🧱 Matériaux & Approvisionnement BTP')
+              : `🛒 ${locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}`}
+          </div>
+          <div className="v22-page-sub">
+            {isSociete
+              ? (locale === 'pt' ? 'Compare preços de materiais para os seus estaleiros e situações de obra' : 'Comparez les prix matériaux pour vos chantiers et situations de travaux')
+              : (locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne')}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {userCity && (
@@ -444,11 +466,15 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
               <div className="v22-card" style={{ marginBottom: '16px', textAlign: 'center' }}>
                 <div className="v22-card-body" style={{ padding: '24px' }}>
                   <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛒</div>
-                  <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>
+                    {isSociete ? 'Agent Approvisionnement BTP' : locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}
+                  </div>
                   <p style={{ fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
-                    {locale === 'pt'
-                      ? <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
-                      : <>Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong></>
+                    {isSociete
+                      ? <>Décrivez votre lot ou chantier — l&apos;agent génère la liste des matériaux avec comparatif de prix fournisseurs <strong>(Point P, Brico Dépôt, Leroy Merlin Pro…)</strong></>
+                      : locale === 'pt'
+                        ? <>Descreva a sua intervenção e o agente gera automaticamente a lista de materiais com os preços por loja <strong>(Leroy Merlin PT, AKI, Maxmat…)</strong></>
+                        : <>Décrivez votre intervention et l&apos;agent génère automatiquement la liste des matériaux avec les prix par enseigne <strong>(Leroy Merlin, Brico Dépôt, Castorama…)</strong></>
                     }
                   </p>
                   {!userCity && (
@@ -462,10 +488,10 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
               {/* Quick presets */}
               <div style={{ marginBottom: '16px' }}>
                 <div className="v22-form-label" style={{ marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {locale === 'pt' ? 'Intervenções comuns' : 'Interventions courantes'}
+                  {isSociete ? 'Lots de travaux fréquents' : locale === 'pt' ? 'Intervenções comuns' : 'Interventions courantes'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px' }}>
-                  {(locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR).map((p, i) => (
+                  {(isSociete ? JOB_PRESETS_SOCIETE_FR : locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className="v22-btn" style={{ textAlign: 'left', padding: '10px 12px' }}>
                       {p.label}
@@ -1103,7 +1129,7 @@ export default function MateriauxSection({ artisan, onExportDevis }: { artisan: 
               {/* Suggestions rapides */}
               {chatStarted && !isLoading && (
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : (locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR)).slice(0, 3).map((p, i) => (
+                  {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : (isSociete ? JOB_PRESETS_SOCIETE_FR : locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR)).slice(0, 3).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
                       className="v22-btn v22-btn-sm" style={{ whiteSpace: 'nowrap' }}>
                       {p.label}
