@@ -39,6 +39,14 @@ const CATEGORY_TO_METIER: Record<string, string> = {
   'serrurerie': 'serrurier', 'serrurier': 'serrurier', 'metallier': 'serrurier', 'ferronnerie': 'serrurier',
   // Nettoyage
   'nettoyage': 'nettoyage', 'proprete': 'nettoyage', 'menage': 'nettoyage',
+  // Ramonage → fallback couvreur (univers toiture/conduits)
+  'ramonage': 'couvreur', 'ramoneur': 'couvreur',
+  // Piscine → fallback jardinier (extérieur)
+  'piscine': 'jardinier', 'pisciniste': 'jardinier',
+  // Store banne → fallback menuisier (pose/installation)
+  'store-banne': 'menuisier', 'store_banne': 'menuisier', 'storiste': 'menuisier',
+  // Débouchage → plombier (sous-spécialité)
+  'debouchage': 'plombier', 'assainissement': 'plombier',
 }
 
 export async function POST(request: NextRequest) {

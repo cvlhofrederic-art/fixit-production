@@ -413,6 +413,18 @@ const SPECIALTY_SUGGESTIONS_FR: SpecialtySuggestion[] = [
   { label: 'Bricolage à domicile', category: 'petits-travaux', icon: '🛠️', subtitle: 'Petits travaux', type: 'intervention' },
   { label: 'Pose de carrelage', category: 'carrelage', icon: '🧱', subtitle: 'Carreleur', type: 'intervention' },
   { label: 'Réparation de toiture', category: 'toiture', icon: '🏠', subtitle: 'Couvreur', type: 'intervention' },
+  // Nouveaux métiers
+  { label: 'Plaquiste', category: 'plaquiste', icon: '🔳', type: 'primary' },
+  { label: 'Ramoneur', category: 'ramonage', icon: '🔥', type: 'primary' },
+  { label: 'Pisciniste', category: 'piscine', icon: '🏊', type: 'primary' },
+  { label: 'Store Banne', category: 'store-banne', icon: '☀️', type: 'primary' },
+  { label: 'Paysagiste', category: 'paysagiste', icon: '🌿', type: 'primary' },
+  { label: 'Débouchage', category: 'debouchage', icon: '🚿', type: 'primary' },
+  { label: 'Pose de placo', category: 'plaquiste', icon: '🔳', subtitle: 'Plaquiste', type: 'intervention' },
+  { label: 'Ramonage cheminée', category: 'ramonage', icon: '🔥', subtitle: 'Ramoneur', type: 'intervention' },
+  { label: 'Entretien piscine', category: 'piscine', icon: '🏊', subtitle: 'Pisciniste', type: 'intervention' },
+  { label: 'Pose store banne', category: 'store-banne', icon: '☀️', subtitle: 'Store Banne', type: 'intervention' },
+  { label: 'Canalisation bouchée', category: 'debouchage', icon: '🚿', subtitle: 'Débouchage', type: 'intervention' },
 ]
 
 function levenshtein(a: string, b: string): number {

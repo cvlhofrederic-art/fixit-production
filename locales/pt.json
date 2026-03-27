@@ -264,6 +264,26 @@
     "industrialCleaning": {
       "title": "Limpeza industrial",
       "desc": "Limpeza de espaços comerciais e industriais"
+    },
+    "drywall": {
+      "title": "Estucador / Pladur",
+      "desc": "Divisórias, pladur, isolamento, tetos falsos"
+    },
+    "pool": {
+      "title": "Técnico de piscinas",
+      "desc": "Manutenção, abertura de época, invernagem, reparação de piscinas"
+    },
+    "chimneySweep": {
+      "title": "Limpa-chaminés",
+      "desc": "Limpeza de chaminés, recuperadores de calor, tubagem"
+    },
+    "awning": {
+      "title": "Toldos e Pérgulas",
+      "desc": "Instalação de toldos, pérgulas bioclimáticas, motorização"
+    },
+    "drainCleaning": {
+      "title": "Desentupimento",
+      "desc": "Desentupimento de canalizações, limpeza de esgotos"
     }
   },
   "trades": {
@@ -3896,6 +3916,12 @@
     "metierPaysagiste": "Paisagista / Jardineiro",
     "metierNettoyage": "Limpeza",
     "metierDeratiseur": "Controlo de pragas",
+    "metierPlaquiste": "Estucador / Pladur",
+    "metierRamoneur": "Limpa-chaminés",
+    "metierPisciniste": "Técnico de piscinas",
+    "metierStoreBanne": "Toldos e Pérgulas",
+    "metierPaysagisteConcepteur": "Paisagista / Designer de exteriores",
+    "metierDebouchage": "Desentupimento / Saneamento",
     "sectorBtpGrosOeuvre": "Alvenaria / Construção pesada",
     "sectorBtpElecPlomb": "Eletricidade / Canalização",
     "sectorBtpPeinture": "Pintura / Revestimentos",

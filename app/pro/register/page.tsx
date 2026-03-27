@@ -150,12 +150,18 @@ function getMetiers(t: (key: string) => string) {
     { slug: 'espaces-verts', name: t('register.metierPaysagiste'), icon: '🌳' },
     { slug: 'nettoyage', name: t('register.metierNettoyage'), icon: '🧹' },
     { slug: 'traitement-nuisibles', name: t('register.metierDeratiseur'), icon: '🐛' },
+    { slug: 'plaquiste', name: t('register.metierPlaquiste'), icon: '🔳' },
+    { slug: 'ramonage', name: t('register.metierRamoneur'), icon: '🔥' },
+    { slug: 'piscine', name: t('register.metierPisciniste'), icon: '🏊' },
+    { slug: 'store-banne', name: t('register.metierStoreBanne'), icon: '☀️' },
+    { slug: 'paysagiste', name: t('register.metierPaysagisteConcepteur'), icon: '🌿' },
+    { slug: 'debouchage', name: t('register.metierDebouchage'), icon: '🚿' },
   ]
 }
 
 // ─── Mapping NAF → métiers autorisés (anti-triche) ──────────────────────────
 
-const BTP_METIERS = ['plomberie', 'electricite', 'serrurerie', 'chauffage', 'peinture', 'maconnerie', 'menuiserie', 'toiture', 'climatisation', 'carrelage', 'vitrerie', 'petits-travaux', 'renovation']
+const BTP_METIERS = ['plomberie', 'electricite', 'serrurerie', 'chauffage', 'peinture', 'maconnerie', 'menuiserie', 'toiture', 'climatisation', 'carrelage', 'vitrerie', 'petits-travaux', 'renovation', 'plaquiste', 'ramonage', 'store-banne', 'debouchage']
 
 function getAllowedMetiers(nafCode: string | undefined): string[] | null {
   if (!nafCode) return null // pas de restriction si pas de NAF
@@ -170,8 +176,12 @@ function getAllowedMetiers(nafCode: string | undefined): string[] | null {
   if (c.startsWith('8129')) return ['traitement-nuisibles', 'nettoyage', 'petits-travaux']
   // Nettoyage (81.2x)
   if (c.startsWith('812') || c.startsWith('960')) return ['nettoyage', 'petits-travaux']
-  // Espaces verts / jardinage
-  if (c.startsWith('813') || c.startsWith('016')) return ['espaces-verts', 'petits-travaux']
+  // Ramonage (81.22)
+  if (c.startsWith('8122')) return ['ramonage', 'nettoyage', 'petits-travaux']
+  // Espaces verts / jardinage / paysagiste
+  if (c.startsWith('813') || c.startsWith('016')) return ['espaces-verts', 'paysagiste', 'petits-travaux']
+  // Installations spécialisées (43.29) — piscine, store, etc.
+  if (c.startsWith('4329')) return [...BTP_METIERS, 'piscine']
   // Déménagement
   if (c.startsWith('4942')) return ['demenagement', 'petits-travaux']
   // Réparation biens personnels

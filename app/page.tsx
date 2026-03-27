@@ -36,6 +36,11 @@ const SERVICE_KEYS_EXTRA = [
   { icon: '🧹', key: 'postWorkCleaning', slug: 'nettoyage-travaux' },
   { icon: '🏢', key: 'condoCleaning', slug: 'nettoyage-copro' },
   { icon: '🏭', key: 'industrialCleaning', slug: 'nettoyage-industriel' },
+  { icon: '🔳', key: 'drywall', slug: 'plaquiste' },
+  { icon: '🏊', key: 'pool', slug: 'piscine' },
+  { icon: '🔥', key: 'chimneySweep', slug: 'ramonage' },
+  { icon: '☀️', key: 'awning', slug: 'store-banne' },
+  { icon: '🚿', key: 'drainCleaning', slug: 'debouchage' },
 ]
 
 export default function HomePage() {

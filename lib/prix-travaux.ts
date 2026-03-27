@@ -277,6 +277,66 @@ export const BASE_PRIX: Record<string, MetierPrix> = {
       'Dans quelle ville se situent les travaux ?',
     ],
   },
+
+  ramonage: {
+    metier: 'Ramoneur',
+    travaux: {
+      ramonage_cheminee: { label: 'Ramonage cheminée (bois/charbon)', unite: 'unité', prix_bas: 60, prix_haut: 120 },
+      ramonage_poele: { label: 'Ramonage poêle à bois/granulés', unite: 'unité', prix_bas: 50, prix_haut: 100 },
+      ramonage_chaudiere: { label: 'Ramonage conduit chaudière fioul/gaz', unite: 'unité', prix_bas: 80, prix_haut: 150 },
+      tubage_conduit: { label: 'Tubage de conduit', unite: 'ml', prix_bas: 80, prix_haut: 200 },
+      tubage_complet: { label: 'Tubage complet cheminée', unite: 'forfait', prix_bas: 800, prix_haut: 2500 },
+      test_fumigene: { label: 'Test fumigène / étanchéité conduit', unite: 'unité', prix_bas: 100, prix_haut: 200 },
+      nettoyage_insert: { label: 'Nettoyage insert / foyer fermé', unite: 'unité', prix_bas: 80, prix_haut: 150 },
+    },
+    questions: [
+      'Quel type de conduit ? (cheminée ouverte / insert / poêle / chaudière)',
+      'Quand a eu lieu le dernier ramonage ?',
+      'Y a-t-il un problème de tirage ou de refoulement ?',
+      'Combien de conduits sont à ramoner ?',
+      'Dans quelle ville se situent les travaux ?',
+    ],
+  },
+
+  piscine: {
+    metier: 'Pisciniste',
+    travaux: {
+      entretien_mensuel: { label: 'Entretien mensuel piscine', unite: 'forfait/mois', prix_bas: 80, prix_haut: 150 },
+      mise_en_service: { label: 'Mise en service (ouverture saison)', unite: 'forfait', prix_bas: 150, prix_haut: 300 },
+      hivernage: { label: 'Hivernage piscine', unite: 'forfait', prix_bas: 150, prix_haut: 250 },
+      remplacement_pompe: { label: 'Remplacement pompe de filtration', unite: 'unité', prix_bas: 300, prix_haut: 800 },
+      remplacement_liner: { label: 'Remplacement liner', unite: 'm²', prix_bas: 25, prix_haut: 50 },
+      diagnostic_fuite: { label: 'Diagnostic fuite piscine', unite: 'forfait', prix_bas: 200, prix_haut: 500 },
+      traitement_eau: { label: 'Traitement eau verte / rattrapage', unite: 'forfait', prix_bas: 100, prix_haut: 300 },
+    },
+    questions: [
+      'Quel type de piscine ? (enterrée / hors-sol / coque / béton)',
+      'Quelle est la surface du bassin ?',
+      'Quel est le problème actuel ? (eau verte / fuite / pompe / hivernage)',
+      'La piscine est-elle équipée d\'un traitement automatique ?',
+      'Dans quelle ville se situent les travaux ?',
+    ],
+  },
+
+  'store-banne': {
+    metier: 'Storiste / Pergoliste',
+    travaux: {
+      store_banne_manuel: { label: 'Store banne manuel (pose incluse)', unite: 'unité', prix_bas: 500, prix_haut: 1500 },
+      store_banne_motorise: { label: 'Store banne motorisé (pose incluse)', unite: 'unité', prix_bas: 800, prix_haut: 3000 },
+      motorisation_store: { label: 'Motorisation store existant', unite: 'unité', prix_bas: 300, prix_haut: 700 },
+      remplacement_toile: { label: 'Remplacement toile de store', unite: 'unité', prix_bas: 200, prix_haut: 600 },
+      pergola_bioclimatique: { label: 'Pergola bioclimatique', unite: 'm²', prix_bas: 300, prix_haut: 800 },
+      pergola_adossee: { label: 'Pergola adossée (alu/bois)', unite: 'm²', prix_bas: 150, prix_haut: 400 },
+      reparation_store: { label: 'Réparation store (bras/moteur)', unite: 'forfait', prix_bas: 150, prix_haut: 500 },
+    },
+    questions: [
+      'Quel type d\'installation ? (store banne / pergola / voile d\'ombrage)',
+      'Quelle largeur souhaitée ?',
+      'Manuel ou motorisé ?',
+      'Y a-t-il un store existant à remplacer ou c\'est une première pose ?',
+      'Dans quelle ville se situent les travaux ?',
+    ],
+  },
 }
 
 // ── Coefficients ──
@@ -334,6 +394,10 @@ export const KEYWORD_METIER_MAP: Record<string, string[]> = {
   serrurerie: ['serrure', 'porte blindée', 'clé', 'grille', 'serrurier', 'blindage', 'digicode', 'ouverture de porte'],
   nettoyage: ['nettoyage', 'ménage', 'vitres', 'fin de chantier', 'débarras', 'vidage'],
   maconnerie: ['mur', 'béton', 'dalle', 'fondation', 'maçonnerie', 'maçon', 'parpaing', 'brique', 'terrassement', 'démolition'],
+  ramonage: ['ramonage', 'ramoneur', 'cheminée', 'conduit', 'insert', 'poêle à bois', 'tubage', 'fumisterie'],
+  piscine: ['piscine', 'pisciniste', 'bassin', 'liner', 'pompe piscine', 'chlore', 'hivernage', 'eau verte'],
+  'store-banne': ['store banne', 'store', 'pergola', 'auvent', 'toile store', 'banne', 'pergola bioclimatique'],
+  debouchage: ['débouchage', 'bouchée', 'bouché', 'engorgement', 'canalisation bouchée', 'assainissement', 'curage', 'hydrocurage'],
 }
 
 // Détecte les métiers depuis un texte en langage naturel

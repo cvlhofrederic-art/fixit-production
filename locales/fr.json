@@ -264,6 +264,26 @@
     "industrialCleaning": {
       "title": "Nettoyage industriel",
       "desc": "Nettoyage de locaux commerciaux et industriels"
+    },
+    "drywall": {
+      "title": "Plaquiste",
+      "desc": "Cloisons, placo, isolation, faux plafonds, doublage"
+    },
+    "pool": {
+      "title": "Pisciniste",
+      "desc": "Entretien, mise en service, hivernage, réparation piscine"
+    },
+    "chimneySweep": {
+      "title": "Ramoneur",
+      "desc": "Ramonage cheminée, poêle, insert, tubage de conduit"
+    },
+    "awning": {
+      "title": "Store Banne & Pergola",
+      "desc": "Pose store banne, pergola bioclimatique, motorisation"
+    },
+    "drainCleaning": {
+      "title": "Débouchage",
+      "desc": "Débouchage canalisations, curage, assainissement"
     }
   },
   "trades": {
@@ -3893,6 +3913,12 @@
     "metierPaysagiste": "Paysagiste / Jardinier",
     "metierNettoyage": "Nettoyage",
     "metierDeratiseur": "Dératiseur / Désinsectiseur",
+    "metierPlaquiste": "Plaquiste / Plâtrier",
+    "metierRamoneur": "Ramoneur",
+    "metierPisciniste": "Pisciniste",
+    "metierStoreBanne": "Store Banne & Pergola",
+    "metierPaysagisteConcepteur": "Paysagiste / Concepteur",
+    "metierDebouchage": "Débouchage / Assainissement",
     "sectorBtpGrosOeuvre": "Gros œuvre / Maçonnerie",
     "sectorBtpElecPlomb": "Électricité / Plomberie",
     "sectorBtpPeinture": "Peinture / Revêtements",
