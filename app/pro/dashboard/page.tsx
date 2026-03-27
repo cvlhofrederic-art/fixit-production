@@ -1175,6 +1175,7 @@ export default function DashboardPage() {
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
               {isModuleEnabled('wallet') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Conformité' : t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
               {isModuleEnabled('portfolio') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Références chantiers' : t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
+              {isModuleEnabled('parrainage') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Parrainage entreprises' : t('proDash.modules.parrainage') || 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
             </div>
           )}
         </div>
@@ -1763,7 +1764,7 @@ export default function DashboardPage() {
           {/* ────── PARRAINAGE ────── */}
           {activePage === 'parrainage' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le module parrainage">
-              <ParrainageSection artisan={artisan} />
+              <ParrainageSection artisan={artisan} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 

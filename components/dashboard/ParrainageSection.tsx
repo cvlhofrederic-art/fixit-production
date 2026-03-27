@@ -7,8 +7,11 @@ import { useState, useEffect, useCallback } from 'react'
 // Lien de partage (WhatsApp, SMS, copie), stats, historique
 // ══════════════════════════════════════════════════════════════════════════════
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
 interface ParrainageSectionProps {
   artisan: Record<string, unknown> & { id: string }
+  orgRole?: OrgRole
 }
 
 interface ReferralStats {
@@ -28,7 +31,8 @@ interface HistoryItem {
   mois_offerts: number
 }
 
-export default function ParrainageSection({ artisan }: ParrainageSectionProps) {
+export default function ParrainageSection({ artisan, orgRole }: ParrainageSectionProps) {
+  const isSociete = orgRole === 'pro_societe'
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,13 +77,17 @@ export default function ParrainageSection({ artisan }: ParrainageSectionProps) {
 
   const shareWhatsApp = () => {
     if (!stats?.referral_link) return
-    const text = `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien tu as 1 mois gratuit :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
+    const text = isSociete
+      ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien votre entreprise bénéficie de 1 mois gratuit :\n${stats.referral_link}\n(Nous gagnons aussi 1 mois si vous vous abonnez 😊)`
+      : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien tu as 1 mois gratuit :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   const shareSMS = () => {
     if (!stats?.referral_link) return
-    const text = `Rejoins VITFIX avec 1 mois gratuit : ${stats.referral_link}`
+    const text = isSociete
+      ? `Vitfix Pro — gestion chantiers & devis pour entreprises BTP. 1 mois offert : ${stats.referral_link}`
+      : `Rejoins VITFIX avec 1 mois gratuit : ${stats.referral_link}`
     window.open(`sms:?body=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -97,10 +105,12 @@ export default function ParrainageSection({ artisan }: ParrainageSectionProps) {
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-text, #0D1B2E)', marginBottom: 4 }}>
-          🎁 Parrainage
+          {isSociete ? '🤝 Parrainage Entreprises BTP' : '🎁 Parrainage'}
         </h2>
         <p style={{ fontSize: 14, color: '#8A9BB0' }}>
-          Parrainez des artisans et gagnez des mois gratuits
+          {isSociete
+            ? "Recommandez Vitfix à d'autres entreprises du bâtiment et gagnez des mois gratuits"
+            : 'Parrainez des artisans et gagnez des mois gratuits'}
         </p>
       </div>
 
@@ -184,8 +194,8 @@ export default function ParrainageSection({ artisan }: ParrainageSectionProps) {
         </div>
         <div className="v22-card-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <StepItem n={1} text="Partagez votre lien via WhatsApp ou SMS" />
-            <StepItem n={2} text="Votre collègue s'inscrit et s'abonne à VITFIX Pro" />
+            <StepItem n={1} text={isSociete ? "Partagez votre lien à une autre entreprise BTP" : "Partagez votre lien via WhatsApp ou SMS"} />
+            <StepItem n={2} text={isSociete ? "L'entreprise s'inscrit et s'abonne à VITFIX Pro" : "Votre collègue s'inscrit et s'abonne à VITFIX Pro"} />
             <StepItem n={3} text="Vous recevez chacun 1 mois offert (confirmé après 7 jours)" />
           </div>
         </div>
@@ -202,7 +212,7 @@ export default function ParrainageSection({ artisan }: ParrainageSectionProps) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #E4DDD0' }}>
-                    <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Artisan</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>{isSociete ? 'Entreprise' : 'Artisan'}</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Date</th>
                     <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Statut</th>
                     <th style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: '#4A5E78', fontSize: 13 }}>Récompense</th>
