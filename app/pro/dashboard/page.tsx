@@ -1103,18 +1103,30 @@ export default function DashboardPage() {
               <V22SidebarItem label={t('proDash.modules.hours')} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
             </>}
             {orgRole === 'pro_societe' && <>
-              <V22SidebarItem label={t('proDash.btp.teams')} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />
-              <V22SidebarItem label={t('proDash.btp.sites')} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />
-              <V22SidebarItem label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
-              <V22SidebarItem label={t('proDash.btp.gantt')} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />
-              <V22SidebarItem label={t('proDash.btp.situations')} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
-              <V22SidebarItem label={t('proDash.btp.guarantees')} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
-              <V22SidebarItem label={t('proDash.btp.timeTracking')} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />
-              <V22SidebarItem label={t('proDash.btp.subcontracting')} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
-              <V22SidebarItem label={t('proDash.btp.tenders')} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
-              <V22SidebarItem label={isPt ? 'Os meus orçamentos' : 'Mes devis pro'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
-              <V22SidebarItem label={isPt ? 'Lotes / Prestações' : 'Lots / Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
-              <V22SidebarItem label={isPt ? 'Horários de obra' : 'Horaires chantier'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
+              {/* ── Gestion chantier ── */}
+              <div className="mb-3">
+                <div className="v22-sidebar-label">{isPt ? 'Gestão de obra' : 'Gestion chantier'}</div>
+                <V22SidebarItem label={isPt ? '🏗️ Obras' : '🏗️ Chantiers'} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />
+                <V22SidebarItem label={isPt ? '👷 Equipas' : '👷 Équipes'} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />
+                <V22SidebarItem label={isPt ? '📅 Agenda' : '📅 Agenda / Planning'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />
+                <V22SidebarItem label={isPt ? '📊 Planificação Gantt' : '📊 Planification Gantt'} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />
+                <V22SidebarItem label={isPt ? '⏱️ Marcação de horas' : '⏱️ Pointage équipes'} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />
+              </div>
+              {/* ── Finance BTP ── */}
+              <div className="mb-3">
+                <div className="v22-sidebar-label">{isPt ? 'Finanças BTP' : 'Finance BTP'}</div>
+                <V22SidebarItem label={isPt ? '📋 Os meus orçamentos' : '📋 Devis & Offres'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
+                <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
+                <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
+                <V22SidebarItem label={isPt ? '🤝 Subempreitada DC4' : '🤝 Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
+                <V22SidebarItem label={isPt ? '📁 Concursos / DPGF' : '📁 Appels d\'offres'} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
+              </div>
+              {/* ── Lots & Paramétrage ── */}
+              <div className="mb-3">
+                <div className="v22-sidebar-label">{isPt ? 'Lotes & Parâmetros' : 'Lots & Paramétrage'}</div>
+                <V22SidebarItem label={isPt ? '🗂️ Lotes / Prestações' : '🗂️ Lots / Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
+                <V22SidebarItem label={isPt ? '⏱️ Horários de obra' : '⏱️ Horaires chantier'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
+              </div>
             </>}
             {orgRole === 'pro_conciergerie' && <>
               <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
