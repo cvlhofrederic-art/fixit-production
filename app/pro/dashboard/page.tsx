@@ -1047,6 +1047,7 @@ export default function DashboardPage() {
                           }
                           else if (n.type === 'new_mission' || n.type === 'planning_change') navigateTo('calendar')
                           else if (n.type === 'devis_signed') navigateTo('devis')
+                          else if (n.type === 'tva_threshold') navigateTo('comptabilite')
                           else navigateTo('home')
                         }}
                         className="w-full px-3 py-2.5 text-left flex items-start gap-2.5 transition text-xs hover:bg-[var(--v22-bg)]"

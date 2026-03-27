@@ -145,6 +145,7 @@ export function useNotifications(
             marche_message: isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
             marche_won: isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
             marche_rejected: isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
+            tva_threshold: isPt ? '🧾 Alerta de IVA' : '🧾 Alerte TVA',
           }
           sendBrowserNotif(
             typeLabels[n.type] || '🔔 Notification Vitfix',

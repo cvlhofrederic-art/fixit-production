@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { supabase } from '@/lib/supabase'
 import DeclarationSocialeSection from '@/components/dashboard/DeclarationSocialeSection'
+import { getTvaStatus, type TvaCountry, type TvaStatusResult } from '@/lib/tva-thresholds'
 
 /* ══════════ AGENT COMPTABLE LÉA ══════════ */
 
@@ -361,6 +362,11 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const [activeComptaTab, setActiveComptaTab] = useState<'dashboard' | 'revenus' | 'depenses' | 'declaration' | 'assistant'>('dashboard')
   const [exportMonth, setExportMonth] = useState(currentMonth)
 
+  // ── TVA / IVA ───────────────────────────────────────────────────────────────
+  const [tvaAutoActivate, setTvaAutoActivate] = useState(false)
+  const [tvaTogglingLoading, setTvaTogglingLoading] = useState(false)
+  const [tvaCheckDone, setTvaCheckDone] = useState(false)
+
   const MONTH_NAMES = isPt
     ? ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     : ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc']
@@ -494,6 +500,61 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
   const formatEur = (v: number) => new Intl.NumberFormat(dateFmtLocale, { style: 'currency', currency: 'EUR' }).format(v)
 
+  // ── TVA : calcul status en temps réel ────────────────────────────────────
+  const tvaCountry: TvaCountry = (artisan?.country || (isPt ? 'PT' : 'FR')) as TvaCountry
+  const tvaStatus: TvaStatusResult = getTvaStatus(annualHT, tvaCountry)
+
+  // Charger les settings TVA une fois au montage
+  useEffect(() => {
+    const loadTvaSettings = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        const res = await fetch('/api/tva/settings', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setTvaAutoActivate(data.tva_auto_activate ?? false)
+        }
+      } catch {}
+    }
+    loadTvaSettings()
+  }, [])
+
+  // Vérifier le seuil TVA et créer une notification si nécessaire (run une seule fois par session)
+  useEffect(() => {
+    if (tvaCheckDone || annualHT === 0) return
+    const checkTva = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        setTvaCheckDone(true)
+        await fetch('/api/tva/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ ca_ht: annualHT, country: tvaCountry }),
+        })
+      } catch {}
+    }
+    checkTva()
+  }, [annualHT, tvaCountry, tvaCheckDone])
+
+  const toggleTvaAutoActivate = useCallback(async (value: boolean) => {
+    setTvaTogglingLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const res = await fetch('/api/tva/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ tva_auto_activate: value }),
+      })
+      if (res.ok) setTvaAutoActivate(value)
+    } catch {}
+    setTvaTogglingLoading(false)
+  }, [])
+
   /* ── Tab style helpers (v22 compta-tab pattern) ── */
   const tabStyle = (active: boolean): React.CSSProperties => ({
     fontSize: 12, fontWeight: active ? 600 : 500, padding: '8px 16px',
@@ -606,6 +667,66 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'antes de impostos' : 'avant impôts'}</div>
               </div>
             </div>
+
+            {/* ── TVA STATUS CARD ── */}
+            {selectedPeriod === 'annee' || selectedYear === currentYear ? (
+              <div className="v22-card" style={{ marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}`, background: tvaStatus.bgColor }}>
+                <div className="v22-card-body" style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: tvaStatus.color }}>
+                          {isPt ? tvaStatus.title.pt : tvaStatus.title.fr}
+                        </span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+                          color: tvaStatus.color, border: `1px solid ${tvaStatus.color}`,
+                          borderRadius: 3, padding: '2px 5px',
+                        }}>
+                          {isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 11.5, color: 'var(--v22-text-muted)', lineHeight: 1.5, margin: 0, marginBottom: 10 }}>
+                        {isPt ? tvaStatus.message.pt : tvaStatus.message.fr}
+                      </p>
+                      {/* Barre de progression */}
+                      <div style={{ marginBottom: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+                          <span>0</span>
+                          <span style={{ color: tvaStatus.color, fontWeight: 600 }}>
+                            {tvaStatus.percent}% {isPt ? 'do limite' : 'du seuil'}
+                          </span>
+                          <span style={{ fontWeight: 600 }}>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 3, background: 'var(--v22-border)', overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 3,
+                            background: tvaStatus.color,
+                            width: `${Math.min(tvaStatus.percent, 100)}%`,
+                            transition: 'width 0.5s ease',
+                          }} />
+                        </div>
+                        {tvaStatus.seuilMajore && (
+                          <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 4 }}>
+                            {isPt ? 'Limite majorado' : 'Seuil majoré'} : {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuilMajore)}
+                            {' · '}{isPt ? 'Taxa aplicável' : 'Taux applicable'} : {(tvaStatus.taux * 100).toFixed(0)} %
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                      <button
+                        onClick={() => setActiveComptaTab('declaration')}
+                        className="v22-btn"
+                        style={{ fontSize: 11, padding: '5px 10px', border: `1px solid ${tvaStatus.color}`, color: tvaStatus.color, background: 'transparent' }}
+                      >
+                        {isPt ? 'Ver detalhes →' : 'Voir détails →'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {/* Revenue chart */}
             <div className="v22-card" style={{ marginBottom: 20 }}>
@@ -869,7 +990,159 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
         {/* ── DÉCLARATION TAB ── */}
         {activeComptaTab === 'declaration' && (
-          <DeclarationSocialeSection />
+          <div>
+            {/* ── BLOC TVA / IVA ─────────────────────────────────────────────── */}
+            <div className="v22-card" style={{ marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}` }}>
+              <div className="v22-card-head">
+                <div className="v22-card-title">
+                  {isPt ? '🧾 Situação de IVA' : '🧾 Statut TVA'}
+                </div>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                  color: tvaStatus.color, border: `1px solid ${tvaStatus.color}`,
+                  borderRadius: 3, padding: '2px 6px',
+                }}>
+                  {isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}
+                </span>
+              </div>
+              <div className="v22-card-body" style={{ padding: 16 }}>
+
+                {/* Jauge */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                      {isPt ? 'Volume de negócios HT' : 'CA HT annuel'} : <strong style={{ color: 'var(--v22-text)' }}>{formatEur(annualHT)}</strong>
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: tvaStatus.color }}>
+                      {tvaStatus.percent}%
+                    </span>
+                  </div>
+                  <div style={{ height: 10, borderRadius: 5, background: 'var(--v22-border)', overflow: 'hidden', position: 'relative' }}>
+                    {/* Marqueur 80% */}
+                    <div style={{ position: 'absolute', left: '80%', top: 0, bottom: 0, width: 1, background: '#eab308', zIndex: 1 }} />
+                    <div style={{
+                      height: '100%', borderRadius: 5,
+                      background: tvaStatus.status === 'safe'
+                        ? 'linear-gradient(90deg, #22c55e, #86efac)'
+                        : tvaStatus.status === 'warning'
+                        ? 'linear-gradient(90deg, #eab308, #fde047)'
+                        : 'linear-gradient(90deg, #f97316, #ef4444)',
+                      width: `${Math.min(tvaStatus.percent, 100)}%`,
+                      transition: 'width 0.6s ease',
+                    }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--v22-text-muted)', marginTop: 3 }}>
+                    <span>0</span>
+                    <span style={{ color: '#eab308' }}>80%</span>
+                    <span>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}</span>
+                  </div>
+                </div>
+
+                {/* Message contextuel */}
+                <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', lineHeight: 1.6, marginBottom: 16, padding: '10px 12px', borderRadius: 6, background: tvaStatus.bgColor }}>
+                  {isPt ? tvaStatus.message.pt : tvaStatus.message.fr}
+                </div>
+
+                {/* Détails techniques */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                      {isPt ? 'Limite de isenção' : 'Seuil de franchise'}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                      {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}
+                    </div>
+                  </div>
+                  {tvaStatus.seuilMajore && (
+                    <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                        {isPt ? 'Limite majorado' : 'Seuil majoré'}
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuilMajore)}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                      {isPt ? 'Taxa de IVA aplicável' : 'Taux TVA applicable'}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                      {(tvaStatus.taux * 100).toFixed(0)} %
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                      {isPt ? 'IVA estimado se aplicável' : 'TVA estimée si applicable'}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                      {formatEur(annualHT * tvaStatus.taux)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Toggle activation automatique */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 14px', borderRadius: 8,
+                  border: '1px solid var(--v22-border)', background: 'var(--v22-surface)',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v22-text)', marginBottom: 2 }}>
+                      {isPt
+                        ? '🔔 Ativar IVA automaticamente ao ultrapassar o limite'
+                        : '🔔 Activer la TVA automatiquement dès dépassement du seuil'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                      {isPt
+                        ? 'Receba alertas imediatos e acompanhe a sua obrigação de registo no IVA'
+                        : 'Recevez des alertes immédiates et suivez votre obligation de passage à la TVA'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleTvaAutoActivate(!tvaAutoActivate)}
+                    disabled={tvaTogglingLoading}
+                    aria-pressed={tvaAutoActivate}
+                    style={{
+                      flexShrink: 0, marginLeft: 16,
+                      width: 44, height: 24, borderRadius: 12,
+                      background: tvaAutoActivate ? 'var(--v22-yellow)' : 'var(--v22-border)',
+                      border: 'none', cursor: tvaTogglingLoading ? 'not-allowed' : 'pointer',
+                      position: 'relative', transition: 'background 0.2s',
+                      opacity: tvaTogglingLoading ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 3, borderRadius: '50%',
+                      width: 18, height: 18, background: '#fff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      left: tvaAutoActivate ? 23 : 3,
+                      transition: 'left 0.2s',
+                    }} />
+                  </button>
+                </div>
+
+                {/* Aide contextuelle FR */}
+                {!isPt && tvaStatus.status !== 'safe' && (
+                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', lineHeight: 1.6 }}>
+                    <strong style={{ color: 'var(--v22-text)' }}>📋 Mentions obligatoires sur vos factures :</strong>
+                    <br />
+                    {'Une fois assujetti, indiquez le taux TVA (20 %), le montant HT, la TVA et le montant TTC sur chaque facture. Déposez votre déclaration CA12/CA3 auprès du SIE.'}
+                  </div>
+                )}
+                {isPt && tvaStatus.status !== 'safe' && (
+                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', lineHeight: 1.6 }}>
+                    <strong style={{ color: 'var(--v22-text)' }}>📋 Obrigações após registo no IVA :</strong>
+                    <br />
+                    Emita faturas com IVA a 23 %, envie a Declaração Periódica de IVA trimestralmente (ou mensal se VN &gt; 650 000 €) e mantenha o e-fatura em dia.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Déclaration sociale existante */}
+            <DeclarationSocialeSection />
+          </div>
         )}
 
         {/* ── AGENT COMPTABLE LÉA ── */}
