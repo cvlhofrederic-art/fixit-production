@@ -1174,7 +1174,7 @@ export default function DashboardPage() {
             <div className="mb-5">
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
               {isModuleEnabled('wallet') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Conformité' : t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
-              {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
+              {isModuleEnabled('portfolio') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Références chantiers' : t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
             </div>
           )}
         </div>
@@ -1582,11 +1582,7 @@ export default function DashboardPage() {
           {/* ────── CARNET DE VISITE / PORTFOLIO ────── */}
           {activePage === 'portfolio' && (
             <div className="animate-fadeIn">
-              <div className="v22-page-header">
-                <div className="v22-page-title">📸 {t('proDash.modules.portfolio')}</div>
-                <div className="v22-page-sub">{t('proDash.modules.portfolioDesc')}</div>
-              </div>
-              <CarnetDeVisiteSection artisan={artisan} />
+              <CarnetDeVisiteSection artisan={artisan} orgRole={orgRole} />
             </div>
           )}
 

@@ -10,13 +10,29 @@ function safeBlobUrl(file: File): string {
   return url.startsWith('blob:') ? url : ''
 }
 
-export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
+export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: any; orgRole?: OrgRole }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_portfolio_${artisan?.id}`
+  const isSociete = orgRole === 'pro_societe'
 
-  const PORTFOLIO_CATEGORIES = [
+  const PORTFOLIO_CATEGORIES = isSociete ? [
+    'VRD / Terrassement',
+    'Gros œuvre / Maçonnerie',
+    'Charpente / Couverture',
+    'Second œuvre',
+    'Menuiserie / Serrurerie',
+    'Électricité CFO/CFA',
+    'Plomberie / CVC',
+    'Façade / ITE',
+    'Aménagement intérieur',
+    'Réhabilitation',
+    'Neuf',
+    'Autre',
+  ] : [
     t('proDash.carnet.plomberie'),
     t('proDash.carnet.electricite'),
     t('proDash.carnet.peinture'),
@@ -34,6 +50,9 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
     title: string
     category: string
     uploadedAt: string
+    maitreOuvrage?: string
+    montantHT?: string
+    corps?: string
   }
 
   const [photos, setPhotos] = useState<PortfolioPhoto[]>(() => {
@@ -43,7 +62,10 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
   const [uploading, setUploading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
-  const [newCategory, setNewCategory] = useState(t('proDash.carnet.autre'))
+  const [newCategory, setNewCategory] = useState(isSociete ? 'Gros œuvre / Maçonnerie' : t('proDash.carnet.autre'))
+  const [newMaitreOuvrage, setNewMaitreOuvrage] = useState('')
+  const [newMontantHT, setNewMontantHT] = useState('')
+  const [newCorps, setNewCorps] = useState('')
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PortfolioPhoto | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -78,6 +100,9 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
           title: newTitle || t('proDash.carnet.realisations'),
           category: newCategory,
           uploadedAt: new Date().toISOString(),
+          ...(isSociete && newMaitreOuvrage ? { maitreOuvrage: newMaitreOuvrage } : {}),
+          ...(isSociete && newMontantHT ? { montantHT: newMontantHT } : {}),
+          ...(isSociete && newCorps ? { corps: newCorps } : {}),
         }
         const updated = [newPhoto, ...photos]
         saveToStorage(updated)
@@ -101,7 +126,10 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
       setShowForm(false)
       setPendingFile(null)
       setNewTitle('')
-      setNewCategory(t('proDash.carnet.autre'))
+      setNewCategory(isSociete ? 'Gros œuvre / Maçonnerie' : t('proDash.carnet.autre'))
+      setNewMaitreOuvrage('')
+      setNewMontantHT('')
+      setNewCorps('')
     } catch (e) {
       console.error('Portfolio upload error:', e)
     } finally {
@@ -122,19 +150,23 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{'📸'} {t('proDash.carnet.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('proDash.carnet.subtitle')}</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isSociete ? '🏗️ Références chantiers & Réalisations' : `${'📸'} ${t('proDash.carnet.title')}`}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {isSociete ? 'Valorisez votre expérience BTP sur votre profil entreprise' : t('proDash.carnet.subtitle')}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
             <div className="text-3xl font-black text-gray-900">{photos.length}</div>
-            <div className="text-xs text-gray-500">{t('proDash.carnet.realisations')}</div>
+            <div className="text-xs text-gray-500">{isSociete ? 'chantiers' : t('proDash.carnet.realisations')}</div>
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
           >
-            {'➕'} {t('proDash.carnet.ajouterPhoto')}
+            {'➕'} {isSociete ? 'Chantier de référence' : t('proDash.carnet.ajouterPhoto')}
           </button>
         </div>
       </div>
@@ -156,7 +188,9 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-bold text-lg text-gray-900 mb-4">{'📸'} {t('proDash.carnet.nouvelleRealisation')}</h3>
+            <h3 className="font-bold text-lg text-gray-900 mb-4">
+              {isSociete ? '🏗️ Nouveau chantier de référence' : `${'📸'} ${t('proDash.carnet.nouvelleRealisation')}`}
+            </h3>
             {pendingFile && (
               <div className="mb-4 rounded-xl overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
                 <img
@@ -168,12 +202,14 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
             )}
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">{t('proDash.carnet.titreRealisation')}</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  {isSociete ? 'Intitulé du chantier' : t('proDash.carnet.titreRealisation')}
+                </label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={e => setNewTitle(e.target.value)}
-                  placeholder={t('proDash.carnet.titrePlaceholder')}
+                  placeholder={isSociete ? 'Ex : Immeuble R+3 — Gros œuvre Marseille 13e' : t('proDash.carnet.titrePlaceholder')}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
                 />
               </div>
@@ -187,6 +223,40 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
                   {PORTFOLIO_CATEGORIES.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
+              {isSociete && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Maître d&apos;ouvrage <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                    <input
+                      type="text"
+                      value={newMaitreOuvrage}
+                      onChange={e => setNewMaitreOuvrage(e.target.value)}
+                      placeholder="Ex : Promoteur Bouygues, Mairie de Marseille..."
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Montant des travaux HT (€) <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                    <input
+                      type="number"
+                      value={newMontantHT}
+                      onChange={e => setNewMontantHT(e.target.value)}
+                      placeholder="Ex : 850000"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Corps de métier principal <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                    <input
+                      type="text"
+                      value={newCorps}
+                      onChange={e => setNewCorps(e.target.value)}
+                      placeholder="Ex : Maçonnerie, Charpente, Génie civil..."
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#FFC107]"
+                    />
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex gap-3 mt-5">
               <button
@@ -200,7 +270,7 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
                 disabled={uploading || !newTitle.trim()}
                 className="flex-1 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl py-2.5 font-bold text-sm transition disabled:opacity-50"
               >
-                {uploading ? `⏳ ${t('proDash.carnet.uploadEnCours')}` : `✅ ${t('proDash.carnet.publierRealisation')}`}
+                {uploading ? `⏳ ${t('proDash.carnet.uploadEnCours')}` : isSociete ? '✅ Ajouter ce chantier' : `✅ ${t('proDash.carnet.publierRealisation')}`}
               </button>
             </div>
           </div>
@@ -242,14 +312,18 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
       {/* Photo grid */}
       {filtered.length === 0 ? (
         <div className="text-center py-20">
-          <div className="text-6xl mb-4">{'📷'}</div>
-          <div className="text-xl font-bold text-gray-700 mb-2">{t('proDash.carnet.aucuneRealisation')}</div>
-          <p className="text-gray-500 mb-6">{t('proDash.carnet.ajouterPhotosConvaincre')}</p>
+          <div className="text-6xl mb-4">{isSociete ? '🏗️' : '📷'}</div>
+          <div className="text-xl font-bold text-gray-700 mb-2">
+            {isSociete ? 'Aucun chantier de référence' : t('proDash.carnet.aucuneRealisation')}
+          </div>
+          <p className="text-gray-500 mb-6">
+            {isSociete ? 'Ajoutez vos chantiers réalisés pour renforcer votre crédibilité sur les appels d\'offres' : t('proDash.carnet.ajouterPhotosConvaincre')}
+          </p>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition-all"
           >
-            {'📸'} {t('proDash.carnet.ajouterPremiereRealisation')}
+            {isSociete ? '🏗️ Ajouter un premier chantier' : `${'📸'} ${t('proDash.carnet.ajouterPremiereRealisation')}`}
           </button>
         </div>
       ) : (
@@ -261,6 +335,14 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform">
                 <div className="text-white font-semibold text-sm truncate">{photo.title}</div>
                 <div className="text-gray-300 text-xs">{photo.category}</div>
+                {isSociete && photo.montantHT && (
+                  <div className="text-yellow-300 text-xs mt-0.5">
+                    {Number(photo.montantHT).toLocaleString('fr-FR')} € HT
+                  </div>
+                )}
+                {isSociete && photo.maitreOuvrage && (
+                  <div className="text-gray-400 text-xs truncate">{photo.maitreOuvrage}</div>
+                )}
               </div>
               <button
                 onClick={e => { e.stopPropagation(); removePhoto(photo.id) }}
@@ -276,8 +358,11 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
       {photos.length > 0 && (
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
           <p className="text-sm text-blue-700">
-            {'💡'} {t('proDash.carnet.photosVisibles')}{' '}
-            <a href={`/artisan/${artisan?.id}`} target="_blank" rel="noreferrer" className="font-bold underline">{t('proDash.carnet.profilPublic')} →</a>
+            {'💡'}{' '}
+            {isSociete
+              ? <>Ces références sont visibles sur votre <a href={`/artisan/${artisan?.id}`} target="_blank" rel="noreferrer" className="font-bold underline">profil entreprise</a> et valorisent vos candidatures aux appels d&apos;offres →</>
+              : <>{t('proDash.carnet.photosVisibles')}{' '}<a href={`/artisan/${artisan?.id}`} target="_blank" rel="noreferrer" className="font-bold underline">{t('proDash.carnet.profilPublic')} →</a></>
+            }
           </p>
         </div>
       )}
