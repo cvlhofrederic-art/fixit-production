@@ -768,7 +768,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       {showForm && (
       <div className="v22-modal-overlay open">
         {showForm && (
-          <div className="v22-modal" style={{ maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className="v22-modal" style={{ maxWidth: '720px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div className="v22-modal-head" style={{ flexShrink: 0 }}>
               <span className="v22-modal-title">
                 {editingId ? 'Modifier le rapport' : 'Nouveau rapport d\'intervention'}
@@ -777,7 +777,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               <button onClick={() => setShowForm(false)} className="v22-modal-close">✕</button>
             </div>
 
-            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', overflowX: 'hidden', flex: '1 1 0', minHeight: 0, maxHeight: 'calc(90vh - 100px)' }}>
               {/* Liaison intervention / mission */}
               <div className="v22-card">
                 <div className="v22-card-head">
@@ -891,7 +891,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
                         placeholder="Jean Dupont" className="v22-form-input" autoComplete="off" />
                       {showClientSuggestions && clientSuggestions.length > 0 && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 180, overflowY: 'auto' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 180, overflowY: 'auto' }}>
                           {clientSuggestions.map((c, i) => (
                             <button key={i} onMouseDown={() => selectClientSuggestion(c)}
                               className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: '1px solid var(--v22-border)' }}>
@@ -956,7 +956,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                       rows={2} placeholder="Fuite sous evier cuisine, remplacement robinet defectueux..."
                       className="v22-form-input" style={{ resize: 'none' }} />
                     {showMotifSuggestions && motifSuggestions.length > 0 && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 160, overflowY: 'auto' }}>
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 160, overflowY: 'auto' }}>
                         {motifSuggestions.map((m, i) => (
                           <button key={i} onMouseDown={() => selectMotifSuggestion(m)}
                             className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: '1px solid var(--v22-border)' }}>
