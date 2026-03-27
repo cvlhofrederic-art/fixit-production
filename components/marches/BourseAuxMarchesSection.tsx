@@ -4,8 +4,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
 interface Props {
   artisan: any
+  orgRole?: OrgRole
   navigateTo: (page: string) => void
 }
 
@@ -102,7 +105,8 @@ const FAKE_MARCHES = [
   { title: 'Ravalement façade bâtiment B', category: 'construcao', budget_min: 20000, budget_max: 45000, city: 'Marseille', urgency: 'normal' },
 ]
 
-export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) {
+export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', navigateTo }: Props) {
+  const isSociete = orgRole === 'pro_societe'
   // Detect locale
   const [locale, setLocale] = useState('fr')
   useEffect(() => {
@@ -158,6 +162,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
   const [filterCategory, setFilterCategory] = useState('')
   const [filterCity, setFilterCity] = useState('')
   const [filterUrgency, setFilterUrgency] = useState('')
+  const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
 
   // Bid form state
   const [bidPrice, setBidPrice] = useState('')
@@ -165,6 +170,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
   const [bidDescription, setBidDescription] = useState('')
   const [bidMaterials, setBidMaterials] = useState(false)
   const [bidGuarantee, setBidGuarantee] = useState('')
+  const [bidEffectif, setBidEffectif] = useState('')   // pro_societe: nombre de compagnons
   const [bidSubmitting, setBidSubmitting] = useState(false)
   const [bidError, setBidError] = useState('')
   const [bidSuccess, setBidSuccess] = useState(false)
@@ -202,6 +208,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
       if (filterCategory) params.set('category', filterCategory)
       if (filterCity) params.set('city', filterCity)
       if (filterUrgency) params.set('urgency', filterUrgency)
+      if (filterGrandMarche) params.set('budget_min', '50000')
       params.set('status', 'open')
       if (artisan?.id) params.set('artisan_user_id', artisan.id)
       const res = await fetch(`/api/marches?${params.toString()}`)
@@ -214,7 +221,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterCity, filterUrgency])
+  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche])
 
   // Fetch my bids
   const fetchMyBids = useCallback(async () => {
@@ -437,6 +444,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
           description: bidDescription,
           materials_included: bidMaterials,
           guarantee: bidGuarantee || null,
+          effectif: bidEffectif ? parseInt(bidEffectif) : null,
         }),
       })
       if (!res.ok) {
@@ -449,6 +457,7 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
       setBidDescription('')
       setBidMaterials(false)
       setBidGuarantee('')
+      setBidEffectif('')
       fetchMyBids()
       setTimeout(() => {
         setShowBidForm(false)
@@ -865,6 +874,24 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
                   />
                 </div>
 
+                {/* Effectif — pro_societe uniquement */}
+                {isSociete && (
+                  <div style={{ marginBottom: 14 }}>
+                    <label className="v22-form-label">
+                      👷 {isPt ? 'Efectivo mobilizável (companheiros)' : 'Effectif mobilisable (compagnons)'}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={bidEffectif}
+                      onChange={e => setBidEffectif(e.target.value)}
+                      placeholder={isPt ? 'Ex: 8' : 'Ex : 8'}
+                      className="v22-form-input"
+                    />
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
@@ -915,9 +942,9 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
             {stats.openCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
           </div>
         </div>
-        {(filterCategory || filterCity || filterUrgency) && (
+        {(filterCategory || filterCity || filterUrgency || filterGrandMarche) && (
           <button
-            onClick={() => { setFilterCategory(''); setFilterCity(''); setFilterUrgency('') }}
+            onClick={() => { setFilterCategory(''); setFilterCity(''); setFilterUrgency(''); setFilterGrandMarche(false) }}
             className="v22-btn v22-btn-sm"
           >
             {isPt ? 'Reiniciar' : 'Réinitialiser'}
@@ -1025,6 +1052,29 @@ export default function BourseAuxMarchesSection({ artisan, navigateTo }: Props) 
               <div className="v22-card-title">{isPt ? 'Filtros' : 'Filtres'}</div>
             </div>
             <div className="v22-card-body">
+              {isSociete && (
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <div
+                      style={{
+                        width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer',
+                        background: filterGrandMarche ? 'var(--v22-yellow)' : 'var(--v22-border)',
+                        transition: 'background 0.15s',
+                      }}
+                      onClick={() => setFilterGrandMarche(v => !v)}
+                    >
+                      <div style={{
+                        position: 'absolute', top: 2, left: filterGrandMarche ? 18 : 2,
+                        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                        transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>
+                      🏗️ {isPt ? 'Grandes obras (≥ 50 000 €)' : 'Grands marchés (≥ 50 000 €)'}
+                    </span>
+                  </label>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Categoria' : 'Catégorie'}</label>

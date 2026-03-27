@@ -1547,7 +1547,7 @@ export default function DashboardPage() {
           {/* ────── BOURSE AUX MARCHÉS ────── */}
           {activePage === 'marches' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na bolsa de mercados' : 'Erreur dans la bourse aux marchés'}>
-              <BourseAuxMarchesSection artisan={artisan} navigateTo={navigateTo} />
+              <BourseAuxMarchesSection artisan={artisan} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
