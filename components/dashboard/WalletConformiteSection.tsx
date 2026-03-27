@@ -5,6 +5,38 @@ import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
+// Documents supplémentaires spécifiques aux sociétés (en plus des docs communs + métier)
+const DOCS_SOCIETE_EXTRA: WalletDocConfig[] = [
+  {
+    id: 'statuts_societe',
+    nom: 'Statuts de la société',
+    description: 'Document constitutif de la société (SARL, SAS, EURL…)',
+    obligatoire: true,
+    validite: 'Permanent',
+    icon: '📜',
+    obtenir: {
+      label: 'Obtenir ce document',
+      lien: 'https://www.infogreffe.fr',
+      note: 'Déposés au greffe du tribunal de commerce lors de la création',
+    },
+  },
+  {
+    id: 'attestation_fiscale',
+    nom: 'Attestation de régularité fiscale (DGFiP)',
+    description: 'Prouve que la société est à jour de ses obligations fiscales',
+    obligatoire: true,
+    validite: '1 an',
+    icon: '🏛️',
+    obtenir: {
+      label: 'Obtenir ce document',
+      lien: 'https://www.impots.gouv.fr/professionnel/services/votre-compte-fiscal-professionnel',
+      note: 'Disponible dans votre espace professionnel sur impots.gouv.fr',
+    },
+  },
+]
+
 interface WalletDoc {
   url?: string
   expiryDate?: string
@@ -261,15 +293,21 @@ function DocumentRow({
 }
 
 // ── Composant principal ──────────────────────────────────────
-export default function WalletConformiteSection({ artisan }: { artisan: any }) {
+export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }: { artisan: any; orgRole?: OrgRole }) {
+  const isSociete = orgRole === 'pro_societe'
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_wallet_${artisan?.id}`
 
-  // Docs dynamiques selon le/les métier(s) de l'artisan
+  // Docs dynamiques selon le/les métier(s) de l'artisan — tri intelligent par corps de métier
   // artisan.categories est un tableau de slugs ex: ['espaces-verts', 'nettoyage']
-  const { docs: WALLET_DOCS, metierLabel, fallback } = getWalletDocuments(artisan?.categories ?? artisan?.category)
+  const { docs: baseDocs, metierLabel, fallback } = getWalletDocuments(artisan?.categories ?? artisan?.category)
+
+  // Pour pro_societe : ajouter les docs société extra non déjà présents (Statuts + Attestation fiscale)
+  const WALLET_DOCS = isSociete
+    ? [...baseDocs, ...DOCS_SOCIETE_EXTRA.filter(extra => !baseDocs.some(d => d.id === extra.id))]
+    : baseDocs
 
   const [docs, setDocs] = useState<Record<string, WalletDoc>>(() => {
     if (typeof window === 'undefined') return {}
@@ -428,12 +466,15 @@ export default function WalletConformiteSection({ artisan }: { artisan: any }) {
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <div className="v22-page-title">🗂️ {t('proDash.wallet.title')}</div>
+          <div className="v22-page-title">
+            {isSociete ? '🏢 Conformité Entreprise' : `🗂️ ${t('proDash.wallet.title')}`}
+          </div>
           <div className="v22-page-sub">
             {metierLabel
               ? `${metierLabel} — ${actionsRequired > 0 ? `${actionsRequired} action${actionsRequired > 1 ? 's' : ''} requise${actionsRequired > 1 ? 's' : ''}` : t('proDash.wallet.subtitle')}`
               : actionsRequired > 0 ? `${actionsRequired} actions requises` : t('proDash.wallet.subtitle')
             }
+            {isSociete && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--v22-text-muted)' }}>· Kbis, RC Pro, Décennale + documents métier + Statuts + Attestation fiscale</span>}
           </div>
         </div>
         <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => setShowUploadModal('_pick')}>

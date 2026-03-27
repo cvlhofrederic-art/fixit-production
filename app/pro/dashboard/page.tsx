@@ -1165,10 +1165,10 @@ export default function DashboardPage() {
             <V22SidebarItem label={isPt ? '🏗️ Marketplace BTP' : '🏗️ Marketplace BTP'} active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />
           </div>
           {/* Profil Pro */}
-          {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
+          {(orgRole === 'artisan' || orgRole === 'pro_societe') && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
             <div className="mb-5">
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
-              {isModuleEnabled('wallet') && <V22SidebarItem label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
+              {isModuleEnabled('wallet') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Conformité' : t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
               {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
             </div>
           )}
@@ -1568,7 +1568,7 @@ export default function DashboardPage() {
           {/* ────── WALLET CONFORMITÉ ────── */}
           {activePage === 'wallet' && (
             <div className="animate-fadeIn">
-              <WalletConformiteSection artisan={artisan} />
+              <WalletConformiteSection artisan={artisan} orgRole={orgRole} />
             </div>
           )}
 
