@@ -534,16 +534,22 @@ export async function POST(request: NextRequest) {
 // Using GET with query params for simplicity (called from client)
 export async function PUT(request: NextRequest) {
   try {
+    // ── Auth first ──
+    const user = await getAuthUser(request)
+    if (!user) return unauthorizedResponse()
+
+    // ── Rate limit on PUT to prevent brute-force on confirm_token ──
+    const allowed = await checkRL(`fixy-confirm:${user.id}`, 20, 60_000)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429 })
+    }
+
     const body = await request.json()
     const { artisan_id, confirm_token, confirmed } = body
 
-    if (!confirm_token) {
+    if (!confirm_token || typeof confirm_token !== 'string') {
       return NextResponse.json({ error: 'confirm_token requis' }, { status: 400 })
     }
-
-    // ── Auth: verify Bearer token and artisan ownership ──
-    const user = await getAuthUser(request)
-    if (!user) return unauthorizedResponse()
 
     const verified = await verifyArtisanOwnership(user.id, artisan_id, supabaseAdmin)
     if (!verified) {
@@ -551,7 +557,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const pending = pendingConfirmations.get(confirm_token)
-    if (!pending) {
+    if (!pending || (pending.expiresAt && Date.now() > pending.expiresAt)) {
+      if (pending) pendingConfirmations.delete(confirm_token)
       return NextResponse.json({ success: false, detail: 'Action expirée ou déjà traitée.' })
     }
 

@@ -260,7 +260,15 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message_id, action, artisan_user_id, artisan_name, arrival_time, duration_hours } = body
+    const { message_id, action, artisan_user_id, artisan_name: rawArtisanName, arrival_time: rawArrivalTime, duration_hours } = body
+
+    // Sanitise user-controlled strings to prevent log injection
+    const artisan_name = typeof rawArtisanName === 'string'
+      ? rawArtisanName.replace(/[\n\r\t]/g, '').slice(0, 100)
+      : undefined
+    const arrival_time = typeof rawArrivalTime === 'string' && /^\d{1,2}:\d{2}$/.test(rawArrivalTime)
+      ? rawArrivalTime
+      : undefined
 
     if (!message_id || !action) {
       return NextResponse.json({ error: 'message_id et action requis' }, { status: 400 })

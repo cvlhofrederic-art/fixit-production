@@ -411,7 +411,15 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { content, filename, stream } = body
+  const { content, filename: rawFilename, stream } = body
+
+  // Sanitise filename to prevent prompt injection
+  const INJECTION_KEYWORDS = /ignore|instruction|override|system|prompt|oublie|précéden/i
+  let filename: string | undefined
+  if (typeof rawFilename === 'string') {
+    const cleaned = rawFilename.replace(/[^\w\sàâéèêëïîôùûüÿçÀÂÉÈÊËÏÎÔÙÛÜŸÇ._\-()]/g, '').slice(0, 200)
+    filename = INJECTION_KEYWORDS.test(cleaned) ? 'document.pdf' : cleaned
+  }
 
   if (!content || content.trim().length < 10) {
     return NextResponse.json({ error: 'Contenu du document trop court ou vide' }, { status: 400 })
