@@ -288,7 +288,9 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
     const params = new URLSearchParams(window.location.search)
     const cloneId = params.get('clone')
     const cloneToken = params.get('token')
-    if (cloneId && cloneToken) {
+    const CLONE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const TOKEN_RE = /^[a-zA-Z0-9_-]{10,128}$/
+    if (cloneId && cloneToken && CLONE_ID_RE.test(cloneId) && TOKEN_RE.test(cloneToken)) {
       setShowTemplates(false)
       fetch(`/api/marches/${cloneId}?token=${cloneToken}`)
         .then(res => res.json())

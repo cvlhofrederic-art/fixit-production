@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import type { Artisan, Page, DocIntervention } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
+function safeHref(url: string): string {
+  try { return ['http:', 'https:'].includes(new URL(url).protocol) ? url : '#' } catch { return '#' }
+}
+
 export default function DocsInterventionsSection({ artisans, setPage }: { artisans: Artisan[]; setPage: (p: Page) => void }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -311,7 +315,7 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
                     </td>
                     <td>
                       <div className="sd-doc-row-actions">
-                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="sd-doc-row-btn" title="Télécharger">⬇</a>
+                        <a href={safeHref(doc.url)} target="_blank" rel="noopener noreferrer" className="sd-doc-row-btn" title="Télécharger">⬇</a>
                         <button className="sd-doc-row-btn" title="Transmettre" onClick={() => doc.envoye_compta ? handleAnnulerEnvoi(doc.id) : handleEnvoyerCompta(doc)}>
                           {sendingCompta === doc.id ? '⏳' : '📤'}
                         </button>

@@ -86,7 +86,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Nuclei scan
-        uses: projectdiscovery/nuclei-action@v2
+        uses: projectdiscovery/nuclei-action@v3
         with:
           target: https://vitfix.io
           flags: "-severity medium,high,critical -rate-limit 10 -bulk-size 5 -concurrency 3 -timeout 10 -retries 1 -exclude-templates fuzzing/ -exclude-templates headless/ -silent"

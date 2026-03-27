@@ -155,7 +155,7 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
             {pendingFile && (
               <div className="mb-4 rounded-xl overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
                 <img
-                  src={URL.createObjectURL(pendingFile)}
+                  src={(() => { const u = URL.createObjectURL(pendingFile); return u.startsWith('blob:') ? u : '' })()}
                   alt="preview"
                   className="w-full h-full object-cover"
                 />

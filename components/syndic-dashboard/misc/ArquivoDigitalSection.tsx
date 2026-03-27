@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import DOMPurify from 'dompurify'
 
 interface ArquivoDoc {
   id: string
@@ -408,10 +409,10 @@ export default function ArquivoDigitalSection({ user }: { user: any; userRole: s
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sd-navy)' }}>
                         {searchQuery ? (
                           <span dangerouslySetInnerHTML={{
-                            __html: doc.nome.replace(
+                            __html: DOMPurify.sanitize(doc.nome.replace(
                               new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
                               '<mark style="background:rgba(201,168,76,0.3);padding:0 2px;border-radius:2px">$1</mark>'
-                            )
+                            ))
                           }} />
                         ) : doc.nome}
                       </div>
