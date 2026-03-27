@@ -162,14 +162,14 @@ export default function DevisFactureForm({
 
   const isProClient = clientSiret.trim().length > 0 || ['syndic', 'professionnel', 'societe', 'conciergerie', 'agence_immobiliere', 'promoteur', 'architecte', 'collectivite', 'association', 'artisan_sous_traitant'].includes(clientType)
 
-  const [docDate, setDocDate] = useState(today)
+  const [docDate, setDocDate] = useState(initialData?.docDate || today)
   const [docValidity, setDocValidity] = useState(initialData?.docValidity || 30)
   const [prestationDate, setPrestationDate] = useState(initialData?.prestationDate || '')
   const [executionDelay, setExecutionDelay] = useState(initialData?.executionDelay || '')
   const [executionDelayDays, setExecutionDelayDays] = useState<number>(initialData?.executionDelayDays || 0)
   const [executionDelayType, setExecutionDelayType] = useState<'ouvres' | 'calendaires'>(initialData?.executionDelayType || 'ouvres')
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || t('devis.paymentModeOptions.transfer'))
-  const [paymentDue, setPaymentDue] = useState(dueDateStr)
+  const [paymentDue, setPaymentDue] = useState(initialData?.paymentDue || dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
   const [iban, setIban] = useState(initialData?.iban || tpl('iban') || '')
   const [bic, setBic] = useState(initialData?.bic || tpl('bic') || '')
