@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
   const myBids = url.searchParams.get('my_bids')
   const artisanId = url.searchParams.get('artisan_id')
   const publisherUserId = url.searchParams.get('publisher_user_id')
+  const sourceType = url.searchParams.get('source_type')
 
   // ── Publisher mode: return all marches published by a user ─────────────────
   if (publisherUserId) {
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
   if (budgetMin) query = query.gte('budget_min', parseInt(budgetMin))
   if (budgetMax) query = query.lte('budget_max', parseInt(budgetMax))
   if (urgency) query = query.eq('urgency', urgency)
+  if (sourceType) query = query.eq('source_type', sourceType)
 
   // Filter for artisan-specific matched marches
   if (artisanUserId) {

@@ -791,3 +791,61 @@ export function validateBody<T>(schema: z.ZodSchema<T>, data: unknown):
   const messages = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
   return { success: false, error: messages }
 }
+
+// ── BTP Sous-traitance — création d'offre ────────────────────────────────────
+export const createSousTraitanceOffreSchema = z.object({
+  // Infos publieur (entreprise BTP)
+  btp_company_id: z.string().min(1).max(200),
+  btp_company_name: z.string().min(2).max(200),
+  publisher_user_id: z.string().uuid(),
+  publisher_name: z.string().min(2).max(200),
+  publisher_email: strictEmail,
+  publisher_phone: z.string().max(20).optional(),
+
+  // Détails de la mission
+  title: z.string().min(5).max(200),
+  description: z.string().min(20).max(5000),
+  category: z.string().min(1).max(100),
+  mission_type: z.enum(['sous_traitance_complete', 'renfort_equipe']),
+
+  // Localisation
+  location_city: z.string().min(2).max(200),
+  location_postal: z.string().max(10).optional(),
+  location_address: z.string().max(500).optional(),
+
+  // Dates
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+  duration_text: z.string().max(200).optional(),
+  deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+
+  // Budget
+  budget_min: z.number().min(0).max(10_000_000).optional().nullable(),
+  budget_max: z.number().min(0).max(10_000_000).optional().nullable(),
+
+  // Exigences
+  nb_intervenants_souhaite: z.number().int().min(1).max(100).optional(),
+  require_rc_pro: z.boolean().default(false),
+  require_decennale: z.boolean().default(false),
+  require_qualibat: z.boolean().default(false),
+
+  // Urgence & photos
+  urgency: z.enum(['normal', 'urgent', 'emergency']).default('normal'),
+  photos: z.array(z.string().url()).max(10).default([]),
+})
+
+// ── BTP Sous-traitance — candidature artisan ─────────────────────────────────
+export const createSousTraitanceCandidatureSchema = z.object({
+  marche_id: z.string().uuid(),
+  artisan_id: z.string().uuid(),
+  artisan_user_id: z.string().uuid(),
+  artisan_company_name: z.string().max(200).optional(),
+  artisan_rating: z.number().min(0).max(5).optional(),
+  artisan_phone: z.string().max(20).optional(),
+  price: z.number().min(0).max(10_000_000),
+  timeline: z.string().min(1).max(100),
+  description: z.string().min(10).max(3000),
+  disponibilites: z.string().max(500).optional(),
+  experience_years: z.number().int().min(0).max(50).optional(),
+  materials_included: z.boolean().default(false),
+  guarantee: z.string().max(500).optional(),
+})

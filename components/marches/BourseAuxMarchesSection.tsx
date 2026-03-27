@@ -163,6 +163,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [filterCity, setFilterCity] = useState('')
   const [filterUrgency, setFilterUrgency] = useState('')
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
+  const [filterBTP, setFilterBTP] = useState(false)                  // Offres sous-traitance BTP
 
   // Bid form state
   const [bidPrice, setBidPrice] = useState('')
@@ -209,6 +210,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterCity) params.set('city', filterCity)
       if (filterUrgency) params.set('urgency', filterUrgency)
       if (filterGrandMarche) params.set('budget_min', '50000')
+      if (filterBTP) params.set('source_type', 'btp_sous_traitance')
       params.set('status', 'open')
       if (artisan?.id) params.set('artisan_user_id', artisan.id)
       const res = await fetch(`/api/marches?${params.toString()}`)
@@ -221,7 +223,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche])
+  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP])
 
   // Fetch my bids
   const fetchMyBids = useCallback(async () => {
@@ -1116,6 +1118,22 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                     <option value="emergency">🔴 {isPt ? 'Emergência' : 'Urgence'}</option>
                   </select>
                 </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <label className="v22-form-label">&nbsp;</label>
+                  <button
+                    onClick={() => setFilterBTP(f => !f)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 8, border: '1px solid',
+                      borderColor: filterBTP ? '#7c3aed' : '#d1d5db',
+                      background: filterBTP ? '#f3e8ff' : '#fff',
+                      color: filterBTP ? '#7c3aed' : '#374151',
+                      cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    🏭 {isPt ? 'Só Empresas BTP' : 'Offres BTP seulement'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1184,6 +1202,11 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                             ? (CATEGORIES.find(c => c.id === m.category)?.label || m.category)
                             : (CATEGORIES.find(c => c.id === m.category)?.labelFr || m.category)}
                         </span>
+                        {m.source_type === 'btp_sous_traitance' && (
+                          <span className="v22-tag" style={{ background: '#f3e8ff', color: '#7c3aed', marginTop: 4, display: 'block' }}>
+                            🏭 {isPt ? 'Empresa BTP' : 'Entreprise BTP'}
+                          </span>
+                        )}
                       </div>
 
                       {/* Title + location */}

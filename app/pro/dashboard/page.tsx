@@ -56,6 +56,7 @@ const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/BTP
 const PointageEquipesSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.PointageEquipesSection))
 const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SousTraitanceDC4Section))
 const DPGFSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.DPGFSection))
+const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'))
 
 // Conciergerie sections
 const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection), { ssr: false })
@@ -1119,6 +1120,7 @@ export default function DashboardPage() {
                 <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
                 <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
                 <V22SidebarItem label={isPt ? '🤝 Subempreitada DC4' : '🤝 Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
+                <V22SidebarItem label={isPt ? '🏗️ Recrutar Subempreiteiros' : '🏗️ Recruter sous-traitants'} active={activePage === 'sous_traitance_offres'} onClick={() => navigateTo('sous_traitance_offres')} />
                 <V22SidebarItem label={isPt ? '📁 Concursos / DPGF' : '📁 Appels d\'offres'} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
               </div>
               {/* ── Lots & Paramétrage ── */}
@@ -1663,6 +1665,13 @@ export default function DashboardPage() {
           {activePage === 'sous_traitance' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
               <SousTraitanceDC4Section userId={artisan?.id || ''} />
+            </div>
+          )}
+
+          {/* ────── RECRUTEMENT SOUS-TRAITANTS (Société BTP) ────── */}
+          {activePage === 'sous_traitance_offres' && (
+            <div className="p-6 lg:p-8 animate-fadeIn">
+              <SousTraitanceOffresSection artisan={artisan} />
             </div>
           )}
 
