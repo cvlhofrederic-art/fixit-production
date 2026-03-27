@@ -114,6 +114,11 @@ const ComparadorEnergiaSection = d(() => import('@/components/syndic-dashboard/t
 const AssinaturaCMDSection = d(() => import('@/components/syndic-dashboard/legal/AssinaturaCMDSection'))
 const DashboardMultiImmeublesSection = d(() => import('@/components/syndic-dashboard/reporting/DashboardMultiImmeublesSection'))
 const EFaturaATSection = d(() => import('@/components/syndic-dashboard/financial/EFaturaATSection'))
+// ── Nouveaux modules internationaux ──
+const InfractionsSection = d(() => import('@/components/syndic-dashboard/legal/InfractionsSection'))
+const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashboard/financial/ReconciliationBancaireSection'))
+const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
+const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
 
 // ─── Inline interfaces for syndic-specific types ─────────────────────────────
 
@@ -4405,6 +4410,10 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
           {page === 'assinatura_cmd' && user && <AssinaturaCMDSection user={user} userRole={userRole} />}
           {page === 'dashboard_multi_immeubles' && user && <DashboardMultiImmeublesSection user={user} userRole={userRole} />}
           {page === 'efatura_at' && user && <EFaturaATSection user={user} userRole={userRole} />}
+          {page === 'infractions' && user && <InfractionsSection user={user} userRole={userRole} />}
+          {page === 'reconciliation_bancaire' && user && <ReconciliationBancaireSection user={user} userRole={userRole} />}
+          {page === 'benchmarking' && user && <BenchmarkingSection user={user} userRole={userRole} />}
+          {page === 'chatbot_whatsapp' && user && <ChatbotWhatsAppSection user={user} userRole={userRole} />}
 
           {/* ═══ FR Modules ═══ */}
           {page === 'vote_correspondance' && user && <VoteCorrespondanceSection user={user} userRole={userRole} />}

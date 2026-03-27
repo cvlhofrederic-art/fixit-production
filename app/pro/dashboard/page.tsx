@@ -10,6 +10,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import AiChatBot from '@/components/chat/AiChatBot'
 import { DashboardSkeleton } from '@/components/dashboard'
 import ComptabiliteSection from '@/components/dashboard/ComptabiliteSection'
+import RFQSection from '@/components/dashboard/RFQSection'
 import ClientsSection from '@/components/dashboard/ClientsSection'
 import MateriauxSection from '@/components/dashboard/MateriauxSection'
 import RapportsSection from '@/components/dashboard/RapportsSection'
@@ -1108,6 +1109,7 @@ export default function DashboardPage() {
               <V22SidebarItem label={t('proDash.btp.timeTracking')} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />
               <V22SidebarItem label={t('proDash.btp.subcontracting')} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
               <V22SidebarItem label={t('proDash.btp.tenders')} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
+              <V22SidebarItem label={isPt ? 'Os meus orçamentos' : 'Mes devis pro'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
             </>}
             {orgRole === 'pro_conciergerie' && <>
               <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
@@ -1542,6 +1544,13 @@ export default function DashboardPage() {
           {activePage === 'marches' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na bolsa de mercados' : 'Erreur dans la bourse aux marchés'}>
               <BourseAuxMarchesSection artisan={artisan} navigateTo={navigateTo} />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── DEVIS PRO BTP ────── */}
+          {activePage === 'rfq_btp' && orgRole === 'pro_societe' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis pro'}>
+              <RFQSection artisan={artisan} />
             </SectionErrorBoundary>
           )}
 
