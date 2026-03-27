@@ -777,7 +777,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               <button onClick={() => setShowForm(false)} className="v22-modal-close">✕</button>
             </div>
 
-            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', overflowX: 'hidden', flex: '1 1 0', minHeight: 0, maxHeight: 'calc(90vh - 100px)' }}>
+            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', overflowX: 'hidden', flex: '1 1 auto', minHeight: 0, maxHeight: 'calc(90vh - 100px)' }}>
               {/* Liaison intervention / mission */}
               <div className="v22-card">
                 <div className="v22-card-head">
