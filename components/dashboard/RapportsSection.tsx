@@ -768,7 +768,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       {showForm && (
       <div className="v22-modal-overlay open">
         {showForm && (
-          <div className="v22-modal" style={{ maxWidth: '720px' }}>
+          <div className="v22-modal v22-modal--tall" style={{ maxWidth: '720px' }}>
             <div className="v22-modal-head">
               <span className="v22-modal-title">
                 {editingId ? 'Modifier le rapport' : 'Nouveau rapport d\'intervention'}

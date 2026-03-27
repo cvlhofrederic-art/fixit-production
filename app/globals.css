@@ -328,7 +328,10 @@
   line-height: 1;
 }
 #artisan-dashboard-v22 .v22-modal-close:hover { color: var(--v22-text); background: var(--v22-bg); }
-#artisan-dashboard-v22 .v22-modal-body { padding: 16px; overflow-y: auto; flex: 1 1 0; min-height: 0; height: 0; }
+#artisan-dashboard-v22 .v22-modal-body { padding: 16px; overflow-y: auto; flex: 1; min-height: 0; }
+/* Tall modal variant — hauteur explicite pour que le flex scroll fonctionne */
+#artisan-dashboard-v22 .v22-modal--tall { height: min(90vh, 900px); }
+#artisan-dashboard-v22 .v22-modal--tall .v22-modal-body { overflow-y: auto; flex: 1; min-height: 0; }
 #artisan-dashboard-v22 .v22-modal-foot {
   padding: 12px 16px;
   border-top: 1px solid var(--v22-border);
