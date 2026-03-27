@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy init — évite le crash au build CI quand les env vars ne sont pas définies
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const supabase = getSupabase()
 
     const { data: offer, error } = await supabase
       .from('offers')
@@ -28,6 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const supabase = getSupabase()
     const { total_price, delivery_days, comment, items } = await req.json()
 
     const { data: offer, error: offerError } = await supabase
@@ -39,7 +44,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (offerError || !offer) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (offer.status !== 'pending') return NextResponse.json({ error: 'Already answered' }, { status: 409 })
 
-    // Update offer with supplier response
     const { error: updateError } = await supabase
       .from('offers')
       .update({ total_price, delivery_days, comment, status: 'pending' })
@@ -47,7 +51,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
     if (updateError) throw updateError
 
-    // Insert offer items if provided
     if (items?.length) {
       await supabase
         .from('offer_items')
@@ -57,7 +60,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         })))
     }
 
-    // Update RFQ status to answered
     await supabase
       .from('rfqs')
       .update({ status: 'answered', updated_at: new Date().toISOString() })

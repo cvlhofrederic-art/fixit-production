@@ -1,28 +1,25 @@
 /**
  * POST /api/tva/check
  * Vérifie le seuil TVA d'un artisan et crée une notification si nécessaire.
- * Appelé côté client au chargement de ComptabiliteSection.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getTvaStatus, shouldNotify, type TvaCountry, type TvaNotifiedLevel } from '@/lib/tva-thresholds'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-const supabaseAnon = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Lazy init — évite le crash au build CI
+function getSupabaseAdmin() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
+function getSupabaseAnon() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Auth
     const token = req.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: { user }, error: authError } = await supabaseAnon.auth.getUser(token)
+    const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { ca_ht, country } = await req.json()
@@ -30,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing ca_ht or country' }, { status: 400 })
     }
 
-    // Charger le profil artisan (country + tva_notified_level + tva_auto_activate)
+    const supabaseAdmin = getSupabaseAdmin()
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles_artisan')
       .select('id, tva_notified_level, tva_auto_activate')
@@ -52,7 +49,6 @@ export async function POST(req: NextRequest) {
       const title = isPt ? tvaResult.title.pt : tvaResult.title.fr
       const body = isPt ? tvaResult.message.pt : tvaResult.message.fr
 
-      // Insérer la notification dans le système global
       await supabaseAdmin.from('artisan_notifications').insert({
         artisan_id: user.id,
         type: 'tva_threshold',
@@ -68,7 +64,6 @@ export async function POST(req: NextRequest) {
         }),
       })
 
-      // Mettre à jour le niveau notifié pour éviter le spam
       await supabaseAdmin
         .from('profiles_artisan')
         .update({ tva_notified_level: tvaResult.status === 'exceeded_majore' ? 'exceeded_majore' : tvaResult.status })

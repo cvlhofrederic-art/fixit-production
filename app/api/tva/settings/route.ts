@@ -5,19 +5,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-const supabaseAnon = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Lazy init — évite le crash au build CI
+function getSupabaseAdmin() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
+function getSupabaseAnon() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 async function authenticate(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return null
-  const { data: { user }, error } = await supabaseAnon.auth.getUser(token)
+  const { data: { user }, error } = await getSupabaseAnon().auth.getUser(token)
   if (error || !user) return null
   return user
 }
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     const user = await authenticate(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from('profiles_artisan')
       .select('tva_auto_activate, tva_notified_level')
       .eq('user_id', user.id)
@@ -51,7 +50,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'tva_auto_activate must be boolean' }, { status: 400 })
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from('profiles_artisan')
       .update({ tva_auto_activate })
       .eq('user_id', user.id)

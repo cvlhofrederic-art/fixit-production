@@ -3,10 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy init — évite le crash au build CI quand SUPABASE_SERVICE_ROLE_KEY n'est pas défini
+function getSupabase() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
+function getSupabaseAnon() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,13 +17,11 @@ export async function GET(req: NextRequest) {
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    ).auth.getUser(token)
+    const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
 
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const supabase = getSupabase()
     const { data: rfqs, error } = await supabase
       .from('rfqs')
       .select('*, rfq_items(*), offers(id, supplier_name, total_price, delivery_days, status, created_at)')
@@ -41,13 +42,11 @@ export async function POST(req: NextRequest) {
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    ).auth.getUser(token)
+    const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
 
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const supabase = getSupabase()
     const body: CreateRFQPayload = await req.json()
     const { title, message, country, items } = body
 
@@ -55,7 +54,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title and items required' }, { status: 400 })
     }
 
-    // Create RFQ
     const { data: rfq, error: rfqError } = await supabase
       .from('rfqs')
       .insert({ user_id: user.id, title, message, country, status: 'pending' })
@@ -64,7 +62,6 @@ export async function POST(req: NextRequest) {
 
     if (rfqError || !rfq) throw rfqError
 
-    // Create RFQ items
     const { data: rfqItems, error: itemsError } = await supabase
       .from('rfq_items')
       .insert(items.map(i => ({ ...i, rfq_id: rfq.id })))
@@ -72,7 +69,6 @@ export async function POST(req: NextRequest) {
 
     if (itemsError) throw itemsError
 
-    // Find matching suppliers by country and active status
     const { data: suppliers } = await supabase
       .from('suppliers')
       .select('*')
@@ -80,7 +76,6 @@ export async function POST(req: NextRequest) {
       .eq('active', true)
 
     if (suppliers?.length) {
-      // Create offer placeholders with tokens for each supplier
       const offerInserts = suppliers.map(s => ({
         rfq_id: rfq.id,
         supplier_id: s.id,
@@ -95,7 +90,6 @@ export async function POST(req: NextRequest) {
         .select()
 
       if (!offersError && createdOffers) {
-        // Send emails to suppliers
         const suppliersWithTokens = createdOffers.map(o => ({
           id: o.supplier_id,
           name: o.supplier_name,
