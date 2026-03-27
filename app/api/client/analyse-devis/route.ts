@@ -320,7 +320,7 @@ function isVitfixPdf(text: string): boolean {
 // ── Heuristique : le texte PDF a-t-il besoin de préprocessing ? ─────────────
 function needsPreprocessing(text: string): boolean {
   if (isVitfixPdf(text)) return false
-  const pricePatterns = (text.match(/\d[\d\s]*[.,]\d{2}\s*€/g) || []).length
+  const pricePatterns = (text.match(/\d(?:\d| ){0,15}[.,]\d{2}\s{0,3}€/g) || []).length
   const lines = text.split('\n').filter(l => l.trim().length > 0).length
   const avgLineLen = text.length / Math.max(lines, 1)
   const hasTableHeaders = /prix\s*unitaire|total\s*ht|montant\s*ttc|quantit/i.test(text)

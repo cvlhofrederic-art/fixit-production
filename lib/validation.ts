@@ -1,6 +1,7 @@
 // ── Zod validation schemas for API routes ────────────────────────────────────
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
+import DOMPurify from 'isomorphic-dompurify'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -777,13 +778,9 @@ export const ptFiscalRegisterDocSchema = z.object({
 })
 
 // ── String sanitizer (XSS prevention) ────────────────────────────────────────
+// Uses isomorphic-dompurify for complete sanitization (works server + client)
 export function sanitizeHtml(s: string): string {
-  return s
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]*\s+on\w+\s*=\s*["'][^"']*["'][^>]*>/gi, '')
-    .replace(/javascript\s*:/gi, '')
-    .replace(/data\s*:\s*text\/html/gi, '')
-    .trim()
+  return DOMPurify.sanitize(s, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).trim()
 }
 
 // ── Helper: validate and return typed result ─────────────────────────────────
