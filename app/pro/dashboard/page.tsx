@@ -1113,6 +1113,7 @@ export default function DashboardPage() {
               <V22SidebarItem label={t('proDash.btp.subcontracting')} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
               <V22SidebarItem label={t('proDash.btp.tenders')} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
               <V22SidebarItem label={isPt ? 'Os meus orçamentos' : 'Mes devis pro'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
+              <V22SidebarItem label={isPt ? 'Lotes / Prestações' : 'Lots / Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
             </>}
             {orgRole === 'pro_conciergerie' && <>
               <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
@@ -1248,6 +1249,7 @@ export default function DashboardPage() {
               savingMotif={savingMotif} openNewMotif={openNewMotif} openEditMotif={openEditMotif}
               saveMotif={saveMotif} toggleMotifActive={toggleMotifActive} deleteMotif={deleteMotif}
               getPriceRangeLabel={(s: Service) => getPriceRangeLabel(s, t('proDash.onQuote'))} getPricingUnit={getPricingUnit} getCleanDescription={getCleanDescription}
+              orgRole={orgRole}
             />
           )}
 

@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
 interface MotifsSectionProps {
   services: any[]
   showMotifModal: boolean
@@ -22,15 +24,17 @@ interface MotifsSectionProps {
   getPriceRangeLabel: (service: any) => string
   getPricingUnit: (service: any) => string
   getCleanDescription: (service: any) => string
+  orgRole?: OrgRole
 }
 
 export default function MotifsSection({
   services, showMotifModal, setShowMotifModal, editingMotif, motifForm, setMotifForm,
   savingMotif, openNewMotif, openEditMotif, saveMotif, toggleMotifActive, deleteMotif,
-  getPriceRangeLabel, getPricingUnit, getCleanDescription,
+  getPriceRangeLabel, getPricingUnit, getCleanDescription, orgRole,
 }: MotifsSectionProps) {
   const { t } = useTranslation()
   const [localEtapes, setLocalEtapes] = useState<string[]>([])
+  const isSociete = orgRole === 'pro_societe'
 
   // Reset local étapes when modal opens/closes
   const origOpenNewMotif = openNewMotif
@@ -41,18 +45,28 @@ export default function MotifsSection({
       {/* Page header */}
       <div className="v22-page-header" style={{ justifyContent: 'space-between' }}>
         <div>
-          <div className="v22-page-title">{'🔧'} {t('proDash.motifs.title')}</div>
-          <div className="v22-page-sub">{t('proDash.motifs.subtitle')}</div>
+          <div className="v22-page-title">
+            {isSociete ? '🏗️ Lots & Prestations BTP' : `${'🔧'} ${t('proDash.motifs.title')}`}
+          </div>
+          <div className="v22-page-sub">
+            {isSociete
+              ? 'Définissez vos lots de travaux, postes de devis et prix unitaires'
+              : t('proDash.motifs.subtitle')}
+          </div>
         </div>
         <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className="v22-btn v22-btn-primary">
-          {t('proDash.motifs.nouveauMotif')}
+          {isSociete ? '+ Nouveau lot' : t('proDash.motifs.nouveauMotif')}
         </button>
       </div>
 
       {/* Info box - amber alert */}
       <div className="v22-alert v22-alert-amber" style={{ marginBottom: 16, cursor: 'default' }}>
         <span style={{ fontSize: 12 }}>
-          <strong>{'💡'} {t('proDash.motifs.astuce')}</strong> {t('proDash.motifs.astuceTexte')}
+          {isSociete ? (
+            <><strong>{'💡'} Conseil BTP</strong> Créez un lot par type de prestation (Maçonnerie, Charpente, Électricité…) avec prix unitaire ou forfait. Ces lots alimenteront vos devis et situations de travaux.</>
+          ) : (
+            <><strong>{'💡'} {t('proDash.motifs.astuce')}</strong> {t('proDash.motifs.astuceTexte')}</>
+          )}
         </span>
       </div>
 
@@ -74,7 +88,7 @@ export default function MotifsSection({
             {services.map((service) => (
               <tr key={service.id}>
                 <td>
-                  <div style={{ fontWeight: 500 }}>{'🌿'} {service.name}</div>
+                  <div style={{ fontWeight: 500 }}>{isSociete ? '🏗️' : '🌿'} {service.name}</div>
                   {getCleanDescription(service) && (
                     <div className="v22-ref" style={{ marginTop: 2 }}>{getCleanDescription(service)}</div>
                   )}
@@ -115,11 +129,17 @@ export default function MotifsSection({
             {services.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '40px 14px' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{'🔧'}</div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('proDash.motifs.aucunMotif')}</div>
-                  <div className="v22-ref" style={{ marginBottom: 12 }}>{t('proDash.motifs.aucunMotifDesc')}</div>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{isSociete ? '🏗️' : '🔧'}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                    {isSociete ? 'Aucun lot défini' : t('proDash.motifs.aucunMotif')}
+                  </div>
+                  <div className="v22-ref" style={{ marginBottom: 12 }}>
+                    {isSociete
+                      ? 'Créez vos premiers lots de travaux pour les intégrer dans vos devis BTP'
+                      : t('proDash.motifs.aucunMotifDesc')}
+                  </div>
                   <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className="v22-btn v22-btn-primary">
-                    {t('proDash.motifs.creerMotif')}
+                    {isSociete ? '+ Créer un lot' : t('proDash.motifs.creerMotif')}
                   </button>
                 </td>
               </tr>
@@ -134,7 +154,9 @@ export default function MotifsSection({
           <div className="v22-modal" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
             <div className="v22-modal-head">
               <span style={{ fontWeight: 600, fontSize: 14 }}>
-                {editingMotif ? `✏️ ${t('proDash.motifs.modifierMotif')}` : `🔧 ${t('proDash.motifs.nouveauMotifTitle')}`}
+                {editingMotif
+                  ? `✏️ ${isSociete ? 'Modifier le lot' : t('proDash.motifs.modifierMotif')}`
+                  : isSociete ? '🏗️ Nouveau lot BTP' : `🔧 ${t('proDash.motifs.nouveauMotifTitle')}`}
               </span>
               <button onClick={() => setShowMotifModal(false)} className="v22-btn v22-btn-sm">✕</button>
             </div>
@@ -144,7 +166,7 @@ export default function MotifsSection({
                 <div>
                   <label className="v22-form-label">{t('proDash.motifs.nomMotif')} *</label>
                   <input type="text" value={motifForm.name} onChange={(e) => setMotifForm({...motifForm, name: e.target.value})}
-                    placeholder={t('proDash.motifs.nomMotifPlaceholder')}
+                    placeholder={isSociete ? 'Ex: Maçonnerie, Charpente bois, Électricité CFO…' : t('proDash.motifs.nomMotifPlaceholder')}
                     className="v22-form-input" />
                 </div>
 
@@ -227,6 +249,10 @@ export default function MotifsSection({
                       { value: 'kg', label: `⚖️ ${t('proDash.motifs.kg')}`, desc: t('proDash.motifs.kgDesc') },
                       { value: 'tonne', label: `♻️ ${t('proDash.motifs.tonne')}`, desc: t('proDash.motifs.tonneDesc') },
                       { value: 'lot', label: `📦 ${t('proDash.motifs.lot')}`, desc: t('proDash.motifs.lotDesc') },
+                      ...(isSociete ? [
+                        { value: 'jour', label: '📅 Journée', desc: 'Prix à la journée de travail (MO)' },
+                        { value: 'semaine', label: '🗓️ Semaine', desc: 'Prix à la semaine (chantier)' },
+                      ] : []),
                     ].map((opt) => (
                       <button key={opt.value}
                         onClick={() => setMotifForm({...motifForm, pricing_unit: opt.value})}
