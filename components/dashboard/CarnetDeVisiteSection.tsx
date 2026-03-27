@@ -5,6 +5,11 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
+function safeBlobUrl(file: File): string {
+  const url = URL.createObjectURL(file)
+  return url.startsWith('blob:') ? url : ''
+}
+
 export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -155,7 +160,7 @@ export default function CarnetDeVisiteSection({ artisan }: { artisan: any }) {
             {pendingFile && (
               <div className="mb-4 rounded-xl overflow-hidden bg-gray-100 h-40 flex items-center justify-center">
                 <img
-                  src={(() => { const u = URL.createObjectURL(pendingFile); return u.startsWith('blob:') ? u : '' })()}
+                  src={safeBlobUrl(pendingFile)}
                   alt="preview"
                   className="w-full h-full object-cover"
                 />

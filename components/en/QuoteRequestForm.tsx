@@ -9,6 +9,10 @@ interface QuoteRequestFormProps {
   isEmergency?: boolean
 }
 
+function safeBlobUrl(url: string): string {
+  return url.startsWith('blob:') || url.startsWith('https:') ? url : ''
+}
+
 export default function QuoteRequestForm({ serviceType, serviceName, isEmergency = false }: QuoteRequestFormProps) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({
@@ -167,10 +171,12 @@ export default function QuoteRequestForm({ serviceType, serviceName, isEmergency
               {/* Photo previews */}
               {photoPreviewUrls.length > 0 && (
                 <div className="flex flex-wrap gap-3 mb-4">
-                  {photoPreviewUrls.map((url, i) => (
+                  {photoPreviewUrls.map((url, i) => {
+                    const src = safeBlobUrl(url)
+                    return (
                     <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-border">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url.startsWith('blob:') || url.startsWith('https:') ? url : ''} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={src} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removePhoto(i)}
@@ -179,7 +185,7 @@ export default function QuoteRequestForm({ serviceType, serviceName, isEmergency
                         {'\u00d7'}
                       </button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
 

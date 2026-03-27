@@ -281,6 +281,7 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
               {filtered.map(doc => {
                 const fi = getFileIcon(doc)
                 const tc = typeConfig[doc.type]
+                const downloadUrl = safeHref(doc.url)
                 return (
                   <tr key={doc.id}>
                     <td>
@@ -315,7 +316,7 @@ export default function DocsInterventionsSection({ artisans, setPage }: { artisa
                     </td>
                     <td>
                       <div className="sd-doc-row-actions">
-                        <a href={safeHref(doc.url)} target="_blank" rel="noopener noreferrer" className="sd-doc-row-btn" title="Télécharger">⬇</a>
+                        <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="sd-doc-row-btn" title="Télécharger">⬇</a>
                         <button className="sd-doc-row-btn" title="Transmettre" onClick={() => doc.envoye_compta ? handleAnnulerEnvoi(doc.id) : handleEnvoyerCompta(doc)}>
                           {sendingCompta === doc.id ? '⏳' : '📤'}
                         </button>

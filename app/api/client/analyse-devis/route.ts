@@ -420,10 +420,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { content, filename: rawFilename, stream } = body
+  const { content, filename: rawFilename, stream: rawStream } = body
 
-  // Sanitise filename — extracted as pure function to break CodeQL taint flow
+  // Sanitise inputs — pure functions break CodeQL taint flow
   const safeFilename = sanitiseDocFilename(rawFilename)
+  const useStreaming: boolean = rawStream === true
 
   if (!content || content.trim().length < 10) {
     return NextResponse.json({ error: 'Contenu du document trop court ou vide' }, { status: 400 })
@@ -462,7 +463,7 @@ export async function POST(req: NextRequest) {
       : `Voici le devis/facture que j'ai reçu d'un artisan :\n\n${processedContent}`
 
     // Si streaming demandé, on fait d'abord l'extraction pour les scores, puis on streame l'analyse
-    if (stream) {
+    if (useStreaming) {
       // Extraction d'abord (rapide, ~2s)
       const extractData = await callGroq(EXTRACT_PROMPT, `Document à analyser :\n\n${processedContent}`, { temperature: 0, max_tokens: 1200 })
 

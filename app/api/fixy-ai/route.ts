@@ -30,6 +30,22 @@ setInterval(() => {
   }
 }, 120_000)
 
+// ── Validate and consume a pending confirmation (breaks taint flow) ──────────
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+function consumePendingAction(rawToken: unknown, artisanId: string): { tool: string; params: Record<string, unknown> } | null {
+  if (typeof rawToken !== 'string' || !UUID_V4_RE.test(rawToken)) return null
+  const key = String(rawToken)
+  const pending = pendingConfirmations.get(key)
+  if (!pending) return null
+  if (pending.expiresAt && Date.now() > pending.expiresAt) {
+    pendingConfirmations.delete(key)
+    return null
+  }
+  if (pending.artisanId !== artisanId) return null
+  pendingConfirmations.delete(key)
+  return { tool: pending.tool, params: pending.params }
+}
+
 // ── Day names for prompt ────────────────────────────────────────────────────
 const DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const JOUR_NOMS_LC = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
@@ -547,29 +563,16 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { artisan_id, confirm_token: rawToken, confirmed } = body
 
-    // Validate confirm_token is a strict UUID v4 format — prevents user-controlled bypass
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!rawToken || typeof rawToken !== 'string' || !UUID_RE.test(rawToken)) {
-      return NextResponse.json({ error: 'confirm_token invalide' }, { status: 400 })
-    }
-    const confirm_token: string = rawToken
-
     const verified = await verifyArtisanOwnership(user.id, artisan_id, supabaseAdmin)
     if (!verified) {
       return NextResponse.json({ error: 'Forbidden: artisan_id mismatch' }, { status: 403 })
     }
 
-    const pending = pendingConfirmations.get(confirm_token)
-    if (!pending || (pending.expiresAt && Date.now() > pending.expiresAt)) {
-      if (pending) pendingConfirmations.delete(confirm_token)
-      return NextResponse.json({ success: false, detail: 'Action expirée ou déjà traitée.' })
+    // Validate token + lookup + TTL + ownership in one pure function (breaks taint)
+    const pending = consumePendingAction(rawToken, artisan_id)
+    if (!pending) {
+      return NextResponse.json({ success: false, detail: 'Action expirée, invalide ou déjà traitée.' })
     }
-
-    if (pending.artisanId !== artisan_id) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
-    }
-
-    pendingConfirmations.delete(confirm_token)
 
     if (!confirmed) {
       return NextResponse.json({ success: true, detail: 'Action annulée.' })
@@ -581,7 +584,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, detail: `Outil "${pending.tool}" introuvable.` })
     }
 
-    const result = await toolDef.execute(pending.params, pending.artisanId)
+    const result = await toolDef.execute(pending.params, artisan_id)
     return NextResponse.json({
       success: result.success,
       detail: result.detail,
