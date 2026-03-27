@@ -1145,7 +1145,7 @@ export default function DashboardPage() {
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
             <V22SidebarItem label={t('proDash.modules.sitePhotos')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
-            {orgRole === 'artisan' && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
+            {(orgRole === 'artisan' || orgRole === 'pro_societe') && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
             {isModuleEnabled('contrats') && (orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
               <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
             )}
@@ -1753,7 +1753,7 @@ export default function DashboardPage() {
           {/* ────── BIBLIOTHÈQUE D'OUVRAGES ────── */}
           {activePage === 'bibliotheque' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans la bibliothèque">
-              <BibliothequeSection artisan={artisan} navigateTo={navigateTo} />
+              <BibliothequeSection artisan={artisan} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
