@@ -2,6 +2,8 @@
 
 import { useTranslation } from '@/lib/i18n/context'
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
 interface HorairesSectionProps {
   artisan: any
   services: any[]
@@ -14,6 +16,7 @@ interface HorairesSectionProps {
   updateAvailabilityTime: (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => void
   toggleDayService: (dayOfWeek: number, serviceId: string) => void
   DAY_NAMES: string[]
+  orgRole?: OrgRole
 }
 
 export default function HorairesSection({
@@ -27,29 +30,50 @@ export default function HorairesSection({
   updateAvailabilityTime,
   toggleDayService,
   DAY_NAMES,
+  orgRole,
 }: HorairesSectionProps) {
   const { t } = useTranslation()
+  const isSociete = orgRole === 'pro_societe'
 
   return (
     <div>
       {/* Page header */}
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">{'🕐'} {t('proDash.horaires.title')}</h1>
-          <p className="v22-page-sub">{t('proDash.horaires.subtitle')}</p>
+          <h1 className="v22-page-title">
+            {isSociete ? '⏱️ Horaires chantier & équipes' : `${'🕐'} ${t('proDash.horaires.title')}`}
+          </h1>
+          <p className="v22-page-sub">
+            {isSociete
+              ? "Définissez les plages d'intervention de votre entreprise — affichées sur votre profil et dans les appels d'offres"
+              : t('proDash.horaires.subtitle')}
+          </p>
         </div>
         <div />
       </div>
 
       <div style={{ padding: '24px' }}>
 
+        {/* Info box société */}
+        {isSociete && (
+          <div className="v22-alert v22-alert-amber" style={{ marginBottom: 16, cursor: 'default' }}>
+            <span style={{ fontSize: 12 }}>
+              <strong>{'💡'} Conseil</strong> Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d&apos;offres. Activez les jours où vos équipes interviennent.
+            </span>
+          </div>
+        )}
+
         {/* Mode validation */}
         <div className="v22-card" style={{ marginBottom: 16, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <div className="v22-card-title">{t('proDash.horaires.modeValidation')}</div>
+              <div className="v22-card-title">
+                {isSociete ? 'Acceptation des demandes' : t('proDash.horaires.modeValidation')}
+              </div>
               <div className="v22-card-meta">
-                {autoAccept ? `✅ ${t('proDash.horaires.autoConfirm')}` : `⏳ ${t('proDash.horaires.manualConfirm')}`}
+                {autoAccept
+                  ? `✅ ${isSociete ? 'Acceptation automatique des demandes de devis' : t('proDash.horaires.autoConfirm')}`
+                  : `⏳ ${isSociete ? 'Validation manuelle par le responsable' : t('proDash.horaires.manualConfirm')}`}
               </div>
             </div>
             <button
@@ -65,7 +89,9 @@ export default function HorairesSection({
         {/* Plages d'ouverture */}
         <div className="v22-card">
           <div className="v22-card-head">
-            <span className="v22-card-title">{'🕐'} {t('proDash.horaires.plagesOuverture')}</span>
+            <span className="v22-card-title">
+              {isSociete ? "⏱️ Plages d'intervention" : `${'🕐'} ${t('proDash.horaires.plagesOuverture')}`}
+            </span>
           </div>
           <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[1, 2, 3, 4, 5, 6, 0].map((day) => {
@@ -131,7 +157,9 @@ export default function HorairesSection({
                   </div>
                   {avail?.is_available && activeServices.length > 0 && (
                     <div style={{ marginTop: 10, marginLeft: 100, paddingLeft: 12, borderLeft: '2px solid var(--v22-yellow)' }}>
-                      <p className="v22-form-label" style={{ marginBottom: 6 }}>{t('proDash.horaires.motifsDisponibles')}</p>
+                      <p className="v22-form-label" style={{ marginBottom: 6 }}>
+                      {isSociete ? 'Lots disponibles ce jour' : t('proDash.horaires.motifsDisponibles')}
+                    </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {activeServices.map((service) => {
                           const isAssigned = dayServiceIds.includes(service.id)

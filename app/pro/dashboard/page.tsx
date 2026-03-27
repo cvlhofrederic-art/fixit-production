@@ -1114,6 +1114,7 @@ export default function DashboardPage() {
               <V22SidebarItem label={t('proDash.btp.tenders')} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
               <V22SidebarItem label={isPt ? 'Os meus orçamentos' : 'Mes devis pro'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
               <V22SidebarItem label={isPt ? 'Lotes / Prestações' : 'Lots / Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
+              <V22SidebarItem label={isPt ? 'Horários de obra' : 'Horaires chantier'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
             </>}
             {orgRole === 'pro_conciergerie' && <>
               <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
@@ -1236,7 +1237,7 @@ export default function DashboardPage() {
               dayServices={dayServices} autoAccept={autoAccept} savingAvail={savingAvail}
               toggleAutoAccept={toggleAutoAccept} toggleDayAvailability={toggleDayAvailability}
               updateAvailabilityTime={updateAvailabilityTime} toggleDayService={toggleDayService}
-              DAY_NAMES={DAY_NAMES}
+              DAY_NAMES={DAY_NAMES} orgRole={orgRole}
             />
           )}
 
