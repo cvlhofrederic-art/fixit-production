@@ -1141,7 +1141,7 @@ export default function DashboardPage() {
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.facturation')}</div>
             {isModuleEnabled('devis') && <V22SidebarItem label={t('proDash.modules.quotes')} active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
-            {orgRole === 'artisan' && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
+            {(orgRole === 'artisan' || orgRole === 'pro_societe') && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
             <V22SidebarItem label={t('proDash.modules.sitePhotos')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
@@ -1746,7 +1746,7 @@ export default function DashboardPage() {
           {/* ────── PIPELINE KANBAN ────── */}
           {activePage === 'pipeline' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le pipeline">
-              <PipelineSection artisan={artisan} navigateTo={navigateTo} />
+              <PipelineSection artisan={artisan} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
