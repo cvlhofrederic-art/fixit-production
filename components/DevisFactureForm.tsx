@@ -66,6 +66,7 @@ export default function DevisFactureForm({
 
   // ─── PDF (vector-based jsPDF + autoTable) ───
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [facturxLoading, setFacturxLoading] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
 
   // ─── Verified Company Data ───
@@ -1071,6 +1072,90 @@ export default function DevisFactureForm({
       alert('Erreur aperçu: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setPdfLoading(false)
+    }
+  }
+
+  // ─── FACTUR-X EXPORT (facturation électronique 2026) ───
+  const handleExportFacturX = async () => {
+    if (docType !== 'facture' || locale !== 'fr') return
+    setFacturxLoading(true)
+    try {
+      const payload = {
+        data: {
+          docType: 'facture' as const,
+          docNumber: docNumber || 'FACT-DRAFT',
+          docTitle: docTitle || 'FACTURE',
+          companyStatus,
+          companyName,
+          companySiret,
+          companyAddress,
+          companyRCS,
+          companyCapital,
+          companyPhone,
+          companyEmail,
+          insuranceNumber,
+          insuranceName,
+          insuranceCoverage,
+          insuranceType,
+          mediatorName,
+          mediatorUrl,
+          isHorsEtablissement,
+          tvaEnabled,
+          tvaNumber,
+          clientName,
+          clientEmail,
+          clientAddress,
+          interventionAddress,
+          clientPhone,
+          clientSiret,
+          clientType,
+          docDate,
+          docValidity,
+          prestationDate,
+          executionDelay,
+          executionDelayDays,
+          executionDelayType,
+          paymentMode,
+          paymentDue,
+          paymentCondition,
+          discount,
+          iban,
+          bic,
+          lines: lines.filter(l => l.description.trim()).map(l => ({
+            id: l.id,
+            description: l.description,
+            qty: l.qty,
+            unit: l.unit || 'u',
+            customUnit: l.customUnit,
+            priceHT: l.priceHT,
+            tvaRate: l.tvaRate,
+            totalHT: l.totalHT,
+            source: l.source,
+          })),
+          notes,
+        },
+      }
+      const res = await fetch('/api/facturx/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || `Erreur serveur ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `facturx_${(docNumber || 'facture').replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('[Factur-X] Export error:', err)
+      alert('Erreur export Factur-X: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setFacturxLoading(false)
     }
   }
 
@@ -3686,6 +3771,17 @@ export default function DevisFactureForm({
                 >
                   {pdfLoading ? t('devis.generatingPdf') : t('devis.downloadPdf')}
                 </button>
+                {docType === 'facture' && locale === 'fr' && (
+                  <button
+                    onClick={handleExportFacturX}
+                    disabled={facturxLoading}
+                    className="v22-btn"
+                    title="Exporter en format Factur-X (PDF/A-3 + XML CII) — obligatoire à partir de sept. 2026"
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: facturxLoading ? 0.6 : 1, cursor: facturxLoading ? 'wait' : 'pointer', fontSize: 12, border: '1px solid #e8a020', color: '#b07810' }}
+                  >
+                    {facturxLoading ? 'Génération...' : '📄 Exporter Factur-X'}
+                  </button>
+                )}
                 <button
                   onClick={handleValidateAndSend}
                   disabled={!allCompliant}
