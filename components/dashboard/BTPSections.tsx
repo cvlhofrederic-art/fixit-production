@@ -717,32 +717,36 @@ export function GanttSection({ userId }: { userId: string }) {
   const statColors: Record<string, string> = { planifié: 'bg-gray-400', en_cours: 'bg-blue-500', terminé: 'bg-green-500', en_retard: 'bg-red-500' }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h2 className="text-2xl font-bold text-gray-900">{'📅'} {t('proDash.btp.gantt.title')}</h2><p className="text-gray-500 text-sm mt-1">{taches.length} {t('proDash.btp.gantt.tachesPlanifiees')}</p></div>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">{t('proDash.btp.gantt.ajouterTache')}</button>
+    <div>
+      <div className="v22-page-header">
+        <div>
+          <h1 className="v22-page-title">📅 {t('proDash.btp.gantt.title')}</h1>
+          <p className="v22-page-sub">{taches.length} {t('proDash.btp.gantt.tachesPlanifiees')}</p>
+        </div>
+        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.gantt.ajouterTache')}</button>
       </div>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {showForm && (
-        <div className="bg-white rounded-xl border p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-900 mb-4">{t('proDash.btp.gantt.nouvelleTache')}</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.gantt.nom')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={t('proDash.btp.gantt.nomPlaceholder')} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.gantt.chantier')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} placeholder={t('proDash.btp.gantt.chantierPlaceholder')} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.gantt.responsable')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.gantt.couleur')}</label><input type="color" className="mt-1 w-full border rounded-lg px-3 py-2 h-9" value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.gantt.debut')}</label><input type="date" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.gantt.fin')}</label><input type="date" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} /></div>
+        <div className="v22-card">
+          <div className="v22-card-head"><span className="v22-card-title">{t('proDash.btp.gantt.nouvelleTache')}</span></div>
+          <div className="v22-card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div><label className="v22-form-label">{t('proDash.btp.gantt.nom')}</label><input className="v22-form-input" value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={t('proDash.btp.gantt.nomPlaceholder')} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.gantt.chantier')}</label><input className="v22-form-input" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} placeholder={t('proDash.btp.gantt.chantierPlaceholder')} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.gantt.responsable')}</label><input className="v22-form-input" value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.gantt.couleur')}</label><input type="color" className="v22-form-input" style={{ height: 38, padding: '2px 8px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.gantt.debut')}</label><input type="date" className="v22-form-input" value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.gantt.fin')}</label><input type="date" className="v22-form-input" value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} /></div>
           </div>
-          <div className="flex gap-3 mt-4">
-            <button onClick={addTache} disabled={!form.nom || !form.debut || !form.fin} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{t('proDash.btp.gantt.ajouter')}</button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">{t('proDash.btp.gantt.annuler')}</button>
+          <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
+            <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={addTache} disabled={!form.nom || !form.debut || !form.fin}>{t('proDash.btp.gantt.ajouter')}</button>
+            <button className="v22-btn v22-btn-sm" style={{ background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.gantt.annuler')}</button>
           </div>
         </div>
       )}
       {taches.length === 0 ? (
-        <div className="text-center py-16 text-gray-500"><div className="text-5xl mb-3">{'📅'}</div><p className="font-medium">{t('proDash.btp.gantt.aucuneTache')}</p></div>
+        <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}><div style={{ fontSize: 48, marginBottom: 12 }}>📅</div><p className="v22-card-meta">{t('proDash.btp.gantt.aucuneTache')}</p></div>
       ) : (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div className="v22-card" style={{ overflow: 'hidden' }}><div style={{ overflowX: 'auto' }}>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
@@ -782,16 +786,18 @@ export function GanttSection({ userId }: { userId: string }) {
             </table>
           </div>
         </div>
+        </div>
       )}
-      <div className="grid grid-cols-4 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
         {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => {
           const statLabels: Record<string, string> = { planifié: t('proDash.btp.gantt.planifie'), en_cours: t('proDash.btp.gantt.enCours'), terminé: t('proDash.btp.gantt.termine'), en_retard: t('proDash.btp.gantt.enRetard') }
           return (
-          <div key={s} className="bg-white rounded-xl border p-4 text-center">
-            <div className="text-2xl font-bold">{taches.filter(tc => tc.statut === s).length}</div>
-            <div className="text-sm text-gray-500 capitalize">{statLabels[s]}</div>
+          <div key={s} className="v22-card" style={{ padding: '12px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{taches.filter(tc => tc.statut === s).length}</div>
+            <div className="v22-card-meta" style={{ fontSize: 11, textTransform: 'capitalize' }}>{statLabels[s]}</div>
           </div>
         )})}
+      </div>
       </div>
     </div>
   )
@@ -837,73 +843,88 @@ export function SituationsTravaux({ userId }: { userId: string }) {
   }
   const statColors: Record<string, string> = { brouillon: 'bg-gray-100 text-gray-700', envoyée: 'bg-blue-100 text-blue-700', validée: 'bg-yellow-100 text-yellow-700', payée: 'bg-green-100 text-green-700' }
 
+  const sitStatV22: Record<string, string> = { brouillon: 'v22-tag v22-tag-gray', envoyée: 'v22-tag v22-tag-amber', validée: 'v22-tag v22-tag-yellow', payée: 'v22-tag v22-tag-green' }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h2 className="text-2xl font-bold text-gray-900">{'📊'} {t('proDash.btp.situations.title')}</h2><p className="text-gray-500 text-sm mt-1">{t('proDash.btp.situations.subtitle')}</p></div>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">{t('proDash.btp.situations.nouvelleSituation')}</button>
+    <div>
+      <div className="v22-page-header">
+        <div>
+          <h1 className="v22-page-title">📊 {t('proDash.btp.situations.title')}</h1>
+          <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>
+        </div>
+        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.situations.nouvelleSituation')}</button>
       </div>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {showForm && (
-        <div className="bg-white rounded-xl border p-6 shadow-sm">
-          <div className="grid grid-cols-3 gap-4">
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.situations.chantier')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.situations.client')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.situations.montantMarche')}</label><input type="number" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
+        <div className="v22-card">
+          <div className="v22-card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div><label className="v22-form-label">{t('proDash.btp.situations.chantier')}</label><input className="v22-form-input" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.situations.client')}</label><input className="v22-form-input" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
+            <div><label className="v22-form-label">{t('proDash.btp.situations.montantMarche')}</label><input type="number" className="v22-form-input" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
           </div>
-          <div className="flex gap-3 mt-4">
-            <button onClick={createSit} disabled={!form.chantier || !form.client} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{t('proDash.btp.situations.creer')}</button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">{t('proDash.btp.situations.annuler')}</button>
+          <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
+            <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={createSit} disabled={!form.chantier || !form.client}>{t('proDash.btp.situations.creer')}</button>
+            <button className="v22-btn v22-btn-sm" style={{ background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.situations.annuler')}</button>
           </div>
         </div>
       )}
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-1 space-y-3">
-          {situations.length === 0 ? <div className="text-center py-8 text-gray-500 text-sm">{t('proDash.btp.situations.aucuneSituation')}</div> : situations.map(s => {
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {situations.length === 0 ? <div className="v22-card" style={{ padding: 24, textAlign: 'center' }}><p className="v22-card-meta">{t('proDash.btp.situations.aucuneSituation')}</p></div> : situations.map(s => {
             const sitStatLabels: Record<string, string> = { brouillon: t('proDash.btp.situations.brouillon'), envoyée: t('proDash.btp.situations.envoyee'), validée: t('proDash.btp.situations.validee'), payée: t('proDash.btp.situations.payee') }
             return (
-            <div key={s.id} onClick={() => setSelected(s)} className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 ${selected?.id === s.id ? 'border-blue-500 ring-1 ring-blue-200' : ''}`}>
-              <div className="flex justify-between mb-1"><span className="font-semibold text-sm">{t('proDash.btp.situations.situation')} n°{s.numero}</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statColors[s.statut]}`}>{sitStatLabels[s.statut] || s.statut}</span></div>
-              <div className="text-sm text-gray-600">{s.chantier}</div>
-              <div className="text-xs text-gray-500">{s.client}</div>
-              <div className="text-sm font-bold text-blue-700 mt-1">{getTotal(s).toLocaleString(dateLocale)} €</div>
+            <div key={s.id} onClick={() => setSelected(s)} className="v22-card"
+              style={{ padding: 14, cursor: 'pointer', border: selected?.id === s.id ? '2px solid var(--v22-yellow)' : undefined }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{t('proDash.btp.situations.situation')} n°{s.numero}</span>
+                <span className={sitStatV22[s.statut]} style={{ fontSize: 10 }}>{sitStatLabels[s.statut] || s.statut}</span>
+              </div>
+              <div className="v22-card-meta" style={{ fontSize: 12 }}>{s.chantier}</div>
+              <div className="v22-card-meta" style={{ fontSize: 11 }}>{s.client}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--v22-yellow)', marginTop: 4 }}>{getTotal(s).toLocaleString(dateLocale)} €</div>
             </div>
           )})}
         </div>
-        <div className="col-span-2">
+        <div>
           {selected ? (
-            <div className="bg-white rounded-xl border shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold">{t('proDash.btp.situations.situation')} n°{selected.numero} — {selected.chantier}</h3>
-                <div className="flex gap-2">
+            <div className="v22-card">
+              <div className="v22-card-head">
+                <span className="v22-card-title">{t('proDash.btp.situations.situation')} n°{selected.numero} — {selected.chantier}</span>
+                <div style={{ display: 'flex', gap: 4 }}>
                   {(['brouillon', 'envoyée', 'validée', 'payée'] as const).map(s => (
-                    <button key={s} onClick={() => changeStatut(selected.id, s)} className={`px-2 py-1 rounded text-xs font-medium border ${selected.statut === s ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600'}`}>{s}</button>
+                    <button key={s} onClick={() => changeStatut(selected.id, s)}
+                      className={selected.statut === s ? 'v22-btn v22-btn-sm' : 'v22-btn v22-btn-sm'}
+                      style={{ background: selected.statut === s ? 'var(--v22-yellow)' : 'transparent', fontSize: 11 }}>{s}</button>
                   ))}
                 </div>
               </div>
-              <table className="w-full text-sm border rounded-lg overflow-hidden mb-4">
-                <thead className="bg-gray-50"><tr>{[t('proDash.btp.situations.colPoste'), t('proDash.btp.situations.colQte'), t('proDash.btp.situations.colUnite'), t('proDash.btp.situations.colPU'), t('proDash.btp.situations.colAvt'), t('proDash.btp.situations.colMontant')].map(h => <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-gray-600">{h}</th>)}</tr></thead>
-                <tbody className="divide-y">
-                  {selected.travaux.map((tr, i) => (
-                    <tr key={i}><td className="px-3 py-2">{tr.poste}</td><td className="px-3 py-2">{tr.quantite}</td><td className="px-3 py-2">{tr.unite}</td><td className="px-3 py-2">{tr.prixUnit.toLocaleString(dateLocale)}</td><td className="px-3 py-2">{tr.avancement}%</td><td className="px-3 py-2 font-semibold">{(tr.quantite * tr.prixUnit * tr.avancement / 100).toLocaleString(dateLocale)}</td></tr>
-                  ))}
-                </tbody>
-                <tfoot><tr className="bg-blue-50 font-bold"><td colSpan={5} className="px-3 py-2 text-right">{t('proDash.btp.situations.total')}</td><td className="px-3 py-2 text-blue-700">{getTotal(selected).toLocaleString(dateLocale)} €</td></tr></tfoot>
-              </table>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-5 gap-2 mb-2">
-                  <input className="col-span-2 border rounded px-2 py-1.5 text-sm" placeholder={t('proDash.btp.situations.postePlaceholder')} value={newPoste.poste} onChange={e => setNewPoste({...newPoste, poste: e.target.value})} />
-                  <input type="number" className="border rounded px-2 py-1.5 text-sm" placeholder={t('proDash.btp.situations.qtePlaceholder')} value={newPoste.quantite || ''} onChange={e => setNewPoste({...newPoste, quantite: Number(e.target.value)})} />
-                  <select className="border rounded px-2 py-1.5 text-sm" value={newPoste.unite} onChange={e => setNewPoste({...newPoste, unite: e.target.value})}>{['u', 'm²', 'm³', 'ml', 'kg', 'h', 'forfait'].map(u => <option key={u}>{u}</option>)}</select>
-                  <input type="number" className="border rounded px-2 py-1.5 text-sm" placeholder={t('proDash.btp.situations.puPlaceholder')} value={newPoste.prixUnit || ''} onChange={e => setNewPoste({...newPoste, prixUnit: Number(e.target.value)})} />
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead><tr style={{ borderBottom: '1px solid var(--v22-border)' }}>{[t('proDash.btp.situations.colPoste'), t('proDash.btp.situations.colQte'), t('proDash.btp.situations.colUnite'), t('proDash.btp.situations.colPU'), t('proDash.btp.situations.colAvt'), t('proDash.btp.situations.colMontant')].map(h => <th key={h} style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>)}</tr></thead>
+                  <tbody>{selected.travaux.map((tr, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--v22-border)' }}><td style={{ padding: '8px 12px' }}>{tr.poste}</td><td style={{ padding: '8px 12px' }}>{tr.quantite}</td><td style={{ padding: '8px 12px' }}>{tr.unite}</td><td style={{ padding: '8px 12px' }}>{tr.prixUnit.toLocaleString(dateLocale)}</td><td style={{ padding: '8px 12px' }}>{tr.avancement}%</td><td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--v22-yellow)' }}>{(tr.quantite * tr.prixUnit * tr.avancement / 100).toLocaleString(dateLocale)}</td></tr>
+                  ))}</tbody>
+                  <tfoot><tr style={{ background: 'var(--v22-bg)', fontWeight: 700 }}><td colSpan={5} style={{ padding: '8px 12px', textAlign: 'right' }}>{t('proDash.btp.situations.total')}</td><td style={{ padding: '8px 12px', color: 'var(--v22-yellow)' }}>{getTotal(selected).toLocaleString(dateLocale)} €</td></tr></tfoot>
+                </table>
+              </div>
+              <div className="v22-card-body" style={{ background: 'var(--v22-bg)', borderTop: '1px solid var(--v22-border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 6, marginBottom: 8 }}>
+                  <input className="v22-form-input" style={{ fontSize: 12 }} placeholder={t('proDash.btp.situations.postePlaceholder')} value={newPoste.poste} onChange={e => setNewPoste({...newPoste, poste: e.target.value})} />
+                  <input type="number" className="v22-form-input" style={{ fontSize: 12 }} placeholder={t('proDash.btp.situations.qtePlaceholder')} value={newPoste.quantite || ''} onChange={e => setNewPoste({...newPoste, quantite: Number(e.target.value)})} />
+                  <select className="v22-form-input" style={{ fontSize: 12 }} value={newPoste.unite} onChange={e => setNewPoste({...newPoste, unite: e.target.value})}>{['u', 'm²', 'm³', 'ml', 'kg', 'h', 'forfait'].map(u => <option key={u}>{u}</option>)}</select>
+                  <input type="number" className="v22-form-input" style={{ fontSize: 12 }} placeholder={t('proDash.btp.situations.puPlaceholder')} value={newPoste.prixUnit || ''} onChange={e => setNewPoste({...newPoste, prixUnit: Number(e.target.value)})} />
+                  <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={addPoste} disabled={!newPoste.poste}>{t('proDash.btp.situations.ajouter')}</button>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 flex-1"><span className="text-sm text-gray-600">{t('proDash.btp.situations.avancement')}</span><input type="range" min="0" max="100" value={newPoste.avancement} onChange={e => setNewPoste({...newPoste, avancement: Number(e.target.value)})} className="flex-1 accent-blue-600" /><span className="text-sm w-8">{newPoste.avancement}%</span></div>
-                  <button onClick={addPoste} disabled={!newPoste.poste} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50">{t('proDash.btp.situations.ajouter')}</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="v22-card-meta" style={{ fontSize: 12 }}>{t('proDash.btp.situations.avancement')}</span>
+                  <input type="range" min="0" max="100" value={newPoste.avancement} onChange={e => setNewPoste({...newPoste, avancement: Number(e.target.value)})} style={{ flex: 1, accentColor: 'var(--v22-yellow)' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, minWidth: 32 }}>{newPoste.avancement}%</span>
                 </div>
               </div>
             </div>
-          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-500"><div className="text-center"><div className="text-4xl mb-2">{'📊'}</div><p>{t('proDash.btp.situations.selectionnerSituation')}</p></div></div>}
+          ) : <div className="v22-card" style={{ padding: 40, textAlign: 'center', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}><div style={{ fontSize: 40, marginBottom: 8 }}>📊</div><p className="v22-card-meta">{t('proDash.btp.situations.selectionnerSituation')}</p></div>}
         </div>
+      </div>
       </div>
     </div>
   )
@@ -938,55 +959,97 @@ export function RetenuesGarantieSection({ userId }: { userId: string }) {
   const totalRetenu = retenues.filter(r => r.statut === 'active').reduce((s, r) => s + r.montantRetenu, 0)
   const totalLibéré = retenues.filter(r => r.statut === 'libérée').reduce((s, r) => s + r.montantRetenu, 0)
 
+  const retStatV22: Record<string, string> = {
+    active: 'v22-tag v22-tag-amber',
+    mainlevée_demandée: 'v22-tag v22-tag-blue',
+    libérée: 'v22-tag v22-tag-green',
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h2 className="text-2xl font-bold text-gray-900">{'🔒'} {t('proDash.btp.retenues.title')}</h2><p className="text-gray-500 text-sm mt-1">{t('proDash.btp.retenues.subtitle')}</p></div>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">{t('proDash.btp.retenues.nouvelleRetenue')}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="v22-page-header">
+        <div>
+          <h2 className="v22-page-title">🔒 {t('proDash.btp.retenues.title')}</h2>
+          <p className="v22-page-sub">{t('proDash.btp.retenues.subtitle')}</p>
+        </div>
+        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.retenues.nouvelleRetenue')}</button>
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4"><div className="text-orange-600 text-sm font-medium">{t('proDash.btp.retenues.retenuEnAttente')}</div><div className="text-2xl font-bold text-orange-700 mt-1">{totalRetenu.toLocaleString(dateLocale)} €</div></div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4"><div className="text-green-600 text-sm font-medium">{t('proDash.btp.retenues.libere')}</div><div className="text-2xl font-bold text-green-700 mt-1">{totalLibéré.toLocaleString(dateLocale)} €</div></div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4"><div className="text-blue-600 text-sm font-medium">{t('proDash.btp.retenues.chantiersConcernes')}</div><div className="text-2xl font-bold text-blue-700 mt-1">{retenues.length}</div></div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div className="v22-card-meta">{t('proDash.btp.retenues.retenuEnAttente')}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#C9A84C', marginTop: 4 }}>{totalRetenu.toLocaleString(dateLocale)} €</div>
+        </div>
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div className="v22-card-meta">{t('proDash.btp.retenues.libere')}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1D9E75', marginTop: 4 }}>{totalLibéré.toLocaleString(dateLocale)} €</div>
+        </div>
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div className="v22-card-meta">{t('proDash.btp.retenues.chantiersConcernes')}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#0D1B2E', marginTop: 4 }}>{retenues.length}</div>
+        </div>
       </div>
+
       {showForm && (
-        <div className="bg-white rounded-xl border p-6 shadow-sm">
-          <h3 className="font-semibold mb-4">{t('proDash.btp.retenues.nouvelleRetenueGarantie')}</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.retenues.chantier')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.retenues.client')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.retenues.montantMarcheHT')}</label><input type="number" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.retenues.tauxRetenue')}</label><input type="number" min="1" max="10" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.tauxRetenue} onChange={e => setForm({...form, tauxRetenue: Number(e.target.value)})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.retenues.finTravaux')}</label><input type="date" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.dateFinTravaux} onChange={e => setForm({...form, dateFinTravaux: e.target.value})} /></div>
-            <div className="flex items-center gap-2 mt-6"><input type="checkbox" id="caution_ret" checked={form.caution} onChange={e => setForm({...form, caution: e.target.checked})} className="w-4 h-4" /><label htmlFor="caution_ret" className="text-sm text-gray-700">{t('proDash.btp.retenues.cautionBancaire')}</label></div>
+        <div className="v22-card">
+          <div className="v22-card-head">
+            <div className="v22-card-title">{t('proDash.btp.retenues.nouvelleRetenueGarantie')}</div>
           </div>
-          {form.montantMarche > 0 && <div className="mt-3 bg-blue-50 rounded-lg p-3 text-sm text-blue-700">{'💡'} {t('proDash.btp.retenues.montantRetenuInfo')} <strong>{(form.montantMarche * form.tauxRetenue / 100).toLocaleString(dateLocale)} €</strong></div>}
-          <div className="flex gap-3 mt-4">
-            <button onClick={addRetenue} disabled={!form.chantier || !form.client} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{t('proDash.btp.retenues.enregistrer')}</button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">{t('proDash.btp.retenues.annuler')}</button>
+          <div className="v22-card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><label className="v22-form-label">{t('proDash.btp.retenues.chantier')}</label><input className="v22-form-input" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.retenues.client')}</label><input className="v22-form-input" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.retenues.montantMarcheHT')}</label><input type="number" className="v22-form-input" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.retenues.tauxRetenue')}</label><input type="number" min="1" max="10" className="v22-form-input" value={form.tauxRetenue} onChange={e => setForm({...form, tauxRetenue: Number(e.target.value)})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.retenues.finTravaux')}</label><input type="date" className="v22-form-input" value={form.dateFinTravaux} onChange={e => setForm({...form, dateFinTravaux: e.target.value})} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 20 }}>
+                <input type="checkbox" id="caution_ret" checked={form.caution} onChange={e => setForm({...form, caution: e.target.checked})} style={{ width: 16, height: 16, accentColor: 'var(--v22-yellow)' }} />
+                <label htmlFor="caution_ret" style={{ fontSize: 14, color: '#4A5E78' }}>{t('proDash.btp.retenues.cautionBancaire')}</label>
+              </div>
+            </div>
+            {form.montantMarche > 0 && (
+              <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
+                💡 {t('proDash.btp.retenues.montantRetenuInfo')} <strong>{(form.montantMarche * form.tauxRetenue / 100).toLocaleString(dateLocale)} €</strong>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button className="v22-btn" onClick={addRetenue} disabled={!form.chantier || !form.client}>{t('proDash.btp.retenues.enregistrer')}</button>
+              <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.retenues.annuler')}</button>
+            </div>
           </div>
         </div>
       )}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b"><tr>{[t('proDash.btp.retenues.colChantier'), t('proDash.btp.retenues.colClient'), t('proDash.btp.retenues.colMarcheHT'), t('proDash.btp.retenues.colRetenu'), t('proDash.btp.retenues.colFinTravaux'), t('proDash.btp.retenues.colStatut'), t('proDash.btp.retenues.colActions')].map(h => <th key={h} className="text-left text-xs font-semibold text-gray-600 px-4 py-3">{h}</th>)}</tr></thead>
-          <tbody className="divide-y">
-            {retenues.length === 0 ? <tr><td colSpan={7} className="text-center py-10 text-gray-500 text-sm">{t('proDash.btp.retenues.aucuneRetenue')}</td></tr> : retenues.map(r => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-sm">{r.chantier}</td>
-                <td className="px-4 py-3 text-sm">{r.client}</td>
-                <td className="px-4 py-3 text-sm">{r.montantMarche.toLocaleString(dateLocale)} €</td>
-                <td className="px-4 py-3 text-sm font-semibold text-orange-700">{r.montantRetenu.toLocaleString(dateLocale)} €</td>
-                <td className="px-4 py-3 text-sm">{r.dateFinTravaux ? new Date(r.dateFinTravaux).toLocaleDateString(dateLocale) : '—'}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.statut === 'active' ? 'bg-orange-100 text-orange-700' : r.statut === 'mainlevée_demandée' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>{r.statut}</span></td>
-                <td className="px-4 py-3">
-                  {r.statut === 'active' && <button onClick={() => changeStatut(r.id, 'mainlevée_demandée')} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">{t('proDash.btp.retenues.demanderMainlevee')}</button>}
-                  {r.statut === 'mainlevée_demandée' && <button onClick={() => changeStatut(r.id, 'libérée')} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100">{t('proDash.btp.retenues.liberer')}</button>}
-                </td>
+
+      <div className="v22-card" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                {[t('proDash.btp.retenues.colChantier'), t('proDash.btp.retenues.colClient'), t('proDash.btp.retenues.colMarcheHT'), t('proDash.btp.retenues.colRetenu'), t('proDash.btp.retenues.colFinTravaux'), t('proDash.btp.retenues.colStatut'), t('proDash.btp.retenues.colActions')].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '10px 14px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {retenues.length === 0 ? (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--v22-text-mid)', fontSize: 13 }}>{t('proDash.btp.retenues.aucuneRetenue')}</td></tr>
+              ) : retenues.map(r => (
+                <tr key={r.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                  <td style={{ padding: '10px 14px', fontWeight: 600, color: '#0D1B2E' }}>{r.chantier}</td>
+                  <td style={{ padding: '10px 14px', color: '#4A5E78' }}>{r.client}</td>
+                  <td style={{ padding: '10px 14px', color: '#4A5E78' }}>{r.montantMarche.toLocaleString(dateLocale)} €</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#C9A84C' }}>{r.montantRetenu.toLocaleString(dateLocale)} €</td>
+                  <td style={{ padding: '10px 14px', color: '#4A5E78' }}>{r.dateFinTravaux ? new Date(r.dateFinTravaux).toLocaleDateString(dateLocale) : '—'}</td>
+                  <td style={{ padding: '10px 14px' }}><span className={retStatV22[r.statut] || 'v22-tag'}>{r.statut}</span></td>
+                  <td style={{ padding: '10px 14px' }}>
+                    {r.statut === 'active' && <button className="v22-btn v22-btn-sm" onClick={() => changeStatut(r.id, 'mainlevée_demandée')}>{t('proDash.btp.retenues.demanderMainlevee')}</button>}
+                    {r.statut === 'mainlevée_demandée' && <button className="v22-btn v22-btn-sm" style={{ background: '#E6F4F2', color: '#1A7A6E' }} onClick={() => changeStatut(r.id, 'libérée')}>{t('proDash.btp.retenues.liberer')}</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -1028,58 +1091,104 @@ export function PointageEquipesSection({ userId }: { userId: string }) {
   const heuresByEmp = employes.map(e => ({ employe: e, heures: pointages.filter(p => p.employe === e).reduce((s, p) => s + p.heuresTravaillees, 0), jours: new Set(pointages.filter(p => p.employe === e).map(p => p.date)).size }))
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h2 className="text-2xl font-bold text-gray-900">{'⏱️'} {t('proDash.btp.pointage.title')}</h2><p className="text-gray-500 text-sm mt-1">{t('proDash.btp.pointage.subtitle')}</p></div>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">{t('proDash.btp.pointage.pointer')}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="v22-page-header">
+        <div>
+          <h2 className="v22-page-title">⏱️ {t('proDash.btp.pointage.title')}</h2>
+          <p className="v22-page-sub">{t('proDash.btp.pointage.subtitle')}</p>
+        </div>
+        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
       </div>
+
       {showForm && (
-        <div className="bg-white rounded-xl border p-6 shadow-sm">
-          <div className="grid grid-cols-3 gap-4">
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.employe')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.employe} onChange={e => setForm({...form, employe: e.target.value})} placeholder={t('proDash.btp.pointage.employePlaceholder')} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.poste')}</label><select className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.poste} onChange={e => setForm({...form, poste: e.target.value})}><option value="">{t('proDash.btp.pointage.selectionner')}</option>{[{k:'chefChantier'},{k:'macon'},{k:'electricien'},{k:'plombier'},{k:'charpentier'},{k:'peintre'},{k:'manoeuvre'}].map(p => <option key={p.k} value={t(`proDash.btp.pointage.${p.k}`)}>{t(`proDash.btp.pointage.${p.k}`)}</option>)}</select></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.chantier')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.date')}</label><input type="date" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.date} onChange={e => setForm({...form, date: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.arrivee')}</label><input type="time" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.heureArrivee} onChange={e => setForm({...form, heureArrivee: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.depart')}</label><input type="time" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.heureDepart} onChange={e => setForm({...form, heureDepart: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.pauseMin')}</label><input type="number" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.pauseMinutes} onChange={e => setForm({...form, pauseMinutes: Number(e.target.value)})} /></div>
-            <div className="col-span-2"><label className="text-sm font-medium text-gray-700">{t('proDash.btp.pointage.notes')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
-          </div>
-          <div className="mt-3 bg-blue-50 rounded-lg p-3 text-sm text-blue-700">{'⏱️'} {t('proDash.btp.pointage.heures')} <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong></div>
-          <div className="flex gap-3 mt-4">
-            <button onClick={addPointage} disabled={!form.employe} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{t('proDash.btp.pointage.enregistrer')}</button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">{t('proDash.btp.pointage.annuler')}</button>
+        <div className="v22-card">
+          <div className="v22-card-head"><div className="v22-card-title">Nouveau pointage</div></div>
+          <div className="v22-card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div><label className="v22-form-label">{t('proDash.btp.pointage.employe')}</label><input className="v22-form-input" value={form.employe} onChange={e => setForm({...form, employe: e.target.value})} placeholder={t('proDash.btp.pointage.employePlaceholder')} /></div>
+              <div>
+                <label className="v22-form-label">{t('proDash.btp.pointage.poste')}</label>
+                <select className="v22-form-input" value={form.poste} onChange={e => setForm({...form, poste: e.target.value})}>
+                  <option value="">{t('proDash.btp.pointage.selectionner')}</option>
+                  {[{k:'chefChantier'},{k:'macon'},{k:'electricien'},{k:'plombier'},{k:'charpentier'},{k:'peintre'},{k:'manoeuvre'}].map(p => <option key={p.k} value={t(`proDash.btp.pointage.${p.k}`)}>{t(`proDash.btp.pointage.${p.k}`)}</option>)}
+                </select>
+              </div>
+              <div><label className="v22-form-label">{t('proDash.btp.pointage.chantier')}</label><input className="v22-form-input" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.pointage.date')}</label><input type="date" className="v22-form-input" value={form.date} onChange={e => setForm({...form, date: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.pointage.arrivee')}</label><input type="time" className="v22-form-input" value={form.heureArrivee} onChange={e => setForm({...form, heureArrivee: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.pointage.depart')}</label><input type="time" className="v22-form-input" value={form.heureDepart} onChange={e => setForm({...form, heureDepart: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.pointage.pauseMin')}</label><input type="number" className="v22-form-input" value={form.pauseMinutes} onChange={e => setForm({...form, pauseMinutes: Number(e.target.value)})} /></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="v22-form-label">{t('proDash.btp.pointage.notes')}</label><input className="v22-form-input" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
+            </div>
+            <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
+              ⏱️ {t('proDash.btp.pointage.heures')} <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button className="v22-btn" onClick={addPointage} disabled={!form.employe}>{t('proDash.btp.pointage.enregistrer')}</button>
+              <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.pointage.annuler')}</button>
+            </div>
           </div>
         </div>
       )}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="col-span-3 bg-white rounded-xl border shadow-sm p-4">
-          <div className="flex gap-3 mb-4">
-            <div><label className="text-xs font-medium text-gray-600">{t('proDash.btp.pointage.date')}</label><input type="date" className="mt-1 border rounded-lg px-3 py-2 text-sm" value={filterDate} onChange={e => setFilterDate(e.target.value)} /></div>
-            <div><label className="text-xs font-medium text-gray-600">{t('proDash.btp.pointage.employe').replace(' *', '')}</label><select className="mt-1 border rounded-lg px-3 py-2 text-sm" value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}><option value="">{t('proDash.btp.pointage.tous')}</option>{employes.map(e => <option key={e}>{e}</option>)}</select></div>
-            <div className="flex items-end"><span className="text-sm text-gray-600 pb-2">{filtered.length} {t('proDash.btp.pointage.pointages')} — <strong>{totalH.toFixed(1)}h</strong></span></div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 16 }}>
+        <div className="v22-card">
+          <div className="v22-card-body" style={{ paddingBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <label className="v22-form-label">{t('proDash.btp.pointage.date')}</label>
+                <input type="date" className="v22-form-input" style={{ width: 160 }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="v22-form-label">{t('proDash.btp.pointage.employe').replace(' *', '')}</label>
+                <select className="v22-form-input" style={{ width: 160 }} value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
+                  <option value="">{t('proDash.btp.pointage.tous')}</option>
+                  {employes.map(e => <option key={e}>{e}</option>)}
+                </select>
+              </div>
+              <span className="v22-card-meta" style={{ paddingBottom: 2 }}>{filtered.length} {t('proDash.btp.pointage.pointages')} — <strong>{totalH.toFixed(1)}h</strong></span>
+            </div>
           </div>
-          <table className="w-full text-sm">
-            <thead className="border-b"><tr>{[t('proDash.btp.pointage.colEmploye'), t('proDash.btp.pointage.colPoste'), t('proDash.btp.pointage.colChantier'), t('proDash.btp.pointage.colDate'), t('proDash.btp.pointage.colArrivee'), t('proDash.btp.pointage.colDepart'), t('proDash.btp.pointage.colHeures'), ''].map(h => <th key={h || '_'} className="text-left text-xs font-semibold text-gray-600 pb-2">{h}</th>)}</tr></thead>
-            <tbody className="divide-y">
-              {filtered.length === 0 ? <tr><td colSpan={8} className="py-8 text-center text-gray-500 text-sm">{t('proDash.btp.pointage.aucunPointage')}</td></tr> : filtered.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="py-2 font-medium">{p.employe}</td><td className="py-2 text-gray-600">{p.poste}</td><td className="py-2 text-gray-600">{p.chantier}</td>
-                  <td className="py-2">{new Date(p.date).toLocaleDateString(dateLocale, { weekday: 'short', day: '2-digit', month: 'short' })}</td>
-                  <td className="py-2">{p.heureArrivee}</td><td className="py-2">{p.heureDepart}</td>
-                  <td className="py-2 font-semibold text-blue-700">{p.heuresTravaillees}h</td>
-                  <td className="py-2"><button onClick={() => deleteP(p.id)} className="text-red-400 hover:text-red-600">✕</button></td>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                  {[t('proDash.btp.pointage.colEmploye'), t('proDash.btp.pointage.colPoste'), t('proDash.btp.pointage.colChantier'), t('proDash.btp.pointage.colDate'), t('proDash.btp.pointage.colArrivee'), t('proDash.btp.pointage.colDepart'), t('proDash.btp.pointage.colHeures'), ''].map(h => (
+                    <th key={h || '_'} style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--v22-text-mid)', fontSize: 13 }}>{t('proDash.btp.pointage.aucunPointage')}</td></tr>
+                ) : filtered.map(p => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>{p.employe}</td>
+                    <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.poste}</td>
+                    <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.chantier}</td>
+                    <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{new Date(p.date).toLocaleDateString(dateLocale, { weekday: 'short', day: '2-digit', month: 'short' })}</td>
+                    <td style={{ padding: '8px 12px' }}>{p.heureArrivee}</td>
+                    <td style={{ padding: '8px 12px' }}>{p.heureDepart}</td>
+                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{p.heuresTravaillees}h</td>
+                    <td style={{ padding: '8px 12px' }}><button onClick={() => deleteP(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 14 }}>✕</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('proDash.btp.pointage.recapEmployes')}</h4>
-          {heuresByEmp.length === 0 ? <p className="text-xs text-gray-500">{t('proDash.btp.pointage.aucuneDonnee')}</p> : heuresByEmp.map(e => (
-            <div key={e.employe} className="flex items-center justify-between py-2 border-b last:border-0">
-              <div><div className="text-sm font-medium">{e.employe}</div><div className="text-xs text-gray-500">{e.jours} {t('proDash.btp.pointage.jours')}</div></div>
-              <div className="text-sm font-bold text-blue-700">{e.heures.toFixed(1)}h</div>
+
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: '#0D1B2E', marginBottom: 12 }}>{t('proDash.btp.pointage.recapEmployes')}</div>
+          {heuresByEmp.length === 0 ? (
+            <p className="v22-card-meta" style={{ fontSize: 12 }}>{t('proDash.btp.pointage.aucuneDonnee')}</p>
+          ) : heuresByEmp.map(e => (
+            <div key={e.employe} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--v22-border)' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0D1B2E' }}>{e.employe}</div>
+                <div style={{ fontSize: 11, color: '#8A9BB0' }}>{e.jours} {t('proDash.btp.pointage.jours')}</div>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--v22-yellow)' }}>{e.heures.toFixed(1)}h</div>
             </div>
           ))}
         </div>
@@ -1122,51 +1231,96 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
     save(soustraitants.map(s => s.id === st.id ? { ...s, dc4Genere: true } : s))
   }
 
+  const stStatV22: Record<string, string> = {
+    en_attente: 'v22-tag v22-tag-amber',
+    agréé: 'v22-tag v22-tag-green',
+    refusé: 'v22-tag v22-tag-red',
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h2 className="text-2xl font-bold text-gray-900">{'🤝'} {t('proDash.btp.sousTraitance.title')}</h2><p className="text-gray-500 text-sm mt-1">{t('proDash.btp.sousTraitance.subtitle')}</p></div>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">{t('proDash.btp.sousTraitance.ajouterSousTraitant')}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="v22-page-header">
+        <div>
+          <h2 className="v22-page-title">🤝 {t('proDash.btp.sousTraitance.title')}</h2>
+          <p className="v22-page-sub">{t('proDash.btp.sousTraitance.subtitle')}</p>
+        </div>
+        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.sousTraitance.ajouterSousTraitant')}</button>
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4"><div className="text-yellow-700 text-sm font-medium">{t('proDash.btp.sousTraitance.enAttente')}</div><div className="text-2xl font-bold text-yellow-700 mt-1">{soustraitants.filter(s => s.statut === 'en_attente').length}</div></div>
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4"><div className="text-green-700 text-sm font-medium">{t('proDash.btp.sousTraitance.agrees')}</div><div className="text-2xl font-bold text-green-700 mt-1">{soustraitants.filter(s => s.statut === 'agréé').length}</div></div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4"><div className="text-blue-700 text-sm font-medium">{t('proDash.btp.sousTraitance.dc4Generes')}</div><div className="text-2xl font-bold text-blue-700 mt-1">{soustraitants.filter(s => s.dc4Genere).length}</div></div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div className="v22-card-meta">{t('proDash.btp.sousTraitance.enAttente')}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#C9A84C', marginTop: 4 }}>{soustraitants.filter(s => s.statut === 'en_attente').length}</div>
+        </div>
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div className="v22-card-meta">{t('proDash.btp.sousTraitance.agrees')}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#1D9E75', marginTop: 4 }}>{soustraitants.filter(s => s.statut === 'agréé').length}</div>
+        </div>
+        <div className="v22-card" style={{ padding: 16 }}>
+          <div className="v22-card-meta">{t('proDash.btp.sousTraitance.dc4Generes')}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#0D1B2E', marginTop: 4 }}>{soustraitants.filter(s => s.dc4Genere).length}</div>
+        </div>
       </div>
+
       {showForm && (
-        <div className="bg-white rounded-xl border p-6 shadow-sm">
-          <div className="grid grid-cols-2 gap-4">
-            {([[t('proDash.btp.sousTraitance.entreprise'), 'entreprise', 'text'], [t('proDash.btp.sousTraitance.siret'), 'siret', 'text'], [t('proDash.btp.sousTraitance.responsable'), 'responsable', 'text'], [t('proDash.btp.sousTraitance.email'), 'email', 'email'], [t('proDash.btp.sousTraitance.telephone'), 'telephone', 'tel'], [t('proDash.btp.sousTraitance.adresse'), 'adresse', 'text'], [t('proDash.btp.sousTraitance.chantier'), 'chantier', 'text'], [t('proDash.btp.sousTraitance.lot'), 'lot', 'text']] as [string, string, string][]).map(([label, key, type]) => (
-              <div key={key}><label className="text-sm font-medium text-gray-700">{label}</label><input type={type} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={(form as Record<string, string | number>)[key] as string} onChange={e => setForm({...form, [key]: e.target.value})} /></div>
-            ))}
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.sousTraitance.montantHT')}</label><input type="number" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.sousTraitance.tva')}</label><select className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.tauxTVA} onChange={e => setForm({...form, tauxTVA: Number(e.target.value)})}>{[20, 10, 5.5, 0].map(tv => <option key={tv} value={tv}>{tv}%</option>)}</select></div>
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button onClick={addST} disabled={!form.entreprise} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{t('proDash.btp.sousTraitance.ajouter')}</button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">{t('proDash.btp.sousTraitance.annuler')}</button>
+        <div className="v22-card">
+          <div className="v22-card-head"><div className="v22-card-title">Nouveau sous-traitant</div></div>
+          <div className="v22-card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {([[t('proDash.btp.sousTraitance.entreprise'), 'entreprise', 'text'], [t('proDash.btp.sousTraitance.siret'), 'siret', 'text'], [t('proDash.btp.sousTraitance.responsable'), 'responsable', 'text'], [t('proDash.btp.sousTraitance.email'), 'email', 'email'], [t('proDash.btp.sousTraitance.telephone'), 'telephone', 'tel'], [t('proDash.btp.sousTraitance.adresse'), 'adresse', 'text'], [t('proDash.btp.sousTraitance.chantier'), 'chantier', 'text'], [t('proDash.btp.sousTraitance.lot'), 'lot', 'text']] as [string, string, string][]).map(([label, key, type]) => (
+                <div key={key}><label className="v22-form-label">{label}</label><input type={type} className="v22-form-input" value={(form as Record<string, string | number>)[key] as string} onChange={e => setForm({...form, [key]: e.target.value})} /></div>
+              ))}
+              <div><label className="v22-form-label">{t('proDash.btp.sousTraitance.montantHT')}</label><input type="number" className="v22-form-input" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
+              <div>
+                <label className="v22-form-label">{t('proDash.btp.sousTraitance.tva')}</label>
+                <select className="v22-form-input" value={form.tauxTVA} onChange={e => setForm({...form, tauxTVA: Number(e.target.value)})}>
+                  {[20, 10, 5.5, 0].map(tv => <option key={tv} value={tv}>{tv}%</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button className="v22-btn" onClick={addST} disabled={!form.entreprise}>{t('proDash.btp.sousTraitance.ajouter')}</button>
+              <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.sousTraitance.annuler')}</button>
+            </div>
           </div>
         </div>
       )}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b"><tr>{[t('proDash.btp.sousTraitance.colEntreprise'), t('proDash.btp.sousTraitance.colChantierLot'), t('proDash.btp.sousTraitance.colMontantHT'), t('proDash.btp.sousTraitance.colStatut'), t('proDash.btp.sousTraitance.colDC4'), t('proDash.btp.sousTraitance.colActions')].map(h => <th key={h} className="text-left text-xs font-semibold text-gray-600 px-4 py-3">{h}</th>)}</tr></thead>
-          <tbody className="divide-y">
-            {soustraitants.length === 0 ? <tr><td colSpan={6} className="text-center py-10 text-gray-500 text-sm">{t('proDash.btp.sousTraitance.aucunSousTraitant')}</td></tr> : soustraitants.map(s => (
-              <tr key={s.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3"><div className="font-medium text-sm">{s.entreprise}</div><div className="text-xs text-gray-500">{s.siret}</div></td>
-                <td className="px-4 py-3 text-sm"><div>{s.chantier}</div><div className="text-xs text-gray-500">{s.lot}</div></td>
-                <td className="px-4 py-3 text-sm font-semibold">{s.montantMarche.toLocaleString(dateLocale)} €</td>
-                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.statut === 'en_attente' ? 'bg-yellow-100 text-yellow-700' : s.statut === 'agréé' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.statut}</span></td>
-                <td className="px-4 py-3 text-center">{s.dc4Genere ? '✅' : '—'}</td>
-                <td className="px-4 py-3">
-                  {s.statut === 'en_attente' && <button onClick={() => agréer(s.id)} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100 mr-1">{t('proDash.btp.sousTraitance.agreer')}</button>}
-                  {s.statut === 'agréé' && <button onClick={() => genererDC4(s)} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100">{t('proDash.btp.sousTraitance.genererDC4')}</button>}
-                </td>
+
+      <div className="v22-card" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                {[t('proDash.btp.sousTraitance.colEntreprise'), t('proDash.btp.sousTraitance.colChantierLot'), t('proDash.btp.sousTraitance.colMontantHT'), t('proDash.btp.sousTraitance.colStatut'), t('proDash.btp.sousTraitance.colDC4'), t('proDash.btp.sousTraitance.colActions')].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '10px 14px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {soustraitants.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--v22-text-mid)', fontSize: 13 }}>{t('proDash.btp.sousTraitance.aucunSousTraitant')}</td></tr>
+              ) : soustraitants.map(s => (
+                <tr key={s.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 600, color: '#0D1B2E', fontSize: 13 }}>{s.entreprise}</div>
+                    <div style={{ fontSize: 11, color: '#8A9BB0' }}>{s.siret}</div>
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontSize: 13, color: '#4A5E78' }}>{s.chantier}</div>
+                    <div style={{ fontSize: 11, color: '#8A9BB0' }}>{s.lot}</div>
+                  </td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{s.montantMarche.toLocaleString(dateLocale)} €</td>
+                  <td style={{ padding: '10px 14px' }}><span className={stStatV22[s.statut] || 'v22-tag'}>{s.statut}</span></td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>{s.dc4Genere ? '✅' : <span className="v22-card-meta">—</span>}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    {s.statut === 'en_attente' && <button className="v22-btn v22-btn-sm" style={{ marginRight: 6, background: '#E6F4F2', color: '#1A7A6E' }} onClick={() => agréer(s.id)}>{t('proDash.btp.sousTraitance.agreer')}</button>}
+                    {s.statut === 'agréé' && <button className="v22-btn v22-btn-sm" onClick={() => genererDC4(s)}>{t('proDash.btp.sousTraitance.genererDC4')}</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -1214,79 +1368,143 @@ export function DPGFSection({ userId }: { userId: string }) {
     const link = document.createElement('a'); link.href = url; link.download = `DPGF_${a.titre.replace(/\s+/g, '_')}.txt`; link.click()
     URL.revokeObjectURL(url)
   }
-  const statColors: Record<string, string> = { en_cours: 'bg-blue-100 text-blue-700', soumis: 'bg-yellow-100 text-yellow-700', gagné: 'bg-green-100 text-green-700', perdu: 'bg-red-100 text-red-700' }
+  const dpgfStatV22: Record<string, string> = {
+    en_cours: 'v22-tag v22-tag-blue',
+    soumis: 'v22-tag v22-tag-amber',
+    gagné: 'v22-tag v22-tag-green',
+    perdu: 'v22-tag v22-tag-red',
+  }
+  const dpgfStatLabels: Record<string, string> = {
+    en_cours: t('proDash.btp.dpgf.enCours'),
+    soumis: t('proDash.btp.dpgf.soumis'),
+    gagné: t('proDash.btp.dpgf.gagne'),
+    perdu: t('proDash.btp.dpgf.perdu'),
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h2 className="text-2xl font-bold text-gray-900">{'📋'} {t('proDash.btp.dpgf.title')}</h2><p className="text-gray-500 text-sm mt-1">{t('proDash.btp.dpgf.subtitle')}</p></div>
-        <button onClick={() => setShowForm(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700">{t('proDash.btp.dpgf.nouvelAppel')}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="v22-page-header">
+        <div>
+          <h2 className="v22-page-title">📁 {t('proDash.btp.dpgf.title')}</h2>
+          <p className="v22-page-sub">{t('proDash.btp.dpgf.subtitle')}</p>
+        </div>
+        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.dpgf.nouvelAppel')}</button>
       </div>
-      <div className="grid grid-cols-4 gap-4">
-        {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => {
-          const dpgfStatLabels: Record<string, string> = { en_cours: t('proDash.btp.dpgf.enCours'), soumis: t('proDash.btp.dpgf.soumis'), gagné: t('proDash.btp.dpgf.gagne'), perdu: t('proDash.btp.dpgf.perdu') }
-          return (
-          <div key={s} className={`border rounded-xl p-4 ${statColors[s].replace('text-', 'border-').replace('-700', '-200')}`}>
-            <div className="text-sm font-medium text-gray-600 capitalize">{dpgfStatLabels[s]}</div>
-            <div className="text-2xl font-bold mt-1">{appels.filter(a => a.statut === s).length}</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
+          <div key={s} className="v22-card" style={{ padding: 16 }}>
+            <div className="v22-card-meta">{dpgfStatLabels[s]}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#0D1B2E', marginTop: 4 }}>{appels.filter(a => a.statut === s).length}</div>
           </div>
-        )})}
+        ))}
       </div>
+
       {showForm && (
-        <div className="bg-white rounded-xl border p-6 shadow-sm">
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.dpgf.titre')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.dpgf.clientMaitreOuvrage')}</label><input className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.dpgf.dateRemise')}</label><input type="date" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.dateRemise} onChange={e => setForm({...form, dateRemise: e.target.value})} /></div>
-            <div><label className="text-sm font-medium text-gray-700">{t('proDash.btp.dpgf.montantEstime')}</label><input type="number" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: Number(e.target.value)})} /></div>
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button onClick={createAppel} disabled={!form.titre} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">{t('proDash.btp.dpgf.creer')}</button>
-            <button onClick={() => setShowForm(false)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">{t('proDash.btp.dpgf.annuler')}</button>
+        <div className="v22-card">
+          <div className="v22-card-head"><div className="v22-card-title">Nouvel appel d&apos;offres</div></div>
+          <div className="v22-card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><label className="v22-form-label">{t('proDash.btp.dpgf.titre')}</label><input className="v22-form-input" value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.dpgf.clientMaitreOuvrage')}</label><input className="v22-form-input" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.dpgf.dateRemise')}</label><input type="date" className="v22-form-input" value={form.dateRemise} onChange={e => setForm({...form, dateRemise: e.target.value})} /></div>
+              <div><label className="v22-form-label">{t('proDash.btp.dpgf.montantEstime')}</label><input type="number" className="v22-form-input" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: Number(e.target.value)})} /></div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button className="v22-btn" onClick={createAppel} disabled={!form.titre}>{t('proDash.btp.dpgf.creer')}</button>
+              <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.dpgf.annuler')}</button>
+            </div>
           </div>
         </div>
       )}
-      <div className="grid grid-cols-3 gap-6">
-        <div className="space-y-3">
-          {appels.length === 0 ? <div className="text-center py-8 text-gray-500 text-sm">{t('proDash.btp.dpgf.aucunAppel')}</div> : appels.map(a => (
-            <div key={a.id} onClick={() => setSelected(a)} className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 ${selected?.id === a.id ? 'border-blue-500 ring-1 ring-blue-200' : ''}`}>
-              <div className="flex items-center justify-between mb-1"><span className="font-semibold text-sm truncate">{a.titre}</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ml-2 ${statColors[a.statut]}`}>{a.statut}</span></div>
-              <div className="text-xs text-gray-500">{a.client}</div>
-              <div className="text-sm font-bold text-blue-700 mt-1">{getTotal(a).toLocaleString(dateLocale)} € {t('proDash.common.ht')}</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
+        {/* Liste des appels d'offres */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {appels.length === 0 ? (
+            <div className="v22-card" style={{ padding: 32, textAlign: 'center' }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
+              <p className="v22-card-meta">{t('proDash.btp.dpgf.aucunAppel')}</p>
+            </div>
+          ) : appels.map(a => (
+            <div
+              key={a.id}
+              onClick={() => setSelected(a)}
+              className="v22-card"
+              style={{ padding: 14, cursor: 'pointer', border: selected?.id === a.id ? '2px solid var(--v22-yellow)' : undefined }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, color: '#0D1B2E', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.titre}</span>
+                <span className={dpgfStatV22[a.statut] || 'v22-tag'} style={{ flexShrink: 0 }}>{a.statut}</span>
+              </div>
+              <div className="v22-card-meta" style={{ fontSize: 11 }}>{a.client}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-yellow)', marginTop: 4 }}>{getTotal(a).toLocaleString(dateLocale)} € {t('proDash.common.ht')}</div>
             </div>
           ))}
         </div>
-        <div className="col-span-2">
-          {selected ? (
-            <div className="bg-white rounded-xl border shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold">{selected.titre}</h3>
-                <div className="flex gap-2">
-                  <button onClick={() => exportDPGF(selected)} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-200">{'⬇️'} {t('proDash.btp.dpgf.export')}</button>
-                  {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
-                    <button key={s} onClick={() => changeStatut(selected.id, s)} className={`px-2 py-1 rounded text-xs font-medium border ${selected.statut === s ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600'}`}>{s}</button>
-                  ))}
-                </div>
-              </div>
-              <table className="w-full text-sm border rounded-lg overflow-hidden mb-4">
-                <thead className="bg-gray-50"><tr>{[t('proDash.btp.dpgf.colNumeroLot'), t('proDash.btp.dpgf.colDesignation'), t('proDash.btp.dpgf.colMontantHT')].map(h => <th key={h} className="text-left px-3 py-2 text-xs font-semibold text-gray-600">{h}</th>)}</tr></thead>
-                <tbody className="divide-y">{selected.lots.map((l, i) => <tr key={i}><td className="px-3 py-2 font-medium">{l.numero}</td><td className="px-3 py-2">{l.designation}</td><td className="px-3 py-2 font-semibold">{l.montantHT.toLocaleString(dateLocale)}</td></tr>)}</tbody>
-                <tfoot>
-                  <tr className="bg-blue-50 font-bold"><td colSpan={2} className="px-3 py-2 text-right">{t('proDash.btp.dpgf.totalHT')}</td><td className="px-3 py-2 text-blue-700">{getTotal(selected).toLocaleString(dateLocale)} €</td></tr>
-                  <tr className="bg-blue-100 font-bold"><td colSpan={2} className="px-3 py-2 text-right">{t('proDash.btp.dpgf.totalTTC')}</td><td className="px-3 py-2 text-blue-800">{(getTotal(selected) * 1.2).toLocaleString(dateLocale)} €</td></tr>
-                </tfoot>
-              </table>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex gap-2">
-                  <input className="w-16 border rounded px-2 py-1.5 text-sm" placeholder={t('proDash.btp.dpgf.numLotPlaceholder')} value={newLot.numero} onChange={e => setNewLot({...newLot, numero: e.target.value})} />
-                  <input className="flex-1 border rounded px-2 py-1.5 text-sm" placeholder={t('proDash.btp.dpgf.designationPlaceholder')} value={newLot.designation} onChange={e => setNewLot({...newLot, designation: e.target.value})} />
-                  <input type="number" className="w-28 border rounded px-2 py-1.5 text-sm" placeholder={t('proDash.btp.dpgf.montantPlaceholder')} value={newLot.montantHT || ''} onChange={e => setNewLot({...newLot, montantHT: Number(e.target.value)})} />
-                  <button onClick={addLot} disabled={!newLot.designation} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">+</button>
-                </div>
+
+        {/* Détail DPGF */}
+        {selected ? (
+          <div className="v22-card">
+            <div className="v22-card-head">
+              <div className="v22-card-title">{selected.titre}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="v22-btn v22-btn-sm" onClick={() => exportDPGF(selected)}>⬇️ {t('proDash.btp.dpgf.export')}</button>
+                {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
+                  <button
+                    key={s}
+                    className="v22-btn v22-btn-sm"
+                    style={selected.statut === s ? { background: 'var(--v22-yellow)', color: '#0D1B2E' } : { background: 'var(--v22-bg)', color: 'var(--v22-text-mid)', border: '1px solid var(--v22-border)' }}
+                    onClick={() => changeStatut(selected.id, s)}
+                  >{dpgfStatLabels[s]}</button>
+                ))}
               </div>
             </div>
-          ) : <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center h-64 text-gray-500"><div className="text-center"><div className="text-4xl mb-2">{'📋'}</div><p>{t('proDash.btp.dpgf.selectionnerAppel')}</p></div></div>}
-        </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                    {[t('proDash.btp.dpgf.colNumeroLot'), t('proDash.btp.dpgf.colDesignation'), t('proDash.btp.dpgf.colMontantHT')].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '8px 14px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.lots.map((l, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                      <td style={{ padding: '8px 14px', fontWeight: 600, color: '#0D1B2E' }}>{l.numero}</td>
+                      <td style={{ padding: '8px 14px', color: '#4A5E78' }}>{l.designation}</td>
+                      <td style={{ padding: '8px 14px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{l.montantHT.toLocaleString(dateLocale)} €</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: 'var(--v22-bg)', borderTop: '1px solid var(--v22-border)', fontWeight: 700 }}>
+                    <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', color: '#4A5E78' }}>{t('proDash.btp.dpgf.totalHT')}</td>
+                    <td style={{ padding: '8px 14px', color: 'var(--v22-yellow)' }}>{getTotal(selected).toLocaleString(dateLocale)} €</td>
+                  </tr>
+                  <tr style={{ background: 'var(--v22-bg)', fontWeight: 700 }}>
+                    <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', color: '#4A5E78' }}>{t('proDash.btp.dpgf.totalTTC')}</td>
+                    <td style={{ padding: '8px 14px', color: '#0D1B2E' }}>{(getTotal(selected) * 1.2).toLocaleString(dateLocale)} €</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div className="v22-card-body" style={{ background: 'var(--v22-bg)', borderTop: '1px solid var(--v22-border)' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="v22-form-input" style={{ width: 64, fontSize: 12 }} placeholder={t('proDash.btp.dpgf.numLotPlaceholder')} value={newLot.numero} onChange={e => setNewLot({...newLot, numero: e.target.value})} />
+                <input className="v22-form-input" style={{ flex: 1, fontSize: 12 }} placeholder={t('proDash.btp.dpgf.designationPlaceholder')} value={newLot.designation} onChange={e => setNewLot({...newLot, designation: e.target.value})} />
+                <input type="number" className="v22-form-input" style={{ width: 110, fontSize: 12 }} placeholder={t('proDash.btp.dpgf.montantPlaceholder')} value={newLot.montantHT || ''} onChange={e => setNewLot({...newLot, montantHT: Number(e.target.value)})} />
+                <button className="v22-btn v22-btn-sm" onClick={addLot} disabled={!newLot.designation}>+</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="v22-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240, flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 40 }}>📁</div>
+            <p className="v22-card-meta">{t('proDash.btp.dpgf.selectionnerAppel')}</p>
+          </div>
+        )}
       </div>
     </div>
   )
