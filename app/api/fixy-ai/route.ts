@@ -545,11 +545,14 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { artisan_id, confirm_token, confirmed } = body
+    const { artisan_id, confirm_token: rawToken, confirmed } = body
 
-    if (!confirm_token || typeof confirm_token !== 'string') {
-      return NextResponse.json({ error: 'confirm_token requis' }, { status: 400 })
+    // Validate confirm_token is a strict UUID v4 format — prevents user-controlled bypass
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!rawToken || typeof rawToken !== 'string' || !UUID_RE.test(rawToken)) {
+      return NextResponse.json({ error: 'confirm_token invalide' }, { status: 400 })
     }
+    const confirm_token: string = rawToken
 
     const verified = await verifyArtisanOwnership(user.id, artisan_id, supabaseAdmin)
     if (!verified) {
