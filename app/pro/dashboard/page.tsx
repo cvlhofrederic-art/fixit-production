@@ -38,6 +38,7 @@ const WalletConformiteSection = dynamic(() => import('@/components/dashboard/Wal
 const CarnetDeVisiteSection = dynamic(() => import('@/components/dashboard/CarnetDeVisiteSection'))
 const PhotosChantierSection = dynamic(() => import('@/components/dashboard/PhotosChantierSection'))
 const BourseAuxMarchesSection = dynamic(() => import('@/components/marches/BourseAuxMarchesSection'))
+const MarketplaceProBTPSection = dynamic(() => import('@/components/dashboard/MarketplaceProBTPSection'))
 
 // V22 new sections
 const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'))
@@ -1048,6 +1049,7 @@ export default function DashboardPage() {
                           else if (n.type === 'new_mission' || n.type === 'planning_change') navigateTo('calendar')
                           else if (n.type === 'devis_signed') navigateTo('devis')
                           else if (n.type === 'tva_threshold') navigateTo('comptabilite')
+                          else if (n.type?.startsWith('marketplace_')) navigateTo('marketplace_btp')
                           else navigateTo('home')
                         }}
                         className="w-full px-3 py-2.5 text-left flex items-start gap-2.5 transition text-xs hover:bg-[var(--v22-bg)]"
@@ -1160,6 +1162,7 @@ export default function DashboardPage() {
             {isModuleEnabled('marches') && (
               <V22SidebarItem label={t('proDash.modules.marches') || 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
             )}
+            <V22SidebarItem label={isPt ? '🏗️ Marketplace BTP' : '🏗️ Marketplace BTP'} active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />
           </div>
           {/* Profil Pro */}
           {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
@@ -1545,6 +1548,13 @@ export default function DashboardPage() {
           {activePage === 'marches' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na bolsa de mercados' : 'Erreur dans la bourse aux marchés'}>
               <BourseAuxMarchesSection artisan={artisan} navigateTo={navigateTo} />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── MARKETPLACE PRO BTP ────── */}
+          {activePage === 'marketplace_btp' && artisan && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no Marketplace BTP' : 'Erreur dans le Marketplace BTP'}>
+              <MarketplaceProBTPSection artisan={artisan} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 

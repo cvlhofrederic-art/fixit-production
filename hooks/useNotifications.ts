@@ -146,6 +146,9 @@ export function useNotifications(
             marche_won: isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
             marche_rejected: isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
             tva_threshold: isPt ? '🧾 Alerta de IVA' : '🧾 Alerte TVA',
+            marketplace_demande: isPt ? '🏗️ Nova solicitação — Marketplace BTP' : '🏗️ Nouvelle demande — Marketplace BTP',
+            marketplace_accepte: isPt ? '✅ Solicitação aceite — Marketplace BTP' : '✅ Demande acceptée — Marketplace BTP',
+            marketplace_refuse: isPt ? '❌ Solicitação recusada — Marketplace BTP' : '❌ Demande refusée — Marketplace BTP',
           }
           sendBrowserNotif(
             typeLabels[n.type] || '🔔 Notification Vitfix',
@@ -155,6 +158,7 @@ export function useNotifications(
               else if (n.type === 'message') onNavigate('messages')
               else if (n.type === 'new_booking') onNavigate('calendar')
               else if (n.type?.startsWith('marche_')) onNavigate('marches')
+              else if (n.type?.startsWith('marketplace_')) onNavigate('marketplace_btp')
             }
           )
         }
