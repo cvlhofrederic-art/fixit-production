@@ -111,6 +111,7 @@
 #artisan-dashboard-v22 .v22-tag-amber { background: var(--v22-amber-light); color: var(--v22-amber); }
 #artisan-dashboard-v22 .v22-tag-yellow { background: var(--v22-yellow-light); color: #7A6000; border: 1px solid var(--v22-yellow-border); }
 #artisan-dashboard-v22 .v22-tag-gray { background: var(--v22-bg); color: var(--v22-text-muted); border: 1px solid var(--v22-border); }
+#artisan-dashboard-v22 .v22-tag-blue { background: #E8F4FD; color: #1A6FB5; }
 
 /* V22 Stats row */
 #artisan-dashboard-v22 .v22-stats {
