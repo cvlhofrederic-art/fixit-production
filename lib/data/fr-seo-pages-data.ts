@@ -1919,6 +1919,136 @@ export const FR_SERVICES: FrServiceData[] = [
       },
     ],
   },
+  // ── RÉNOVATION ──────────────────────────────────────────────────────────────
+  {
+    name: 'Rénovation',
+    slug: 'renovation',
+    icon: '🏗️',
+    metaTitle: 'Rénovation {city} — Devis gratuit, artisans certifiés',
+    metaDesc: 'Rénovation maison et appartement à {city} : artisans qualifiés pour rénovation complète, salle de bain, cuisine, intérieur. Devis gratuit sous 24h.',
+    heroTitle: 'Rénovation à {city} : artisans qualifiés, devis gratuit',
+    heroSubtitle: 'Professionnels vérifiés pour vos projets de rénovation à {city} : intérieur, extérieur, salle de bain, cuisine. Coordination multi-corps de métier, devis détaillé gratuit.',
+    features: [
+      'Rénovation complète maison et appartement',
+      'Rénovation salle de bain clé en main',
+      'Rénovation cuisine (plomberie, électricité, agencement)',
+      'Réfection sols (carrelage, parquet, vinyle)',
+      'Isolation thermique et phonique',
+      'Remise aux normes électriques et plomberie',
+      'Aménagement de combles et sous-sols',
+      'Extension et surélévation de maison',
+    ],
+    problemsWeSolve: [
+      'Appartement vétuste à rénover avant vente ou location',
+      'Salle de bain ou cuisine démodée à moderniser',
+      'Isolation insuffisante — factures de chauffage élevées',
+      'Mise aux normes électriques obligatoire',
+      'Agencement intérieur à repenser pour gagner de l\'espace',
+      'Dégâts des eaux nécessitant une rénovation partielle',
+    ],
+    urgencyText: 'Rénovation urgente à {city} ? Dégâts des eaux, effondrement partiel, mise en sécurité — nos artisans interviennent rapidement.',
+    urgencyData: {
+      urgencyMetaTitle: 'Rénovation urgente {city} — Intervention rapide 7j/7',
+      urgencyMetaDesc: 'Rénovation d\'urgence à {city} : dégâts des eaux, mise en sécurité, travaux de consolidation. Artisans disponibles 7j/7.',
+      immediateSteps: [
+        'Sécurisez la zone (coupez eau/électricité si nécessaire)',
+        'Documentez les dégâts avec photos et vidéos',
+        'Contactez votre assurance habitation',
+        'Demandez un devis d\'urgence sur VITFIX',
+      ],
+      whenToCall: [
+        'Dégâts des eaux importants nécessitant assèchement',
+        'Fissures structurelles apparues soudainement',
+        'Effondrement partiel (plafond, plancher)',
+        'Mise en sécurité après sinistre (incendie, tempête)',
+      ],
+      avgResponseTime: 'Sous 24h pour l\'estimation',
+      schedule: 'Lun–Sam 8h–19h',
+    },
+    faqs: [
+      {
+        question: 'Combien coûte une rénovation complète à {city} ?',
+        answer: 'À {city}, une rénovation complète coûte entre 800 et 1 500 €/m² selon l\'ampleur des travaux. Pour un appartement de 60 m² : comptez 48 000 à 90 000 € tout compris (plomberie, électricité, sols, peinture, cuisine, salle de bain). Une rénovation légère (peinture, sols, petites reprises) revient à 300-600 €/m². Les prix en PACA sont légèrement supérieurs à la moyenne nationale (+5 à 10%).',
+      },
+      {
+        question: 'Comment organiser une rénovation multi-corps de métier à {city} ?',
+        answer: 'VITFIX coordonne vos travaux à {city} : 1. Diagnostic initial gratuit par un artisan référent. 2. Devis détaillé par corps de métier (plombier, électricien, peintre, carreleur). 3. Planning coordonné pour éviter les chevauchements. 4. Un seul interlocuteur pour le suivi. L\'ordre classique : démolition → plomberie/électricité → placo/isolation → sols → peinture → finitions.',
+      },
+      {
+        question: 'Quelles aides pour rénover à {city} ?',
+        answer: 'Plusieurs aides sont disponibles pour les travaux de rénovation énergétique à {city} : MaPrimeRénov\' (jusqu\'à 20 000 €), les CEE (Certificats d\'Économie d\'Énergie), l\'éco-PTZ (prêt à taux zéro jusqu\'à 50 000 €), et la TVA réduite à 5,5% pour les travaux d\'amélioration énergétique. Les artisans VITFIX à {city} sont RGE pour vous faire bénéficier de ces dispositifs.',
+      },
+      {
+        question: 'Quelle durée pour une rénovation d\'appartement à {city} ?',
+        answer: 'Comptez 2 à 3 semaines pour une rénovation légère (peinture, sols) d\'un 60 m² à {city}. Une rénovation complète avec salle de bain et cuisine prend 6 à 10 semaines. Une rénovation lourde (murs porteurs, redistribution, extension) peut durer 3 à 5 mois. Les délais dépendent aussi de la disponibilité des matériaux et de la météo pour les travaux extérieurs en PACA.',
+      },
+    ],
+  },
+  // ── PETITS TRAVAUX / DÉPANNAGE ──────────────────────────────────────────────
+  {
+    name: 'Petits Travaux',
+    slug: 'petits-travaux',
+    icon: '🛠️',
+    metaTitle: 'Petits Travaux {city} — Bricolage, dépannage, montage',
+    metaDesc: 'Petits travaux et bricolage à {city} : montage meubles, fixations, réparations diverses, dépannage rapide. Artisans polyvalents, devis gratuit.',
+    heroTitle: 'Petits travaux à {city} : bricolage et dépannage rapide',
+    heroSubtitle: 'Artisans polyvalents à {city} pour tous vos petits travaux : montage, fixations, réparations, retouches. Intervention rapide, prix transparent.',
+    features: [
+      'Montage de meubles (IKEA, Leroy Merlin, etc.)',
+      'Fixations murales (étagères, TV, tableaux, rideaux)',
+      'Petites réparations (poignée, charnière, joint, robinet)',
+      'Installation d\'accessoires (porte-serviettes, luminaire)',
+      'Retouches peinture et rebouchage',
+      'Pose de petits équipements (détecteur fumée, sonnette)',
+      'Débouchage léger et entretien courant',
+      'Aide au déménagement et manutention',
+    ],
+    problemsWeSolve: [
+      'Meubles en kit à monter sans outils ni expérience',
+      'TV à accrocher au mur sans percer n\'importe où',
+      'Petites réparations qui traînent depuis des mois',
+      'Travaux trop petits pour intéresser un spécialiste',
+      'Besoin d\'un coup de main ponctuel pour un projet maison',
+      'Entretien courant de l\'habitat (joints, peinture, fixations)',
+    ],
+    urgencyText: 'Besoin d\'un dépannage rapide à {city} ? Nos bricoleurs polyvalents interviennent dans la journée pour vos urgences du quotidien.',
+    urgencyData: {
+      urgencyMetaTitle: 'Dépannage rapide {city} — Bricoleur disponible aujourd\'hui',
+      urgencyMetaDesc: 'Dépannage et petits travaux urgents à {city} : réparations rapides, fixations, montage. Artisans disponibles dans la journée.',
+      immediateSteps: [
+        'Décrivez précisément le problème ou la tâche',
+        'Prenez des photos pour faciliter le diagnostic',
+        'Précisez si vous avez les matériaux ou s\'il faut les fournir',
+        'Demandez un devis rapide sur VITFIX',
+      ],
+      whenToCall: [
+        'Serrure ou poignée cassée empêchant de fermer',
+        'Fuite légère nécessitant un joint ou serrage',
+        'Étagère ou meuble qui menace de tomber',
+        'Installation urgente (barre d\'appui, sécurité enfant)',
+      ],
+      avgResponseTime: 'Sous 2h en semaine',
+      schedule: 'Lun–Sam 8h–20h',
+    },
+    faqs: [
+      {
+        question: 'Combien coûte un bricoleur à {city} ?',
+        answer: 'À {city}, un bricoleur/homme toutes mains facture entre 30 et 50 €/heure TTC. La plupart des petits travaux (montage meuble, fixation TV, pose étagères) prennent 1 à 2 heures, soit 30 à 100 €. Un forfait demi-journée (4h) coûte environ 120 à 180 €. Sur VITFIX, le devis est gratuit et le prix est fixé avant l\'intervention — pas de mauvaise surprise.',
+      },
+      {
+        question: 'Quels travaux peut faire un bricoleur à {city} ?',
+        answer: 'Nos artisans polyvalents à {city} interviennent pour : montage de meubles (IKEA, cuisine, dressing), fixations murales (TV, étagères, tringles), petite plomberie (joint, robinet, flexible), petite électricité (prises, interrupteurs, luminaires), retouches peinture, pose de sols souples, et toute réparation du quotidien. Pour les travaux nécessitant une qualification spécifique (gaz, tableau électrique), nous orientons vers le spécialiste adapté.',
+      },
+      {
+        question: 'Comment trouver un bricoleur fiable à {city} ?',
+        answer: 'Sur VITFIX, tous les artisans bricoleurs à {city} sont vérifiés : identité, assurance RC Pro, et avis clients certifiés. Vous recevez un devis détaillé avant intervention, vous choisissez l\'artisan selon ses avis et disponibilités, et vous ne payez qu\'après satisfaction. En cas de problème, notre service client intervient sous 24h.',
+      },
+      {
+        question: 'Faut-il être en auto-entrepreneur pour faire des petits travaux à {city} ?',
+        answer: 'Oui, même pour les petits travaux, l\'artisan doit être déclaré (auto-entrepreneur, SARL, etc.) avec un numéro SIRET et une assurance RC Pro. Sur VITFIX, tous nos bricoleurs à {city} sont enregistrés et assurés. Faire appel à un particulier non déclaré est du travail au noir : pas d\'assurance, pas de garantie, et des risques juridiques pour les deux parties.',
+      },
+    ],
+  },
 ]
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
