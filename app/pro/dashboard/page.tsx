@@ -57,6 +57,7 @@ const PointageEquipesSection = dynamic(() => import('@/components/dashboard/BTPS
 const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SousTraitanceDC4Section))
 const DPGFSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.DPGFSection))
 const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'))
+const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'))
 
 // Conciergerie sections
 const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection), { ssr: false })
@@ -1116,6 +1117,7 @@ export default function DashboardPage() {
               {/* ── Finance BTP ── */}
               <div className="mb-3">
                 <div className="v22-sidebar-label">{isPt ? 'Finanças BTP' : 'Finance BTP'}</div>
+                <V22SidebarItem label={isPt ? '💰 Rentabilidade' : '💰 Rentabilité Chantier'} active={activePage === 'rentabilite'} onClick={() => navigateTo('rentabilite')} />
                 <V22SidebarItem label={isPt ? '📋 Os meus orçamentos' : '📋 Devis & Offres'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
                 <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
                 <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
@@ -1665,6 +1667,13 @@ export default function DashboardPage() {
           {activePage === 'sous_traitance' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
               <SousTraitanceDC4Section userId={artisan?.id || ''} />
+            </div>
+          )}
+
+          {/* ────── RENTABILITÉ CHANTIER (Société BTP) ────── */}
+          {activePage === 'rentabilite' && (
+            <div className="p-6 lg:p-8 animate-fadeIn">
+              <RentabiliteChantierSection artisan={artisan} />
             </div>
           )}
 
