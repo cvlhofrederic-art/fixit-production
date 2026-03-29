@@ -58,6 +58,9 @@ const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/BTP
 const DPGFSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.DPGFSection))
 const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'))
 const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'))
+const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2))
+const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection))
+const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection))
 
 // Conciergerie sections
 const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection), { ssr: false })
@@ -1117,6 +1120,7 @@ export default function DashboardPage() {
               {/* ── Finance BTP ── */}
               <div className="mb-3">
                 <div className="v22-sidebar-label">{isPt ? 'Finanças BTP' : 'Finance BTP'}</div>
+                <V22SidebarItem label={isPt ? '🧠 Contabilidade IA' : '🧠 Compta Intelligente'} active={activePage === 'compta_btp'} onClick={() => navigateTo('compta_btp')} />
                 <V22SidebarItem label={isPt ? '💰 Rentabilidade' : '💰 Rentabilité Chantier'} active={activePage === 'rentabilite'} onClick={() => navigateTo('rentabilite')} />
                 <V22SidebarItem label={isPt ? '📋 Os meus orçamentos' : '📋 Devis & Offres'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
                 <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
@@ -1630,9 +1634,9 @@ export default function DashboardPage() {
             <EquipesBTPSection artisan={artisan} />
           )}
 
-          {/* ────── CHANTIERS (Société BTP) ────── */}
+          {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
-            <ChantiersBTPSection artisan={artisan} bookings={bookings} />
+            <ChantiersBTPV2 artisan={artisan} />
           )}
 
           {/* ────── GANTT (Société BTP) ────── */}
@@ -1656,10 +1660,10 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ────── POINTAGE ÉQUIPES (Société BTP) ────── */}
+          {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <PointageEquipesSection userId={artisan?.id || ''} />
+              <PointageGeoSection artisan={artisan} />
             </div>
           )}
 
@@ -1674,6 +1678,13 @@ export default function DashboardPage() {
           {activePage === 'rentabilite' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
               <RentabiliteChantierSection artisan={artisan} />
+            </div>
+          )}
+
+          {/* ────── COMPTA INTELLIGENTE BTP ────── */}
+          {activePage === 'compta_btp' && (
+            <div className="p-6 lg:p-8 animate-fadeIn">
+              <ComptaBTPSection artisan={artisan} />
             </div>
           )}
 
