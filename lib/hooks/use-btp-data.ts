@@ -51,6 +51,18 @@ function mapToSupabase(table: ShortName, item: any): any {
         email: item.email || null,
         type_compte: item.typeCompte || 'ouvrier',
         role_perso: item.rolePerso || null,
+        cout_horaire: item.coutHoraire ?? null,
+        charges_pct: item.chargesPct ?? null,
+        salaire_brut_mensuel: item.salaire_brut_mensuel ?? null,
+        salaire_net_mensuel: item.salaire_net_mensuel ?? null,
+        charges_salariales_pct: item.charges_salariales_pct ?? null,
+        charges_patronales_pct: item.charges_patronales_pct ?? null,
+        type_contrat: item.type_contrat || null,
+        heures_hebdo: item.heures_hebdo ?? null,
+        panier_repas_jour: item.panier_repas_jour ?? null,
+        indemnite_trajet_jour: item.indemnite_trajet_jour ?? null,
+        prime_mensuelle: item.prime_mensuelle ?? null,
+        actif: item.actif ?? true,
       }
     case 'equipes':
       return {
@@ -116,6 +128,16 @@ function mapFromSupabase(table: ShortName, item: any): any {
         equipeId: item.equipe_id || '',
         coutHoraire: item.cout_horaire || 25,
         chargesPct: item.charges_pct || 45,
+        salaire_brut_mensuel: item.salaire_brut_mensuel,
+        salaire_net_mensuel: item.salaire_net_mensuel,
+        charges_salariales_pct: item.charges_salariales_pct ?? 22,
+        charges_patronales_pct: item.charges_patronales_pct ?? 45,
+        type_contrat: item.type_contrat || 'cdi',
+        heures_hebdo: item.heures_hebdo || 35,
+        panier_repas_jour: item.panier_repas_jour || 0,
+        indemnite_trajet_jour: item.indemnite_trajet_jour || 0,
+        prime_mensuelle: item.prime_mensuelle || 0,
+        actif: item.actif !== false,
         createdAt: item.created_at,
       }
     case 'equipes':

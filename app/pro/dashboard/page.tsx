@@ -48,7 +48,7 @@ const ParrainageSection = dynamic(() => import('@/components/dashboard/Parrainag
 const AideSection = dynamic(() => import('@/components/dashboard/AideSection'))
 
 // BTP sections
-const EquipesBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.EquipesBTPSection))
+const EquipesBTPV2 = dynamic(() => import('@/components/dashboard/EquipesBTPV2'))
 const ChantiersBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.ChantiersBTPSection))
 const GanttSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.GanttSection))
 const SituationsTravaux = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SituationsTravaux))
@@ -1631,7 +1631,7 @@ export default function DashboardPage() {
 
           {/* ────── ÉQUIPES (Société BTP) ────── */}
           {activePage === 'equipes' && (
-            <EquipesBTPSection artisan={artisan} />
+            <EquipesBTPV2 artisan={artisan} />
           )}
 
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
