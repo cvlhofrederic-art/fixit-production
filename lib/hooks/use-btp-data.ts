@@ -289,6 +289,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
 
 // ── Settings hook ─────────────────────────────────────────────────────────────
 
+export interface FraiFixe {
+  label: string
+  montant: number
+  frequence: 'mensuel' | 'annuel'
+}
+
 export interface BTPSettings {
   depot_adresse?: string
   depot_lat?: number
@@ -300,6 +306,19 @@ export interface BTPSettings {
   charges_patronales_pct: number
   geo_pointage_enabled: boolean
   devise: string
+  // Profil patron
+  salaire_patron_mensuel: number
+  salaire_patron_type: 'net' | 'brut'
+  taux_cotisations_patron: number
+  // Situation fiscale
+  statut_juridique: string
+  regime_tva: string
+  taux_is: number
+  // Frais fixes
+  frais_fixes_mensuels: FraiFixe[]
+  // Objectifs
+  objectif_marge_pct: number
+  amortissements_mensuels: number
 }
 
 const DEFAULT_SETTINGS: BTPSettings = {
@@ -310,6 +329,15 @@ const DEFAULT_SETTINGS: BTPSettings = {
   charges_patronales_pct: 45,
   geo_pointage_enabled: false,
   devise: 'EUR',
+  salaire_patron_mensuel: 0,
+  salaire_patron_type: 'net',
+  taux_cotisations_patron: 45,
+  statut_juridique: 'sarl',
+  regime_tva: 'reel_normal',
+  taux_is: 25,
+  frais_fixes_mensuels: [],
+  objectif_marge_pct: 20,
+  amortissements_mensuels: 0,
 }
 
 export function useBTPSettings() {
