@@ -178,7 +178,7 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: any }
       try {
         const { supabase } = await import('@/lib/supabase')
         const { data: sess } = await supabase.auth.getSession()
-        const authH = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
+        const authH: Record<string, string> = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
         const [chRes, mbRes, dpRes, ptRes] = await Promise.all([
           fetch('/api/btp?table=chantiers', { headers: authH }),
           fetch('/api/btp?table=membres', { headers: authH }),
