@@ -318,6 +318,9 @@ export interface FraiFixe {
 }
 
 export interface BTPSettings {
+  // Pays et type de société (payroll engine)
+  country: 'FR' | 'PT'
+  company_type: string
   depot_adresse?: string
   depot_lat?: number
   depot_lng?: number
@@ -344,6 +347,8 @@ export interface BTPSettings {
 }
 
 const DEFAULT_SETTINGS: BTPSettings = {
+  country: 'FR',
+  company_type: 'sarl',
   depot_rayon_m: 100,
   cout_horaire_ouvrier: 22,
   cout_horaire_chef_chantier: 30,

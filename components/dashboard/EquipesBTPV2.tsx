@@ -2,7 +2,9 @@
 
 import { useState, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
-import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
+import { calculateEmployeeCost, grossFromNet, netFromGross, hourlyFromMonthly, monthlyFromHourly, validatePayroll, type PayrollBreakdown } from '@/lib/payroll/engine'
+import { resolveCompanyType, getCompanyTypesByCountry } from '@/lib/config/companyTypes'
 
 /* ══════════════════════════════════════════════════════════
    ÉQUIPES BTP V2 — Supabase + Champs financiers
@@ -73,28 +75,19 @@ const CONTRAT_LABELS: Record<TypeContrat, string> = {
 
 const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Multi-corps']
 
-// ── Salary calculation engine ──
-// BTP France: charges salariales ~22%, charges patronales ~42-47%
-// Net = Brut × (1 - charges_salariales_pct / 100)
-// Brut = Net / (1 - charges_salariales_pct / 100)
-// Coût horaire = Brut mensuel / heures mensuelles (heures_hebdo × 52/12)
-
-function brutFromNet(net: number, chargesSalPct: number): number {
-  return Math.round(net / (1 - chargesSalPct / 100))
+// Salary calculation now uses /lib/payroll/engine.ts
+// Local wrappers for the form auto-calc (accept percentages, not fractions)
+function brutFromNetPct(net: number, chargesSalPct: number): number {
+  return grossFromNet(net, chargesSalPct / 100)
 }
-
-function netFromBrut(brut: number, chargesSalPct: number): number {
-  return Math.round(brut * (1 - chargesSalPct / 100))
+function netFromBrutPct(brut: number, chargesSalPct: number): number {
+  return netFromGross(brut, chargesSalPct / 100)
 }
-
 function coutHoraireFromBrut(brut: number, heuresHebdo: number): number {
-  const heuresMois = heuresHebdo * 52 / 12 // ~151.67 pour 35h
-  return heuresMois > 0 ? Math.round(brut / heuresMois * 100) / 100 : 0
+  return hourlyFromMonthly(brut, heuresHebdo)
 }
-
 function brutFromCoutHoraire(coutH: number, heuresHebdo: number): number {
-  const heuresMois = heuresHebdo * 52 / 12
-  return Math.round(coutH * heuresMois)
+  return monthlyFromHourly(coutH, heuresHebdo)
 }
 
 // Default member form values
@@ -115,6 +108,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
   const isPt = locale === 'pt'
   const userId = artisan?.user_id || ''
 
+  const { settings } = useBTPSettings()
+  const country = settings.country || 'FR'
+  const companyType = settings.company_type || 'sarl'
+  const companyConfig = resolveCompanyType(companyType, country)
+
   const { items: membres, loading: loadM, add: addMembre, update: updateMembre, remove: removeMembre } = useBTPData<Membre>({
     table: 'membres', artisanId: artisan?.id || '', userId,
   })
@@ -134,17 +132,31 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
   const [mForm, setMForm] = useState(EMPTY_MFORM)
   const [eForm, setEForm] = useState({ nom: '', metier: '', chantierId: '', membreIds: [] as string[] })
 
-  // Computed: real cost per hour per member
+  // Computed: real cost per member using payroll engine
   const membresWithCost = useMemo(() => {
     return membres.map(m => {
-      const coutH = m.coutHoraire || 25
-      const chargesP = m.charges_patronales_pct || m.chargesPct || 45
-      const coutReelH = coutH * (1 + chargesP / 100)
-      const panierTrajetJour = (m.panier_repas_jour || 0) + (m.indemnite_trajet_jour || 0)
-      const coutReelJour = coutReelH * ((m.heures_hebdo || 35) / 5) + panierTrajetJour
-      return { ...m, coutReelH: Math.round(coutReelH * 100) / 100, coutReelJour: Math.round(coutReelJour * 100) / 100 }
+      const netSalary = m.salaire_net_mensuel || (m.salaire_brut_mensuel ? netFromGross(m.salaire_brut_mensuel, companyConfig.employee_charge_rate) : 0)
+      const payroll = netSalary > 0 ? calculateEmployeeCost({
+        country,
+        company_type: companyType,
+        net_salary: netSalary,
+        heures_hebdo: m.heures_hebdo || 35,
+        panier_repas_jour: m.panier_repas_jour || 0,
+        indemnite_trajet_jour: m.indemnite_trajet_jour || 0,
+        prime_mensuelle: m.prime_mensuelle || 0,
+        overrides: {
+          employee_charge_rate: m.charges_salariales_pct ? m.charges_salariales_pct / 100 : undefined,
+          employer_charge_rate: m.charges_patronales_pct ? m.charges_patronales_pct / 100 : undefined,
+        },
+      }) : null
+      return {
+        ...m,
+        payroll,
+        coutReelH: payroll?.cost_per_hour || 0,
+        coutReelJour: payroll?.cost_per_day || 0,
+      }
     })
-  }, [membres])
+  }, [membres, country, companyType, companyConfig.employee_charge_rate])
 
   const activeMembres = membresWithCost.filter(m => m.actif !== false)
   const inactiveMembres = membresWithCost.filter(m => m.actif === false)
@@ -594,9 +606,9 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                             const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
                             const net = parseFloat(mForm.salaire_net_mensuel) || 0
                             if (mForm._lastEdited === 'brut' && brut > 0) {
-                              setMForm({ ...mForm, charges_salariales_pct: cs, salaire_net_mensuel: String(netFromBrut(brut, cs)) })
+                              setMForm({ ...mForm, charges_salariales_pct: cs, salaire_net_mensuel: String(netFromBrutPct(brut, cs)) })
                             } else if (mForm._lastEdited === 'net' && net > 0) {
-                              const newBrut = brutFromNet(net, cs)
+                              const newBrut = brutFromNetPct(net, cs)
                               setMForm({ ...mForm, charges_salariales_pct: cs, salaire_brut_mensuel: String(newBrut), coutHoraire: coutHoraireFromBrut(newBrut, mForm.heures_hebdo) })
                             } else {
                               setMForm({ ...mForm, charges_salariales_pct: cs })
@@ -631,7 +643,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                           if (calcMode === 'auto') {
                             const netNum = parseFloat(net) || 0
                             if (netNum > 0) {
-                              const brut = brutFromNet(netNum, mForm.charges_salariales_pct)
+                              const brut = brutFromNetPct(netNum, mForm.charges_salariales_pct)
                               const cH = coutHoraireFromBrut(brut, mForm.heures_hebdo)
                               setMForm({ ...mForm, salaire_net_mensuel: net, salaire_brut_mensuel: String(brut), coutHoraire: cH, _lastEdited: 'net' })
                             } else {
@@ -659,7 +671,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                           if (calcMode === 'auto') {
                             const brutNum = parseFloat(brut) || 0
                             if (brutNum > 0) {
-                              const net = netFromBrut(brutNum, mForm.charges_salariales_pct)
+                              const net = netFromBrutPct(brutNum, mForm.charges_salariales_pct)
                               const cH = coutHoraireFromBrut(brutNum, mForm.heures_hebdo)
                               setMForm({ ...mForm, salaire_brut_mensuel: brut, salaire_net_mensuel: String(net), coutHoraire: cH, _lastEdited: 'brut' })
                             } else {
@@ -687,7 +699,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                           if (calcMode === 'auto') {
                             if (cH > 0) {
                               const brut = brutFromCoutHoraire(cH, mForm.heures_hebdo)
-                              const net = netFromBrut(brut, mForm.charges_salariales_pct)
+                              const net = netFromBrutPct(brut, mForm.charges_salariales_pct)
                               setMForm({ ...mForm, coutHoraire: cH, salaire_brut_mensuel: String(brut), salaire_net_mensuel: String(net), _lastEdited: 'horaire' })
                             } else {
                               setMForm({ ...mForm, coutHoraire: cH, _lastEdited: 'horaire' })
@@ -706,7 +718,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     const warnings: string[] = []
 
                     if (brut > 0 && net > 0) {
-                      const expectedNet = netFromBrut(brut, mForm.charges_salariales_pct)
+                      const expectedNet = netFromBrutPct(brut, mForm.charges_salariales_pct)
                       const diff = Math.abs(net - expectedNet)
                       if (diff > 50) {
                         warnings.push(isPt
@@ -734,38 +746,75 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     )
                   })()}
 
-                  {/* Arrow flow visualization */}
-                  {(parseFloat(mForm.salaire_brut_mensuel) || 0) > 0 && (
+                  {/* Arrow flow visualization — uses payroll engine */}
+                  {(parseFloat(mForm.salaire_net_mensuel) || parseFloat(mForm.salaire_brut_mensuel) || 0) > 0 && (
                     <div style={{ padding: 10, background: 'var(--v22-card-bg, #fff)', borderRadius: 8, border: '1px solid var(--v22-border)', fontSize: 12 }}>
-                      <div style={{ fontWeight: 700, marginBottom: 8 }}>🔄 {isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontWeight: 700 }}>🔄 {isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</span>
+                        <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>{companyConfig.label_fr}</span>
+                      </div>
                       {(() => {
-                        const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
-                        const net = parseFloat(mForm.salaire_net_mensuel) || 0
-                        const chargesSal = brut - net
-                        const chargesPatr = Math.round(brut * mForm.charges_patronales_pct / 100)
-                        const superBrut = brut + chargesPatr
+                        const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
+                        if (netVal <= 0) return null
+                        const preview = calculateEmployeeCost({
+                          country,
+                          company_type: companyType,
+                          net_salary: netVal,
+                          heures_hebdo: mForm.heures_hebdo || 35,
+                          panier_repas_jour: mForm.panier_repas_jour,
+                          indemnite_trajet_jour: mForm.indemnite_trajet_jour,
+                          prime_mensuelle: mForm.prime_mensuelle,
+                          overrides: calcMode === 'manuel' ? {
+                            employee_charge_rate: mForm.charges_salariales_pct / 100,
+                            employer_charge_rate: mForm.charges_patronales_pct / 100,
+                          } : undefined,
+                        })
+                        const warnings = validatePayroll(preview)
                         return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: 'var(--v22-text-mid)' }}>{isPt ? 'Líquido (o que recebe)' : 'Net (ce qu\'il reçoit)'}</span>
-                              <span style={{ fontWeight: 700, color: '#1D9E75' }}>{net}€</span>
+                              <span style={{ fontWeight: 700, color: '#1D9E75' }}>{preview.net_salary}€</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos salariais' : 'Charges salariales'} ({mForm.charges_salariales_pct}%)</span>
-                              <span style={{ color: '#C0392B' }}>+{chargesSal}€</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos salariais' : 'Charges salariales'} ({Math.round(preview.employee_charge_rate * 100)}%)</span>
+                              <span style={{ color: '#C0392B' }}>+{preview.employee_charges}€</span>
                             </div>
-                            <div style={{ borderTop: '1px dashed var(--v22-border)', paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ borderTop: '1px dashed var(--v22-border)', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 600 }}>{isPt ? '= Bruto' : '= Brut'}</span>
-                              <span style={{ fontWeight: 700 }}>{brut}€</span>
+                              <span style={{ fontWeight: 700 }}>{preview.gross_salary}€</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos patronais' : 'Charges patronales'} ({mForm.charges_patronales_pct}%)</span>
-                              <span style={{ color: '#C0392B' }}>+{chargesPatr}€</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos patronais' : 'Charges patronales'} ({Math.round(preview.employer_charge_rate * 100)}%)</span>
+                              <span style={{ color: '#C0392B' }}>+{preview.employer_charges}€</span>
                             </div>
-                            <div style={{ borderTop: '2px solid var(--v22-yellow)', paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontWeight: 700 }}>= {isPt ? 'Super bruto (custo total)' : 'Super brut (coût total)'}</span>
-                              <span style={{ fontWeight: 700, color: 'var(--v22-yellow)', fontSize: 14 }}>{superBrut}€{isPt ? '/mês' : '/mois'}</span>
+                            {/* BTP-specific cost lines */}
+                            {preview.btp_lines.map(line => (
+                              <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#8B6914' }}>+ {isPt ? line.label_pt : line.label_fr} ({(line.rate * 100).toFixed(2)}%)</span>
+                                <span style={{ color: '#C0392B' }}>+{line.amount}€</span>
+                              </div>
+                            ))}
+                            {preview.prime_mensuelle > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Prémio mensal' : 'Prime mensuelle'}</span>
+                                <span style={{ color: '#C0392B' }}>+{preview.prime_mensuelle}€</span>
+                              </div>
+                            )}
+                            <div style={{ borderTop: '2px solid var(--v22-yellow)', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ fontWeight: 700 }}>= {isPt ? 'Custo total empregador' : 'Coût total employeur'}</span>
+                              <span style={{ fontWeight: 700, color: 'var(--v22-yellow)', fontSize: 14 }}>{preview.total_employer_cost_mensuel}€{isPt ? '/mês' : '/mois'}</span>
                             </div>
+                            {/* Engine warnings */}
+                            {warnings.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
+                                {warnings.map((w, i) => (
+                                  <div key={i} style={{ fontSize: 11, padding: '4px 8px', background: w.type === 'error' ? '#FFF0F0' : '#FFF3CD', color: w.type === 'error' ? '#C0392B' : '#856404', borderRadius: 4 }}>
+                                    {w.type === 'error' ? '🚨' : '⚠️'} {isPt ? w.message_pt : w.message_fr}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )
                       })()}
@@ -792,39 +841,45 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     </div>
                   </div>
 
-                  {/* Live cost summary */}
+                  {/* Live cost summary — payroll engine */}
                   <div style={{ marginTop: 4, padding: 12, background: 'var(--v22-card-bg, #fff)', borderRadius: 8, border: '2px solid var(--v22-yellow)' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>📊 {isPt ? 'Custo real para a empresa' : 'Coût réel pour l\'entreprise'}</div>
                     {(() => {
-                      const cH = mForm.coutHoraire || 0
-                      const chP = mForm.charges_patronales_pct || 45
-                      const cRH = cH > 0 ? cH * (1 + chP / 100) : 0
-                      const hJour = (mForm.heures_hebdo || 35) / 5
-                      const indJ = (mForm.panier_repas_jour || 0) + (mForm.indemnite_trajet_jour || 0)
-                      const cRJ = cRH * hJour + indJ
-                      const cMois = Math.round(cRJ * 21.67)
-                      const cAn = cMois * 12
-
-                      if (cH === 0) {
+                      const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
+                      if (netVal <= 0 && mForm.coutHoraire <= 0) {
                         return <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', fontStyle: 'italic' }}>{isPt ? 'Preencha o salário para ver os custos' : 'Renseignez un salaire pour voir les coûts'}</div>
                       }
-
+                      const p = calculateEmployeeCost({
+                        country,
+                        company_type: companyType,
+                        net_salary: netVal > 0 ? netVal : netFromGross(brutFromCoutHoraire(mForm.coutHoraire, mForm.heures_hebdo), companyConfig.employee_charge_rate),
+                        heures_hebdo: mForm.heures_hebdo || 35,
+                        panier_repas_jour: mForm.panier_repas_jour,
+                        indemnite_trajet_jour: mForm.indemnite_trajet_jour,
+                        prime_mensuelle: mForm.prime_mensuelle,
+                        overrides: calcMode === 'manuel' ? {
+                          employee_charge_rate: mForm.charges_salariales_pct / 100,
+                          employer_charge_rate: mForm.charges_patronales_pct / 100,
+                        } : undefined,
+                      })
                       return (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
-                          <div>{isPt ? 'Custo brut/hora' : 'Coût brut/heure'} :</div>
-                          <div style={{ textAlign: 'right' }}>{cH}€</div>
-                          <div>{isPt ? 'Custo chargé/hora' : 'Coût chargé/heure'} :</div>
-                          <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v22-yellow)' }}>{Math.round(cRH * 100) / 100}€</div>
-                          <div>{isPt ? 'Custo chargé/jour' : 'Coût chargé/jour'} ({hJour}h) :</div>
-                          <div style={{ fontWeight: 700, textAlign: 'right' }}>{Math.round(cRJ * 100) / 100}€</div>
-                          {indJ > 0 && <>
+                          <div>{isPt ? 'Custo/hora (total)' : 'Coût/heure (total)'} :</div>
+                          <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v22-yellow)' }}>{p.cost_per_hour}€</div>
+                          <div>{isPt ? 'Custo/jour' : 'Coût/jour'} :</div>
+                          <div style={{ fontWeight: 700, textAlign: 'right' }}>{p.cost_per_day}€</div>
+                          {p.indemnites_jour > 0 && <>
                             <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>  {isPt ? 'dont indemnités' : 'dont indemnités'} :</div>
-                            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', textAlign: 'right' }}>{indJ}€/jour</div>
+                            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', textAlign: 'right' }}>{p.indemnites_jour}€/jour</div>
                           </>}
-                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal estimado' : 'Coût mensuel estimé'} :</div>
-                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v22-yellow)' }}>{cMois}€</div>
-                          <div>{isPt ? 'Custo anual estimado' : 'Coût annuel estimé'} :</div>
-                          <div style={{ fontWeight: 600, textAlign: 'right' }}>{cAn.toLocaleString('fr-FR')}€</div>
+                          {p.btp_total > 0 && <>
+                            <div style={{ fontSize: 11, color: '#8B6914' }}>  {isPt ? 'dont BTP spécifique' : 'dont BTP spécifique'} :</div>
+                            <div style={{ fontSize: 11, color: '#8B6914', textAlign: 'right' }}>{p.btp_total}€/mois</div>
+                          </>}
+                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal' : 'Coût mensuel'} :</div>
+                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v22-yellow)' }}>{p.cost_per_month}€</div>
+                          <div>{isPt ? 'Custo anual' : 'Coût annuel'} :</div>
+                          <div style={{ fontWeight: 600, textAlign: 'right' }}>{p.cost_per_year.toLocaleString('fr-FR')}€</div>
                         </div>
                       )
                     })()}

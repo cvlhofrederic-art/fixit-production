@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
+import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
+import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPTA BTP INTELLIGENTE — Version complète
@@ -27,9 +29,7 @@ interface RentaData {
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 function fmtDec(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 
-const STATUT_LABELS: Record<string, string> = {
-  sarl: 'SARL', sas: 'SAS', eurl: 'EURL', sasu: 'SASU', ei: 'Entreprise individuelle', micro: 'Micro-entreprise', sa: 'SA', scop: 'SCOP',
-}
+// STATUT_LABELS now derived from companyTypes config (handled dynamically below)
 const TVA_LABELS: Record<string, string> = {
   reel_normal: 'Réel normal', reel_simplifie: 'Réel simplifié', franchise: 'Franchise de TVA', mini_reel: 'Mini-réel',
 }
@@ -82,9 +82,15 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
 
   const salairePatronCharge = useMemo(() => {
     const base = settings.salaire_patron_mensuel || 0
-    if (settings.salaire_patron_type === 'brut') return base * (1 + (settings.taux_cotisations_patron || 45) / 100)
-    // net → brut → chargé : approximation net * 1.25 * (1 + charges%)
-    return base * 1.25 * (1 + (settings.taux_cotisations_patron || 45) / 100)
+    if (base <= 0) return 0
+    const result = calculateBossCost({
+      country: settings.country || 'FR',
+      company_type: settings.company_type || settings.statut_juridique || 'sarl',
+      salary: base,
+      salary_type: settings.salaire_patron_type || 'net',
+      override_charge_rate: settings.taux_cotisations_patron ? settings.taux_cotisations_patron / 100 : undefined,
+    })
+    return result.total_cost
   }, [settings])
 
   const coutFixeMensuel = fraisFixes + salairePatronCharge + (settings.amortissements_mensuels || 0)
@@ -211,10 +217,41 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                 placeholder="45" />
             </div>
             <div>
-              <label className="v22-form-label">{isPt ? 'Estatuto jurídico' : 'Statut juridique'}</label>
-              <select className="v22-form-input" value={settings.statut_juridique}
-                onChange={e => saveSettings({ statut_juridique: e.target.value })}>
-                {Object.entries(STATUT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              <label className="v22-form-label">{isPt ? 'País' : 'Pays'}</label>
+              <select className="v22-form-input" value={settings.country || 'FR'}
+                onChange={e => {
+                  const c = e.target.value as 'FR' | 'PT'
+                  const defType = c === 'FR' ? 'sarl' : 'lda'
+                  const config = resolveCompanyType(defType, c)
+                  saveSettings({
+                    country: c,
+                    company_type: defType,
+                    statut_juridique: defType,
+                    taux_is: Math.round(config.default_taux_is * 100),
+                    charges_patronales_pct: Math.round(config.employer_charge_rate * 100),
+                  })
+                }}>
+                <option value="FR">🇫🇷 France</option>
+                <option value="PT">🇵🇹 Portugal</option>
+              </select>
+            </div>
+            <div>
+              <label className="v22-form-label">{isPt ? 'Tipo de empresa' : 'Type de société'}</label>
+              <select className="v22-form-input" value={settings.company_type || settings.statut_juridique || 'sarl'}
+                onChange={e => {
+                  const ct = e.target.value
+                  const config = resolveCompanyType(ct, (settings.country || 'FR') as 'FR' | 'PT')
+                  saveSettings({
+                    company_type: ct,
+                    statut_juridique: ct,
+                    taux_is: Math.round(config.default_taux_is * 100),
+                    charges_patronales_pct: Math.round(config.employer_charge_rate * 100),
+                    taux_cotisations_patron: Math.round(config.boss_charge_rate * 100),
+                  })
+                }}>
+                {getCompanyTypesByCountry((settings.country || 'FR') as 'FR' | 'PT').map(ct => (
+                  <option key={ct.key} value={ct.key}>{isPt ? ct.label_pt : ct.label_fr}</option>
+                ))}
               </select>
             </div>
             <div>
