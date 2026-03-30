@@ -325,117 +325,132 @@ export function ContratsSection({ artisan }: { artisan: any }) {
     return diff > 0 && diff <= 30
   })
 
+  const nbActifs = contrats.filter(c => c.statut === actifLabel).length
+  const nbExpires = contrats.filter(c => c.statut === expireLabel).length
+  const valeurTotale = contrats.filter(c => c.statut === actifLabel).reduce((s, c) => s + (parseFloat(c.montant) || 0), 0)
+
   return (
-    <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex justify-between items-center">
+    <div style={{ width: '100%' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
-          <h1 className="text-xl font-semibold leading-tight">{'📑'} {t('proDash.gestionnaire.contrats.title')}</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{t('proDash.gestionnaire.contrats.subtitle')}</p>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>📑 {t('proDash.gestionnaire.contrats.title')}</h2>
+          <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>{t('proDash.gestionnaire.contrats.subtitle')}</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="bg-[#FFC107] text-gray-900 px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#FFD54F] transition shadow-sm">{t('proDash.gestionnaire.contrats.nouveauContrat')}</button>
+        <button
+          onClick={() => setShowModal(true)}
+          style={{ padding: '8px 18px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          {t('proDash.gestionnaire.contrats.nouveauContrat')}
+        </button>
       </div>
-      <div className="p-6 lg:p-8">
-        {expirantBientot.length > 0 && (
-          <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 mb-6">
-            <div className="font-bold text-orange-700 mb-2">{'⚠️'} {expirantBientot.length} {t('proDash.gestionnaire.contrats.contratsExpirentBientot')}</div>
-            {expirantBientot.map(c => <div key={c.id} className="text-sm text-orange-600">{'•'} {c.titre || c.client} — {t('proDash.gestionnaire.contrats.expireLe')} {c.dateFin}</div>)}
-          </div>
-        )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-400">
-            <div className="text-sm text-gray-500 mb-1">{t('proDash.gestionnaire.contrats.actifs')}</div>
-            <div className="text-3xl font-bold text-green-600">{contrats.filter(c => c.statut === actifLabel).length}</div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#FFC107]">
-            <div className="text-sm text-gray-500 mb-1">{t('proDash.gestionnaire.contrats.valeurTotaleAn')}</div>
-            <div className="text-3xl font-bold text-amber-600">{contrats.filter(c => c.statut === actifLabel).reduce((s, c) => s + (parseFloat(c.montant) || 0), 0).toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div>
-          </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400">
-            <div className="text-sm text-gray-500 mb-1">{t('proDash.gestionnaire.contrats.expires')}</div>
-            <div className="text-3xl font-bold text-red-600">{contrats.filter(c => c.statut === expireLabel).length}</div>
-          </div>
+      {/* Alerte expiration */}
+      {expirantBientot.length > 0 && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, color: '#c2410c', marginBottom: 6 }}>⚠️ {expirantBientot.length} {t('proDash.gestionnaire.contrats.contratsExpirentBientot')}</div>
+          {expirantBientot.map(c => <div key={c.id} style={{ fontSize: 13, color: '#ea580c' }}>• {c.titre || c.client} — {t('proDash.gestionnaire.contrats.expireLe')} {c.dateFin}</div>)}
         </div>
+      )}
 
-        {contrats.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-            <div className="text-6xl mb-4">{'📑'}</div>
-            <h3 className="text-xl font-bold mb-2">{t('proDash.gestionnaire.contrats.aucunContrat')}</h3>
-            <p className="text-gray-500 mb-6">{t('proDash.gestionnaire.contrats.gerezContrats')}</p>
-            <button onClick={() => setShowModal(true)} className="bg-[#FFC107] text-gray-900 px-6 py-3 rounded-xl font-semibold hover:bg-[#FFD54F] transition">{t('proDash.gestionnaire.contrats.creerContrat')}</button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {contrats.map(c => (
-              <div key={c.id} className="bg-white rounded-2xl shadow-sm p-6 flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-bold text-lg">{c.titre || c.client}</h3>
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[c.statut] || ''}`}>{c.statut}</span>
-                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-bold">{c.type}</span>
-                  </div>
-                  {c.client && c.titre && <p className="text-sm text-gray-600 mb-1">{'👤'} {c.client}</p>}
-                  {c.montant && <p className="text-sm text-gray-600 mb-1">{'💰'} {c.montant} € / {c.periodicite}</p>}
-                  {(c.dateDebut || c.dateFin) && <p className="text-sm text-gray-600 mb-1">{'📅'} {c.dateDebut || '?'} → {c.dateFin || t('proDash.gestionnaire.contrats.sansLimite')}</p>}
-                  {c.description && <p className="text-sm text-gray-500 mt-1">{c.description}</p>}
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{t('proDash.gestionnaire.contrats.actifs')}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: nbActifs > 0 ? '#22c55e' : '#374151' }}>{nbActifs}</div>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{t('proDash.gestionnaire.contrats.valeurTotaleAn')}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: valeurTotale > 0 ? '#FFC107' : '#374151' }}>{valeurTotale.toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')} €</div>
+        </div>
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>{t('proDash.gestionnaire.contrats.expires')}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: nbExpires > 0 ? '#ef4444' : '#374151' }}>{nbExpires}</div>
+        </div>
+      </div>
+
+      {/* Liste ou état vide */}
+      {contrats.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#f9fafb', borderRadius: 12 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📑</div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>{t('proDash.gestionnaire.contrats.aucunContrat')}</h3>
+          <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 20px' }}>{t('proDash.gestionnaire.contrats.gerezContrats')}</p>
+          <button onClick={() => setShowModal(true)} style={{ padding: '10px 20px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>{t('proDash.gestionnaire.contrats.creerContrat')}</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {contrats.map(c => {
+            const statusColor = c.statut === actifLabel ? '#22c55e' : c.statut === expireLabel ? '#ef4444' : '#f59e0b'
+            return (
+              <div key={c.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{c.titre || c.client}</h3>
+                  <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: statusColor + '18', color: statusColor }}>{c.statut}</span>
+                  <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#f3f4f6', color: '#374151' }}>{c.type}</span>
                 </div>
+                {c.client && c.titre && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>👤 {c.client}</p>}
+                {c.montant && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>💰 {c.montant} € / {c.periodicite}</p>}
+                {(c.dateDebut || c.dateFin) && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#374151' }}>📅 {c.dateDebut || '?'} → {c.dateFin || t('proDash.gestionnaire.contrats.sansLimite')}</p>}
+                {c.description && <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>{c.description}</p>}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b"><h2 className="text-xl font-bold">{'📑'} {t('proDash.gestionnaire.contrats.nouveauContratModal')}</h2></div>
-            <div className="p-6 space-y-4">
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>📑 {t('proDash.gestionnaire.contrats.nouveauContratModal')}</h2>
+            </div>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.titreContrat')}</label>
-                <input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={t('proDash.gestionnaire.contrats.titrePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none" />
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.titreContrat')}</label>
+                <input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={t('proDash.gestionnaire.contrats.titrePlaceholder')} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.clientPrestataire')}</label>
-                  <input value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={t('proDash.gestionnaire.contrats.clientPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none" />
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.clientPrestataire')}</label>
+                  <input value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={t('proDash.gestionnaire.contrats.clientPlaceholder')} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.type')}</label>
-                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none">
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.type')}</label>
+                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff' }}>
                     {[t('proDash.gestionnaire.contrats.maintenance'), t('proDash.gestionnaire.contrats.prestation'), t('proDash.gestionnaire.contrats.location'), t('proDash.gestionnaire.contrats.assurance'), t('proDash.gestionnaire.contrats.autre')].map(tp => <option key={tp}>{tp}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.montant')}</label>
-                  <input type="number" value={form.montant} onChange={e => setForm({...form, montant: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none" />
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.montant')}</label>
+                  <input type="number" value={form.montant} onChange={e => setForm({...form, montant: e.target.value})} placeholder="0" style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.periodicite')}</label>
-                  <select value={form.periodicite} onChange={e => setForm({...form, periodicite: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none">
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.periodicite')}</label>
+                  <select value={form.periodicite} onChange={e => setForm({...form, periodicite: e.target.value})} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff' }}>
                     {[t('proDash.gestionnaire.contrats.mensuel'), t('proDash.gestionnaire.contrats.trimestriel'), t('proDash.gestionnaire.contrats.annuel'), t('proDash.gestionnaire.contrats.unique')].map(p => <option key={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.dateDebut')}</label>
-                  <input type="date" value={form.dateDebut} onChange={e => setForm({...form, dateDebut: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none" />
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.dateDebut')}</label>
+                  <input type="date" value={form.dateDebut} onChange={e => setForm({...form, dateDebut: e.target.value})} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.dateFin')}</label>
-                  <input type="date" value={form.dateFin} onChange={e => setForm({...form, dateFin: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none" />
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.dateFin')}</label>
+                  <input type="date" value={form.dateFin} onChange={e => setForm({...form, dateFin: e.target.value})} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.contrats.description')}</label>
-                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={t('proDash.gestionnaire.contrats.descriptionPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-amber-400 outline-none resize-none" />
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{t('proDash.gestionnaire.contrats.description')}</label>
+                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={t('proDash.gestionnaire.contrats.descriptionPlaceholder')} style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', resize: 'none' }} />
               </div>
             </div>
-            <div className="p-6 border-t flex gap-3">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50 transition">{t('proDash.gestionnaire.contrats.annuler')}</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-[#FFC107] text-gray-900 rounded-xl font-semibold hover:bg-[#FFD54F] transition">{t('proDash.gestionnaire.contrats.creerLeContrat')}</button>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '10px 0', border: '1px solid #d1d5db', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer', background: '#fff', color: '#374151' }}>{t('proDash.gestionnaire.contrats.annuler')}</button>
+              <button onClick={handleSave} style={{ flex: 1, padding: '10px 0', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>{t('proDash.gestionnaire.contrats.creerLeContrat')}</button>
             </div>
           </div>
         </div>
