@@ -71,9 +71,11 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
   const loadDevisAndMembres = useCallback(async () => {
     setLoadingDevis(true)
     try {
+      const { data: sess } = await supabase.auth.getSession()
+      const authH = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
       const [devisRes, membresRes] = await Promise.all([
         supabase.from('devis').select('id, numero, client_name, client_address, total_ht_cents, items, created_at, status').eq('artisan_id', artisan?.id).order('created_at', { ascending: false }).limit(50),
-        fetch('/api/btp?table=membres'),
+        fetch('/api/btp?table=membres', { headers: authH }),
       ])
       if (devisRes.data) setDevisList(devisRes.data as any)
       if (membresRes.ok) {

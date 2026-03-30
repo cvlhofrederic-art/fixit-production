@@ -1,12 +1,19 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // useBTPData — Hook universel pour les données BTP
 // Remplace localStorage par Supabase, avec import automatique des données
 // existantes au premier chargement.
 // ═══════════════════════════════════════════════════════════════════════════════
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession()
+  const token = data?.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp'
 type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses'
@@ -199,7 +206,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   // ── Fetch from Supabase ─────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/btp?table=${table}`)
+      const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
       if (!res.ok) throw new Error('Fetch failed')
       const json = await res.json()
       const raw = json[table] || []
@@ -234,7 +241,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
 
               const res = await fetch('/api/btp', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...await authHeaders() },
                 body: JSON.stringify({ table: tableName, action: 'import', data: mapped }),
               })
 
@@ -260,7 +267,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       const mapped = mapToSupabase(table, item)
       const res = await fetch('/api/btp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'insert', data: mapped }),
       })
       if (!res.ok) throw new Error('Insert failed')
@@ -278,7 +285,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       const mapped = mapToSupabase(table, changes)
       const res = await fetch('/api/btp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })
       if (!res.ok) throw new Error('Update failed')
@@ -294,7 +301,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     try {
       const res = await fetch('/api/btp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'delete', id }),
       })
       if (!res.ok) throw new Error('Delete failed')
@@ -373,7 +380,7 @@ export function useBTPSettings() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/btp?table=settings')
+      const res = await fetch('/api/btp?table=settings', { headers: await authHeaders() })
       if (!res.ok) throw new Error()
       const json = await res.json()
       if (json.settings) setSettings({ ...DEFAULT_SETTINGS, ...json.settings })
@@ -389,7 +396,7 @@ export function useBTPSettings() {
     try {
       await fetch('/api/btp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: 'settings_btp', action: 'upsert_settings', data: changes }),
       })
     } catch { /* silent */ }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
@@ -57,9 +58,11 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
   useEffect(() => {
     async function load() {
       try {
+        const { data: sess } = await supabase.auth.getSession()
+        const authH = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
         const [rentaRes, membresRes] = await Promise.all([
-          fetch('/api/btp?table=rentabilite'),
-          fetch('/api/btp?table=membres'),
+          fetch('/api/btp?table=rentabilite', { headers: authH }),
+          fetch('/api/btp?table=membres', { headers: authH }),
         ])
         if (rentaRes.ok) {
           const j = await rentaRes.json()
