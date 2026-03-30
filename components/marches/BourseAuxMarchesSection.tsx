@@ -180,6 +180,13 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   // Alerts state
   const [alerts, setAlerts] = useState<{ expiringCount: number; unreadMessages: number }>({ expiringCount: 0, unreadMessages: 0 })
 
+  // Scanner state
+  const [scanning, setScanning] = useState(false)
+  const [scanResults, setScanResults] = useState<any[]>([])
+  const [scanMeta, setScanMeta] = useState<any>(null)
+  const [scanError, setScanError] = useState('')
+  const [showScanResults, setShowScanResults] = useState(false)
+
   // Fetch marches
   const fetchMarches = useCallback(async () => {
     if (!isPro) return
@@ -204,6 +211,48 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       setLoading(false)
     }
   }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP])
+
+  // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
+  const handleScanMarches = useCallback(async () => {
+    setScanning(true)
+    setScanError('')
+    setScanResults([])
+    setScanMeta(null)
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
+      if (!token) { setScanError('Session expirée'); return }
+
+      // Determine metiers from artisan categories or preferences
+      const metiers = marchesPrefs.marches_categories?.length
+        ? marchesPrefs.marches_categories
+        : artisan?.categories || []
+
+      const res = await fetch('/api/marches/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          country: isPt ? 'PT' : 'both',
+          daysBack: 3,
+          metiers,
+          location: filterCity || artisan?.city || (isPt ? 'Porto' : 'Marseille'),
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setScanError(err.error || `Erreur ${res.status}`)
+        return
+      }
+      const data = await res.json()
+      setScanResults(data.marches || [])
+      setScanMeta(data.meta || null)
+      setShowScanResults(true)
+    } catch (err) {
+      setScanError('Erreur de connexion au scanner')
+    } finally {
+      setScanning(false)
+    }
+  }, [isPt, artisan, marchesPrefs, filterCity])
 
   // Fetch my bids
   const fetchMyBids = useCallback(async () => {
@@ -1115,8 +1164,173 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </button>
                 </div>
               </div>
+
+              {/* Action buttons row */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={fetchMarches}
+                  disabled={loading}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: '#1a1a1a', color: '#fff',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    fontWeight: 600, fontSize: 13, opacity: loading ? 0.6 : 1,
+                  }}
+                >
+                  🔍 {isPt ? 'Pesquisar' : 'Rechercher'}
+                </button>
+                <button
+                  onClick={handleScanMarches}
+                  disabled={scanning}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
+                    cursor: scanning ? 'not-allowed' : 'pointer',
+                    fontWeight: 600, fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  {scanning ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      {isPt ? 'A analisar...' : 'Scan en cours...'}
+                    </>
+                  ) : (
+                    <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
+                  )}
+                </button>
+                {scanMeta && (
+                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', alignSelf: 'center' }}>
+                    Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                    {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* ── Scan Results Panel ── */}
+          {scanError && (
+            <div style={{ padding: '10px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12 }}>
+              ⚠️ {scanError}
+            </div>
+          )}
+
+          {showScanResults && scanResults.length > 0 && (
+            <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
+              <div className="v22-card-head" style={{ background: '#fffbeb' }}>
+                <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  📡 {isPt ? 'Marchés publics scannés' : 'Marchés publics scannés'}
+                  <span style={{ background: '#FFC107', color: '#1a1a1a', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                    {scanResults.length} {isPt ? 'resultados' : 'résultats'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowScanResults(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--v22-text-muted)' }}
+                >✕</button>
+              </div>
+              <div style={{ padding: 0 }}>
+                {scanMeta && (
+                  <div style={{ padding: '8px 14px', background: '#f8f9fa', borderBottom: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 16 }}>
+                    <span>🇫🇷 BOAMP: {scanMeta.sources?.boamp || 0}</span>
+                    <span>🇪🇺 TED: {scanMeta.sources?.ted || 0}</span>
+                    <span>🇵🇹 BASE.gov: {scanMeta.sources?.base_gov || 0}</span>
+                    <span>📊 Scannés: {scanMeta.totalScanned}</span>
+                  </div>
+                )}
+                {scanResults.map((m: any, idx: number) => {
+                  const score = m.scoring?.scoreTotal || m.scoreTotal || 0
+                  const priority = m.scoring?.priority || m.priority || 'medium'
+                  const priorityEmoji = priority === 'high' ? '🔥' : priority === 'medium' ? '⚖️' : 'ℹ️'
+                  const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#d97706' : '#6b7280'
+                  const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : '🇵🇹 BASE.gov'
+
+                  return (
+                    <div
+                      key={m.sourceId || idx}
+                      style={{
+                        padding: '12px 14px',
+                        borderBottom: idx < scanResults.length - 1 ? '1px solid var(--v22-border)' : 'none',
+                        display: 'flex', gap: 12, alignItems: 'flex-start',
+                        background: priority === 'high' ? '#fffbeb' : 'transparent',
+                      }}
+                    >
+                      {/* Score circle */}
+                      <div style={{
+                        minWidth: 44, height: 44, borderRadius: '50%',
+                        background: priority === 'high' ? '#FFC107' : priority === 'medium' ? '#e5e7eb' : '#f3f4f6',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 700, fontSize: 14, color: priority === 'high' ? '#1a1a1a' : '#374151',
+                        border: priority === 'high' ? '2px solid #d97706' : '1px solid #d1d5db',
+                      }}>
+                        {score}
+                      </div>
+
+                      {/* Content */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: 14 }}>{priorityEmoji}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--v22-text)' }}>
+                            {m.title?.slice(0, 120)}{m.title?.length > 120 ? '...' : ''}
+                          </span>
+                        </div>
+
+                        {/* AI Summary */}
+                        {m.aiSummary && (
+                          <div style={{ fontSize: 12, color: '#4b5563', marginBottom: 4, fontStyle: 'italic' }}>
+                            🤖 {m.aiSummary}
+                          </div>
+                        )}
+
+                        {/* Meta row */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                          <span>{sourceLabel}</span>
+                          <span>📍 {m.location}</span>
+                          {m.buyer && <span>🏢 {m.buyer.slice(0, 40)}</span>}
+                          {m.budgetMin && <span>💰 {formatPrice(m.budgetMin)}</span>}
+                          {m.deadline && <span>📅 {new Date(m.deadline).toLocaleDateString('fr-FR')}</span>}
+                          {m.scoring?.matchedMetiers?.length > 0 && (
+                            <span style={{ color: priorityColor, fontWeight: 600 }}>
+                              🎯 {m.scoring.matchedMetiers.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Link */}
+                      {m.sourceUrl && m.sourceUrl !== '#' && (
+                        <a
+                          href={m.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: '6px 12px', borderRadius: 6, border: '1px solid var(--v22-border)',
+                            background: '#fff', color: 'var(--v22-text)', fontSize: 11, fontWeight: 500,
+                            textDecoration: 'none', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Voir ↗
+                        </a>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {showScanResults && scanResults.length === 0 && !scanning && !scanError && (
+            <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 14, background: '#f9fafb', borderRadius: 8 }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>📭</div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>
+                {isPt ? 'Nenhum mercado público pertinente encontrado' : 'Aucun marché public pertinent trouvé'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>
+                {isPt ? 'Tente alterar os filtros ou alargue a pesquisa' : 'Essayez de modifier vos filtres ou d\'élargir la recherche'}
+              </div>
+            </div>
+          )}
 
           {/* Loading */}
           {loading && (

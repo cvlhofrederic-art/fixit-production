@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/referral",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/scan-marches",
+      "schedule": "0 6 * * *"
     }
   ]
 }
