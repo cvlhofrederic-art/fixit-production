@@ -12,7 +12,9 @@ import { supabase } from '@/lib/supabase'
 async function authHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession()
   const token = data?.session?.access_token
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  const h: Record<string, string> = {}
+  if (token) h.Authorization = `Bearer ${token}`
+  return h
 }
 
 type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp'

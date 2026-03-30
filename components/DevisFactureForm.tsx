@@ -748,10 +748,11 @@ export default function DevisFactureForm({
     setRentaLoading(true)
     try {
       const { data: sess } = await supabase.auth.getSession()
-      const authH = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
+      const headers: Record<string, string> = {}
+      if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
       const [membresRes, settingsRes] = await Promise.all([
-        fetch('/api/btp?table=membres', { headers: authH }),
-        fetch('/api/btp?table=settings', { headers: authH }),
+        fetch('/api/btp?table=membres', { headers }),
+        fetch('/api/btp?table=settings', { headers }),
       ])
       const membresData = membresRes.ok ? await membresRes.json() : { membres: [] }
       const settingsData = settingsRes.ok ? await settingsRes.json() : { settings: {} }
