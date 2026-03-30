@@ -173,12 +173,59 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: any }
     const load = (key: string) => {
       try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
     }
-    setChantiers(load(`fixit_chantiers_${artisan.id}`))
-    setPointages(load(`pointage_${artisan.id}`))
-    setMembres(load(`fixit_membres_${artisan.id}`))
-    setExpenses(load(`fixit_expenses_${artisan.id}`))
-    setSituations(load(`situations_${artisan.id}`))
-    setDocuments(load(`fixit_documents_${artisan.id}`))
+    // Fetch from Supabase API first, fallback to localStorage
+    async function fetchData() {
+      try {
+        const { supabase } = await import('@/lib/supabase')
+        const { data: sess } = await supabase.auth.getSession()
+        const authH = sess?.session?.access_token ? { Authorization: `Bearer ${sess.session.access_token}` } : {}
+        const [chRes, mbRes, dpRes, ptRes] = await Promise.all([
+          fetch('/api/btp?table=chantiers', { headers: authH }),
+          fetch('/api/btp?table=membres', { headers: authH }),
+          fetch('/api/btp?table=depenses', { headers: authH }),
+          fetch('/api/btp?table=pointages', { headers: authH }),
+        ])
+        const ch = chRes.ok ? await chRes.json() : null
+        const mb = mbRes.ok ? await mbRes.json() : null
+        const dp = dpRes.ok ? await dpRes.json() : null
+        const pt = ptRes.ok ? await ptRes.json() : null
+        if (ch?.chantiers?.length) setChantiers(ch.chantiers.map((c: any) => ({
+          id: c.id, titre: c.titre || c.title || '', client: c.client || '',
+          adresse: c.adresse || c.address || '', dateDebut: c.date_debut || c.dateDebut || '',
+          dateFin: c.date_fin || c.dateFin || '', budget: String(c.budget || '0'),
+          statut: c.statut || c.status || 'En cours', description: c.description || '',
+          equipe: c.equipe || '', createdAt: c.created_at || '',
+        })))
+        else setChantiers(load(`fixit_chantiers_${artisan.id}`))
+        if (mb?.membres?.length) setMembres(mb.membres.map((m: any) => ({
+          id: m.id, prenom: m.prenom || '', nom: m.nom || '', telephone: m.telephone || '',
+          email: m.email || '', typeCompte: m.type_compte || m.typeCompte || 'ouvrier',
+          rolePerso: m.role_perso || m.rolePerso || '', equipeId: m.equipe_id || '', createdAt: m.created_at || '',
+        })))
+        else setMembres(load(`fixit_membres_${artisan.id}`))
+        if (dp?.depenses?.length) setExpenses(dp.depenses.map((d: any) => ({
+          id: d.id, label: d.label || '', amount: d.amount || 0, category: d.category || '',
+          date: d.date || '', notes: d.notes || '', chantierId: d.chantier_id || '',
+        })))
+        else setExpenses(load(`fixit_expenses_${artisan.id}`))
+        if (pt?.pointages?.length) setPointages(pt.pointages.map((p: any) => ({
+          id: p.id, employe: p.employe || '', poste: p.poste || '', chantier: p.chantier || p.chantier_id || '',
+          date: p.date || '', heureArrivee: p.heure_arrivee || '', heureDepart: p.heure_depart || '',
+          pauseMinutes: p.pause_minutes || 0, heuresTravaillees: p.heures_travaillees || 0, notes: p.notes || '',
+        })))
+        else setPointages(load(`pointage_${artisan.id}`))
+      } catch {
+        // Fallback total localStorage
+        setChantiers(load(`fixit_chantiers_${artisan.id}`))
+        setPointages(load(`pointage_${artisan.id}`))
+        setMembres(load(`fixit_membres_${artisan.id}`))
+        setExpenses(load(`fixit_expenses_${artisan.id}`))
+      }
+      // Situations et documents restent en localStorage (pas de table Supabase dédiée)
+      setSituations(load(`situations_${artisan.id}`))
+      setDocuments(load(`fixit_documents_${artisan.id}`))
+    }
+    fetchData()
   }, [artisan?.id])
 
   // ── Sélection chantier + simulateur ────────────────────────────────────────
@@ -309,24 +356,22 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: any }
 
   return (
     <div style={{ maxWidth: 960 }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          💰 {t('Rentabilité Chantier', 'Rentabilidade da Obra')}
-        </h2>
-        <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>
-          {t(
-            'Comprenez en 5 secondes si vos chantiers vous rapportent de l\'argent',
-            'Perceba em 5 segundos se as suas obras lhe dão lucro'
-          )}
-        </p>
-      </div>
-
-      {/* ── Bouton config coûts horaires ──────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+      {/* Header + bouton config */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+            💰 {t('Rentabilité Chantier', 'Rentabilidade da Obra')}
+          </h2>
+          <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>
+            {t(
+              'Comprenez en 5 secondes si vos chantiers vous rapportent de l\'argent',
+              'Perceba em 5 segundos se as suas obras lhe dão lucro'
+            )}
+          </p>
+        </div>
         <button
           onClick={() => setShowConfig(!showConfig)}
-          style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+          style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}
         >
           ⚙️ {t('Coûts horaires', 'Custos por hora')}
         </button>
@@ -356,9 +401,9 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: any }
 
       {/* ── AUCUN CHANTIER ────────────────────────────────────────────────── */}
       {chantiers.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 60, background: '#f9fafb', borderRadius: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#f9fafb', borderRadius: 12 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🏗️</div>
-          <p style={{ color: '#6b7280', fontWeight: 500, fontSize: 15 }}>
+          <p style={{ color: '#6b7280', fontWeight: 500, fontSize: 15, margin: 0, textAlign: 'center' }}>
             {t('Créez vos chantiers dans la section "Chantiers" pour voir leur rentabilité.', 'Crie as suas obras na secção "Obras" para ver a rentabilidade.')}
           </p>
         </div>
