@@ -128,6 +128,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
   const [editingMembre, setEditingMembre] = useState<Membre | null>(null)
   const [editingEquipe, setEditingEquipe] = useState<EquipeBTP | null>(null)
   const [showFinance, setShowFinance] = useState(false) // toggle finance section in modal
+  const [calcMode, setCalcMode] = useState<'auto' | 'manuel'>('auto') // auto = smart calc, manuel = free edit
   const [saving, setSaving] = useState(false)
 
   const [mForm, setMForm] = useState(EMPTY_MFORM)
@@ -526,23 +527,62 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
               {showFinance && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, background: 'var(--v22-bg)', borderRadius: 10 }}>
 
-                  {/* Méthode de saisie : on commence par ce qu'on connaît */}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)', marginBottom: 2 }}>
-                    💰 {isPt ? 'Salário — preencha um campo, o resto calcula-se' : 'Salaire — remplissez un champ, le reste se calcule'}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, marginBottom: 4 }}>
-                    {isPt ? 'Introduza o salário NET ou BRUTO, os outros valores são calculados automaticamente.' : 'Saisissez le salaire NET ou BRUT, les autres valeurs se calculent automatiquement.'}
+                  {/* Mode toggle: Auto / Manuel */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)' }}>
+                      💰 {isPt ? 'Salário e custos' : 'Salaire et coûts'}
+                    </div>
+                    <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--v22-border)' }}>
+                      <button
+                        onClick={() => setCalcMode('auto')}
+                        style={{
+                          padding: '5px 14px', fontSize: 12, fontWeight: calcMode === 'auto' ? 700 : 400, border: 'none', cursor: 'pointer',
+                          background: calcMode === 'auto' ? 'var(--v22-yellow)' : 'var(--v22-card-bg, #fff)',
+                          color: calcMode === 'auto' ? '#0D1B2E' : 'var(--v22-text-mid)',
+                        }}>
+                        🔄 Auto
+                      </button>
+                      <button
+                        onClick={() => setCalcMode('manuel')}
+                        style={{
+                          padding: '5px 14px', fontSize: 12, fontWeight: calcMode === 'manuel' ? 700 : 400, border: 'none', cursor: 'pointer',
+                          borderLeft: '1px solid var(--v22-border)',
+                          background: calcMode === 'manuel' ? '#0D1B2E' : 'var(--v22-card-bg, #fff)',
+                          color: calcMode === 'manuel' ? '#fff' : 'var(--v22-text-mid)',
+                        }}>
+                        ✏️ Manuel
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Heures + charges d'abord (paramètres de calcul) */}
+                  {calcMode === 'auto' && (
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, padding: '6px 10px', background: '#FFFDE7', borderRadius: 6, border: '1px solid #FFF9C4' }}>
+                      💡 {isPt
+                        ? 'Modo automático : preencha o NET ou o BRUTO, tudo o resto calcula-se sozinho.'
+                        : 'Mode auto : remplissez le NET ou le BRUT, tout le reste se calcule tout seul.'}
+                    </div>
+                  )}
+                  {calcMode === 'manuel' && (
+                    <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, padding: '6px 10px', background: 'var(--v22-card-bg, #fff)', borderRadius: 6, border: '1px solid var(--v22-border)' }}>
+                      ✏️ {isPt
+                        ? 'Modo manual : preencha cada campo livremente, sem cálculo automático.'
+                        : 'Mode manuel : remplissez chaque champ librement, aucun calcul automatique.'}
+                    </div>
+                  )}
+
+                  {/* Heures + charges (paramètres de calcul) */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
                       <label className="v22-form-label">{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
                       <input className="v22-form-input" type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
                         onChange={e => {
                           const h = parseFloat(e.target.value) || 35
-                          const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
-                          setMForm({ ...mForm, heures_hebdo: h, coutHoraire: brut > 0 ? coutHoraireFromBrut(brut, h) : mForm.coutHoraire })
+                          if (calcMode === 'auto') {
+                            const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
+                            setMForm({ ...mForm, heures_hebdo: h, coutHoraire: brut > 0 ? coutHoraireFromBrut(brut, h) : mForm.coutHoraire })
+                          } else {
+                            setMForm({ ...mForm, heures_hebdo: h })
+                          }
                         }} />
                     </div>
                     <div>
@@ -550,13 +590,17 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                       <input className="v22-form-input" type="number" min="0" max="50" step="1" value={mForm.charges_salariales_pct}
                         onChange={e => {
                           const cs = parseFloat(e.target.value) || 22
-                          const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
-                          const net = parseFloat(mForm.salaire_net_mensuel) || 0
-                          if (mForm._lastEdited === 'brut' && brut > 0) {
-                            setMForm({ ...mForm, charges_salariales_pct: cs, salaire_net_mensuel: String(netFromBrut(brut, cs)) })
-                          } else if (mForm._lastEdited === 'net' && net > 0) {
-                            const newBrut = brutFromNet(net, cs)
-                            setMForm({ ...mForm, charges_salariales_pct: cs, salaire_brut_mensuel: String(newBrut), coutHoraire: coutHoraireFromBrut(newBrut, mForm.heures_hebdo) })
+                          if (calcMode === 'auto') {
+                            const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
+                            const net = parseFloat(mForm.salaire_net_mensuel) || 0
+                            if (mForm._lastEdited === 'brut' && brut > 0) {
+                              setMForm({ ...mForm, charges_salariales_pct: cs, salaire_net_mensuel: String(netFromBrut(brut, cs)) })
+                            } else if (mForm._lastEdited === 'net' && net > 0) {
+                              const newBrut = brutFromNet(net, cs)
+                              setMForm({ ...mForm, charges_salariales_pct: cs, salaire_brut_mensuel: String(newBrut), coutHoraire: coutHoraireFromBrut(newBrut, mForm.heures_hebdo) })
+                            } else {
+                              setMForm({ ...mForm, charges_salariales_pct: cs })
+                            }
                           } else {
                             setMForm({ ...mForm, charges_salariales_pct: cs })
                           }
@@ -569,25 +613,32 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     </div>
                   </div>
 
-                  {/* Salaire NET → auto-calcul BRUT + Horaire */}
+                  {/* Salaire NET / BRUT / Horaire */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
                       <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário líquido (€)' : 'Salaire NET (€)'}
-                        {mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
                       <input className="v22-form-input" type="number" min="0" step="50"
                         value={mForm.salaire_net_mensuel}
-                        style={{ borderColor: mForm._lastEdited === 'net' ? 'var(--v22-yellow)' : undefined, fontWeight: mForm._lastEdited === 'net' ? 700 : 400 }}
+                        style={{
+                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'net' ? 'var(--v22-yellow)' : undefined,
+                          fontWeight: calcMode === 'auto' && mForm._lastEdited === 'net' ? 700 : 400,
+                        }}
                         onChange={e => {
                           const net = e.target.value
-                          const netNum = parseFloat(net) || 0
-                          if (netNum > 0) {
-                            const brut = brutFromNet(netNum, mForm.charges_salariales_pct)
-                            const cH = coutHoraireFromBrut(brut, mForm.heures_hebdo)
-                            setMForm({ ...mForm, salaire_net_mensuel: net, salaire_brut_mensuel: String(brut), coutHoraire: cH, _lastEdited: 'net' })
+                          if (calcMode === 'auto') {
+                            const netNum = parseFloat(net) || 0
+                            if (netNum > 0) {
+                              const brut = brutFromNet(netNum, mForm.charges_salariales_pct)
+                              const cH = coutHoraireFromBrut(brut, mForm.heures_hebdo)
+                              setMForm({ ...mForm, salaire_net_mensuel: net, salaire_brut_mensuel: String(brut), coutHoraire: cH, _lastEdited: 'net' })
+                            } else {
+                              setMForm({ ...mForm, salaire_net_mensuel: net, _lastEdited: 'net' })
+                            }
                           } else {
-                            setMForm({ ...mForm, salaire_net_mensuel: net, _lastEdited: 'net' })
+                            setMForm({ ...mForm, salaire_net_mensuel: net })
                           }
                         }}
                         placeholder="ex: 1700" />
@@ -595,20 +646,27 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     <div>
                       <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário bruto (€)' : 'Salaire BRUT (€)'}
-                        {mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
                       <input className="v22-form-input" type="number" min="0" step="50"
                         value={mForm.salaire_brut_mensuel}
-                        style={{ borderColor: mForm._lastEdited === 'brut' ? 'var(--v22-yellow)' : undefined, fontWeight: mForm._lastEdited === 'brut' ? 700 : 400 }}
+                        style={{
+                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'brut' ? 'var(--v22-yellow)' : undefined,
+                          fontWeight: calcMode === 'auto' && mForm._lastEdited === 'brut' ? 700 : 400,
+                        }}
                         onChange={e => {
                           const brut = e.target.value
-                          const brutNum = parseFloat(brut) || 0
-                          if (brutNum > 0) {
-                            const net = netFromBrut(brutNum, mForm.charges_salariales_pct)
-                            const cH = coutHoraireFromBrut(brutNum, mForm.heures_hebdo)
-                            setMForm({ ...mForm, salaire_brut_mensuel: brut, salaire_net_mensuel: String(net), coutHoraire: cH, _lastEdited: 'brut' })
+                          if (calcMode === 'auto') {
+                            const brutNum = parseFloat(brut) || 0
+                            if (brutNum > 0) {
+                              const net = netFromBrut(brutNum, mForm.charges_salariales_pct)
+                              const cH = coutHoraireFromBrut(brutNum, mForm.heures_hebdo)
+                              setMForm({ ...mForm, salaire_brut_mensuel: brut, salaire_net_mensuel: String(net), coutHoraire: cH, _lastEdited: 'brut' })
+                            } else {
+                              setMForm({ ...mForm, salaire_brut_mensuel: brut, _lastEdited: 'brut' })
+                            }
                           } else {
-                            setMForm({ ...mForm, salaire_brut_mensuel: brut, _lastEdited: 'brut' })
+                            setMForm({ ...mForm, salaire_brut_mensuel: brut })
                           }
                         }}
                         placeholder="ex: 2180" />
@@ -616,25 +674,32 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     <div>
                       <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Custo horário (€)' : 'Coût horaire (€)'}
-                        {mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
                       <input className="v22-form-input" type="number" min="0" step="0.5"
                         value={mForm.coutHoraire}
-                        style={{ borderColor: mForm._lastEdited === 'horaire' ? 'var(--v22-yellow)' : undefined, fontWeight: mForm._lastEdited === 'horaire' ? 700 : 400 }}
+                        style={{
+                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'horaire' ? 'var(--v22-yellow)' : undefined,
+                          fontWeight: calcMode === 'auto' && mForm._lastEdited === 'horaire' ? 700 : 400,
+                        }}
                         onChange={e => {
                           const cH = parseFloat(e.target.value) || 0
-                          if (cH > 0) {
-                            const brut = brutFromCoutHoraire(cH, mForm.heures_hebdo)
-                            const net = netFromBrut(brut, mForm.charges_salariales_pct)
-                            setMForm({ ...mForm, coutHoraire: cH, salaire_brut_mensuel: String(brut), salaire_net_mensuel: String(net), _lastEdited: 'horaire' })
+                          if (calcMode === 'auto') {
+                            if (cH > 0) {
+                              const brut = brutFromCoutHoraire(cH, mForm.heures_hebdo)
+                              const net = netFromBrut(brut, mForm.charges_salariales_pct)
+                              setMForm({ ...mForm, coutHoraire: cH, salaire_brut_mensuel: String(brut), salaire_net_mensuel: String(net), _lastEdited: 'horaire' })
+                            } else {
+                              setMForm({ ...mForm, coutHoraire: cH, _lastEdited: 'horaire' })
+                            }
                           } else {
-                            setMForm({ ...mForm, coutHoraire: cH, _lastEdited: 'horaire' })
+                            setMForm({ ...mForm, coutHoraire: cH })
                           }
                         }} />
                     </div>
                   </div>
 
-                  {/* ⚠️ Cross-validation warnings */}
+                  {/* ⚠️ Cross-validation warnings (always active, both modes) */}
                   {(() => {
                     const brut = parseFloat(mForm.salaire_brut_mensuel) || 0
                     const net = parseFloat(mForm.salaire_net_mensuel) || 0
@@ -645,12 +710,12 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                       const diff = Math.abs(net - expectedNet)
                       if (diff > 50) {
                         warnings.push(isPt
-                          ? `⚠️ Incoerência: com ${mForm.charges_salariales_pct}% de encargos salariais, bruto ${brut}€ deveria dar líquido ~${expectedNet}€ (diferença: ${diff}€)`
+                          ? `⚠️ Incoerência: com ${mForm.charges_salariales_pct}% de encargos, bruto ${brut}€ deveria dar líquido ~${expectedNet}€ (diferença: ${diff}€)`
                           : `⚠️ Incohérence : avec ${mForm.charges_salariales_pct}% de charges salariales, brut ${brut}€ devrait donner net ~${expectedNet}€ (écart : ${diff}€)`)
                       }
                     }
                     if (brut > 0 && net > 0 && net >= brut) {
-                      warnings.push(isPt ? '🚨 Le net ne peut pas être supérieur ou égal au brut !' : '🚨 Le net ne peut pas être supérieur ou égal au brut !')
+                      warnings.push(isPt ? '🚨 O líquido não pode ser >= ao bruto !' : '🚨 Le net ne peut pas être supérieur ou égal au brut !')
                     }
                     if (brut > 0 && brut < 1747) {
                       warnings.push(isPt ? '⚠️ Salário abaixo do SMIC bruto 2025 (1 747€)' : '⚠️ Salaire en dessous du SMIC brut 2025 (1 747€)')
@@ -699,7 +764,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                             </div>
                             <div style={{ borderTop: '2px solid var(--v22-yellow)', paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontWeight: 700 }}>= {isPt ? 'Super bruto (custo total)' : 'Super brut (coût total)'}</span>
-                              <span style={{ fontWeight: 700, color: 'var(--v22-yellow)', fontSize: 14 }}>{superBrut}€/mois</span>
+                              <span style={{ fontWeight: 700, color: 'var(--v22-yellow)', fontSize: 14 }}>{superBrut}€{isPt ? '/mês' : '/mois'}</span>
                             </div>
                           </div>
                         )
