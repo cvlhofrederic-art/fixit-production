@@ -210,6 +210,20 @@ export default function DevisFactureForm({
   const [showReceiptScanner, setShowReceiptScanner] = useState(false)
   const [sendingVitfix, setSendingVitfix] = useState(false)
 
+  // ─── Rentabilité BTP Pro Modal ───
+  const [showRentaModal, setShowRentaModal] = useState(false)
+  const [rentaNbEmployees, setRentaNbEmployees] = useState(1)
+  const [rentaNbDays, setRentaNbDays] = useState(1)
+  const [rentaMarginPct, setRentaMarginPct] = useState(30)
+  const [rentaOverhead, setRentaOverhead] = useState(0)
+  const [rentaMateriauxPct, setRentaMateriauxPct] = useState(15)
+  const [rentaEmployees, setRentaEmployees] = useState<Array<{
+    id: string; name: string; role: string; daily_cost: number;
+    cost_per_hour: number; net_salary: number; employer_charges: number; btp_extras: number;
+  }>>([])
+  const [rentaLoading, setRentaLoading] = useState(false)
+  const [rentaCountry, setRentaCountry] = useState<'FR' | 'PT'>('FR')
+
   // ─── Attached Rapport ───
   const [attachedRapportId, setAttachedRapportId] = useState<string | null>(null)
   const [availableRapports, setAvailableRapports] = useState<any[]>([])
@@ -728,12 +742,114 @@ export default function DevisFactureForm({
     }
   }
 
+  // ─── Rentabilité BTP Pro ───
+  const openRentaModal = useCallback(async () => {
+    setShowRentaModal(true)
+    setRentaLoading(true)
+    try {
+      const [membresRes, settingsRes] = await Promise.all([
+        fetch('/api/btp?table=membres'),
+        fetch('/api/btp?table=settings'),
+      ])
+      const membresData = membresRes.ok ? await membresRes.json() : { membres: [] }
+      const settingsData = settingsRes.ok ? await settingsRes.json() : { settings: {} }
+      const country = settingsData.settings?.country || 'FR'
+      setRentaCountry(country)
+      setRentaMarginPct(settingsData.settings?.objectif_marge_pct || 30)
+
+      const { calculateEmployeeCost } = await import('@/lib/payroll/engine')
+      const { resolveCompanyType } = await import('@/lib/config/companyTypes')
+
+      const actifs = (membresData.membres || []).filter((m: any) => m.actif !== false)
+      const mapped = actifs.map((m: any) => {
+        const companyType = settingsData.settings?.company_type || settingsData.settings?.statut_juridique || (country === 'FR' ? 'sarl' : 'lda')
+        const netSalary = m.salaire_net_mensuel || m.salaire_net || 0
+        let dailyCost = 0, costH = 0, empCharges = 0, btpExtras = 0
+
+        if (netSalary > 0) {
+          const breakdown = calculateEmployeeCost({
+            country, company_type: companyType, net_salary: netSalary,
+            heures_hebdo: m.heures_hebdo || 35,
+            panier_repas_jour: m.panier_repas_jour || 0,
+            indemnite_trajet_jour: m.indemnite_trajet_jour || 0,
+            prime_mensuelle: m.prime_mensuelle || 0,
+            overrides: {
+              employee_charge_rate: m.charges_salariales_pct ? m.charges_salariales_pct / 100 : undefined,
+              employer_charge_rate: m.charges_patronales_pct ? m.charges_patronales_pct / 100 : undefined,
+            },
+          })
+          dailyCost = breakdown.cost_per_day
+          costH = breakdown.cost_per_hour
+          empCharges = breakdown.employer_charges
+          btpExtras = breakdown.btp_total
+        } else {
+          // Fallback : coût horaire simple
+          const ch = m.cout_horaire || settingsData.settings?.cout_horaire_ouvrier || 15
+          const cp = (m.charges_patronales_pct || m.charges_pct || settingsData.settings?.charges_patronales_pct || 45) / 100
+          costH = ch * (1 + cp)
+          dailyCost = costH * 7
+          empCharges = ch * cp * 151.67
+          btpExtras = 0
+        }
+
+        return {
+          id: m.id || crypto.randomUUID(),
+          name: `${m.prenom || ''} ${m.nom || ''}`.trim() || 'Employé',
+          role: m.role || m.poste || m.type_contrat || 'Ouvrier',
+          daily_cost: Math.round(dailyCost * 100) / 100,
+          cost_per_hour: Math.round(costH * 100) / 100,
+          net_salary: netSalary,
+          employer_charges: Math.round(empCharges),
+          btp_extras: Math.round(btpExtras),
+        }
+      })
+
+      setRentaEmployees(mapped)
+      setRentaNbEmployees(mapped.length || 1)
+    } catch (e) {
+      console.error('Rentabilité load error:', e)
+    }
+    setRentaLoading(false)
+  }, [])
+
   // ─── Calculations ───
   const subtotalHT = lines.reduce((sum, l) => sum + l.totalHT, 0)
   const totalTVA = tvaEnabled
     ? lines.reduce((sum, l) => sum + (l.totalHT * l.tvaRate / 100), 0)
     : 0
   const totalTTC = subtotalHT + totalTVA
+
+  // Calculs rentabilité (dépend de subtotalHT)
+  const rentaResult = useMemo(() => {
+    if (!showRentaModal || rentaEmployees.length === 0) return null
+    const selected = rentaEmployees.slice(0, rentaNbEmployees)
+    const totalMO = selected.reduce((s, e) => s + e.daily_cost * rentaNbDays, 0)
+    const materiauxEstime = subtotalHT > 0 ? subtotalHT * (rentaMateriauxPct / 100) : totalMO * (rentaMateriauxPct / 100)
+    const coutTotal = totalMO + rentaOverhead + materiauxEstime
+    const prixVente = subtotalHT > 0 ? subtotalHT : coutTotal / (1 - Math.min(rentaMarginPct, 99) / 100)
+    const benefice = prixVente - coutTotal
+    const margeReelle = prixVente > 0 ? (benefice / prixVente) * 100 : 0
+    const status: 'profit' | 'warning' | 'loss' =
+      margeReelle >= 25 ? 'profit' : margeReelle >= 10 ? 'warning' : 'loss'
+
+    const employeeDetails = selected.map(e => {
+      const cost = e.daily_cost * rentaNbDays
+      const contribution = totalMO > 0 ? benefice * (cost / totalMO) : 0
+      return { ...e, total_cost: Math.round(cost), contribution: Math.round(contribution) }
+    })
+
+    return {
+      employees: employeeDetails,
+      total_mo: Math.round(totalMO),
+      materiaux_estime: Math.round(materiauxEstime),
+      overhead: rentaOverhead,
+      cout_total: Math.round(coutTotal),
+      prix_vente: Math.round(prixVente),
+      benefice: Math.round(benefice),
+      marge_reelle: Math.round(margeReelle * 10) / 10,
+      status,
+    }
+  }, [showRentaModal, rentaEmployees, rentaNbEmployees, rentaNbDays, rentaMarginPct, rentaOverhead, rentaMateriauxPct, subtotalHT])
 
   // ─── Compliance Check ───
   // Adapté au statut : AE/EI n'ont pas besoin de capital social
@@ -3713,6 +3829,197 @@ export default function DevisFactureForm({
                 </div>
               </div>
             </div>
+
+            {/* ══════ RENTABILITÉ BTP PRO ══════ */}
+            <div className="v22-card">
+              <div className="v22-card-body" style={{ padding: 12 }}>
+                <button onClick={openRentaModal}
+                  className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 14px', background: '#F0F9FF', border: '1px solid #BAE6FD', color: '#0369A1', fontWeight: 600 }}>
+                  📊 {locale === 'pt' ? 'Rentabilidade do orçamento' : 'Rentabilité du devis'}
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Rentabilité */}
+            {showRentaModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                onClick={() => setShowRentaModal(false)}>
+                <div style={{ background: 'white', borderRadius: 12, maxWidth: 700, width: '100%', maxHeight: '90vh', overflow: 'auto', padding: 24 }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h3 style={{ fontWeight: 700, fontSize: 18, margin: 0 }}>
+                      📊 {locale === 'pt' ? 'Análise de rentabilidade' : 'Analyse de rentabilité'}
+                    </h3>
+                    <button onClick={() => setShowRentaModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6B7280' }}>✕</button>
+                  </div>
+
+                  {rentaLoading ? (
+                    <div style={{ textAlign: 'center', padding: 40 }}>
+                      <div style={{ fontSize: 24 }}>⏳</div>
+                      <p style={{ color: '#6B7280', marginTop: 8 }}>{locale === 'pt' ? 'A carregar dados...' : 'Chargement...'}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Paramètres */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
+                            👷 {locale === 'pt' ? 'Empregados' : 'Employés'}
+                          </label>
+                          <input type="number" min={1} max={rentaEmployees.length || 20} value={rentaNbEmployees}
+                            onChange={e => setRentaNbEmployees(Math.max(1, Number(e.target.value)))}
+                            className="v22-form-input" style={{ textAlign: 'center' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
+                            📅 {locale === 'pt' ? 'Dias no projeto' : 'Jours sur le projet'}
+                          </label>
+                          <input type="number" min={1} value={rentaNbDays}
+                            onChange={e => setRentaNbDays(Math.max(1, Number(e.target.value)))}
+                            className="v22-form-input" style={{ textAlign: 'center' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
+                            🎯 {locale === 'pt' ? 'Margem obj.' : 'Marge obj.'} (%)
+                          </label>
+                          <input type="number" min={0} max={90} value={rentaMarginPct}
+                            onChange={e => setRentaMarginPct(Number(e.target.value))}
+                            className="v22-form-input" style={{ textAlign: 'center' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
+                            🏗️ {locale === 'pt' ? 'Materiais' : 'Matériaux'} (%)
+                          </label>
+                          <input type="number" min={0} max={80} value={rentaMateriauxPct}
+                            onChange={e => setRentaMateriauxPct(Number(e.target.value))}
+                            className="v22-form-input" style={{ textAlign: 'center' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: 4 }}>
+                            🏢 {locale === 'pt' ? 'Overhead' : 'Frais fixes'} (€)
+                          </label>
+                          <input type="number" min={0} value={rentaOverhead}
+                            onChange={e => setRentaOverhead(Number(e.target.value))}
+                            className="v22-form-input" style={{ textAlign: 'center' }} />
+                        </div>
+                      </div>
+
+                      {/* Tableau employés */}
+                      {rentaEmployees.length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                            {locale === 'pt' ? 'Detalhe por empregado' : 'Détail par employé'}
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ borderBottom: '2px solid #E5E7EB' }}>
+                                  {[locale === 'pt' ? 'Nome' : 'Nom', locale === 'pt' ? 'Função' : 'Rôle',
+                                    locale === 'pt' ? 'Custo/dia' : 'Coût/jour', locale === 'pt' ? 'Dias' : 'Jours',
+                                    locale === 'pt' ? 'Custo total' : 'Coût total',
+                                    locale === 'pt' ? 'Contribuição' : 'Contribution'].map(h => (
+                                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: '#6B7280', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rentaEmployees.slice(0, rentaNbEmployees).map((e, i) => {
+                                  const totalCost = Math.round(e.daily_cost * rentaNbDays)
+                                  const rentaEmp = rentaResult?.employees.find(re => re.id === e.id)
+                                  const contribution = rentaEmp?.contribution ?? 0
+                                  return (
+                                    <tr key={e.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                                      <td style={{ padding: '6px 8px' }}>
+                                        <input value={e.name} onChange={ev => {
+                                          const updated = [...rentaEmployees]; updated[i] = { ...updated[i], name: ev.target.value }; setRentaEmployees(updated)
+                                        }} style={{ border: 'none', background: 'transparent', fontWeight: 600, width: '100%', fontSize: 12 }} />
+                                      </td>
+                                      <td style={{ padding: '6px 8px' }}>
+                                        <input value={e.role} onChange={ev => {
+                                          const updated = [...rentaEmployees]; updated[i] = { ...updated[i], role: ev.target.value }; setRentaEmployees(updated)
+                                        }} style={{ border: 'none', background: 'transparent', fontSize: 12, width: '100%', color: '#6B7280' }} />
+                                      </td>
+                                      <td style={{ padding: '6px 8px', fontWeight: 600 }}>{e.daily_cost.toFixed(0)} €</td>
+                                      <td style={{ padding: '6px 8px' }}>{rentaNbDays}</td>
+                                      <td style={{ padding: '6px 8px', fontWeight: 700, color: '#EF4444' }}>{totalCost.toLocaleString('fr-FR')} €</td>
+                                      <td style={{ padding: '6px 8px', fontWeight: 600, color: contribution >= 0 ? '#22C55E' : '#EF4444' }}>
+                                        {contribution >= 0 ? '+' : ''}{contribution.toLocaleString('fr-FR')} €
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          {rentaEmployees.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#6B7280', fontSize: 13 }}>
+                              {locale === 'pt'
+                                ? 'Nenhum empregado registado. Adicione na secção "Equipas".'
+                                : 'Aucun employé enregistré. Ajoutez-en dans "Équipes".'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Résumé */}
+                      {rentaResult && (
+                        <div style={{
+                          background: rentaResult.status === 'profit' ? '#F0FDF4' : rentaResult.status === 'warning' ? '#FEF3C7' : '#FEF2F2',
+                          borderRadius: 10, padding: 16,
+                        }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Custo M.O.' : 'Coût M.O.'}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#EF4444' }}>{rentaResult.total_mo.toLocaleString('fr-FR')} €</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Materiais est.' : 'Matériaux est.'}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#F59E0B' }}>{rentaResult.materiaux_estime.toLocaleString('fr-FR')} €</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Overhead' : 'Frais fixes'}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#6B7280' }}>{rentaResult.overhead.toLocaleString('fr-FR')} €</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Custo total' : 'Coût total'}</div>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#0D1B2E' }}>{rentaResult.cout_total.toLocaleString('fr-FR')} €</div>
+                            </div>
+                          </div>
+                          <div style={{ borderTop: '2px solid rgba(0,0,0,0.1)', paddingTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Preço de venda' : 'Prix de vente'}</div>
+                              <div style={{ fontSize: 20, fontWeight: 700, color: '#0D1B2E' }}>{rentaResult.prix_vente.toLocaleString('fr-FR')} €</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{locale === 'pt' ? 'Lucro' : 'Bénéfice'}</div>
+                              <div style={{ fontSize: 20, fontWeight: 700, color: rentaResult.benefice >= 0 ? '#22C55E' : '#EF4444' }}>
+                                {rentaResult.benefice >= 0 ? '+' : ''}{rentaResult.benefice.toLocaleString('fr-FR')} €
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 12, textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-block', padding: '6px 16px', borderRadius: 20, fontSize: 14, fontWeight: 700,
+                              background: rentaResult.status === 'profit' ? '#22C55E' : rentaResult.status === 'warning' ? '#F59E0B' : '#EF4444',
+                              color: 'white',
+                            }}>
+                              {rentaResult.status === 'profit' ? '✅' : rentaResult.status === 'warning' ? '⚠️' : '🔴'}{' '}
+                              {locale === 'pt' ? 'Margem' : 'Marge'}: {rentaResult.marge_reelle}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Bouton fermer */}
+                      <button onClick={() => setShowRentaModal(false)}
+                        className="v22-btn" style={{ width: '100%', marginTop: 16, padding: '10px 14px' }}>
+                        {locale === 'pt' ? 'Fechar' : 'Fermer'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Signature électronique (devis only) */}
             {docType === 'devis' && (
