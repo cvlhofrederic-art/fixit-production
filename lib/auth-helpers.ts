@@ -7,6 +7,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Usage côté API route : const user = await getAuthUser(request)
 // Usage côté client : passer le token dans Authorization: Bearer <token>
 
+// Cache serveur pour éviter un round-trip Supabase par requête API
+const _userCache = new Map<string, { user: User; ts: number }>()
+const AUTH_CACHE_TTL = 30_000 // 30s
+
 export async function getAuthUser(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization')
@@ -15,12 +19,30 @@ export async function getAuthUser(request: NextRequest) {
     const token = authHeader.replace('Bearer ', '').trim()
     if (!token) return null
 
+    // Vérifier le cache (même token = même user pendant 30s)
+    const cacheKey = token.slice(-16) // suffixe unique du token
+    const cached = _userCache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < AUTH_CACHE_TTL) {
+      return cached.user
+    }
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
     const { data: { user }, error } = await supabase.auth.getUser(token)
     if (error || !user) return null
+
+    // Mettre en cache
+    _userCache.set(cacheKey, { user, ts: Date.now() })
+    // Nettoyage périodique (max 50 entrées)
+    if (_userCache.size > 50) {
+      const now = Date.now()
+      for (const [k, v] of _userCache) {
+        if (now - v.ts > AUTH_CACHE_TTL) _userCache.delete(k)
+      }
+    }
+
     return user
   } catch (error) {
     console.error('[auth-helpers] getAuthUser failed:', error instanceof Error ? error.message : error)

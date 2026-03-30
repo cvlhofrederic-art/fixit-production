@@ -9,13 +9,28 @@ import { supabase } from '@/lib/supabase'
 // existantes au premier chargement.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Cache le token auth pour éviter un getSession() à chaque fetch
+let _cachedToken: string | null = null
+let _cachedAt = 0
+const TOKEN_TTL = 120_000 // 2 min cache
+
 async function authHeaders(): Promise<Record<string, string>> {
+  const now = Date.now()
+  if (_cachedToken && now - _cachedAt < TOKEN_TTL) {
+    return { Authorization: `Bearer ${_cachedToken}` }
+  }
   const { data } = await supabase.auth.getSession()
   const token = data?.session?.access_token
-  const h: Record<string, string> = {}
-  if (token) h.Authorization = `Bearer ${token}`
-  return h
+  if (token) {
+    _cachedToken = token
+    _cachedAt = now
+    return { Authorization: `Bearer ${token}` }
+  }
+  return {}
 }
+
+// Invalider le cache quand la session change (login/logout)
+supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
 type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp'
 type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses'
