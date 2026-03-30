@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     logger.info('[cron/scan-marches] Starting daily scan...')
 
     // Scan last 2 days to catch anything missed
-    const result = await scanMarches({ country: 'both', daysBack: 2 })
+    // Include common BTP metiers for keyword filtering on BOAMP
+    const btpMetiers = ['couvreur', 'electricien', 'plombier', 'macon', 'peintre', 'menuisier', 'chauffagiste', 'renovation']
+    const result = await scanMarches({ country: 'both', daysBack: 2, metiers: btpMetiers })
 
     let inserted = 0
     let skipped = 0
