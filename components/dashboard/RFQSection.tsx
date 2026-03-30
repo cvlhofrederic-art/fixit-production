@@ -263,7 +263,7 @@ export default function RFQSection({ artisan }: Props) {
       {/* Page Header */}
       <div className="v22-page-header">
         <div>
-          <div className="v22-page-title">{isFR ? 'Mes devis pro BTP' : 'Os meus orçamentos BTP'}</div>
+          <div className="v22-page-title">{isFR ? 'Devis Fournisseurs' : 'Orçamentos Fornecedores'}</div>
           <div className="v22-page-sub">
             {isFR
               ? 'Envoyez des demandes de devis groupées à vos fournisseurs et comparez les offres.'

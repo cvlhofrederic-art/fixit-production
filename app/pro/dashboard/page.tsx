@@ -1122,7 +1122,7 @@ export default function DashboardPage() {
                 <div className="v22-sidebar-label">{isPt ? 'Finanças BTP' : 'Finance BTP'}</div>
                 <V22SidebarItem label={isPt ? '🧠 Contabilidade IA' : '🧠 Compta Intelligente'} active={activePage === 'compta_btp'} onClick={() => navigateTo('compta_btp')} />
                 <V22SidebarItem label={isPt ? '💰 Rentabilidade' : '💰 Rentabilité Chantier'} active={activePage === 'rentabilite'} onClick={() => navigateTo('rentabilite')} />
-                <V22SidebarItem label={isPt ? '📋 Os meus orçamentos' : '📋 Devis & Offres'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
+                <V22SidebarItem label={isPt ? '📋 Orçamentos Fornecedores' : '📋 Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
                 <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
                 <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
                 <V22SidebarItem label={isPt ? '🤝 Subempreitada DC4' : '🤝 Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
