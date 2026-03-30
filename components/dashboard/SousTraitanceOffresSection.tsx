@@ -317,7 +317,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div style={{ width: '100%' }}>
       {/* Toast */}
       {toast && (
         <div
@@ -358,14 +358,14 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
             style={{
               padding: '8px 16px', borderRadius: 8, border: 'none', cursor: t.disabled ? 'not-allowed' : 'pointer',
               fontWeight: 600, fontSize: 13,
-              background: tab === t.key ? '#1e40af' : '#f3f4f6',
-              color: tab === t.key ? '#fff' : t.disabled ? '#9ca3af' : '#374151',
+              background: tab === t.key ? '#FFC107' : '#f3f4f6',
+              color: tab === t.key ? '#1a1a1a' : t.disabled ? '#9ca3af' : '#374151',
               opacity: t.disabled ? 0.5 : 1,
             }}
           >
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span style={{ marginLeft: 6, background: tab === t.key ? 'rgba(255,255,255,.25)' : '#e5e7eb', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
+              <span style={{ marginLeft: 6, background: tab === t.key ? 'rgba(0,0,0,.12)' : '#e5e7eb', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
                 {t.count}
               </span>
             )}
@@ -386,7 +386,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
               </p>
               <button
                 onClick={() => setTab('publier')}
-                style={{ marginTop: 12, padding: '10px 20px', background: '#1e40af', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+                style={{ marginTop: 12, padding: '10px 20px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
               >
                 {isPt ? 'Publicar primeira oferta' : 'Publier ma première offre'}
               </button>
@@ -429,8 +429,8 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
                     <button
                       onClick={() => loadCandidatures(offer)}
                       style={{
-                        padding: '8px 16px', background: '#1e40af', color: '#fff',
-                        border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                        padding: '8px 16px', background: '#1a1a1a', color: '#fff',
+                        border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'opacity .15s',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -654,8 +654,8 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
               onClick={handlePublish}
               disabled={publishing}
               style={{
-                padding: '10px 24px', background: publishing ? '#93c5fd' : '#1e40af',
-                color: '#fff', border: 'none', borderRadius: 8, cursor: publishing ? 'not-allowed' : 'pointer',
+                padding: '10px 24px', background: publishing ? '#e5e7eb' : '#FFC107',
+                color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: publishing ? 'not-allowed' : 'pointer',
                 fontWeight: 700, fontSize: 15,
               }}
             >
@@ -713,7 +713,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
                         {/* Avatar */}
                         <div style={{
                           width: 44, height: 44, borderRadius: '50%',
-                          background: '#1e40af', color: '#fff',
+                          background: '#1a1a1a', color: '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontWeight: 700, fontSize: 18, flexShrink: 0,
                           overflow: 'hidden',
@@ -768,7 +768,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
                       </div>
 
                       {cand.artisan_phone && (
-                        <div style={{ marginTop: 8, fontSize: 13, color: '#1e40af', fontWeight: 600 }}>
+                        <div style={{ marginTop: 8, fontSize: 13, color: '#374151', fontWeight: 600 }}>
                           📞 {cand.artisan_phone}
                         </div>
                       )}
