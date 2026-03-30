@@ -5,6 +5,9 @@ import { useLocale } from '@/lib/i18n/context'
 import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
+import { calculateChantierProfitability, calculateGlobalProfitability } from '@/lib/services/profitability'
+import { simulateTax } from '@/lib/services/tax-simulation'
+import type { ChantierContext, ChantierCosts, ChantierProfitability, KPIAlert } from '@/lib/services/pipeline-types'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPTA BTP INTELLIGENTE — Version complète
@@ -95,30 +98,74 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
 
   const coutFixeMensuel = fraisFixes + salairePatronCharge + (settings.amortissements_mensuels || 0)
 
+  // ── Profitabilité par chantier (via service) ──
+  const chantierProfits = useMemo(() => {
+    const active = data.filter(d => d.statut === 'En cours' || d.statut === 'Terminé')
+    return active.map(d => {
+      const ctx: ChantierContext = {
+        id: d.chantier_id, titre: d.titre, client: d.client, budget: d.budget,
+        montant_facture: d.montant_facture, acompte_recu: d.acompte_recu,
+        date_debut: d.date_debut, date_fin: d.date_fin, statut: d.statut,
+        marge_prevue_pct: d.marge_prevue_pct, tva_taux: d.tva_taux,
+        penalite_retard_jour: d.penalite_retard_jour,
+      }
+      const costs: ChantierCosts = {
+        chantier_id: d.chantier_id, total_heures: d.total_heures,
+        nb_ouvriers: d.nb_ouvriers, nb_jours_pointes: d.nb_jours_pointes,
+        cout_main_oeuvre_brut: d.cout_main_oeuvre_brut, cout_charges_patronales: d.cout_charges_patronales,
+        cout_indemnites: d.cout_indemnites, cout_main_oeuvre_total: d.cout_main_oeuvre_total,
+        total_materiaux: d.total_materiaux, total_autres: d.total_autres,
+        total_depenses: d.total_depenses, cout_total: d.cout_total,
+        ca_reel: d.ca_reel, detail_ouvriers: d.detail_ouvriers || [],
+      }
+      return calculateChantierProfitability(ctx, costs)
+    })
+  }, [data])
+
+  // ── Profitabilité globale (via service) ──
   const totals = useMemo(() => {
     const active = data.filter(d => d.statut === 'En cours' || d.statut === 'Terminé')
-    const ca = active.reduce((s, d) => s + (d.ca_reel || 0), 0)
-    const cout = active.reduce((s, d) => s + d.cout_total, 0)
-    const benefBrut = ca - cout
-    // Bénéfice net après frais fixes (proratisé sur nb mois d'activité)
     const nbMois = Math.max(1, active.length > 0 ? new Set(active.map(d => (d.date_debut || '').slice(0, 7))).size : 1)
-    const totalFraisFixes = coutFixeMensuel * nbMois
-    const benefNet = benefBrut - totalFraisFixes
-    const impots = Math.max(0, benefNet * (settings.taux_is || 25) / 100)
+
+    const gp = calculateGlobalProfitability({
+      chantiers: chantierProfits,
+      frais_fixes_mensuel: fraisFixes,
+      salaire_patron_charge: salairePatronCharge,
+      amortissements: settings.amortissements_mensuels || 0,
+      taux_is: (settings.taux_is || 25) / 100,
+      nb_mois: nbMois,
+    })
+
+    // Simulation fiscale avec tranches (FR 15/25% — PT 17/21%)
+    const country = (settings.country || 'FR') as 'FR' | 'PT'
+    const tax = simulateTax({
+      country,
+      regime: country === 'FR' ? 'is' : 'irc',
+      benefice_imposable: gp.benefice_brut,
+      ca_total_ht: gp.total_ca,
+      tva_taux: country === 'FR' ? 0.20 : 0.23,
+      total_achats_ht: gp.total_cout_chantiers * 0.3, // ~30% matériaux = achats HT
+      salaire_patron_net: settings.salaire_patron_mensuel || 0,
+    })
 
     return {
-      nbChantiers: active.length,
-      ca, cout,
-      fraisFixes: totalFraisFixes,
-      benefBrut,
-      benefNet,
-      impots,
-      benefApresImpots: benefNet - impots,
-      marge: ca > 0 ? (benefNet / ca) * 100 : 0,
+      nbChantiers: gp.nb_chantiers,
+      ca: gp.total_ca,
+      cout: gp.total_cout_chantiers,
+      fraisFixes: gp.frais_fixes_mensuel,
+      benefBrut: gp.benefice_brut,
+      benefNet: gp.benefice_brut,
+      impots: tax.is_total,
+      benefApresImpots: tax.benefice_apres_impots,
+      marge: gp.marge_globale_pct,
       heures: active.reduce((s, d) => s + d.total_heures, 0),
       perteJour: active.reduce((s, d) => s + d.perte_par_jour_retard, 0),
+      tauxEffectif: tax.taux_effectif,
+      tvaAPayer: tax.tva_a_payer,
+      irAlternative: tax.ir_alternative,
+      recommendation: tax.recommendation,
     }
-  }, [data, coutFixeMensuel, settings.taux_is])
+  }, [data, chantierProfits, fraisFixes, salairePatronCharge, settings])
 
   // ── Simulateur ────────────────────────────────────────────────────────────
   const simResult = useMemo(() => {
@@ -133,16 +180,13 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
     }
   }, [selected, simDays, simWorkers, settings])
 
-  // ── Score ─────────────────────────────────────────────────────────────────
+  // ── Score (utilise le service profitability) ──
   function getScore(d: RentaData) {
-    const marge = d.ca_reel > 0 ? (d.benefice_net / d.ca_reel) * 100 : 0
-    let score = 5
-    if (marge >= 25) score += 3; else if (marge >= 15) score += 2; else if (marge >= 5) score += 1; else if (marge < 0) score -= 3
-    if (d.benefice_par_homme_jour > 100) score += 1
-    if (d.benefice_par_homme_jour < 0) score -= 1
-    score = Math.max(0, Math.min(10, score))
-    if (score >= 7) return { score, label: isPt ? 'Rentável' : 'Rentable', color: '#22C55E', emoji: '🟢' }
-    if (score >= 4) return { score, label: isPt ? 'Médio' : 'Moyen', color: '#F59E0B', emoji: '🟡' }
+    const cp = chantierProfits.find(p => p.chantier_id === d.chantier_id)
+    const score = cp?.score ?? 5
+    const status = cp?.status ?? 'warning'
+    if (status === 'profit') return { score, label: isPt ? 'Rentável' : 'Rentable', color: '#22C55E', emoji: '🟢' }
+    if (status === 'warning') return { score, label: isPt ? 'Médio' : 'Moyen', color: '#F59E0B', emoji: '🟡' }
     return { score, label: isPt ? 'Em risco' : 'À risque', color: '#EF4444', emoji: '🔴' }
   }
 
@@ -420,7 +464,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
               { label: isPt ? 'Custos obra' : 'Coûts chantier', value: `${fmt(totals.cout, dl)} €`, color: '#EF4444' },
               { label: isPt ? 'Encargos fixos' : 'Frais fixes', value: `${fmt(totals.fraisFixes, dl)} €`, color: '#F59E0B' },
               { label: isPt ? 'Lucro bruto' : 'Bénéf. brut', value: `${fmt(totals.benefBrut, dl)} €`, color: totals.benefBrut >= 0 ? '#22C55E' : '#EF4444' },
-              { label: `IS (${settings.taux_is}%)`, value: `-${fmt(totals.impots, dl)} €`, color: '#6B7280' },
+              { label: `${(settings.country || 'FR') === 'FR' ? 'IS' : 'IRC'} (${totals.tauxEffectif}%)`, value: `-${fmt(totals.impots, dl)} €`, color: '#6B7280' },
               { label: isPt ? 'LUCRO LÍQUIDO' : 'BÉNÉF. NET', value: `${fmt(totals.benefApresImpots, dl)} €`, color: totals.benefApresImpots >= 0 ? '#22C55E' : '#EF4444' },
               { label: 'Marge', value: `${totals.marge.toFixed(1)}%`, color: totals.marge >= (settings.objectif_marge_pct || 20) ? '#22C55E' : totals.marge >= 0 ? '#F59E0B' : '#EF4444' },
             ].map((kpi, i) => (
@@ -431,12 +475,76 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
             ))}
           </div>
 
-          {/* Alerte objectif marge */}
-          {totals.marge < (settings.objectif_marge_pct || 20) && totals.ca > 0 && (
-            <div style={{ background: '#FEF3C7', borderRadius: 8, padding: 12, fontSize: 13, color: '#92400E' }}>
-              ⚠️ {isPt
-                ? `A sua margem (${totals.marge.toFixed(1)}%) está abaixo do objetivo de ${settings.objectif_marge_pct}%`
-                : `Votre marge (${totals.marge.toFixed(1)}%) est en dessous de l'objectif de ${settings.objectif_marge_pct}%`}
+          {/* Alertes intelligentes */}
+          {(() => {
+            const alerts: KPIAlert[] = []
+            if (totals.marge < (settings.objectif_marge_pct || 20) && totals.ca > 0) {
+              alerts.push({ type: totals.marge < 0 ? 'error' : 'warning',
+                message_fr: `Marge (${totals.marge.toFixed(1)}%) en dessous de l'objectif de ${settings.objectif_marge_pct || 20}%`,
+                message_pt: `Margem (${totals.marge.toFixed(1)}%) abaixo do objetivo de ${settings.objectif_marge_pct || 20}%` })
+            }
+            const losses = chantierProfits.filter(c => c.status === 'loss')
+            if (losses.length > 0) {
+              alerts.push({ type: 'error',
+                message_fr: `${losses.length} chantier(s) en perte`,
+                message_pt: `${losses.length} obra(s) com prejuízo` })
+            }
+            const delays = chantierProfits.filter(c => c.retard_jours > 0)
+            if (delays.length > 0) {
+              const totalRetard = delays.reduce((s, c) => s + c.retard_jours, 0)
+              alerts.push({ type: 'warning',
+                message_fr: `${delays.length} chantier(s) en retard (${totalRetard}j cumulés)`,
+                message_pt: `${delays.length} obra(s) com atraso (${totalRetard} dias acumulados)` })
+            }
+            if (totals.irAlternative !== undefined && totals.recommendation) {
+              const rec = totals.recommendation
+              if (rec === 'ir') alerts.push({ type: 'info',
+                message_fr: `L'IR serait plus avantageux (${fmt(totals.irAlternative, dl)}€ vs IS ${fmt(totals.impots, dl)}€)`,
+                message_pt: `O IRS seria mais vantajoso (${fmt(totals.irAlternative, dl)}€ vs IRC ${fmt(totals.impots, dl)}€)` })
+              if (rec === 'is') alerts.push({ type: 'info',
+                message_fr: `L'IS est le choix optimal (${fmt(totals.impots, dl)}€ vs IR ${fmt(totals.irAlternative, dl)}€)`,
+                message_pt: `O IRC é a escolha ideal (${fmt(totals.impots, dl)}€ vs IRS ${fmt(totals.irAlternative, dl)}€)` })
+            }
+            if (alerts.length === 0) return null
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {alerts.map((a, i) => (
+                  <div key={i} style={{
+                    background: a.type === 'error' ? '#FEF2F2' : a.type === 'warning' ? '#FEF3C7' : '#EFF6FF',
+                    borderRadius: 8, padding: 12, fontSize: 13,
+                    color: a.type === 'error' ? '#991B1B' : a.type === 'warning' ? '#92400E' : '#1E40AF',
+                  }}>
+                    {a.type === 'error' ? '🔴' : a.type === 'warning' ? '⚠️' : '💡'} {isPt ? a.message_pt : a.message_fr}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Détail fiscal (IS/IRC avec tranches) */}
+          {totals.ca > 0 && (
+            <div className="v22-card" style={{ padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                🏛️ {isPt ? 'Detalhe fiscal' : 'Détail fiscal'} ({(settings.country || 'FR') === 'FR' ? 'IS' : 'IRC'})
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+                <div style={{ textAlign: 'center', padding: 8, background: 'var(--v22-bg)', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--v22-text-mid)' }}>{isPt ? 'Taux effectif' : 'Taux effectif'}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>{totals.tauxEffectif}%</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: 8, background: 'var(--v22-bg)', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--v22-text-mid)' }}>{isPt ? 'Imposto' : 'Impôts'}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#EF4444' }}>{fmt(totals.impots, dl)} €</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: 8, background: 'var(--v22-bg)', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--v22-text-mid)' }}>TVA/IVA {isPt ? 'a pagar' : 'à payer'}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#F59E0B' }}>{fmt(totals.tvaAPayer, dl)} €</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: 8, background: totals.benefApresImpots >= 0 ? '#F0FDF4' : '#FEF2F2', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--v22-text-mid)' }}>{isPt ? 'Líquido após impostos' : 'Net après impôts'}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: totals.benefApresImpots >= 0 ? '#22C55E' : '#EF4444' }}>{fmt(totals.benefApresImpots, dl)} €</div>
+                </div>
+              </div>
             </div>
           )}
 
