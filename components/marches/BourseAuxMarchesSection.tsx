@@ -115,28 +115,8 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   }, [])
   const isPt = locale === 'pt'
 
-  // PRO GATE CHECK — vérifie l'abonnement via la table subscriptions
-  const [isPro, setIsPro] = useState(false)
-  useEffect(() => {
-    if (!artisan?.user_id) return
-    const checkSub = async () => {
-      try {
-        const res = await fetch(`/api/stripe/subscription`, {
-          headers: { 'Authorization': `Bearer ${(await (await import('@/lib/supabase')).supabase.auth.getSession()).data.session?.access_token}` }
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const plan = data.subscription?.subscription_plan || data.plan || 'starter'
-          setIsPro(plan !== 'starter')
-        } else {
-          setIsPro(false)
-        }
-      } catch {
-        setIsPro(false)
-      }
-    }
-    checkSub()
-  }, [artisan?.user_id])
+  // PRO GATE CHECK — désactivé temporairement, accès libre pour tous
+  const isPro = true
 
   // State
   const [activeTab, setActiveTab] = useState<'browse' | 'mybids' | 'won' | 'settings'>('browse')
