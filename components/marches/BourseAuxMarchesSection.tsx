@@ -144,6 +144,15 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [filterUrgency, setFilterUrgency] = useState('')
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
   const [filterBTP, setFilterBTP] = useState(false)                  // Offres sous-traitance BTP
+  const [filterZone, setFilterZone] = useState('')                   // zone_test filter (test mode)
+  const [filterPays, setFilterPays] = useState('')                   // pays filter
+
+  // Test mode detection (show zone filter only in dev/test)
+  const isTestMode = typeof window !== 'undefined' && (
+    process.env.NEXT_PUBLIC_MODE === 'test' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname.includes('vercel.app')
+  )
 
   // Bid form state
   const [bidPrice, setBidPrice] = useState('')
@@ -198,6 +207,8 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterUrgency) params.set('urgency', filterUrgency)
       if (filterGrandMarche) params.set('budget_min', '50000')
       if (filterBTP) params.set('source_type', 'btp_sous_traitance')
+      if (filterZone) params.set('zone', filterZone)
+      if (filterPays) params.set('pays', filterPays)
       params.set('status', 'open')
       if (artisan?.id) params.set('artisan_user_id', artisan.id)
       const res = await fetch(`/api/marches?${params.toString()}`)
@@ -210,7 +221,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP])
+  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP, filterZone, filterPays])
 
   // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
   const handleScanMarches = useCallback(async () => {
@@ -1121,7 +1132,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </label>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Categoria' : 'Catégorie'}</label>
                   <select
@@ -1178,6 +1189,36 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                     🏭 {isPt ? 'Só Empresas BTP' : 'Offres BTP seulement'}
                   </button>
                 </div>
+
+                {/* Pays filter */}
+                <div>
+                  <label className="v22-form-label">{isPt ? 'País' : 'Pays'}</label>
+                  <select
+                    value={filterPays}
+                    onChange={e => setFilterPays(e.target.value)}
+                    className="v22-form-input"
+                  >
+                    <option value="">{isPt ? 'Todos' : 'Tous'}</option>
+                    <option value="FR">🇫🇷 France</option>
+                    <option value="PT">🇵🇹 Portugal</option>
+                  </select>
+                </div>
+
+                {/* Zone filter — test/dev only */}
+                {isTestMode && (
+                  <div>
+                    <label className="v22-form-label">Zone test</label>
+                    <select
+                      value={filterZone}
+                      onChange={e => setFilterZone(e.target.value)}
+                      className="v22-form-input"
+                    >
+                      <option value="">Toutes</option>
+                      <option value="13-paca">🇫🇷 Dept 13 / PACA</option>
+                      <option value="porto-pt">🇵🇹 Porto / Norte</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Action buttons row */}
@@ -1423,8 +1464,10 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                         <div style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {m.title}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 8, marginTop: 2 }}>
-                          {m.city && <span>📍 {m.city}</span>}
+                        <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {m.pays && <span style={{ fontSize: 13 }}>{m.pays === 'PT' ? '🇵🇹' : '🇫🇷'}</span>}
+                          {(m.location_city || m.city) && <span>📍 {m.location_city || m.city}{m.concelho && m.concelho !== m.location_city ? `, ${m.concelho}` : ''}</span>}
+                          {m.source && <span className="v22-tag" style={{ background: '#F0F4FF', color: '#4338CA', fontSize: 9, padding: '1px 5px' }}>{m.source}</span>}
                           {days !== null && (
                             <span style={{ color: days <= 3 ? 'var(--v22-red)' : undefined }}>
                               ⏰ {days > 0 ? (isPt ? `${days}d` : `${days}j`) : (isPt ? 'Expirado' : 'Expiré')}

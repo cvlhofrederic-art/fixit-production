@@ -51,6 +51,12 @@ export async function GET(request: NextRequest) {
   const artisanId = url.searchParams.get('artisan_id')
   const publisherUserId = url.searchParams.get('publisher_user_id')
   const sourceType = url.searchParams.get('source_type')
+  const pays = url.searchParams.get('pays')           // 'FR' | 'PT'
+  const zone = url.searchParams.get('zone')            // '13-paca' | 'porto-pt'
+  const district = url.searchParams.get('district')    // PT: 'Porto'
+  const concelho = url.searchParams.get('concelho')    // PT: 'Vila Nova de Gaia'
+  const departement = url.searchParams.get('departement') // FR: '13'
+  const source = url.searchParams.get('source')        // 'decp' | 'base-gov-pt' | etc.
 
   // ── Publisher mode: return all marches published by a user ─────────────────
   if (publisherUserId) {
@@ -97,7 +103,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('marches')
-    .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at')
+    .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue')
     .eq('status', 'open')
     .gte('deadline', today)
     .order('created_at', { ascending: false })
@@ -109,6 +115,12 @@ export async function GET(request: NextRequest) {
   if (budgetMax) query = query.lte('budget_max', parseInt(budgetMax))
   if (urgency) query = query.eq('urgency', urgency)
   if (sourceType) query = query.eq('source_type', sourceType)
+  if (pays) query = query.eq('pays', pays)
+  if (zone) query = query.eq('zone_test', zone)
+  if (district) query = query.eq('district', district)
+  if (concelho) query = query.ilike('concelho', `%${concelho}%`)
+  if (departement) query = query.eq('departement', departement)
+  if (source) query = query.eq('source', source)
 
   // Filter for artisan-specific matched marches
   if (artisanUserId) {

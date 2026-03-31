@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -158,13 +158,14 @@ function DashboardPage() {
     handleBlockAgendaFromDevis, uploadDashAttachment, getDashAuthToken,
   } = messaging
 
-  // ── Notifications ──
+  // ── Notifications ── (refs to break circular dependency with navigateTo)
+  const navigateRef = useRef<(page: string) => void>(() => {})
   const notifCallbacks = useMemo(() => ({
-    onNavigate: (page: string) => navigateTo(page),
+    onNavigate: (page: string) => navigateRef.current(page),
     onNewBooking: (b: any) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
     getAuthToken: getDashAuthToken,
     t, isPt,
-  }), [navigateTo, getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
+  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
   const {
     notifications, setNotifications,
     showNotifDropdown, setShowNotifDropdown,
@@ -265,6 +266,9 @@ function DashboardPage() {
     const url = page === 'home' ? '/pro/dashboard' : `/pro/dashboard?p=${page}`
     window.history.pushState({}, '', url)
   }, [setShowDevisForm, setShowFactureForm])
+
+  // Keep ref in sync for notification callbacks
+  navigateRef.current = navigateTo
 
   // ── Wrap transformBookingToDevis to also navigate ──
   const handleTransformBookingToDevis = useCallback((booking: Booking) => {
