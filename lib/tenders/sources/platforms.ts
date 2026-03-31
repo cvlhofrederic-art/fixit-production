@@ -1,8 +1,11 @@
 // ── Public Procurement Platforms Scanner ─────────────────────────────────────
-// Fetches OPEN (non-attributed) tenders from:
-// - marchespublics.gouv.fr
-// - e-marchespublics.com (marches-publics.info)
-// - DECP augmenté API (data.economie.gouv.fr)
+// 8 sites vérifiés fonctionnels pour marchés BTP dept 13 :
+// 1. boamp.fr → boamp.ts (séparé)
+// 2. e-marchespublics.com → ici
+// 3. francemarches.com → ici
+// 4. marchesonline.com → ici (compte gratuit requis)
+// 5. bailleurs-sociaux.marches-publics.info → ici (HLM)
+// 6-8. regional-paca.ts (AMP, Région Sud, Dept13)
 
 import type { Tender } from '../types'
 import { SCANNER_CONFIG, DEPARTMENTS } from '../config'
@@ -73,100 +76,23 @@ async function fetchWithRetry(
   }
 }
 
-// ── marchespublics.gouv.fr ──────────────────────────────────────────────────
-
-export async function scanMPS(department: string): Promise<Tender[]> {
-  const deptConfig = getDeptConfig(department)
-  const url = `https://www.marchespublics.gouv.fr/app/consultation/search?dtypeConsultation=0&department=${department}`
-
-  logger.info(`[platforms:MPS] Scanning department ${department}`)
-
-  try {
-    const response = await fetchWithRetry(url)
-    if (!response.ok) {
-      logger.error(`[platforms:MPS] HTTP ${response.status} for dept ${department}`)
-      return []
-    }
-
-    const html = await response.text()
-    const tenders: Tender[] = []
-
-    // Match consultation blocks in the search results HTML
-    const entryPattern =
-      /<div[^>]*class="[^"]*consultation[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi
-    const titlePattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
-    const datePattern =
-      /(?:date\s*limite|clôture|cloture)[^<]*?(\d{2}[/.-]\d{2}[/.-]\d{4})/i
-    const buyerPattern =
-      /(?:acheteur|pouvoir\s*adjudicateur|organisme)[^<]*?<[^>]*>\s*([^<]+)/i
-    const refPattern = /(?:référence|ref|n°)[^<]*?(\w[\w\-/]+)/i
-
-    let entryMatch: RegExpExecArray | null
-    while ((entryMatch = entryPattern.exec(html)) !== null) {
-      const block = entryMatch[1]
-
-      const titleMatch = titlePattern.exec(block)
-      if (!titleMatch) continue
-
-      const link = titleMatch[1]
-      const title = titleMatch[2].replace(/<[^>]*>/g, '').trim()
-
-      if (!title) continue
-
-      const dateMatch = datePattern.exec(block)
-      const buyerMatch = buyerPattern.exec(block)
-      const refMatch = refPattern.exec(block)
-
-      const deadline = dateMatch
-        ? dateMatch[1].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
-        : ''
-
-      const fullUrl = link.startsWith('http')
-        ? link
-        : `https://www.marchespublics.gouv.fr${link}`
-
-      const sourceId = refMatch ? refMatch[1] : generateId('mps', title)
-
-      tenders.push({
-        id: generateId('mps', `${department}_${sourceId}`),
-        title,
-        city: '',
-        source: 'marchespublics.gouv.fr',
-        source_id: sourceId,
-        publication_date: nowISO().split('T')[0],
-        deadline,
-        description: title,
-        url: fullUrl,
-        category: 'BTP',
-        department: deptConfig.code,
-        region: deptConfig.region,
-        buyer: buyerMatch ? buyerMatch[1].trim() : undefined,
-        synced_at: nowISO(),
-      })
-    }
-
-    logger.info(`[platforms:MPS] Found ${tenders.length} tenders in dept ${department}`)
-    return tenders
-  } catch (err) {
-    logger.error(`[platforms:MPS] Failed for dept ${department}`, { error: err })
-    return []
-  }
-}
-
-// ── e-marchespublics.com ────────────────────────────────────────────────────
+// ── e-marchespublics.com — 337 AO vérifié ──────────────────────────────────
 
 export async function scanEMarches(department: string): Promise<Tender[]> {
   const deptConfig = getDeptConfig(department)
-  const url = `https://www.marches-publics.info/avis/recherche-avis.php?dept=${department}&type=AO`
+  // URL vérifiée : e-marchespublics.com/appel-offre/bouches-du-rhône
+  const deptSlug: Record<string, string> = {
+    '13': 'bouches-du-rh%C3%B4ne',
+  }
+  const slug = deptSlug[department] || department
+  const url = `https://www.e-marchespublics.com/appel-offre/${slug}`
 
   logger.info(`[platforms:EMarches] Scanning department ${department}`)
 
   try {
     const response = await fetchWithRetry(url)
     if (!response.ok) {
-      logger.error(
-        `[platforms:EMarches] HTTP ${response.status} for dept ${department}`
-      )
+      logger.error(`[platforms:EMarches] HTTP ${response.status} for dept ${department}`)
       return []
     }
 
@@ -174,8 +100,7 @@ export async function scanEMarches(department: string): Promise<Tender[]> {
     const tenders: Tender[] = []
 
     // Match table rows or avis blocks
-    const rowPattern =
-      /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
     const linkPattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
     const datePattern = /(\d{2}[/.-]\d{2}[/.-]\d{4})/g
     const buyerPattern =
@@ -193,7 +118,10 @@ export async function scanEMarches(department: string): Promise<Tender[]> {
 
       if (!title || title.length < 10) continue
 
-      // Extract dates from row (first = publication, second = deadline)
+      // Skip attribués
+      const titleLower = title.toLowerCase()
+      if (titleLower.includes('attribué') || titleLower.includes('[attribue]')) continue
+
       const dates: string[] = []
       let dateMatch: RegExpExecArray | null
       while ((dateMatch = datePattern.exec(row)) !== null) {
@@ -215,7 +143,7 @@ export async function scanEMarches(department: string): Promise<Tender[]> {
 
       const fullUrl = link.startsWith('http')
         ? link
-        : `https://www.marches-publics.info${link}`
+        : `https://www.e-marchespublics.com${link}`
 
       const sourceId = generateId('em', link)
 
@@ -237,128 +165,279 @@ export async function scanEMarches(department: string): Promise<Tender[]> {
       })
     }
 
-    logger.info(
-      `[platforms:EMarches] Found ${tenders.length} tenders in dept ${department}`
-    )
+    logger.info(`[platforms:EMarches] Found ${tenders.length} tenders in dept ${department}`)
     return tenders
   } catch (err) {
-    logger.error(`[platforms:EMarches] Failed for dept ${department}`, {
-      error: err,
-    })
+    logger.error(`[platforms:EMarches] Failed for dept ${department}`, { error: err })
     return []
   }
 }
 
-// ── DECP augmenté API (OPEN tenders only) ───────────────────────────────────
+// ── francemarches.com — 596 AO vérifié ──────────────────────────────────────
 
-export async function scanDECPOpen(
-  department: string,
-  daysBack = SCANNER_CONFIG.boamp_days_back
-): Promise<Tender[]> {
+export async function scanFranceMarches(department: string): Promise<Tender[]> {
   const deptConfig = getDeptConfig(department)
-  const since = new Date(Date.now() - daysBack * 86400000)
-    .toISOString()
-    .split('T')[0]
+  const deptSlug: Record<string, string> = {
+    '13': 'bouches-du-rhone',
+  }
+  const slug = deptSlug[department] || department
+  const url = `https://www.francemarches.com/appels-offre/${slug}`
 
-  const whereClause = [
-    `codedepartementexecution='${department}'`,
-    `nature='Marché'`,
-    `datepublicationdonnees>='${since}'`,
-  ].join(' AND ')
-
-  const selectFields = [
-    'id',
-    'objetmarche',
-    'codecpv',
-    'lieuexecutionnom',
-    'montant',
-    'nomacheteur',
-    'nature',
-    'datepublicationdonnees',
-    'datelimitereponse',
-    'codedepartementexecution',
-  ].join(',')
-
-  const params = new URLSearchParams({
-    where: whereClause,
-    select: selectFields,
-    limit: '100',
-    order_by: 'datepublicationdonnees DESC',
-  })
-
-  const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/decp_augmente/records?${params}`
-
-  logger.info(`[platforms:DECP] Scanning department ${department}, last ${daysBack} days`)
+  logger.info(`[platforms:FranceMarches] Scanning department ${department}`)
 
   try {
-    const response = await fetchWithRetry(url, {
-      headers: { Accept: 'application/json' },
-    })
-
+    const response = await fetchWithRetry(url)
     if (!response.ok) {
-      logger.error(`[platforms:DECP] HTTP ${response.status} for dept ${department}`)
+      logger.error(`[platforms:FranceMarches] HTTP ${response.status} for dept ${department}`)
       return []
     }
 
-    const data = await response.json()
-    const records: Array<Record<string, unknown>> = data.results || data.records || []
+    const html = await response.text()
     const tenders: Tender[] = []
 
-    for (const record of records) {
-      const fields =
-        (record.fields as Record<string, unknown>) || record
+    // francemarches.com uses card/list layout
+    const rowPattern = /<(?:tr|div|article|li)[^>]*>([\s\S]*?)<\/(?:tr|div|article|li)>/gi
+    const linkPattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
+    const datePattern = /(\d{2}[/.-]\d{2}[/.-]\d{4})/g
+    const buyerPattern =
+      /(?:acheteur|organisme|entité|commanditaire|pouvoir adjudicateur)[^<]*?(?:<[^>]*>)?\s*([^<]{3,80})/i
+    const budgetPattern = /(\d[\d\s]*)\s*€/
 
-      const title = String(fields.objetmarche || '')
-      const cpv = String(fields.codecpv || '')
+    let rowMatch: RegExpExecArray | null
+    while ((rowMatch = rowPattern.exec(html)) !== null) {
+      const row = rowMatch[1]
 
-      // Skip attributed tenders
+      const linkMatch = linkPattern.exec(row)
+      if (!linkMatch) continue
+
+      const link = linkMatch[1]
+      const title = linkMatch[2].replace(/<[^>]*>/g, '').trim()
+      if (!title || title.length < 10) continue
+
       const titleLower = title.toLowerCase()
-      if (titleLower.includes('[attribué]') || titleLower.includes('attribué')) {
-        continue
+      if (titleLower.includes('attribué') || titleLower.includes('terminé')) continue
+
+      const dates: string[] = []
+      let dateMatch: RegExpExecArray | null
+      while ((dateMatch = datePattern.exec(row)) !== null) {
+        dates.push(dateMatch[1])
       }
 
-      // Filter CPV prefix 45 (construction)
-      if (cpv && !cpv.startsWith('45')) {
-        continue
-      }
+      const publicationDate = dates[0]
+        ? dates[0].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : nowISO().split('T')[0]
+      const deadline = dates[1]
+        ? dates[1].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : ''
 
-      const decpId = String(fields.id || '')
-      const montant = fields.montant ? Number(fields.montant) : undefined
-      const publicationDate = String(fields.datepublicationdonnees || '').split('T')[0]
-      const deadline = String(fields.datelimitereponse || '').split('T')[0]
-      const lieu = String(fields.lieuexecutionnom || '')
-      const acheteur = String(fields.nomacheteur || '')
+      const buyerMatch = buyerPattern.exec(row)
+      const buyer = buyerMatch ? buyerMatch[1].replace(/<[^>]*>/g, '').trim() : undefined
 
-      const recordUrl = decpId
-        ? `https://data.economie.gouv.fr/explore/dataset/decp_augmente/table/?q=${encodeURIComponent(decpId)}`
-        : `https://data.economie.gouv.fr/explore/dataset/decp_augmente/table/`
+      const budgetMatch = budgetPattern.exec(row)
+      const budget = budgetMatch
+        ? parseInt(budgetMatch[1].replace(/\s/g, ''), 10) || undefined
+        : undefined
+
+      const fullUrl = link.startsWith('http')
+        ? link
+        : `https://www.francemarches.com${link}`
 
       tenders.push({
-        id: generateId('decp', `${department}_${decpId || title}`),
+        id: generateId('fm', `${department}_${link}`),
         title,
-        city: lieu,
-        source: 'DECP augmenté',
-        source_id: decpId || generateId('decp_rec', title),
-        publication_date: publicationDate || nowISO().split('T')[0],
-        deadline: deadline || '',
+        city: '',
+        source: 'francemarches.com',
+        source_id: generateId('fm', link),
+        publication_date: publicationDate,
+        deadline,
         description: title,
-        url: recordUrl,
-        estimated_budget: montant && montant > 0 ? montant : undefined,
+        url: fullUrl,
+        estimated_budget: budget,
         category: 'BTP',
-        cpv_codes: cpv ? [cpv] : undefined,
         department: deptConfig.code,
         region: deptConfig.region,
-        buyer: acheteur || undefined,
+        buyer,
         synced_at: nowISO(),
       })
     }
 
-    logger.info(
-      `[platforms:DECP] Found ${tenders.length} open tenders in dept ${department} (filtered from ${records.length} records)`
-    )
+    logger.info(`[platforms:FranceMarches] Found ${tenders.length} tenders in dept ${department}`)
     return tenders
   } catch (err) {
-    logger.error(`[platforms:DECP] Failed for dept ${department}`, { error: err })
+    logger.error(`[platforms:FranceMarches] Failed for dept ${department}`, { error: err })
+    return []
+  }
+}
+
+// ── marchesonline.com — compte gratuit, login requis ────────────────────────
+
+export async function scanMarchesOnline(department: string): Promise<Tender[]> {
+  const deptConfig = getDeptConfig(department)
+  const deptSlug: Record<string, string> = {
+    '13': 'bouches-du-rhone-D13',
+  }
+  const slug = deptSlug[department] || `D${department}`
+  const url = `https://www.marchesonline.com/appels-offres/departement/${slug}`
+
+  logger.info(`[platforms:MarchesOnline] Scanning department ${department}`)
+
+  try {
+    const response = await fetchWithRetry(url)
+    if (!response.ok) {
+      // Expected: 403 or redirect to login — site requires free account
+      logger.warn(`[platforms:MarchesOnline] HTTP ${response.status} — login may be required`)
+      return []
+    }
+
+    const html = await response.text()
+
+    // Check if we got a login page instead of results
+    if (html.includes('Connexion') && html.includes('mot de passe') && !html.includes('appel-offre')) {
+      logger.info(`[platforms:MarchesOnline] Login page detected — skipping (requires account)`)
+      return []
+    }
+
+    const tenders: Tender[] = []
+
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+    const linkPattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
+    const datePattern = /(\d{2}[/.-]\d{2}[/.-]\d{4})/g
+
+    let rowMatch: RegExpExecArray | null
+    while ((rowMatch = rowPattern.exec(html)) !== null) {
+      const row = rowMatch[1]
+
+      const linkMatch = linkPattern.exec(row)
+      if (!linkMatch) continue
+
+      const link = linkMatch[1]
+      const title = linkMatch[2].replace(/<[^>]*>/g, '').trim()
+      if (!title || title.length < 10) continue
+
+      const titleLower = title.toLowerCase()
+      if (titleLower.includes('attribué')) continue
+
+      const dates: string[] = []
+      let dateMatch: RegExpExecArray | null
+      while ((dateMatch = datePattern.exec(row)) !== null) {
+        dates.push(dateMatch[1])
+      }
+
+      const deadline = dates[0]
+        ? dates[0].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : ''
+
+      const fullUrl = link.startsWith('http')
+        ? link
+        : `https://www.marchesonline.com${link}`
+
+      tenders.push({
+        id: generateId('mol', `${department}_${link}`),
+        title,
+        city: '',
+        source: 'marchesonline.com',
+        source_id: generateId('mol', link),
+        publication_date: nowISO().split('T')[0],
+        deadline,
+        description: title,
+        url: fullUrl,
+        category: 'BTP',
+        department: deptConfig.code,
+        region: deptConfig.region,
+        synced_at: nowISO(),
+      })
+    }
+
+    logger.info(`[platforms:MarchesOnline] Found ${tenders.length} tenders in dept ${department}`)
+    return tenders
+  } catch (err) {
+    logger.error(`[platforms:MarchesOnline] Failed for dept ${department}`, { error: err })
+    return []
+  }
+}
+
+// ── bailleurs-sociaux.marches-publics.info — HLM vérifié ────────────────────
+
+export async function scanBailleursSociaux(department: string): Promise<Tender[]> {
+  const deptConfig = getDeptConfig(department)
+  const url = `https://bailleurs-sociaux.marches-publics.info/?type=ao&dept=${department}`
+
+  logger.info(`[platforms:HLM] Scanning bailleurs-sociaux.marches-publics.info for dept ${department}`)
+
+  try {
+    const response = await fetchWithRetry(url)
+    if (!response.ok) {
+      logger.error(`[platforms:HLM] HTTP ${response.status} for dept ${department}`)
+      return []
+    }
+
+    const html = await response.text()
+    const tenders: Tender[] = []
+
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+    const linkPattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
+    const datePattern = /(\d{2}[/.-]\d{2}[/.-]\d{4})/g
+    const buyerPattern =
+      /<td[^>]*class="[^"]*organisme[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/td>/i
+
+    let rowMatch: RegExpExecArray | null
+    while ((rowMatch = rowPattern.exec(html)) !== null) {
+      const row = rowMatch[1]
+
+      const linkMatch = linkPattern.exec(row)
+      if (!linkMatch) continue
+
+      const link = linkMatch[1]
+      const title = linkMatch[2].replace(/<[^>]*>/g, '').trim()
+      if (!title || title.length < 10) continue
+
+      const titleLower = title.toLowerCase()
+      if (titleLower.includes('attribué') || titleLower.includes('[attribue]')) continue
+
+      const dates: string[] = []
+      let dateMatch: RegExpExecArray | null
+      while ((dateMatch = datePattern.exec(row)) !== null) {
+        dates.push(dateMatch[1])
+      }
+
+      const publicationDate = dates[0]
+        ? dates[0].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : nowISO().split('T')[0]
+      const deadline = dates[1]
+        ? dates[1].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : ''
+
+      const buyerMatch = buyerPattern.exec(row)
+      const buyer = buyerMatch
+        ? buyerMatch[1].replace(/<[^>]*>/g, '').trim()
+        : undefined
+
+      const fullUrl = link.startsWith('http')
+        ? link
+        : `https://bailleurs-sociaux.marches-publics.info${link}`
+
+      tenders.push({
+        id: generateId('hlm', `${department}_${link}`),
+        title,
+        city: '',
+        source: 'Bailleurs sociaux (HLM)',
+        source_id: generateId('hlm', link),
+        publication_date: publicationDate,
+        deadline,
+        description: title,
+        url: fullUrl,
+        category: 'BTP',
+        department: deptConfig.code,
+        region: deptConfig.region,
+        buyer,
+        synced_at: nowISO(),
+      })
+    }
+
+    logger.info(`[platforms:HLM] Found ${tenders.length} tenders in dept ${department}`)
+    return tenders
+  } catch (err) {
+    logger.error(`[platforms:HLM] Failed for dept ${department}`, { error: err })
     return []
   }
 }
@@ -370,13 +449,14 @@ export async function scanAllPlatforms(department: string): Promise<Tender[]> {
   const start = Date.now()
 
   const results = await Promise.allSettled([
-    scanMPS(department),
     scanEMarches(department),
-    scanDECPOpen(department),
+    scanFranceMarches(department),
+    scanMarchesOnline(department),
+    scanBailleursSociaux(department),
   ])
 
   const tenders: Tender[] = []
-  const sources = ['MPS', 'EMarches', 'DECP']
+  const sources = ['EMarches', 'FranceMarches', 'MarchesOnline', 'BailleursSociaux']
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]

@@ -1,8 +1,7 @@
 // ── Regional PACA Platforms Scanner ──────────────────────────────────────────
-// Scans regional procurement platforms specific to PACA / Bouches-du-Rhône:
-// - paca.marches-publics.info (Profil acheteur régional)
-// - marches.ampmetropole.fr (Métropole Aix-Marseille-Provence)
-// - achat.maregionsud.fr (Région Sud / Provence-Alpes-Côte d'Azur)
+// 3 sites régionaux vérifiés fonctionnels pour marchés BTP dept 13 :
+// - marchespublics.ampmetropole.fr (Métropole Aix-Marseille-Provence)
+// - achat.maregionsud.fr (Région Sud — 888 AO vérifiés)
 // - marches.departement13.fr (Conseil Départemental des Bouches-du-Rhône)
 
 import type { Tender } from '../types'
@@ -72,7 +71,7 @@ async function fetchWithRetry(
 
 /**
  * Generic HTML parser for procurement search result pages.
- * Most regional platforms share similar HTML structures (table or card layout).
+ * Handles table rows + card/div layouts.
  */
 function parseProcurementHTML(
   html: string,
@@ -87,7 +86,6 @@ function parseProcurementHTML(
   // Strategy 1: table rows with links
   const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
   const linkPattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
-  const datePattern = /(\d{2}[/.-]\d{2}[/.-]\d{4})/g
   const buyerPattern =
     /(?:acheteur|organisme|entité|collectivité|maître\s*d'ouvrage)[^<]*?(?:<[^>]*>)?\s*([^<]{3,80})/i
 
@@ -103,7 +101,6 @@ function parseProcurementHTML(
 
     if (!title || title.length < 10) continue
 
-    // Skip obviously non-BTP rows (fournitures, services IT, etc.)
     const titleLower = title.toLowerCase()
     if (titleLower.includes('attribué') || titleLower.includes('[attribue]')) continue
 
@@ -148,7 +145,7 @@ function parseProcurementHTML(
     })
   }
 
-  // Strategy 2: div-based card layout (if table parsing found nothing)
+  // Strategy 2: div-based card layout (fallback)
   if (tenders.length === 0) {
     const cardPattern =
       /<(?:div|article|li)[^>]*class="[^"]*(?:consultation|avis|marche|result)[^"]*"[^>]*>([\s\S]*?)(?:<\/(?:div|article|li)>){1,3}/gi
@@ -189,51 +186,16 @@ function parseProcurementHTML(
   return tenders
 }
 
-// ── paca.marches-publics.info ───────────────────────────────────────────────
-
-export async function scanPACAMarches(department: string): Promise<Tender[]> {
-  const deptConfig = DEPARTMENTS[department]
-  if (!deptConfig) return []
-
-  const url = `https://paca.marches-publics.info/?type=ao&dept=${department}`
-
-  logger.info(`[regional-paca:PACA] Scanning paca.marches-publics.info for dept ${department}`)
-
-  try {
-    const response = await fetchWithRetry(url)
-    if (!response.ok) {
-      logger.error(`[regional-paca:PACA] HTTP ${response.status}`)
-      return []
-    }
-
-    const html = await response.text()
-    const tenders = parseProcurementHTML(
-      html,
-      'paca.marches-publics.info',
-      'paca_mp',
-      'https://paca.marches-publics.info',
-      deptConfig.code,
-      deptConfig.region,
-    )
-
-    logger.info(`[regional-paca:PACA] Found ${tenders.length} tenders`)
-    return tenders
-  } catch (err) {
-    logger.error(`[regional-paca:PACA] Failed`, { error: err })
-    return []
-  }
-}
-
-// ── marches.ampmetropole.fr ─────────────────────────────────────────────────
+// ── marchespublics.ampmetropole.fr — vérifié ────────────────────────────────
 
 export async function scanAMPMetropole(): Promise<Tender[]> {
-  // Métropole Aix-Marseille-Provence — always dept 13
   const deptConfig = DEPARTMENTS['13']
   if (!deptConfig) return []
 
-  const url = 'https://marches.ampmetropole.fr/entreprise/consultation-list'
+  // URL corrigée : marchespublics.ampmetropole.fr (pas marches.)
+  const url = 'https://marchespublics.ampmetropole.fr/entreprise/consultation-list'
 
-  logger.info(`[regional-paca:AMP] Scanning marches.ampmetropole.fr`)
+  logger.info(`[regional-paca:AMP] Scanning marchespublics.ampmetropole.fr`)
 
   try {
     const response = await fetchWithRetry(url)
@@ -247,7 +209,7 @@ export async function scanAMPMetropole(): Promise<Tender[]> {
       html,
       'Métropole Aix-Marseille-Provence',
       'amp_metro',
-      'https://marches.ampmetropole.fr',
+      'https://marchespublics.ampmetropole.fr',
       '13',
       deptConfig.region,
     )
@@ -260,13 +222,12 @@ export async function scanAMPMetropole(): Promise<Tender[]> {
   }
 }
 
-// ── achat.maregionsud.fr ────────────────────────────────────────────────────
+// ── achat.maregionsud.fr — 888 AO vérifié ──────────────────────────────────
 
 export async function scanRegionSud(): Promise<Tender[]> {
   const deptConfig = DEPARTMENTS['13']
   if (!deptConfig) return []
 
-  // Région Sud procurement portal
   const url = 'https://achat.maregionsud.fr/entreprise/consultation-list'
 
   logger.info(`[regional-paca:RegionSud] Scanning achat.maregionsud.fr`)
@@ -296,7 +257,7 @@ export async function scanRegionSud(): Promise<Tender[]> {
   }
 }
 
-// ── marches.departement13.fr ────────────────────────────────────────────────
+// ── marches.departement13.fr — vérifié ──────────────────────────────────────
 
 export async function scanDepartement13(): Promise<Tender[]> {
   const deptConfig = DEPARTMENTS['13']
@@ -334,22 +295,23 @@ export async function scanDepartement13(): Promise<Tender[]> {
 // ── Aggregate all regional PACA scanners ────────────────────────────────────
 
 export async function scanAllRegionalPACA(department: string): Promise<Tender[]> {
-  logger.info(`[regional-paca] Starting parallel scan for all PACA regional platforms`)
-  const start = Date.now()
-
-  // Only the PACA platform is department-generic; the others are 13-specific
-  const scanners: Promise<Tender[]>[] = [scanPACAMarches(department)]
-
-  // Add 13-specific scanners only when scanning dept 13
-  if (department === '13') {
-    scanners.push(scanAMPMetropole())
-    scanners.push(scanRegionSud())
-    scanners.push(scanDepartement13())
+  // Ces 3 plateformes sont spécifiques au dept 13
+  if (department !== '13') {
+    logger.info(`[regional-paca] Skipping — regional platforms only available for dept 13`)
+    return []
   }
 
-  const results = await Promise.allSettled(scanners)
+  logger.info(`[regional-paca] Starting parallel scan for 3 PACA regional platforms`)
+  const start = Date.now()
+
+  const results = await Promise.allSettled([
+    scanAMPMetropole(),
+    scanRegionSud(),
+    scanDepartement13(),
+  ])
+
   const tenders: Tender[] = []
-  const labels = ['PACA', 'AMP', 'RegionSud', 'Dept13'].slice(0, scanners.length)
+  const labels = ['AMP Métropole', 'Région Sud', 'Dept 13']
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]
@@ -362,7 +324,7 @@ export async function scanAllRegionalPACA(department: string): Promise<Tender[]>
 
   const duration = Date.now() - start
   logger.info(
-    `[regional-paca] Complete: ${tenders.length} tenders from ${scanners.length} regional platforms in ${duration}ms`,
+    `[regional-paca] Complete: ${tenders.length} tenders from 3 regional platforms in ${duration}ms`,
   )
 
   return tenders

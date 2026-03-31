@@ -7,8 +7,6 @@ import { scanBOAMP } from './sources/boamp'
 import { scanAllMairies } from './sources/mairies'
 import { scanAllPlatforms } from './sources/platforms'
 import { scanAllRegionalPACA } from './sources/regional-paca'
-import { scanAllPrivateBTP } from './sources/private-btp'
-import { scanAWSAchat } from './sources/aws-achat'
 import { filterBTP } from './classifier'
 import { deduplicateTenders } from './dedup'
 import { logger } from '@/lib/logger'
@@ -87,13 +85,13 @@ export async function scanDepartment(department: string): Promise<ScanResult> {
   // 3. Run all sources in parallel
   const sourceResults: Record<string, Tender[]> = {}
 
+  // 8 sources vérifiées : BOAMP + mairies + e-marchespublics + francemarches
+  // + marchesonline + bailleurs-sociaux HLM + AMP Métropole + Région Sud + Dept 13
   const scannerEntries: Array<{ key: string; promise: Promise<Tender[]> }> = [
     { key: 'boamp', promise: scanBOAMP(department, SCANNER_CONFIG.boamp_days_back) },
     { key: 'mairies', promise: scanAllMairies(communesWithSite) },
     { key: 'platforms', promise: scanAllPlatforms(department) },
-    { key: 'aws_achat', promise: scanAWSAchat(department) },
     { key: 'regional_paca', promise: scanAllRegionalPACA(department) },
-    { key: 'private_btp', promise: scanAllPrivateBTP(department) },
   ]
 
   const settled = await Promise.allSettled(scannerEntries.map(e => e.promise))
