@@ -700,6 +700,10 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [kbisFile, setKbisFile] = useState<File | null>(null)
+  const [kbisPreview, setKbisPreview] = useState('')
+  const [idFile, setIdFile] = useState<File | null>(null)
+  const [idPreview, setIdPreview] = useState('')
 
   const verifySiret = async () => {
     const clean = siretInput.replace(/\s/g, '')
@@ -713,13 +717,28 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
+  const uploadDoc = async (file: File, folder: string, token: string): Promise<string> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('bucket', 'artisan-documents')
+    fd.append('folder', folder)
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Échec de l\'upload')
+    return data.url
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError(t('register.passwordMismatch')); return }
     if (form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password)) { setError(t('register.passwordMin8')); return }
     setLoading(true); setError('')
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: form.email, password: form.password,
         options: {
           data: {
@@ -736,10 +755,30 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             secteurs: form.secteurs,
             ville: form.ville,
             abonnement: 'trial',
+            kyc_status: 'pending',
           }
         }
       })
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
+
+      // Upload documents using the session token from signUp
+      if (authData.session?.access_token) {
+        try {
+          const [kbisUrl, idUrl] = await Promise.all([
+            kbisFile ? uploadDoc(kbisFile, 'kbis', authData.session.access_token) : Promise.resolve(''),
+            idFile ? uploadDoc(idFile, 'identity', authData.session.access_token) : Promise.resolve(''),
+          ])
+          if (kbisUrl || idUrl) {
+            await supabase.auth.updateUser({
+              data: { kbis_url: kbisUrl || undefined, id_document_url: idUrl || undefined },
+            })
+          }
+        } catch (uploadErr: any) {
+          // Non-blocking: account created, docs failed
+          setError(`Compte créé mais erreur upload documents: ${uploadErr.message}`)
+        }
+      }
+
       setSuccess(true)
     } catch { setError(t('register.genericError')) }
     finally { setLoading(false) }
@@ -888,10 +927,65 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               <input type="text" value={form.codePostal} onChange={e => setForm(f => ({...f, codePostal: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="75001" />
             </div>
           </div>
+          {/* Documents obligatoires */}
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg">
+            <p className="text-sm text-blue-800"><strong>📋 Documents requis</strong> — Pour valider votre compte et lutter contre la fraude.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-mid mb-1">KBIS ou extrait d'immatriculation <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">Document officiel d'immatriculation de votre société (PDF ou image)</p>
+            {!kbisFile ? (
+              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-blue-400 transition bg-red-50/30">
+                <span className="text-2xl">🏢</span>
+                <span className="text-sm text-text-muted mt-1">Ajouter le KBIS</span>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) {
+                    setKbisFile(f)
+                    if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setKbisPreview(ev.target?.result as string); r.readAsDataURL(f) }
+                  }
+                }} />
+              </label>
+            ) : (
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                {kbisPreview ? <img src={kbisPreview} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
+                <span className="flex-1 text-sm font-semibold text-green-800 truncate">{kbisFile.name}</span>
+                <button type="button" onClick={() => { setKbisFile(null); setKbisPreview('') }} className="text-text-muted hover:text-red-500">✕</button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-mid mb-1">Carte d'identité du dirigeant <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">Pièce d'identité valide du représentant légal (PDF ou image)</p>
+            {!idFile ? (
+              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-red-300 rounded-xl cursor-pointer hover:border-blue-400 transition bg-red-50/30">
+                <span className="text-2xl">🪪</span>
+                <span className="text-sm text-text-muted mt-1">Ajouter la pièce d'identité</span>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) {
+                    setIdFile(f)
+                    if (f.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => setIdPreview(ev.target?.result as string); r.readAsDataURL(f) }
+                  }
+                }} />
+              </label>
+            ) : (
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                {idPreview ? <img src={idPreview} alt="" className="w-10 h-10 object-cover rounded" /> : <span className="text-2xl">📄</span>}
+                <span className="flex-1 text-sm font-semibold text-green-800 truncate">{idFile.name}</span>
+                <button type="button" onClick={() => { setIdFile(null); setIdPreview('') }} className="text-text-muted hover:text-red-500">✕</button>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setStep(1)} className="flex-1 border-2 border-[#EFEFEF] text-text-muted py-3 rounded-xl font-semibold hover:bg-warm-gray transition">{t('register.back')}</button>
             <button type="button" onClick={() => {
               if (!form.prenom || !form.nom || !form.email) { setError(t('register.fillRequired')); return }
+              if (!kbisFile) { setError('Le KBIS est requis pour valider votre inscription'); return }
+              if (!idFile) { setError("La carte d'identité du dirigeant est requise"); return }
               setError(''); setStep(3)
             }} className={`flex-1 py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
           </div>
@@ -916,6 +1010,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <p className="text-text-muted">🏢 {company?.name || form.companyName}</p>
             <p className="text-text-muted">👤 {form.prenom} {form.nom} — {form.email}</p>
             <p className="text-text-muted">📌 {form.secteurs.join(' · ')}</p>
+            <p className="text-text-muted">📄 KBIS {kbisFile ? '✅' : '—'} · Pièce d'identité {idFile ? '✅' : '—'}</p>
             <p className={`font-semibold mt-2 ${org.color === 'blue' ? 'text-blue-700' : org.color === 'purple' ? 'text-purple-700' : 'text-green-700'}`}>✅ {t('register.trialDays')}</p>
           </div>
 

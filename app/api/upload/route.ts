@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     // Si artisan_id + field fournis, mettre à jour le profil
     if (artisanId && field) {
-      const allowedFields = ['insurance_url', 'kbis_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
+      const allowedFields = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
       if (allowedFields.includes(field)) {
         // Trouver l'artisan : d'abord par id, puis par user_id (fallback)
         let artisanRow = (await supabaseAdmin
