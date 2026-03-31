@@ -162,6 +162,21 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   }, [])
   const isPt = locale === 'pt'
 
+  // Department dropdown state
+  const [deptDropdownOpen, setDeptDropdownOpen] = useState(false)
+  const deptDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close department dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (deptDropdownRef.current && !deptDropdownRef.current.contains(e.target as Node)) {
+        setDeptDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // PRO GATE CHECK — désactivé temporairement, accès libre pour tous
   const isPro = true
 
@@ -187,22 +202,11 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
 
   // Filters
   const [filterCategory, setFilterCategory] = useState('')
-  const [filterCity, setFilterCity] = useState('')
-  const [filterUrgency, setFilterUrgency] = useState('')
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
-  const [filterZone, setFilterZone] = useState('')                   // zone_test filter (test mode)
   const [filterRegion, setFilterRegion] = useState('paca')            // Default PACA for MVP
   const [filterDepartments, setFilterDepartments] = useState<string[]>([]) // Multi-select departments
-
   // Auto-detect pays from locale — FR artisan sees FR only, PT sees PT only
   const artisanPays = isPt ? 'PT' : 'FR'
-
-  // Test mode detection (show zone filter only in dev/test)
-  const isTestMode = typeof window !== 'undefined' && (
-    process.env.NEXT_PUBLIC_MODE === 'test' ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname.includes('vercel.app')
-  )
 
   // Bid form state
   const [bidPrice, setBidPrice] = useState('')
@@ -253,10 +257,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     try {
       const params = new URLSearchParams()
       if (filterCategory) params.set('category', filterCategory)
-      if (filterCity) params.set('city', filterCity)
-      if (filterUrgency) params.set('urgency', filterUrgency)
       if (filterGrandMarche) params.set('budget_min', '50000')
-      if (filterZone) params.set('zone', filterZone)
       params.set('pays', artisanPays)
       params.set('status', 'open')
       if (artisan?.id) params.set('artisan_user_id', artisan.id)
@@ -270,7 +271,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterZone, artisanPays])
+  }, [isPro, filterCategory, filterGrandMarche, artisanPays])
 
   // ── Résolution automatique du corps de métier de l'artisan ──
   // Priorité : filtre catégorie > préférences marchés > catégories profil artisan
@@ -301,7 +302,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const token = sess?.session?.access_token
       if (!token) { setScanError('Session expirée'); return }
 
-      const loc = filterCity || artisan?.city || (isPt ? 'Porto' : 'Marseille')
+      const loc = artisan?.city || (isPt ? 'Porto' : 'Marseille')
 
       // eslint-disable-next-line no-console
       console.log('[scan] Envoi:', { metiers, location: loc, country: isPt ? 'PT' : 'FR' })
@@ -332,7 +333,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setScanning(false)
     }
-  }, [isPt, artisan, resolvedMetiers, filterCity, filterRegion, filterDepartments])
+  }, [isPt, artisan, resolvedMetiers, filterRegion, filterDepartments])
 
   // Fetch my bids
   const fetchMyBids = useCallback(async () => {
@@ -1064,9 +1065,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
             {stats.openCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
           </div>
         </div>
-        {(filterCategory || filterCity || filterUrgency || filterGrandMarche) && (
+        {(filterCategory || filterGrandMarche || filterDepartments.length > 0) && (
           <button
-            onClick={() => { setFilterCategory(''); setFilterCity(''); setFilterUrgency(''); setFilterGrandMarche(false) }}
+            onClick={() => { setFilterCategory(''); setFilterGrandMarche(false); setFilterDepartments([]) }}
             className="v22-btn v22-btn-sm"
           >
             {isPt ? 'Reiniciar' : 'Réinitialiser'}
@@ -1214,31 +1215,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </select>
                 </div>
 
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Cidade' : 'Ville'}</label>
-                  <input
-                    type="text"
-                    value={filterCity}
-                    onChange={e => setFilterCity(e.target.value)}
-                    placeholder={isPt ? 'Cidade...' : 'Ville...'}
-                    className="v22-form-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Urgência' : 'Urgence'}</label>
-                  <select
-                    value={filterUrgency}
-                    onChange={e => setFilterUrgency(e.target.value)}
-                    className="v22-form-input"
-                  >
-                    <option value="">{isPt ? 'Todas' : 'Toutes'}</option>
-                    <option value="normal">🟢 Normal</option>
-                    <option value="urgent">🟡 {isPt ? 'Urgente' : 'Urgent'}</option>
-                    <option value="emergency">🔴 {isPt ? 'Emergência' : 'Urgence'}</option>
-                  </select>
-                </div>
-
                 {/* Région filter (FR only) */}
                 {!isPt && (
                   <div>
@@ -1259,56 +1235,94 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </div>
                 )}
 
-                {/* Département multi-select (shows departments for selected region) */}
+                {/* Département dropdown with checkboxes (FR only, when region selected) */}
                 {!isPt && filterRegion && (
-                  <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ position: 'relative' }} ref={deptDropdownRef}>
                     <label className="v22-form-label">
                       Départements {filterDepartments.length > 0 && <span style={{ color: '#f59e0b', fontWeight: 700 }}>({filterDepartments.length})</span>}
                     </label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 80, overflowY: 'auto', padding: 4, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafafa' }}>
-                      {(FR_REGIONS.find(r => r.id === filterRegion)?.depts || []).map(d => {
-                        const isSelected = filterDepartments.includes(d)
-                        return (
-                          <button
-                            key={d}
-                            type="button"
-                            onClick={() => {
-                              setFilterDepartments(prev =>
-                                isSelected ? prev.filter(x => x !== d) : [...prev, d]
-                              )
-                            }}
-                            style={{
-                              padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                              border: isSelected ? '2px solid #f59e0b' : '1px solid #d1d5db',
-                              background: isSelected ? '#fef3c7' : '#fff',
-                              color: isSelected ? '#92400e' : '#374151',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {DEPT_LABELS[d] || d}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                      {filterDepartments.length === 0 ? 'Tous les départements de la région' : `${filterDepartments.length} département(s) sélectionné(s)`}
-                    </div>
-                  </div>
-                )}
-
-                {/* Zone filter — test/dev only, restricted to current country */}
-                {isTestMode && (
-                  <div>
-                    <label className="v22-form-label">Zone test</label>
-                    <select
-                      value={filterZone}
-                      onChange={e => setFilterZone(e.target.value)}
+                    <button
+                      type="button"
+                      onClick={() => setDeptDropdownOpen(v => !v)}
                       className="v22-form-input"
+                      style={{
+                        width: '100%', textAlign: 'left', cursor: 'pointer',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        background: '#fff', minWidth: 200,
+                      }}
                     >
-                      <option value="">Toutes</option>
-                      {!isPt && <option value="13-paca">🇫🇷 Dept 13 / PACA</option>}
-                      {isPt && <option value="porto-pt">🇵🇹 Porto / Norte</option>}
-                    </select>
+                      <span style={{ fontSize: 12, color: filterDepartments.length > 0 ? '#1a1a1a' : '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {filterDepartments.length === 0
+                          ? 'Tous les départements'
+                          : filterDepartments.length <= 2
+                            ? filterDepartments.map(d => DEPT_LABELS[d]?.split(' - ')[1] || d).join(', ')
+                            : `${filterDepartments.length} départements`}
+                      </span>
+                      <span style={{ fontSize: 10, marginLeft: 6, color: '#9ca3af' }}>{deptDropdownOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {deptDropdownOpen && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 220, overflowY: 'auto',
+                        marginTop: 4,
+                      }}>
+                        {/* Select all / Deselect all */}
+                        <div style={{ padding: '6px 10px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setFilterDepartments(FR_REGIONS.find(r => r.id === filterRegion)?.depts || [])}
+                            style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            Tout sélectionner
+                          </button>
+                          <span style={{ color: '#d1d5db' }}>|</span>
+                          <button
+                            type="button"
+                            onClick={() => setFilterDepartments([])}
+                            style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            Tout désélectionner
+                          </button>
+                        </div>
+                        {(FR_REGIONS.find(r => r.id === filterRegion)?.depts || []).map(d => {
+                          const isSelected = filterDepartments.includes(d)
+                          return (
+                            <label
+                              key={d}
+                              onClick={() => setFilterDepartments(prev => isSelected ? prev.filter(x => x !== d) : [...prev, d])}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '7px 10px', cursor: 'pointer', fontSize: 12,
+                                background: isSelected ? '#fffbeb' : 'transparent',
+                                borderBottom: '1px solid #f9fafb',
+                              }}
+                              onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
+                              onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                            >
+                              <div
+                                style={{
+                                  width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                                  border: isSelected ? '2px solid #f59e0b' : '2px solid #d1d5db',
+                                  background: isSelected ? '#f59e0b' : '#fff',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  transition: 'all 0.15s',
+                                }}
+                              >
+                                {isSelected && (
+                                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span style={{ color: isSelected ? '#92400e' : '#374151', fontWeight: isSelected ? 500 : 400 }}>
+                                {DEPT_LABELS[d] || d}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
