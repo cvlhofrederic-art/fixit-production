@@ -1,13 +1,39 @@
+'use server'
 import { NextResponse, type NextRequest } from 'next/server'
 import { scanMarches } from '@/lib/marches-scanner'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
-// ── GET /api/cron/scan-marches — Cron daily scan (Vercel Cron) ──────────────
-// Schedule: every day at 6:00 AM (configured in vercel.json)
-// Scans BOAMP + TED + BASE.gov, stores new marches in Supabase
+// ── GET /api/cron/scan-marches — Cron weekly scan (Vercel Cron) ──────────────
+// Schedule: every Monday at 6:00 AM (configured in vercel.json)
+// Scans BOAMP + TED + BASE.gov for ALL corps de métier, stores in Supabase
+// Results stay visible until the next weekly cron replaces them
+
+// All corps de métier from the Bourse aux Marchés UI
+const ALL_METIERS = [
+  // FR keywords
+  'plombier', 'plomberie', 'canalisateur',
+  'electricien', 'electricite', 'courant fort',
+  'peintre', 'peinture', 'ravalement',
+  'serrurier', 'serrurerie', 'metallerie',
+  'ascenseur', 'elevateur',
+  'nettoyage', 'entretien',
+  'jardinage', 'espaces verts',
+  'etancheite', 'impermeabilisation',
+  'macon', 'gros oeuvre', 'construction',
+  'climatisation', 'chauffage', 'ventilation',
+  'securite', 'alarme', 'surveillance',
+  'gaz', 'chauffagiste',
+  'couvreur', 'toiture', 'zinguerie',
+  'debouchage', 'assainissement',
+  'menuisier', 'menuiserie', 'charpente',
+  'vitrier', 'vitrerie', 'miroiterie',
+  'demenagement', 'transport',
+  'renovation', 'refection', 'rehabilitation',
+  'isolation', 'thermique', 'acoustique',
+]
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,19 +44,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    logger.info('[cron/scan-marches] Starting daily scan...')
+    logger.info('[cron/scan-marches] Starting weekly scan for all corps de métier...')
 
-    // Scan last 2 days to catch anything missed
-    // Include common BTP metiers for keyword filtering on BOAMP
-    const btpMetiers = ['couvreur', 'electricien', 'plombier', 'macon', 'peintre', 'menuisier', 'chauffagiste', 'renovation']
-    const result = await scanMarches({ country: 'both', daysBack: 2, metiers: btpMetiers })
+    // ── 1. Cleanup old scan results (> 8 days) to avoid stale data ──────────
+    const cutoff = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
+    const { count: deleted } = await supabaseAdmin
+      .from('marches')
+      .delete({ count: 'exact' })
+      .like('source_type', 'scan_%')
+      .lt('created_at', cutoff)
+    logger.info(`[cron/scan-marches] Cleaned up ${deleted ?? 0} stale scan results`)
+
+    // ── 2. Scan BOAMP + TED + BASE.gov for all corps de métier ──────────────
+    const result = await scanMarches({
+      country: 'both',
+      daysBack: 7, // full week since last cron
+      metiers: ALL_METIERS,
+    })
 
     let inserted = 0
     let skipped = 0
 
-    // Store new marches in Supabase
+    // ── 3. Upsert new marches in Supabase ───────────────────────────────────
     for (const marche of result.marches) {
-      // Check if already exists (by sourceId)
+      // Skip duplicates by title + publisher
       const { data: existing } = await supabaseAdmin
         .from('marches')
         .select('id')
@@ -44,7 +81,6 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      // Map source category to our category system
       const category = marche.scoring?.matchedMetiers?.[0] || 'outro'
 
       const { error: insertErr } = await supabaseAdmin
@@ -78,10 +114,11 @@ export async function GET(request: NextRequest) {
       totalFiltered: result.meta.totalFiltered,
       inserted,
       skipped,
+      deleted: deleted ?? 0,
       sources: result.meta.sources,
     }
 
-    logger.info(`[cron/scan-marches] Done: ${inserted} inserted, ${skipped} skipped, ${result.meta.totalScanned} scanned`)
+    logger.info(`[cron/scan-marches] Done: ${inserted} inserted, ${skipped} skipped, ${deleted ?? 0} deleted, ${result.meta.totalScanned} scanned`)
 
     return NextResponse.json({ success: true, ...summary })
   } catch (err) {
