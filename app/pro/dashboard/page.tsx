@@ -195,19 +195,19 @@ export default function DashboardPage() {
     let didLoad = false
 
     const initAuth = async () => {
-      // Try getSession first (reads from storage, faster) then validate with getUser
+      // getSession reads from localStorage — instant, no network call
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         didLoad = true
-        await loadDashboardData(session.user)
+        loadDashboardData(session.user) // Don't await — let UI render while data loads
         return
       }
 
-      // Fallback: try getUser (validates with server)
+      // Fallback: getUser validates with server (slower)
       const { data: { user: currentUser } } = await supabase.auth.getUser()
       if (currentUser) {
         didLoad = true
-        await loadDashboardData(currentUser)
+        loadDashboardData(currentUser)
       } else {
         window.location.href = '/pro/login'
       }
@@ -219,14 +219,9 @@ export default function DashboardPage() {
       if (event === 'SIGNED_OUT') {
         window.location.href = '/pro/login'
       }
-      // TOKEN_REFRESHED : Supabase a silencieusement renouvelé le token → on met à jour le token stocké
-      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
-        // Rien de spécial à faire — supabase.auth.getSession() retournera automatiquement le nouveau token
-      }
-      // Only reload data if initAuth hasn't already loaded it
       if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
         didLoad = true
-        await loadDashboardData(session.user)
+        loadDashboardData(session.user)
       }
     })
     return () => subscription.unsubscribe()
@@ -270,8 +265,27 @@ export default function DashboardPage() {
     })
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
-    // Parallel fetch: only critical data for initial render
     const aid = artisanData.id
+
+    // Load localStorage data first (instant, no network) — unblocks UI immediately
+    try {
+      const lsAbs = JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')
+      setAbsences(lsAbs)
+    } catch { setAbsences([]) }
+    try {
+      const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
+      if (savedDayServices) setDayServices(JSON.parse(savedDayServices))
+    } catch { /* ignore */ }
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${aid}`) || '[]')
+      const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${aid}`) || '[]')
+      setSavedDocuments([...docs, ...drafts])
+    } catch { /* ignore */ }
+
+    // Show UI immediately — network data arrives async below
+    setLoading(false)
+
+    // Parallel fetch: bookings + services (non-blocking, UI already visible)
     const [bookingsRes, servicesRes] = await Promise.all([
       supabase.from('bookings').select('*, services(name)').eq('artisan_id', aid).order('booking_date', { ascending: false }).limit(20),
       supabase.from('services').select('*').eq('artisan_id', aid),
@@ -279,25 +293,11 @@ export default function DashboardPage() {
     setBookings(bookingsRes.data || [])
     setServices(servicesRes.data || [])
 
-    // Auto-ajouter les clients des bookings confirmés à la base locale
+    // Auto-add clients from bookings (deferred, non-blocking)
     const confirmedBookings = (bookingsRes.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
-    for (const b of confirmedBookings) autoAddClientFromBooking(b)
-
-    // Load availability/absences/dayServices from localStorage immediately (no network wait)
-    try {
-      const lsAbs = JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')
-      setAbsences(lsAbs)
-    } catch { setAbsences([]) }
-    const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
-    if (savedDayServices) {
-      try { setDayServices(JSON.parse(savedDayServices)) } catch { /* ignore */ }
-    }
-
-    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanData.id}`) || '[]')
-    const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanData.id}`) || '[]')
-    setSavedDocuments([...docs, ...drafts])
-
-    setLoading(false)
+    requestAnimationFrame(() => {
+      for (const b of confirmedBookings) autoAddClientFromBooking(b)
+    })
   }
 
   // Lazy-load calendar/horaires data only when those sections are first visited
