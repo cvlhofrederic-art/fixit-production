@@ -205,8 +205,35 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
   const [filterRegion, setFilterRegion] = useState('paca')            // Default PACA for MVP
   const [filterDepartments, setFilterDepartments] = useState<string[]>([]) // Multi-select departments
+  const [prefsSaved, setPrefsSaved] = useState(false)
   // Auto-detect pays from locale — FR artisan sees FR only, PT sees PT only
   const artisanPays = isPt ? 'PT' : 'FR'
+
+  // Restore region/dept prefs from localStorage on mount
+  useEffect(() => {
+    if (!artisan?.id) return
+    try {
+      const saved = localStorage.getItem(`fixit_marches_geo_${artisan.id}`)
+      if (saved) {
+        const { region, departments } = JSON.parse(saved)
+        if (region) setFilterRegion(region)
+        if (departments?.length) setFilterDepartments(departments)
+      }
+    } catch {
+      // ignore
+    }
+  }, [artisan?.id])
+
+  const saveGeoPrefs = () => {
+    if (!artisan?.id) return
+    try {
+      localStorage.setItem(`fixit_marches_geo_${artisan.id}`, JSON.stringify({ region: filterRegion, departments: filterDepartments }))
+      setPrefsSaved(true)
+      setTimeout(() => setPrefsSaved(false), 2000)
+    } catch {
+      // ignore
+    }
+  }
 
   // Bid form state
   const [bidPrice, setBidPrice] = useState('')
@@ -248,7 +275,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [scanResults, setScanResults] = useState<any[]>([])
   const [scanMeta, setScanMeta] = useState<any>(null)
   const [scanError, setScanError] = useState('')
-  const [showScanResults, setShowScanResults] = useState(false)
+  const [showScanResults, setShowScanResults] = useState(true)
 
   // Fetch marches
   const fetchMarches = useCallback(async () => {
@@ -505,16 +532,22 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     fetchMarchesPrefs()
   }, [fetchMarches, fetchMyBids, fetchMarchesPrefs])
 
-  // ── Auto-scan au chargement si l'artisan a un métier défini ──
-  // Lance le scan une seule fois pour que les résultats apparaissent sans cliquer
+
+  // ── Auto-scan au chargement (max 1 fois par 24h par artisan) ──
   const hasAutoScanned = useRef(false)
   useEffect(() => {
     if (hasAutoScanned.current) return
     if (resolvedMetiers.length === 0) return
     if (scanning) return
+    // Respect cooldown de 24h pour éviter un scan à chaque visite
+    const cacheKey = `fixit_scan_last_${artisan?.id}`
+    const lastScan = localStorage.getItem(cacheKey)
+    const now = Date.now()
+    if (lastScan && now - parseInt(lastScan) < 24 * 60 * 60 * 1000) return
     hasAutoScanned.current = true
+    localStorage.setItem(cacheKey, String(now))
     handleScanMarches()
-  }, [resolvedMetiers, scanning, handleScanMarches])
+  }, [resolvedMetiers, scanning, handleScanMarches, artisan?.id])
 
   // Realtime listener for marche notifications
   const realtimeErrorCount = useRef(0)
@@ -1262,19 +1295,19 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                     </button>
                     {deptDropdownOpen && (
                       <div style={{
-                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                        position: 'absolute', top: '100%', left: 0, zIndex: 200,
                         background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 220, overflowY: 'auto',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.13)', width: 280,
                         marginTop: 4,
                       }}>
                         {/* Select all / Deselect all */}
-                        <div style={{ padding: '6px 10px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8 }}>
+                        <div style={{ padding: '7px 12px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 10, alignItems: 'center' }}>
                           <button
                             type="button"
                             onClick={() => setFilterDepartments(FR_REGIONS.find(r => r.id === filterRegion)?.depts || [])}
-                            style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           >
-                            Tout sélectionner
+                            Choisir tous
                           </button>
                           <span style={{ color: '#d1d5db' }}>|</span>
                           <button
@@ -1285,42 +1318,58 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                             Tout désélectionner
                           </button>
                         </div>
-                        {(FR_REGIONS.find(r => r.id === filterRegion)?.depts || []).map(d => {
-                          const isSelected = filterDepartments.includes(d)
-                          return (
-                            <label
-                              key={d}
-                              onClick={() => setFilterDepartments(prev => isSelected ? prev.filter(x => x !== d) : [...prev, d])}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '7px 10px', cursor: 'pointer', fontSize: 12,
-                                background: isSelected ? '#fffbeb' : 'transparent',
-                                borderBottom: '1px solid #f9fafb',
-                              }}
-                              onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
-                              onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                            >
-                              <div
+                        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {(FR_REGIONS.find(r => r.id === filterRegion)?.depts || []).map(d => {
+                            const isSelected = filterDepartments.includes(d)
+                            return (
+                              <label
+                                key={d}
+                                onClick={() => setFilterDepartments(prev => isSelected ? prev.filter(x => x !== d) : [...prev, d])}
                                 style={{
-                                  width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-                                  border: isSelected ? '2px solid #f59e0b' : '2px solid #d1d5db',
-                                  background: isSelected ? '#f59e0b' : '#fff',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  transition: 'all 0.15s',
+                                  display: 'flex', alignItems: 'center', gap: 8,
+                                  padding: '7px 12px', cursor: 'pointer', fontSize: 12,
+                                  background: isSelected ? '#fffbeb' : 'transparent',
+                                  borderBottom: '1px solid #f9fafb',
                                 }}
+                                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
+                                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                               >
-                                {isSelected && (
-                                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span style={{ color: isSelected ? '#92400e' : '#374151', fontWeight: isSelected ? 500 : 400 }}>
-                                {DEPT_LABELS[d] || d}
-                              </span>
-                            </label>
-                          )
-                        })}
+                                <div
+                                  style={{
+                                    width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                                    border: isSelected ? '2px solid #f59e0b' : '2px solid #d1d5db',
+                                    background: isSelected ? '#f59e0b' : '#fff',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    transition: 'all 0.15s',
+                                  }}
+                                >
+                                  {isSelected && (
+                                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                                      <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <span style={{ color: isSelected ? '#92400e' : '#374151', fontWeight: isSelected ? 500 : 400 }}>
+                                  {DEPT_LABELS[d] || d}
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                        {/* Valider button */}
+                        <div style={{ padding: '8px 12px', borderTop: '1px solid #f3f4f6' }}>
+                          <button
+                            type="button"
+                            onClick={() => setDeptDropdownOpen(false)}
+                            style={{
+                              width: '100%', padding: '6px 0', borderRadius: 6, border: 'none',
+                              background: '#FFC107', color: '#1a1a1a',
+                              fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                            }}
+                          >
+                            Valider ({filterDepartments.length || 'tous'})
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1328,44 +1377,49 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
               </div>
 
               {/* Action buttons row */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button
-                  onClick={fetchMarches}
-                  disabled={loading}
-                  style={{
-                    padding: '8px 20px', borderRadius: 8, border: 'none',
-                    background: '#1a1a1a', color: '#fff',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    fontWeight: 600, fontSize: 13, opacity: loading ? 0.6 : 1,
-                  }}
-                >
-                  🔍 {isPt ? 'Pesquisar' : 'Rechercher'}
-                </button>
-                <button
-                  onClick={handleScanMarches}
-                  disabled={scanning}
-                  style={{
-                    padding: '8px 20px', borderRadius: 8, border: 'none',
-                    background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
-                    cursor: scanning ? 'not-allowed' : 'pointer',
-                    fontWeight: 600, fontSize: 13,
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}
-                >
-                  {scanning ? (
-                    <>
-                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                      {isPt ? 'A analisar...' : 'Scan en cours...'}
-                    </>
-                  ) : (
-                    <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleScanMarches}
+                    disabled={scanning}
+                    style={{
+                      padding: '8px 20px', borderRadius: 8, border: 'none',
+                      background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
+                      cursor: scanning ? 'not-allowed' : 'pointer',
+                      fontWeight: 600, fontSize: 13,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    {scanning ? (
+                      <>
+                        <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        {isPt ? 'A analisar...' : 'Scan en cours...'}
+                      </>
+                    ) : (
+                      <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
+                    )}
+                  </button>
+                  {scanMeta && (
+                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', alignSelf: 'center' }}>
+                      Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                      {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
+                    </span>
                   )}
-                </button>
-                {scanMeta && (
-                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', alignSelf: 'center' }}>
-                    Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-                    {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
-                  </span>
+                </div>
+                {!isPt && (
+                  <button
+                    type="button"
+                    onClick={saveGeoPrefs}
+                    style={{
+                      padding: '8px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb',
+                      background: prefsSaved ? '#f0fdf4' : '#fff', color: prefsSaved ? '#16a34a' : '#374151',
+                      cursor: 'pointer', fontWeight: 600, fontSize: 12,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {prefsSaved ? '✓ Enregistré' : '💾 Enregistrer mes préférences'}
+                  </button>
                 )}
               </div>
             </div>
@@ -1378,7 +1432,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
             </div>
           )}
 
-          {showScanResults && scanResults.length > 0 && (
+          {scanResults.length > 0 && (
             <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
               <div className="v22-card-head" style={{ background: '#fffbeb' }}>
                 <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1387,10 +1441,11 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                     {scanResults.length} {isPt ? 'resultados' : 'résultats'}
                   </span>
                 </div>
-                <button
-                  onClick={() => setShowScanResults(false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--v22-text-muted)' }}
-                >✕</button>
+                {scanMeta && (
+                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                    {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
               </div>
               <div style={{ padding: 0 }}>
                 {scanMeta && (
