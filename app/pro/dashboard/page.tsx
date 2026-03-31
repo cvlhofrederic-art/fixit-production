@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
@@ -78,8 +78,17 @@ const MissionsGestionnaireSection = dynamic(() => import('@/components/dashboard
 const ContratsSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ContratsSection))
 
 
-export default function DashboardPage() {
+export default function DashboardPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F8F9FA]"><DashboardSkeleton /></div>}>
+      <DashboardPage />
+    </Suspense>
+  )
+}
+
+function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -89,8 +98,18 @@ export default function DashboardPage() {
   const [orgRole, setOrgRole] = useState<'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'>('artisan')
   const [loading, setLoading] = useState(true)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
-  const [activePage, setActivePage] = useState('home')
+  const [activePage, setActivePage] = useState(() => searchParams?.get('p') || 'home')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // ── Sync URL → state on browser back/forward ──
+  useEffect(() => {
+    const onPopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      setActivePage(params.get('p') || 'home')
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   // ── Custom hooks (state + logic extracted) ──
   const svcHook = useServices(artisan?.id, t)
@@ -141,11 +160,11 @@ export default function DashboardPage() {
 
   // ── Notifications ──
   const notifCallbacks = useMemo(() => ({
-    onNavigate: (page: string) => setActivePage(page),
+    onNavigate: (page: string) => navigateTo(page),
     onNewBooking: (b: any) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
     getAuthToken: getDashAuthToken,
     t, isPt,
-  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
+  }), [navigateTo, getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
   const {
     notifications, setNotifications,
     showNotifDropdown, setShowNotifDropdown,
@@ -236,12 +255,15 @@ export default function DashboardPage() {
     }
   }, [activePage, artisan?.id, loadCalendarData, setAbsences])
 
-  // ── Navigation ──
+  // ── Navigation — syncs state + URL (bookmarkable, back/forward works) ──
   const navigateTo = useCallback((page: string) => {
     setActivePage(page)
     setSidebarOpen(false)
     if (page === 'devis') setShowDevisForm(false)
     if (page === 'factures') setShowFactureForm(false)
+    // Push URL without full page reload — enables back/forward + bookmarks
+    const url = page === 'home' ? '/pro/dashboard' : `/pro/dashboard?p=${page}`
+    window.history.pushState({}, '', url)
   }, [setShowDevisForm, setShowFactureForm])
 
   // ── Wrap transformBookingToDevis to also navigate ──
@@ -254,9 +276,8 @@ export default function DashboardPage() {
   // ── Wrap convertDevisToFacture to also navigate ──
   const handleConvertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
     convertDevisToFacture(devis)
-    setActivePage('factures')
-    setSidebarOpen(false)
-  }, [convertDevisToFacture])
+    navigateTo('factures')
+  }, [convertDevisToFacture, navigateTo])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -559,7 +580,7 @@ export default function DashboardPage() {
               totalRevenue={totalRevenue} firstName={firstName}
               navigateTo={navigateTo} setShowNewRdv={setShowNewRdv}
               setShowDevisForm={setShowDevisForm} setShowFactureForm={setShowFactureForm}
-              setActivePage={setActivePage} setSidebarOpen={setSidebarOpen}
+              setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
             />
           )}
@@ -898,8 +919,7 @@ export default function DashboardPage() {
                 onExportDevis={(lines: any[]) => {
                   setConvertingDevis({ docType: 'devis', lines })
                   setShowDevisForm(true)
-                  setActivePage('devis')
-                  setSidebarOpen(false)
+                  navigateTo('devis')
                 }}
               />
             </SectionErrorBoundary>
@@ -952,13 +972,12 @@ export default function DashboardPage() {
                 onNewRdv={(clientName: string) => {
                   setNewRdv({ client_name: clientName, service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
                   setShowNewRdv(true)
-                  setActivePage('calendar')
+                  navigateTo('calendar')
                 }}
                 onNewDevis={(clientName: string) => {
                   setConvertingDevis({ client_name: clientName, docType: 'devis' })
                   setShowDevisForm(true)
-                  setActivePage('devis')
-                  setSidebarOpen(false)
+                  navigateTo('devis')
                 }}
               />
             </SectionErrorBoundary>
@@ -1199,13 +1218,13 @@ export default function DashboardPage() {
             setConvertingDevis(data)
             if (data.docType === 'facture') {
               setShowFactureForm(true)
-              setActivePage('factures')
+              navigateTo('factures')
             } else {
               setShowDevisForm(true)
-              setActivePage('devis')
+              navigateTo('devis')
             }
           }}
-          onNavigate={(page) => setActivePage(page)}
+          onNavigate={navigateTo}
           onDataRefresh={async () => {
             // Refresh all data after Fixy executes server-side actions
             const [availRes, svcRes, bkRes, dsRes, absRes] = await Promise.all([
