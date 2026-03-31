@@ -284,7 +284,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     try {
       const params = new URLSearchParams()
       if (filterCategory) params.set('category', filterCategory)
-      if (filterGrandMarche) params.set('budget_min', '50000')
       params.set('pays', artisanPays)
       params.set('status', 'open')
       if (artisan?.id) params.set('artisan_user_id', artisan.id)
@@ -298,7 +297,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterGrandMarche, artisanPays])
+  }, [isPro, filterCategory, artisanPays])
 
   // ── Résolution automatique du corps de métier de l'artisan ──
   // Priorité : filtre catégorie > préférences marchés > catégories profil artisan
@@ -1098,9 +1097,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
             {stats.openCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
           </div>
         </div>
-        {(filterCategory || filterGrandMarche || filterDepartments.length > 0) && (
+        {(filterCategory || filterDepartments.length > 0) && (
           <button
-            onClick={() => { setFilterCategory(''); setFilterGrandMarche(false); setFilterDepartments([]) }}
+            onClick={() => { setFilterCategory(''); setFilterDepartments([]) }}
             className="v22-btn v22-btn-sm"
           >
             {isPt ? 'Reiniciar' : 'Réinitialiser'}
@@ -1208,29 +1207,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
               <div className="v22-card-title">{isPt ? 'Filtros' : 'Filtres'}</div>
             </div>
             <div className="v22-card-body">
-              {isSociete && (
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                    <div
-                      style={{
-                        width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer',
-                        background: filterGrandMarche ? 'var(--v22-yellow)' : 'var(--v22-border)',
-                        transition: 'background 0.15s',
-                      }}
-                      onClick={() => setFilterGrandMarche(v => !v)}
-                    >
-                      <div style={{
-                        position: 'absolute', top: 2, left: filterGrandMarche ? 18 : 2,
-                        width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                        transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                      }} />
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>
-                      🏗️ {isPt ? 'Grandes obras (≥ 50 000 €)' : 'Grands marchés (≥ 50 000 €)'}
-                    </span>
-                  </label>
-                </div>
-              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Categoria' : 'Catégorie'}</label>
