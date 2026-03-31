@@ -453,6 +453,17 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     fetchMarchesPrefs()
   }, [fetchMarches, fetchMyBids, fetchMarchesPrefs])
 
+  // ── Auto-scan au chargement si l'artisan a un métier défini ──
+  // Lance le scan une seule fois pour que les résultats apparaissent sans cliquer
+  const hasAutoScanned = useRef(false)
+  useEffect(() => {
+    if (hasAutoScanned.current) return
+    if (resolvedMetiers.length === 0) return
+    if (scanning) return
+    hasAutoScanned.current = true
+    handleScanMarches()
+  }, [resolvedMetiers, scanning, handleScanMarches])
+
   // Realtime listener for marche notifications
   const realtimeErrorCount = useRef(0)
   useEffect(() => {
