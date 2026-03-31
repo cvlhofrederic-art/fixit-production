@@ -915,7 +915,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <p className={`font-semibold mb-2 ${org.color === 'blue' ? 'text-blue-800' : org.color === 'purple' ? 'text-purple-800' : 'text-green-800'}`}>{org.emoji} {t('register.recap')}</p>
             <p className="text-text-muted">🏢 {company?.name || form.companyName}</p>
             <p className="text-text-muted">👤 {form.prenom} {form.nom} — {form.email}</p>
-            <p className="text-text-muted">📌 {form.secteur}</p>
+            <p className="text-text-muted">📌 {form.secteurs.join(' · ')}</p>
             <p className={`font-semibold mt-2 ${org.color === 'blue' ? 'text-blue-700' : org.color === 'purple' ? 'text-purple-700' : 'text-green-700'}`}>✅ {t('register.trialDays')}</p>
           </div>
 
