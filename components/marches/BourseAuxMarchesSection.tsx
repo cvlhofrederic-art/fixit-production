@@ -223,17 +223,23 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const token = sess?.session?.access_token
       if (!token) { setScanError('Session expirée'); return }
 
-      // Determine metiers from artisan categories or preferences
-      const metiers = marchesPrefs.marches_categories?.length
-        ? marchesPrefs.marches_categories
-        : artisan?.categories || []
+      // Determine metiers: use active filter dropdown first, then prefs, then artisan categories
+      let metiers: string[] = []
+      if (filterCategory) {
+        // User selected a specific category in the dropdown — use it as primary filter
+        metiers = [filterCategory]
+      } else if (marchesPrefs.marches_categories?.length) {
+        metiers = marchesPrefs.marches_categories
+      } else if (artisan?.categories?.length) {
+        metiers = artisan.categories
+      }
 
       const res = await fetch('/api/marches/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          country: isPt ? 'PT' : 'both',
-          daysBack: 3,
+          country: isPt ? 'PT' : 'FR',
+          daysBack: 5,
           metiers,
           location: filterCity || artisan?.city || (isPt ? 'Porto' : 'Marseille'),
         }),
@@ -252,7 +258,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setScanning(false)
     }
-  }, [isPt, artisan, marchesPrefs, filterCity])
+  }, [isPt, artisan, marchesPrefs, filterCity, filterCategory])
 
   // Fetch my bids
   const fetchMyBids = useCallback(async () => {

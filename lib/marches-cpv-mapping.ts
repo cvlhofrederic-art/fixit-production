@@ -55,7 +55,7 @@ export const METIER_CPV_MAP: Record<string, MetierMapping> = {
     weakKeywords: ['mur', 'dalle', 'radier', 'élévation', 'terrassement', 'structure'],
     keywords: ['maçonnerie', 'gros œuvre', 'béton', 'parpaing', 'brique', 'fondation', 'démolition', 'mur', 'dalle', 'radier', 'élévation', 'terrassement', 'structure'],
     keywordsPt: ['alvenaria', 'fundação', 'betão', 'parede', 'tijolo', 'laje', 'demolição', 'terraplanagem', 'estrutura'],
-    categoryIds: ['construcao'],
+    categoryIds: ['construcao', 'construction'],
   },
   peintre: {
     labelFr: 'Peintre',
@@ -219,12 +219,14 @@ export function getCPVForMetier(metier: string): string[] {
 export function resolveMetierKeys(inputs: string[]): string[] {
   const resolved = new Set<string>()
 
-  // Build reverse index: categoryId → metier key
-  const catIdToMetier = new Map<string, string>()
+  // Build reverse index: categoryId → metier keys (1:N, a categoryId can map to multiple metiers)
+  const catIdToMetiers = new Map<string, string[]>()
   const labelToMetier = new Map<string, string>()
   for (const [key, m] of Object.entries(METIER_CPV_MAP)) {
     for (const cid of m.categoryIds) {
-      catIdToMetier.set(cid.toLowerCase(), key)
+      const lower = cid.toLowerCase()
+      if (!catIdToMetiers.has(lower)) catIdToMetiers.set(lower, [])
+      catIdToMetiers.get(lower)!.push(key)
     }
     labelToMetier.set(m.labelFr.toLowerCase(), key)
     labelToMetier.set(m.labelPt.toLowerCase(), key)
@@ -240,9 +242,9 @@ export function resolveMetierKeys(inputs: string[]): string[] {
       continue
     }
 
-    // Match on categoryId
-    if (catIdToMetier.has(lower)) {
-      resolved.add(catIdToMetier.get(lower)!)
+    // Match on categoryId (can resolve to multiple metiers)
+    if (catIdToMetiers.has(lower)) {
+      for (const key of catIdToMetiers.get(lower)!) resolved.add(key)
       continue
     }
 
