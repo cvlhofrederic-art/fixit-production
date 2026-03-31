@@ -768,9 +768,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
 
       // Detect "email already exists" silent failure: Supabase returns user with empty identities array
-      if (authData.user && (authData.user.identities?.length === 0)) {
-        setError('Un compte existe déjà avec cet email. Connectez-vous ou réinitialisez votre mot de passe.')
-        setLoading(false)
+      if (authData.user && authData.user.identities?.length === 0) {
+        // Redirect to login page — the email is already registered
+        window.location.href = `/pro/espace-pro?email_exists=1`
         return
       }
 
@@ -803,7 +803,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       <h2 className="text-2xl font-display font-black tracking-[-0.03em] mb-2">{t('register.accountCreated')}</h2>
       <p className="text-text-muted mb-2">{t('register.checkEmailConfirm')}</p>
       <p className={`font-semibold mb-6 ${org.color === 'blue' ? 'text-blue-600' : org.color === 'purple' ? 'text-purple-600' : 'text-green-600'}`}>{t('register.trialIncluded')} ✅</p>
-      <LocaleLink href="/pro/login" className={`inline-block text-white px-8 py-3 rounded-xl font-bold transition ${org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{t('register.login')}</LocaleLink>
+      <LocaleLink href="/pro/espace-pro" className={`inline-block text-white px-8 py-3 rounded-xl font-bold transition ${org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{t('register.login')}</LocaleLink>
     </div>
   )
 

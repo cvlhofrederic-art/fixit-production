@@ -55,7 +55,7 @@ export default function ProLoginPage() {
     setLoading(true)
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -63,6 +63,16 @@ export default function ProLoginPage() {
       if (signInError) {
         await logLoginAttempt(false, 'invalid_credentials')
         setError(signInError.message)
+        setLoading(false)
+        return
+      }
+
+      const role = data.user?.user_metadata?.role
+      const proRoles = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
+      if (proRoles.includes(role)) {
+        await supabase.auth.signOut()
+        await logLoginAttempt(false, 'wrong_space')
+        setError('Cet espace est réservé aux artisans. Les sociétés et entreprises se connectent via l\'Espace Pro.')
         setLoading(false)
         return
       }
