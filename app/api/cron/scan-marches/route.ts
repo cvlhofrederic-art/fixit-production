@@ -1,4 +1,3 @@
-'use server'
 import { NextResponse, type NextRequest } from 'next/server'
 import { scanMarches } from '@/lib/marches-scanner'
 import { supabaseAdmin } from '@/lib/supabase-server'
