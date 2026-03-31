@@ -23,10 +23,21 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
 
+    // Require at least one metier — without it, BOAMP returns unfiltered garbage
+    const metiers = Array.isArray(body.metiers) ? body.metiers.filter(Boolean) : []
+    if (metiers.length === 0) {
+      return NextResponse.json(
+        { error: 'Sélectionnez un corps de métier pour scanner les marchés', marches: [], meta: { totalScanned: 0, totalFiltered: 0, sources: { boamp: 0, ted: 0, base_gov: 0, marches_online: 0, decp: 0 }, scannedAt: new Date().toISOString(), daysBack: 0 } },
+        { status: 400 }
+      )
+    }
+
+    logger.info(`[scan] Request: metiers=${metiers.join(',')}, location=${body.location}, country=${body.country}`)
+
     const options: ScanOptions = {
-      country: body.country || 'both',
-      daysBack: Math.min(body.daysBack || 3, 7), // Max 7 days
-      metiers: Array.isArray(body.metiers) ? body.metiers : [],
+      country: body.country || 'FR',
+      daysBack: Math.min(body.daysBack || 5, 14), // Max 14 days
+      metiers,
       location: body.location || undefined,
       budgetMin: body.budgetMin || undefined,
       budgetMax: body.budgetMax || undefined,

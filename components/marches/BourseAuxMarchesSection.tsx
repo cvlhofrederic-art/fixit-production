@@ -214,6 +214,21 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
 
   // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
   const handleScanMarches = useCallback(async () => {
+    // Must have a category selected — otherwise BOAMP returns unfiltered results
+    const metiers: string[] = []
+    if (filterCategory) {
+      metiers.push(filterCategory)
+    } else if (marchesPrefs.marches_categories?.length) {
+      metiers.push(...marchesPrefs.marches_categories)
+    } else if (artisan?.categories?.length) {
+      metiers.push(...artisan.categories)
+    }
+
+    if (metiers.length === 0) {
+      setScanError(isPt ? 'Selecione uma categoria primeiro' : 'Sélectionnez un corps de métier dans le menu déroulant')
+      return
+    }
+
     setScanning(true)
     setScanError('')
     setScanResults([])
@@ -223,16 +238,10 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const token = sess?.session?.access_token
       if (!token) { setScanError('Session expirée'); return }
 
-      // Determine metiers: use active filter dropdown first, then prefs, then artisan categories
-      let metiers: string[] = []
-      if (filterCategory) {
-        // User selected a specific category in the dropdown — use it as primary filter
-        metiers = [filterCategory]
-      } else if (marchesPrefs.marches_categories?.length) {
-        metiers = marchesPrefs.marches_categories
-      } else if (artisan?.categories?.length) {
-        metiers = artisan.categories
-      }
+      const loc = filterCity || artisan?.city || (isPt ? 'Porto' : 'Marseille')
+
+      // eslint-disable-next-line no-console
+      console.log('[scan] Envoi:', { metiers, location: loc, country: isPt ? 'PT' : 'FR' })
 
       const res = await fetch('/api/marches/scan', {
         method: 'POST',
@@ -241,7 +250,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           country: isPt ? 'PT' : 'FR',
           daysBack: 5,
           metiers,
-          location: filterCity || artisan?.city || (isPt ? 'Porto' : 'Marseille'),
+          location: loc,
         }),
       })
       if (!res.ok) {
