@@ -62,20 +62,20 @@ const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTP
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection))
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection))
 
-// Conciergerie sections
-const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection), { ssr: false })
-const AccesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.AccesConciergerieSection), { ssr: false })
-const ChannelManagerSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ChannelManagerSection), { ssr: false })
-const TarificationSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.TarificationSection), { ssr: false })
-const CheckinOutSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.CheckinOutSection), { ssr: false })
-const LivretAccueilSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.LivretAccueilSection), { ssr: false })
-const PlanningMenageSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.PlanningMenageSection), { ssr: false })
-const RevPARSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.RevPARSection), { ssr: false })
+// Conciergerie sections — NO ssr:false (causes React #419 hydration error)
+const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection))
+const AccesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.AccesConciergerieSection))
+const ChannelManagerSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ChannelManagerSection))
+const TarificationSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.TarificationSection))
+const CheckinOutSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.CheckinOutSection))
+const LivretAccueilSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.LivretAccueilSection))
+const PlanningMenageSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.PlanningMenageSection))
+const RevPARSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.RevPARSection))
 
-// Gestionnaire sections
-const ImmeublesGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ImmeublesGestionnaireSection), { ssr: false })
-const MissionsGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.MissionsGestionnaireSection), { ssr: false })
-const ContratsSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ContratsSection), { ssr: false })
+// Gestionnaire sections — NO ssr:false (causes React #419 hydration error)
+const ImmeublesGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ImmeublesGestionnaireSection))
+const MissionsGestionnaireSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.MissionsGestionnaireSection))
+const ContratsSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ContratsSection))
 
 
 export default function DashboardPage() {
