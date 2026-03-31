@@ -332,31 +332,37 @@ async function fetchTED(daysBack: number = 2, country: 'FR' | 'PT' = 'FR', metie
 
   try {
     const dateFrom = new Date()
-    dateFrom.setDate(dateFrom.getDate() - daysBack)
-    const dateStr = dateFrom.toISOString().split('T')[0]
+    dateFrom.setDate(dateFrom.getDate() - Math.max(daysBack, 60)) // TED has fewer results, look back further
+    const dateStr = dateFrom.toISOString().split('T')[0].replace(/-/g, '')
 
     const countryCode = country === 'FR' ? 'FRA' : 'PRT'
 
-    // Build CPV filter from metiers (TED uses real CPV codes)
+    // Build CPV filter from metiers
     let cpvFilter = ''
     if (metiers.length > 0) {
       const cpvCodes: string[] = []
       for (const m of metiers) {
         const mapping = METIER_CPV_MAP[m]
-        if (mapping) cpvCodes.push(...mapping.cpv.map(c => c.substring(0, 5)))
+        if (mapping) cpvCodes.push(...mapping.cpv.map(c => c.substring(0, 3)))
       }
-      const uniqueCpv = [...new Set(cpvCodes)].slice(0, 10)
+      const uniqueCpv = [...new Set(cpvCodes)].slice(0, 5)
       if (uniqueCpv.length > 0) {
         cpvFilter = ` AND (${uniqueCpv.map(c => `cpv=${c}*`).join(' OR ')})`
       }
     }
 
-    // TED search endpoint (public, no registration needed for basic search)
-    const query = encodeURIComponent(`PD>=${dateStr} AND TD=3 AND CY=${countryCode}${cpvFilter}`)
-    const url = `https://ted.europa.eu/api/v3.0/notices/search?query=${query}&pageSize=50&pageNum=1&scope=3`
+    // TED API v3 — POST endpoint (migrated from GET in 2025)
+    const query = `CY=${countryCode} AND PD>${dateStr} AND TD=3${cpvFilter}`
 
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+    const res = await fetch('https://api.ted.europa.eu/v3/notices/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        query,
+        fields: ['ND', 'TI', 'PD', 'DT', 'cpv', 'town-buyer'],
+        page: 1,
+        limit: 50,
+      }),
       signal: AbortSignal.timeout(15000),
     })
 
@@ -366,36 +372,36 @@ async function fetchTED(daysBack: number = 2, country: 'FR' | 'PT' = 'FR', metie
     }
 
     const data = await res.json()
-    const notices = data.notices || data.results || data.hits || []
+    const notices = data.notices || []
 
-    if (Array.isArray(notices)) {
-      for (const n of notices) {
-        const title = n.title || n['title-official-language'] || n.TI || ''
-        if (!title) continue
+    for (const n of notices) {
+      // Extract French title (TI is multilingual object)
+      const tiObj = n.TI || {}
+      const title = typeof tiObj === 'string' ? tiObj : (tiObj.fra || tiObj.eng || Object.values(tiObj)[0] || '')
+      if (!title) continue
 
-        const noticeId = n.id || n['notice-identifier'] || n.docNumber || ''
+      const noticeId = n.ND || n['publication-number'] || ''
+      const cpvCodes = n.cpv ? (Array.isArray(n.cpv) ? n.cpv : [String(n.cpv)]) : []
+      const town = n['town-buyer'] || (country === 'FR' ? 'France' : 'Portugal')
 
-        results.push({
-          source: 'ted',
-          sourceId: `ted-${noticeId || Math.random().toString(36).slice(2)}`,
-          sourceUrl: noticeId
-            ? `https://ted.europa.eu/en/notice/-/detail/${noticeId}`
-            : 'https://ted.europa.eu',
-          title: String(title).slice(0, 500),
-          description: String(n.summary || n.description || title),
-          cpvCodes: n.cpvCode ? (Array.isArray(n.cpvCode) ? n.cpvCode : [String(n.cpvCode)]) : [],
-          buyer: String(n.buyerName || n['buyer-name'] || n.AA || 'Non précisé'),
-          location: String(n.town || n.TW || (country === 'FR' ? 'France' : 'Portugal')),
-          country,
-          budgetMin: n.totalValue ? Number(n.totalValue) : undefined,
-          deadline: n.deadlineDate || n['deadline-receipt-tenders'] || undefined,
-          publishedAt: n.publicationDate || n.PD || new Date().toISOString(),
-          procedureType: n.procedureType || n.PR || undefined,
-        })
-      }
+      results.push({
+        source: 'ted',
+        sourceId: `ted-${noticeId || Math.random().toString(36).slice(2)}`,
+        sourceUrl: noticeId
+          ? `https://ted.europa.eu/fr/notice/${noticeId}`
+          : 'https://ted.europa.eu',
+        title: String(title).slice(0, 500),
+        description: String(title),
+        cpvCodes,
+        buyer: String(typeof town === 'object' ? Object.values(town)[0] : town),
+        location: String(typeof town === 'object' ? Object.values(town)[0] : town),
+        country,
+        deadline: n.DT ? (Array.isArray(n.DT) ? n.DT[0] : String(n.DT)).slice(0, 10) : undefined,
+        publishedAt: n.PD ? String(n.PD).slice(0, 10) : new Date().toISOString(),
+      })
     }
 
-    logger.info(`[scanner] TED ${country}: ${results.length} marchés récupérés`)
+    logger.info(`[scanner] TED/JOUE ${country}: ${results.length} marchés récupérés (query: ${query})`)
   } catch (err) {
     logger.error(`[scanner] TED ${country} fetch error:`, err)
   }
