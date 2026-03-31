@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const emailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -409,36 +411,52 @@ export default function LoginPage() {
                 }}>
                   Mot de passe
                 </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '1.5px solid #E0E0E0',
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    fontFamily: "'Montserrat', sans-serif",
-                    background: '#FAFAFA',
-                    color: '#1A1A1A',
-                    outline: 'none',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  onFocus={e => {
-                    e.target.style.borderColor = '#FFC107'
-                    e.target.style.boxShadow = '0 0 0 3px rgba(245,196,0,0.15)'
-                    e.target.style.background = '#fff'
-                  }}
-                  onBlur={e => {
-                    e.target.style.borderColor = '#E0E0E0'
-                    e.target.style.boxShadow = 'none'
-                    e.target.style.background = '#FAFAFA'
-                  }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    style={{
+                      width: '100%',
+                      padding: '12px 44px 12px 16px',
+                      border: '1.5px solid #E0E0E0',
+                      borderRadius: '10px',
+                      fontSize: '14px',
+                      fontFamily: "'Montserrat', sans-serif",
+                      background: '#FAFAFA',
+                      color: '#1A1A1A',
+                      outline: 'none',
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={e => {
+                      e.target.style.borderColor = '#FFC107'
+                      e.target.style.boxShadow = '0 0 0 3px rgba(245,196,0,0.15)'
+                      e.target.style.background = '#fff'
+                    }}
+                    onBlur={e => {
+                      e.target.style.borderColor = '#E0E0E0'
+                      e.target.style.boxShadow = 'none'
+                      e.target.style.background = '#FAFAFA'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{
+                      position: 'absolute', right: '12px', top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#999', padding: '4px', display: 'flex', alignItems: 'center',
+                    }}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {/* Remember me + Forgot password */}
