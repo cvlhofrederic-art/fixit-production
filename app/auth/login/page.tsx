@@ -30,8 +30,8 @@ export default function LoginPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = session.user.user_metadata?.role
-        if (role === 'artisan') window.location.href = `/${locale}/pro/dashboard`
-        else if (role === 'syndic') window.location.href = `/${locale}/syndic/dashboard`
+        if (['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
+        else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
         else window.location.href = `/${locale}/client/dashboard`
       }
     }
@@ -41,10 +41,6 @@ export default function LoginPage() {
   const selectSpace = (space: Espace) => {
     setEspace(space)
     setError('')
-    if (space === 'syndic') {
-      setStep('form')
-      return
-    }
     setTimeout(() => {
       setStep('form')
       setTimeout(() => emailRef.current?.focus(), 100)
@@ -64,8 +60,8 @@ export default function LoginPage() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
       const role = data.user?.user_metadata?.role
-      if (role === 'artisan') window.location.href = `/${locale}/pro/dashboard`
-      else if (role === 'syndic') window.location.href = `/${locale}/syndic/dashboard`
+      if (['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
+      else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
       else window.location.href = `/${locale}/client/dashboard`
     } catch {
       setError(t('auth.genericError'))
@@ -314,7 +310,7 @@ export default function LoginPage() {
           )}
 
           {/* ── STEP 2: Login Form ── */}
-          {step === 'form' && espace && espace !== 'syndic' && espaceActif && (
+          {step === 'form' && espace && espaceActif && (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -540,83 +536,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* ── STEP 2: Syndic Coming Soon ── */}
-          {step === 'form' && espace === 'syndic' && (
-            <div style={{
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', textAlign: 'center',
-              animation: 'loginFadeUp 0.3s ease both',
-            }}>
-              {/* Back button */}
-              <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                <button
-                  onClick={goBack}
-                  style={{
-                    width: '32px', height: '32px',
-                    borderRadius: '50%', background: '#F5F5F5',
-                    border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '16px', flexShrink: 0,
-                  }}
-                >
-                  ←
-                </button>
-                <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>Espace Pro</h2>
-                <span style={{
-                  marginLeft: 'auto', background: '#FFF9D6', color: '#D4A900',
-                  fontSize: '11.5px', fontWeight: 700, padding: '4px 12px', borderRadius: '50px',
-                }}>
-                  Pro
-                </span>
-              </div>
-
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚀</div>
-              <h3 style={{
-                fontSize: '20px', fontWeight: 900, color: '#1A1A1A',
-                letterSpacing: '-0.02em', marginBottom: '8px',
-                fontFamily: "'Montserrat', sans-serif",
-              }}>
-                {t('auth.comingSoon')}
-              </h3>
-              <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px', maxWidth: '400px' }}>
-                {t('auth.proSpaceDesc')}
-              </p>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: '8px',
-                background: '#F5F5F5', border: '1.5px solid #D8B4FE',
-                borderRadius: '10px', padding: '12px 20px', marginBottom: '20px',
-              }}>
-                <span style={{ fontSize: '18px' }}>🌐</span>
-                <span style={{ fontWeight: 700, color: '#9333EA', fontSize: '18px' }}>vitfix.pro</span>
-                <span style={{
-                  fontSize: '11px', background: '#F3E8FF', color: '#9333EA',
-                  padding: '2px 8px', borderRadius: '50px', fontWeight: 600,
-                }}>
-                  {t('auth.comingSoon').toUpperCase()}
-                </span>
-              </div>
-              <p style={{ fontSize: '14px', color: '#999', marginBottom: '20px' }}>
-                {t('auth.thisIsForIndividuals')}
-              </p>
-              <div style={{
-                width: '100%', background: '#FFFBEB', border: '1px solid #FDE68A',
-                borderRadius: '10px', padding: '12px', fontSize: '14px', color: '#444',
-              }}>
-                <strong>🔧 {t('auth.areYouArtisan')}</strong>{' '}
-                <button
-                  onClick={() => { setEspace('artisan'); setStep('form'); setTimeout(() => emailRef.current?.focus(), 100) }}
-                  style={{
-                    color: '#FFC107', fontWeight: 600, background: 'none',
-                    border: 'none', cursor: 'pointer', fontSize: '14px',
-                    fontFamily: "'Montserrat', sans-serif",
-                    textDecoration: 'none',
-                  }}
-                >
-                  {t('auth.connectHere')} →
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
