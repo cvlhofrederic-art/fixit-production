@@ -71,10 +71,11 @@ function scoreCPV(inputCPVs: string[], metiers: string[]): { score: number; matc
 
 // ── Score Keywords (30 pts max) ─────────────────────────────────────────────
 // Uses strong/weak keyword distinction: strong matches score higher than weak-only matches
-function scoreKeywords(title: string, description: string, metiers: string[], country: 'FR' | 'PT'): number {
+function scoreKeywords(title: string, description: string, metiers: string[], country: 'FR' | 'PT'): { score: number; matchedMetiers: string[] } {
   const text = `${title} ${description}`.toLowerCase()
 
   let bestScore = 0
+  const matchedMetiers: string[] = []
 
   for (const metier of metiers) {
     const mapping = METIER_CPV_MAP[metier]
@@ -102,6 +103,8 @@ function scoreKeywords(title: string, description: string, metiers: string[], co
 
     if (strongHits === 0 && weakHits === 0) continue
 
+    matchedMetiers.push(metier)
+
     // Strong matches: 8pts per hit (max 24), weak: 3pts per hit (max 6)
     // But weak-only matches cap at 8pts total (low confidence)
     let score: number
@@ -114,7 +117,7 @@ function scoreKeywords(title: string, description: string, metiers: string[], co
     bestScore = Math.max(bestScore, Math.min(score, 30))
   }
 
-  return bestScore
+  return { score: bestScore, matchedMetiers }
 }
 
 // ── Score Géo (15 pts max) ──────────────────────────────────────────────────
@@ -203,11 +206,14 @@ function scoreBudget(marcheBudget: number | undefined, prefs: ScoringPrefs): num
 // ── Main scoring function ───────────────────────────────────────────────────
 export function scoreMarche(input: ScoringInput, prefs: ScoringPrefs): ScoringResult {
   const cpvResult = scoreCPV(input.cpvCodes, prefs.metiers)
-  const kwScore = scoreKeywords(input.title, input.description, prefs.metiers, input.country)
+  const kwResult = scoreKeywords(input.title, input.description, prefs.metiers, input.country)
   const geoScore = scoreGeo(input.location, prefs.location)
   const budgetScore = scoreBudget(input.budget, prefs)
 
-  const total = cpvResult.score + kwScore + geoScore + budgetScore
+  const total = cpvResult.score + kwResult.score + geoScore + budgetScore
+
+  // Merge matched metiers from CPV and keywords (deduplicate)
+  const allMatched = [...new Set([...cpvResult.matched, ...kwResult.matchedMetiers])]
 
   let priority: 'high' | 'medium' | 'low'
   let recommendation: 'respond' | 'review' | 'skip'
@@ -215,7 +221,7 @@ export function scoreMarche(input: ScoringInput, prefs: ScoringPrefs): ScoringRe
   if (total >= 80) {
     priority = 'high'
     recommendation = 'respond'
-  } else if (total >= 50) {
+  } else if (total >= 40) {
     priority = 'medium'
     recommendation = 'review'
   } else {
@@ -226,10 +232,10 @@ export function scoreMarche(input: ScoringInput, prefs: ScoringPrefs): ScoringRe
   return {
     scoreTotal: total,
     scoreCPV: cpvResult.score,
-    scoreKeywords: kwScore,
+    scoreKeywords: kwResult.score,
     scoreGeo: geoScore,
     scoreBudget: budgetScore,
-    matchedMetiers: cpvResult.matched,
+    matchedMetiers: allMatched,
     priority,
     recommendation,
   }

@@ -100,98 +100,213 @@ function buildBoampKeywordFilter(metiers: string[]): string {
 // BOAMP — Bulletin Officiel des Annonces de Marchés Publics (France)
 // API : https://www.boamp.fr/api/explore/v2.1/catalog/datasets/boamp/records
 // 1.65M+ avis, mise à jour quotidienne, données temps réel
+//
+// Stratégie : 2 passes
+// 1. Recherche ciblée par mots-clés métier dans le titre (objet) — résultats directs
+// 2. Recherche large "tous travaux" PACA + scan du champ `donnees` (détail lots)
+//    pour trouver les marchés multi-lots avec un lot pertinent au métier
 // ══════════════════════════════════════════════════════════════════════════════
+
+/** Extract lot descriptions from BOAMP donnees field (JSON or stringified JSON) */
+function extractLotsFromDonnees(donnees: any): { lotNum: string; description: string }[] {
+  const lots: { lotNum: string; description: string }[] = []
+  if (!donnees) return lots
+
+  const str = typeof donnees === 'string' ? donnees : JSON.stringify(donnees)
+
+  // Pattern 1: "Lot N : description" or "Lot N° X - description"
+  const lotPattern = /[Ll]ot\s*(?:n°?\s*)?(\d+)\s*[:\-–]\s*([^"\\]{5,200})/g
+  let match: RegExpExecArray | null
+  while ((match = lotPattern.exec(str)) !== null) {
+    lots.push({ lotNum: match[1], description: match[2].trim() })
+  }
+
+  // Pattern 2: "LOT N : description" (uppercase)
+  const lotPattern2 = /LOT\s+(\d+)\s*[:\-–]\s*([^"\\]{5,200})/g
+  while ((match = lotPattern2.exec(str)) !== null) {
+    const exists = lots.some(l => l.lotNum === match![1])
+    if (!exists) lots.push({ lotNum: match[1], description: match[2].trim() })
+  }
+
+  return lots
+}
+
+/** Extract full text from donnees for keyword matching (description, lots, etc.) */
+function extractTextFromDonnees(donnees: any): string {
+  if (!donnees) return ''
+  const str = typeof donnees === 'string' ? donnees : JSON.stringify(donnees)
+  // Strip JSON syntax to get raw text content
+  return str
+    .replace(/[{}\[\]"\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 10000) // Cap at 10k chars to avoid memory issues
+}
 
 async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location?: string): Promise<ScannedMarche[]> {
   const results: ScannedMarche[] = []
+  const seenIds = new Set<string>()
 
   try {
     const dateFrom = new Date()
     dateFrom.setDate(dateFrom.getDate() - daysBack)
     const dateStr = dateFrom.toISOString().split('T')[0]
 
-    // Build WHERE clause
-    const whereParts: string[] = []
-
-    // Date filter (dateparution is a proper date type, requires date'' syntax)
-    whereParts.push(`dateparution>=date'${dateStr}'`)
-
-    // Keyword filter from metiers
-    const kwFilter = buildBoampKeywordFilter(metiers)
-    if (kwFilter) {
-      whereParts.push(`(${kwFilter})`)
-    }
-
-    // Geo filter: search département + neighboring depts in same region for volume
+    // Build geo filter (shared by both passes)
+    let geoFilter = ''
     if (location) {
       const dept = CITY_TO_DEPT[location.toLowerCase()]
       if (dept) {
-        // Find all depts in the same region
         const regionDepts = DEPT_REGIONS[dept] || [dept]
-        if (regionDepts.length > 1) {
-          // OR across regional depts (ex: PACA → 04,05,06,13,83,84)
-          whereParts.push(`(${regionDepts.map(d => `code_departement:'${d}'`).join(' OR ')})`)
-        } else {
-          whereParts.push(`code_departement:'${dept}'`)
-        }
+        geoFilter = regionDepts.length > 1
+          ? `(${regionDepts.map(d => `code_departement:'${d}'`).join(' OR ')})`
+          : `code_departement:'${dept}'`
       }
     }
 
-    const whereClause = whereParts.join(' AND ')
-    const selectFields = 'idweb,objet,dateparution,datelimitereponse,nomacheteur,code_departement,url_avis,nature_libelle,famille_libelle'
+    // ── PASS 1: Keyword-filtered search (fast, targeted) ──────────────────
+    const kwFilter = buildBoampKeywordFilter(metiers)
+    {
+      const whereParts = [`dateparution>=date'${dateStr}'`]
+      if (kwFilter) whereParts.push(`(${kwFilter})`)
+      if (geoFilter) whereParts.push(geoFilter)
 
-    const url = `https://www.boamp.fr/api/explore/v2.1/catalog/datasets/boamp/records?where=${encodeURIComponent(whereClause)}&order_by=dateparution desc&limit=100&select=${selectFields}`
+      const selectFields = 'idweb,objet,dateparution,datelimitereponse,nomacheteur,code_departement,url_avis,nature_libelle,famille_libelle'
+      const url = `https://www.boamp.fr/api/explore/v2.1/catalog/datasets/boamp/records?where=${encodeURIComponent(whereParts.join(' AND '))}&order_by=dateparution desc&limit=100&select=${selectFields}`
 
-    logger.info(`[scanner] BOAMP query: ${whereClause}`)
+      logger.info(`[scanner] BOAMP pass 1 (keyword): ${whereParts.join(' AND ')}`)
 
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(20000),
-    })
-
-    if (!res.ok) {
-      logger.warn(`[scanner] BOAMP API returned ${res.status}`)
-      // Retry without keyword filter (broader search)
-      if (kwFilter) {
-        logger.info('[scanner] BOAMP: retrying without keyword filter...')
-        return fetchBOAMP(daysBack, [], location)
-      }
-      return results
-    }
-
-    const data = await res.json()
-    const records = data.results || []
-
-    for (const r of records) {
-      if (!r.objet) continue
-
-      // Parse code_departement (array field)
-      const depts = Array.isArray(r.code_departement)
-        ? r.code_departement
-        : r.code_departement ? [String(r.code_departement)] : []
-
-      const locationStr = depts.length > 0
-        ? `Dept. ${depts.join(', ')}`
-        : 'France'
-
-      results.push({
-        source: 'boamp',
-        sourceId: `boamp-${r.idweb || Math.random().toString(36).slice(2)}`,
-        sourceUrl: r.url_avis || (r.idweb ? `https://www.boamp.fr/avis/detail/${r.idweb}` : 'https://www.boamp.fr'),
-        title: String(r.objet || '').slice(0, 500),
-        description: String(r.objet || ''),
-        cpvCodes: [], // BOAMP uses descripteur_code (internal), not CPV
-        buyer: String(r.nomacheteur || 'Non précisé'),
-        location: locationStr,
-        country: 'FR',
-        deadline: r.datelimitereponse || undefined,
-        publishedAt: r.dateparution || new Date().toISOString(),
-        procedureType: r.nature_libelle || undefined,
-        category: r.famille_libelle || undefined,
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(20000),
       })
+
+      if (res.ok) {
+        const data = await res.json()
+        for (const r of (data.results || [])) {
+          if (!r.objet || !r.idweb) continue
+          seenIds.add(r.idweb)
+
+          const depts = Array.isArray(r.code_departement) ? r.code_departement : r.code_departement ? [String(r.code_departement)] : []
+          results.push({
+            source: 'boamp',
+            sourceId: `boamp-${r.idweb}`,
+            sourceUrl: r.url_avis || `https://www.boamp.fr/pages/avis/?q=idweb:${r.idweb}`,
+            title: String(r.objet).slice(0, 500),
+            description: String(r.objet),
+            cpvCodes: [],
+            buyer: String(r.nomacheteur || 'Non précisé'),
+            location: depts.length > 0 ? `Dept. ${depts.join(', ')}` : 'France',
+            country: 'FR',
+            deadline: r.datelimitereponse || undefined,
+            publishedAt: r.dateparution || new Date().toISOString(),
+            procedureType: r.nature_libelle || undefined,
+            category: r.famille_libelle || undefined,
+          })
+        }
+        logger.info(`[scanner] BOAMP pass 1: ${results.length} marchés directs (total_count: ${data.total_count || '?'})`)
+      }
     }
 
-    logger.info(`[scanner] BOAMP: ${results.length} marchés récupérés (total_count: ${data.total_count || '?'})`)
+    // ── PASS 2: Broad "travaux" search + lot detail scan ──────────────────
+    // Fetch ALL travaux marchés in the region, then scan donnees for lot-level matches
+    if (metiers.length > 0) {
+      const whereParts2 = [
+        `dateparution>=date'${dateStr}'`,
+        `type_marche:'TRAVAUX'`,
+      ]
+      if (geoFilter) whereParts2.push(geoFilter)
+
+      // Include donnees field for lot extraction
+      const selectFields2 = 'idweb,objet,dateparution,datelimitereponse,nomacheteur,code_departement,url_avis,nature_libelle,donnees'
+      const url2 = `https://www.boamp.fr/api/explore/v2.1/catalog/datasets/boamp/records?where=${encodeURIComponent(whereParts2.join(' AND '))}&order_by=dateparution desc&limit=100&select=${selectFields2}`
+
+      logger.info(`[scanner] BOAMP pass 2 (lots detail): type_marche:TRAVAUX + region`)
+
+      const res2 = await fetch(url2, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(25000),
+      })
+
+      if (res2.ok) {
+        const data2 = await res2.json()
+        let lotMatches = 0
+
+        // Build keyword set from all resolved metiers (strong + weak)
+        const allKw: string[] = []
+        for (const m of metiers) {
+          const mapping = METIER_CPV_MAP[m]
+          if (mapping) {
+            allKw.push(...mapping.strongKeywords, ...mapping.weakKeywords)
+          }
+        }
+        const kwLower = allKw.map(k => k.toLowerCase())
+
+        for (const r of (data2.results || [])) {
+          if (!r.idweb || seenIds.has(r.idweb)) continue // Skip already found in pass 1
+
+          const donnees = r.donnees
+          const fullText = extractTextFromDonnees(donnees).toLowerCase()
+
+          // Check if any metier keyword appears in the full donnees text
+          const matchedKw = kwLower.filter(kw => fullText.includes(kw))
+          if (matchedKw.length === 0) continue
+
+          // Extract specific lots
+          const lots = extractLotsFromDonnees(donnees)
+          const matchedLots = lots.filter(lot => {
+            const lotText = lot.description.toLowerCase()
+            return kwLower.some(kw => lotText.includes(kw))
+          })
+
+          seenIds.add(r.idweb)
+          const depts = Array.isArray(r.code_departement) ? r.code_departement : r.code_departement ? [String(r.code_departement)] : []
+          const locationStr = depts.length > 0 ? `Dept. ${depts.join(', ')}` : 'France'
+
+          if (matchedLots.length > 0) {
+            // Create one result per matched lot for clarity
+            for (const lot of matchedLots) {
+              lotMatches++
+              results.push({
+                source: 'boamp',
+                sourceId: `boamp-${r.idweb}-lot${lot.lotNum}`,
+                sourceUrl: r.url_avis || `https://www.boamp.fr/pages/avis/?q=idweb:${r.idweb}`,
+                title: `${String(r.objet).slice(0, 200)} — Lot ${lot.lotNum}: ${lot.description}`.slice(0, 500),
+                description: `Lot ${lot.lotNum}: ${lot.description}. Marché: ${String(r.objet)}`,
+                cpvCodes: [],
+                buyer: String(r.nomacheteur || 'Non précisé'),
+                location: locationStr,
+                country: 'FR',
+                deadline: r.datelimitereponse || undefined,
+                publishedAt: r.dateparution || new Date().toISOString(),
+                procedureType: r.nature_libelle || undefined,
+                lotNumber: lot.lotNum,
+              })
+            }
+          } else {
+            // Keywords found in donnees but no specific lot extracted — still relevant
+            lotMatches++
+            results.push({
+              source: 'boamp',
+              sourceId: `boamp-${r.idweb}`,
+              sourceUrl: r.url_avis || `https://www.boamp.fr/pages/avis/?q=idweb:${r.idweb}`,
+              title: String(r.objet).slice(0, 500),
+              description: `${String(r.objet)} [Mots-clés métier trouvés dans le détail de l'avis]`,
+              cpvCodes: [],
+              buyer: String(r.nomacheteur || 'Non précisé'),
+              location: locationStr,
+              country: 'FR',
+              deadline: r.datelimitereponse || undefined,
+              publishedAt: r.dateparution || new Date().toISOString(),
+              procedureType: r.nature_libelle || undefined,
+            })
+          }
+        }
+
+        logger.info(`[scanner] BOAMP pass 2: ${lotMatches} marchés/lots supplémentaires trouvés via scan détail (sur ${(data2.results || []).length} marchés travaux)`)
+      }
+    }
+
+    logger.info(`[scanner] BOAMP total: ${results.length} marchés (directs + lots)`)
   } catch (err) {
     logger.error('[scanner] BOAMP fetch error:', err)
   }
@@ -505,7 +620,7 @@ async function fetchDECP(metiers: string[] = []): Promise<ScannedMarche[]> {
 
 async function fetchStoredMarches(
   daysBack: number = 7,
-  metierKeywords: string[] = [],
+  _metierKeywords: string[] = [],
   location?: string,
   country: 'FR' | 'PT' = 'FR',
 ): Promise<ScannedMarche[]> {
@@ -525,6 +640,15 @@ async function fetchStoredMarches(
     since.setDate(since.getDate() - daysBack)
     const sinceStr = since.toISOString().split('T')[0]
 
+    // Build geo filter: expand to regional departments (ex: 13 → all PACA)
+    let deptFilter: string[] = []
+    if (location) {
+      const dept = CITY_TO_DEPT[location.toLowerCase()]
+      if (dept) {
+        deptFilter = DEPT_REGIONS[dept] || [dept]
+      }
+    }
+
     let query = supabase
       .from('marches')
       .select('id, title, description, source, source_id, url_source, location_city, departement, acheteur, date_publication, deadline, budget_min, montant_estime, status, pays')
@@ -532,14 +656,11 @@ async function fetchStoredMarches(
       .eq('status', 'open')
       .gte('date_publication', sinceStr)
       .order('date_publication', { ascending: false })
-      .limit(200)
+      .limit(300)
 
-    // Geo filter
-    if (location) {
-      const dept = CITY_TO_DEPT[location.toLowerCase()]
-      if (dept) {
-        query = query.eq('departement', dept)
-      }
+    // Geo filter: use .in() for regional departments instead of single dept
+    if (deptFilter.length > 0) {
+      query = query.in('departement', deptFilter)
     }
 
     const { data, error } = await query
@@ -554,9 +675,9 @@ async function fetchStoredMarches(
       return results
     }
 
-    // Build keyword filter for BTP relevance
-    const kwLower = metierKeywords.map(k => k.toLowerCase())
-
+    // Return ALL stored marches — let the scoring system handle relevance filtering
+    // No keyword pre-filtering here: the scorer will assign proper scores based on
+    // metier keywords, CPV, geo, and budget, then filter by threshold
     for (const row of data) {
       const title = row.title || ''
       const desc = row.description || ''
@@ -564,12 +685,8 @@ async function fetchStoredMarches(
 
       // Skip attribués
       if (text.includes('attribué') || text.includes('[attribue]')) continue
-
-      // If metier keywords provided, filter by relevance
-      if (kwLower.length > 0) {
-        const matches = kwLower.some(kw => text.includes(kw))
-        if (!matches) continue
-      }
+      // Skip generic "info" pages from mairies (no real marché content)
+      if (title.length < 10 && !text.includes('marché') && !text.includes('travaux')) continue
 
       const budget = row.budget_min || row.montant_estime || undefined
 
@@ -591,7 +708,7 @@ async function fetchStoredMarches(
       })
     }
 
-    logger.info(`[scanner] Stored marches: ${results.length} pertinents sur ${data.length} en base (${daysBack}j, ${kwLower.length} keywords)`)
+    logger.info(`[scanner] Stored marches: ${results.length} retournés sur ${data.length} en base (${daysBack}j, region: ${deptFilter.join(',') || 'all'})`)
   } catch (err) {
     logger.error('[scanner] Stored marches fetch error:', err)
   }
@@ -677,8 +794,21 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
 
   logger.info(`[scanner] Total scanned: ${allMarches.length} (BOAMP: ${sourceCounts.boamp}, TED: ${sourceCounts.ted}, MarchésOnline: ${sourceCounts.marches_online}, DECP: ${sourceCounts.decp}, BASE.gov: ${sourceCounts.base_gov}, Stored: ${sourceCounts.stored})`)
 
+  // Filter out expired/attributed tenders before scoring
+  const today = new Date().toISOString().split('T')[0]
+  const activeMarches = allMarches.filter(m => {
+    const text = `${m.title} ${m.description}`.toLowerCase()
+    // Skip attributed/closed tenders
+    if (text.includes('attribué') || text.includes('attribue') || text.includes('terminé') || text.includes('clos')) return false
+    // Skip tenders with past deadlines
+    if (m.deadline && m.deadline < today) return false
+    return true
+  })
+
+  logger.info(`[scanner] Active tenders: ${activeMarches.length} (filtered ${allMarches.length - activeMarches.length} expired/attributed)`)
+
   // Deduplicate by title similarity
-  const deduplicated = deduplicateMarches(allMarches)
+  const deduplicated = deduplicateMarches(activeMarches)
 
   // Score if metiers provided
   let enriched: EnrichedMarche[]
@@ -698,9 +828,9 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
       const scoring = scoreMarche(input, prefs)
       return { ...m, scoring }
     })
-      // Threshold 30: BOAMP keyword-filtered server-side with strongKeywords only
-      // CPV score = 0 for BOAMP (no CPV), so max = keywords(30) + geo(15) + budget(15) = 60
-      .filter(m => m.scoring!.scoreTotal >= 30)
+      // Require at least 1 keyword match (scoreKeywords > 0) — no keyword = not relevant to this trade
+      // Then threshold 20 on total score for basic quality
+      .filter(m => m.scoring!.scoreKeywords > 0 && m.scoring!.scoreTotal >= 20)
       .sort((a, b) => (b.scoring?.scoreTotal || 0) - (a.scoring?.scoreTotal || 0))
   } else {
     // No filtering, return all with basic text-based scoring

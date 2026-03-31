@@ -5,7 +5,7 @@ import { scanMarches, type ScanOptions } from '@/lib/marches-scanner'
 import { callGroqWithRetry } from '@/lib/groq'
 import { logger } from '@/lib/logger'
 
-export const maxDuration = 30
+export const maxDuration = 120
 
 // ── POST /api/marches/scan — Lance un scan manuel ───────────────────────────
 // Body: { country?: 'FR'|'PT'|'both', metiers?: string[], location?: string, budgetMin?: number, budgetMax?: number }

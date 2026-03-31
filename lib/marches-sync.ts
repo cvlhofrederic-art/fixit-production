@@ -110,35 +110,67 @@ export async function upsertMarches(
   const rows = marches.map(toMarcheRow)
   let inserts = 0, updates = 0, errors = 0, skipped = 0
 
-  // Count existing records for this source to differentiate inserts vs updates
+  // Find existing records by source_id to avoid duplicates
   const sourceIds = rows.map(r => r.source_id).filter(Boolean)
-  const { data: existing } = await supabase
-    .from('marches')
-    .select('source_id')
-    .eq('source', source)
-    .in('source_id', sourceIds)
+  let existingSet = new Set<string>()
 
-  const existingSet = new Set((existing || []).map((e: any) => e.source_id))
-
-  // Upsert in batches of 50
-  for (let i = 0; i < rows.length; i += 50) {
-    const batch = rows.slice(i, i + 50)
-    const { error } = await supabase
+  // Query existing in chunks of 100 (PostgREST .in() limit)
+  for (let i = 0; i < sourceIds.length; i += 100) {
+    const chunk = sourceIds.slice(i, i + 100)
+    const { data: existing } = await supabase
       .from('marches')
-      .upsert(batch, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      .select('source_id')
+      .in('source_id', chunk)
 
-    if (error) {
-      logger.error(`[sync:${source}] Upsert batch error:`, error)
-      errors += batch.length
-    } else {
-      for (const row of batch) {
-        if (existingSet.has(row.source_id)) updates++
-        else inserts++
-      }
+    if (existing) {
+      for (const e of existing) existingSet.add(e.source_id)
     }
   }
 
-  logger.info(`[sync:${source}] Done: ${inserts} inserts, ${updates} updates, ${errors} errors`)
+  // Separate new vs existing
+  const newRows = rows.filter(r => !existingSet.has(r.source_id))
+  const updateRows = rows.filter(r => existingSet.has(r.source_id))
+
+  // INSERT new rows in batches of 50
+  for (let i = 0; i < newRows.length; i += 50) {
+    const batch = newRows.slice(i, i + 50)
+    const { error } = await supabase
+      .from('marches')
+      .insert(batch)
+
+    if (error) {
+      logger.error(`[sync:${source}] Insert batch error:`, error)
+      errors += batch.length
+    } else {
+      inserts += batch.length
+    }
+  }
+
+  // UPDATE existing rows one by one (source_id match)
+  for (const row of updateRows) {
+    const { error } = await supabase
+      .from('marches')
+      .update({
+        title: row.title,
+        description: row.description,
+        status: row.status,
+        deadline: row.deadline,
+        budget_min: row.budget_min,
+        budget_max: row.budget_max,
+        montant_estime: row.montant_estime,
+        synced_at: row.synced_at,
+      })
+      .eq('source_id', row.source_id)
+
+    if (error) {
+      logger.error(`[sync:${source}] Update error for ${row.source_id}:`, error)
+      errors++
+    } else {
+      updates++
+    }
+  }
+
+  logger.info(`[sync:${source}] Done: ${inserts} inserts, ${updates} updates, ${errors} errors, ${skipped} skipped`)
   return { inserts, updates, errors, skipped }
 }
 
