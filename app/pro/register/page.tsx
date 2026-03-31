@@ -761,6 +761,17 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       })
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
 
+      // Force-apply role via admin API (guards against email-already-exists silent failures)
+      if (authData.user?.id) {
+        try {
+          await fetch('/api/auth/set-pro-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: authData.user.id, role: org.role, org_type: orgType }),
+          })
+        } catch { /* non-blocking */ }
+      }
+
       // Upload documents using the session token from signUp
       if (authData.session?.access_token) {
         try {

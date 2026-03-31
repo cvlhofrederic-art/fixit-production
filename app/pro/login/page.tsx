@@ -33,7 +33,8 @@ export default function ProLoginPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         const role = session.user.user_metadata?.role
-        if (role === 'artisan') {
+        const proRoles = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
+        if (proRoles.includes(role)) {
           window.location.href = '/pro/dashboard'
         } else {
           window.location.href = '/client/dashboard'
@@ -144,12 +145,18 @@ export default function ProLoginPage() {
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
+              <div className="mt-6 text-center space-y-3">
                 <p className="text-text-muted text-sm">
                   Pas encore inscrit ?{' '}
                   <button onClick={() => setTab('register')} className="text-yellow hover:underline font-semibold">
                     Créer mon compte artisan
                   </button>
+                </p>
+                <p className="text-text-muted text-sm">
+                  Vous êtes une société ou entreprise BTP ?{' '}
+                  <Link href="/pro/espace-pro" className="text-blue-600 hover:underline font-semibold">
+                    Espace Pro →
+                  </Link>
                 </p>
               </div>
             </div>
