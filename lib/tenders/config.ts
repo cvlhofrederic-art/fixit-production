@@ -56,7 +56,7 @@ export const BTP_TRADES: TradeDefinition[] = [
   {
     id: 'toiture',
     label: 'Toiture / Couverture',
-    keywords: ['toiture', 'couverture', 'charpente', 'tuile', 'ardoise', 'zinc', 'étanchéité toiture', 'zinguerie', 'gouttière', 'gouttiere'],
+    keywords: ['toiture', 'couverture', 'couvreur', 'charpente', 'tuile', 'ardoise', 'zinc', 'étanchéité toiture', 'zinguerie', 'gouttière', 'gouttiere', 'bac acier', 'faîtage', 'faitage', 'noue'],
   },
   {
     id: 'peinture',
@@ -155,6 +155,6 @@ export const SCANNER_CONFIG = {
   max_pages_per_site: 3,
   cache_communes_hours: 168, // 7 days
   tender_retention_days: 30,
-  boamp_days_back: 7,
+  boamp_days_back: 10,
   user_agent: 'VitfixTenderScanner/1.0 (+https://vitfix.io/bot)',
 }

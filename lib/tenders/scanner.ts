@@ -6,6 +6,9 @@ import { loadCommunes, resolveWebsites } from './communes'
 import { scanBOAMP } from './sources/boamp'
 import { scanAllMairies } from './sources/mairies'
 import { scanAllPlatforms } from './sources/platforms'
+import { scanAllRegionalPACA } from './sources/regional-paca'
+import { scanAllPrivateBTP } from './sources/private-btp'
+import { scanAWSAchat } from './sources/aws-achat'
 import { filterBTP } from './classifier'
 import { deduplicateTenders } from './dedup'
 import { logger } from '@/lib/logger'
@@ -84,37 +87,28 @@ export async function scanDepartment(department: string): Promise<ScanResult> {
   // 3. Run all sources in parallel
   const sourceResults: Record<string, Tender[]> = {}
 
-  const [boampResult, mairiesResult, platformsResult] = await Promise.allSettled([
-    scanBOAMP(department, SCANNER_CONFIG.boamp_days_back),
-    scanAllMairies(communesWithSite),
-    scanAllPlatforms(department),
-  ])
+  const scannerEntries: Array<{ key: string; promise: Promise<Tender[]> }> = [
+    { key: 'boamp', promise: scanBOAMP(department, SCANNER_CONFIG.boamp_days_back) },
+    { key: 'mairies', promise: scanAllMairies(communesWithSite) },
+    { key: 'platforms', promise: scanAllPlatforms(department) },
+    { key: 'aws_achat', promise: scanAWSAchat(department) },
+    { key: 'regional_paca', promise: scanAllRegionalPACA(department) },
+    { key: 'private_btp', promise: scanAllPrivateBTP(department) },
+  ]
 
-  if (boampResult.status === 'fulfilled') {
-    sourceResults.boamp = boampResult.value
-    logger.info(`[scanner] BOAMP: ${boampResult.value.length} tenders`)
-  } else {
-    errors.push(`BOAMP: ${boampResult.reason}`)
-    sourceResults.boamp = []
-    logger.error(`[scanner] BOAMP failed:`, boampResult.reason)
-  }
+  const settled = await Promise.allSettled(scannerEntries.map(e => e.promise))
 
-  if (mairiesResult.status === 'fulfilled') {
-    sourceResults.mairies = mairiesResult.value
-    logger.info(`[scanner] Mairies: ${mairiesResult.value.length} tenders`)
-  } else {
-    errors.push(`Mairies: ${mairiesResult.reason}`)
-    sourceResults.mairies = []
-    logger.error(`[scanner] Mairies failed:`, mairiesResult.reason)
-  }
-
-  if (platformsResult.status === 'fulfilled') {
-    sourceResults.platforms = platformsResult.value
-    logger.info(`[scanner] Platforms: ${platformsResult.value.length} tenders`)
-  } else {
-    errors.push(`Platforms: ${platformsResult.reason}`)
-    sourceResults.platforms = []
-    logger.error(`[scanner] Platforms failed:`, platformsResult.reason)
+  for (let i = 0; i < settled.length; i++) {
+    const result = settled[i]
+    const { key } = scannerEntries[i]
+    if (result.status === 'fulfilled') {
+      sourceResults[key] = result.value
+      logger.info(`[scanner] ${key}: ${result.value.length} tenders`)
+    } else {
+      errors.push(`${key}: ${result.reason}`)
+      sourceResults[key] = []
+      logger.error(`[scanner] ${key} failed:`, result.reason)
+    }
   }
 
   // 4. Merge all results

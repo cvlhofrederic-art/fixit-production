@@ -223,17 +223,20 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     }
   }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterZone, artisanPays])
 
+  // ── Résolution automatique du corps de métier de l'artisan ──
+  // Priorité : filtre catégorie > préférences marchés > catégories profil artisan
+  const resolvedMetiers = React.useMemo(() => {
+    if (filterCategory) return [filterCategory]
+    if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
+    if (artisan?.categories?.length) return [...artisan.categories]
+    if (artisan?.specialite) return [artisan.specialite]
+    return []
+  }, [filterCategory, marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
+
   // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
   const handleScanMarches = useCallback(async () => {
-    // Must have a category selected — otherwise BOAMP returns unfiltered results
-    const metiers: string[] = []
-    if (filterCategory) {
-      metiers.push(filterCategory)
-    } else if (marchesPrefs.marches_categories?.length) {
-      metiers.push(...marchesPrefs.marches_categories)
-    } else if (artisan?.categories?.length) {
-      metiers.push(...artisan.categories)
-    }
+    // Le scan utilise les métiers résolus automatiquement
+    const metiers = [...resolvedMetiers]
 
     if (metiers.length === 0) {
       setScanError(isPt ? 'Selecione uma categoria primeiro' : 'Sélectionnez un corps de métier dans le menu déroulant')
@@ -259,7 +262,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           country: isPt ? 'PT' : 'FR',
-          daysBack: 5,
+          daysBack: 7,
           metiers,
           location: loc,
         }),
@@ -278,7 +281,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setScanning(false)
     }
-  }, [isPt, artisan, marchesPrefs, filterCity, filterCategory])
+  }, [isPt, artisan, resolvedMetiers, filterCity])
 
   // Fetch my bids
   const fetchMyBids = useCallback(async () => {

@@ -14,11 +14,11 @@
     },
     {
       "path": "/api/cron/scan-marches",
-      "schedule": "0 6 * * *"
+      "schedule": "0 6 * * 1"
     },
     {
       "path": "/api/sync/decp-13",
-      "schedule": "0 7 * * *"
+      "schedule": "0 7 * * 1"
     },
     {
       "path": "/api/sync/sitadel-13",
@@ -26,15 +26,15 @@
     },
     {
       "path": "/api/sync/mairies-13",
-      "schedule": "30 7 * * *"
+      "schedule": "30 7 * * 1"
     },
     {
       "path": "/api/sync/base-gov-pt",
-      "schedule": "0 8 * * *"
+      "schedule": "0 8 * * 1"
     },
     {
       "path": "/api/sync/ted-porto",
-      "schedule": "30 8 * * *"
+      "schedule": "30 8 * * 1"
     },
     {
       "path": "/api/sync/obras-porto",
@@ -42,7 +42,7 @@
     },
     {
       "path": "/api/tenders/scan",
-      "schedule": "0 5 * * *"
+      "schedule": "0 5 * * 1"
     }
   ]
 }
