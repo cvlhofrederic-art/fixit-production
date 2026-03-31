@@ -749,7 +749,13 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             company_name: company?.name || form.companyName,
             company_siren: company?.siren || '',
             company_address: company?.address || '',
+            company_city: company?.city || form.ville,
+            company_postal_code: company?.postalCode || form.codePostal,
+            naf_code: company?.nafCode || '',
+            naf_label: company?.nafLabel || '',
+            legal_form: company?.legalForm || '',
             siret: siretInput.replace(/\s/g, ''),
+            siret_verified: true,
             nb_employes: form.nbEmployes,
             secteur: form.secteurs.join(', '),
             secteurs: form.secteurs,
@@ -761,15 +767,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       })
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
 
-      // Force-apply role via admin API (guards against email-already-exists silent failures)
-      if (authData.user?.id) {
-        try {
-          await fetch('/api/auth/set-pro-role', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: authData.user.id, role: org.role, org_type: orgType }),
-          })
-        } catch { /* non-blocking */ }
+      // Detect "email already exists" silent failure: Supabase returns user with empty identities array
+      if (authData.user && (authData.user.identities?.length === 0)) {
+        setError('Un compte existe déjà avec cet email. Connectez-vous ou réinitialisez votre mot de passe.')
+        setLoading(false)
+        return
       }
 
       // Upload documents using the session token from signUp
@@ -844,7 +846,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       {step === 1 && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-mid mb-2">SIRET <span className="text-text-muted font-normal">({t('register.siretOptional')})</span></label>
+            <label className="block text-sm font-semibold text-mid mb-1">SIRET <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">Vérifie l'existence légale de votre société auprès du registre officiel des entreprises (INSEE/SIRENE)</p>
             <div className="flex gap-2">
               <input type="text" value={siretInput} onChange={e => { setSiretInput(e.target.value); setSiretStatus('idle') }} maxLength={17}
                 className={`flex-1 px-4 py-3 border-[1.5px] rounded-xl font-mono text-sm focus:outline-none ${siretStatus === 'verified' ? 'border-green-400 bg-green-50' : siretStatus === 'error' ? 'border-red-400' : 'border-[#E0E0E0] bg-warm-gray focus:border-purple-400 focus:bg-white'}`} placeholder={t('register.taxIdPlaceholder')} />
@@ -857,16 +860,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
                 <p className="font-semibold text-green-800">✅ {company.name}</p>
                 <p className="text-xs text-green-600">{company.address}</p>
+                {company.nafLabel && <p className="text-xs text-green-600 mt-0.5">Activité : {company.nafLabel} ({company.nafCode})</p>}
+                {company.legalForm && <p className="text-xs text-green-600">Forme : {company.legalForm}</p>}
               </div>
             )}
           </div>
-
-          {siretStatus !== 'verified' && (
-            <div>
-              <label className="block text-sm font-semibold text-mid mb-1">{t('register.companyNameLabel')} <span className="text-red-500">*</span></label>
-              <input type="text" value={form.companyName} onChange={e => setForm(f => ({...f, companyName: e.target.value}))} className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none" placeholder="Ma Société SARL" />
-            </div>
-          )}
 
           <div>
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
@@ -900,7 +898,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           <button type="button" onClick={() => {
-            if (!form.companyName && !company) { setError(t('register.companyRequired')); return }
+            if (siretStatus !== 'verified') { setError('Veuillez vérifier votre SIRET avant de continuer — nous devons confirmer l\'existence légale de votre société'); return }
             if (form.secteurs.length === 0) { setError(t('register.sectorRequired')); return }
             setError(''); setStep(2)
           }} className={`w-full py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
