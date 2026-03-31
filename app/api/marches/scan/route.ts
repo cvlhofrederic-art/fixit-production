@@ -32,13 +32,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info(`[scan] Request: metiers=${metiers.join(',')}, location=${body.location}, country=${body.country}`)
+    const departments = Array.isArray(body.departments) ? body.departments.filter(Boolean) : []
+    const region = typeof body.region === 'string' ? body.region : undefined
+
+    logger.info(`[scan] Request: metiers=${metiers.join(',')}, location=${body.location}, country=${body.country}, region=${region || 'auto'}, depts=${departments.join(',') || 'auto'}`)
 
     const options: ScanOptions = {
       country: body.country || 'FR',
-      daysBack: Math.min(body.daysBack || 5, 14), // Max 14 days
+      daysBack: Math.min(body.daysBack || 7, 60), // Allow up to 60 days (en cours mode)
       metiers,
       location: body.location || undefined,
+      departments: departments.length > 0 ? departments : undefined,
+      region: region || undefined,
       budgetMin: body.budgetMin || undefined,
       budgetMax: body.budgetMax || undefined,
     }

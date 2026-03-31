@@ -142,18 +142,25 @@ function extractTextFromDonnees(donnees: any): string {
     .slice(0, 10000) // Cap at 10k chars to avoid memory issues
 }
 
-async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location?: string): Promise<ScannedMarche[]> {
+async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location?: string, departments?: string[]): Promise<ScannedMarche[]> {
   const results: ScannedMarche[] = []
   const seenIds = new Set<string>()
 
   try {
+    const today = new Date().toISOString().split('T')[0]
+    // Fallback: also include recent publications without deadline
     const dateFrom = new Date()
-    dateFrom.setDate(dateFrom.getDate() - daysBack)
+    dateFrom.setDate(dateFrom.getDate() - Math.max(daysBack, 30))
     const dateStr = dateFrom.toISOString().split('T')[0]
 
     // Build geo filter (shared by both passes)
+    // Priority: explicit departments > location city > no filter
     let geoFilter = ''
-    if (location) {
+    if (departments && departments.length > 0) {
+      geoFilter = departments.length > 1
+        ? `(${departments.map(d => `code_departement:'${d}'`).join(' OR ')})`
+        : `code_departement:'${departments[0]}'`
+    } else if (location) {
       const dept = CITY_TO_DEPT[location.toLowerCase()]
       if (dept) {
         const regionDepts = DEPT_REGIONS[dept] || [dept]
@@ -163,10 +170,11 @@ async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location
       }
     }
 
-    // ── PASS 1: Keyword-filtered search (fast, targeted) ──────────────────
+    // ── PASS 1: Keyword-filtered search — "en cours" (deadline future OR recent without deadline)
     const kwFilter = buildBoampKeywordFilter(metiers)
     {
-      const whereParts = [`dateparution>=date'${dateStr}'`]
+      // Strategy: get all marchés still open (deadline >= today) OR recently published (no deadline set)
+      const whereParts = [`(datelimitereponse>=date'${today}' OR (datelimitereponse IS NULL AND dateparution>=date'${dateStr}'))`]
       if (kwFilter) whereParts.push(`(${kwFilter})`)
       if (geoFilter) whereParts.push(geoFilter)
 
@@ -208,10 +216,10 @@ async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location
     }
 
     // ── PASS 2: Broad "travaux" search + lot detail scan ──────────────────
-    // Fetch ALL travaux marchés in the region, then scan donnees for lot-level matches
+    // Fetch ALL travaux marchés in the region still open, scan donnees for lot-level matches
     if (metiers.length > 0) {
       const whereParts2 = [
-        `dateparution>=date'${dateStr}'`,
+        `(datelimitereponse>=date'${today}' OR (datelimitereponse IS NULL AND dateparution>=date'${dateStr}'))`,
         `type_marche:'TRAVAUX'`,
       ]
       if (geoFilter) whereParts2.push(geoFilter)
@@ -755,8 +763,27 @@ export interface ScanOptions {
   daysBack?: number
   metiers?: string[]
   location?: string
+  departments?: string[]   // Explicit department codes (e.g. ['13', '83', '84'])
+  region?: string          // Region key (e.g. 'paca') — resolved to departments
   budgetMin?: number
   budgetMax?: number
+}
+
+// Region → department codes mapping
+const REGION_DEPARTMENTS: Record<string, string[]> = {
+  'paca': ['04', '05', '06', '13', '83', '84'],
+  'idf': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  'aura': ['01', '03', '07', '15', '26', '38', '42', '43', '63', '69', '73', '74'],
+  'occitanie': ['09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'],
+  'nouvelle-aquitaine': ['16', '17', '19', '23', '24', '33', '40', '47', '64', '79', '86', '87'],
+  'bretagne': ['22', '29', '35', '56'],
+  'normandie': ['14', '27', '50', '61', '76'],
+  'hdf': ['02', '59', '60', '62', '80'],
+  'grand-est': ['08', '10', '51', '52', '54', '55', '57', '67', '68', '88'],
+  'bourgogne-fc': ['21', '25', '39', '58', '70', '71', '89', '90'],
+  'pdl': ['44', '49', '53', '72', '85'],
+  'centre-vdl': ['18', '28', '36', '37', '41', '45'],
+  'corse': ['2A', '2B'],
 }
 
 export interface ScanResult {
@@ -776,14 +803,25 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
     daysBack = 2,
     metiers = [],
     location,
+    departments: explicitDepts,
+    region,
     budgetMin,
     budgetMax,
   } = options
 
+  // Resolve region/departments: explicit departments > region > location-based
+  let resolvedDepts: string[] | undefined
+  if (explicitDepts && explicitDepts.length > 0) {
+    resolvedDepts = explicitDepts
+  } else if (region) {
+    resolvedDepts = REGION_DEPARTMENTS[region.toLowerCase()] || undefined
+  }
+  // If no explicit departments and no region, location-based geo filter kicks in inside fetchBOAMP
+
   // Resolve mixed metier identifiers (categoryIds, labels, keys) to canonical keys
   const resolvedMetiers = metiers.length > 0 ? resolveMetierKeys(metiers) : []
 
-  logger.info(`[scanner] Starting scan: country=${country}, daysBack=${daysBack}, metiers=${metiers.join(',')} → resolved=${resolvedMetiers.join(',')}`)
+  logger.info(`[scanner] Starting scan: country=${country}, daysBack=${daysBack}, metiers=${metiers.join(',')} → resolved=${resolvedMetiers.join(',')}, depts=${resolvedDepts?.join(',') || 'auto'}, region=${region || 'none'}`)
 
   // Fetch from all sources in parallel (pass resolved metiers + location for server-side filtering)
   const promises: Promise<ScannedMarche[]>[] = []
@@ -796,12 +834,12 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
   }
 
   if (country === 'FR' || country === 'both') {
-    // APIs temps réel
-    promises.push(fetchBOAMP(daysBack, resolvedMetiers, location))
+    // APIs temps réel — pass departments for geo filter
+    promises.push(fetchBOAMP(daysBack, resolvedMetiers, location, resolvedDepts))
     promises.push(fetchTED(daysBack, 'FR', resolvedMetiers))
     promises.push(fetchBOAMPMirror(daysBack, resolvedMetiers, location))
     // Marchés stockés par le cron (8 sites + mairies)
-    promises.push(fetchStoredMarches(Math.max(daysBack, 10), allStrongKw, location, 'FR'))
+    promises.push(fetchStoredMarches(Math.max(daysBack, 30), allStrongKw, location, 'FR'))
   }
   if (country === 'PT' || country === 'both') {
     promises.push(fetchBASEGov(daysBack, resolvedMetiers))
