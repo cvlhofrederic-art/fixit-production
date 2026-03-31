@@ -1202,11 +1202,11 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           )}
 
           {/* Filters card */}
-          <div className="v22-card" style={{ marginBottom: 14 }}>
+          <div className="v22-card" style={{ marginBottom: 14, overflow: 'visible' }}>
             <div className="v22-card-head">
               <div className="v22-card-title">{isPt ? 'Filtros' : 'Filtres'}</div>
             </div>
-            <div className="v22-card-body">
+            <div className="v22-card-body" style={{ overflow: 'visible' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Categoria' : 'Catégorie'}</label>
