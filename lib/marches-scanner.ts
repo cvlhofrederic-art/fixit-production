@@ -176,7 +176,7 @@ async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location
       results.push({
         source: 'boamp',
         sourceId: `boamp-${r.idweb || Math.random().toString(36).slice(2)}`,
-        sourceUrl: r.url_avis || (r.idweb ? `https://www.boamp.fr/pages/avis/?q=idweb:${r.idweb}` : 'https://www.boamp.fr'),
+        sourceUrl: r.url_avis || (r.idweb ? `https://www.boamp.fr/avis/detail/${r.idweb}` : 'https://www.boamp.fr'),
         title: String(r.objet || '').slice(0, 500),
         description: String(r.objet || ''),
         cpvCodes: [], // BOAMP uses descripteur_code (internal), not CPV
@@ -414,7 +414,7 @@ async function fetchBOAMPMirror(daysBack: number = 2, metiers: string[] = [], lo
       results.push({
         source: 'marches_online', // Reuse source type for aggregated non-primary sources
         sourceId: `boamp-ods-${r.idweb || Math.random().toString(36).slice(2)}`,
-        sourceUrl: r.url_avis || (r.idweb ? `https://www.boamp.fr/pages/avis/?q=idweb:${r.idweb}` : 'https://www.boamp.fr'),
+        sourceUrl: r.url_avis || (r.idweb ? `https://www.boamp.fr/avis/detail/${r.idweb}` : 'https://www.boamp.fr'),
         title: String(r.objet).slice(0, 500),
         description: String(r.objet),
         cpvCodes: [],
@@ -542,7 +542,7 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
     promises.push(fetchBOAMP(daysBack, resolvedMetiers, location))
     promises.push(fetchTED(daysBack, 'FR', resolvedMetiers))
     promises.push(fetchBOAMPMirror(daysBack, resolvedMetiers, location))
-    promises.push(fetchDECP(resolvedMetiers))
+    // DECP excluded: returns already-awarded contracts, not open opportunities
   }
   if (country === 'PT' || country === 'both') {
     promises.push(fetchBASEGov(daysBack, resolvedMetiers))

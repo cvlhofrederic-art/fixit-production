@@ -143,7 +143,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [filterCity, setFilterCity] = useState('')
   const [filterUrgency, setFilterUrgency] = useState('')
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
-  const [filterBTP, setFilterBTP] = useState(false)                  // Offres sous-traitance BTP
   const [filterZone, setFilterZone] = useState('')                   // zone_test filter (test mode)
 
   // Auto-detect pays from locale — FR artisan sees FR only, PT sees PT only
@@ -208,7 +207,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterCity) params.set('city', filterCity)
       if (filterUrgency) params.set('urgency', filterUrgency)
       if (filterGrandMarche) params.set('budget_min', '50000')
-      if (filterBTP) params.set('source_type', 'btp_sous_traitance')
       if (filterZone) params.set('zone', filterZone)
       params.set('pays', artisanPays)
       params.set('status', 'open')
@@ -223,7 +221,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP, filterZone, artisanPays])
+  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterZone, artisanPays])
 
   // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
   const handleScanMarches = useCallback(async () => {
@@ -1176,22 +1174,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                  <label className="v22-form-label">&nbsp;</label>
-                  <button
-                    onClick={() => setFilterBTP(f => !f)}
-                    style={{
-                      padding: '6px 12px', borderRadius: 8, border: '1px solid',
-                      borderColor: filterBTP ? '#7c3aed' : '#d1d5db',
-                      background: filterBTP ? '#f3e8ff' : '#fff',
-                      color: filterBTP ? '#7c3aed' : '#374151',
-                      cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap',
-                    }}
-                  >
-                    🏭 {isPt ? 'Só Empresas BTP' : 'Offres BTP seulement'}
-                  </button>
-                </div>
-
                 {/* Zone filter — test/dev only */}
                 {isTestMode && (
                   <div>
@@ -1277,9 +1259,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
               <div style={{ padding: 0 }}>
                 {scanMeta && (
                   <div style={{ padding: '8px 14px', background: '#f8f9fa', borderBottom: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 16 }}>
-                    <span>🇫🇷 BOAMP: {scanMeta.sources?.boamp || 0}</span>
+                    {!isPt && <span>🇫🇷 BOAMP: {(scanMeta.sources?.boamp || 0) + (scanMeta.sources?.marches_online || 0)}</span>}
                     <span>🇪🇺 TED: {scanMeta.sources?.ted || 0}</span>
-                    <span>🇵🇹 BASE.gov: {scanMeta.sources?.base_gov || 0}</span>
+                    {isPt && <span>🇵🇹 BASE.gov: {scanMeta.sources?.base_gov || 0}</span>}
                     <span>📊 Scannés: {scanMeta.totalScanned}</span>
                   </div>
                 )}
@@ -1288,7 +1270,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   const priority = m.scoring?.priority || m.priority || 'medium'
                   const priorityEmoji = priority === 'high' ? '🔥' : priority === 'medium' ? '⚖️' : 'ℹ️'
                   const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#d97706' : '#6b7280'
-                  const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : '🇵🇹 BASE.gov'
+                  const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : m.source === 'marches_online' ? '🇫🇷 BOAMP' : m.source === 'base_gov' ? '🇵🇹 BASE.gov' : m.source === 'decp' ? '🇫🇷 DECP' : m.source
 
                   return (
                     <div
@@ -1440,11 +1422,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                             ? (CATEGORIES.find(c => c.id === m.category)?.label || m.category)
                             : (CATEGORIES.find(c => c.id === m.category)?.labelFr || m.category)}
                         </span>
-                        {m.source_type === 'btp_sous_traitance' && (
-                          <span className="v22-tag" style={{ background: '#f3e8ff', color: '#7c3aed', marginTop: 4, display: 'block' }}>
-                            🏭 {isPt ? 'Empresa BTP' : 'Entreprise BTP'}
-                          </span>
-                        )}
                       </div>
 
                       {/* Title + location */}
