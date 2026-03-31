@@ -442,6 +442,135 @@ export async function scanBailleursSociaux(department: string): Promise<Tender[]
   }
 }
 
+// ── achatpublic.com — plateforme de dématérialisation collectivités ─────────
+
+export async function scanAchatPublic(department: string): Promise<Tender[]> {
+  const deptConfig = getDeptConfig(department)
+
+  // URL vérifiée : recherche consultations par département
+  const url = `https://www.achatpublic.com/sdm/ent2/gen/rechercheCsl.action?dept=${department}`
+
+  logger.info(`[platforms:AchatPublic] Scanning department ${department}`)
+
+  try {
+    const response = await fetchWithRetry(url)
+    if (!response.ok) {
+      logger.error(`[platforms:AchatPublic] HTTP ${response.status} for dept ${department}`)
+      return []
+    }
+
+    const html = await response.text()
+    const tenders: Tender[] = []
+
+    // achatpublic.com uses table rows for consultation listings
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
+    const linkPattern = /<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>/i
+    const datePattern = /(\d{2}[/.-]\d{2}[/.-]\d{4})/g
+    const buyerPattern =
+      /(?:acheteur|organisme|entité|pouvoir\s*adjudicateur|collectivité)[^<]*?(?:<[^>]*>)?\s*([^<]{3,80})/i
+
+    let rowMatch: RegExpExecArray | null
+    while ((rowMatch = rowPattern.exec(html)) !== null) {
+      const row = rowMatch[1]
+
+      const linkMatch = linkPattern.exec(row)
+      if (!linkMatch) continue
+
+      const link = linkMatch[1]
+      const title = linkMatch[2].replace(/<[^>]*>/g, '').trim()
+      if (!title || title.length < 10) continue
+
+      const titleLower = title.toLowerCase()
+      if (titleLower.includes('attribué') || titleLower.includes('[attribue]')) continue
+
+      const dates: string[] = []
+      let dateMatch: RegExpExecArray | null
+      while ((dateMatch = datePattern.exec(row)) !== null) {
+        dates.push(dateMatch[1])
+      }
+
+      const publicationDate = dates[0]
+        ? dates[0].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : nowISO().split('T')[0]
+      const deadline = dates[1]
+        ? dates[1].replace(/(\d{2})[/.-](\d{2})[/.-](\d{4})/, '$3-$2-$1')
+        : ''
+
+      const buyerMatch = buyerPattern.exec(row)
+      const buyer = buyerMatch
+        ? buyerMatch[1].replace(/<[^>]*>/g, '').trim()
+        : undefined
+
+      const fullUrl = link.startsWith('http')
+        ? link
+        : `https://www.achatpublic.com${link}`
+
+      tenders.push({
+        id: generateId('ap', `${department}_${link}`),
+        title,
+        city: '',
+        source: 'achatpublic.com',
+        source_id: generateId('ap', link),
+        publication_date: publicationDate,
+        deadline,
+        description: title,
+        url: fullUrl,
+        category: 'BTP',
+        department: deptConfig.code,
+        region: deptConfig.region,
+        buyer,
+        synced_at: nowISO(),
+      })
+    }
+
+    // Fallback: card/div layout
+    if (tenders.length === 0) {
+      const cardPattern =
+        /<(?:div|article|li)[^>]*class="[^"]*(?:consultation|avis|marche|result|annonce)[^"]*"[^>]*>([\s\S]*?)(?:<\/(?:div|article|li)>){1,3}/gi
+
+      let cardMatch: RegExpExecArray | null
+      while ((cardMatch = cardPattern.exec(html)) !== null) {
+        const block = cardMatch[1]
+        const linkMatch = linkPattern.exec(block)
+        if (!linkMatch) continue
+
+        const link = linkMatch[1]
+        const title = linkMatch[2].replace(/<[^>]*>/g, '').trim()
+        if (!title || title.length < 10) continue
+
+        const titleLower = title.toLowerCase()
+        if (titleLower.includes('attribué')) continue
+
+        const fullUrl = link.startsWith('http')
+          ? link
+          : `https://www.achatpublic.com${link}`
+
+        tenders.push({
+          id: generateId('ap', `${department}_card_${link}`),
+          title,
+          city: '',
+          source: 'achatpublic.com',
+          source_id: generateId('ap', link),
+          publication_date: nowISO().split('T')[0],
+          deadline: '',
+          description: title,
+          url: fullUrl,
+          category: 'BTP',
+          department: deptConfig.code,
+          region: deptConfig.region,
+          synced_at: nowISO(),
+        })
+      }
+    }
+
+    logger.info(`[platforms:AchatPublic] Found ${tenders.length} tenders in dept ${department}`)
+    return tenders
+  } catch (err) {
+    logger.error(`[platforms:AchatPublic] Failed for dept ${department}`, { error: err })
+    return []
+  }
+}
+
 // ── Aggregate scanner ───────────────────────────────────────────────────────
 
 export async function scanAllPlatforms(department: string): Promise<Tender[]> {
@@ -453,10 +582,11 @@ export async function scanAllPlatforms(department: string): Promise<Tender[]> {
     scanFranceMarches(department),
     scanMarchesOnline(department),
     scanBailleursSociaux(department),
+    scanAchatPublic(department),
   ])
 
   const tenders: Tender[] = []
-  const sources = ['EMarches', 'FranceMarches', 'MarchesOnline', 'BailleursSociaux']
+  const sources = ['EMarches', 'FranceMarches', 'MarchesOnline', 'BailleursSociaux', 'AchatPublic']
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]
