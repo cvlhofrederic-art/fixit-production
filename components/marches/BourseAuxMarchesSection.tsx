@@ -1296,7 +1296,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </div>
                 )}
 
-                {/* Zone filter — test/dev only */}
+                {/* Zone filter — test/dev only, restricted to current country */}
                 {isTestMode && (
                   <div>
                     <label className="v22-form-label">Zone test</label>
@@ -1306,8 +1306,8 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                       className="v22-form-input"
                     >
                       <option value="">Toutes</option>
-                      <option value="13-paca">🇫🇷 Dept 13 / PACA</option>
-                      <option value="porto-pt">🇵🇹 Porto / Norte</option>
+                      {!isPt && <option value="13-paca">🇫🇷 Dept 13 / PACA</option>}
+                      {isPt && <option value="porto-pt">🇵🇹 Porto / Norte</option>}
                     </select>
                   </div>
                 )}

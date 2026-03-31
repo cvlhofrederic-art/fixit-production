@@ -896,9 +896,10 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
       const scoring = scoreMarche(input, prefs)
       return { ...m, scoring }
     })
-      // Require at least 1 keyword match (scoreKeywords > 0) — no keyword = not relevant to this trade
-      // Then threshold 20 on total score for basic quality
-      .filter(m => m.scoring!.scoreKeywords > 0 && m.scoring!.scoreTotal >= 20)
+      // Require a STRONG keyword match (scoreKeywords >= 8) to ensure real relevance.
+      // Weak-only matches (score 3-7) are too noisy — "aménagement" alone shouldn't qualify a paysagiste result.
+      // scoreKeywords >= 8 means: at least 1 strong hit (8pts) OR 3+ weak hits (3*3=9pts).
+      .filter(m => m.scoring!.scoreKeywords >= 8 && m.scoring!.scoreTotal >= 25)
       .sort((a, b) => (b.scoring?.scoreTotal || 0) - (a.scoring?.scoreTotal || 0))
   } else {
     // No filtering, return all with basic text-based scoring
