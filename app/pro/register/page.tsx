@@ -692,7 +692,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const ORG_TYPES = getOrgTypes(t)
   const org = ORG_TYPES.find(o => o.id === orgType)!
   const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [form, setForm] = useState({ nom: '', prenom: '', email: '', telephone: '', password: '', confirmPassword: '', companyName: '', nbEmployes: '', secteur: '', ville: '', codePostal: '' })
+  const [form, setForm] = useState({ nom: '', prenom: '', email: '', telephone: '', password: '', confirmPassword: '', companyName: '', nbEmployes: '', secteurs: [] as string[], ville: '', codePostal: '' })
   const [siretInput, setSiretInput] = useState('')
   const [siretStatus, setSiretStatus] = useState<SiretStatus>('idle')
   const [siretError, setSiretError] = useState('')
@@ -732,7 +732,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             company_address: company?.address || '',
             siret: siretInput.replace(/\s/g, ''),
             nb_employes: form.nbEmployes,
-            secteur: form.secteur,
+            secteur: form.secteurs.join(', '),
+            secteurs: form.secteurs,
             ville: form.ville,
             abonnement: 'trial',
           }
@@ -818,14 +819,21 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-mid mb-2">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-semibold text-mid mb-1">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">Plusieurs choix possibles</p>
             <div className="grid grid-cols-1 gap-2">
-              {secteurs.map(s => (
-                <button key={s} type="button" onClick={() => setForm(f => ({...f, secteur: s}))}
-                  className={`text-left px-4 py-2.5 rounded-xl border-2 text-sm transition ${form.secteur === s ? `${accent} border-2 font-semibold` : 'border-[#EFEFEF] hover:border-[#D0D0D0] text-mid'}`}>
-                  {form.secteur === s ? '✓ ' : ''}{s}
-                </button>
-              ))}
+              {secteurs.map(s => {
+                const selected = form.secteurs.includes(s)
+                return (
+                  <button key={s} type="button" onClick={() => setForm(f => ({
+                    ...f,
+                    secteurs: selected ? f.secteurs.filter(x => x !== s) : [...f.secteurs, s]
+                  }))}
+                    className={`text-left px-4 py-2.5 rounded-xl border-2 text-sm transition ${selected ? `${accent} border-2 font-semibold` : 'border-[#EFEFEF] hover:border-[#D0D0D0] text-mid'}`}>
+                    {selected ? '✓ ' : ''}{s}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -843,7 +851,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
 
           <button type="button" onClick={() => {
             if (!form.companyName && !company) { setError(t('register.companyRequired')); return }
-            if (!form.secteur) { setError(t('register.sectorRequired')); return }
+            if (form.secteurs.length === 0) { setError(t('register.sectorRequired')); return }
             setError(''); setStep(2)
           }} className={`w-full py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
         </div>
