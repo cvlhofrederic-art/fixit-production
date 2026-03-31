@@ -286,7 +286,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterCategory) params.set('category', filterCategory)
       params.set('pays', artisanPays)
       params.set('status', 'open')
-      if (artisan?.id) params.set('artisan_user_id', artisan.id)
+      // Ne pas filtrer par matched_artisans — les marchés du cron ne sont pas matchés individuellement
       const res = await fetch(`/api/marches?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marches')
       const data = await res.json()
