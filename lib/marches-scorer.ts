@@ -3,7 +3,7 @@
 // Seuil affichage : > 40 (relaxé pour ne pas rater d'opportunités)
 // Priorité : 🔥 > 80 | ⚖️ 50-80 | ℹ️ 40-50
 
-import { METIER_CPV_MAP, findMetiersByText } from './marches-cpv-mapping'
+import { METIER_CPV_MAP } from './marches-cpv-mapping'
 
 export interface ScoringInput {
   title: string
@@ -70,21 +70,51 @@ function scoreCPV(inputCPVs: string[], metiers: string[]): { score: number; matc
 }
 
 // ── Score Keywords (30 pts max) ─────────────────────────────────────────────
+// Uses strong/weak keyword distinction: strong matches score higher than weak-only matches
 function scoreKeywords(title: string, description: string, metiers: string[], country: 'FR' | 'PT'): number {
-  const text = `${title} ${description}`
-  const matches = findMetiersByText(text, country)
+  const text = `${title} ${description}`.toLowerCase()
 
-  if (!matches.length) return 0
+  let bestScore = 0
 
-  // Check if any of the user's metiers are in the matches
-  const userMatch = matches.find(m => metiers.includes(m.metier))
-  if (userMatch) {
-    // Direct metier match: scale 0-30 based on keyword density
-    return Math.min(Math.round(userMatch.score * 0.3), 30)
+  for (const metier of metiers) {
+    const mapping = METIER_CPV_MAP[metier]
+    if (!mapping) continue
+
+    let strongHits = 0
+    let weakHits = 0
+
+    // Count strong keyword matches
+    for (const kw of mapping.strongKeywords) {
+      if (text.includes(kw.toLowerCase())) strongHits++
+    }
+
+    // Count weak keyword matches
+    for (const kw of mapping.weakKeywords) {
+      if (text.includes(kw.toLowerCase())) weakHits++
+    }
+
+    // PT keywords
+    if (country === 'PT') {
+      for (const kw of mapping.keywordsPt) {
+        if (text.includes(kw.toLowerCase())) strongHits++
+      }
+    }
+
+    if (strongHits === 0 && weakHits === 0) continue
+
+    // Strong matches: 8pts per hit (max 24), weak: 3pts per hit (max 6)
+    // But weak-only matches cap at 8pts total (low confidence)
+    let score: number
+    if (strongHits > 0) {
+      score = Math.min(strongHits * 8, 24) + Math.min(weakHits * 3, 6)
+    } else {
+      score = Math.min(weakHits * 3, 8) // Weak-only: capped at 8/30
+    }
+
+    bestScore = Math.max(bestScore, Math.min(score, 30))
   }
 
-  // Partial related match: max 10pts
-  return Math.min(Math.round(matches[0].score * 0.1), 10)
+  return bestScore
 }
 
 // ── Score Géo (15 pts max) ──────────────────────────────────────────────────

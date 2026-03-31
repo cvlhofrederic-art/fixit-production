@@ -7,7 +7,7 @@ import { METIER_CPV_MAP, findMetiersByText, findMetiersByCPV, resolveMetierKeys 
 import { scoreMarche, type ScoringInput, type ScoringPrefs, type ScoringResult } from './marches-scorer'
 
 export interface ScannedMarche {
-  source: 'boamp' | 'ted' | 'base_gov'
+  source: 'boamp' | 'ted' | 'base_gov' | 'marches_online' | 'decp'
   sourceId: string
   sourceUrl: string
   title: string
@@ -41,17 +41,56 @@ const CITY_TO_DEPT: Record<string, string> = {
   'bobigny': '93', 'versailles': '78', 'evry': '91', 'cergy': '95', 'melun': '77',
 }
 
-/** Build BOAMP keyword filter from metier keywords */
+// Département → départements voisins de la même région (pour augmenter le volume)
+const DEPT_REGIONS: Record<string, string[]> = {
+  // PACA
+  '04': ['04', '05', '06', '13', '83', '84'],
+  '05': ['04', '05', '06', '13', '83', '84'],
+  '06': ['04', '05', '06', '13', '83', '84'],
+  '13': ['04', '05', '06', '13', '83', '84'],
+  '83': ['04', '05', '06', '13', '83', '84'],
+  '84': ['04', '05', '06', '13', '83', '84'],
+  // IDF
+  '75': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '77': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '78': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '91': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '92': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '93': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '94': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  '95': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  // Auvergne-Rhône-Alpes
+  '69': ['01', '38', '42', '69', '73', '74'],
+  '38': ['01', '38', '42', '69', '73', '74'],
+  '42': ['01', '38', '42', '69', '73', '74'],
+  // Hauts-de-France
+  '59': ['02', '59', '60', '62', '80'],
+  '62': ['02', '59', '60', '62', '80'],
+  // Occitanie
+  '31': ['09', '11', '31', '32', '34', '81', '82'],
+  '34': ['09', '11', '31', '32', '34', '81', '82'],
+  // Nouvelle-Aquitaine
+  '33': ['24', '33', '40', '47', '64'],
+  // Bretagne
+  '35': ['22', '29', '35', '56'],
+  // Pays de la Loire
+  '44': ['44', '49', '53', '72', '85'],
+  // Grand Est
+  '67': ['67', '68', '54', '57', '88'],
+}
+
+/** Build BOAMP keyword filter from metier strongKeywords only (high precision) */
 function buildBoampKeywordFilter(metiers: string[]): string {
   const allKeywords: string[] = []
   for (const metier of metiers) {
     const mapping = METIER_CPV_MAP[metier]
     if (mapping) {
-      allKeywords.push(...mapping.keywords)
+      // Only use strongKeywords for BOAMP API filter — weak keywords cause false positives
+      allKeywords.push(...mapping.strongKeywords)
     }
   }
-  // Deduplicate and take top 15 (API URL length limit)
-  const unique = [...new Set(allKeywords)].slice(0, 15)
+  // Deduplicate and take top 12 (API URL length limit)
+  const unique = [...new Set(allKeywords)].slice(0, 12)
   if (unique.length === 0) return ''
   return unique.map(kw => `objet LIKE '%${kw}%'`).join(' OR ')
 }
@@ -82,11 +121,18 @@ async function fetchBOAMP(daysBack: number = 2, metiers: string[] = [], location
       whereParts.push(`(${kwFilter})`)
     }
 
-    // Geo filter by département code
+    // Geo filter: search département + neighboring depts in same region for volume
     if (location) {
       const dept = CITY_TO_DEPT[location.toLowerCase()]
       if (dept) {
-        whereParts.push(`code_departement:'${dept}'`)
+        // Find all depts in the same region
+        const regionDepts = DEPT_REGIONS[dept] || [dept]
+        if (regionDepts.length > 1) {
+          // OR across regional depts (ex: PACA → 04,05,06,13,83,84)
+          whereParts.push(`(${regionDepts.map(d => `code_departement:'${d}'`).join(' OR ')})`)
+        } else {
+          whereParts.push(`code_departement:'${dept}'`)
+        }
       }
     }
 
@@ -320,6 +366,137 @@ async function fetchBASEGov(daysBack: number = 2, metiers: string[] = []): Promi
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// BOAMP OpenDataSoft — Miroir BOAMP sur plateforme DILA
+// API : https://boamp-datadila.opendatasoft.com/api/explore/v2.1
+// Complément au BOAMP principal (peut avoir des avis différents)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function fetchBOAMPMirror(daysBack: number = 2, metiers: string[] = [], location?: string): Promise<ScannedMarche[]> {
+  const results: ScannedMarche[] = []
+
+  try {
+    const dateFrom = new Date()
+    dateFrom.setDate(dateFrom.getDate() - daysBack)
+    const dateStr = dateFrom.toISOString().split('T')[0]
+
+    // Build keyword search query (q= full-text, more flexible than WHERE LIKE)
+    const kwParts: string[] = []
+    for (const metier of metiers) {
+      const mapping = METIER_CPV_MAP[metier]
+      if (mapping) kwParts.push(...mapping.strongKeywords.slice(0, 3))
+    }
+    const searchQ = [...new Set(kwParts)].slice(0, 6).join(' ')
+    if (!searchQ) return results
+
+    const whereParts: string[] = [`dateparution>=date'${dateStr}'`]
+    if (location) {
+      const dept = CITY_TO_DEPT[location.toLowerCase()]
+      if (dept) whereParts.push(`code_departement:'${dept}'`)
+    }
+
+    const url = `https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records?q=${encodeURIComponent(searchQ)}&where=${encodeURIComponent(whereParts.join(' AND '))}&order_by=dateparution desc&limit=50&select=idweb,objet,dateparution,datelimitereponse,nomacheteur,code_departement,url_avis,nature_libelle`
+
+    const res = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    })
+
+    if (!res.ok) {
+      logger.warn(`[scanner] BOAMP Mirror returned ${res.status}`)
+      return results
+    }
+
+    const data = await res.json()
+    for (const r of (data.results || [])) {
+      if (!r.objet) continue
+      const depts = Array.isArray(r.code_departement) ? r.code_departement : r.code_departement ? [String(r.code_departement)] : []
+
+      results.push({
+        source: 'marches_online', // Reuse source type for aggregated non-primary sources
+        sourceId: `boamp-ods-${r.idweb || Math.random().toString(36).slice(2)}`,
+        sourceUrl: r.url_avis || (r.idweb ? `https://www.boamp.fr/pages/avis/?q=idweb:${r.idweb}` : 'https://www.boamp.fr'),
+        title: String(r.objet).slice(0, 500),
+        description: String(r.objet),
+        cpvCodes: [],
+        buyer: String(r.nomacheteur || 'Non précisé'),
+        location: depts.length > 0 ? `Dept. ${depts.join(', ')}` : 'France',
+        country: 'FR',
+        deadline: r.datelimitereponse || undefined,
+        publishedAt: r.dateparution || new Date().toISOString(),
+        procedureType: r.nature_libelle || undefined,
+      })
+    }
+
+    logger.info(`[scanner] BOAMP Mirror: ${results.length} marchés récupérés`)
+  } catch (err) {
+    logger.error('[scanner] BOAMP Mirror error:', err)
+  }
+
+  return results
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DECP — Données Essentielles Commande Publique (marchés attribués FR)
+// API : https://data.economie.gouv.fr — intelligence concurrentielle
+// Montre les marchés récemment attribués = qui gagne quoi, à quel montant
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function fetchDECP(metiers: string[] = []): Promise<ScannedMarche[]> {
+  const results: ScannedMarche[] = []
+
+  try {
+    // Build full-text search from strong keywords
+    const kwParts: string[] = []
+    for (const metier of metiers) {
+      const mapping = METIER_CPV_MAP[metier]
+      if (mapping) kwParts.push(...mapping.strongKeywords.slice(0, 3))
+    }
+    const searchQ = [...new Set(kwParts)].slice(0, 6).join(' ')
+    if (!searchQ) return results
+
+    // DECP uses q= for full-text search (WHERE doesn't work on text fields)
+    // Order by recent, limit to 50
+    const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/decp_augmente/records?q=${encodeURIComponent(searchQ)}&order_by=datepublicationdonnees desc&limit=50&select=id,objetmarche,codecpv,lieuexecutionnom,montant,nomacheteur,nature,datepublicationdonnees,codedepartementexecution`
+
+    const res = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    })
+
+    if (!res.ok) {
+      logger.warn(`[scanner] DECP API returned ${res.status}`)
+      return results
+    }
+
+    const data = await res.json()
+    for (const r of (data.results || [])) {
+      if (!r.objetmarche) continue
+
+      results.push({
+        source: 'decp',
+        sourceId: `decp-${r.id || Math.random().toString(36).slice(2)}`,
+        sourceUrl: 'https://data.economie.gouv.fr/explore/dataset/decp_augmente/',
+        title: `[Attribué] ${String(r.objetmarche).slice(0, 480)}`,
+        description: String(r.objetmarche),
+        cpvCodes: r.codecpv ? [String(r.codecpv).replace(/-.*/, '')] : [],
+        buyer: String(r.nomacheteur || 'Non précisé'),
+        location: String(r.lieuexecutionnom || (r.codedepartementexecution ? `Dept. ${r.codedepartementexecution}` : 'France')),
+        country: 'FR',
+        budgetMin: r.montant ? Number(r.montant) : undefined,
+        publishedAt: r.datepublicationdonnees || new Date().toISOString(),
+        procedureType: r.nature || undefined,
+      })
+    }
+
+    logger.info(`[scanner] DECP: ${results.length} marchés attribués récupérés`)
+  } catch (err) {
+    logger.error('[scanner] DECP fetch error:', err)
+  }
+
+  return results
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN SCANNER — Orchestre tout
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -337,7 +514,7 @@ export interface ScanResult {
   meta: {
     totalScanned: number
     totalFiltered: number
-    sources: { boamp: number; ted: number; base_gov: number }
+    sources: { boamp: number; ted: number; base_gov: number; marches_online: number; decp: number }
     scannedAt: string
     daysBack: number
   }
@@ -364,6 +541,8 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
   if (country === 'FR' || country === 'both') {
     promises.push(fetchBOAMP(daysBack, resolvedMetiers, location))
     promises.push(fetchTED(daysBack, 'FR', resolvedMetiers))
+    promises.push(fetchBOAMPMirror(daysBack, resolvedMetiers, location))
+    promises.push(fetchDECP(resolvedMetiers))
   }
   if (country === 'PT' || country === 'both') {
     promises.push(fetchBASEGov(daysBack, resolvedMetiers))
@@ -372,7 +551,7 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
 
   const rawResults = await Promise.allSettled(promises)
   const allMarches: ScannedMarche[] = []
-  const sourceCounts = { boamp: 0, ted: 0, base_gov: 0 }
+  const sourceCounts = { boamp: 0, ted: 0, base_gov: 0, marches_online: 0, decp: 0 }
 
   for (const result of rawResults) {
     if (result.status === 'fulfilled') {
@@ -383,7 +562,7 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
     }
   }
 
-  logger.info(`[scanner] Total scanned: ${allMarches.length} (BOAMP: ${sourceCounts.boamp}, TED: ${sourceCounts.ted}, BASE.gov: ${sourceCounts.base_gov})`)
+  logger.info(`[scanner] Total scanned: ${allMarches.length} (BOAMP: ${sourceCounts.boamp}, TED: ${sourceCounts.ted}, MarchésOnline: ${sourceCounts.marches_online}, DECP: ${sourceCounts.decp}, BASE.gov: ${sourceCounts.base_gov})`)
 
   // Deduplicate by title similarity
   const deduplicated = deduplicateMarches(allMarches)
@@ -406,9 +585,9 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
       const scoring = scoreMarche(input, prefs)
       return { ...m, scoring }
     })
-      // Threshold 20 (not 40) because BOAMP results already keyword-filtered server-side
-      // and BOAMP doesn't expose CPV codes so CPV score is always 0
-      .filter(m => m.scoring!.scoreTotal >= 20)
+      // Threshold 30: BOAMP keyword-filtered server-side with strongKeywords only
+      // CPV score = 0 for BOAMP (no CPV), so max = keywords(30) + geo(15) + budget(15) = 60
+      .filter(m => m.scoring!.scoreTotal >= 30)
       .sort((a, b) => (b.scoring?.scoreTotal || 0) - (a.scoring?.scoreTotal || 0))
   } else {
     // No filtering, return all with basic text-based scoring
