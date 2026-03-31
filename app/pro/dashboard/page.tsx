@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
-import { POLL_NOTIFICATIONS, POLL_MISSIONS, TOAST_LONG, TOAST_DEFAULT } from '@/lib/constants'
 import { useTranslation } from '@/lib/i18n/context'
 import AiChatBot from '@/components/chat/AiChatBot'
 import { DashboardSkeleton } from '@/components/dashboard'
@@ -20,8 +19,9 @@ import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useNotifications } from '@/hooks/useNotifications'
-import { parseServiceRange, getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
-import type { Artisan, Service, Booking, Availability, Absence, Notification, ChatMessage, SavedDocument } from '@/lib/types'
+import { useServices, useAbsences, useAvailability, useCalendar, useSettings, useBookings } from '@/hooks/dashboard'
+import { getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
+import type { Service, Booking, Notification, ChatMessage } from '@/lib/types'
 
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
 // ssr:false was causing React hydration error #419 that broke all button handlers
@@ -82,207 +82,136 @@ export default function DashboardPage() {
   const router = useRouter()
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
+  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+
+  // ── Core auth state (kept here — loadDashboardData initializes all hooks) ──
   const [artisan, setArtisan] = useState<any>(null)
   const [orgRole, setOrgRole] = useState<'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'>('artisan')
-  const [bookings, setBookings] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activePage, setActivePage] = useState('home')
-  const calendarDataLoadedRef = useRef(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [showDevisForm, setShowDevisForm] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
-  const [showFactureForm, setShowFactureForm] = useState(false)
-  const [savedDocuments, setSavedDocuments] = useState<any[]>([])
-  const [availability, setAvailability] = useState<any[]>([])
-  const [autoAccept, setAutoAccept] = useState(false)
-  const [showNewRdv, setShowNewRdv] = useState(false)
-  const [newRdv, setNewRdv] = useState({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
-  // ── Absences ──
-  const [absences, setAbsences] = useState<any[]>([])
-  const [showAbsenceModal, setShowAbsenceModal] = useState(false)
-  const [newAbsence, setNewAbsence] = useState({ start_date: '', end_date: '', reason: isPt ? 'Férias' : 'Vacances', label: '' })
-  const [selectedBooking, setSelectedBooking] = useState<any>(null)
-  const [showBookingDetail, setShowBookingDetail] = useState(false)
-  const [convertingDevis, setConvertingDevis] = useState<any>(null)
-  const [savingAvail, setSavingAvail] = useState(false)
-  // ── Notifications (extracted to custom hook) ──
-  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [activePage, setActivePage] = useState('home')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // ── Messagerie artisan dashboard (hook custom) ──
-  const messaging = useDashboardMessaging({
-    artisan,
-    isPt,
-    dateFmtLocale: isPt ? 'pt-PT' : 'fr-FR',
-  })
+  // ── Custom hooks (state + logic extracted) ──
+  const svcHook = useServices(artisan?.id, t)
+  const { services, setServices, showMotifModal, setShowMotifModal, editingMotif, motifForm, setMotifForm, savingMotif, openNewMotif, openEditMotif, saveMotif, toggleMotifActive, deleteMotif } = svcHook
+
+  const absHook = useAbsences(artisan?.id, isPt)
+  const { absences, setAbsences, showAbsenceModal, setShowAbsenceModal, newAbsence, setNewAbsence, createAbsence, deleteAbsence, isDateAbsent } = absHook
+
+  const availHook = useAvailability(artisan, setArtisan)
+  const { availability, setAvailability, dayServices, setDayServices, autoAccept, setAutoAccept, savingAvail, toggleAutoAccept, toggleDayAvailability, updateAvailabilityTime, toggleDayService, loadCalendarData, getCalendarHours } = availHook
+
+  const bkHook = useBookings(artisan, services, isPt)
   const {
-    dashMsgModal, setDashMsgModal,
-    dashMsgList, setDashMsgList,
-    dashMsgText, setDashMsgText,
-    dashMsgSending,
-    dashMsgUploading,
-    dashMsgRecording,
-    dashMsgBlockingAgenda,
-    dashMsgFullscreenImg, setDashMsgFullscreenImg,
-    openDashMessages,
-    sendDashMessage,
-    sendDashPhotoMessage,
-    startDashVoiceRecording,
-    stopDashVoiceRecording,
-    handleBlockAgendaFromDevis,
-    uploadDashAttachment,
-    getDashAuthToken,
-  } = messaging
+    bookings, setBookings, showNewRdv, setShowNewRdv, newRdv, setNewRdv,
+    selectedBooking, setSelectedBooking, showBookingDetail, setShowBookingDetail,
+    convertingDevis, setConvertingDevis, showDevisForm, setShowDevisForm,
+    showFactureForm, setShowFactureForm, savedDocuments, setSavedDocuments,
+    completedBookings, pendingBookings, totalRevenue,
+    autoAddClientFromBooking, createRdvManual, updateBookingStatus,
+    handleEmptyCellClick, handleBookingClick, transformBookingToDevis, convertDevisToFacture,
+  } = bkHook
 
-  // ── Notifications hook ──
-  const notifCallbacks = useMemo(() => ({
-    onNavigate: (page: string) => setActivePage(page),
-    onNewBooking: (b: any) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
-    getAuthToken: getDashAuthToken,
-    t,
-    isPt,
-  }), [getDashAuthToken, t, isPt])
-  const {
-    notifications, setNotifications,
-    showNotifDropdown, setShowNotifDropdown,
-    unreadNotifCount, setUnreadNotifCount,
-    unreadMsgCount,
-    refreshUnreadMsgCount,
-  } = useNotifications(artisan?.user_id, artisan?.id, notifCallbacks)
+  const calHook = useCalendar(bookings, availability, dateFmtLocale, t)
+  const { calendarView, setCalendarView, selectedDay, setSelectedDay, getBookingsForDate, getWorkingWeekDates, getCalendarTitle, navigateCalendar, getMonthDays } = calHook
 
-  const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
-  const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('week')
-  const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
-  const [selectedWeekStart, setSelectedWeekStart] = useState(() => {
-    const now = new Date()
-    const day = now.getDay()
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
-    return new Date(now.setDate(diff)).toISOString().split('T')[0]
-  })
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  })
-
-  // Motifs state
-  const [showMotifModal, setShowMotifModal] = useState(false)
-  const [editingMotif, setEditingMotif] = useState<any>(null)
-  const [motifForm, setMotifForm] = useState<{
-    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number
-  }>({
-    name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0
-  })
-  const [savingMotif, setSavingMotif] = useState(false)
-
-  // Settings state
-  const [settingsForm, setSettingsForm] = useState({ company_name: '', email: '', phone: '', bio: '', auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30 })
-  const [savingSettings, setSavingSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'profil' | 'modules' | 'parrainage'>('profil')
-
-  // ── Modules config (extracted to custom hook) ──
-  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule } = useModulesConfig(artisan?.id, t)
+  const setHook = useSettings(artisan, setArtisan, dayServices, isPt, t)
+  const { settingsForm, setSettingsForm, savingSettings, settingsTab, setSettingsTab, profilePhotoFile, setProfilePhotoFile, profilePhotoPreview, setProfilePhotoPreview, profilePhotoUploading, setProfilePhotoUploading, uploadMsg, setUploadMsg, saveSettings, uploadDocument, initSettingsForm } = setHook
 
   // ── Communication tabs ──
   const [commTab, setCommTab] = useState<'particuliers' | 'pro'>('particuliers')
 
-  // Upload documents / photo de profil
-  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null)
-  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string>('')
-  const [profilePhotoUploading, setProfilePhotoUploading] = useState(false)
-  const [uploadMsg, setUploadMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // ── Modules config ──
+  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule } = useModulesConfig(artisan?.id, t)
 
+  // ── Messagerie artisan dashboard ──
+  const messaging = useDashboardMessaging({ artisan, isPt, dateFmtLocale })
+  const {
+    dashMsgModal, setDashMsgModal,
+    dashMsgList, setDashMsgList,
+    dashMsgText, setDashMsgText,
+    dashMsgSending, dashMsgUploading, dashMsgRecording,
+    dashMsgBlockingAgenda,
+    dashMsgFullscreenImg, setDashMsgFullscreenImg,
+    openDashMessages, sendDashMessage, sendDashPhotoMessage,
+    startDashVoiceRecording, stopDashVoiceRecording,
+    handleBlockAgendaFromDevis, uploadDashAttachment, getDashAuthToken,
+  } = messaging
+
+  // ── Notifications ──
+  const notifCallbacks = useMemo(() => ({
+    onNavigate: (page: string) => setActivePage(page),
+    onNewBooking: (b: any) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
+    getAuthToken: getDashAuthToken,
+    t, isPt,
+  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
+  const {
+    notifications, setNotifications,
+    showNotifDropdown, setShowNotifDropdown,
+    unreadNotifCount, setUnreadNotifCount,
+    unreadMsgCount, refreshUnreadMsgCount,
+  } = useNotifications(artisan?.user_id, artisan?.id, notifCallbacks)
+
+  // ── Day names for calendar/horaires ──
+  const DAY_NAMES = [t('proDash.days.sunday'), t('proDash.days.monday'), t('proDash.days.tuesday'), t('proDash.days.wednesday'), t('proDash.days.thursday'), t('proDash.days.friday'), t('proDash.days.saturday')]
+  const DAY_SHORT = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
+
+  // ══════════ AUTH INIT + DATA LOAD ══════════
   useEffect(() => {
     let didLoad = false
 
     const initAuth = async () => {
-      // getSession reads from localStorage — instant, no network call
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        didLoad = true
-        loadDashboardData(session.user) // Don't await — let UI render while data loads
-        return
-      }
-
-      // Fallback: getUser validates with server (slower)
+      if (session?.user) { didLoad = true; loadDashboardData(session.user); return }
       const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (currentUser) {
-        didLoad = true
-        loadDashboardData(currentUser)
-      } else {
-        window.location.href = '/pro/login'
-      }
+      if (currentUser) { didLoad = true; loadDashboardData(currentUser) }
+      else { window.location.href = '/pro/login' }
     }
 
     initAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
-        window.location.href = '/pro/login'
-      }
+      if (event === 'SIGNED_OUT') window.location.href = '/pro/login'
       if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
-        didLoad = true
-        loadDashboardData(session.user)
+        didLoad = true; loadDashboardData(session.user)
       }
     })
     return () => subscription.unsubscribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** Central data loader — initializes state across all hooks */
   const loadDashboardData = async (user: any) => {
     if (!user) { router.push('/pro/login'); return }
 
-    // Lire le rôle depuis user_metadata
     const role = user.user_metadata?.role || 'artisan'
-    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) {
-      setOrgRole(role as any)
-    }
+    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) setOrgRole(role as any)
 
-    const { data: artisanData } = await supabase
-      .from('profiles_artisan').select('*').eq('user_id', user.id).single()
-    // Mode admin override : pas besoin de profil artisan réel
-    // Détecter le mode admin override (affiche le bouton retour admin)
+    const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (user.user_metadata?._admin_override) setShowAdminBtn(true)
     if (!artisanData && !user.user_metadata?._admin_override) { router.push('/pro/login'); return }
     if (!artisanData) {
-      // Données factices pour la navigation admin
       setArtisan({ id: user.id, company_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Admin', email: user.email, phone: '', bio: '', user_id: user.id })
-      setLoading(false)
-      return
+      setLoading(false); return
     }
 
     setArtisan(artisanData)
-    // Ping last_seen_at for online status
     supabase.from('profiles_artisan').update({ last_seen_at: new Date().toISOString() }).eq('id', artisanData.id).then()
-    const cleanBioForDisplay = (artisanData.bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
-    setSettingsForm({
-      company_name: artisanData.company_name || '',
-      email: user.email || '',
-      phone: artisanData.phone || '06 51 46 66 98',
-      bio: cleanBioForDisplay,
-      auto_reply_message: artisanData.auto_reply_message || '',
-      auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
-      zone_radius_km: artisanData.zone_radius_km || 30,
-    })
+    initSettingsForm(artisanData, user.email || '')
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const aid = artisanData.id
 
-    // Load localStorage data first (instant, no network) — unblocks UI immediately
-    try {
-      const lsAbs = JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')
-      setAbsences(lsAbs)
-    } catch { setAbsences([]) }
-    try {
-      const savedDayServices = localStorage.getItem(`fixit_availability_services_${aid}`)
-      if (savedDayServices) setDayServices(JSON.parse(savedDayServices))
-    } catch { /* ignore */ }
+    // Load localStorage data first (instant) — unblocks UI immediately
+    try { setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')) } catch { setAbsences([]) }
+    try { const s = localStorage.getItem(`fixit_availability_services_${aid}`); if (s) setDayServices(JSON.parse(s)) } catch {}
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${aid}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${aid}`) || '[]')
       setSavedDocuments([...docs, ...drafts])
-    } catch { /* ignore */ }
+    } catch {}
 
-    // Show UI immediately — network data arrives async below
     setLoading(false)
 
     // Parallel fetch: bookings + services (non-blocking, UI already visible)
@@ -294,644 +223,50 @@ export default function DashboardPage() {
     setServices(servicesRes.data || [])
 
     // Auto-add clients from bookings (deferred, non-blocking)
-    const confirmedBookings = (bookingsRes.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
-    requestAnimationFrame(() => {
-      for (const b of confirmedBookings) autoAddClientFromBooking(b)
-    })
+    const confirmed = (bookingsRes.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
+    requestAnimationFrame(() => { for (const b of confirmed) autoAddClientFromBooking(b) })
   }
 
-  // Lazy-load calendar/horaires data only when those sections are first visited
-  const loadCalendarData = useCallback(async (aid: string) => {
-    if (calendarDataLoadedRef.current) return
-    calendarDataLoadedRef.current = true
-    const [availRes, absRes, dsRes] = await Promise.all([
-      fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
-    ])
-    setAvailability(availRes.data || [])
-    const apiAbsences = absRes.data || []
-    if (apiAbsences.length > 0) setAbsences(apiAbsences)
-    if (dsRes.data) setDayServices(dsRes.data)
-  }, [])
-
+  // Lazy-load calendar/horaires data when first visited
   useEffect(() => {
     if ((activePage === 'calendar' || activePage === 'horaires') && artisan?.id) {
-      loadCalendarData(artisan.id)
-    }
-  }, [activePage, artisan?.id, loadCalendarData])
-
-  const DAY_NAMES = [t('proDash.days.sunday'), t('proDash.days.monday'), t('proDash.days.tuesday'), t('proDash.days.wednesday'), t('proDash.days.thursday'), t('proDash.days.friday'), t('proDash.days.saturday')]
-  const DAY_SHORT = [t('proDash.days.sunShort'), t('proDash.days.monShort'), t('proDash.days.tueShort'), t('proDash.days.wedShort'), t('proDash.days.thuShort'), t('proDash.days.friShort'), t('proDash.days.satShort')]
-
-  const toggleAutoAccept = async () => {
-    const newVal = !autoAccept
-    setAutoAccept(newVal)
-    if (artisan) {
-      await supabase.from('profiles_artisan').update({ auto_accept: newVal }).eq('id', artisan.id)
-    }
-  }
-
-  // ═══ AVAILABILITY - Toggle via API route (bypasses RLS) ═══
-  const toggleDayAvailability = async (dayOfWeek: number) => {
-    if (!artisan) return
-    setSavingAvail(true)
-    try {
-      const res = await fetch('/api/availability', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artisan_id: artisan.id, day_of_week: dayOfWeek })
+      loadCalendarData(artisan.id).then((apiAbsences) => {
+        if (apiAbsences && apiAbsences.length > 0) setAbsences(apiAbsences)
       })
-      const result = await res.json()
-      if (result.error) {
-        console.error('Toggle error:', result.error)
-        setSavingAvail(false)
-        return
-      }
-      // Refresh all availability from server
-      const res2 = await fetch(`/api/availability?artisan_id=${artisan.id}`)
-      const { data } = await res2.json()
-      setAvailability(data || [])
-    } catch (e) {
-      console.error('Network error:', e)
     }
-    setSavingAvail(false)
-  }
+  }, [activePage, artisan?.id, loadCalendarData, setAbsences])
 
-  const updateAvailabilityTime = async (dayOfWeek: number, field: 'start_time' | 'end_time', value: string) => {
-    if (!artisan) return
-    const existing = availability.find((a) => a.day_of_week === dayOfWeek)
-    if (existing) {
-      // Optimistic UI update
-      setAvailability(availability.map((a) => a.id === existing.id ? { ...a, [field]: value } : a))
-      try {
-        await fetch('/api/availability', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ availability_id: existing.id, field, value })
-        })
-      } catch (e) {
-        console.error('Time update error:', e)
-      }
-    }
-  }
-
-  const toggleDayService = async (dayOfWeek: number, serviceId: string) => {
-    const key = String(dayOfWeek)
-    const current = dayServices[key] || []
-    const updated = current.includes(serviceId)
-      ? current.filter(id => id !== serviceId)
-      : [...current, serviceId]
-    const newDayServices = { ...dayServices, [key]: updated }
-    setDayServices(newDayServices)
-    if (artisan) {
-      localStorage.setItem(`fixit_availability_services_${artisan.id}`, JSON.stringify(newDayServices))
-      // Persist via API route (saves in bio marker for client-side reading)
-      try {
-        const res = await fetch('/api/availability-services', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
-          body: JSON.stringify({ artisan_id: artisan.id, dayServices: newDayServices })
-        })
-        const result = await res.json()
-        if (result.bio) setArtisan({ ...artisan, bio: result.bio })
-      } catch (e) {
-        console.error('DayService save error:', e)
-      }
-    }
-  }
-
-  const createRdvManual = async () => {
-    if (!artisan || !newRdv.date || !newRdv.time || !newRdv.service_id) return
-    const service = services.find((s) => s.id === newRdv.service_id)
-    // RDV manuels = auto-confirmés (l'artisan crée son propre RDV)
-    const status = 'confirmed'
-    // Durée : priorité au dropdown manuel, sinon durée du service, sinon 60min
-    const durationMap: Record<string, number> = {
-      '30': 30, '45': 45, '60': 60, '90': 90, '120': 120, '180': 180, '240': 240, '480': 480
-    }
-    const manualDuration = newRdv.duration ? durationMap[newRdv.duration] : null
-    const durationMinutes = manualDuration || service?.duration_minutes || 60
-    // Notes enrichies avec téléphone si renseigné
-    let notesStr = ''
-    if (newRdv.client_name) notesStr += `Client: ${newRdv.client_name}`
-    if (newRdv.phone) notesStr += ` | Tél: ${newRdv.phone}`
-    if (newRdv.notes) notesStr += notesStr ? ` | ${newRdv.notes}` : newRdv.notes
-    const { data, error } = await supabase.from('bookings').insert({
-      artisan_id: artisan.id,
-      service_id: newRdv.service_id,
-      status,
-      confirmed_at: new Date().toISOString(),
-      booking_date: newRdv.date,
-      booking_time: newRdv.time,
-      duration_minutes: durationMinutes,
-      address: newRdv.address || 'A definir',
-      notes: notesStr,
-      price_ht: service?.price_ht,
-      price_ttc: service?.price_ttc,
-    }).select('*, services(name)').single()
-    if (!error && data) {
-      setBookings([data, ...bookings])
-      setShowNewRdv(false)
-      setNewRdv({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
-    }
-  }
-
-  // Auto-ajouter un client depuis un booking à la base client locale
-  const autoAddClientFromBooking = useCallback((booking: any) => {
-    if (!artisan?.id || !booking) return
-    const storageKey = `fixit_manual_clients_${artisan.id}`
-    let existing: any[] = []
-    try { existing = JSON.parse(localStorage.getItem(storageKey) || '[]') } catch {}
-
-    // Parser infos client depuis les notes
-    const notes = booking.notes || ''
-    const clientName = notes.match(/Client:\s*([^|.\n]+)/i)?.[1]?.trim() || booking.client_name || ''
-    const clientPhone = notes.match(/T[ée]l(?:[ée]phone)?:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-    const clientEmail = notes.match(/Email:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-    const clientSiret = notes.match(/SIRET:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-    const clientType = notes.match(/Type:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-
-    if (!clientName) return
-
-    // Vérifier si le client existe déjà (par nom ou email)
-    const alreadyExists = existing.some((c: any) =>
-      (c.name && c.name.toLowerCase() === clientName.toLowerCase()) ||
-      (c.email && clientEmail && c.email.toLowerCase() === clientEmail.toLowerCase())
-    )
-    if (alreadyExists) {
-      // Mettre à jour l'adresse d'intervention si nouvelle
-      if (booking.address) {
-        const updated = existing.map((c: any) => {
-          if ((c.name && c.name.toLowerCase() === clientName.toLowerCase()) || (c.email && clientEmail && c.email.toLowerCase() === clientEmail.toLowerCase())) {
-            const addrs = c.interventionAddresses || []
-            const addrExists = addrs.some((a: any) => a.address === booking.address)
-            if (!addrExists && booking.address) {
-              return { ...c, interventionAddresses: [...addrs, { id: `addr_${Date.now()}`, label: booking.services?.name || 'Intervention', address: booking.address }] }
-            }
-          }
-          return c
-        })
-        localStorage.setItem(storageKey, JSON.stringify(updated))
-      }
-      return
-    }
-
-    // Créer le nouveau client
-    const newClient = {
-      id: `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      name: clientName,
-      email: clientEmail || undefined,
-      phone: clientPhone || undefined,
-      type: clientType || (clientSiret ? 'professionnel' : 'particulier'),
-      siret: clientSiret || undefined,
-      mainAddress: booking.address || undefined,
-      mainAddressLabel: clientSiret ? 'Siège social' : 'Domicile',
-      interventionAddresses: booking.address ? [{ id: `addr_${Date.now()}`, label: booking.services?.name || 'Intervention', address: booking.address }] : [],
-      notes: `Ajouté automatiquement depuis réservation du ${booking.booking_date || new Date().toISOString().split('T')[0]}`,
-      source: 'auto' as const,
-    }
-    const updated = [newClient, ...existing]
-    localStorage.setItem(storageKey, JSON.stringify(updated))
-  }, [artisan?.id])
-
-  const updateBookingStatus = async (bookingId: string, newStatus: string) => {
-    const updates: any = { status: newStatus }
-    if (newStatus === 'confirmed') updates.confirmed_at = new Date().toISOString()
-    if (newStatus === 'cancelled') updates.cancelled_at = new Date().toISOString()
-    if (newStatus === 'completed') updates.completed_at = new Date().toISOString()
-    await supabase.from('bookings').update(updates).eq('id', bookingId)
-    setBookings(bookings.map((b) => b.id === bookingId ? { ...b, ...updates } : b))
-    // Auto-ajouter le client à la base quand confirmé
-    if (newStatus === 'confirmed') {
-      const booking = bookings.find(b => b.id === bookingId)
-      if (booking) autoAddClientFromBooking(booking)
-    }
-    setShowBookingDetail(false)
-    setSelectedBooking(null)
-  }
-
-  // Clic sur une case vide de l'agenda → ouvrir nouveau RDV pré-rempli
-  const handleEmptyCellClick = (date: Date, hour: string) => {
-    const dateStr = date.toISOString().split('T')[0]
-    setNewRdv({ client_name: '', service_id: '', date: dateStr, time: hour, address: '', notes: '', phone: '', duration: '' })
-    setShowNewRdv(true)
-  }
-
-  // Clic sur un RDV existant → ouvrir détail
-  const handleBookingClick = (booking: Booking) => {
-    setSelectedBooking(booking)
-    setShowBookingDetail(true)
-  }
-
-  // Convertir un booking en devis pré-rempli
-  const transformBookingToDevis = (booking: Booking) => {
-    const serviceName = booking.services?.name || (isPt ? 'Serviço' : 'Prestation')
-    const priceHT = booking.price_ht || 0
-    // Parse infos client depuis les notes
-    const notesStr = booking.notes || ''
-    const clientName = notesStr.match(/Client:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-    const clientPhone = notesStr.match(/T[ée]l(?:[ée]phone)?:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-    const clientEmail = notesStr.match(/Email:\s*([^|.\n]+)/i)?.[1]?.trim() || ''
-    const cleanNotes = notesStr.replace(/Client:\s*[^|.\n]+/i, '').replace(/T[ée]l(?:[ée]phone)?:\s*[^|.\n]+/i, '').replace(/Email:\s*[^|.\n]+/i, '').replace(/\|/g, '').trim()
-
-    // Récupérer l'unité du motif lié au booking
-    const linkedService = services.find(s => s.id === booking.service_id)
-    let lineUnit = 'u'
-    if (linkedService) {
-      const { unit: svcUnit } = parseServiceRange(linkedService)
-      const unitMap: Record<string, string> = {
-        'm2': 'm²', 'ml': 'ml', 'm3': 'm³', 'heure': 'h',
-        'forfait': 'forfait', 'unite': 'u', 'arbre': 'u',
-        'tonne': 'kg', 'kg': 'kg', 'lot': 'lot',
-      }
-      lineUnit = unitMap[svcUnit] || 'u'
-    }
-
-    const defaultTvaRate = isPt ? 23 : 10
-    const lines = priceHT > 0
-      ? [{ id: 1, description: serviceName, qty: 1, unit: lineUnit, priceHT, tvaRate: defaultTvaRate, totalHT: priceHT }]
-      : [{ id: 1, description: serviceName, qty: 1, unit: lineUnit, priceHT: 0, tvaRate: defaultTvaRate, totalHT: 0 }]
-
-    const devisData = {
-      docType: 'devis' as const,
-      docTitle: serviceName,
-      clientName,
-      clientEmail,
-      clientPhone,
-      clientAddress: booking.address || '',
-      interventionAddress: booking.address || '',
-      prestationDate: booking.booking_date || '',
-      lines,
-      notes: [
-        `Demande du ${booking.booking_date || ''}${booking.booking_time ? ' à ' + booking.booking_time.substring(0, 5) : ''}`,
-        cleanNotes || '',
-      ].filter(Boolean).join(' — '),
-    }
-    setConvertingDevis(devisData)
-    setShowDevisForm(true)
-    navigateTo('devis')
-    setSidebarOpen(false)
-  }
-
-  // Convertir un devis en facture
-  const convertDevisToFacture = (devis: Record<string, unknown>) => {
-    setConvertingDevis(devis)
-    setShowFactureForm(true)
-    setActivePage('factures')
-    setSidebarOpen(false)
-  }
-
-  const getWeekDates = useCallback(() => {
-    const start = new Date(selectedWeekStart)
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start)
-      d.setDate(start.getDate() + i)
-      return d
-    })
-  }, [selectedWeekStart])
-
-  const getBookingsForDate = useCallback((date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return bookings.filter((b) => b.booking_date === dateStr)
-  }, [bookings])
-
-  const isDateAbsent = useCallback((date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    const match = absences.find((a: Absence) => dateStr >= a.start_date && dateStr <= a.end_date)
-    return match ? { absent: true, reason: match.reason || '', label: match.label || '', source: match.source || 'manual', id: match.id } : { absent: false, reason: '', label: '', source: '', id: '' }
-  }, [absences])
-
-  // Feature 3: Only working days for week view
-  const getWorkingWeekDates = useCallback(() => {
-    const allDates = getWeekDates()
-    if (availability.length === 0) return allDates.filter(d => d.getDay() !== 0 && d.getDay() !== 6)
-    const workingDows = availability.filter((a: Availability) => a.is_available).map((a: Availability) => a.day_of_week)
-    if (workingDows.length === 0) return allDates.filter(d => d.getDay() !== 0 && d.getDay() !== 6)
-    return allDates.filter(d => workingDows.includes(d.getDay()))
-  }, [getWeekDates, availability])
-
-  const createAbsence = async () => {
-    if (!artisan || !newAbsence.start_date || !newAbsence.end_date) return
-    const newAbs = { id: crypto.randomUUID(), artisan_id: artisan.id, ...newAbsence, created_at: new Date().toISOString() }
-    try {
-      // Try API first
-      const res = await fetch('/api/artisan-absences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artisan_id: artisan.id, ...newAbsence })
-      })
-      const json = await res.json()
-      if (json.data) {
-        setAbsences([...absences, json.data])
-      } else {
-        // Fallback: localStorage
-        const updated = [...absences, newAbs]
-        setAbsences(updated)
-        localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
-      }
-    } catch {
-      // Fallback: localStorage
-      const updated = [...absences, newAbs]
-      setAbsences(updated)
-      localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
-    }
-    setShowAbsenceModal(false)
-    setNewAbsence({ start_date: '', end_date: '', reason: isPt ? 'Férias' : 'Vacances', label: '' })
-  }
-
-  const deleteAbsence = async (absenceId: string) => {
-    const updated = absences.filter((a: Absence) => a.id !== absenceId)
-    setAbsences(updated)
-    if (artisan?.id) localStorage.setItem(`fixit_absences_${artisan.id}`, JSON.stringify(updated))
-    try {
-      await fetch(`/api/artisan-absences?id=${absenceId}`, { method: 'DELETE' })
-    } catch { /* ignore if API fails */ }
-  }
-
-  const changeWeek = (direction: number) => {
-    const d = new Date(selectedWeekStart)
-    d.setDate(d.getDate() + direction * 7)
-    setSelectedWeekStart(d.toISOString().split('T')[0])
-  }
-
-  const changeDay = (direction: number) => {
-    const d = new Date(selectedDay)
-    d.setDate(d.getDate() + direction)
-    setSelectedDay(d.toISOString().split('T')[0])
-  }
-
-  const changeMonth = (direction: number) => {
-    const [y, m] = selectedMonth.split('-').map(Number)
-    const d = new Date(y, m - 1 + direction, 1)
-    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-  }
-
-  const getMonthDays = () => {
-    const [y, m] = selectedMonth.split('-').map(Number)
-    const firstDay = new Date(y, m - 1, 1)
-    const lastDay = new Date(y, m, 0)
-    // Commence le lundi avant le 1er du mois
-    let startDay = firstDay.getDay() - 1
-    if (startDay < 0) startDay = 6
-    const days: Date[] = []
-    const start = new Date(firstDay)
-    start.setDate(start.getDate() - startDay)
-    // 6 semaines max (42 jours)
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(start)
-      d.setDate(start.getDate() + i)
-      days.push(d)
-    }
-    return { days, firstDay, lastDay }
-  }
-
-  const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-
-  const getCalendarTitle = () => {
-    if (calendarView === 'day') {
-      const d = new Date(selectedDay)
-      return d.toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    }
-    if (calendarView === 'month') {
-      const [y, m] = selectedMonth.split('-').map(Number)
-      const d = new Date(y, m - 1, 1)
-      return d.toLocaleDateString(dateFmtLocale, { month: 'long', year: 'numeric' })
-    }
-    // week
-    const dates = getWeekDates()
-    const start = dates[0]
-    const end = dates[6]
-    return `${t('proDash.weekOf')} ${start.getDate()} ${t('proDash.to')} ${end.getDate()} ${end.toLocaleDateString(dateFmtLocale, { month: 'long', year: 'numeric' })}`
-  }
-
-  const navigateCalendar = (direction: number) => {
-    if (calendarView === 'day') changeDay(direction)
-    else if (calendarView === 'week') changeWeek(direction)
-    else changeMonth(direction)
-  }
-
-  // ═══ DYNAMIC CALENDAR HOURS from availability ═══
-  const getCalendarHours = (): string[] => {
-    const activeSlots = availability.filter((a) => a.is_available)
-    if (activeSlots.length === 0) {
-      return ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
-    }
-    let minHour = 23
-    let maxHour = 0
-    for (const slot of activeSlots) {
-      const startH = parseInt((slot.start_time || '08:00').substring(0, 2))
-      const endH = parseInt((slot.end_time || '17:00').substring(0, 2))
-      const endM = parseInt((slot.end_time || '17:00').substring(3, 5))
-      if (startH < minHour) minHour = startH
-      const effectiveEnd = endM > 0 ? endH + 1 : endH
-      if (effectiveEnd > maxHour) maxHour = effectiveEnd
-    }
-    // Add 1 hour padding on each side
-    minHour = Math.max(0, minHour - 1)
-    maxHour = Math.min(23, maxHour + 1)
-    const hours: string[] = []
-    for (let h = minHour; h < maxHour; h++) {
-      hours.push(`${String(h).padStart(2, '0')}:00`)
-    }
-    return hours.length > 0 ? hours : ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
-  }
-
-  // ═══ MOTIFS CRUD ═══
-  // Helpers fourchette de prix → extracted to lib/service-utils.ts
-
-  const openNewMotif = () => {
-    setEditingMotif(null)
-    setMotifForm({ name: '', description: '', duration_minutes: '', price_min: '', price_max: '', pricing_unit: 'forfait', validation_auto: false, delai_minimum_heures: 0 })
-    setShowMotifModal(true)
-  }
-
-  const openEditMotif = (service: Service) => {
-    const { min, max, unit } = parseServiceRange(service)
-    const cleanDesc = (service.description || '')
-      .replace(/\s*\[unit:[^\]]+\]\s*/g, '')
-      .replace(/\s*\[(m²|heure|unité|forfait|ml)\]\s*/g, '')
-      .trim()
-    setEditingMotif(service)
-    setMotifForm({
-      name: service.name || '',
-      description: cleanDesc,
-      duration_minutes: service.duration_minutes || '',
-      price_min: min || '',
-      price_max: max || '',
-      pricing_unit: unit,
-      validation_auto: service.validation_auto || false,
-      delai_minimum_heures: service.delai_minimum_heures || 0,
-    })
-    setShowMotifModal(true)
-  }
-
-  const saveMotif = async () => {
-    if (!artisan || !motifForm.name) return
-    setSavingMotif(true)
-
-    const priceMin = motifForm.price_min === '' ? 0 : Number(motifForm.price_min)
-    const priceMax = motifForm.price_max === '' ? 0 : Number(motifForm.price_max)
-    const durationMins = motifForm.duration_minutes === '' ? null : Number(motifForm.duration_minutes)
-    const rangeTag = `[unit:${motifForm.pricing_unit}|min:${priceMin}|max:${priceMax}]`
-    const description = `${motifForm.description || ''} ${rangeTag}`.trim()
-
-    const payload = {
-      artisan_id: artisan.id,
-      name: motifForm.name,
-      description,
-      duration_minutes: durationMins,
-      price_ht: priceMin,
-      price_ttc: priceMax,
-      active: true,
-      validation_auto: motifForm.validation_auto,
-      delai_minimum_heures: motifForm.delai_minimum_heures,
-    }
-
-    if (editingMotif) {
-      const { data } = await supabase.from('services').update(payload).eq('id', editingMotif.id).select().single()
-      if (data) setServices(services.map((s) => s.id === editingMotif.id ? data : s))
-    } else {
-      const { data } = await supabase.from('services').insert(payload).select().single()
-      if (data) setServices([...services, data])
-    }
-
-    setShowMotifModal(false)
-    setSavingMotif(false)
-  }
-
-  const toggleMotifActive = async (serviceId: string, currentActive: boolean) => {
-    await supabase.from('services').update({ active: !currentActive }).eq('id', serviceId)
-    setServices(services.map((s) => s.id === serviceId ? { ...s, active: !currentActive } : s))
-  }
-
-  const deleteMotif = async (serviceId: string) => {
-    if (!confirm(t('proDash.alerts.confirmDeleteMotif'))) return
-    await supabase.from('services').delete().eq('id', serviceId)
-    setServices(services.filter((s) => s.id !== serviceId))
-  }
-
-  // getPricingUnit, getCleanDescription → imported from lib/service-utils.ts
-
-  // ═══ SETTINGS SAVE ═══
-  const saveSettings = async () => {
-    if (!artisan) return
-    setSavingSettings(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) { alert(t('proDash.alerts.sessionExpired')); setSavingSettings(false); return }
-
-      const res = await fetch('/api/artisan-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          company_name: settingsForm.company_name,
-          bio: settingsForm.bio,
-          phone: settingsForm.phone,
-          email: settingsForm.email,
-          auto_reply_message: settingsForm.auto_reply_message,
-          auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
-          zone_radius_km: settingsForm.zone_radius_km,
-        })
-      })
-      const json = await res.json()
-      if (!res.ok) { alert(`❌ ${t('proDash.alerts.error')}: ${json.error || t('proDash.alerts.cantSave')}`); setSavingSettings(false); return }
-
-      setArtisan({
-        ...artisan,
-        company_name: settingsForm.company_name,
-        bio: settingsForm.bio,
-        phone: settingsForm.phone,
-        email: settingsForm.email,
-        auto_reply_message: settingsForm.auto_reply_message,
-        auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
-        zone_radius_km: settingsForm.zone_radius_km,
-        ...(json.slug ? { slug: json.slug } : {}),
-      })
-      // Re-save dayServices marker after bio update
-      if (Object.values(dayServices).some(arr => arr.length > 0)) {
-        try {
-          await fetch('/api/availability-services', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
-            body: JSON.stringify({ artisan_id: artisan.id, dayServices })
-          })
-        } catch {}
-      }
-      if (json.partial && json.warning) {
-        alert(`⚠️ ${t('proDash.alerts.partialSave')}: ${json.warning}`)
-      } else {
-        alert(t('proDash.alerts.profileUpdated'))
-      }
-    } catch {
-      alert(t('proDash.alerts.networkError'))
-    } finally {
-      setSavingSettings(false)
-    }
-  }
-
-  // ═══ MESSAGERIE — extracted to useDashboardMessaging hook ═══
-
-  // ═══ UPLOAD DOCUMENT (photo profil, kbis, assurance) ═══
-  const uploadDocument = async (
-    file: File,
-    folder: 'profiles' | 'kbis' | 'insurance' | 'logos',
-    field: 'profile_photo_url' | 'kbis_url' | 'insurance_url' | 'logo_url',
-    setUploading: (v: boolean) => void
-  ) => {
-    if (!artisan) return
-    setUploading(true)
-    setUploadMsg(null)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const bucketMap: Record<string, string> = { profiles: 'profile-photos', logos: 'profile-photos' }
-      fd.append('bucket', bucketMap[folder] || 'artisan-documents')
-      fd.append('folder', folder)
-      fd.append('artisan_id', artisan.id)
-      fd.append('field', field)
-      const token = (await supabase.auth.getSession()).data.session?.access_token
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: fd,
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Erreur upload')
-      setArtisan({ ...artisan, [field]: data.url })
-      setUploadMsg({ type: 'success', text: isPt ? '✅ Documento atualizado com sucesso!' : '✅ Document mis à jour avec succès !' })
-    } catch (err: any) {
-      setUploadMsg({ type: 'error', text: `❌ ${err.message}` })
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    // Hard navigation — router.push triggers middleware which redirects to /pro/login before / loads
-    window.location.href = `/${locale}/`
-  }
-
-  // (Notifications logic moved to useNotifications hook)
-  // ═══ NAVIGATION - reset form states ═══
+  // ── Navigation ──
   const navigateTo = useCallback((page: string) => {
     setActivePage(page)
     setSidebarOpen(false)
-    // Reset form views when navigating via sidebar
     if (page === 'devis') setShowDevisForm(false)
     if (page === 'factures') setShowFactureForm(false)
-  }, [])
+  }, [setShowDevisForm, setShowFactureForm])
+
+  // ── Wrap transformBookingToDevis to also navigate ──
+  const handleTransformBookingToDevis = useCallback((booking: Booking) => {
+    transformBookingToDevis(booking)
+    navigateTo('devis')
+    setSidebarOpen(false)
+  }, [transformBookingToDevis, navigateTo])
+
+  // ── Wrap convertDevisToFacture to also navigate ──
+  const handleConvertDevisToFacture = useCallback((devis: Record<string, unknown>) => {
+    convertDevisToFacture(devis)
+    setActivePage('factures')
+    setSidebarOpen(false)
+  }, [convertDevisToFacture])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = `/${locale}/`
+  }
 
   const firstName = artisan?.company_name?.split(' ')[0] || 'Pro'
   const initials = artisan?.company_name
     ? artisan.company_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'PR'
-
-  const completedBookings = useMemo(() => bookings.filter((b) => b.status === 'completed'), [bookings])
-  const pendingBookings = useMemo(() => bookings.filter((b) => b.status === 'pending'), [bookings])
-  const totalRevenue = useMemo(() => completedBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0), [completedBookings])
 
   if (loading) {
     return (
@@ -1249,7 +584,7 @@ export default function DashboardPage() {
               handleEmptyCellClick={handleEmptyCellClick} handleBookingClick={handleBookingClick}
               createRdvManual={createRdvManual} createAbsence={createAbsence}
               deleteAbsence={deleteAbsence} updateBookingStatus={updateBookingStatus}
-              transformBookingToDevis={transformBookingToDevis} openDashMessages={openDashMessages}
+              transformBookingToDevis={handleTransformBookingToDevis} openDashMessages={openDashMessages}
               DAY_NAMES={DAY_NAMES} DAY_SHORT={DAY_SHORT}
             />
           )}
@@ -1387,7 +722,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex flex-wrap gap-2 self-start">
                               <button onClick={() => openDashMessages(b)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg font-semibold text-sm transition">💬</button>
-                              <button onClick={() => transformBookingToDevis(b)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1">📄 Devis</button>
+                              <button onClick={() => handleTransformBookingToDevis(b)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1">📄 Devis</button>
                               <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">✓ Accepter</button>
                               <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-semibold text-sm transition">✕ Refuser</button>
                             </div>
@@ -1490,7 +825,7 @@ export default function DashboardPage() {
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
-              convertDevisToFacture={convertDevisToFacture as any}
+              convertDevisToFacture={handleConvertDevisToFacture as any}
             />
           )}
 
