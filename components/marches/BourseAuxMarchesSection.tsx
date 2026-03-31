@@ -145,7 +145,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
   const [filterBTP, setFilterBTP] = useState(false)                  // Offres sous-traitance BTP
   const [filterZone, setFilterZone] = useState('')                   // zone_test filter (test mode)
-  const [filterPays, setFilterPays] = useState('')                   // pays filter
+
+  // Auto-detect pays from locale — FR artisan sees FR only, PT sees PT only
+  const artisanPays = isPt ? 'PT' : 'FR'
 
   // Test mode detection (show zone filter only in dev/test)
   const isTestMode = typeof window !== 'undefined' && (
@@ -208,7 +210,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterGrandMarche) params.set('budget_min', '50000')
       if (filterBTP) params.set('source_type', 'btp_sous_traitance')
       if (filterZone) params.set('zone', filterZone)
-      if (filterPays) params.set('pays', filterPays)
+      params.set('pays', artisanPays)
       params.set('status', 'open')
       if (artisan?.id) params.set('artisan_user_id', artisan.id)
       const res = await fetch(`/api/marches?${params.toString()}`)
@@ -221,7 +223,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setLoading(false)
     }
-  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP, filterZone, filterPays])
+  }, [isPro, filterCategory, filterCity, filterUrgency, filterGrandMarche, filterBTP, filterZone, artisanPays])
 
   // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
   const handleScanMarches = useCallback(async () => {
@@ -1190,20 +1192,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   </button>
                 </div>
 
-                {/* Pays filter */}
-                <div>
-                  <label className="v22-form-label">{isPt ? 'País' : 'Pays'}</label>
-                  <select
-                    value={filterPays}
-                    onChange={e => setFilterPays(e.target.value)}
-                    className="v22-form-input"
-                  >
-                    <option value="">{isPt ? 'Todos' : 'Tous'}</option>
-                    <option value="FR">🇫🇷 France</option>
-                    <option value="PT">🇵🇹 Portugal</option>
-                  </select>
-                </div>
-
                 {/* Zone filter — test/dev only */}
                 {isTestMode && (
                   <div>
@@ -1465,9 +1453,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                           {m.title}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {m.pays && <span style={{ fontSize: 13 }}>{m.pays === 'PT' ? '🇵🇹' : '🇫🇷'}</span>}
                           {(m.location_city || m.city) && <span>📍 {m.location_city || m.city}{m.concelho && m.concelho !== m.location_city ? `, ${m.concelho}` : ''}</span>}
-                          {m.source && <span className="v22-tag" style={{ background: '#F0F4FF', color: '#4338CA', fontSize: 9, padding: '1px 5px' }}>{m.source}</span>}
                           {days !== null && (
                             <span style={{ color: days <= 3 ? 'var(--v22-red)' : undefined }}>
                               ⏰ {days > 0 ? (isPt ? `${days}d` : `${days}j`) : (isPt ? 'Expirado' : 'Expiré')}
