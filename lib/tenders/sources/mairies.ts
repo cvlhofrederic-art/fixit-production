@@ -127,6 +127,76 @@ function findMarchesLinks(html: string, baseUrl: string): string[] {
   return links.slice(0, SCANNER_CONFIG.max_pages_per_site)
 }
 
+// ── False positive filter — reject info pages, news, arrêtés, etc. ───────────
+
+// Titles that match these patterns are NOT real tenders — they're info pages
+const FALSE_POSITIVE_PATTERNS = [
+  /^infos?\s+travaux/i,
+  /^points?\s+travaux/i,
+  /^flash\s+travaux/i,
+  /^arr[êe]t[ée]s?\s+(municipaux|travaux|pr[ée]fectoral)/i,
+  /^coupure\s+d[''e]/i,
+  /^r[èe]glementation/i,
+  /^d[ée]marches?\s+(en ligne|&|et|administratives)/i,
+  /^formulaires?\s+/i,
+  /^urbanisme/i,
+  /^cadastre/i,
+  /^allo\s+/i,
+  /^rappel\s*:/i,
+  /^danger/i,
+  /en\s+transition/i,
+  /^t[ée]l[ée]charger\s+le\s+tableau/i,
+  /travaux\s+(programm|r[ée]alis|en\s+cours\s+d[''e]|à partir|depuis|prévus)/i,
+  /l[''']acc[èe]s\s+(au|à|sera)/i,
+  /r[èe]glementation\s+d/i,
+  /à\s+l[''']ensemble\s+des\s+annonces/i,
+  /march[ée]s\s+publics\s+(et\s+travaux|de\s+la\s+municipalit)/i,
+  /MARCHES_DE_TRAVAUX_DE_/i,
+  /travaux\s+et\s+am[ée]nagements$/i,
+  /d[ée]but\s+des\s+travaux\s+sur/i,
+  /voir\s+la\s+liste\s+des\s+march/i,
+  /portail\s+march/i,
+  /t[ée]l[ée]chargement\s+du\s+dossier/i,
+]
+
+// A real marché must have at least ONE of these signals in title or context
+const REAL_TENDER_SIGNALS = [
+  /march[ée]\s+(de\s+travaux|public|adapt|proc[ée]dure|fourniture)/i,
+  /appel\s+(d[''e]\s*offre|à\s+candidature|à\s+concurrence)/i,
+  /consultation\s+(en\s+cours|des\s+entreprises|publique|n[°o])/i,
+  /lot\s+\d/i,                    // "Lot 1", "Lot 03"
+  /mapa/i,                         // Marché à procédure adaptée
+  /dce|dossier\s+de\s+consultation/i,
+  /proc[ée]dure\s+(adapt|ouverte|restreinte|n[ée]goci)/i,
+  /date\s+limite/i,
+  /remise\s+des\s+(offres|candidatures|plis)/i,
+  /avis\s+d[''e]\s*(march|attribution|appel)/i,
+  /montant|budget|estimation/i,
+  /r[ée]f[ée]rence\s*:\s*\d/i,
+  /\d[\d\s]*€/,                    // Budget amount
+  /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/, // Date (deadline)
+]
+
+function isRealTender(title: string, context: string): boolean {
+  const titleClean = title.replace(/&#\w+;/g, ' ').replace(/<[^>]*>/g, '')
+
+  // Reject known false positive patterns
+  for (const pattern of FALSE_POSITIVE_PATTERNS) {
+    if (pattern.test(titleClean)) return false
+  }
+
+  // Title too short and generic = noise ("Travaux", "Marchés Publics")
+  if (titleClean.replace(/\s/g, '').length < 20) return false
+
+  // Must have at least one real tender signal in title OR context
+  const combined = `${titleClean} ${context}`.replace(/&#\w+;/g, ' ')
+  for (const signal of REAL_TENDER_SIGNALS) {
+    if (signal.test(combined)) return true
+  }
+
+  return false
+}
+
 // ── Tender extraction from HTML ──────────────────────────────────────────────
 
 interface RawEntry {
@@ -205,7 +275,8 @@ function extractRawEntries(html: string): RawEntry[] {
     }
   }
 
-  return entries
+  // Filter: only keep entries that look like real tenders
+  return entries.filter(e => isRealTender(e.title, e.context))
 }
 
 function mapEntryToTender(

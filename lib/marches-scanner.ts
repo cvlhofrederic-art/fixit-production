@@ -675,9 +675,34 @@ async function fetchStoredMarches(
       return results
     }
 
-    // Return ALL stored marches — let the scoring system handle relevance filtering
-    // No keyword pre-filtering here: the scorer will assign proper scores based on
-    // metier keywords, CPV, geo, and budget, then filter by threshold
+    // Return stored marches with strict false-positive filtering
+    // Mairie scraping captures a lot of noise (info pages, arrêtés, etc.)
+    const NOISE_PATTERNS = [
+      /^infos?\s+travaux/i,
+      /^points?\s+travaux/i,
+      /^flash\s+travaux/i,
+      /^arr[êe]t[ée]s?\s/i,
+      /^coupure\s+d/i,
+      /^d[ée]marches?\s/i,
+      /^formulaires?\s/i,
+      /^urbanisme/i,
+      /^allo\s+/i,
+      /^rappel\s*:/i,
+      /en\s+transition/i,
+      /^t[ée]l[ée]charger\s+le\s+tableau/i,
+      /travaux\s+(programm|r[ée]alis|en\s+cours\s+d|à partir|depuis)/i,
+      /l['']acc[èe]s.*sera\s+(coup|ferm)/i,
+      /voir\s+la\s+liste\s+des\s+march/i,
+      /portail\s+march/i,
+      /t[ée]l[ée]chargement\s+du\s+dossier/i,
+      /r[èe]glementation\s+d/i,
+      /à\s+l[''']ensemble\s+des\s+annonces/i,
+      /march[ée]s\s+publics\s+(et\s+travaux|de\s+la\s+municipalit)/i,
+      /MARCHES_DE_TRAVAUX_DE_/i,
+      /travaux\s+et\s+am[ée]nagements$/i,
+      /d[ée]but\s+des\s+travaux\s+sur/i,
+    ]
+
     for (const row of data) {
       const title = row.title || ''
       const desc = row.description || ''
@@ -685,8 +710,13 @@ async function fetchStoredMarches(
 
       // Skip attribués
       if (text.includes('attribué') || text.includes('[attribue]')) continue
-      // Skip generic "info" pages from mairies (no real marché content)
-      if (title.length < 10 && !text.includes('marché') && !text.includes('travaux')) continue
+
+      // Skip generic very short titles (noise from mairies)
+      const titleClean = title.replace(/&#\w+;/g, ' ').replace(/<[^>]*>/g, '').trim()
+      if (titleClean.length < 20) continue
+
+      // Skip known noise patterns (info pages, arrêtés, links to portals)
+      if (NOISE_PATTERNS.some(p => p.test(titleClean))) continue
 
       const budget = row.budget_min || row.montant_estime || undefined
 
