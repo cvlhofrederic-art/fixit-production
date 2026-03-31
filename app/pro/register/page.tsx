@@ -961,44 +961,8 @@ export default function ProRegisterPage() {
           {/* Artisan */}
           {orgType === 'artisan' && <FormulaireArtisan />}
 
-          {/* Société / Conciergerie / Gestionnaire → vitfix.pro */}
-          {orgType && orgType !== 'artisan' && (() => {
-            const org = ORG_TYPES.find(o => o.id === orgType)!
-            return (
-              <div className="space-y-6">
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-3xl ${org.color === 'blue' ? 'bg-blue-100' : org.color === 'purple' ? 'bg-purple-100' : 'bg-green-100'}`}>{org.emoji}</div>
-                  <div>
-                    <h2 className="font-bold text-dark">{org.label}</h2>
-                    <p className="text-xs text-text-muted">{org.desc}</p>
-                  </div>
-                </div>
-                <div className="bg-warm-gray border-2 border-blue-200 rounded-2xl p-8 text-center">
-                  <div className="text-5xl mb-4">🚀</div>
-                  <h3 className="text-xl font-bold text-dark mb-2">{t('register.comingSoonTitle')}</h3>
-                  <p className="text-text-muted mb-4">
-                    {t('register.comingSoonDesc').replace('{orgLabel}', org.label)}
-                  </p>
-                  <div className="inline-flex items-center gap-2 bg-white border-2 border-blue-300 rounded-xl px-5 py-3 mb-4">
-                    <span className="text-lg">🌐</span>
-                    <span className="font-bold text-blue-600 text-lg">vitfix.pro</span>
-                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-semibold">{t('register.comingSoonBadge')}</span>
-                  </div>
-                  <p className="text-sm text-text-muted">
-                    {t('register.comingSoonInfo')} <strong>vitfix.pro</strong>.
-                  </p>
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <p className="text-sm text-mid">
-                    <strong>💡 {t('register.areYouIndependent')}</strong>{' '}
-                    <button onClick={() => setOrgType('artisan')} className="text-yellow hover:underline font-semibold">
-                      {t('register.registerHere')}
-                    </button>
-                  </p>
-                </div>
-              </div>
-            )
-          })()}
+          {/* Société BTP / Conciergerie / Gestionnaire / Syndic */}
+          {orgType && orgType !== 'artisan' && <FormulaireProGenerique orgType={orgType} />}
         </div>
 
         <p className="text-center text-text-muted text-sm mt-6">
