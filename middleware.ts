@@ -188,6 +188,7 @@ export async function middleware(request: NextRequest) {
   const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' || strippedPathname === '/pro/login'
   if (user && isLandingOrLogin) {
     if (role === 'artisan') return localeRedirect('/pro/dashboard')
+    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
     if (role === 'coproprietaire') return localeRedirect('/coproprietaire/dashboard')
     return localeRedirect('/client/dashboard')

@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       // Redirect based on user role
       const role = data.user.user_metadata?.role
-      if (role === 'artisan') {
+      const isProRole = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
+      if (isProRole) {
         return NextResponse.redirect(`${origin}/pro/dashboard`)
       } else {
         return NextResponse.redirect(`${origin}/client/dashboard`)

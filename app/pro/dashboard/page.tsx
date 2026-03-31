@@ -210,9 +210,10 @@ function DashboardPage() {
 
     const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (user.user_metadata?._admin_override) setShowAdminBtn(true)
-    if (!artisanData && !user.user_metadata?._admin_override) { router.push('/pro/login'); return }
+    const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
+    if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push('/pro/login'); return }
     if (!artisanData) {
-      setArtisan({ id: user.id, company_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Admin', email: user.email, phone: '', bio: '', user_id: user.id })
+      setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id })
       setLoading(false); return
     }
 
