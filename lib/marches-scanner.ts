@@ -5,9 +5,10 @@
 import { logger } from './logger'
 import { METIER_CPV_MAP, findMetiersByText, findMetiersByCPV, resolveMetierKeys } from './marches-cpv-mapping'
 import { scoreMarche, type ScoringInput, type ScoringPrefs, type ScoringResult } from './marches-scorer'
+import { createClient } from '@supabase/supabase-js'
 
 export interface ScannedMarche {
-  source: 'boamp' | 'ted' | 'base_gov' | 'marches_online' | 'decp'
+  source: 'boamp' | 'ted' | 'base_gov' | 'marches_online' | 'decp' | 'stored'
   sourceId: string
   sourceUrl: string
   title: string
@@ -497,6 +498,108 @@ async function fetchDECP(metiers: string[] = []): Promise<ScannedMarche[]> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// STORED TENDERS — Marchés stockés en Supabase par le cron hebdomadaire
+// Sources : 8 sites vérifiés + mairies (e-marchespublics, francemarches,
+// marchesonline, bailleurs-sociaux HLM, AMP Métropole, Région Sud, Dept 13, BOAMP cron)
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function fetchStoredMarches(
+  daysBack: number = 7,
+  metierKeywords: string[] = [],
+  location?: string,
+  country: 'FR' | 'PT' = 'FR',
+): Promise<ScannedMarche[]> {
+  const results: ScannedMarche[] = []
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!supabaseUrl || !supabaseKey) {
+      logger.warn('[scanner] Supabase env vars missing — skipping stored marches')
+      return results
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    const since = new Date()
+    since.setDate(since.getDate() - daysBack)
+    const sinceStr = since.toISOString().split('T')[0]
+
+    let query = supabase
+      .from('marches')
+      .select('id, title, description, source, source_id, url_source, location_city, departement, acheteur, date_publication, deadline, budget_min, montant_estime, status, pays')
+      .eq('pays', country)
+      .eq('status', 'open')
+      .gte('date_publication', sinceStr)
+      .order('date_publication', { ascending: false })
+      .limit(200)
+
+    // Geo filter
+    if (location) {
+      const dept = CITY_TO_DEPT[location.toLowerCase()]
+      if (dept) {
+        query = query.eq('departement', dept)
+      }
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      logger.error('[scanner] Supabase stored marches query error:', error.message)
+      return results
+    }
+
+    if (!data || data.length === 0) {
+      logger.info('[scanner] No stored marches found in Supabase')
+      return results
+    }
+
+    // Build keyword filter for BTP relevance
+    const kwLower = metierKeywords.map(k => k.toLowerCase())
+
+    for (const row of data) {
+      const title = row.title || ''
+      const desc = row.description || ''
+      const text = `${title} ${desc}`.toLowerCase()
+
+      // Skip attribués
+      if (text.includes('attribué') || text.includes('[attribue]')) continue
+
+      // If metier keywords provided, filter by relevance
+      if (kwLower.length > 0) {
+        const matches = kwLower.some(kw => text.includes(kw))
+        if (!matches) continue
+      }
+
+      const budget = row.budget_min || row.montant_estime || undefined
+
+      results.push({
+        source: 'stored',
+        sourceId: `stored-${row.id}`,
+        sourceUrl: row.url_source || '#',
+        title: title.slice(0, 500),
+        description: desc || title,
+        cpvCodes: [],
+        buyer: row.acheteur || 'Non précisé',
+        location: row.location_city
+          ? `${row.location_city}${row.departement ? ` (${row.departement})` : ''}`
+          : row.departement ? `Dept. ${row.departement}` : 'France',
+        country,
+        budgetMin: budget && budget > 0 ? budget : undefined,
+        deadline: row.deadline || undefined,
+        publishedAt: row.date_publication || new Date().toISOString(),
+      })
+    }
+
+    logger.info(`[scanner] Stored marches: ${results.length} pertinents sur ${data.length} en base (${daysBack}j, ${kwLower.length} keywords)`)
+  } catch (err) {
+    logger.error('[scanner] Stored marches fetch error:', err)
+  }
+
+  return results
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN SCANNER — Orchestre tout
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -514,7 +617,7 @@ export interface ScanResult {
   meta: {
     totalScanned: number
     totalFiltered: number
-    sources: { boamp: number; ted: number; base_gov: number; marches_online: number; decp: number }
+    sources: { boamp: number; ted: number; base_gov: number; marches_online: number; decp: number; stored: number }
     scannedAt: string
     daysBack: number
   }
@@ -538,20 +641,30 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
   // Fetch from all sources in parallel (pass resolved metiers + location for server-side filtering)
   const promises: Promise<ScannedMarche[]>[] = []
 
+  // Build keyword list for stored marches filtering
+  const allStrongKw: string[] = []
+  for (const m of resolvedMetiers) {
+    const mapping = METIER_CPV_MAP[m]
+    if (mapping) allStrongKw.push(...mapping.strongKeywords, ...mapping.weakKeywords)
+  }
+
   if (country === 'FR' || country === 'both') {
+    // APIs temps réel
     promises.push(fetchBOAMP(daysBack, resolvedMetiers, location))
     promises.push(fetchTED(daysBack, 'FR', resolvedMetiers))
     promises.push(fetchBOAMPMirror(daysBack, resolvedMetiers, location))
-    // DECP excluded: returns already-awarded contracts, not open opportunities
+    // Marchés stockés par le cron (8 sites + mairies)
+    promises.push(fetchStoredMarches(Math.max(daysBack, 10), allStrongKw, location, 'FR'))
   }
   if (country === 'PT' || country === 'both') {
     promises.push(fetchBASEGov(daysBack, resolvedMetiers))
     promises.push(fetchTED(daysBack, 'PT', resolvedMetiers))
+    promises.push(fetchStoredMarches(Math.max(daysBack, 10), allStrongKw, location, 'PT'))
   }
 
   const rawResults = await Promise.allSettled(promises)
   const allMarches: ScannedMarche[] = []
-  const sourceCounts = { boamp: 0, ted: 0, base_gov: 0, marches_online: 0, decp: 0 }
+  const sourceCounts = { boamp: 0, ted: 0, base_gov: 0, marches_online: 0, decp: 0, stored: 0 }
 
   for (const result of rawResults) {
     if (result.status === 'fulfilled') {
@@ -562,7 +675,7 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
     }
   }
 
-  logger.info(`[scanner] Total scanned: ${allMarches.length} (BOAMP: ${sourceCounts.boamp}, TED: ${sourceCounts.ted}, MarchésOnline: ${sourceCounts.marches_online}, DECP: ${sourceCounts.decp}, BASE.gov: ${sourceCounts.base_gov})`)
+  logger.info(`[scanner] Total scanned: ${allMarches.length} (BOAMP: ${sourceCounts.boamp}, TED: ${sourceCounts.ted}, MarchésOnline: ${sourceCounts.marches_online}, DECP: ${sourceCounts.decp}, BASE.gov: ${sourceCounts.base_gov}, Stored: ${sourceCounts.stored})`)
 
   // Deduplicate by title similarity
   const deduplicated = deduplicateMarches(allMarches)

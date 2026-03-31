@@ -1265,6 +1265,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                     {!isPt && <span>🇫🇷 BOAMP: {(scanMeta.sources?.boamp || 0) + (scanMeta.sources?.marches_online || 0)}</span>}
                     <span>🇪🇺 TED: {scanMeta.sources?.ted || 0}</span>
                     {isPt && <span>🇵🇹 BASE.gov: {scanMeta.sources?.base_gov || 0}</span>}
+                    {(scanMeta.sources?.stored || 0) > 0 && <span>📋 Sites+Mairies: {scanMeta.sources.stored}</span>}
                     <span>📊 Scannés: {scanMeta.totalScanned}</span>
                   </div>
                 )}
@@ -1273,7 +1274,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                   const priority = m.scoring?.priority || m.priority || 'medium'
                   const priorityEmoji = priority === 'high' ? '🔥' : priority === 'medium' ? '⚖️' : 'ℹ️'
                   const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#d97706' : '#6b7280'
-                  const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : m.source === 'marches_online' ? '🇫🇷 BOAMP' : m.source === 'base_gov' ? '🇵🇹 BASE.gov' : m.source === 'decp' ? '🇫🇷 DECP' : m.source
+                  const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : m.source === 'marches_online' ? '🇫🇷 BOAMP' : m.source === 'base_gov' ? '🇵🇹 BASE.gov' : m.source === 'decp' ? '🇫🇷 DECP' : m.source === 'stored' ? '📋 Plateformes' : m.source
 
                   return (
                     <div
