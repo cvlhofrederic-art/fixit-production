@@ -175,3 +175,57 @@ export function findMetiersByText(text: string, country: 'FR' | 'PT' = 'FR'): { 
 export function getCPVForMetier(metier: string): string[] {
   return METIER_CPV_MAP[metier]?.cpv || []
 }
+
+/**
+ * Résout des identifiants métier mixtes (clés METIER_CPV_MAP, categoryIds,
+ * labels FR/PT, ou texte libre) vers les clés canoniques du mapping.
+ * Ex: ['telhados', 'couvreur', 'Électricien', 'plomberie'] → ['couvreur', 'electricien', 'plombier']
+ */
+export function resolveMetierKeys(inputs: string[]): string[] {
+  const resolved = new Set<string>()
+
+  // Build reverse index: categoryId → metier key
+  const catIdToMetier = new Map<string, string>()
+  const labelToMetier = new Map<string, string>()
+  for (const [key, m] of Object.entries(METIER_CPV_MAP)) {
+    for (const cid of m.categoryIds) {
+      catIdToMetier.set(cid.toLowerCase(), key)
+    }
+    labelToMetier.set(m.labelFr.toLowerCase(), key)
+    labelToMetier.set(m.labelPt.toLowerCase(), key)
+  }
+
+  for (const input of inputs) {
+    const lower = input.toLowerCase().trim()
+    if (!lower) continue
+
+    // Direct match on metier key
+    if (METIER_CPV_MAP[lower]) {
+      resolved.add(lower)
+      continue
+    }
+
+    // Match on categoryId
+    if (catIdToMetier.has(lower)) {
+      resolved.add(catIdToMetier.get(lower)!)
+      continue
+    }
+
+    // Match on label FR/PT
+    if (labelToMetier.has(lower)) {
+      resolved.add(labelToMetier.get(lower)!)
+      continue
+    }
+
+    // Fuzzy: check if input is substring of any keyword
+    for (const [key, m] of Object.entries(METIER_CPV_MAP)) {
+      const allKw = [...m.keywords, ...m.keywordsPt, ...m.categoryIds]
+      if (allKw.some(kw => kw.toLowerCase().includes(lower) || lower.includes(kw.toLowerCase()))) {
+        resolved.add(key)
+        break
+      }
+    }
+  }
+
+  return [...resolved]
+}

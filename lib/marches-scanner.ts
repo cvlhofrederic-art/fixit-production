@@ -3,7 +3,7 @@
 // Pas de scraping (fragile sur serverless) — uniquement des APIs JSON/XML ouvertes.
 
 import { logger } from './logger'
-import { METIER_CPV_MAP, findMetiersByText, findMetiersByCPV } from './marches-cpv-mapping'
+import { METIER_CPV_MAP, findMetiersByText, findMetiersByCPV, resolveMetierKeys } from './marches-cpv-mapping'
 import { scoreMarche, type ScoringInput, type ScoringPrefs, type ScoringResult } from './marches-scorer'
 
 export interface ScannedMarche {
@@ -353,18 +353,21 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
     budgetMax,
   } = options
 
-  logger.info(`[scanner] Starting scan: country=${country}, daysBack=${daysBack}, metiers=${metiers.join(',')}`)
+  // Resolve mixed metier identifiers (categoryIds, labels, keys) to canonical keys
+  const resolvedMetiers = metiers.length > 0 ? resolveMetierKeys(metiers) : []
 
-  // Fetch from all sources in parallel (pass metiers + location for server-side filtering)
+  logger.info(`[scanner] Starting scan: country=${country}, daysBack=${daysBack}, metiers=${metiers.join(',')} → resolved=${resolvedMetiers.join(',')}`)
+
+  // Fetch from all sources in parallel (pass resolved metiers + location for server-side filtering)
   const promises: Promise<ScannedMarche[]>[] = []
 
   if (country === 'FR' || country === 'both') {
-    promises.push(fetchBOAMP(daysBack, metiers, location))
-    promises.push(fetchTED(daysBack, 'FR', metiers))
+    promises.push(fetchBOAMP(daysBack, resolvedMetiers, location))
+    promises.push(fetchTED(daysBack, 'FR', resolvedMetiers))
   }
   if (country === 'PT' || country === 'both') {
-    promises.push(fetchBASEGov(daysBack, metiers))
-    promises.push(fetchTED(daysBack, 'PT', metiers))
+    promises.push(fetchBASEGov(daysBack, resolvedMetiers))
+    promises.push(fetchTED(daysBack, 'PT', resolvedMetiers))
   }
 
   const rawResults = await Promise.allSettled(promises)
@@ -388,8 +391,8 @@ export async function scanMarches(options: ScanOptions = {}): Promise<ScanResult
   // Score if metiers provided
   let enriched: EnrichedMarche[]
 
-  if (metiers.length > 0) {
-    const prefs: ScoringPrefs = { metiers, location, budgetMin, budgetMax }
+  if (resolvedMetiers.length > 0) {
+    const prefs: ScoringPrefs = { metiers: resolvedMetiers, location, budgetMin, budgetMax }
 
     enriched = deduplicated.map(m => {
       const input: ScoringInput = {

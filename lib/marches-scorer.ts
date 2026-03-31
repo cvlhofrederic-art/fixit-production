@@ -88,16 +88,55 @@ function scoreKeywords(title: string, description: string, metiers: string[], co
 }
 
 // ── Score Géo (15 pts max) ──────────────────────────────────────────────────
+
+// Mapping ville → code département (pour comparer "Dept. 13" avec "Marseille")
+const CITY_DEPT_MAP: Record<string, string> = {
+  'marseille': '13', 'aix-en-provence': '13', 'aubagne': '13', 'la ciotat': '13',
+  'arles': '13', 'martigues': '13', 'salon-de-provence': '13', 'istres': '13',
+  'toulon': '83', 'nice': '06', 'cannes': '06', 'antibes': '06', 'avignon': '84',
+  'paris': '75', 'lyon': '69', 'toulouse': '31', 'bordeaux': '33', 'lille': '59',
+  'nantes': '44', 'strasbourg': '67', 'montpellier': '34', 'rennes': '35',
+  'grenoble': '38', 'saint-étienne': '42',
+}
+
+// Départements dans la même région
+const DEPT_REGIONS: Record<string, string[]> = {
+  'paca': ['04', '05', '06', '13', '83', '84'],
+  'idf': ['75', '77', '78', '91', '92', '93', '94', '95'],
+  'aura': ['01', '03', '07', '15', '26', '38', '42', '43', '63', '69', '73', '74'],
+  'hdf': ['02', '59', '60', '62', '80'],
+  'occitanie': ['09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'],
+}
+
 function scoreGeo(marcheLocation: string | undefined, userLocation: string | undefined): number {
   if (!marcheLocation || !userLocation) return 8 // Neutral if unknown
 
   const ml = marcheLocation.toLowerCase()
   const ul = userLocation.toLowerCase()
 
-  // Same city = 15pts
+  // Direct text match
   if (ml.includes(ul) || ul.includes(ml)) return 15
 
-  // Same department / region heuristic
+  // Extract dept code from BOAMP-style "Dept. 13" format
+  const deptMatch = ml.match(/dept\.?\s*(\d{1,3})/)
+  const marcheDept = deptMatch ? deptMatch[1] : null
+
+  // Get user's dept from city name
+  const userDept = CITY_DEPT_MAP[ul] || null
+
+  if (marcheDept && userDept) {
+    // Same département = 15pts
+    if (marcheDept === userDept) return 15
+
+    // Same region = 12pts
+    for (const depts of Object.values(DEPT_REGIONS)) {
+      if (depts.includes(marcheDept) && depts.includes(userDept)) return 12
+    }
+
+    return 3 // Different region
+  }
+
+  // Fallback: region heuristic by city name
   const frRegions: Record<string, string[]> = {
     'paca': ['marseille', 'aix-en-provence', 'toulon', 'nice', 'avignon', 'aubagne', 'la ciotat', 'arles', 'gap', 'digne'],
     'idf': ['paris', 'boulogne', 'nanterre', 'versailles', 'créteil', 'bobigny', 'evry', 'cergy', 'melun'],
@@ -114,7 +153,7 @@ function scoreGeo(marcheLocation: string | undefined, userLocation: string | und
   for (const cities of Object.values(allRegions)) {
     const marcheInRegion = cities.some(c => ml.includes(c))
     const userInRegion = cities.some(c => ul.includes(c))
-    if (marcheInRegion && userInRegion) return 12 // Same region
+    if (marcheInRegion && userInRegion) return 12
   }
 
   return 3 // Different region
