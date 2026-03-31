@@ -11,16 +11,9 @@ import { filterBTP } from './classifier'
 import { deduplicateTenders } from './dedup'
 import { logger } from '@/lib/logger'
 import { type SyncedMarche, upsertMarches } from '@/lib/marches-sync'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as supabase } from '@/lib/supabase-server'
 import { readFile, writeFile } from 'fs/promises'
 import path from 'path'
-
-// ── Supabase admin client ───────────────────────────────────────────────────
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -1,16 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as supabase } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import {
   type SyncedMarche, upsertMarches, startSyncJob, finishSyncJob, failSyncJob, fetchWithRetry,
 } from '@/lib/marches-sync'
 
 export const maxDuration = 60
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
 
 // ── DECP augmenté — Marchés publics attribués dept 13 (Bouches-du-Rhône) ────
 // Source: data.economie.gouv.fr — Licence Ouverte 2.0

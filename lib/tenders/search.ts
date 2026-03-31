@@ -2,13 +2,8 @@
 
 import type { SearchParams, Tender } from './types'
 import { BTP_TRADES } from './config'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 /**
  * Search tenders in the `marches` table with filters.
@@ -29,7 +24,7 @@ export async function searchTenders(
   } = params
 
   try {
-    let query = supabase
+    let query = supabaseAdmin
       .from('marches')
       .select('*', { count: 'exact' })
       .eq('pays', 'FR')

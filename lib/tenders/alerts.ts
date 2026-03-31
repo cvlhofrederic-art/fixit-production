@@ -1,13 +1,8 @@
 // ── Tenders Alert System ─────────────────────────────────────────────────────
 
 import type { Tender, AlertRule } from './types'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as supabase } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 interface AlertMatch {
   artisan_id: string
