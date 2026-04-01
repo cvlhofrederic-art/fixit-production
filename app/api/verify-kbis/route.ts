@@ -32,14 +32,14 @@ export function extractIdentifiantFR(text: string): string | null {
 }
 
 export function extractDenominationFR(text: string): string | null {
-  const match = text.match(/(?:dénomination|raison sociale)\s*[:.]?\s*([^\n]{3,80})/i)
+  const match = text.match(/(?:dénomination|raison sociale)\s*[:.]\s*([^\n]{3,80})/i)
   if (!match) return null
   return match[1].trim() || null
 }
 
 export function extractRepresentantFR(text: string): string | null {
   const match = text.match(
-    /(?:gérant|président|directeur général|associé unique)\s*[:.]?\s*([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s\-]{3,60})/i
+    /(?:gérant|président|directeur général|associé unique)\s*[:.]\s*([A-ZÀ-Ÿ][a-zA-ZÀ-ÿ\s\-]{3,60})/i
   )
   if (!match) return null
   return match[1].trim() || null

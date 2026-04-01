@@ -372,7 +372,7 @@ const KEYWORD_TO_CATEGORY: Record<string, string> = {
   grille: 'metallerie', grilles: 'metallerie', garde: 'metallerie',
   balustrade: 'metallerie', rampe: 'metallerie', escalier: 'metallerie',
   // Métallerie PT
-  metaleiro: 'metallerie', ferreiro: 'metallerie', serralharia: 'metallerie',
+  metaleiro: 'metallerie', ferreiro: 'metallerie',
   portao: 'metallerie', grade: 'metallerie', grades: 'metallerie',
 }
 
