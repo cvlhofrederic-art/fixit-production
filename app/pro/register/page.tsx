@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
-import { useTranslation } from '@/lib/i18n/context'
+import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { useSearchParams } from 'next/navigation'
+import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculator'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,12 +157,13 @@ function getMetiers(t: (key: string) => string) {
     { slug: 'store-banne', name: t('register.metierStoreBanne'), icon: '☀️' },
     { slug: 'paysagiste', name: t('register.metierPaysagisteConcepteur'), icon: '🌿' },
     { slug: 'debouchage', name: t('register.metierDebouchage'), icon: '🚿' },
+    { slug: 'metallerie', name: t('register.metierMetallerie'), icon: '⚙️' },
   ]
 }
 
 // ─── Mapping NAF → métiers autorisés (anti-triche) ──────────────────────────
 
-const BTP_METIERS = ['plomberie', 'electricite', 'serrurerie', 'chauffage', 'peinture', 'maconnerie', 'menuiserie', 'toiture', 'climatisation', 'carrelage', 'vitrerie', 'petits-travaux', 'renovation', 'plaquiste', 'ramonage', 'store-banne', 'debouchage']
+const BTP_METIERS = ['plomberie', 'electricite', 'serrurerie', 'chauffage', 'peinture', 'maconnerie', 'menuiserie', 'toiture', 'climatisation', 'carrelage', 'vitrerie', 'petits-travaux', 'renovation', 'plaquiste', 'ramonage', 'store-banne', 'debouchage', 'metallerie']
 
 function getAllowedMetiers(nafCode: string | undefined): string[] | null {
   if (!nafCode) return null // pas de restriction si pas de NAF
@@ -689,6 +691,8 @@ function FormulaireArtisan() {
 
 function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const { t } = useTranslation()
+  const locale = useLocale()
+  const registrationCountry = locale === 'pt' ? 'PT' as const : 'FR' as const
   const ORG_TYPES = getOrgTypes(t)
   const org = ORG_TYPES.find(o => o.id === orgType)!
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -704,6 +708,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const [kbisPreview, setKbisPreview] = useState('')
   const [idFile, setIdFile] = useState<File | null>(null)
   const [idPreview, setIdPreview] = useState('')
+  const [legalStructure, setLegalStructure] = useState('')
 
   const verifySiret = async () => {
     const clean = siretInput.replace(/\s/g, '')
@@ -712,7 +717,14 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     try {
       const res = await fetch(`/api/verify-siret?siret=${clean}`)
       const data = await res.json()
-      if (data.verified) { setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name })) }
+      if (data.verified) {
+        setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name }))
+        // Auto-map legal form from API to companyTypes key
+        if (data.company.legalForm) {
+          const mapped = mapLegalFormToKey(data.company.legalForm, registrationCountry)
+          if (mapped) setLegalStructure(mapped)
+        }
+      }
       else { setSiretStatus('error'); setSiretError(data.error || t('register.taxIdInvalid')) }
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
@@ -754,6 +766,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             naf_code: company?.nafCode || '',
             naf_label: company?.nafLabel || '',
             legal_form: company?.legalForm || '',
+            legal_structure: legalStructure,
             siret: siretInput.replace(/\s/g, ''),
             siret_verified: true,
             nb_employes: form.nbEmployes,
@@ -811,7 +824,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const btnClass = org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-px' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700 text-white hover:-translate-y-px' : 'bg-green-600 hover:bg-green-700 text-white hover:-translate-y-px'
 
   const secteurs = orgType === 'societe_btp'
-    ? [t('register.sectorBtpGrosOeuvre'), t('register.sectorBtpElecPlomb'), t('register.sectorBtpPeinture'), t('register.sectorBtpMenuiserie'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'), t('register.sectorBtpAutre')]
+    ? [t('register.sectorBtpGrosOeuvre'), t('register.sectorBtpElecPlomb'), t('register.sectorBtpPeinture'), t('register.sectorBtpMenuiserie'), t('register.sectorBtpCvc'), t('register.sectorBtpToiture'), t('register.sectorBtpMetallerie'), t('register.sectorBtpGeneral'), t('register.sectorBtpBureau'), t('register.sectorBtpAutre')]
     : orgType === 'conciergerie'
     ? [t('register.sectorConcAirbnb'), t('register.sectorConcResidentiel'), t('register.sectorConcLocative'), t('register.sectorConcLuxe'), t('register.sectorConcEntreprises')]
     : [t('register.sectorGestResidentiel'), t('register.sectorGestCopro'), t('register.sectorGestFonciere'), t('register.sectorGestCommerciale'), t('register.sectorGestPromoteur')]
@@ -867,6 +880,21 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           </div>
 
           <div>
+            <label className="block text-sm font-semibold text-mid mb-1">Structure juridique <span className="text-red-500">*</span></label>
+            <p className="text-xs text-text-muted mb-2">{registrationCountry === 'PT' ? 'As contribuições variam conforme a forma jurídica' : 'Les charges et cotisations varient selon votre forme juridique'}</p>
+            <select value={legalStructure} onChange={e => setLegalStructure(e.target.value)}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none bg-white ${legalStructure ? 'border-green-400 bg-green-50' : 'border-[#E0E0E0] bg-warm-gray focus:border-yellow focus:bg-white'}`}>
+              <option value="">{registrationCountry === 'PT' ? '— Selecione a forma jurídica —' : '— Sélectionnez la forme juridique —'}</option>
+              {getLegalStructureOptions(registrationCountry).map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </select>
+            {legalStructure && siretStatus === 'verified' && company?.legalForm && (
+              <p className="text-xs text-green-600 mt-1">✓ Pré-rempli depuis le SIRET ({company.legalForm})</p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm font-semibold text-mid mb-1">{t('register.sectorLabel')} <span className="text-red-500">*</span></label>
             <p className="text-xs text-text-muted mb-2">Plusieurs choix possibles</p>
             <div className="grid grid-cols-1 gap-2">
@@ -899,6 +927,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
 
           <button type="button" onClick={() => {
             if (siretStatus !== 'verified') { setError('Veuillez vérifier votre SIRET avant de continuer — nous devons confirmer l\'existence légale de votre société'); return }
+            if (!legalStructure) { setError('Veuillez sélectionner la structure juridique de votre société'); return }
             if (form.secteurs.length === 0) { setError(t('register.sectorRequired')); return }
             setError(''); setStep(2)
           }} className={`w-full py-3 rounded-xl font-bold transition ${btnClass}`}>{t('register.continue')}</button>
@@ -1019,6 +1048,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             <p className="text-text-muted">🏢 {company?.name || form.companyName}</p>
             <p className="text-text-muted">👤 {form.prenom} {form.nom} — {form.email}</p>
             <p className="text-text-muted">📌 {form.secteurs.join(' · ')}</p>
+            <p className="text-text-muted">⚖️ {getLegalStructureOptions(registrationCountry).find(o => o.key === legalStructure)?.label || legalStructure}</p>
             <p className="text-text-muted">📄 KBIS {kbisFile ? '✅' : '—'} · Pièce d'identité {idFile ? '✅' : '—'}</p>
             <p className={`font-semibold mt-2 ${org.color === 'blue' ? 'text-blue-700' : org.color === 'purple' ? 'text-purple-700' : 'text-green-700'}`}>✅ {t('register.trialDays')}</p>
           </div>

@@ -400,7 +400,35 @@ export function useBTPSettings() {
       const res = await fetch('/api/btp?table=settings', { headers: await authHeaders() })
       if (!res.ok) throw new Error()
       const json = await res.json()
-      if (json.settings) setSettings({ ...DEFAULT_SETTINGS, ...json.settings })
+      if (json.settings) {
+        setSettings({ ...DEFAULT_SETTINGS, ...json.settings })
+      } else {
+        // No saved settings yet — try to initialize from user_metadata.legal_structure
+        try {
+          const { createClient } = await import('@supabase/supabase-js')
+          const sb = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          )
+          const { data: { user } } = await sb.auth.getUser()
+          const legalStructure = user?.user_metadata?.legal_structure
+          const country = user?.user_metadata?.country === 'PT' ? 'PT' as const : 'FR' as const
+          if (legalStructure) {
+            const { resolveCompanyType } = await import('@/lib/config/companyTypes')
+            const config = resolveCompanyType(legalStructure, country)
+            setSettings(prev => ({
+              ...prev,
+              country,
+              company_type: legalStructure,
+              statut_juridique: legalStructure,
+              employer_charge_rate: config.employer_charge_rate,
+              charges_patronales_pct: Math.round(config.employer_charge_rate * 100),
+              taux_cotisations_patron: Math.round(config.boss_charge_rate * 100),
+              taux_is: Math.round(config.default_taux_is * 100),
+            }))
+          }
+        } catch { /* fallback to defaults */ }
+      }
     } catch { /* use defaults */ }
     finally { setLoading(false) }
   }, [])
