@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { resolveCompanyType } from '@/lib/config/companyTypes'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // useBTPData — Hook universel pour les données BTP
@@ -405,16 +406,10 @@ export function useBTPSettings() {
       } else {
         // No saved settings yet — try to initialize from user_metadata.legal_structure
         try {
-          const { createClient } = await import('@supabase/supabase-js')
-          const sb = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-          )
-          const { data: { user } } = await sb.auth.getUser()
+          const { data: { user } } = await supabase.auth.getUser()
           const legalStructure = user?.user_metadata?.legal_structure
           const country = user?.user_metadata?.country === 'PT' ? 'PT' as const : 'FR' as const
           if (legalStructure) {
-            const { resolveCompanyType } = await import('@/lib/config/companyTypes')
             const config = resolveCompanyType(legalStructure, country)
             setSettings(prev => ({
               ...prev,
