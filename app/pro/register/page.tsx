@@ -12,6 +12,25 @@ import { useSearchParams } from 'next/navigation'
 type OrgType = 'artisan' | 'societe_btp' | 'conciergerie' | 'gestionnaire' | 'syndic' | null
 type SiretStatus = 'idle' | 'checking' | 'verified' | 'error'
 
+// ─── Mapping secteur BTP label → specialty slug ───────────────────────────────
+const SECTEUR_TO_SLUG: Record<string, string> = {
+  'Gros œuvre / Maçonnerie':  'gros-oeuvre',
+  'Électricité / Plomberie':  'electricite',
+  'Peinture / Revêtements':   'peinture',
+  'Menuiserie / Charpente':   'menuiserie-bois',
+  'CVC / Climatisation':      'chauffage',
+  'Toiture / Étanchéité':     'couverture',
+  'Entreprise générale':      'renovation-generale',
+  "Bureau d'études":          'renovation-generale',
+  'Autre BTP':                'renovation-generale',
+}
+
+function secteursToSlugs(secteurs: string[]): string[] {
+  return secteurs
+    .map(s => SECTEUR_TO_SLUG[s] ?? s.toLowerCase().replace(/[\s/().'']/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''))
+    .filter(Boolean)
+}
+
 interface VerifiedCompany {
   name: string; siret: string; siren: string; nafCode: string; nafLabel: string
   legalForm: string; address: string; city: string; postalCode: string
@@ -803,6 +822,21 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           // Non-blocking: account created, docs failed
           setError(`Compte créé mais erreur upload documents: ${uploadErr.message}`)
         }
+      }
+
+      // ── Spécialités granulaires BTP (non-bloquant, uniquement pour societe_btp) ──
+      if (orgType === 'societe_btp') {
+        try {
+          await fetch('/api/profile/specialties', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: authData.user!.id,
+              slugs: secteursToSlugs(form.secteurs),
+              verified_source: kbisFile ? 'kbis' : 'self_declared',
+            }),
+          })
+        } catch { /* non-bloquant */ }
       }
 
       setSuccess(true)
