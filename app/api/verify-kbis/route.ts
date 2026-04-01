@@ -169,6 +169,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Fichier requis' }, { status: 400 })
     }
 
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Fichier trop volumineux (max 10 Mo)' }, { status: 400 })
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: market === 'pt_artisan'
+            ? 'Formato não suportado. Use JPG, PNG ou PDF.'
+            : 'Format non supporté. Utilisez JPG, PNG ou PDF.' },
+        { status: 400 }
+      )
+    }
+
     const validMarkets: KbisMarket[] = ['fr_artisan', 'fr_btp', 'pt_artisan']
     if (!market || !validMarkets.includes(market)) {
       return NextResponse.json(
