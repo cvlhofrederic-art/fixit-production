@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'users' | 'subscriptions' | 'switcher'
+type Tab = 'overview' | 'users' | 'subscriptions' | 'kyc' | 'switcher'
 
 interface Stats {
   users: { total: number; byRole: Record<string, number>; newThisWeek: number }
@@ -43,6 +43,28 @@ interface Pagination {
   limit: number
   total: number
   totalPages: number
+}
+
+interface KycRow {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  siret: string | null
+  email: string | null
+  phone: string | null
+  kyc_status: string
+  kyc_score: number | null
+  kyc_checks: Record<string, unknown> | null
+  kyc_verified_at: string | null
+  kyc_reviewed_at: string | null
+  kyc_rejection_reason: string | null
+  kbis_url: string | null
+  id_document_url: string | null
+  kbis_extracted: Record<string, unknown> | null
+  certidao_extracted: Record<string, unknown> | null
+  kyc_market: string | null
+  created_at: string
 }
 
 // ── Role Switcher data (preserved from original) ────────────────────────────
@@ -138,6 +160,13 @@ export default function AdminDashboardPage() {
   const [subsLoading, setSubsLoading] = useState(false)
   const [planFilter, setPlanFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+
+  // KYC
+  const [kycRows, setKycRows] = useState<KycRow[]>([])
+  const [kycFilter, setKycFilter] = useState<'pending' | 'approved' | 'rejected'>('pending')
+  const [kycLoading, setKycLoading] = useState(false)
+  const [kycRejectModalId, setKycRejectModalId] = useState<string | null>(null)
+  const [kycRejectReason, setKycRejectReason] = useState('')
 
   // Role switcher
   const [navigating, setNavigating] = useState<string | null>(null)
@@ -236,6 +265,33 @@ export default function AdminDashboardPage() {
     }
   }, [getToken, planFilter, statusFilter])
 
+  const fetchKycRows = useCallback(async (status: 'pending' | 'approved' | 'rejected') => {
+    setKycLoading(true)
+    try {
+      const res = await fetch(`/api/admin/kyc?status=${status}&limit=50`)
+      if (!res.ok) throw new Error('fetch failed')
+      const json = await res.json()
+      setKycRows(json.data ?? [])
+    } catch {
+      setKycRows([])
+    } finally {
+      setKycLoading(false)
+    }
+  }, [])
+
+  const handleKycAction = async (artisanId: string, action: 'approve' | 'reject', reason?: string) => {
+    const res = await fetch('/api/admin/kyc', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artisan_id: artisanId, action, rejection_reason: reason }),
+    })
+    if (res.ok) {
+      setKycRejectModalId(null)
+      setKycRejectReason('')
+      await fetchKycRows(kycFilter)
+    }
+  }
+
   // ── Load data on tab change ─────────────────────────────────────────────
 
   useEffect(() => {
@@ -243,7 +299,8 @@ export default function AdminDashboardPage() {
     if (activeTab === 'overview' && !stats) fetchStats()
     if (activeTab === 'users') fetchUsers()
     if (activeTab === 'subscriptions') fetchSubs()
-  }, [activeTab, user, stats, fetchStats, fetchUsers, fetchSubs])
+    if (activeTab === 'kyc') fetchKycRows(kycFilter)
+  }, [activeTab, user, stats, fetchStats, fetchUsers, fetchSubs, fetchKycRows, kycFilter])
 
   // ── Role switcher ─────────────────────────────────────────────────────
 
@@ -283,6 +340,7 @@ export default function AdminDashboardPage() {
     { id: 'overview', label: 'Vue d\'ensemble', icon: '📊' },
     { id: 'users', label: 'Utilisateurs', icon: '👥' },
     { id: 'subscriptions', label: 'Abonnements', icon: '💳' },
+    { id: 'kyc', label: 'KYC', icon: '🛡️' },
     { id: 'switcher', label: 'Dashboards', icon: '🔄' },
   ]
 
@@ -634,6 +692,170 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── TAB: KYC Review ─────────────────────────────────────────── */}
+        {activeTab === 'kyc' && (
+          <div className="space-y-4">
+            {/* Header avec filtres */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h3 className="text-lg font-semibold text-white">Vérifications KYC</h3>
+              <div className="flex gap-2">
+                {(['pending', 'approved', 'rejected'] as const).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setKycFilter(s); fetchKycRows(s) }}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      kycFilter === s
+                        ? s === 'pending' ? 'bg-yellow-600 text-white'
+                          : s === 'approved' ? 'bg-green-600 text-white'
+                          : 'bg-red-700 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {s === 'pending' ? '⏳ En attente' : s === 'approved' ? '✅ Approuvés' : '❌ Rejetés'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {kycLoading && <p className="text-gray-400 text-sm">Chargement...</p>}
+            {!kycLoading && kycRows.length === 0 && (
+              <p className="text-gray-500 text-sm italic">Aucun dossier {kycFilter === 'pending' ? 'en attente' : kycFilter === 'approved' ? 'approuvé' : 'rejeté'}.</p>
+            )}
+
+            {kycRows.map(row => (
+              <div key={row.id} className="bg-gray-800/60 rounded-xl border border-gray-700 p-5 space-y-3">
+                {/* Entête : infos société + score */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white truncate">{row.company_name ?? '—'}</p>
+                    <p className="text-sm text-gray-400">{row.first_name} {row.last_name} — {row.siret ?? row.kyc_market}</p>
+                    <p className="text-xs text-gray-500">{row.email} {row.phone && `· ${row.phone}`}</p>
+                    {row.kyc_market && (
+                      <span className={`mt-1 inline-block px-2 py-0.5 rounded text-xs font-mono ${
+                        row.kyc_market === 'pt_artisan' ? 'bg-green-900 text-green-300' :
+                        row.kyc_market === 'fr_btp' ? 'bg-orange-900 text-orange-300' :
+                        'bg-blue-900 text-blue-300'
+                      }`}>{row.kyc_market}</span>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {row.kyc_score !== null ? (
+                      <span className={`text-3xl font-black ${
+                        row.kyc_score >= 80 ? 'text-green-400' :
+                        row.kyc_score >= 40 ? 'text-yellow-400' :
+                        'text-red-400'
+                      }`}>{row.kyc_score}<span className="text-base font-normal text-gray-500">/100</span></span>
+                    ) : (
+                      <span className="text-gray-600 text-sm">Non scoré</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Détails des checks */}
+                {row.kyc_checks && (
+                  <div className="grid grid-cols-2 gap-1.5 text-xs">
+                    {Object.entries(row.kyc_checks as Record<string, boolean | number>).map(([key, val]) => (
+                      <div key={key} className={`flex items-center gap-1.5 px-2 py-1 rounded ${
+                        typeof val === 'boolean' ? (val ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300') :
+                        (val as number) >= 70 ? 'bg-green-900/40 text-green-300' :
+                        (val as number) >= 40 ? 'bg-yellow-900/40 text-yellow-300' :
+                        'bg-red-900/40 text-red-300'
+                      }`}>
+                        <span>{typeof val === 'boolean' ? (val ? '✓' : '✗') : `${val}%`}</span>
+                        <span className="font-mono">{key}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Données extraites du document entreprise */}
+                {(row.kbis_extracted || row.certidao_extracted) && (() => {
+                  const extracted = (row.kbis_extracted || row.certidao_extracted) as Record<string, string | null>
+                  const label = row.kyc_market === 'pt_artisan' ? 'Certidão extraite' : 'KBIS extrait'
+                  return (
+                    <div className="bg-gray-900/60 rounded-lg p-3 text-xs space-y-1 text-gray-300">
+                      <p className="font-medium text-gray-200 mb-2">{label} :</p>
+                      {extracted.denomination && <p><span className="text-gray-500">Dénomination :</span> {extracted.denomination}</p>}
+                      {extracted.representant && <p><span className="text-gray-500">{row.kyc_market === 'pt_artisan' ? 'Gerente' : 'Gérant'} :</span> {extracted.representant}</p>}
+                      {extracted.identifiant && <p><span className="text-gray-500">{row.kyc_market === 'pt_artisan' ? 'NIF' : 'SIRET'} extrait :</span> {extracted.identifiant}</p>}
+                    </div>
+                  )
+                })()}
+
+                {/* Liens documents */}
+                <div className="flex flex-wrap gap-2">
+                  {row.kbis_url && (
+                    <a href={row.kbis_url} target="_blank" rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-300 rounded-lg text-xs transition-colors">
+                      📄 {row.kyc_market === 'pt_artisan' ? 'Certidão' : 'KBIS'}
+                    </a>
+                  )}
+                  {row.id_document_url && (
+                    <a href={row.id_document_url} target="_blank" rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-300 rounded-lg text-xs transition-colors">
+                      🪪 {row.kyc_market === 'pt_artisan' ? 'Cartão de Cidadão' : 'CNI'}
+                    </a>
+                  )}
+                </div>
+
+                {/* Motif de rejet existant */}
+                {row.kyc_rejection_reason && (
+                  <p className="text-xs text-red-400 bg-red-900/20 rounded px-3 py-2">Rejet : {row.kyc_rejection_reason}</p>
+                )}
+
+                {/* Actions pour les dossiers pending */}
+                {row.kyc_status === 'pending' && (
+                  <div className="flex gap-2 pt-1 border-t border-gray-700">
+                    <button
+                      onClick={() => handleKycAction(row.id, 'approve')}
+                      className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      ✅ Approuver
+                    </button>
+                    <button
+                      onClick={() => setKycRejectModalId(row.id)}
+                      className="px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      ❌ Rejeter
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Modal rejet */}
+            {kycRejectModalId && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-gray-700">
+                  <h4 className="text-white font-semibold text-lg">Motif du rejet</h4>
+                  <p className="text-gray-400 text-sm">Ce motif sera envoyé par email à l&apos;artisan.</p>
+                  <textarea
+                    value={kycRejectReason}
+                    onChange={e => setKycRejectReason(e.target.value)}
+                    placeholder="Ex: KBIS illisible, nom gérant ne correspond pas à la CNI, SIRET radié..."
+                    className="w-full bg-gray-700 text-white rounded-lg p-3 text-sm resize-none h-28 border border-gray-600 focus:outline-none focus:border-orange-500"
+                  />
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => { setKycRejectModalId(null); setKycRejectReason('') }}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition-colors"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={() => handleKycAction(kycRejectModalId, 'reject', kycRejectReason)}
+                      disabled={!kycRejectReason.trim()}
+                      className="px-4 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Confirmer le rejet
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
