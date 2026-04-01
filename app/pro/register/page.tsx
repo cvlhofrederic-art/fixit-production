@@ -337,6 +337,19 @@ function FormulaireArtisan() {
             insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
           ])
 
+          // ── Spécialités granulaires — lier le profil aux spécialités choisies ──────
+          try {
+            await fetch('/api/profile/specialties', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: authData.user.id,
+                slugs: selectedCategories,
+                verified_source: kbisFile ? 'kbis' : 'self_declared',
+              }),
+            })
+          } catch { /* non-bloquant */ }
+
           // ── Motifs par défaut : insérer selon le métier (silencieux, non-bloquant) ──
           try {
             await fetch('/api/seed-motifs', {
