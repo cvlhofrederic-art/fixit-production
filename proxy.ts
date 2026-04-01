@@ -48,7 +48,7 @@ function detectPreferredLocale(request: NextRequest): string {
   return DEFAULT_LOCALE
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ── CSP nonce (replaces static unsafe-inline for script-src) ──
