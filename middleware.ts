@@ -125,6 +125,7 @@ export async function middleware(request: NextRequest) {
   // Inject nonce into request headers so the app (layout.tsx) can read it via headers()
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('x-locale', locale)
   const supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(

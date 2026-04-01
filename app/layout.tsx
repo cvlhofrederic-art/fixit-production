@@ -7,7 +7,7 @@ import { Montserrat } from "next/font/google";
 import { Outfit } from "next/font/google";
 import { Playfair_Display } from "next/font/google";
 import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
@@ -169,9 +169,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Read locale from cookie (set by middleware)
+  // Read locale: x-locale header (set by middleware from URL path) takes priority
+  // over cookie, which may be stale when middleware updates it in the response
   const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  const headerStore = await headers()
+  const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'pt') as Locale
 
 
   // NL and ES investor pages target Porto (same as EN)
@@ -331,7 +333,7 @@ export default async function RootLayout({
         <link rel="alternate" hrefLang="en" href="https://vitfix.io/en/" />
         <link rel="alternate" hrefLang="nl" href="https://vitfix.io/nl/" />
         <link rel="alternate" hrefLang="es" href="https://vitfix.io/es/" />
-        <link rel="alternate" hrefLang="x-default" href="https://vitfix.io/fr/" />
+        <link rel="alternate" hrefLang="x-default" href="https://vitfix.io/" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
