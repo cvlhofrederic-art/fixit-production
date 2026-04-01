@@ -5,6 +5,7 @@ import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { calculateEmployeeCost, grossFromNet, netFromGross, hourlyFromMonthly, monthlyFromHourly, validatePayroll, type PayrollBreakdown } from '@/lib/payroll/engine'
 import { resolveCompanyType, getCompanyTypesByCountry } from '@/lib/config/companyTypes'
+import { PlusCircle, Pencil, Trash2, Users, HardHat, Key, Clock, Calendar, FileText, BarChart3, UserCog, Wrench, DollarSign, Phone, Mail, Check, Minus, AlertTriangle, ChevronDown } from 'lucide-react'
 
 /* ══════════════════════════════════════════════════════════
    ÉQUIPES BTP V2 — Supabase + Champs financiers
@@ -73,6 +74,28 @@ const CONTRAT_LABELS: Record<TypeContrat, string> = {
   independant: 'Indépendant',
 }
 
+/**
+ * Contrats valides par rôle — règles URSSAF / droit du travail français
+ *
+ * Gérant/Patron : TNS ou mandataire social, pas salarié de sa propre boîte
+ * Ouvrier : tout sauf indépendant (lien de subordination)
+ * Chef de chantier : CDI/CDD/Intérim (poste qualifié, pas de stage)
+ * Conducteur travaux : CDI/CDD uniquement (poste à responsabilité)
+ * Secrétaire : CDI/CDD/Apprenti/Stage (poste compatible alternance)
+ */
+const CONTRATS_PAR_ROLE: Record<TypeCompte, TypeContrat[]> = {
+  gerant: ['independant'],
+  ouvrier: ['cdi', 'cdd', 'interim', 'apprenti'],
+  chef_chantier: ['cdi', 'cdd', 'interim'],
+  conducteur_travaux: ['cdi', 'cdd'],
+  secretaire: ['cdi', 'cdd', 'apprenti', 'stage'],
+}
+
+/** Returns valid contract types for a given role */
+function getValidContrats(role: TypeCompte): TypeContrat[] {
+  return CONTRATS_PAR_ROLE[role] || ['cdi']
+}
+
 const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Métallerie / Ferronnerie', 'Multi-corps']
 
 // Salary calculation now uses /lib/payroll/engine.ts
@@ -128,6 +151,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
   const [showFinance, setShowFinance] = useState(false) // toggle finance section in modal
   const [calcMode, setCalcMode] = useState<'auto' | 'manuel'>('auto') // auto = smart calc, manuel = free edit
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<{type: string, id: string} | null>(null)
 
   const [mForm, setMForm] = useState(EMPTY_MFORM)
   const [eForm, setEForm] = useState({ nom: '', metier: '', chantierId: '', membreIds: [] as string[] })
@@ -230,8 +254,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
     setShowMembreModal(true)
   }
 
-  const deleteMembre = async (id: string) => {
-    if (!confirm(isPt ? 'Remover membro?' : 'Supprimer ce membre ?')) return
+  const deleteMembre = (id: string) => {
+    setConfirmDelete({ type: 'membre', id })
+  }
+
+  const doActualDeleteMembre = async (id: string) => {
     await removeMembre(id)
   }
 
@@ -253,15 +280,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
     setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] })
   }
 
-  const deleteEquipe = async (id: string) => {
-    if (!confirm(isPt ? 'Remover equipa?' : 'Supprimer cette équipe ?')) return
+  const deleteEquipe = (id: string) => {
+    setConfirmDelete({ type: 'equipe', id })
+  }
+
+  const doActualDeleteEquipe = async (id: string) => {
     await removeEquipe(id)
   }
 
   if (loadM || loadE) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
-        <div style={{ fontSize: 32, marginBottom: 12, animation: 'spin 1s linear infinite' }}>⏳</div>
+        <div style={{ marginBottom: 12, animation: 'spin 1s linear infinite', display: 'flex', justifyContent: 'center' }}><Clock size={32} /></div>
         <p style={{ color: 'var(--v22-text-mid)' }}>Chargement...</p>
       </div>
     )
@@ -272,18 +302,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">👷 {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p className="v22-page-sub">{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && (
             <button className="v22-btn" onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
-              ➕ {isPt ? 'Membro' : 'Membre'}
+              <PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}
             </button>
           )}
           {tab === 'equipes' && (
             <button className="v22-btn" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}>
-              ➕ {isPt ? 'Equipa' : 'Équipe'}
+              <PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}
             </button>
           )}
         </div>
@@ -309,9 +339,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
       <div style={{ display: 'flex', gap: 4, padding: '0 24px 16px', borderBottom: '1px solid var(--v22-border)' }}>
         {(['membres', 'equipes'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className="v22-btn v22-btn-sm"
-            style={{ background: tab === t ? 'var(--v22-yellow)' : 'transparent', color: tab === t ? '#0D1B2E' : 'var(--v22-text-mid)', fontWeight: tab === t ? 700 : 400 }}>
-            {t === 'membres' ? (isPt ? '👤 Membros' : '👤 Membres') : (isPt ? '👷 Equipas' : '👷 Équipes')}
+            className={`v22-tab${tab === t ? ' active' : ''}`}>
+            {t === 'membres' ? <><Users size={14} /> {isPt ? 'Membros' : 'Membres'}</> : <><HardHat size={14} /> {isPt ? 'Equipas' : 'Équipes'}</>}
           </button>
         ))}
       </div>
@@ -323,10 +352,10 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
           <>
             {activeMembres.length === 0 && inactiveMembres.length === 0 ? (
               <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>👤</div>
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Users size={40} color="var(--v22-text-muted)" /></div>
                 <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
                 <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Adicione os membros da sua empresa com os seus custos' : 'Ajoutez les membres de votre entreprise avec leurs coûts'}</p>
-                <button className="v22-btn" onClick={() => setShowMembreModal(true)}>➕ {isPt ? 'Adicionar' : 'Ajouter'}</button>
+                <button className="v22-btn" onClick={() => setShowMembreModal(true)}><PlusCircle size={14} /> {isPt ? 'Adicionar' : 'Ajouter'}</button>
               </div>
             ) : (
               <>
@@ -357,7 +386,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                               <td style={tdStyle}>
                                 <div style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</div>
                                 {m.rolePerso && <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{m.rolePerso}</div>}
-                                {equipe && <div style={{ fontSize: 11, color: 'var(--v22-yellow)' }}>👷 {equipe.nom}</div>}
+                                {equipe && <div style={{ fontSize: 11, color: 'var(--v22-yellow)', display: 'flex', alignItems: 'center', gap: 3 }}><HardHat size={11} /> {equipe.nom}</div>}
                               </td>
                               <td style={tdStyle}>
                                 <span className={TYPE_COLORS[m.typeCompte]} style={{ fontSize: 11 }}>{TYPE_LABELS[m.typeCompte]}</span>
@@ -370,17 +399,17 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                               <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: 'var(--v22-yellow)' }}>{m.coutReelH}€</td>
                               <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{m.coutReelJour}€</td>
                               <td style={{ ...tdStyle, textAlign: 'right', fontSize: 12 }}>
-                                {(m.panier_repas_jour || 0) > 0 && <div>🍽 {m.panier_repas_jour}€</div>}
-                                {(m.indemnite_trajet_jour || 0) > 0 && <div>🚗 {m.indemnite_trajet_jour}€</div>}
+                                {(m.panier_repas_jour || 0) > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}><FileText size={12} /> {m.panier_repas_jour}€</div>}
+                                {(m.indemnite_trajet_jour || 0) > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Wrench size={12} /> {m.indemnite_trajet_jour}€</div>}
                                 {(m.panier_repas_jour || 0) === 0 && (m.indemnite_trajet_jour || 0) === 0 && <span style={{ color: 'var(--v22-text-mid)' }}>—</span>}
                               </td>
                               <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button className="v22-btn v22-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'}>✏️</button>
+                                  <button className="v22-btn v22-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'}><Pencil size={14} /></button>
                                   <button className="v22-btn v22-btn-sm" onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
-                                    style={{ background: 'var(--v22-amber-bg, #FFF8E1)', color: '#B8860B' }}>⏸</button>
+                                    style={{ background: 'var(--v22-amber-bg, #FFF8E1)', color: '#B8860B' }}><Minus size={14} /></button>
                                   <button className="v22-btn v22-btn-sm" onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
-                                    style={{ background: 'var(--v22-red-bg, #FFF0F0)', color: 'var(--v22-red, #C0392B)' }}>🗑</button>
+                                    style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red)' }}><Trash2 size={14} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -395,7 +424,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                 {inactiveMembres.length > 0 && (
                   <div className="v22-card" style={{ opacity: 0.7 }}>
                     <div className="v22-card-head">
-                      <span className="v22-card-title" style={{ color: 'var(--v22-text-mid)' }}>⏸ {isPt ? 'Inativos' : 'Inactifs'} ({inactiveMembres.length})</span>
+                      <span className="v22-card-title" style={{ color: 'var(--v22-text-mid)' }}><Minus size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Inativos' : 'Inactifs'} ({inactiveMembres.length})</span>
                     </div>
                     <div style={{ padding: '8px 16px 12px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -403,7 +432,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                           <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--v22-bg)', borderRadius: 8, fontSize: 13 }}>
                             <span>{m.prenom} {m.nom}</span>
                             <button className="v22-btn v22-btn-sm" onClick={() => toggleActif(m)} style={{ padding: '2px 6px', fontSize: 11 }}
-                              title={isPt ? 'Reativar' : 'Réactiver'}>▶️</button>
+                              title={isPt ? 'Reativar' : 'Réactiver'}><Check size={14} /></button>
                           </div>
                         ))}
                       </div>
@@ -419,10 +448,10 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
         {tab === 'equipes' && (
           equipes.length === 0 ? (
             <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>👷</div>
+              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><HardHat size={40} color="var(--v22-text-muted)" /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
               <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
-              <button className="v22-btn" onClick={() => setShowEquipeModal(true)}>➕ {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
+              <button className="v22-btn" onClick={() => setShowEquipeModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
@@ -454,8 +483,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                       </>
                     )}
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds || [] }); setShowEquipeModal(true) }}>✏️</button>
-                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg, #FFF0F0)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteEquipe(eq.id)}>🗑</button>
+                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds || [] }); setShowEquipeModal(true) }}><Pencil size={14} /></button>
+                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red)' }} onClick={() => deleteEquipe(eq.id)}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -470,7 +499,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">👤 {editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
+              <span className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={18} /> {editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -490,14 +519,25 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Tipo de conta' : 'Type de compte'}</label>
-                  <select className="v22-form-input" value={mForm.typeCompte} onChange={e => setMForm({ ...mForm, typeCompte: e.target.value as TypeCompte })}>
+                  <select className="v22-form-input" value={mForm.typeCompte} onChange={e => {
+                    const newRole = e.target.value as TypeCompte
+                    const validContrats = getValidContrats(newRole)
+                    const contratStillValid = validContrats.includes(mForm.type_contrat)
+                    // Auto-adjust charges for gérant (boss uses different rates than employees)
+                    const chargesUpdate = newRole === 'gerant'
+                      ? { charges_salariales_pct: 0, charges_patronales_pct: Math.round(companyConfig.boss_charge_rate * 100) }
+                      : mForm.typeCompte === 'gerant'
+                        ? { charges_salariales_pct: Math.round(companyConfig.employee_charge_rate * 100), charges_patronales_pct: Math.round(companyConfig.employer_charge_rate * 100) }
+                        : {}
+                    setMForm({ ...mForm, typeCompte: newRole, type_contrat: contratStillValid ? mForm.type_contrat : validContrats[0], ...chargesUpdate })
+                  }}>
                     {(Object.entries(TYPE_LABELS) as [TypeCompte, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Contrato' : 'Type de contrat'}</label>
                   <select className="v22-form-input" value={mForm.type_contrat} onChange={e => setMForm({ ...mForm, type_contrat: e.target.value as TypeContrat })}>
-                    {(Object.entries(CONTRAT_LABELS) as [TypeContrat, string][]).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    {getValidContrats(mForm.typeCompte).map(k => <option key={k} value={k}>{CONTRAT_LABELS[k]}</option>)}
                   </select>
                 </div>
               </div>
@@ -517,11 +557,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label">📱 {isPt ? 'Telefone' : 'Téléphone'}</label>
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={14} /> {isPt ? 'Telefone' : 'Téléphone'}</label>
                   <input className="v22-form-input" value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
                 </div>
                 <div>
-                  <label className="v22-form-label">✉️ Email</label>
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
                   <input className="v22-form-input" value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
                 </div>
               </div>
@@ -532,7 +572,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                 style={{ alignSelf: 'flex-start', background: showFinance ? 'var(--v22-yellow)' : 'var(--v22-bg)', fontWeight: showFinance ? 700 : 400 }}
                 onClick={() => setShowFinance(!showFinance)}
               >
-                💰 {isPt ? 'Dados financeiros' : 'Données financières'} {showFinance ? '▲' : '▼'}
+                <DollarSign size={14} /> {isPt ? 'Dados financeiros' : 'Données financières'} <ChevronDown size={14} style={{ transform: showFinance ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
               </button>
 
               {/* Financial fields — smart auto-calculation */}
@@ -542,41 +582,32 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                   {/* Mode toggle: Auto / Manuel */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)' }}>
-                      💰 {isPt ? 'Salário e custos' : 'Salaire et coûts'}
+                      <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Salário e custos' : 'Salaire et coûts'}
                     </div>
-                    <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--v22-border)' }}>
+                    <div style={{ display: 'flex', gap: 0 }}>
                       <button
                         onClick={() => setCalcMode('auto')}
-                        style={{
-                          padding: '5px 14px', fontSize: 12, fontWeight: calcMode === 'auto' ? 700 : 400, border: 'none', cursor: 'pointer',
-                          background: calcMode === 'auto' ? 'var(--v22-yellow)' : 'var(--v22-card-bg, #fff)',
-                          color: calcMode === 'auto' ? '#0D1B2E' : 'var(--v22-text-mid)',
-                        }}>
-                        🔄 Auto
+                        className={`v22-tab${calcMode === 'auto' ? ' active' : ''}`}>
+                        Auto
                       </button>
                       <button
                         onClick={() => setCalcMode('manuel')}
-                        style={{
-                          padding: '5px 14px', fontSize: 12, fontWeight: calcMode === 'manuel' ? 700 : 400, border: 'none', cursor: 'pointer',
-                          borderLeft: '1px solid var(--v22-border)',
-                          background: calcMode === 'manuel' ? '#0D1B2E' : 'var(--v22-card-bg, #fff)',
-                          color: calcMode === 'manuel' ? '#fff' : 'var(--v22-text-mid)',
-                        }}>
-                        ✏️ Manuel
+                        className={`v22-tab${calcMode === 'manuel' ? ' active' : ''}`}>
+                        <Pencil size={12} /> Manuel
                       </button>
                     </div>
                   </div>
 
                   {calcMode === 'auto' && (
                     <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, padding: '6px 10px', background: '#FFFDE7', borderRadius: 6, border: '1px solid #FFF9C4' }}>
-                      💡 {isPt
+                      {isPt
                         ? 'Modo automático : preencha o NET ou o BRUTO, tudo o resto calcula-se sozinho.'
                         : 'Mode auto : remplissez le NET ou le BRUT, tout le reste se calcule tout seul.'}
                     </div>
                   )}
                   {calcMode === 'manuel' && (
                     <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, padding: '6px 10px', background: 'var(--v22-card-bg, #fff)', borderRadius: 6, border: '1px solid var(--v22-border)' }}>
-                      ✏️ {isPt
+                      {isPt
                         ? 'Modo manual : preencha cada campo livremente, sem cálculo automático.'
                         : 'Mode manuel : remplissez chaque champ librement, aucun calcul automatique.'}
                     </div>
@@ -722,18 +753,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                       const diff = Math.abs(net - expectedNet)
                       if (diff > 50) {
                         warnings.push(isPt
-                          ? `⚠️ Incoerência: com ${mForm.charges_salariales_pct}% de encargos, bruto ${brut}€ deveria dar líquido ~${expectedNet}€ (diferença: ${diff}€)`
-                          : `⚠️ Incohérence : avec ${mForm.charges_salariales_pct}% de charges salariales, brut ${brut}€ devrait donner net ~${expectedNet}€ (écart : ${diff}€)`)
+                          ? `Incoerência: com ${mForm.charges_salariales_pct}% de encargos, bruto ${brut}€ deveria dar líquido ~${expectedNet}€ (diferença: ${diff}€)`
+                          : `Incohérence : avec ${mForm.charges_salariales_pct}% de charges salariales, brut ${brut}€ devrait donner net ~${expectedNet}€ (écart : ${diff}€)`)
                       }
                     }
                     if (brut > 0 && net > 0 && net >= brut) {
-                      warnings.push(isPt ? '🚨 O líquido não pode ser >= ao bruto !' : '🚨 Le net ne peut pas être supérieur ou égal au brut !')
+                      warnings.push(isPt ? 'O líquido não pode ser >= ao bruto !' : 'Le net ne peut pas être supérieur ou égal au brut !')
                     }
                     if (brut > 0 && brut < 1747) {
-                      warnings.push(isPt ? '⚠️ Salário abaixo do SMIC bruto 2025 (1 747€)' : '⚠️ Salaire en dessous du SMIC brut 2025 (1 747€)')
+                      warnings.push(isPt ? 'Salário abaixo do SMIC bruto 2025 (1 747€)' : 'Salaire en dessous du SMIC brut 2025 (1 747€)')
                     }
                     if (mForm.coutHoraire > 0 && mForm.coutHoraire < 11.52) {
-                      warnings.push(isPt ? '⚠️ Custo horário abaixo do SMIC horário (11,52€)' : '⚠️ Coût horaire en dessous du SMIC horaire (11,52€)')
+                      warnings.push(isPt ? 'Custo horário abaixo do SMIC horário (11,52€)' : 'Coût horaire en dessous du SMIC horaire (11,52€)')
                     }
 
                     if (warnings.length === 0) return null
@@ -750,7 +781,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                   {(parseFloat(mForm.salaire_net_mensuel) || parseFloat(mForm.salaire_brut_mensuel) || 0) > 0 && (
                     <div style={{ padding: 10, background: 'var(--v22-card-bg, #fff)', borderRadius: 8, border: '1px solid var(--v22-border)', fontSize: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <span style={{ fontWeight: 700 }}>🔄 {isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</span>
+                        <span style={{ fontWeight: 700 }}>{isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</span>
                         <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>{companyConfig.label_fr}</span>
                       </div>
                       {(() => {
@@ -774,7 +805,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: 'var(--v22-text-mid)' }}>{isPt ? 'Líquido (o que recebe)' : 'Net (ce qu\'il reçoit)'}</span>
-                              <span style={{ fontWeight: 700, color: '#1D9E75' }}>{preview.net_salary}€</span>
+                              <span style={{ fontWeight: 700, color: 'var(--v22-green)' }}>{preview.net_salary}€</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos salariais' : 'Charges salariales'} ({Math.round(preview.employee_charge_rate * 100)}%)</span>
@@ -810,7 +841,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
                                 {warnings.map((w, i) => (
                                   <div key={i} style={{ fontSize: 11, padding: '4px 8px', background: w.type === 'error' ? '#FFF0F0' : '#FFF3CD', color: w.type === 'error' ? '#C0392B' : '#856404', borderRadius: 4 }}>
-                                    {w.type === 'error' ? '🚨' : '⚠️'} {isPt ? w.message_pt : w.message_fr}
+                                    <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? w.message_pt : w.message_fr}
                                   </div>
                                 ))}
                               </div>
@@ -821,7 +852,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                     </div>
                   )}
 
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)', marginTop: 4, marginBottom: 2 }}>🍽 {isPt ? 'Indemnizações diárias' : 'Indemnités journalières'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)', marginTop: 4, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={14} /> {isPt ? 'Indemnizações diárias' : 'Indemnités journalières'}</div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
@@ -843,7 +874,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
 
                   {/* Live cost summary — payroll engine */}
                   <div style={{ marginTop: 4, padding: 12, background: 'var(--v22-card-bg, #fff)', borderRadius: 8, border: '2px solid var(--v22-yellow)' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>📊 {isPt ? 'Custo real para a empresa' : 'Coût réel pour l\'entreprise'}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}><BarChart3 size={14} /> {isPt ? 'Custo real para a empresa' : 'Coût réel pour l\'entreprise'}</div>
                     {(() => {
                       const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
                       if (netVal <= 0 && mForm.coutHoraire <= 0) {
@@ -900,7 +931,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                 onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }}
                 onClick={submitMembre} disabled={!mForm.prenom.trim() || !mForm.nom.trim() || saving}>
-                {saving ? '...' : editingMembre ? (isPt ? '✅ Guardar' : '✅ Sauvegarder') : (isPt ? '✅ Adicionar' : '✅ Ajouter')}
+                {saving ? '...' : editingMembre ? (isPt ? 'Guardar' : 'Sauvegarder') : (isPt ? 'Adicionar' : 'Ajouter')}
               </button>
             </div>
           </div>
@@ -912,7 +943,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">👷 {editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
+              <span className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><HardHat size={18} /> {editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -951,7 +982,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
               {/* Cost preview */}
               {eForm.membreIds.length > 0 && (
                 <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 8, fontSize: 12 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>📊 {isPt ? 'Custo da equipa' : "Coût de l'équipe"}</div>
+                  <div style={{ fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><BarChart3 size={14} /> {isPt ? 'Custo da equipa' : "Coût de l'équipe"}</div>
                   {(() => {
                     const sel = membres.filter(m => eForm.membreIds.includes(m.id))
                     const totalH = sel.reduce((s, m) => s + (m.coutHoraire || 25) * (1 + (m.charges_patronales_pct || m.chargesPct || 45) / 100), 0)
@@ -965,8 +996,31 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                 onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }}
                 onClick={submitEquipe} disabled={!eForm.nom.trim() || saving}>
-                {saving ? '...' : editingEquipe ? '✅ Sauvegarder' : (isPt ? '✅ Criar' : '✅ Créer')}
+                {saving ? '...' : editingEquipe ? 'Sauvegarder' : (isPt ? 'Criar' : 'Créer')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CONFIRMATION SUPPRESSION ── */}
+      {confirmDelete && (
+        <div className="v22-modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="v22-modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="v22-modal-head">
+              <div className="v22-modal-title">{isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
+              <button className="v22-modal-close" onClick={() => setConfirmDelete(null)}>✕</button>
+            </div>
+            <div className="v22-modal-body">
+              <p style={{ fontSize: 13 }}>{isPt ? 'Tem certeza que deseja eliminar?' : 'Êtes-vous sûr de vouloir supprimer ?'}</p>
+            </div>
+            <div className="v22-modal-foot">
+              <button className="v22-btn" onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className="v22-btn v22-btn-danger" onClick={() => {
+                if (confirmDelete.type === 'membre') doActualDeleteMembre(confirmDelete.id)
+                else if (confirmDelete.type === 'equipe') doActualDeleteEquipe(confirmDelete.id)
+                setConfirmDelete(null)
+              }}>{isPt ? 'Eliminar' : 'Supprimer'}</button>
             </div>
           </div>
         </div>

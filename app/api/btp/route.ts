@@ -144,6 +144,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ settings: result })
     }
 
+    // ── Validation rôle/contrat pour membres_btp ─────────────────────────────
+    if (table === 'membres_btp' && (action === 'insert' || action === 'update')) {
+      const CONTRATS_PAR_ROLE: Record<string, string[]> = {
+        gerant: ['independant'],
+        ouvrier: ['cdi', 'cdd', 'interim', 'apprenti'],
+        chef_chantier: ['cdi', 'cdd', 'interim'],
+        conducteur_travaux: ['cdi', 'cdd'],
+        secretaire: ['cdi', 'cdd', 'apprenti', 'stage'],
+      }
+      const role = data.type_compte
+      const contrat = data.type_contrat
+      if (role && contrat && CONTRATS_PAR_ROLE[role] && !CONTRATS_PAR_ROLE[role].includes(contrat)) {
+        return NextResponse.json(
+          { error: `Contrat "${contrat}" invalide pour le rôle "${role}". Contrats autorisés : ${CONTRATS_PAR_ROLE[role].join(', ')}` },
+          { status: 400 }
+        )
+      }
+    }
+
     // ── Insert ───────────────────────────────────────────────────────────────
     if (action === 'insert') {
       const row = { ...data, owner_id: user.id }
