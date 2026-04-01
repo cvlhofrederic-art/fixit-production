@@ -2,22 +2,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock supabase-server before imports
 vi.mock('@/lib/supabase-server', () => {
-  const mockOrder = vi.fn().mockResolvedValue({
+  const result = {
     data: [
       { id: 'uuid-1', slug: 'ferronnerie', label_fr: 'Ferronnerie / Métallerie', label_pt: 'Serralharia / Metalurgia', code_ape: '4399C', applies_to: 'both', sort_order: 3 },
       { id: 'uuid-2', slug: 'facadier',    label_fr: 'Façadier / Ravalement',    label_pt: 'Fachadas / Reboco',        code_ape: '4391A', applies_to: 'both', sort_order: 2 },
     ],
     error: null,
-  })
-  const mockIn = vi.fn().mockReturnValue({ order: mockOrder })
-  const mockSelect = vi.fn().mockReturnValue({ order: mockOrder, in: mockIn })
-  const mockFrom = vi.fn().mockReturnValue({ select: mockSelect })
+  }
+  // Fluent builder that is also thenable — supports .order().in() chaining AND await
+  // Uses explicit mockReturnValue(builder) to avoid vi.clearAllMocks() breaking the chain
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const builder: any = {
+    then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+      Promise.resolve(result).then(resolve, reject),
+  }
+  builder.order = vi.fn().mockReturnValue(builder)
+  builder.in = vi.fn().mockReturnValue(builder)
 
-  return { supabaseAdmin: { from: mockFrom } }
+  return { supabaseAdmin: { from: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue(builder) }) } }
 })
 
 describe('GET /api/specialties', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => { /* mock state preserved via factory — no reset needed */ })
 
   it('returns all specialties with status 200', async () => {
     const { GET } = await import('@/app/api/specialties/route')
