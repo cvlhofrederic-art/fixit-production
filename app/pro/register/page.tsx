@@ -14,15 +14,16 @@ type SiretStatus = 'idle' | 'checking' | 'verified' | 'error'
 
 // ─── Mapping secteur BTP label → specialty slug ───────────────────────────────
 const SECTEUR_TO_SLUG: Record<string, string> = {
-  'Gros œuvre / Maçonnerie':  'gros-oeuvre',
-  'Électricité / Plomberie':  'electricite',
-  'Peinture / Revêtements':   'peinture',
-  'Menuiserie / Charpente':   'menuiserie-bois',
-  'CVC / Climatisation':      'chauffage',
-  'Toiture / Étanchéité':     'couverture',
-  'Entreprise générale':      'renovation-generale',
-  "Bureau d'études":          'renovation-generale',
-  'Autre BTP':                'renovation-generale',
+  'Gros œuvre / Maçonnerie':   'gros-oeuvre',
+  'Électricité / Plomberie':   'electricite',
+  'Peinture / Revêtements':    'peinture',
+  'Menuiserie / Charpente':    'menuiserie-bois',
+  'CVC / Climatisation':       'chauffage',
+  'Toiture / Étanchéité':      'couverture',
+  'Métallerie / Ferronnerie':  'ferronnerie',
+  'Entreprise générale':       'renovation-generale',
+  "Bureau d'études":           'renovation-generale',
+  'Autre BTP':                 'renovation-generale',
 }
 
 function secteursToSlugs(secteurs: string[]): string[] {
