@@ -4,6 +4,11 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { supabase } from '@/lib/supabase'
+import {
+  PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
+  User, Euro, FileText, CheckCircle2, AlertTriangle, AlertCircle,
+  Siren, Clock, Satellite, Loader2, Users,
+} from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CHANTIERS BTP V2 — Supabase + Géoloc + Devis import + Rentabilité
@@ -66,6 +71,9 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
   // Alerte fin de chantier
   const [prolongModal, setProlongModal] = useState<{ chantier: any } | null>(null)
   const [prolongDays, setProlongDays] = useState(2)
+
+  // Confirmation suppression
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   // ── Fetch devis + membres quand le modal s'ouvre ──
   const loadDevisAndMembres = useCallback(async () => {
@@ -203,8 +211,8 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(isPt ? 'Remover obra?' : 'Supprimer ce chantier ?')) return
     await remove(id)
+    setDeleteConfirm(null)
   }
 
   const changeStatut = async (id: string, statut: string) => {
@@ -305,7 +313,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
 
   if (loading) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 24 }}>⏳</div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}><Loader2 size={24} className="animate-spin" /></div>
       <p className="v22-card-meta">{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
   )
@@ -315,11 +323,11 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">🏗️ {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+          <h1 className="v22-page-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><HardHat size={22} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
           <p className="v22-page-sub">{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
         </div>
-        <button className="v22-btn" onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}>
-          ➕ {isPt ? 'Nova obra' : 'Nouveau chantier'}
+        <button className="v22-btn" onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}
         </button>
       </div>
 
@@ -345,11 +353,11 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
         {/* Liste */}
         {filtered.length === 0 ? (
           <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏗️</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><HardHat size={48} /></div>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma obra' : 'Aucun chantier'}</div>
             <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
-            <button className="v22-btn" onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}>
-              ➕ {isPt ? 'Criar obra' : 'Créer un chantier'}
+            <button className="v22-btn" onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <PlusCircle size={14} /> {isPt ? 'Criar obra' : 'Créer un chantier'}
             </button>
           </div>
         ) : (
@@ -365,27 +373,27 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, fontSize: 15 }}>{c.titre}</span>
                           <span className={STATUS_V22[c.statut] || 'v22-tag v22-tag-gray'} style={{ fontSize: 11 }}>{c.statut}</span>
-                          {c.latitude && <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}>📍 GPS</span>}
-                          {c.devis_id && <span className="v22-tag v22-tag-blue" style={{ fontSize: 10 }}>📄 Devis</span>}
+                          {c.latitude && <span className="v22-tag v22-tag-green" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={10} /> GPS</span>}
+                          {c.devis_id && <span className="v22-tag v22-tag-blue" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><FileText size={10} /> Devis</span>}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                          {c.client && <span className="v22-card-meta" style={{ fontSize: 12 }}>👤 {c.client}</span>}
-                          {c.adresse && <span className="v22-card-meta" style={{ fontSize: 12 }}>📍 {c.adresse}</span>}
-                          {(c.dateDebut || c.dateFin) && <span className="v22-card-meta" style={{ fontSize: 12 }}>📅 {c.dateDebut || '?'} → {c.dateFin || '?'}</span>}
-                          {c.budget && <span className="v22-card-meta" style={{ fontSize: 12 }}>💰 {Number(c.budget).toLocaleString(dl)} €</span>}
+                          {c.client && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><User size={12} /> {c.client}</span>}
+                          {c.adresse && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={12} /> {c.adresse}</span>}
+                          {(c.dateDebut || c.dateFin) && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Calendar size={12} /> {c.dateDebut || '?'} → {c.dateFin || '?'}</span>}
+                          {c.budget && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Euro size={12} /> {Number(c.budget).toLocaleString(dl)} €</span>}
                         </div>
                         {/* Employés assignés */}
                         {c.membres_ids?.length > 0 && (
                           <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                             {(c.membres_ids as string[]).map((mid: string) => {
                               const m = membresList.find(mm => mm.id === mid)
-                              return m ? <span key={mid} className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>👷 {m.prenom} {m.nom}</span> : null
+                              return m ? <span key={mid} className="v22-tag v22-tag-gray" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Users size={10} /> {m.prenom} {m.nom}</span> : null
                             })}
                           </div>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button className="v22-btn v22-btn-sm" onClick={() => handleEdit(c)} style={{ background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 12 }}>✏️</button>
+                        <button className="v22-btn v22-btn-sm" onClick={() => handleEdit(c)} style={{ background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 12, display: 'inline-flex', alignItems: 'center' }}><Pencil size={14} /></button>
                         <select value={c.statut} onChange={e => changeStatut(c.id, e.target.value)} className="v22-form-input" style={{ minWidth: 130, fontSize: 13, padding: '6px 10px' }}>
                           {['En attente', 'En cours', 'Terminé', 'Annulé'].map(s => {
                             const sl: Record<string, string> = isPt
@@ -394,7 +402,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                             return <option key={s} value={s}>{sl[s]}</option>
                           })}
                         </select>
-                        <button onClick={() => handleDelete(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 16 }}>🗑️</button>
+                        <button onClick={() => setDeleteConfirm(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', display: 'inline-flex', alignItems: 'center' }}><Trash2 size={16} /></button>
                       </div>
                     </div>
                   </div>
@@ -412,7 +420,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                           fontSize: 13, fontWeight: 700,
                           color: renta.beneficeActuel >= 0 ? '#166534' : '#991B1B',
                         }}>
-                          {renta.status === 'profit' ? '✅' : renta.status === 'warning' ? '⚠️' : '🔴'}{' '}
+                          {renta.status === 'profit' ? <CheckCircle2 size={14} style={{ display: 'inline' }} /> : renta.status === 'warning' ? <AlertTriangle size={14} style={{ display: 'inline' }} /> : <AlertCircle size={14} style={{ display: 'inline' }} />}{' '}
                           {isPt ? 'Rentabilidade' : 'Rentabilité'}: {renta.beneficeActuel >= 0 ? '+' : ''}{fmt(renta.beneficeActuel, dl)} €
                         </span>
                         <span style={{ fontSize: 11, color: '#6B7280' }}>
@@ -427,7 +435,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                       {renta.enRetard && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#991B1B' }}>
-                            🚨 {renta.joursRetard}{isPt ? ' dias de atraso' : 'j de retard'} = -{fmt(renta.perteRetardTotal, dl)} €
+                            <Siren size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {renta.joursRetard}{isPt ? ' dias de atraso' : 'j de retard'} = -{fmt(renta.perteRetardTotal, dl)} €
                           </span>
                           <span style={{ fontSize: 11, color: '#EF4444' }}>
                             (-{fmt(renta.perteParJourRetard, dl)} €/{isPt ? 'dia' : 'jour'})
@@ -439,7 +447,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                       {renta.finDepassee && (
                         <button onClick={() => { setProlongModal({ chantier: c }); setProlongDays(2) }}
                           className="v22-btn v22-btn-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', fontSize: 11 }}>
-                          ⏰ {isPt ? 'Prolongar / Encerrar' : 'Prolonger / Clôturer'}
+                          <Clock size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Prolongar / Encerrar' : 'Prolonger / Clôturer'}
                         </button>
                       )}
                     </div>
@@ -466,7 +474,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <div className="v22-card" style={{ width: '100%', maxWidth: 480 }}>
               <div className="v22-card-head">
-                <span className="v22-card-title">⏰ {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}</span>
+                <span className="v22-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Clock size={16} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}</span>
                 <button className="v22-btn v22-btn-sm" onClick={() => setProlongModal(null)}>✕</button>
               </div>
               <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -477,7 +485,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                 {/* Option 1: Clôturer */}
                 <button onClick={async () => { await changeStatut(c.id, 'Terminé'); setProlongModal(null) }}
                   className="v22-btn" style={{ width: '100%', background: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0', padding: '12px 14px', fontWeight: 700 }}>
-                  ✅ {isPt ? 'Sim, encerrar a obra' : 'Oui, clôturer le chantier'}
+                  <CheckCircle2 size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Sim, encerrar a obra' : 'Oui, clôturer le chantier'}
                 </button>
 
                 {/* Option 2: Prolonger */}
@@ -514,7 +522,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
 
                   <button onClick={handleProlong}
                     className="v22-btn" style={{ width: '100%', marginTop: 12, background: '#F59E0B', color: 'white', fontWeight: 700, padding: '10px 14px' }}>
-                    📅 {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
+                    <Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
                   </button>
                 </div>
               </div>
@@ -523,12 +531,33 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
         )
       })()}
 
+      {/* ══════ MODAL CONFIRMATION SUPPRESSION ══════ */}
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="v22-card" style={{ width: '100%', maxWidth: 400 }}>
+            <div className="v22-card-head">
+              <span className="v22-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Trash2 size={16} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}</span>
+              <button className="v22-btn v22-btn-sm" onClick={() => setDeleteConfirm(null)}>✕</button>
+            </div>
+            <div className="v22-card-body" style={{ textAlign: 'center', padding: '20px 16px' }}>
+              <p style={{ fontSize: 14, marginBottom: 16 }}>{isPt ? 'Tem certeza que deseja remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }}
+                  onClick={() => setDeleteConfirm(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+                <button className="v22-btn" style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}
+                  onClick={() => handleDelete(deleteConfirm)}>{isPt ? 'Remover' : 'Supprimer'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════ MODAL CRÉATION/ÉDITION ══════ */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">🏗️ {editId ? (isPt ? 'Editar obra' : 'Modifier le chantier') : (isPt ? 'Nova obra' : 'Nouveau chantier')}</span>
+              <span className="v22-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><HardHat size={16} /> {editId ? (isPt ? 'Editar obra' : 'Modifier le chantier') : (isPt ? 'Nova obra' : 'Nouveau chantier')}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -537,10 +566,10 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
               {!editId && (
                 <div style={{ background: '#F0F9FF', borderRadius: 8, padding: 12, border: '1px solid #BAE6FD' }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#0369A1', marginBottom: 8 }}>
-                    📄 {isPt ? 'Importar de um orçamento existente' : 'Importer depuis un devis existant'}
+                    <FileText size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Importar de um orçamento existente' : 'Importer depuis un devis existant'}
                   </div>
                   {loadingDevis ? (
-                    <div style={{ fontSize: 12, color: '#6B7280' }}>⏳ {isPt ? 'A carregar...' : 'Chargement...'}</div>
+                    <div style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}><Loader2 size={12} className="animate-spin" /> {isPt ? 'A carregar...' : 'Chargement...'}</div>
                   ) : devisList.length === 0 ? (
                     <div style={{ fontSize: 12, color: '#6B7280' }}>{isPt ? 'Nenhum orçamento encontrado' : 'Aucun devis trouvé'}</div>
                   ) : (
@@ -571,26 +600,26 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                   <input className="v22-form-input" value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
                 </div>
                 <div>
-                  <label className="v22-form-label">💰 Budget HT (€)</label>
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={14} /> Budget HT (€)</label>
                   <input type="number" className="v22-form-input" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
                 </div>
               </div>
               <div>
-                <label className="v22-form-label">📍 {isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+                <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={14} /> {isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input className="v22-form-input" style={{ flex: 1 }} value={form.adresse}
                     onChange={e => setForm({ ...form, adresse: e.target.value })}
                     placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
                   <button className="v22-btn v22-btn-sm" onClick={() => geocodeAdresse(form.adresse)}
                     disabled={geocoding || !form.adresse.trim()} style={{ whiteSpace: 'nowrap' }}>
-                    {geocoding ? '⏳' : '📍'} {form.latitude ? '✅' : 'GPS'}
+                    {geocoding ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />} {form.latitude ? <CheckCircle2 size={14} /> : 'GPS'}
                   </button>
                 </div>
-                {form.latitude && <div style={{ fontSize: 11, color: '#22C55E', marginTop: 4 }}>✅ GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}</div>}
+                {form.latitude && <div style={{ fontSize: 11, color: '#22C55E', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}</div>}
               </div>
 
               <div>
-                <label className="v22-form-label">📡 {isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
+                <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Satellite size={14} /> {isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
                     onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })} style={{ flex: 1 }} />
@@ -600,18 +629,18 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label">📅 {isPt ? 'Data de início' : 'Date de début'}</label>
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> {isPt ? 'Data de início' : 'Date de début'}</label>
                   <input type="date" className="v22-form-input" value={form.dateDebut} onChange={e => setForm({ ...form, dateDebut: e.target.value })} />
                 </div>
                 <div>
-                  <label className="v22-form-label">📅 {isPt ? 'Data de fim' : 'Date de fin'}</label>
+                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> {isPt ? 'Data de fim' : 'Date de fin'}</label>
                   <input type="date" className="v22-form-input" value={form.dateFin} onChange={e => setForm({ ...form, dateFin: e.target.value })} />
                 </div>
               </div>
 
               {/* ── Équipe / Employés assignés ── */}
               <div>
-                <label className="v22-form-label">👷 {isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
+                <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={14} /> {isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
                 {membresList.length === 0 ? (
                   <div style={{ fontSize: 12, color: '#6B7280', padding: 8 }}>
                     {isPt ? 'Aucun empregado. Ajoutez-en dans "Équipes".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
@@ -639,8 +668,8 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                   </div>
                 )}
                 {(form.membres_ids || []).length > 0 && (
-                  <div style={{ fontSize: 11, color: '#166534', marginTop: 4 }}>
-                    ✅ {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
+                  <div style={{ fontSize: 11, color: '#166534', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle2 size={12} /> {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
                     — {isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
                   </div>
                 )}
@@ -657,7 +686,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                 onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }}
                 onClick={handleSave} disabled={!form.titre.trim() || saving}>
-                {saving ? '⏳' : '✅'} {editId ? (isPt ? 'Guardar' : 'Enregistrer') : (isPt ? 'Criar obra' : 'Créer le chantier')}
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {editId ? (isPt ? 'Guardar' : 'Enregistrer') : (isPt ? 'Criar obra' : 'Créer le chantier')}
               </button>
             </div>
           </div>

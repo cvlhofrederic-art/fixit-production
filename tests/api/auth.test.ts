@@ -19,7 +19,6 @@ vi.mock('next/headers', () => ({
 
 describe('POST /api/auth/reset-password', () => {
   beforeEach(() => {
-    vi.resetModules()
     mockResetPassword.mockClear()
   })
 

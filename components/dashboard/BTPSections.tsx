@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { PlusCircle, Pencil, Trash2, Users, Key, Tag, Clock, Calendar, HardHat, FileText, BarChart3, UserCog, Wrench, DollarSign, MapPin, ChevronDown, ChevronUp, Check, Minus, AlertTriangle, Mail, Phone, Lock, Search, FileEdit, Handshake, FolderOpen, Download, Loader, Brain, Lightbulb, CheckSquare } from 'lucide-react'
 
 /* ══════════════════════════════════════════════════════════
    ÉQUIPES BTP — V2
@@ -31,9 +32,14 @@ const TYPE_COLORS: Record<TypeCompte, string> = {
   gerant: 'v22-tag v22-tag-red',
 }
 const MODULE_LABELS: Record<ModulePerms, string> = {
-  pointage: '⏱ Pointage', agenda: '📅 Agenda', chantiers: '🏗️ Chantiers',
-  devis: '📋 Devis', rapports: '📊 Rapports', equipes: '👷 Équipes',
-  materiaux: '🧱 Matériaux', comptabilite: '💰 Comptabilité',
+  pointage: 'Pointage', agenda: 'Agenda', chantiers: 'Chantiers',
+  devis: 'Devis', rapports: 'Rapports', equipes: 'Équipes',
+  materiaux: 'Matériaux', comptabilite: 'Comptabilité',
+}
+const MODULE_ICONS: Record<ModulePerms, React.ReactNode> = {
+  pointage: <Clock size={14} />, agenda: <Calendar size={14} />, chantiers: <HardHat size={14} />,
+  devis: <FileText size={14} />, rapports: <BarChart3 size={14} />, equipes: <UserCog size={14} />,
+  materiaux: <Wrench size={14} />, comptabilite: <DollarSign size={14} />,
 }
 const MODULES: ModulePerms[] = ['pointage', 'agenda', 'chantiers', 'devis', 'rapports', 'equipes', 'materiaux', 'comptabilite']
 
@@ -73,6 +79,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
   const [showRoleModal, setShowRoleModal] = useState(false)
   const [editingMembre, setEditingMembre] = useState<Membre | null>(null)
   const [editingEquipe, setEditingEquipe] = useState<EquipeBTP | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'membre' | 'equipe'; id: string } | null>(null)
 
   // ── Membres ───────────────────────────────────────────────
   const [mForm, setMForm] = useState({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier' as TypeCompte, rolePerso: '', equipeId: '' })
@@ -98,8 +105,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
   }
 
   const deleteMembre = (id: string) => {
-    if (!confirm(isPt ? 'Remover membro?' : 'Supprimer ce membre ?')) return
-    saveMembres(membres.filter(m => m.id !== id))
+    setConfirmDelete({ type: 'membre', id })
   }
 
   // ── Équipes ───────────────────────────────────────────────
@@ -120,8 +126,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
   }
 
   const deleteEquipe = (id: string) => {
-    if (!confirm(isPt ? 'Remover equipa?' : 'Supprimer cette équipe ?')) return
-    saveEquipes(equipes.filter(e => e.id !== id))
+    setConfirmDelete({ type: 'equipe', id })
   }
 
   // ── Rôles ─────────────────────────────────────────────────
@@ -152,13 +157,13 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">👷 {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p className="v22-page-sub">{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {tab === 'membres' && <button className="v22-btn" onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}>➕ {isPt ? 'Membro' : 'Membre'}</button>}
-          {tab === 'equipes' && <button className="v22-btn" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}>➕ {isPt ? 'Equipa' : 'Équipe'}</button>}
-          {tab === 'roles'   && <button className="v22-btn" onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}>➕ {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
+          {tab === 'membres' && <button className="v22-btn" onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}
+          {tab === 'equipes' && <button className="v22-btn" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}><PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}</button>}
+          {tab === 'roles'   && <button className="v22-btn" onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
         </div>
       </div>
 
@@ -182,9 +187,8 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
       <div style={{ display: 'flex', gap: 4, padding: '0 24px 16px', borderBottom: '1px solid var(--v22-border)' }}>
         {(['membres', 'equipes', 'roles'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={tab === t ? 'v22-btn v22-btn-sm' : 'v22-btn v22-btn-sm'}
-            style={{ background: tab === t ? 'var(--v22-yellow)' : 'transparent', color: tab === t ? '#0D1B2E' : 'var(--v22-text-mid)', fontWeight: tab === t ? 700 : 400 }}>
-            {t === 'membres' ? (isPt ? '👤 Membros' : '👤 Membres') : t === 'equipes' ? (isPt ? '👷 Equipas' : '👷 Équipes') : (isPt ? '🔑 Funções' : '🔑 Rôles & Accès')}
+            className={`v22-tab${tab === t ? ' active' : ''}`}>
+            {t === 'membres' ? <><Users size={14} /> {isPt ? 'Membros' : 'Membres'}</> : t === 'equipes' ? <><HardHat size={14} /> {isPt ? 'Equipas' : 'Équipes'}</> : <><Key size={14} /> {isPt ? 'Funções' : 'Rôles & Accès'}</>}
           </button>
         ))}
       </div>
@@ -195,10 +199,10 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
         {tab === 'membres' && (
           membres.length === 0 ? (
             <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>👤</div>
+              <div style={{ marginBottom: 12 }}><Users size={40} style={{ color: 'var(--v22-text-mid)' }} /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
               <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Adicione os membros da sua empresa' : 'Ajoutez les membres de votre entreprise'}</p>
-              <button className="v22-btn" onClick={() => setShowMembreModal(true)}>➕ {isPt ? 'Adicionar membro' : 'Ajouter un membre'}</button>
+              <button className="v22-btn" onClick={() => setShowMembreModal(true)}><PlusCircle size={14} /> {isPt ? 'Adicionar membro' : 'Ajouter un membre'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -213,12 +217,12 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                       </div>
                       <span className={TYPE_COLORS[m.typeCompte]} style={{ fontSize: 11 }}>{TYPE_LABELS[m.typeCompte]}</span>
                     </div>
-                    {m.telephone && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 4 }}>📱 {m.telephone}</div>}
-                    {m.email && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 4 }}>✉️ {m.email}</div>}
-                    {equipe && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 8 }}>👷 {equipe.nom}</div>}
+                    {m.telephone && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={12} /> {m.telephone}</div>}
+                    {m.email && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={12} /> {m.email}</div>}
+                    {equipe && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}><HardHat size={12} /> {equipe.nom}</div>}
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => openEditMembre(m)}>✏️ {isPt ? 'Editar' : 'Modifier'}</button>
-                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg, #FFF0F0)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteMembre(m.id)}>🗑</button>
+                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => openEditMembre(m)}><Pencil size={14} /> {isPt ? 'Editar' : 'Modifier'}</button>
+                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteMembre(m.id)}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -231,10 +235,10 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
         {tab === 'equipes' && (
           equipes.length === 0 ? (
             <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>👷</div>
+              <div style={{ marginBottom: 12 }}><HardHat size={40} style={{ color: 'var(--v22-text-mid)' }} /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
               <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
-              <button className="v22-btn" onClick={() => setShowEquipeModal(true)}>➕ {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
+              <button className="v22-btn" onClick={() => setShowEquipeModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
@@ -257,8 +261,8 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds }); setShowEquipeModal(true) }}>✏️</button>
-                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg, #FFF0F0)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteEquipe(eq.id)}>🗑</button>
+                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds }); setShowEquipeModal(true) }}><Pencil size={14} /></button>
+                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteEquipe(eq.id)}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -273,7 +277,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
             {/* Rôles par défaut (types de comptes) */}
             <div className="v22-card">
               <div className="v22-card-head">
-                <span className="v22-card-title">🏷️ {isPt ? 'Permissões por tipo de conta' : 'Accès par type de compte'}</span>
+                <span className="v22-card-title"><Tag size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Permissões por tipo de conta' : 'Accès par type de compte'}</span>
                 <span className="v22-card-meta" style={{ fontSize: 11 }}>{isPt ? 'Configuração padrão — não editável' : 'Défauts système — non modifiables'}</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
@@ -281,7 +285,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
                       <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--v22-text-mid)', fontWeight: 600 }}>{isPt ? 'Tipo' : 'Type'}</th>
-                      {MODULES.map(mod => <th key={mod} style={{ padding: '8px 8px', textAlign: 'center', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{MODULE_LABELS[mod].split(' ')[0]}</th>)}
+                      {MODULES.map(mod => <th key={mod} style={{ padding: '8px 8px', textAlign: 'center', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{MODULE_ICONS[mod]}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -290,7 +294,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                         <td style={{ padding: '8px 12px' }}><span className={TYPE_COLORS[type]} style={{ fontSize: 11 }}>{TYPE_LABELS[type]}</span></td>
                         {MODULES.map(mod => (
                           <td key={mod} style={{ padding: '8px 8px', textAlign: 'center' }}>
-                            {DEFAULT_PERMS[type][mod] ? <span style={{ color: 'var(--v22-green, #1D9E75)', fontWeight: 700 }}>✓</span> : <span style={{ color: 'var(--v22-border)', fontSize: 10 }}>—</span>}
+                            {DEFAULT_PERMS[type][mod] ? <Check size={14} className="v22-up" style={{ color: 'var(--v22-green)' }} /> : <Minus size={14} style={{ color: 'var(--v22-border)' }} />}
                           </td>
                         ))}
                       </tr>
@@ -300,7 +304,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
               </div>
               <div style={{ padding: '8px 16px 12px' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {MODULES.map(mod => <span key={mod} style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{MODULE_LABELS[mod]}</span>)}
+                  {MODULES.map(mod => <span key={mod} style={{ fontSize: 11, color: 'var(--v22-text-mid)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{MODULE_ICONS[mod]} {MODULE_LABELS[mod]}</span>)}
                 </div>
               </div>
             </div>
@@ -308,13 +312,13 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
             {/* Rôles personnalisés */}
             <div className="v22-card">
               <div className="v22-card-head">
-                <span className="v22-card-title">🔑 {isPt ? 'Funções personalizadas' : 'Rôles personnalisés'}</span>
+                <span className="v22-card-title"><Key size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Funções personalizadas' : 'Rôles personnalisés'}</span>
               </div>
               <div className="v22-card-body">
                 {roles.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '24px 0' }}>
                     <p className="v22-card-meta" style={{ marginBottom: 12 }}>{isPt ? 'Crie funções específicas (ex: Pedreiro, Canalizador...)' : 'Créez des rôles spécifiques (ex: Maçon, Carreleur...)'}</p>
-                    <button className="v22-btn v22-btn-sm" onClick={() => setShowRoleModal(true)}>➕ {isPt ? 'Criar função' : 'Créer un rôle'}</button>
+                    <button className="v22-btn v22-btn-sm" onClick={() => setShowRoleModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>
                   </div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
@@ -322,7 +326,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
                           <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--v22-text-mid)', fontWeight: 600 }}>{isPt ? 'Função' : 'Rôle'}</th>
-                          {MODULES.map(mod => <th key={mod} style={{ padding: '8px 8px', textAlign: 'center', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{MODULE_LABELS[mod].split(' ')[0]}</th>)}
+                          {MODULES.map(mod => <th key={mod} style={{ padding: '8px 8px', textAlign: 'center', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{MODULE_ICONS[mod]}</th>)}
                           <th />
                         </tr>
                       </thead>
@@ -334,9 +338,9 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                               <td key={mod} style={{ padding: '8px 8px', textAlign: 'center' }}>
                                 <button
                                   onClick={() => toggleRolePerm(role.id, mod)}
-                                  style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 14,
-                                    color: role.permissions[mod] ? 'var(--v22-green, #1D9E75)' : 'var(--v22-border)' }}>
-                                  {role.permissions[mod] ? '✓' : '○'}
+                                  style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    color: role.permissions[mod] ? 'var(--v22-green)' : 'var(--v22-border)' }}>
+                                  {role.permissions[mod] ? <Check size={14} /> : <Minus size={14} />}
                                 </button>
                               </td>
                             ))}
@@ -360,7 +364,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">👤 {editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
+              <span className="v22-card-title"><Users size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null) }}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -400,11 +404,11 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label">📱 Téléphone</label>
+                  <label className="v22-form-label">Téléphone</label>
                   <input className="v22-form-input" value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
                 </div>
                 <div>
-                  <label className="v22-form-label">✉️ Email</label>
+                  <label className="v22-form-label">Email</label>
                   <input className="v22-form-input" value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
                 </div>
               </div>
@@ -412,7 +416,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
               <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => { setShowMembreModal(false); setEditingMembre(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={submitMembre} disabled={!mForm.prenom.trim() || !mForm.nom.trim()}>
-                {editingMembre ? (isPt ? '✅ Guardar' : '✅ Sauvegarder') : (isPt ? '✅ Adicionar' : '✅ Ajouter')}
+{editingMembre ? <><Check size={14} /> {isPt ? 'Guardar' : 'Sauvegarder'}</> : <><Check size={14} /> {isPt ? 'Adicionar' : 'Ajouter'}</>}
               </button>
             </div>
           </div>
@@ -424,7 +428,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">👷 {editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
+              <span className="v22-card-title"><HardHat size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -463,7 +467,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
               <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={submitEquipe} disabled={!eForm.nom.trim()}>
-                {editingEquipe ? '✅ Sauvegarder' : (isPt ? '✅ Criar' : '✅ Créer')}
+{editingEquipe ? <><Check size={14} /> Sauvegarder</> : <><Check size={14} /> {isPt ? 'Criar' : 'Créer'}</>}
               </button>
             </div>
           </div>
@@ -475,7 +479,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 480 }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">🔑 {isPt ? 'Nova função personalizada' : 'Nouveau rôle personnalisé'}</span>
+              <span className="v22-card-title"><Key size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Nova função personalizada' : 'Nouveau rôle personnalisé'}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => setShowRoleModal(false)}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -493,7 +497,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                         onChange={e => setRForm({ ...rForm, permissions: { ...rForm.permissions, [mod]: e.target.checked } })}
                         style={{ accentColor: 'var(--v22-yellow)', width: 14, height: 14 }}
                       />
-                      <span>{MODULE_LABELS[mod]}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{MODULE_ICONS[mod]} {MODULE_LABELS[mod]}</span>
                     </label>
                   ))}
                 </div>
@@ -501,7 +505,37 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
               <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowRoleModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={submitRole} disabled={!rForm.nom.trim()}>✅ {isPt ? 'Criar função' : 'Créer le rôle'}</button>
+              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={submitRole} disabled={!rForm.nom.trim()}><Check size={14} /> {isPt ? 'Criar função' : 'Créer le rôle'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CONFIRMATION SUPPRESSION ── */}
+      {confirmDelete && (
+        <div className="v22-modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="v22-modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="v22-modal-head">
+              <div className="v22-modal-title">{isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
+              <button className="v22-modal-close" onClick={() => setConfirmDelete(null)}>✕</button>
+            </div>
+            <div className="v22-modal-body">
+              <p style={{ fontSize: 13 }}>
+                {confirmDelete.type === 'membre'
+                  ? (isPt ? 'Tem a certeza que quer remover este membro?' : 'Êtes-vous sûr de vouloir supprimer ce membre ?')
+                  : (isPt ? 'Tem a certeza que quer remover esta equipa?' : 'Êtes-vous sûr de vouloir supprimer cette équipe ?')}
+              </p>
+            </div>
+            <div className="v22-modal-foot">
+              <button className="v22-btn" onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className="v22-btn v22-btn-danger" onClick={() => {
+                if (confirmDelete.type === 'membre') {
+                  saveMembres(membres.filter(m => m.id !== confirmDelete.id))
+                } else {
+                  saveEquipes(equipes.filter(e => e.id !== confirmDelete.id))
+                }
+                setConfirmDelete(null)
+              }}>{isPt ? 'Eliminar' : 'Supprimer'}</button>
             </div>
           </div>
         </div>
@@ -554,10 +588,10 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; booki
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">🏗️ {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+          <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
           <p className="v22-page-sub">{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
         </div>
-        <button className="v22-btn" onClick={() => setShowModal(true)}>➕ {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
+        <button className="v22-btn" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
       </div>
 
       <div style={{ padding: '20px 24px' }}>
@@ -584,10 +618,10 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; booki
         {/* Empty state */}
         {filtered.length === 0 ? (
           <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏗️</div>
+            <div style={{ marginBottom: 12 }}><HardHat size={40} style={{ color: 'var(--v22-text-mid)' }} /></div>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma obra' : 'Aucun chantier'}</div>
             <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
-            <button className="v22-btn" onClick={() => setShowModal(true)}>➕ {isPt ? 'Criar obra' : 'Créer un chantier'}</button>
+            <button className="v22-btn" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar obra' : 'Créer un chantier'}</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -600,10 +634,10 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; booki
                       <span className={STATUS_V22[c.statut] || 'v22-tag v22-tag-gray'} style={{ fontSize: 11 }}>{c.statut}</span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                      {c.client && <span className="v22-card-meta" style={{ fontSize: 12 }}>👤 {c.client}</span>}
-                      {c.adresse && <span className="v22-card-meta" style={{ fontSize: 12 }}>📍 {c.adresse}</span>}
-                      {(c.dateDebut || c.dateFin) && <span className="v22-card-meta" style={{ fontSize: 12 }}>📅 {c.dateDebut || '?'} → {c.dateFin || '?'}</span>}
-                      {c.budget && <span className="v22-card-meta" style={{ fontSize: 12 }}>💰 {Number(c.budget).toLocaleString('fr-FR')} €</span>}
+                      {c.client && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {c.client}</span>}
+                      {c.adresse && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={12} /> {c.adresse}</span>}
+                      {(c.dateDebut || c.dateFin) && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {c.dateDebut || '?'} → {c.dateFin || '?'}</span>}
+                      {c.budget && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><DollarSign size={12} /> {Number(c.budget).toLocaleString('fr-FR')} €</span>}
                     </div>
                     {c.description && <p className="v22-card-meta" style={{ fontSize: 12, marginTop: 6 }}>{c.description}</p>}
                   </div>
@@ -631,7 +665,7 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; booki
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="v22-card" style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
-              <span className="v22-card-title">🏗️ {isPt ? 'Nova obra' : 'Nouveau chantier'}</span>
+              <span className="v22-card-title"><HardHat size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</span>
               <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -645,21 +679,21 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; booki
                   <input className="v22-form-input" value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={isPt ? 'Nome do cliente' : 'Nom du client'} />
                 </div>
                 <div>
-                  <label className="v22-form-label">💰 Budget HT (€)</label>
+                  <label className="v22-form-label">Budget HT (€)</label>
                   <input type="number" className="v22-form-input" value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} placeholder="0" />
                 </div>
               </div>
               <div>
-                <label className="v22-form-label">📍 {isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+                <label className="v22-form-label">{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
                 <input className="v22-form-input" value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label">📅 {isPt ? 'Data de início' : 'Date de début'}</label>
+                  <label className="v22-form-label">{isPt ? 'Data de início' : 'Date de début'}</label>
                   <input type="date" className="v22-form-input" value={form.dateDebut} onChange={e => setForm({...form, dateDebut: e.target.value})} />
                 </div>
                 <div>
-                  <label className="v22-form-label">📅 {isPt ? 'Data de fim' : 'Date de fin'}</label>
+                  <label className="v22-form-label">{isPt ? 'Data de fim' : 'Date de fin'}</label>
                   <input type="date" className="v22-form-input" value={form.dateFin} onChange={e => setForm({...form, dateFin: e.target.value})} />
                 </div>
               </div>
@@ -670,7 +704,7 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; booki
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
               <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={handleSave} disabled={!form.titre.trim()}>✅ {isPt ? 'Criar obra' : 'Créer le chantier'}</button>
+              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={handleSave} disabled={!form.titre.trim()}><Check size={14} /> {isPt ? 'Criar obra' : 'Créer le chantier'}</button>
             </div>
           </div>
         </div>
@@ -723,7 +757,7 @@ export function GanttSection({ userId }: { userId: string }) {
     <div>
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">📅 {t('proDash.btp.gantt.title')}</h1>
+          <h1 className="v22-page-title"><Calendar size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.gantt.title')}</h1>
           <p className="v22-page-sub">{taches.length} {t('proDash.btp.gantt.tachesPlanifiees')}</p>
         </div>
         <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.gantt.ajouterTache')}</button>
@@ -747,7 +781,7 @@ export function GanttSection({ userId }: { userId: string }) {
         </div>
       )}
       {taches.length === 0 ? (
-        <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}><div style={{ fontSize: 48, marginBottom: 12 }}>📅</div><p className="v22-card-meta">{t('proDash.btp.gantt.aucuneTache')}</p></div>
+        <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}><div style={{ marginBottom: 12 }}><Calendar size={40} style={{ color: 'var(--v22-text-mid)' }} /></div><p className="v22-card-meta">{t('proDash.btp.gantt.aucuneTache')}</p></div>
       ) : (
         <div className="v22-card" style={{ overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
@@ -861,7 +895,7 @@ export function SituationsTravaux({ userId }: { userId: string }) {
     <div>
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">📊 {t('proDash.btp.situations.title')}</h1>
+          <h1 className="v22-page-title"><BarChart3 size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.situations.title')}</h1>
           <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>
         </div>
         <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.situations.nouvelleSituation')}</button>
@@ -905,8 +939,8 @@ export function SituationsTravaux({ userId }: { userId: string }) {
                 <div style={{ display: 'flex', gap: 4 }}>
                   {(['brouillon', 'envoyée', 'validée', 'payée'] as const).map(s => (
                     <button key={s} onClick={() => changeStatut(selected.id, s)}
-                      className={selected.statut === s ? 'v22-btn v22-btn-sm' : 'v22-btn v22-btn-sm'}
-                      style={{ background: selected.statut === s ? 'var(--v22-yellow)' : 'transparent', fontSize: 11 }}>{s}</button>
+                      className={`v22-tab${selected.statut === s ? ' active' : ''}`}
+                      style={{ fontSize: 11 }}>{s}</button>
                   ))}
                 </div>
               </div>
@@ -934,7 +968,7 @@ export function SituationsTravaux({ userId }: { userId: string }) {
                 </div>
               </div>
             </div>
-          ) : <div className="v22-card" style={{ padding: 40, textAlign: 'center', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}><div style={{ fontSize: 40, marginBottom: 8 }}>📊</div><p className="v22-card-meta">{t('proDash.btp.situations.selectionnerSituation')}</p></div>}
+          ) : <div className="v22-card" style={{ padding: 40, textAlign: 'center', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}><div style={{ marginBottom: 8 }}><BarChart3 size={40} style={{ color: 'var(--v22-text-mid)' }} /></div><p className="v22-card-meta">{t('proDash.btp.situations.selectionnerSituation')}</p></div>}
         </div>
       </div>
       </div>
@@ -981,7 +1015,7 @@ export function RetenuesGarantieSection({ userId }: { userId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="v22-page-header">
         <div>
-          <h2 className="v22-page-title">🔒 {t('proDash.btp.retenues.title')}</h2>
+          <h2 className="v22-page-title"><Lock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.retenues.title')}</h2>
           <p className="v22-page-sub">{t('proDash.btp.retenues.subtitle')}</p>
         </div>
         <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.retenues.nouvelleRetenue')}</button>
@@ -994,7 +1028,7 @@ export function RetenuesGarantieSection({ userId }: { userId: string }) {
         </div>
         <div className="v22-card" style={{ padding: 16 }}>
           <div className="v22-card-meta">{t('proDash.btp.retenues.libere')}</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#1D9E75', marginTop: 4 }}>{totalLibéré.toLocaleString(dateLocale)} €</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--v22-green)', marginTop: 4 }}>{totalLibéré.toLocaleString(dateLocale)} €</div>
         </div>
         <div className="v22-card" style={{ padding: 16 }}>
           <div className="v22-card-meta">{t('proDash.btp.retenues.chantiersConcernes')}</div>
@@ -1021,7 +1055,7 @@ export function RetenuesGarantieSection({ userId }: { userId: string }) {
             </div>
             {form.montantMarche > 0 && (
               <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
-                💡 {t('proDash.btp.retenues.montantRetenuInfo')} <strong>{(form.montantMarche * form.tauxRetenue / 100).toLocaleString(dateLocale)} €</strong>
+                <Lightbulb size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.retenues.montantRetenuInfo')} <strong>{(form.montantMarche * form.tauxRetenue / 100).toLocaleString(dateLocale)} €</strong>
               </div>
             )}
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
@@ -1106,7 +1140,7 @@ export function PointageEquipesSection({ userId }: { userId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="v22-page-header">
         <div>
-          <h2 className="v22-page-title">⏱️ {t('proDash.btp.pointage.title')}</h2>
+          <h2 className="v22-page-title"><Clock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.title')}</h2>
           <p className="v22-page-sub">{t('proDash.btp.pointage.subtitle')}</p>
         </div>
         <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
@@ -1133,7 +1167,7 @@ export function PointageEquipesSection({ userId }: { userId: string }) {
               <div style={{ gridColumn: 'span 2' }}><label className="v22-form-label">{t('proDash.btp.pointage.notes')}</label><input className="v22-form-input" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
             </div>
             <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
-              ⏱️ {t('proDash.btp.pointage.heures')} <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+              <Clock size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.heures')} <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button className="v22-btn" onClick={addPointage} disabled={!form.employe}>{t('proDash.btp.pointage.enregistrer')}</button>
@@ -1348,10 +1382,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
 
   // ── Styles ──
   const stStatV22: Record<string, string> = { en_attente: 'v22-tag v22-tag-amber', agréé: 'v22-tag v22-tag-green', refusé: 'v22-tag v22-tag-red' }
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-    background: active ? '#FFC107' : '#f3f4f6', color: active ? '#1a1a1a' : '#374151',
-  })
+  // tabs use v22-tab classes
   const inputS: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }
   const labelS: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }
 
@@ -1360,7 +1391,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>🤝 {isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><Handshake size={22} /> {isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h2>
           <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>
             {isFR ? 'Gérez vos sous-traitants, analysez les DCE et préparez vos réponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}
           </p>
@@ -1369,10 +1400,10 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-        <button onClick={() => setTab('sous_traitants')} style={tabStyle(tab === 'sous_traitants')}>👷 {isFR ? 'Sous-traitants' : 'Subempreiteiros'} ({soustraitants.length})</button>
-        <button onClick={() => setTab('analyse_dce')} style={tabStyle(tab === 'analyse_dce')}>🔎 {isFR ? 'Analyse DCE / IA' : 'Análise DCE / IA'}</button>
-        <button onClick={() => setTab('memoire')} style={tabStyle(tab === 'memoire')}>📝 {isFR ? 'Mémoire technique' : 'Memória técnica'}</button>
-        <button onClick={() => setTab('checklist')} style={tabStyle(tab === 'checklist')}>✅ {isFR ? 'Checklist dépôt' : 'Checklist submissão'}</button>
+        <button onClick={() => setTab('sous_traitants')} className={`v22-tab${tab === 'sous_traitants' ? ' active' : ''}`}><HardHat size={14} /> {isFR ? 'Sous-traitants' : 'Subempreiteiros'} ({soustraitants.length})</button>
+        <button onClick={() => setTab('analyse_dce')} className={`v22-tab${tab === 'analyse_dce' ? ' active' : ''}`}><Search size={14} /> {isFR ? 'Analyse DCE / IA' : 'Análise DCE / IA'}</button>
+        <button onClick={() => setTab('memoire')} className={`v22-tab${tab === 'memoire' ? ' active' : ''}`}><FileEdit size={14} /> {isFR ? 'Mémoire technique' : 'Memória técnica'}</button>
+        <button onClick={() => setTab('checklist')} className={`v22-tab${tab === 'checklist' ? ' active' : ''}`}><CheckSquare size={14} /> {isFR ? 'Checklist dépôt' : 'Checklist submissão'}</button>
       </div>
 
       {/* ════════════ TAB 1: SOUS-TRAITANTS ════════════ */}
@@ -1450,11 +1481,11 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
                       </td>
                       <td style={{ padding: '10px 14px', fontWeight: 700, color: '#FFC107' }}>{s.montantMarche.toLocaleString(dateLocale)} €</td>
                       <td style={{ padding: '10px 14px' }}><span className={stStatV22[s.statut] || 'v22-tag'}>{s.statut === 'en_attente' ? (isFR ? 'En attente' : 'Pendente') : s.statut === 'agréé' ? (isFR ? 'Agréé' : 'Aprovado') : (isFR ? 'Refusé' : 'Recusado')}</span></td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>{s.dc4Genere ? '✅' : '—'}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>{s.dc4Genere ? <Check size={14} className="v22-up" style={{ color: 'var(--v22-green)' }} /> : <Minus size={14} style={{ color: 'var(--v22-border)' }} />}</td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ display: 'flex', gap: 6 }}>
                           {s.statut === 'en_attente' && <button onClick={() => agreer(s.id)} style={{ padding: '4px 10px', background: '#d1fae5', color: '#065f46', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>{isFR ? 'Agréer' : 'Aprovar'}</button>}
-                          {s.statut === 'agréé' && <button onClick={() => genererDC4(s)} style={{ padding: '4px 10px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>📄 DC4</button>}
+                          {s.statut === 'agréé' && <button onClick={() => genererDC4(s)} style={{ padding: '4px 10px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><FileText size={12} /> DC4</button>}
                         </div>
                       </td>
                     </tr>
@@ -1473,7 +1504,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
             <>
               {/* Formulaire d'analyse */}
               <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px' }}>🔎 {isFR ? 'Nouvelle analyse DCE' : 'Nova análise DCE'}</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 6 }}><Search size={16} /> {isFR ? 'Nouvelle analyse DCE' : 'Nova análise DCE'}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div style={{ gridColumn: '1 / -1' }}><label style={labelS}>{isFR ? 'Titre du marché *' : 'Título do concurso *'}</label><input style={inputS} value={dceForm.titre} onChange={e => setDceForm({...dceForm, titre: e.target.value})} placeholder={isFR ? 'ex: Réhabilitation école Jean Moulin' : 'ex: Reabilitação escola primária'} /></div>
                   <div><label style={labelS}>{isFR ? 'Pays' : 'País'}</label><select style={{...inputS, background: '#fff'}} value={dceForm.country} onChange={e => setDceForm({...dceForm, country: e.target.value as 'FR' | 'PT'})}><option value="FR">🇫🇷 France</option><option value="PT">🇵🇹 Portugal</option></select></div>
@@ -1487,7 +1518,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
                   <div style={{ gridColumn: '1 / -1' }}><label style={labelS}>{isFR ? 'Lots (1 par ligne)' : 'Lotes (1 por linha)'}</label><textarea style={{...inputS, minHeight: 60, resize: 'vertical'}} value={dceForm.lots} onChange={e => setDceForm({...dceForm, lots: e.target.value})} placeholder={isFR ? 'Lot 1 - Gros œuvre\nLot 2 - Électricité\nLot 3 - Plomberie' : 'Lote 1 - Construção\nLote 2 - Eletricidade'} /></div>
                 </div>
                 <button onClick={lancerAnalyse} disabled={dceLoading || !dceForm.titre.trim() || !dceForm.description.trim()} style={{ marginTop: 16, padding: '10px 24px', background: dceLoading ? '#e5e7eb' : '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: dceLoading ? 'wait' : 'pointer', fontWeight: 700, fontSize: 15 }}>
-                  {dceLoading ? '⏳ Analyse en cours...' : `🧠 ${isFR ? 'Lancer l\'analyse IA' : 'Iniciar análise IA'}`}
+                  {dceLoading ? <><Loader size={14} /> Analyse en cours...</> : <><Brain size={14} /> {isFR ? 'Lancer l\'analyse IA' : 'Iniciar análise IA'}</>}
                 </button>
               </div>
 
@@ -1503,7 +1534,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
                           <div style={{ fontSize: 12, color: '#9ca3af' }}>{a.country === 'FR' ? '🇫🇷' : '🇵🇹'} {a.projectType} · {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
                         </div>
                         <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: a.status === 'done' ? '#d1fae5' : a.status === 'error' ? '#fee2e2' : '#fef3c7', color: a.status === 'done' ? '#065f46' : a.status === 'error' ? '#991b1b' : '#92400e' }}>
-                          {a.status === 'done' ? '✅ Terminée' : a.status === 'error' ? '❌ Erreur' : '⏳ En cours'}
+                          {a.status === 'done' ? 'Terminée' : a.status === 'error' ? 'Erreur' : 'En cours'}
                         </span>
                       </div>
                     ))}
@@ -1515,7 +1546,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
             /* Résultat d'analyse */
             <div>
               <button onClick={() => setSelectedAnalysis(null)} style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, marginBottom: 16 }}>← {isFR ? 'Retour' : 'Voltar'}</button>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>📊 {selectedAnalysis.titre}</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={18} /> {selectedAnalysis.titre}</h3>
               {selectedAnalysis.result?.error ? (
                 <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 10, padding: 16, color: '#991b1b' }}>{selectedAnalysis.result.error}</div>
               ) : (
@@ -1541,7 +1572,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
                   {['analyse_marche', 'exigences', 'strategie', 'memoire_technique', 'analyse_financiere', 'sous_traitance', 'checklist_depot'].map(key => {
                     const section = selectedAnalysis.result?.[key]
                     if (!section) return null
-                    const titles: Record<string, string> = { analyse_marche: '🔎 Analyse du marché', exigences: '📋 Exigences', strategie: '🧱 Stratégie de réponse', memoire_technique: '📝 Mémoire technique', analyse_financiere: '💰 Analyse financière', sous_traitance: '👥 Sous-traitance', checklist_depot: '⚠️ Checklist avant dépôt' }
+                    const titles: Record<string, string> = { analyse_marche: 'Analyse du marché', exigences: 'Exigences', strategie: 'Stratégie de réponse', memoire_technique: 'Mémoire technique', analyse_financiere: 'Analyse financière', sous_traitance: 'Sous-traitance', checklist_depot: 'Checklist avant dépôt' }
                     return (
                       <div key={key} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20 }}>
                         <h4 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px', color: '#1a1a1a' }}>{titles[key] || key}</h4>
@@ -1560,7 +1591,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
       {tab === 'memoire' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>📝 {isFR ? 'Structure type — Mémoire technique BTP' : 'Estrutura tipo — Memória técnica'}</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}><FileEdit size={16} /> {isFR ? 'Structure type — Mémoire technique BTP' : 'Estrutura tipo — Memória técnica'}</h3>
             <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 20px' }}>{isFR ? 'Structure recommandée pour maximiser votre note technique.' : 'Estrutura recomendada para maximizar a nota técnica.'}</p>
             {[
               { n: '1', title: isFR ? 'Présentation de l\'entreprise' : 'Apresentação da empresa', desc: isFR ? 'Historique, chiffres clés, organigramme, certifications (Qualibat, RGE…), assurances.' : 'Histórico, números-chave, organograma, certificações (alvará), seguros.' },
@@ -1582,7 +1613,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
             ))}
           </div>
           <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 4 }}>💡 {isFR ? 'Conseil expert' : 'Conselho de especialista'}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Lightbulb size={14} /> {isFR ? 'Conseil expert' : 'Conselho de especialista'}</div>
             <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.5 }}>
               {isFR
                 ? 'Pour maximiser votre note : personnalisez chaque section au projet spécifique. Un mémoire générique se repère immédiatement. Mentionnez des détails du CCTP, adaptez vos références au type de travaux, et quantifiez vos engagements (délais, effectifs, certifications).'
@@ -1596,8 +1627,8 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
       {tab === 'checklist' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <button onClick={() => setDceForm(f => ({...f, country: 'FR'}))} style={tabStyle(dceForm.country === 'FR')}>🇫🇷 France</button>
-            <button onClick={() => setDceForm(f => ({...f, country: 'PT'}))} style={tabStyle(dceForm.country === 'PT')}>🇵🇹 Portugal</button>
+            <button onClick={() => setDceForm(f => ({...f, country: 'FR'}))} className={`v22-tab${dceForm.country === 'FR' ? ' active' : ''}`}>France</button>
+            <button onClick={() => setDceForm(f => ({...f, country: 'PT'}))} className={`v22-tab${dceForm.country === 'PT' ? ' active' : ''}`}>Portugal</button>
           </div>
           {getChecklist(dceForm.country).map(cat => {
             const total = cat.items.length
@@ -1709,7 +1740,7 @@ export function DPGFSection({ userId }: { userId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="v22-page-header">
         <div>
-          <h2 className="v22-page-title">📁 {t('proDash.btp.dpgf.title')}</h2>
+          <h2 className="v22-page-title"><FolderOpen size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.dpgf.title')}</h2>
           <p className="v22-page-sub">{t('proDash.btp.dpgf.subtitle')}</p>
         </div>
         <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.dpgf.nouvelAppel')}</button>
@@ -1747,7 +1778,7 @@ export function DPGFSection({ userId }: { userId: string }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {appels.length === 0 ? (
             <div className="v22-card" style={{ padding: 32, textAlign: 'center' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
+              <div style={{ marginBottom: 8 }}><FolderOpen size={32} style={{ color: 'var(--v22-text-mid)' }} /></div>
               <p className="v22-card-meta">{t('proDash.btp.dpgf.aucunAppel')}</p>
             </div>
           ) : appels.map(a => (
@@ -1773,7 +1804,7 @@ export function DPGFSection({ userId }: { userId: string }) {
             <div className="v22-card-head">
               <div className="v22-card-title">{selected.titre}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button className="v22-btn v22-btn-sm" onClick={() => exportDPGF(selected)}>⬇️ {t('proDash.btp.dpgf.export')}</button>
+                <button className="v22-btn v22-btn-sm" onClick={() => exportDPGF(selected)}><Download size={14} /> {t('proDash.btp.dpgf.export')}</button>
                 {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
                   <button
                     key={s}
@@ -1825,7 +1856,7 @@ export function DPGFSection({ userId }: { userId: string }) {
           </div>
         ) : (
           <div className="v22-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240, flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 40 }}>📁</div>
+            <FolderOpen size={40} style={{ color: 'var(--v22-text-mid)' }} />
             <p className="v22-card-meta">{t('proDash.btp.dpgf.selectionnerAppel')}</p>
           </div>
         )}

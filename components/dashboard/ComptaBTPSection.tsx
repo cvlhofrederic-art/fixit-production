@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Loader, Brain, BarChart3, User, HardHat, Building2, Coins, Lightbulb, CircleAlert, AlertTriangle, Landmark, PlusCircle, Calendar, SlidersHorizontal, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
@@ -189,9 +190,9 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
     const cp = chantierProfits.find(p => p.chantier_id === d.chantier_id)
     const score = cp?.score ?? 5
     const status = cp?.status ?? 'warning'
-    if (status === 'profit') return { score, label: isPt ? 'Rentável' : 'Rentable', color: '#22C55E', emoji: '🟢' }
-    if (status === 'warning') return { score, label: isPt ? 'Médio' : 'Moyen', color: '#F59E0B', emoji: '🟡' }
-    return { score, label: isPt ? 'Em risco' : 'À risque', color: '#EF4444', emoji: '🔴' }
+    if (status === 'profit') return { score, label: isPt ? 'Rentável' : 'Rentable', color: '#22C55E' }
+    if (status === 'warning') return { score, label: isPt ? 'Médio' : 'Moyen', color: '#F59E0B' }
+    return { score, label: isPt ? 'Em risco' : 'À risque', color: '#EF4444' }
   }
 
   // ── Handlers frais fixes ──────────────────────────────────────────────────
@@ -208,7 +209,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
 
   if (loading || loadingS) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 24 }}>⏳</div>
+      <div style={{ fontSize: 24 }}><Loader size={24} className="animate-spin" /></div>
       <p className="v22-card-meta">{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
   )
@@ -218,7 +219,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
       {/* Header + Tabs */}
       <div className="v22-page-header">
         <div>
-          <h2 className="v22-page-title">🧠 {isPt ? 'Contabilidade Inteligente' : 'Compta Intelligente'}</h2>
+          <h2 className="v22-page-title"><Brain size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Contabilidade Inteligente' : 'Compta Intelligente'}</h2>
           <p className="v22-page-sub">{isPt ? 'Tudo num só lugar: salário, encargos, lucro real' : 'Tout en un : salaire, charges, bénéfice réel'}</p>
         </div>
       </div>
@@ -226,14 +227,13 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
       {/* Navigation tabs */}
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {([
-          { k: 'dashboard', icon: '📊', label: isPt ? 'Painel' : 'Tableau de bord' },
-          { k: 'profil', icon: '👤', label: isPt ? 'Perfil fiscal' : 'Profil patron' },
-          { k: 'equipe', icon: '👷', label: isPt ? 'Custos equipa' : 'Coûts équipe' },
-          { k: 'frais', icon: '🏢', label: isPt ? 'Encargos fixos' : 'Frais fixes' },
-        ] as const).map(t => (
+          { k: 'dashboard', icon: <BarChart3 size={14} />, label: isPt ? 'Painel' : 'Tableau de bord' },
+          { k: 'profil', icon: <User size={14} />, label: isPt ? 'Perfil fiscal' : 'Profil patron' },
+          { k: 'equipe', icon: <HardHat size={14} />, label: isPt ? 'Custos equipa' : 'Coûts équipe' },
+          { k: 'frais', icon: <Building2 size={14} />, label: isPt ? 'Encargos fixos' : 'Frais fixes' },
+        ] as { k: 'dashboard' | 'profil' | 'equipe' | 'frais'; icon: React.ReactNode; label: string }[]).map(t => (
           <button key={t.k} onClick={() => setTab(t.k)}
-            className="v22-btn v22-btn-sm"
-            style={{ background: tab === t.k ? 'var(--v22-yellow)' : 'transparent', fontWeight: tab === t.k ? 700 : 400 }}>
+            className={`v22-tab${tab === t.k ? ' active' : ''}`}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -242,7 +242,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
       {/* ══════ TAB: PROFIL PATRON ══════ */}
       {tab === 'profil' && (
         <div className="v22-card" style={{ padding: 20 }}>
-          <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>👤 {isPt ? 'O meu perfil fiscal' : 'Mon profil fiscal'}</h3>
+          <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}><User size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'O meu perfil fiscal' : 'Mon profil fiscal'}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
             <div>
               <label className="v22-form-label">{isPt ? 'Salário mensal' : 'Salaire mensuel'} (€)</label>
@@ -279,8 +279,8 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                     charges_patronales_pct: Math.round(config.employer_charge_rate * 100),
                   })
                 }}>
-                <option value="FR">🇫🇷 France</option>
-                <option value="PT">🇵🇹 Portugal</option>
+                <option value="FR">France</option>
+                <option value="PT">Portugal</option>
               </select>
             </div>
             <div>
@@ -331,7 +331,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
 
           {/* Récap coût patron */}
           <div style={{ marginTop: 20, background: '#FEF5E4', borderRadius: 8, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>💰 {isPt ? 'Custo real mensal do patrão' : 'Coût réel mensuel du patron'}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}><Coins size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Custo real mensal do patrão' : 'Coût réel mensuel du patron'}</div>
             <Row label={isPt ? 'Salário declarado' : 'Salaire déclaré'} value={`${fmt(settings.salaire_patron_mensuel || 0, dl)} € ${settings.salaire_patron_type}`} />
             <Row label={isPt ? 'Custo chargé (c/ cotizações)' : 'Coût chargé (cotisations incluses)'} value={`${fmt(salairePatronCharge, dl)} €`} color="#EF4444" bold />
             <Row label={isPt ? 'Amortizações' : 'Amortissements'} value={`${fmt(settings.amortissements_mensuels || 0, dl)} €`} />
@@ -348,7 +348,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
       {tab === 'equipe' && (
         <div className="v22-card">
           <div className="v22-card-head">
-            <div className="v22-card-title">👷 {isPt ? 'Custo real por funcionário' : 'Coût réel par employé'}</div>
+            <div className="v22-card-title"><HardHat size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Custo real por funcionário' : 'Coût réel par employé'}</div>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -390,7 +390,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
             </table>
           </div>
           <div style={{ padding: 16, background: 'var(--v22-bg)', borderTop: '1px solid var(--v22-border)', fontSize: 12, color: '#6B7280' }}>
-            💡 {isPt
+            <Lightbulb size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt
               ? 'Edite o custo horário e encargos de cada membro em Equipas > Editar membro'
               : 'Modifiez le coût horaire et les charges de chaque membre dans Équipes > Modifier le membre'}
           </div>
@@ -400,7 +400,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
       {/* ══════ TAB: FRAIS FIXES ══════ */}
       {tab === 'frais' && (
         <div className="v22-card" style={{ padding: 20 }}>
-          <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>🏢 {isPt ? 'Encargos fixos mensais' : 'Frais fixes mensuels'}</h3>
+          <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}><Building2 size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Encargos fixos mensais' : 'Frais fixes mensuels'}</h3>
           <p className="v22-card-meta" style={{ marginBottom: 16 }}>
             {isPt
               ? 'Tudo o que paga todos os meses independentemente dos chantiers: renda, seguro, contabilista, viaturas, etc.'
@@ -417,7 +417,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontWeight: 700, color: '#EF4444' }}>{fmt(f.montant, dl)} €{f.frequence === 'annuel' ? '/an' : '/mois'}</span>
-                  <button onClick={() => removeFrai(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A' }}>✕</button>
+                  <button onClick={() => removeFrai(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A' }}><X size={14} /></button>
                 </div>
               </div>
             ))}
@@ -446,7 +446,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                 <option value="annuel">{isPt ? 'Anual' : 'Annuel'}</option>
               </select>
             </div>
-            <button className="v22-btn" onClick={addFrai} disabled={!newFrai.label || !newFrai.montant}>➕</button>
+            <button className="v22-btn" onClick={addFrai} disabled={!newFrai.label || !newFrai.montant}><PlusCircle size={14} /></button>
           </div>
 
           {/* Total */}
@@ -518,7 +518,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                     borderRadius: 8, padding: 12, fontSize: 13,
                     color: a.type === 'error' ? '#991B1B' : a.type === 'warning' ? '#92400E' : '#1E40AF',
                   }}>
-                    {a.type === 'error' ? '🔴' : a.type === 'warning' ? '⚠️' : '💡'} {isPt ? a.message_pt : a.message_fr}
+                    {a.type === 'error' ? <CircleAlert size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : a.type === 'warning' ? <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : <Lightbulb size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />} {isPt ? a.message_pt : a.message_fr}
                   </div>
                 ))}
               </div>
@@ -529,7 +529,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
           {totals.ca > 0 && (
             <div className="v22-card" style={{ padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                🏛️ {isPt ? 'Detalhe fiscal' : 'Détail fiscal'} ({(settings.country || 'FR') === 'FR' ? 'IS' : 'IRC'})
+                <Landmark size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Detalhe fiscal' : 'Détail fiscal'} ({(settings.country || 'FR') === 'FR' ? 'IS' : 'IRC'})
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
                 <div style={{ textAlign: 'center', padding: 8, background: 'var(--v22-bg)', borderRadius: 6 }}>
@@ -555,7 +555,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
           {/* Tableau chantiers */}
           {data.length === 0 ? (
             <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🧠</div>
+              <div style={{ fontSize: 48, marginBottom: 12 }}><Brain size={48} /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Sem dados' : 'Aucune donnée'}</div>
               <p className="v22-card-meta">{isPt ? 'Crie obras e registe pontuagens' : 'Créez des chantiers et enregistrez des pointages'}</p>
             </div>
@@ -580,7 +580,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                       return (
                         <tr key={d.chantier_id} onClick={() => setSelectedId(isSelected ? null : d.chantier_id)}
                           style={{ borderBottom: '1px solid var(--v22-border)', cursor: 'pointer', background: isSelected ? '#FEF5E4' : undefined }}>
-                          <td style={{ padding: '8px 4px' }}>{s.emoji}</td>
+                          <td style={{ padding: '8px 4px' }}><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: s.color }} /></td>
                           <td style={{ padding: '8px 8px', fontWeight: 600, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.titre}</td>
                           <td style={{ padding: '8px 8px' }}>{fmt(d.ca_reel || 0, dl)}</td>
                           <td style={{ padding: '8px 8px', color: '#EF4444' }}>{fmt(d.cout_main_oeuvre_brut, dl)}</td>
@@ -605,7 +605,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
           {selected && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div className="v22-card" style={{ padding: 20 }}>
-                <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>📊 {selected.titre}</h3>
+                <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}><BarChart3 size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{selected.titre}</h3>
                 <Row label="CA" value={`${fmt(selected.ca_reel || 0, dl)} €`} />
                 <Row label={isPt ? 'M.O. bruta' : 'M.O. brute'} value={`${fmt(selected.cout_main_oeuvre_brut, dl)} €`} color="#EF4444" />
                 <Row label={isPt ? 'Encargos patronais' : 'Charges patronales'} value={`${fmt(selected.cout_charges_patronales, dl)} €`} color="#E97451" />
@@ -622,18 +622,18 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                   </div>
                 </div>
                 <div style={{ background: '#FEF2F2', borderRadius: 8, padding: 12, marginTop: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#991B1B' }}>⚠️ {isPt ? 'Perda por dia de atraso' : 'Perte par jour de retard'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#991B1B' }}><AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Perda por dia de atraso' : 'Perte par jour de retard'}</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#EF4444' }}>-{fmt(selected.perte_par_jour_retard, dl)} € / {isPt ? 'dia' : 'jour'}</div>
                 </div>
               </div>
               <div className="v22-card" style={{ padding: 20 }}>
-                <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>🎮 {isPt ? 'Simulador' : 'Simulateur'}</h3>
+                <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}><SlidersHorizontal size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Simulador' : 'Simulateur'}</h3>
                 <div style={{ marginBottom: 16 }}>
-                  <label className="v22-form-label">📅 {isPt ? 'Dias de atraso' : 'Jours de retard'}: <strong>{simDays}</strong></label>
+                  <label className="v22-form-label"><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Dias de atraso' : 'Jours de retard'}: <strong>{simDays}</strong></label>
                   <input type="range" min={0} max={60} value={simDays} onChange={e => setSimDays(Number(e.target.value))} style={{ width: '100%' }} />
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label className="v22-form-label">👷 {isPt ? 'Funcionários extra' : 'Ouvriers en plus'}: <strong>+{simWorkers}</strong></label>
+                  <label className="v22-form-label"><HardHat size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Funcionários extra' : 'Ouvriers en plus'}: <strong>+{simWorkers}</strong></label>
                   <input type="range" min={0} max={10} value={simWorkers} onChange={e => setSimWorkers(Number(e.target.value))} style={{ width: '100%' }} />
                 </div>
                 {simResult && (simDays > 0 || simWorkers > 0) && (

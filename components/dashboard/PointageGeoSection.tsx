@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings, useGeoPointage } from '@/lib/hooks/use-btp-data'
+import { Loader2, Clock, ClipboardList, Radio, Plus, MapPin, CheckCircle, Search, AlertTriangle, Square, Ruler, Calendar, Pencil, Satellite, X } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // POINTAGE GÉO V2 — Pointage par GPS + manuel
@@ -95,7 +96,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
       heureDepart: '',
       pauseMinutes: 0,
       heuresTravaillees: 0,
-      notes: `📍 Pointage GPS (${chantier.distance}m)`,
+      notes: `Pointage GPS (${chantier.distance}m)`,
       mode: 'geo_confirme',
       arriveeLat: geo.position?.lat,
       arriveeLng: geo.position?.lng,
@@ -135,7 +136,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
 
   if (loadingP) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 24 }}>⏳</div>
+      <div style={{ fontSize: 24 }}><Loader2 size={24} className="animate-spin" /></div>
       <p className="v22-card-meta">{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
   )
@@ -146,23 +147,23 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <h2 className="v22-page-title">⏱️ {isPt ? 'Pointagem' : 'Pointage'}</h2>
+          <h2 className="v22-page-title"><Clock size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Pointagem' : 'Pointage'}</h2>
           <p className="v22-page-sub">{isPt ? 'Manuel ou automático por GPS' : 'Manuel ou automatique par GPS'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className={`v22-btn v22-btn-sm`}
             style={{ background: tab === 'pointages' ? 'var(--v22-yellow)' : 'transparent' }}
             onClick={() => setTab('pointages')}>
-            📋 {isPt ? 'Pontagens' : 'Pointages'}
+            <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Pontagens' : 'Pointages'}
           </button>
           <button className={`v22-btn v22-btn-sm`}
             style={{ background: tab === 'geo' ? 'var(--v22-yellow)' : 'transparent' }}
             onClick={() => setTab('geo')}>
-            📡 GPS
+            <Radio size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />GPS
           </button>
           {tab === 'pointages' && (
             <button className="v22-btn" onClick={() => setShowForm(true)}>
-              ➕ {isPt ? 'Pontar' : 'Pointer'}
+              <Plus size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Pontar' : 'Pointer'}
             </button>
           )}
         </div>
@@ -179,7 +180,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                 width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
                 background: geoStatus === 'in_zone' ? '#DEF7EC' : geoStatus === 'pointed' ? '#E8F5E9' : geoStatus === 'watching' ? '#FEF5E4' : '#F3F4F6',
               }}>
-                {geoStatus === 'in_zone' ? '📍' : geoStatus === 'pointed' ? '✅' : geoStatus === 'watching' ? '🔍' : '📡'}
+                {geoStatus === 'in_zone' ? <MapPin size={24} /> : geoStatus === 'pointed' ? <CheckCircle size={24} /> : geoStatus === 'watching' ? <Search size={24} /> : <Radio size={24} />}
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>
@@ -189,7 +190,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                   {geoStatus === 'pointed' && (isPt ? 'Pontado!' : 'Pointé !')}
                 </div>
                 <div className="v22-card-meta" style={{ fontSize: 12 }}>
-                  {nearestChantier && `📏 ${nearestChantier.distance}m`}
+                  {nearestChantier && <><Ruler size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{nearestChantier.distance}m</>}
                   {geo.position && ` — ${geo.position.lat.toFixed(4)}, ${geo.position.lng.toFixed(4)}`}
                 </div>
               </div>
@@ -197,7 +198,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
 
             {!settings.geo_pointage_enabled && (
               <div style={{ background: '#FEF3C7', borderRadius: 8, padding: 12, fontSize: 13, color: '#92400E', marginBottom: 12 }}>
-                ⚠️ {isPt
+                <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt
                   ? 'A pointagem GPS está desativada. Ative nas Configurações BTP.'
                   : 'Le pointage GPS est désactivé. Activez-le dans les Paramètres BTP.'}
               </div>
@@ -207,18 +208,18 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
               {!geo.watching ? (
                 <button className="v22-btn" onClick={() => { geo.start(); setGeoStatus('watching') }}
                   style={{ background: '#22C55E', color: '#fff' }}>
-                  📡 {isPt ? 'Ativar GPS' : 'Activer GPS'}
+                  <Radio size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Ativar GPS' : 'Activer GPS'}
                 </button>
               ) : (
                 <button className="v22-btn" onClick={() => { geo.stop(); setGeoStatus('idle') }}
                   style={{ background: '#EF4444', color: '#fff' }}>
-                  ⏹️ {isPt ? 'Parar GPS' : 'Arrêter GPS'}
+                  <Square size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Parar GPS' : 'Arrêter GPS'}
                 </button>
               )}
               {geoStatus === 'in_zone' && nearestChantier && (
                 <button className="v22-btn" onClick={() => pointGeo(nearestChantier)}
                   style={{ background: 'var(--v22-yellow)', fontWeight: 700 }}>
-                  ✅ {isPt ? `Pontar em ${nearestChantier.titre}` : `Pointer sur ${nearestChantier.titre}`}
+                  <CheckCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? `Pontar em ${nearestChantier.titre}` : `Pointer sur ${nearestChantier.titre}`}
                 </button>
               )}
             </div>
@@ -227,7 +228,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
           {/* Liste des chantiers avec leur GPS */}
           <div className="v22-card">
             <div className="v22-card-head">
-              <div className="v22-card-title">📍 {isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
+              <div className="v22-card-title"><MapPin size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
             </div>
             <div className="v22-card-body">
               {chantiers.filter((c: any) => c.latitude && c.statut === 'En cours').length === 0 ? (
@@ -283,7 +284,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
             <div className="v22-card">
               <div className="v22-card-head">
                 <div className="v22-card-title">{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
-                <button className="v22-btn v22-btn-sm" onClick={() => setShowForm(false)}>✕</button>
+                <button className="v22-btn v22-btn-sm" onClick={() => setShowForm(false)}><X size={14} /></button>
               </div>
               <div className="v22-card-body">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -326,7 +327,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                     )}
                   </div>
                   <div>
-                    <label className="v22-form-label">📅 Date</label>
+                    <label className="v22-form-label"><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Date</label>
                     <input type="date" className="v22-form-input" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
                   </div>
                   <div>
@@ -347,11 +348,11 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                   </div>
                 </div>
                 <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
-                  ⏱️ {isPt ? 'Horas' : 'Heures'}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+                  <Clock size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Horas' : 'Heures'}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                   <button className="v22-btn" onClick={addPointage} disabled={!form.employe}>
-                    ✅ {isPt ? 'Registar' : 'Enregistrer'}
+                    <CheckCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Registar' : 'Enregistrer'}
                   </button>
                   <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }}
                     onClick={() => setShowForm(false)}>
@@ -368,7 +369,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
               <div className="v22-card-body" style={{ paddingBottom: 8 }}>
                 <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <div>
-                    <label className="v22-form-label">📅 Date</label>
+                    <label className="v22-form-label"><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Date</label>
                     <input type="date" className="v22-form-input" style={{ width: 160 }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
                   </div>
                   <div>
@@ -412,12 +413,12 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                         <td style={{ padding: '8px 12px' }}>{p.heureDepart || '—'}</td>
                         <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{p.heuresTravaillees}h</td>
                         <td style={{ padding: '8px 12px' }}>
-                          {p.mode === 'geo_confirme' && <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}>📍 GPS</span>}
-                          {p.mode === 'geo_auto' && <span className="v22-tag v22-tag-blue" style={{ fontSize: 10 }}>🛰️ Auto</span>}
-                          {p.mode === 'manuel' && <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>✏️</span>}
+                          {p.mode === 'geo_confirme' && <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}><MapPin size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />GPS</span>}
+                          {p.mode === 'geo_auto' && <span className="v22-tag v22-tag-blue" style={{ fontSize: 10 }}><Satellite size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />Auto</span>}
+                          {p.mode === 'manuel' && <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}><Pencil size={10} /></span>}
                         </td>
                         <td style={{ padding: '8px 12px' }}>
-                          <button onClick={() => remove(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 14 }}>✕</button>
+                          <button onClick={() => remove(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 14 }}><X size={14} /></button>
                         </td>
                       </tr>
                     ))}

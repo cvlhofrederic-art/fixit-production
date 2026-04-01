@@ -268,7 +268,10 @@ export default function AdminDashboardPage() {
   const fetchKycRows = useCallback(async (status: 'pending' | 'approved' | 'rejected') => {
     setKycLoading(true)
     try {
-      const res = await fetch(`/api/admin/kyc?status=${status}&limit=50`)
+      const token = await getToken()
+      const res = await fetch(`/api/admin/kyc?status=${status}&limit=50`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      })
       if (!res.ok) throw new Error('fetch failed')
       const json = await res.json()
       setKycRows(json.data ?? [])
@@ -277,12 +280,13 @@ export default function AdminDashboardPage() {
     } finally {
       setKycLoading(false)
     }
-  }, [])
+  }, [getToken])
 
   const handleKycAction = async (artisanId: string, action: 'approve' | 'reject', reason?: string) => {
+    const token = await getToken()
     const res = await fetch('/api/admin/kyc', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ artisan_id: artisanId, action, rejection_reason: reason }),
     })
     if (res.ok) {

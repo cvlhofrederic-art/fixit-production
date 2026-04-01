@@ -12,6 +12,7 @@ import {
   type EtatMateriel,
   type CreateListingPayload,
 } from '@/lib/marketplace-btp-types'
+import { PlusCircle, Pencil, Trash2, Search, ShoppingCart, Package, BarChart3, Tag, Eye, MapPin, Phone, Mail, AlertTriangle, ChevronDown, Camera, Check, Send, Clock, Pause, Play, X, Lock, DollarSign, Calendar, Euro } from 'lucide-react'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function fmtEur(v: number, locale: string) {
@@ -40,9 +41,9 @@ function etatColor(e: string) {
   return { neuf: '#22c55e', bon: '#3b82f6', correct: '#eab308', use: '#f97316' }[e] ?? '#888'
 }
 function typeLabel(t: string, isPt: boolean) {
-  if (t === 'vente') return isPt ? '💰 Venda' : '💰 Vente'
-  if (t === 'location') return isPt ? '📅 Aluguer' : '📅 Location'
-  return isPt ? '💰📅 Venda/Aluguer' : '💰📅 Vente/Location'
+  if (t === 'vente') return isPt ? 'Venda' : 'Vente'
+  if (t === 'location') return isPt ? 'Aluguer' : 'Location'
+  return isPt ? 'Venda/Aluguer' : 'Vente/Location'
 }
 
 const ETAT_OPTIONS: EtatMateriel[] = ['neuf', 'bon', 'correct', 'use']
@@ -51,7 +52,7 @@ const ETAT_OPTIONS: EtatMateriel[] = ['neuf', 'bon', 'correct', 'use']
 function EmptyState({ text, sub }: { text: string; sub?: string }) {
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--v22-text-muted)' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
+      <div style={{ fontSize: 40, marginBottom: 12 }}><Package size={40} strokeWidth={1.5} /></div>
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-text)', marginBottom: 4 }}>{text}</div>
       {sub && <div style={{ fontSize: 12 }}>{sub}</div>}
     </div>
@@ -71,7 +72,7 @@ function ListingCard({ listing, isPt, onContact, isOwn }: {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 36, borderBottom: '1px solid var(--v22-border)',
       }}>
-        {!firstPhoto && (MARKETPLACE_CATEGORIES.find(c => c.id === listing.categorie)?.emoji ?? '📦')}
+        {!firstPhoto && (MARKETPLACE_CATEGORIES.find(c => c.id === listing.categorie)?.emoji ?? <Package size={36} />)}
       </div>
       <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Titre + état */}
@@ -95,19 +96,19 @@ function ListingCard({ listing, isPt, onContact, isOwn }: {
         </div>
         {/* Localisation + marque */}
         <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
-          {listing.localisation && <span>📍 {listing.localisation}</span>}
+          {listing.localisation && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={11} /> {listing.localisation}</span>}
           {listing.marque && <span> · {listing.marque}{listing.modele ? ` ${listing.modele}` : ''}</span>}
           {listing.annee && <span> · {listing.annee}</span>}
         </div>
         {/* Date + vues */}
         <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 'auto', paddingTop: 6, borderTop: '1px solid var(--v22-border)' }}>
           <span>{daysAgo(listing.created_at, isPt)}</span>
-          <span>👁 {listing.vues}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Eye size={11} /> {listing.vues}</span>
         </div>
         {/* CTA */}
         {!isOwn && onContact && (
           <button onClick={onContact} className="v22-btn v22-btn-primary" style={{ marginTop: 6, width: '100%', fontSize: 12, padding: '7px 0' }}>
-            {isPt ? '📩 Contactar vendedor' : '📩 Contacter le vendeur'}
+            <Send size={12} /> {isPt ? 'Contactar vendedor' : 'Contacter le vendeur'}
           </button>
         )}
       </div>
@@ -136,7 +137,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
     <div className="v22-modal-overlay">
       <div className="v22-modal" style={{ maxWidth: 520 }}>
         <div className="v22-modal-head">
-          <div className="v22-modal-title">{isPt ? '📩 Contactar vendedor' : '📩 Contacter le vendeur'}</div>
+          <div className="v22-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Send size={16} /> {isPt ? 'Contactar vendedor' : 'Contacter le vendeur'}</div>
           <button className="v22-modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="v22-modal-body">
@@ -150,7 +151,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['achat', 'location'] as const).map(t => (
                   <button key={t} onClick={() => setType(t)} className="v22-btn" style={{ flex: 1, background: type === t ? 'var(--v22-yellow)' : 'var(--v22-surface)', color: type === t ? 'var(--v22-text)' : 'var(--v22-text-muted)', border: `1px solid ${type === t ? 'var(--v22-yellow)' : 'var(--v22-border)'}`, fontWeight: type === t ? 700 : 400 }}>
-                    {t === 'achat' ? (isPt ? '💰 Compra' : '💰 Achat') : (isPt ? '📅 Aluguer' : '📅 Location')}
+                    {t === 'achat' ? (isPt ? 'Compra' : 'Achat') : (isPt ? 'Aluguer' : 'Location')}
                   </button>
                 ))}
               </div>
@@ -184,7 +185,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
         <div className="v22-modal-foot">
           <button className="v22-btn" onClick={onClose}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           <button className="v22-btn v22-btn-primary" onClick={handleSubmit} disabled={loading || !message.trim()}>
-            {loading ? '⏳' : (isPt ? '📩 Enviar pedido' : '📩 Envoyer la demande')}
+            {loading ? <Clock size={14} className="animate-spin" /> : <><Send size={12} /> {isPt ? 'Enviar pedido' : 'Envoyer la demande'}</>}
           </button>
         </div>
       </div>
@@ -236,7 +237,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
   return (
     <div className="v22-card">
       <div className="v22-card-head">
-        <div className="v22-card-title">{initial ? (isPt ? '✏️ Editar anúncio' : '✏️ Modifier l\'annonce') : (isPt ? '+ Nova anúncio' : '+ Nouvelle annonce')}</div>
+        <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{initial ? <><Pencil size={14} /> {isPt ? 'Editar anúncio' : 'Modifier l\'annonce'}</> : <><PlusCircle size={14} /> {isPt ? 'Novo anúncio' : 'Nouvelle annonce'}</>}</div>
       </div>
       <div className="v22-card-body" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
@@ -257,9 +258,9 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
           <div>
             <label className="v22-label">{isPt ? 'Tipo *' : 'Type *'}</label>
             <select value={type} onChange={e => setType(e.target.value as TypeAnnonce)} className="v22-form-input">
-              <option value="location">{isPt ? '📅 Aluguer' : '📅 Location'}</option>
-              <option value="vente">{isPt ? '💰 Venda' : '💰 Vente'}</option>
-              <option value="vente_location">{isPt ? '💰📅 Venda ou aluguer' : '💰📅 Vente ou location'}</option>
+              <option value="location">{isPt ? 'Aluguer' : 'Location'}</option>
+              <option value="vente">{isPt ? 'Venda' : 'Vente'}</option>
+              <option value="vente_location">{isPt ? 'Venda ou aluguer' : 'Vente ou location'}</option>
             </select>
           </div>
         </div>
@@ -351,7 +352,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid var(--v22-border)' }}>
           <button className="v22-btn" onClick={onCancel}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           <button className="v22-btn v22-btn-primary" onClick={handleSave} disabled={!title.trim()}>
-            {isPt ? '✅ Publicar anúncio' : '✅ Publier l\'annonce'}
+            <Check size={14} /> {isPt ? 'Publicar anúncio' : 'Publier l\'annonce'}
           </button>
         </div>
       </div>
@@ -379,6 +380,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
   const [editListing, setEditListing] = useState<MarketplaceListing | null>(null)
   const [showDemandeModal, setShowDemandeModal] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Filtres parcourir
   const [filterCat, setFilterCat] = useState<string>('')
@@ -450,7 +452,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
         body: JSON.stringify(data),
       })
       if (res.ok) {
-        showToast(isPt ? '✅ Anúncio publicado!' : '✅ Annonce publiée !')
+        showToast(isPt ? 'Anúncio publicado!' : 'Annonce publiée !')
         setTab('mes_annonces')
         setEditListing(null)
         loadMyListings()
@@ -460,9 +462,9 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
   // ── Supprimer annonce ──────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    if (!confirm(isPt ? 'Eliminar este anúncio?' : 'Supprimer cette annonce ?')) return
     const token = await getToken()
     await fetch(`/api/marketplace-btp/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    setConfirmDeleteId(null)
     showToast(isPt ? 'Anúncio eliminado' : 'Annonce supprimée')
     loadMyListings()
   }
@@ -487,7 +489,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       body: JSON.stringify(d),
     })
     if (res.ok) {
-      showToast(isPt ? '📩 Pedido enviado!' : '📩 Demande envoyée !')
+      showToast(isPt ? 'Pedido enviado!' : 'Demande envoyée !')
       setShowDemandeModal(false)
       setSelectedListing(null)
     }
@@ -500,7 +502,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ demande_id: demande.id, status, reponse_vendeur: reponse }),
     })
-    showToast(status === 'accepted' ? (isPt ? '✅ Pedido aceite' : '✅ Demande acceptée') : (isPt ? '❌ Pedido recusado' : '❌ Demande refusée'))
+    showToast(status === 'accepted' ? (isPt ? 'Pedido aceite' : 'Demande acceptée') : (isPt ? 'Pedido recusado' : 'Demande refusée'))
     loadDemandes()
   }
 
@@ -512,20 +514,13 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
   // ── Tabs ───────────────────────────────────────────────────────────────────
   const tabs = [
-    { key: 'parcourir' as Tab, label: isPt ? '🔍 Explorar' : '🔍 Parcourir', count: listings.length },
-    { key: 'mes_annonces' as Tab, label: isPt ? '📋 Meus anúncios' : '📋 Mes annonces', count: myListings.length, hidden: !isProSociete },
-    { key: 'nouvelle_annonce' as Tab, label: isPt ? '+ Novo anúncio' : '+ Nouvelle annonce', hidden: !isProSociete },
-    { key: 'demandes' as Tab, label: isPt ? '📩 Pedidos' : '📩 Demandes', count: demandes.filter(d => d.status === 'pending').length || undefined, hidden: !isProSociete },
-    { key: 'stats' as Tab, label: isPt ? '📊 Estatísticas' : '📊 Statistiques', hidden: !isProSociete },
+    { key: 'parcourir' as Tab, icon: <Search size={13} />, label: isPt ? 'Explorar' : 'Parcourir', count: listings.length },
+    { key: 'mes_annonces' as Tab, icon: <Package size={13} />, label: isPt ? 'Meus anúncios' : 'Mes annonces', count: myListings.length, hidden: !isProSociete },
+    { key: 'nouvelle_annonce' as Tab, icon: <PlusCircle size={13} />, label: isPt ? 'Novo anúncio' : 'Nouvelle annonce', hidden: !isProSociete },
+    { key: 'demandes' as Tab, icon: <Send size={13} />, label: isPt ? 'Pedidos' : 'Demandes', count: demandes.filter(d => d.status === 'pending').length || undefined, hidden: !isProSociete },
+    { key: 'stats' as Tab, icon: <BarChart3 size={13} />, label: isPt ? 'Estatísticas' : 'Statistiques', hidden: !isProSociete },
   ].filter(t => !t.hidden)
 
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    fontSize: 12, fontWeight: active ? 600 : 500, padding: '8px 14px',
-    background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
-    borderBottomColor: active ? 'var(--v22-yellow)' : 'transparent',
-    cursor: 'pointer', color: active ? 'var(--v22-text)' : 'var(--v22-text-muted)',
-    whiteSpace: 'nowrap', transition: 'all 0.15s',
-  })
 
   return (
     <div className="animate-fadeIn">
@@ -539,7 +534,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {/* Header */}
       <div className="v22-page-header">
         <div>
-          <h1 className="v22-page-title">{isPt ? '🏗️ Marketplace PRO BTP' : '🏗️ Marketplace PRO BTP'}</h1>
+          <h1 className="v22-page-title">Marketplace PRO BTP</h1>
           <p className="v22-page-sub">
             {isAE
               ? (isPt ? 'Mini-máquinas e material leve disponíveis para aluguer' : 'Mini-engins et matériel léger disponibles à la location')
@@ -557,7 +552,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {isAE && (
         <div className="v22-card" style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6', background: 'rgba(59,130,246,0.06)', padding: '10px 14px' }}>
           <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
-            🔒 {isPt
+            <Lock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt
               ? 'Acesso restrito a mini-máquinas e material leve. As empresas PRO têm acesso à gama completa.'
               : 'Accès restreint aux mini-engins et matériel léger. Les entreprises PRO ont accès à la gamme complète.'}
           </span>
@@ -567,8 +562,8 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--v22-border)', marginBottom: 20, overflowX: 'auto' }}>
         {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={tabStyle(tab === t.key)}>
-            {t.label}
+          <button key={t.key} onClick={() => setTab(t.key)} className={`v22-tab${tab === t.key ? ' active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            {t.icon} {t.label}
             {t.count != null && t.count > 0 && (
               <span style={{ marginLeft: 6, background: 'var(--v22-yellow)', color: '#111', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                 {t.count}
@@ -591,17 +586,17 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)} className="v22-form-input" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
               <option value="">{isPt ? '— Venda & aluguer —' : '— Vente & location —'}</option>
-              <option value="vente">{isPt ? '💰 Venda' : '💰 Vente'}</option>
-              <option value="location">{isPt ? '📅 Aluguer' : '📅 Location'}</option>
+              <option value="vente">{isPt ? 'Venda' : 'Vente'}</option>
+              <option value="location">{isPt ? 'Aluguer' : 'Location'}</option>
             </select>
             <button className="v22-btn" style={{ fontSize: 12, padding: '6px 14px' }} onClick={loadListings}>
-              {loading ? '⏳' : (isPt ? '🔍 Filtrar' : '🔍 Filtrer')}
+              {loading ? <Clock size={12} className="animate-spin" /> : <><Search size={12} /> {isPt ? 'Filtrar' : 'Filtrer'}</>}
             </button>
           </div>
 
           {/* Grille */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--v22-text-muted)' }}>⏳ {isPt ? 'A carregar...' : 'Chargement...'}</div>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Clock size={16} className="animate-spin" /> {isPt ? 'A carregar...' : 'Chargement...'}</div>
           ) : listings.length === 0 ? (
             <EmptyState
               text={isPt ? 'Nenhum anúncio disponível' : 'Aucune annonce disponible'}
@@ -633,7 +628,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                 <div key={l.id} className="v22-card">
                   <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ width: 48, height: 48, borderRadius: 6, background: l.photos?.[0] ? `url(${l.photos[0]}) center/cover` : 'var(--v22-bg)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, border: '1px solid var(--v22-border)' }}>
-                      {!l.photos?.[0] && (MARKETPLACE_CATEGORIES.find(c => c.id === l.categorie)?.emoji ?? '📦')}
+                      {!l.photos?.[0] && (MARKETPLACE_CATEGORIES.find(c => c.id === l.categorie)?.emoji ?? <Package size={22} />)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 2 }}>{l.title}</div>
@@ -641,7 +636,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                         {getCat(l.categorie, isPt)} · {typeLabel(l.type_annonce, isPt)} · {l.localisation || (isPt ? 'Sem localização' : 'Sans localisation')}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
-                        👁 {l.vues} {isPt ? 'visualizações' : 'vues'} · {daysAgo(l.created_at, isPt)}
+                        <Eye size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> {l.vues} {isPt ? 'visualizações' : 'vues'} · {daysAgo(l.created_at, isPt)}
                       </div>
                     </div>
                     {/* Status badge */}
@@ -650,16 +645,16 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                       background: l.status === 'active' ? 'rgba(34,197,94,0.12)' : l.status === 'paused' ? 'rgba(234,179,8,0.12)' : 'rgba(239,68,68,0.12)',
                       color: l.status === 'active' ? '#22c55e' : l.status === 'paused' ? '#eab308' : '#ef4444',
                     }}>
-                      {l.status === 'active' ? (isPt ? '● ATIVO' : '● ACTIVE') : l.status === 'paused' ? (isPt ? '⏸ PAUSADO' : '⏸ PAUSÉE') : (isPt ? '✓ VENDIDO/ALUGADO' : '✓ VENDU/LOUÉ')}
+                      {l.status === 'active' ? (isPt ? '● ATIVO' : '● ACTIVE') : l.status === 'paused' ? (isPt ? '▪ PAUSADO' : '▪ PAUSÉE') : (isPt ? '✓ VENDIDO/ALUGADO' : '✓ VENDU/LOUÉ')}
                     </span>
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }}>✏️</button>
+                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }}><Pencil size={14} /></button>
                       {l.status === 'active'
-                        ? <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => handleStatusChange(l, 'paused')}>{isPt ? '⏸ Pausar' : '⏸ Pausser'}</button>
-                        : <button className="v22-btn v22-btn-primary" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => handleStatusChange(l, 'active')}>{isPt ? '▶ Ativar' : '▶ Activer'}</button>
+                        ? <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'paused')}><Pause size={12} /> {isPt ? 'Pausar' : 'Pauser'}</button>
+                        : <button className="v22-btn v22-btn-primary" style={{ fontSize: 11, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'active')}><Play size={12} /> {isPt ? 'Ativar' : 'Activer'}</button>
                       }
-                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--v22-red)' }} onClick={() => handleDelete(l.id)}>🗑</button>
+                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--v22-red)' }} onClick={() => setConfirmDeleteId(l.id)}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -694,12 +689,12 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 2 }}>
-                          {d.type_demande === 'achat' ? (isPt ? '💰 Demande d\'achat' : '💰 Demande d\'achat') : (isPt ? '📅 Pedido de aluguer' : '📅 Demande de location')}
+                          {d.type_demande === 'achat' ? (isPt ? 'Pedido de compra' : 'Demande d\'achat') : (isPt ? 'Pedido de aluguer' : 'Demande de location')}
                           {' — '}
                           <span style={{ color: 'var(--v22-text-muted)', fontWeight: 400 }}>{(d.listing as any)?.title || isPt ? 'Anúncio' : 'Annonce'}</span>
                         </div>
-                        {d.date_debut && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>📅 {d.date_debut}{d.date_fin ? ` → ${d.date_fin}` : ''}</div>}
-                        {d.prix_propose && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>💶 {fmtEur(d.prix_propose, isPt ? 'pt' : 'fr')} {isPt ? 'proposto' : 'proposé'}</div>}
+                        {d.date_debut && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} /> {d.date_debut}{d.date_fin ? ` → ${d.date_fin}` : ''}</div>}
+                        {d.prix_propose && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={11} /> {fmtEur(d.prix_propose, isPt ? 'pt' : 'fr')} {isPt ? 'proposto' : 'proposé'}</div>}
                         {d.message && <div style={{ fontSize: 12, color: 'var(--v22-text)', marginTop: 6, fontStyle: 'italic' }}>"{d.message}"</div>}
                       </div>
                       <span style={{
@@ -707,7 +702,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                         background: d.status === 'pending' ? 'rgba(234,179,8,0.12)' : d.status === 'accepted' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
                         color: d.status === 'pending' ? '#eab308' : d.status === 'accepted' ? '#22c55e' : '#ef4444',
                       }}>
-                        {d.status === 'pending' ? (isPt ? '⏳ PENDENTE' : '⏳ EN ATTENTE') : d.status === 'accepted' ? (isPt ? '✅ ACEITE' : '✅ ACCEPTÉ') : (isPt ? '❌ RECUSADO' : '❌ REFUSÉ')}
+                        {d.status === 'pending' ? (isPt ? 'PENDENTE' : 'EN ATTENTE') : d.status === 'accepted' ? (isPt ? 'ACEITE' : 'ACCEPTÉ') : (isPt ? 'RECUSADO' : 'REFUSÉ')}
                       </span>
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: d.status === 'pending' ? 10 : 0 }}>
@@ -716,10 +711,10 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                     {d.status === 'pending' && (
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button className="v22-btn v22-btn-primary" style={{ fontSize: 11, padding: '5px 14px' }} onClick={() => handleRespond(d, 'accepted', isPt ? 'Pedido aceite. Entraremos em contacto.' : 'Demande acceptée. Nous vous contacterons.')}>
-                          {isPt ? '✅ Aceitar' : '✅ Accepter'}
+                          <Check size={12} /> {isPt ? 'Aceitar' : 'Accepter'}
                         </button>
                         <button className="v22-btn" style={{ fontSize: 11, padding: '5px 14px', color: 'var(--v22-red)' }} onClick={() => handleRespond(d, 'rejected', isPt ? 'Lamentamos, não está disponível.' : 'Désolé, non disponible.')}>
-                          {isPt ? '❌ Recusar' : '❌ Refuser'}
+                          <X size={12} /> {isPt ? 'Recusar' : 'Refuser'}
                         </button>
                       </div>
                     )}
@@ -755,7 +750,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
           {/* Répartition par catégorie */}
           <div className="v22-card">
-            <div className="v22-card-head"><div className="v22-card-title">{isPt ? '📊 Anúncios por categoria' : '📊 Annonces par catégorie'}</div></div>
+            <div className="v22-card-head"><div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BarChart3 size={14} /> {isPt ? 'Anúncios por categoria' : 'Annonces par catégorie'}</div></div>
             <div className="v22-card-body" style={{ padding: 16 }}>
               {MARKETPLACE_CATEGORIES.filter(c => myListings.some(l => l.categorie === c.id)).map(c => {
                 const count = myListings.filter(l => l.categorie === c.id).length
@@ -785,6 +780,29 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           onClose={() => { setShowDemandeModal(false); setSelectedListing(null) }}
           onSubmit={handleSendDemande}
         />
+      )}
+
+      {/* Modal confirmation suppression */}
+      {confirmDeleteId && (
+        <div className="v22-modal-overlay">
+          <div className="v22-modal" style={{ maxWidth: 400 }}>
+            <div className="v22-modal-head">
+              <div className="v22-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
+              <button className="v22-modal-close" onClick={() => setConfirmDeleteId(null)}>✕</button>
+            </div>
+            <div className="v22-modal-body">
+              <p style={{ fontSize: 13, color: 'var(--v22-text)' }}>
+                {isPt ? 'Tem a certeza que quer eliminar este anúncio? Esta ação é irreversível.' : 'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.'}
+              </p>
+            </div>
+            <div className="v22-modal-foot">
+              <button className="v22-btn" onClick={() => setConfirmDeleteId(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className="v22-btn" style={{ background: 'var(--v22-red)', color: '#fff', border: 'none' }} onClick={() => handleDelete(confirmDeleteId)}>
+                <Trash2 size={12} /> {isPt ? 'Eliminar' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

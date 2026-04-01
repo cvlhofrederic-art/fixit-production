@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { PlusCircle, X, FileText, Download } from 'lucide-react'
 
 interface DOEDocument { nom: string; type: 'plan' | 'notice' | 'certificat' | 'photo'; ajouteLe: string }
 interface DOEEntry {
@@ -43,6 +44,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; 
   const [tab, setTab] = useState<'reglementation' | 'modeles' | 'doe'>('reglementation')
   const [doeList, setDoeList] = useState<DOEEntry[]>([])
   const [showModal, setShowModal] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [toast, setToast] = useState('')
   const [doeForm, setDoeForm] = useState({ chantier: '', dateRemise: '', documents: [{ nom: '', type: 'plan' as DOEDocument['type'], ajouteLe: new Date().toISOString().split('T')[0] }] })
 
@@ -124,7 +126,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; 
                 <span className="text-xs font-medium text-blue-600 uppercase">{m.categorie}</span>
                 <p className="font-semibold text-gray-900">{m.nom}</p>
               </div>
-              <button onClick={() => showToast('Téléchargé')} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700">Télécharger</button>
+              <button onClick={() => showToast('Téléchargé')} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 flex items-center gap-1"><Download size={14} /> Télécharger</button>
             </div>
           ))}
         </div>
@@ -133,7 +135,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; 
       {tab === 'doe' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium">+ Nouveau DOE</button>
+            <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium flex items-center gap-1"><PlusCircle size={14} /> Nouveau DOE</button>
           </div>
           {doeList.length === 0 && <p className="text-gray-400 text-center py-8">Aucun DOE enregistré</p>}
           {doeList.map(doe => (
@@ -147,7 +149,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; 
                     <option value="complet">Complet</option>
                     <option value="remis">Remis</option>
                   </select>
-                  <button onClick={() => deleteDoe(doe.id)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
+                  <button onClick={() => setConfirmDeleteId(doe.id)} className="text-red-400 hover:text-red-600 text-sm"><X size={14} /></button>
                 </div>
               </div>
               <p className="text-sm text-gray-500">Remise : {doe.dateRemise || '—'}</p>
@@ -181,11 +183,24 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; 
                   </select>
                 </div>
               ))}
-              <button onClick={() => setDoeForm({ ...doeForm, documents: [...doeForm.documents, { nom: '', type: 'plan', ajouteLe: new Date().toISOString().split('T')[0] }] })} className="text-sm text-amber-600 hover:text-amber-700">+ Ajouter un document</button>
+              <button onClick={() => setDoeForm({ ...doeForm, documents: [...doeForm.documents, { nom: '', type: 'plan', ajouteLe: new Date().toISOString().split('T')[0] }] })} className="text-sm text-amber-600 hover:text-amber-700 flex items-center gap-1"><PlusCircle size={14} /> Ajouter un document</button>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
               <button onClick={addDoe} disabled={!doeForm.chantier.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirmation suppression DOE */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDeleteId(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-2">Supprimer ce DOE ?</h3>
+            <p className="text-sm text-gray-500 mb-6">Cette action est irréversible.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
+              <button onClick={() => { deleteDoe(confirmDeleteId); setConfirmDeleteId(null) }} className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600">Supprimer</button>
             </div>
           </div>
         </div>
