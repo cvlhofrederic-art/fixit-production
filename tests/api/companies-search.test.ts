@@ -22,12 +22,7 @@ vi.mock('@/lib/supabase-server', () => {
   const mockPivotEq = vi.fn().mockReturnValue({ data: pivotRows, error: null, then: undefined })
   // pivot query: .select(...).eq('specialty_id', id) OR .select(...).eq(...).eq(...)
   const mockPivotSelect = vi.fn().mockReturnValue({
-    eq: vi.fn().mockReturnValue({
-      data: pivotRows,
-      error: null,
-      // also support .eq chaining
-      eq: vi.fn().mockResolvedValue({ data: pivotRows, error: null }),
-    }),
+    eq: vi.fn().mockResolvedValue({ data: pivotRows, error: null }),
   })
 
   return {
@@ -65,9 +60,8 @@ describe('GET /api/companies/search', () => {
     const req = new Request('http://localhost/api/companies/search?specialty=ferronnerie')
     const res = await GET(req as any)
     const json = await res.json()
-    if (json.results.length > 0) {
-      expect(json.results[0]).toHaveProperty('verified_source')
-      expect(json.results[0]).toHaveProperty('profile_type', 'artisan')
-    }
+    expect(json.results.length).toBeGreaterThan(0)
+    expect(json.results[0]).toHaveProperty('verified_source')
+    expect(json.results[0]).toHaveProperty('profile_type', 'artisan')
   })
 })
