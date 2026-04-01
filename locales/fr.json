@@ -284,6 +284,10 @@
     "drainCleaning": {
       "title": "Débouchage",
       "desc": "Débouchage canalisations, curage, assainissement"
+    },
+    "metallerie": {
+      "title": "Métallerie / Ferronnerie",
+      "desc": "Portails, grilles, garde-corps, escaliers métalliques, serrurerie de bâtiment"
     }
   },
   "trades": {
@@ -354,6 +358,10 @@
     "renovation": {
       "title": "Rénovation",
       "slug": "renovation"
+    },
+    "ferronnier": {
+      "title": "Métallier / Ferronnier",
+      "slug": "metallerie"
     }
   },
   "dashboard": {
@@ -3919,12 +3927,14 @@
     "metierStoreBanne": "Store Banne & Pergola",
     "metierPaysagisteConcepteur": "Paysagiste / Concepteur",
     "metierDebouchage": "Débouchage / Assainissement",
+    "metierMetallerie": "Métallier / Ferronnier",
     "sectorBtpGrosOeuvre": "Gros œuvre / Maçonnerie",
     "sectorBtpElecPlomb": "Électricité / Plomberie",
     "sectorBtpPeinture": "Peinture / Revêtements",
     "sectorBtpMenuiserie": "Menuiserie / Charpente",
     "sectorBtpCvc": "CVC / Climatisation",
     "sectorBtpToiture": "Toiture / Étanchéité",
+    "sectorBtpMetallerie": "Métallerie / Ferronnerie",
     "sectorBtpGeneral": "Entreprise générale",
     "sectorBtpBureau": "Bureau d'études",
     "sectorBtpAutre": "Autre BTP",

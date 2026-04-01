@@ -46,6 +46,10 @@ const SERVICE_KEYWORDS: Record<string, { name: string; icon: string; slug: strin
     slug: 'nettoyage-encombrants', name: 'Débarras / Encombrants', icon: '🗑️',
     keywords: ['débarras', 'debarras', 'encombrant', 'nettoyage', 'vider', 'cave', 'grenier', 'déménagement', 'remise en état'],
   },
+  metallier: {
+    slug: 'metallerie', name: 'Métallerie / Ferronnerie', icon: '⚙️',
+    keywords: ['portail', 'grille', 'garde-corps', 'balustrade', 'rampe', 'escalier métallique', 'métallier', 'ferronnier', 'ferronnerie', 'métallerie', 'fer forgé', 'acier', 'inox', 'aluminium'],
+  },
 }
 
 // Prix indicatifs par service (PACA 2026)
@@ -60,6 +64,7 @@ const SERVICE_PRICES: Record<string, { label: string; detail: string; color: str
   climatisation:      { label: '800 € – 3 500 €', detail: 'fourniture + pose', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
   macon:              { label: '50 € – 2 500 €', detail: 'selon envergure travaux', color: 'bg-amber-50 text-amber-700 border-amber-200' },
   'nettoyage-encombrants': { label: '150 € – 900 €', detail: 'selon volume', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  metallerie:              { label: '500 € – 5 000 €', detail: 'selon ouvrage (portail, garde-corps…)', color: 'bg-slate-50 text-slate-700 border-slate-200' },
 }
 
 const PACA_CITIES = [

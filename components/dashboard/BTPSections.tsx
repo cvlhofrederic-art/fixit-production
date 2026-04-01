@@ -45,7 +45,7 @@ const DEFAULT_PERMS: Record<TypeCompte, PermMap> = {
   gerant:            { pointage: true,  agenda: true,  chantiers: true,  devis: true,  rapports: true,  equipes: true,  materiaux: true,  comptabilite: true  },
 }
 
-const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Multi-corps']
+const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Métallerie / Ferronnerie', 'Multi-corps']
 
 const EMPTY_PERM: PermMap = { pointage: false, agenda: false, chantiers: false, devis: false, rapports: false, equipes: false, materiaux: false, comptabilite: false }
 

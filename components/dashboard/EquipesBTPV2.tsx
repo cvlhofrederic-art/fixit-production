@@ -73,7 +73,7 @@ const CONTRAT_LABELS: Record<TypeContrat, string> = {
   independant: 'Indépendant',
 }
 
-const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Multi-corps']
+const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Métallerie / Ferronnerie', 'Multi-corps']
 
 // Salary calculation now uses /lib/payroll/engine.ts
 // Local wrappers for the form auto-calc (accept percentages, not fractions)

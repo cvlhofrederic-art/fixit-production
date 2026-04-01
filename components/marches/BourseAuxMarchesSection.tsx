@@ -32,6 +32,7 @@ const CATEGORIES = [
   { id: 'mudancas', label: 'Mudanças', labelFr: 'Déménagement', emoji: '📦' },
   { id: 'renovacao', label: 'Renovação', labelFr: 'Rénovation', emoji: '🔨' },
   { id: 'isolamento', label: 'Isolamento', labelFr: 'Isolation', emoji: '🧱' },
+  { id: 'metallerie', label: 'Serralharia / Ferragem', labelFr: 'Métallerie / Ferronnerie', emoji: '⚙️' },
   { id: 'outro', label: 'Outro', labelFr: 'Autre', emoji: '📋' },
 ]
 

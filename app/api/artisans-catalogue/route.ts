@@ -23,6 +23,7 @@ const SERVICE_TO_METIERS: Record<string, string[]> = {
   'macon':                  ['Maçon'],
   'store-banne':            ['Menuisier'],
   'vitrier':                ['Vitrier'],
+  'metallerie':             ['Métallier', 'Ferronnier', 'Métallerie'],
 }
 
 export async function GET(req: NextRequest) {

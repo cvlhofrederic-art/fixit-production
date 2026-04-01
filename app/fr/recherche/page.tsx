@@ -166,6 +166,7 @@ const CATEGORY_LABELS_FR: Record<string, string> = {
   vitrerie: 'Vitrier',
   'traitement-nuisibles': 'Traitement nuisibles',
   'petits-travaux': 'Petits travaux',
+  metallerie: 'Métallier / Ferronnier',
 }
 
 const CATEGORY_LABELS_PT: Record<string, string> = {
@@ -186,6 +187,7 @@ const CATEGORY_LABELS_PT: Record<string, string> = {
   vitrerie: 'Vidraceiro',
   'traitement-nuisibles': 'Controlo de pragas',
   'petits-travaux': 'Pequenos trabalhos',
+  metallerie: 'Metaleiro / Ferreiro',
 }
 
 function getCategoryLabel(cat: string, locale: 'fr' | 'pt' = 'fr'): string {
@@ -214,6 +216,7 @@ const CATEGORY_TO_METIERS: Record<string, string[]> = {
   vitrerie:      ['Vitrier', 'Vitrerie', 'Vidraceiro', 'Vidraçaria'],
   'traitement-nuisibles': ['Traitement nuisibles', 'Dératisation', 'Désinsectisation', '3D', 'Controlo de pragas', 'Desratização', 'Desinfestação'],
   'petits-travaux': ['Petits travaux', 'Bricolage', 'Bricolagem', 'Pequenos trabalhos', 'Reparações gerais'],
+  metallerie:    ['Métallier', 'Ferronnier', 'Métallerie', 'Ferronnerie', 'Metaleiro', 'Ferreiro', 'Serralharia de construção'],
 }
 
 function metierToCategory(metier: string): string {
@@ -363,6 +366,14 @@ const KEYWORD_TO_CATEGORY: Record<string, string> = {
   rato: 'traitement-nuisibles', ratos: 'traitement-nuisibles',
   // Bricolage PT
   bricolagem: 'petits-travaux', reparacoes2: 'petits-travaux',
+  // Métallerie / Ferronnerie FR
+  metallier: 'metallerie', ferronnier: 'metallerie', metallerie: 'metallerie',
+  ferronnerie: 'metallerie', portail: 'metallerie', portails: 'metallerie',
+  grille: 'metallerie', grilles: 'metallerie', garde: 'metallerie',
+  balustrade: 'metallerie', rampe: 'metallerie', escalier: 'metallerie',
+  // Métallerie PT
+  metaleiro: 'metallerie', ferreiro: 'metallerie', serralharia: 'metallerie',
+  portao: 'metallerie', grade: 'metallerie', grades: 'metallerie',
 }
 
 // ------------------------------------------------------------------
@@ -425,6 +436,10 @@ const SPECIALTY_SUGGESTIONS_FR: SpecialtySuggestion[] = [
   { label: 'Entretien piscine', category: 'piscine', icon: '🏊', subtitle: 'Pisciniste', type: 'intervention' },
   { label: 'Pose store banne', category: 'store-banne', icon: '☀️', subtitle: 'Store Banne', type: 'intervention' },
   { label: 'Canalisation bouchée', category: 'debouchage', icon: '🚿', subtitle: 'Débouchage', type: 'intervention' },
+  { label: 'Métallier / Ferronnier', category: 'metallerie', icon: '⚙️', type: 'primary' },
+  { label: 'Portail métallique', category: 'metallerie', icon: '🚧', subtitle: 'Métallier', type: 'intervention' },
+  { label: 'Grille de sécurité', category: 'metallerie', icon: '⚙️', subtitle: 'Ferronnier', type: 'intervention' },
+  { label: 'Garde-corps', category: 'metallerie', icon: '🔩', subtitle: 'Métallier', type: 'intervention' },
 ]
 
 function levenshtein(a: string, b: string): number {

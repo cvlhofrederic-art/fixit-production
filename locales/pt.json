@@ -284,6 +284,10 @@
     "drainCleaning": {
       "title": "Desentupimento",
       "desc": "Desentupimento de canalizações, limpeza de esgotos"
+    },
+    "metallerie": {
+      "title": "Serralharia / Ferragem",
+      "desc": "Portões, grades, guardas, escadas metálicas, serralharia de construção"
     }
   },
   "trades": {
@@ -354,6 +358,10 @@
     "renovation": {
       "title": "Empresa de remodelação",
       "slug": "empresa-remodelacao"
+    },
+    "metaleiro": {
+      "title": "Metaleiro / Ferreiro",
+      "slug": "metaleiro"
     }
   },
   "dashboard": {
@@ -3922,12 +3930,14 @@
     "metierStoreBanne": "Toldos e Pérgulas",
     "metierPaysagisteConcepteur": "Paisagista / Designer de exteriores",
     "metierDebouchage": "Desentupimento / Saneamento",
+    "metierMetallerie": "Metaleiro / Ferreiro",
     "sectorBtpGrosOeuvre": "Alvenaria / Construção pesada",
     "sectorBtpElecPlomb": "Eletricidade / Canalização",
     "sectorBtpPeinture": "Pintura / Revestimentos",
     "sectorBtpMenuiserie": "Carpintaria / Estruturas",
     "sectorBtpCvc": "AVAC / Climatização",
     "sectorBtpToiture": "Telhados / Impermeabilização",
+    "sectorBtpMetallerie": "Serralharia / Ferragem",
     "sectorBtpGeneral": "Empresa geral",
     "sectorBtpBureau": "Gabinete de estudos",
     "sectorBtpAutre": "Outra construção",

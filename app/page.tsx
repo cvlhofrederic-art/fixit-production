@@ -41,6 +41,7 @@ const SERVICE_KEYS_EXTRA = [
   { icon: '🔥', key: 'chimneySweep', slug: 'ramonage' },
   { icon: '☀️', key: 'awning', slug: 'store-banne' },
   { icon: '🚿', key: 'drainCleaning', slug: 'debouchage' },
+  { icon: '⚙️', key: 'metallerie', slug: 'metallerie' },
 ]
 
 export default function HomePage() {
