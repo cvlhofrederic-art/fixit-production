@@ -339,6 +339,13 @@ function FormulaireArtisan() {
             insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
           ])
 
+          // ── KYC anti-fraude : déclencher en background (non-bloquant) ──
+          fetch('/api/kyc-orchestrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}` },
+            body: JSON.stringify({ artisan_id: profileData.id }),
+          }).catch(() => { /* KYC non-bloquant */ })
+
           // ── Motifs par défaut : insérer selon le métier (silencieux, non-bloquant) ──
           try {
             await fetch('/api/seed-motifs', {
@@ -803,6 +810,46 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           // Non-blocking: account created, docs failed
           setError(`Compte créé mais erreur upload documents: ${uploadErr.message}`)
         }
+      }
+
+      // ── Créer profil artisan BTP pour le KYC ──
+      if (authData.user && authData.session) {
+        try {
+          const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
+          const btpCountry = localeCookie === 'pt' ? 'PT' : 'FR'
+          const btpMarket = orgType === 'societe_btp' ? 'fr_btp' : 'fr_artisan'
+          const { data: btpProfile } = await supabase.from('profiles_artisan').insert({
+            user_id: authData.user.id,
+            email: form.email,
+            first_name: form.prenom,
+            last_name: form.nom,
+            phone: form.telephone,
+            company_name: company?.name || form.companyName || '',
+            siret: siretInput.replace(/\s/g, ''),
+            country: btpCountry,
+            kyc_status: 'pending',
+            kyc_market: btpMarket,
+            verified: false,
+          }).select('id').single()
+
+          if (btpProfile?.id) {
+            // Mettre à jour les URLs de documents si uploadées
+            const updates: Record<string, string> = {}
+            const { data: { user: currentUser } } = await supabase.auth.getUser()
+            if (currentUser?.user_metadata?.kbis_url) updates.kbis_url = currentUser.user_metadata.kbis_url
+            if (currentUser?.user_metadata?.id_document_url) updates.id_document_url = currentUser.user_metadata.id_document_url
+            if (Object.keys(updates).length > 0) {
+              await supabase.from('profiles_artisan').update(updates).eq('id', btpProfile.id)
+            }
+
+            // ── KYC anti-fraude en background ──
+            fetch('/api/kyc-orchestrate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+              body: JSON.stringify({ artisan_id: btpProfile.id }),
+            }).catch(() => { /* KYC non-bloquant */ })
+          }
+        } catch { /* Création profil BTP non-bloquante */ }
       }
 
       setSuccess(true)
