@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS specialties (
   label_fr    TEXT NOT NULL,
   label_pt    TEXT,
   code_ape    TEXT,
-  applies_to  TEXT NOT NULL DEFAULT 'both',
+  applies_to  TEXT NOT NULL DEFAULT 'both'
+              CHECK (applies_to IN ('artisan', 'societe_btp', 'both')),
   sort_order  INTEGER NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -19,7 +20,8 @@ CREATE TABLE IF NOT EXISTS profile_specialties (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   specialty_id    UUID NOT NULL REFERENCES specialties(id) ON DELETE CASCADE,
-  verified_source TEXT NOT NULL DEFAULT 'self_declared',
+  verified_source TEXT NOT NULL DEFAULT 'self_declared'
+                  CHECK (verified_source IN ('kbis', 'pappers', 'self_declared')),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(user_id, specialty_id)
 );
@@ -47,6 +49,18 @@ CREATE POLICY "profile_specialties_public_read"
 CREATE POLICY "profile_specialties_own_insert"
   ON profile_specialties FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+-- User can remove their own specialty declaration
+CREATE POLICY "profile_specialties_own_delete"
+  ON profile_specialties FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Service role can update verified_source (KYC promotion)
+CREATE POLICY "profile_specialties_service_update"
+  ON profile_specialties FOR UPDATE
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
 
 -- ── 5. Seed — catalogue master des spécialités BTP ───────────
 INSERT INTO specialties (slug, label_fr, label_pt, code_ape, applies_to, sort_order) VALUES
