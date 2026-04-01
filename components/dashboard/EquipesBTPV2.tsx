@@ -36,6 +36,7 @@ interface Membre {
   panier_repas_jour: number
   indemnite_trajet_jour: number
   prime_mensuelle: number
+  detention_capital_percent?: number    // % capital détenu — détermine TNS vs assimilé salarié (SARL/EURL gérant)
   actif: boolean
   createdAt: string
 }
@@ -93,7 +94,117 @@ const CONTRATS_PAR_ROLE: Record<TypeCompte, TypeContrat[]> = {
 
 /** Returns valid contract types for a given role */
 function getValidContrats(role: TypeCompte): TypeContrat[] {
-  return CONTRATS_PAR_ROLE[role] || ['cdi']
+  return CONTRATS_PAR_ROLE[role] || ['independant']
+}
+
+/** Returns the default (first valid) contract for a role — never returns CDI for gérant */
+function defaultContratForRole(role: TypeCompte): TypeContrat {
+  return getValidContrats(role)[0]
+}
+
+/**
+ * Moteur de classification juridique du gérant/dirigeant
+ *
+ * FR — Sources : URSSAF 2025, Code de commerce art. L223-18 (SARL), L227-6 (SAS)
+ *   SARL/EURL  gérant > 50% capital  → TNS (SSI, ex-RSI) — charges ~40-45%
+ *   SARL/EURL  gérant ≤ 50% capital  → Assimilé salarié (URSSAF) — charges ~60-80%, sans chômage
+ *   SAS/SASU/SA président            → Assimilé salarié, quelle que soit la détention
+ *   Un gérant majoritaire NE PEUT PAS avoir de contrat de travail dans sa propre société.
+ *
+ * PT — Sources : Segurança Social 2025, CIRS art. 2º, CIRS art. 11º
+ *   Lda/SA  gerente → MOE (Membro Órgão Estatutário) — TSU 23.75% patronal + 11% salarial
+ *   ENI/EIRL        → Trabalhador independente — contribuição 21.41% (Recibo Verde)
+ */
+interface GerantClassification {
+  statut: 'tns' | 'assimile_salarie' | 'moe_pt' | 'independant_pt'
+  label_fr: string
+  label_pt: string
+  fiche_de_paie: boolean
+  eligibilite_chomage: boolean
+  charges_estimees: string
+  alerte: string | null
+}
+
+function classifyGerant(params: {
+  companyKey: string
+  bossIsTns: boolean
+  detentionCapitalPercent: number
+  country: 'FR' | 'PT'
+}): GerantClassification {
+  const { companyKey, bossIsTns, detentionCapitalPercent, country } = params
+
+  // Portugal — pas de distinction capital pour MOE
+  if (country === 'PT') {
+    if (bossIsTns) {
+      return {
+        statut: 'independant_pt',
+        label_fr: 'Travailleur indépendant (Recibo Verde)',
+        label_pt: 'Trabalhador Independente (Recibo Verde)',
+        fiche_de_paie: false,
+        eligibilite_chomage: false,
+        charges_estimees: '21,41%',
+        alerte: null,
+      }
+    }
+    return {
+      statut: 'moe_pt',
+      label_fr: 'Gérant — Membre Organe Statutaire (MOE)',
+      label_pt: 'Gerente — Membro de Órgão Estatutário (MOE)',
+      fiche_de_paie: true,
+      eligibilite_chomage: false,
+      charges_estimees: '23,75% patronal + 11% salarial',
+      alerte: null,
+    }
+  }
+
+  // France — SAS/SASU/SA : toujours assimilé salarié (art. L227-6)
+  if (['sas', 'sasu', 'sa', 'sca'].includes(companyKey)) {
+    return {
+      statut: 'assimile_salarie',
+      label_fr: 'Président / DG — Assimilé salarié',
+      label_pt: 'Presidente / DG — Assimilado a assalariado',
+      fiche_de_paie: true,
+      eligibilite_chomage: false,
+      charges_estimees: '60-80%',
+      alerte: null,
+    }
+  }
+
+  // France — SARL/EURL/SNC : dépend du capital (art. L223-18)
+  if (detentionCapitalPercent > 50) {
+    return {
+      statut: 'tns',
+      label_fr: 'Gérant majoritaire — TNS (SSI)',
+      label_pt: 'Gerente maioritário — Trabalhador Independente',
+      fiche_de_paie: false,
+      eligibilite_chomage: false,
+      charges_estimees: '40-45%',
+      alerte: 'Un gérant majoritaire ne peut pas avoir de contrat de travail dans sa société (art. L223-18 C.com).',
+    }
+  }
+
+  if (detentionCapitalPercent === 50) {
+    return {
+      statut: 'tns',
+      label_fr: 'Gérant égalitaire — TNS (SSI)',
+      label_pt: 'Gerente igualitário — Trabalhador Independente',
+      fiche_de_paie: false,
+      eligibilite_chomage: false,
+      charges_estimees: '40-45%',
+      alerte: '50% = égalitaire → traité comme majoritaire par l\'URSSAF.',
+    }
+  }
+
+  // Minoritaire (< 50%)
+  return {
+    statut: 'assimile_salarie',
+    label_fr: 'Gérant minoritaire — Assimilé salarié',
+    label_pt: 'Gerente minoritário — Assimilado a assalariado',
+    fiche_de_paie: true,
+    eligibilite_chomage: false,
+    charges_estimees: '60-80%',
+    alerte: null,
+  }
 }
 
 const METIERS_FR = ['Maçonnerie', 'Plomberie', 'Électricité', 'Menuiserie', 'Peinture', 'Carrelage', 'Charpente', 'Couverture', 'Isolation', 'Démolition', 'VRD', 'Étanchéité', 'Serrurerie', 'Climatisation', 'Métallerie / Ferronnerie', 'Multi-corps']
@@ -122,6 +233,7 @@ const EMPTY_MFORM = {
   charges_salariales_pct: 22, charges_patronales_pct: 45,
   type_contrat: 'cdi' as TypeContrat, heures_hebdo: 35,
   panier_repas_jour: 0, indemnite_trajet_jour: 0, prime_mensuelle: 0,
+  detention_capital_percent: 100,
   actif: true,
   _lastEdited: '' as '' | 'brut' | 'net' | 'horaire', // tracks which field the user changed last
 }
@@ -215,6 +327,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
       panier_repas_jour: mForm.panier_repas_jour,
       indemnite_trajet_jour: mForm.indemnite_trajet_jour,
       prime_mensuelle: mForm.prime_mensuelle,
+      detention_capital_percent: mForm.detention_capital_percent,
       actif: mForm.actif,
     }
 
@@ -242,11 +355,12 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
       salaire_net_mensuel: m.salaire_net_mensuel ? String(m.salaire_net_mensuel) : '',
       charges_salariales_pct: m.charges_salariales_pct ?? 22,
       charges_patronales_pct: m.charges_patronales_pct ?? 45,
-      type_contrat: m.type_contrat || 'cdi',
+      type_contrat: (() => { const valid = getValidContrats(m.typeCompte || 'ouvrier'); return valid.includes(m.type_contrat) ? m.type_contrat : valid[0] })(),
       heures_hebdo: m.heures_hebdo || 35,
       panier_repas_jour: m.panier_repas_jour || 0,
       indemnite_trajet_jour: m.indemnite_trajet_jour || 0,
       prime_mensuelle: m.prime_mensuelle || 0,
+      detention_capital_percent: m.detention_capital_percent ?? 100,
       actif: m.actif !== false,
       _lastEdited: (m.salaire_brut_mensuel ? 'brut' : m.salaire_net_mensuel ? 'net' : m.coutHoraire ? 'horaire' : '') as '' | 'brut' | 'net' | 'horaire',
     })
@@ -392,7 +506,13 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                                 <span className={TYPE_COLORS[m.typeCompte]} style={{ fontSize: 11 }}>{TYPE_LABELS[m.typeCompte]}</span>
                               </td>
                               <td style={tdStyle}>
-                                <span style={{ fontSize: 12 }}>{CONTRAT_LABELS[m.type_contrat] || 'CDI'}</span>
+                                <span style={{ fontSize: 12 }}>{
+                                  (() => {
+                                    const contrat = m.type_contrat && getValidContrats(m.typeCompte).includes(m.type_contrat) ? m.type_contrat : defaultContratForRole(m.typeCompte)
+                                    if (contrat === 'independant') return isPt ? 'Independente' : 'Indépendant'
+                                    return CONTRAT_LABELS[contrat]
+                                  })()
+                                }</span>
                                 <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{m.heures_hebdo || 35}h/sem</div>
                               </td>
                               <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{m.coutHoraire || 25}€</td>
@@ -536,11 +656,87 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                 </div>
                 <div>
                   <label className="v22-form-label">{isPt ? 'Contrato' : 'Type de contrat'}</label>
-                  <select className="v22-form-input" value={mForm.type_contrat} onChange={e => setMForm({ ...mForm, type_contrat: e.target.value as TypeContrat })}>
-                    {getValidContrats(mForm.typeCompte).map(k => <option key={k} value={k}>{CONTRAT_LABELS[k]}</option>)}
+                  <select
+                    className="v22-form-input"
+                    value={mForm.type_contrat}
+                    disabled={mForm.typeCompte === 'gerant'}
+                    style={mForm.typeCompte === 'gerant' ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                    onChange={e => setMForm({ ...mForm, type_contrat: e.target.value as TypeContrat })}
+                  >
+                    {getValidContrats(mForm.typeCompte).map(k => (
+                      <option key={k} value={k}>
+                        {k === 'independant' ? (isPt ? 'Independente / Recibo Verde' : 'Indépendant / TNS') : CONTRAT_LABELS[k]}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
+
+              {/* Bloc gérant — classification juridique (TNS vs assimilé salarié) */}
+              {mForm.typeCompte === 'gerant' && (() => {
+                const classification = classifyGerant({
+                  companyKey: companyType,
+                  bossIsTns: companyConfig.boss_is_tns,
+                  detentionCapitalPercent: mForm.detention_capital_percent ?? 100,
+                  country: country as 'FR' | 'PT',
+                })
+                const statutColor = classification.statut === 'tns' || classification.statut === 'independant_pt'
+                  ? { bg: '#FFF8E1', border: '#FFD54F', text: '#E65100' }
+                  : { bg: '#E8F5E9', border: '#66BB6A', text: '#1B5E20' }
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, background: statutColor.bg, borderRadius: 10, border: `1px solid ${statutColor.border}` }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: statutColor.text }}>
+                      {isPt ? '⚖️ Estatuto social do gerente' : '⚖️ Statut social du gérant'}
+                    </div>
+
+                    {/* % capital — seulement pertinent en FR pour SARL/EURL */}
+                    {country === 'FR' && ['sarl', 'eurl', 'snc', 'scs'].includes(companyType) && (
+                      <div>
+                        <label className="v22-form-label" style={{ color: statutColor.text }}>
+                          {isPt ? '% capital detido' : '% de capital détenu'}
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="number"
+                            className="v22-form-input"
+                            min={0} max={100} step={1}
+                            style={{ width: 90 }}
+                            value={mForm.detention_capital_percent ?? 100}
+                            onChange={e => setMForm({ ...mForm, detention_capital_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
+                          />
+                          <span style={{ fontSize: 13, color: 'var(--v22-text-mid)' }}>%</span>
+                          <span style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>
+                            {isPt ? '(> 50% = maioritário = independente)' : '(> 50% = majoritaire = TNS)'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Badge statut calculé */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: statutColor.text }}>
+                        {isPt ? classification.label_pt : classification.label_fr}
+                      </span>
+                      <span style={{ fontSize: 12, background: statutColor.border, color: '#fff', borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
+                        {isPt ? `Encargos ~${classification.charges_estimees}` : `Charges ~${classification.charges_estimees}`}
+                      </span>
+                      {!classification.fiche_de_paie && (
+                        <span style={{ fontSize: 11, color: '#B71C1C', background: '#FFEBEE', borderRadius: 6, padding: '2px 8px' }}>
+                          {isPt ? 'Sem ficha de vencimento' : 'Pas de fiche de paie'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Alerte légale */}
+                    {classification.alerte && (
+                      <div style={{ fontSize: 12, color: '#B71C1C', background: '#FFEBEE', borderRadius: 6, padding: '8px 10px', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                        <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                        <span>{classification.alerte}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               <div>
                 <label className="v22-form-label">{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'}</label>
