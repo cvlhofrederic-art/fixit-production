@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { POLL_NOTIFICATIONS, POLL_MISSIONS, TOAST_LONG, TOAST_DEFAULT } from '@/lib/constants'
 import type { Notification } from '@/lib/types'
 
@@ -21,8 +22,6 @@ export function useNotifications(
   const [showNotifDropdown, setShowNotifDropdown] = useState(false)
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
-  const realtimeErrorCount = useRef(0)
-
   // Browser notifications helper
   const sendBrowserNotif = useCallback((title: string, body: string, onClick?: () => void) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -208,16 +207,10 @@ export function useNotifications(
           )
         }
       })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[pro/dashboard] Realtime channel error:', err?.message)
-          realtimeErrorCount.current += 1
-          if (realtimeErrorCount.current >= 3) {
-            console.warn('[pro/dashboard] Realtime: too many errors, unsubscribing')
-            supabase.removeChannel(channel)
-          }
-        }
-      })
+
+    subscribeWithReconnect(channel, (status, err) => {
+      console.error(`[pro/dashboard] Realtime ${status}:`, err)
+    })
     return () => { supabase.removeChannel(channel) }
   }, [userId, artisanId, sendBrowserNotif])
 

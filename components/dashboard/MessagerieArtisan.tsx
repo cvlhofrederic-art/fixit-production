@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { useLocale } from '@/lib/i18n/context'
 
 const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
@@ -341,11 +342,10 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
       }, () => {
         if (activeConv) loadMessages(activeConv.id, true)
       })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[MessagerieArtisan] Realtime channel error:', err?.message)
-        }
-      })
+
+    subscribeWithReconnect(channel, (status, err) => {
+      console.error(`[MessagerieArtisan] Realtime ${status}:`, err)
+    })
 
     return () => { supabase.removeChannel(channel) }
   }, [artisan.user_id, activeConv, loadUnreadCounts, loadConversations, loadMessages])

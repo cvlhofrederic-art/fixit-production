@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { Star, Check, Home, Send, MessageSquare } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/context'
 
@@ -159,11 +160,10 @@ function ConfirmationContent() {
           return [...prev, msg]
         })
       })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[confirmation] Realtime channel error:', err?.message)
-        }
-      })
+
+    subscribeWithReconnect(channel, (status, err) => {
+      console.error(`[confirmation] Realtime ${status}:`, err)
+    })
 
     return () => { supabase.removeChannel(channel) }
   }, [bookingId, booking])

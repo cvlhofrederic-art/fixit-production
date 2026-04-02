@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import {
   getCategoryLabel,
 } from './views/shared'
@@ -377,7 +378,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   }, [resolvedMetiers, scanning, handleScanMarches, artisan?.id])
 
   // Realtime listener for marche notifications
-  const realtimeErrorCount = useRef(0)
   useEffect(() => {
     if (!artisan?.user_id) return
     const channel = supabase
@@ -394,16 +394,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           fetchMyBids()
         }
       })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[BourseAuxMarches] Realtime error:', err?.message)
-          realtimeErrorCount.current += 1
-          if (realtimeErrorCount.current >= 3) {
-            console.warn('[BourseAuxMarches] Too many errors, unsubscribing')
-            supabase.removeChannel(channel)
-          }
-        }
-      })
+    subscribeWithReconnect(channel, (status, err) => {
+      console.error(`[BourseAuxMarches] Realtime ${status}:`, err)
+    })
     return () => { supabase.removeChannel(channel) }
   }, [artisan?.user_id, fetchMarches, fetchMyBids])
 

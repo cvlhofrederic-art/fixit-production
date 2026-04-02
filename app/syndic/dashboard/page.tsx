@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useTransition } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { toast } from 'sonner'
 import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
@@ -468,8 +469,6 @@ export default function SyndicDashboard() {
     let channel: ReturnType<typeof supabase.channel> | null = null
     loadNotifs().then((ok) => {
       if (!ok) return // table doesn't exist or RLS blocked — skip Realtime
-      let errorCount = 0
-      const MAX_CHANNEL_ERRORS = 3
       channel = supabase
         .channel(`syndic_notifs_${user.id}`)
         .on('postgres_changes', {
@@ -481,18 +480,10 @@ export default function SyndicDashboard() {
           const n = payload.new as any // eslint-disable-line @typescript-eslint/no-explicit-any
           setNotifs(prev => [{ id: n.id, title: n.title, body: n.body, type: n.type, read: false, created_at: n.created_at }, ...prev])
         })
-        .subscribe((status, err) => {
-          if (status === 'CHANNEL_ERROR') {
-            errorCount++
-            if (errorCount <= MAX_CHANNEL_ERRORS) {
-              if (process.env.NODE_ENV !== 'production') console.warn(`[syndic/dashboard] Realtime channel error (${errorCount}/${MAX_CHANNEL_ERRORS}):`, err?.message)
-            }
-            if (errorCount >= MAX_CHANNEL_ERRORS) {
-              if (process.env.NODE_ENV !== 'production') console.warn('[syndic/dashboard] Realtime disabled after repeated errors')
-              if (channel) supabase.removeChannel(channel)
-            }
-          }
-        })
+
+      subscribeWithReconnect(channel, (status, err) => {
+        if (process.env.NODE_ENV !== 'production') console.warn(`[syndic/dashboard] Realtime ${status}:`, err)
+      })
     })
 
     return () => { if (channel) supabase.removeChannel(channel) }

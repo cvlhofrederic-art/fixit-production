@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
 import dynamic from 'next/dynamic'
@@ -1050,11 +1051,10 @@ export default function MobileDashboard() {
           setTimeout(() => setNotifToast(null), 5000)
         }
       })
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[pro/mobile] Realtime channel error:', err?.message)
-        }
-      })
+
+    subscribeWithReconnect(channel, (status, err) => {
+      console.error(`[pro/mobile] Realtime ${status}:`, err)
+    })
 
     return () => { supabase.removeChannel(channel) }
   }, [artisan?.user_id])
