@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -32,6 +32,8 @@ export default function RegisterPage() {
   const [siretData, setSiretData] = useState<any>(null)
   const [siretError, setSiretError] = useState('')
   const [siretWarning, setSiretWarning] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const emailDebounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   const formatSiret = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 14)
@@ -51,6 +53,19 @@ export default function RegisterPage() {
       setSiretData(null)
       setSiretError('')
       setSiretWarning('')
+    }
+  }
+
+  const handleEmailChange = (value: string) => {
+    setFormData(prev => ({ ...prev, email: value }))
+    setEmailError('')
+    clearTimeout(emailDebounceRef.current)
+    if (value) {
+      emailDebounceRef.current = setTimeout(() => {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          setEmailError('Adresse email invalide')
+        }
+      }, 500)
     }
   }
 
@@ -486,11 +501,12 @@ export default function RegisterPage() {
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => handleEmailChange(e.target.value)}
                       required
-                      className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none"
+                      className={`w-full px-4 py-3 border-[1.5px] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none ${emailError ? 'border-red-400' : 'border-[#E0E0E0]'}`}
                       placeholder={clientType === 'entreprise' ? 'contact@entreprise.fr' : 'votre@email.com'}
                     />
+                    {emailError && <p className="mt-1 text-xs text-red-500">{emailError}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-mid mb-2">Téléphone <span className="text-red-500">*</span></label>
