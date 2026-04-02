@@ -1,8 +1,18 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import {
+  getCategoryLabel,
+} from './views/shared'
+
+const BrowseTabView = dynamic(() => import('./views/BrowseTabView'), { ssr: false })
+const MyBidsTabView = dynamic(() => import('./views/MyBidsTabView'), { ssr: false })
+const WonContractsTabView = dynamic(() => import('./views/WonContractsTabView'), { ssr: false })
+const SettingsTabView = dynamic(() => import('./views/SettingsTabView'), { ssr: false })
+const DetailModalView = dynamic(() => import('./views/DetailModalView'), { ssr: false })
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -12,141 +22,6 @@ interface Props {
   navigateTo: (page: string) => void
 }
 
-const CATEGORIES = [
-  { id: 'canalizacao', label: 'Canalização', labelFr: 'Plomberie', emoji: '🔧' },
-  { id: 'eletricidade', label: 'Eletricidade', labelFr: 'Électricité', emoji: '⚡' },
-  { id: 'pintura', label: 'Pintura', labelFr: 'Peinture', emoji: '🎨' },
-  { id: 'serralharia', label: 'Serralharia', labelFr: 'Serrurerie', emoji: '🔩' },
-  { id: 'elevadores', label: 'Elevadores', labelFr: 'Ascenseurs', emoji: '🛗' },
-  { id: 'limpeza', label: 'Limpeza', labelFr: 'Nettoyage', emoji: '🧹' },
-  { id: 'jardinagem', label: 'Jardinagem', labelFr: 'Jardinage', emoji: '🌱' },
-  { id: 'impermeabilizacao', label: 'Impermeabilização', labelFr: 'Imperméabilisation', emoji: '💧' },
-  { id: 'construcao', label: 'Construção Civil', labelFr: 'Construction', emoji: '🏗️' },
-  { id: 'climatizacao', label: 'Climatização', labelFr: 'Climatisation', emoji: '❄️' },
-  { id: 'seguranca', label: 'Segurança', labelFr: 'Sécurité', emoji: '🔒' },
-  { id: 'gas', label: 'Gás', labelFr: 'Gaz', emoji: '🔥' },
-  { id: 'telhados', label: 'Telhados', labelFr: 'Toitures', emoji: '🏠' },
-  { id: 'desentupimentos', label: 'Desentupimentos', labelFr: 'Débouchage', emoji: '🚰' },
-  { id: 'carpintaria', label: 'Carpintaria', labelFr: 'Menuiserie', emoji: '🪚' },
-  { id: 'vidracaria', label: 'Vidraçaria', labelFr: 'Vitrerie', emoji: '🪟' },
-  { id: 'mudancas', label: 'Mudanças', labelFr: 'Déménagement', emoji: '📦' },
-  { id: 'renovacao', label: 'Renovação', labelFr: 'Rénovation', emoji: '🔨' },
-  { id: 'isolamento', label: 'Isolamento', labelFr: 'Isolation', emoji: '🧱' },
-  { id: 'metallerie', label: 'Serralharia / Ferragem', labelFr: 'Métallerie / Ferronnerie', emoji: '⚙️' },
-  { id: 'outro', label: 'Outro', labelFr: 'Autre', emoji: '📋' },
-]
-
-const FR_REGIONS = [
-  { id: 'paca', label: 'PACA (Provence-Alpes-Côte d\'Azur)', depts: ['04', '05', '06', '13', '83', '84'] },
-  { id: 'occitanie', label: 'Occitanie', depts: ['09', '11', '12', '30', '31', '32', '34', '46', '48', '65', '66', '81', '82'] },
-  { id: 'aura', label: 'Auvergne-Rhône-Alpes', depts: ['01', '03', '07', '15', '26', '38', '42', '43', '63', '69', '73', '74'] },
-  { id: 'idf', label: 'Île-de-France', depts: ['75', '77', '78', '91', '92', '93', '94', '95'] },
-  { id: 'nouvelle-aquitaine', label: 'Nouvelle-Aquitaine', depts: ['16', '17', '19', '23', '24', '33', '40', '47', '64', '79', '86', '87'] },
-  { id: 'hdf', label: 'Hauts-de-France', depts: ['02', '59', '60', '62', '80'] },
-  { id: 'grand-est', label: 'Grand Est', depts: ['08', '10', '51', '52', '54', '55', '57', '67', '68', '88'] },
-  { id: 'bretagne', label: 'Bretagne', depts: ['22', '29', '35', '56'] },
-  { id: 'normandie', label: 'Normandie', depts: ['14', '27', '50', '61', '76'] },
-  { id: 'pdl', label: 'Pays de la Loire', depts: ['44', '49', '53', '72', '85'] },
-  { id: 'bourgogne-fc', label: 'Bourgogne-Franche-Comté', depts: ['21', '25', '39', '58', '70', '71', '89', '90'] },
-  { id: 'centre-vdl', label: 'Centre-Val de Loire', depts: ['18', '28', '36', '37', '41', '45'] },
-  { id: 'corse', label: 'Corse', depts: ['2A', '2B'] },
-]
-
-const DEPT_LABELS: Record<string, string> = {
-  '04': '04 - Alpes-de-Haute-Provence', '05': '05 - Hautes-Alpes', '06': '06 - Alpes-Maritimes',
-  '13': '13 - Bouches-du-Rhône', '83': '83 - Var', '84': '84 - Vaucluse',
-  '09': '09 - Ariège', '11': '11 - Aude', '12': '12 - Aveyron', '30': '30 - Gard',
-  '31': '31 - Haute-Garonne', '32': '32 - Gers', '34': '34 - Hérault', '46': '46 - Lot',
-  '48': '48 - Lozère', '65': '65 - Hautes-Pyrénées', '66': '66 - Pyrénées-Orientales',
-  '81': '81 - Tarn', '82': '82 - Tarn-et-Garonne',
-  '01': '01 - Ain', '03': '03 - Allier', '07': '07 - Ardèche', '15': '15 - Cantal',
-  '26': '26 - Drôme', '38': '38 - Isère', '42': '42 - Loire', '43': '43 - Haute-Loire',
-  '63': '63 - Puy-de-Dôme', '69': '69 - Rhône', '73': '73 - Savoie', '74': '74 - Haute-Savoie',
-  '75': '75 - Paris', '77': '77 - Seine-et-Marne', '78': '78 - Yvelines',
-  '91': '91 - Essonne', '92': '92 - Hauts-de-Seine', '93': '93 - Seine-Saint-Denis',
-  '94': '94 - Val-de-Marne', '95': '95 - Val-d\'Oise',
-  '16': '16 - Charente', '17': '17 - Charente-Maritime', '19': '19 - Corrèze',
-  '23': '23 - Creuse', '24': '24 - Dordogne', '33': '33 - Gironde', '40': '40 - Landes',
-  '47': '47 - Lot-et-Garonne', '64': '64 - Pyrénées-Atlantiques', '79': '79 - Deux-Sèvres',
-  '86': '86 - Vienne', '87': '87 - Haute-Vienne',
-  '02': '02 - Aisne', '59': '59 - Nord', '60': '60 - Oise', '62': '62 - Pas-de-Calais', '80': '80 - Somme',
-  '08': '08 - Ardennes', '10': '10 - Aube', '51': '51 - Marne', '52': '52 - Haute-Marne',
-  '54': '54 - Meurthe-et-Moselle', '55': '55 - Meuse', '57': '57 - Moselle',
-  '67': '67 - Bas-Rhin', '68': '68 - Haut-Rhin', '88': '88 - Vosges',
-  '22': '22 - Côtes-d\'Armor', '29': '29 - Finistère', '35': '35 - Ille-et-Vilaine', '56': '56 - Morbihan',
-  '14': '14 - Calvados', '27': '27 - Eure', '50': '50 - Manche', '61': '61 - Orne', '76': '76 - Seine-Maritime',
-  '44': '44 - Loire-Atlantique', '49': '49 - Maine-et-Loire', '53': '53 - Mayenne', '72': '72 - Sarthe', '85': '85 - Vendée',
-  '21': '21 - Côte-d\'Or', '25': '25 - Doubs', '39': '39 - Jura', '58': '58 - Nièvre',
-  '70': '70 - Haute-Saône', '71': '71 - Saône-et-Loire', '89': '89 - Yonne', '90': '90 - Territoire de Belfort',
-  '18': '18 - Cher', '28': '28 - Eure-et-Loir', '36': '36 - Indre', '37': '37 - Indre-et-Loire',
-  '41': '41 - Loir-et-Cher', '45': '45 - Loiret',
-  '2A': '2A - Corse-du-Sud', '2B': '2B - Haute-Corse',
-}
-
-const TIMELINE_OPTIONS = [
-  { value: '1_day', labelFr: '1 jour', labelPt: '1 dia' },
-  { value: '3_days', labelFr: '3 jours', labelPt: '3 dias' },
-  { value: '1_week', labelFr: '1 semaine', labelPt: '1 semana' },
-  { value: '2_weeks', labelFr: '2 semaines', labelPt: '2 semanas' },
-  { value: '1_month', labelFr: '1 mois', labelPt: '1 mês' },
-  { value: '2_months', labelFr: '2 mois', labelPt: '2 meses' },
-  { value: '3_months', labelFr: '3 mois', labelPt: '3 meses' },
-  { value: 'custom', labelFr: 'Personnalisé', labelPt: 'Personalizado' },
-]
-
-function getCategoryLabel(id: string, isPt: boolean): string {
-  const cat = CATEGORIES.find(c => c.id === id)
-  if (!cat) return id
-  return `${cat.emoji} ${isPt ? cat.label : cat.labelFr}`
-}
-
-function getCategoryEmoji(id: string): string {
-  return CATEGORIES.find(c => c.id === id)?.emoji || '📋'
-}
-
-function daysRemaining(deadline: string): number {
-  const now = new Date()
-  const end = new Date(deadline)
-  const diff = end.getTime() - now.getTime()
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
-}
-
-function urgencyTag(urgency: string, isPt: boolean) {
-  switch (urgency) {
-    case 'emergency':
-      return <span className="v22-tag v22-tag-red">🔴 {isPt ? 'Emergência' : 'Urgence'}</span>
-    case 'urgent':
-      return <span className="v22-tag v22-tag-amber">🟡 {isPt ? 'Urgente' : 'Urgent'}</span>
-    default:
-      return <span className="v22-tag v22-tag-green">🟢 {isPt ? 'Normal' : 'Normal'}</span>
-  }
-}
-
-function statusTag(status: string, isPt: boolean) {
-  switch (status) {
-    case 'accepted':
-      return <span className="v22-tag v22-tag-green">✅ {isPt ? 'Aceite' : 'Accepté'}</span>
-    case 'rejected':
-      return <span className="v22-tag v22-tag-red">❌ {isPt ? 'Recusado' : 'Refusé'}</span>
-    case 'withdrawn':
-      return <span className="v22-tag v22-tag-gray">↩️ {isPt ? 'Retirado' : 'Retiré'}</span>
-    default:
-      return <span className="v22-tag v22-tag-yellow">⏳ {isPt ? 'Pendente' : 'En attente'}</span>
-  }
-}
-
-function publisherTag(type: string, isPt: boolean) {
-  switch (type) {
-    case 'syndic':
-      return <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🏢 Syndic</span>
-    case 'entreprise':
-      return <span className="v22-tag" style={{ background: '#F3E8FF', color: '#7C3AED' }}>🏭 {isPt ? 'Empresa' : 'Entreprise'}</span>
-    default:
-      return <span className="v22-tag v22-tag-gray">👤 {isPt ? 'Particular' : 'Particulier'}</span>
-  }
-}
-
-// Fake data for blurred preview behind pro gate
 const FAKE_MARCHES = [
   { title: 'Rénovation cage d\'escalier immeuble 12 lots', category: 'renovacao', budget_min: 8000, budget_max: 15000, city: 'Porto', urgency: 'normal' },
   { title: 'Remplacement chaudière collective', category: 'canalizacao', budget_min: 5000, budget_max: 12000, city: 'Lisboa', urgency: 'urgent' },
@@ -163,22 +38,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   }, [])
   const isPt = locale === 'pt'
 
-  // Department dropdown state
-  const [deptDropdownOpen, setDeptDropdownOpen] = useState(false)
-  const deptDropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close department dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (deptDropdownRef.current && !deptDropdownRef.current.contains(e.target as Node)) {
-        setDeptDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // PRO GATE CHECK — désactivé temporairement, accès libre pour tous
+  // PRO GATE CHECK — disabled temporarily, free access for all
   const isPro = true
 
   // State
@@ -203,11 +63,10 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
 
   // Filters
   const [filterCategory, setFilterCategory] = useState('')
-  const [filterGrandMarche, setFilterGrandMarche] = useState(false)   // pro_societe: budget ≥ 50k
-  const [filterRegion, setFilterRegion] = useState('paca')            // Default PACA for MVP
-  const [filterDepartments, setFilterDepartments] = useState<string[]>([]) // Multi-select departments
+  const [filterGrandMarche, setFilterGrandMarche] = useState(false)
+  const [filterRegion, setFilterRegion] = useState('paca')
+  const [filterDepartments, setFilterDepartments] = useState<string[]>([])
   const [prefsSaved, setPrefsSaved] = useState(false)
-  // Auto-detect pays from locale — FR artisan sees FR only, PT sees PT only
   const artisanPays = isPt ? 'PT' : 'FR'
 
   // Restore region/dept prefs from localStorage on mount
@@ -242,7 +101,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const [bidDescription, setBidDescription] = useState('')
   const [bidMaterials, setBidMaterials] = useState(false)
   const [bidGuarantee, setBidGuarantee] = useState('')
-  const [bidEffectif, setBidEffectif] = useState('')   // pro_societe: nombre de compagnons
+  const [bidEffectif, setBidEffectif] = useState('')
   const [bidSubmitting, setBidSubmitting] = useState(false)
   const [bidError, setBidError] = useState('')
   const [bidSuccess, setBidSuccess] = useState(false)
@@ -250,15 +109,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   // Stats
   const [stats, setStats] = useState({ openCount: 0, activeBids: 0, wonCount: 0 })
 
-  // Photo gallery state
-  const [selectedPhotoIdx, setSelectedPhotoIdx] = useState<number | null>(null)
-
   // Evaluation state
-  const [evalBidId, setEvalBidId] = useState<string | null>(null)
-  const [evalRating, setEvalRating] = useState(0)
-  const [evalComment, setEvalComment] = useState('')
-  const [evalSubmitting, setEvalSubmitting] = useState(false)
-  const [evalSuccess, setEvalSuccess] = useState(false)
   const [receivedEval, setReceivedEval] = useState<Record<string, any>>({})
 
   // Messaging state
@@ -287,7 +138,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       if (filterCategory) params.set('category', filterCategory)
       params.set('pays', artisanPays)
       params.set('status', 'open')
-      // Ne pas filtrer par matched_artisans — les marchés du cron ne sont pas matchés individuellement
       const res = await fetch(`/api/marches?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to fetch marches')
       const data = await res.json()
@@ -300,8 +150,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     }
   }, [isPro, filterCategory, artisanPays])
 
-  // ── Résolution automatique du corps de métier de l'artisan ──
-  // Priorité : filtre catégorie > préférences marchés > catégories profil artisan
+  // Resolved metiers for auto-scan
   const resolvedMetiers = React.useMemo(() => {
     if (filterCategory) return [filterCategory]
     if (marchesPrefs.marches_categories?.length) return [...marchesPrefs.marches_categories]
@@ -310,16 +159,13 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     return []
   }, [filterCategory, marchesPrefs.marches_categories, artisan?.categories, artisan?.specialite])
 
-  // ── Scanner marchés publics (BOAMP + TED + BASE.gov) ──
+  // Scanner marches publics
   const handleScanMarches = useCallback(async () => {
-    // Le scan utilise les métiers résolus automatiquement
     const metiers = [...resolvedMetiers]
-
     if (metiers.length === 0) {
       setScanError(isPt ? 'Selecione uma categoria primeiro' : 'Sélectionnez un corps de métier dans le menu déroulant')
       return
     }
-
     setScanning(true)
     setScanError('')
     setScanResults([])
@@ -328,12 +174,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const { data: sess } = await supabase.auth.getSession()
       const token = sess?.session?.access_token
       if (!token) { setScanError('Session expirée'); return }
-
       const loc = artisan?.city || (isPt ? 'Porto' : 'Marseille')
-
       // eslint-disable-next-line no-console
       console.log('[scan] Envoi:', { metiers, location: loc, country: isPt ? 'PT' : 'FR' })
-
       const res = await fetch('/api/marches/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -465,33 +308,19 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     }
   }
 
-  // Submit evaluation
-  const submitEvaluation = async (marcheId: string, candidatureId: string) => {
-    if (evalRating < 1 || evalSubmitting) return
-    setEvalSubmitting(true)
-    try {
-      const res = await fetch(`/api/marches/${marcheId}/evaluation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidature_id: candidatureId,
-          evaluator_type: 'artisan',
-          note_globale: evalRating,
-          commentaire: evalComment.trim() || undefined,
-        }),
-      })
-      if (res.ok) {
-        setEvalSuccess(true)
-        setEvalBidId(null)
-        setEvalRating(0)
-        setEvalComment('')
-        setTimeout(() => setEvalSuccess(false), 3000)
-      }
-    } catch {
-      // silent
-    } finally {
-      setEvalSubmitting(false)
-    }
+  // Submit evaluation (delegated to WonContractsTabView)
+  const submitEvaluation = async (marcheId: string, candidatureId: string, rating: number, comment: string) => {
+    const res = await fetch(`/api/marches/${marcheId}/evaluation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        candidature_id: candidatureId,
+        evaluator_type: 'artisan',
+        note_globale: rating,
+        commentaire: comment || undefined,
+      }),
+    })
+    if (!res.ok) throw new Error('Evaluation failed')
   }
 
   // Load evaluation received from publisher
@@ -532,14 +361,12 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     fetchMarchesPrefs()
   }, [fetchMarches, fetchMyBids, fetchMarchesPrefs])
 
-
-  // ── Auto-scan au chargement (max 1 fois par 24h par artisan) ──
+  // Auto-scan on load (max 1 per 24h per artisan)
   const hasAutoScanned = useRef(false)
   useEffect(() => {
     if (hasAutoScanned.current) return
     if (resolvedMetiers.length === 0) return
     if (scanning) return
-    // Respect cooldown de 24h pour éviter un scan à chaque visite
     const cacheKey = `fixit_scan_last_${artisan?.id}`
     const lastScan = localStorage.getItem(cacheKey)
     const now = Date.now()
@@ -563,7 +390,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       }, (payload) => {
         const n = payload.new as any
         if (n.type?.startsWith('marche_')) {
-          // Auto-refresh marches and bids
           fetchMarches()
           fetchMyBids()
         }
@@ -631,15 +457,14 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     setShowBidForm(false)
     setBidError('')
     setBidSuccess(false)
-    setSelectedPhotoIdx(null)
+    setMsgCandidatureId(null)
   }
 
-  // ─── PRO GATE ─────────────────────────────────────────
+  // ── PRO GATE ──
   if (!isPro) {
     return (
       <div style={{ padding: 14 }}>
         <div style={{ position: 'relative' }}>
-          {/* Blurred fake preview */}
           <div style={{ filter: 'blur(4px)', opacity: 0.6, pointerEvents: 'none', userSelect: 'none' }} aria-hidden="true">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
               {FAKE_MARCHES.map((fm, i) => (
@@ -658,8 +483,6 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
               ))}
             </div>
           </div>
-
-          {/* Overlay CTA */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="v22-card" style={{ padding: '28px 32px', maxWidth: 440, textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🏛️</div>
@@ -685,402 +508,51 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     )
   }
 
-  // ─── DETAIL VIEW (MODAL) ──────────────────────────────
+  // ── DETAIL VIEW (MODAL) ──
   if (selectedMarche) {
-    const days = selectedMarche.deadline ? daysRemaining(selectedMarche.deadline) : null
-    const photos: string[] = selectedMarche.photos || []
-
     return (
-      <div className="v22-modal-overlay" onClick={resetDetail}>
-        <div className="v22-modal" style={{ width: 680, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-          {/* Modal head */}
-          <div className="v22-modal-head">
-            <div className="v22-modal-title">
-              {isPt ? 'Detalhe do mercado' : 'Détail du marché'}
-            </div>
-            <button className="v22-modal-close" onClick={resetDetail}>✕</button>
-          </div>
-
-          {/* Modal body */}
-          <div className="v22-modal-body">
-            {/* Tags row */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              <span className="v22-tag v22-tag-yellow">
-                {getCategoryLabel(selectedMarche.category, isPt)}
-              </span>
-              {urgencyTag(selectedMarche.urgency, isPt)}
-              {publisherTag(selectedMarche.publisher_type, isPt)}
-            </div>
-
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{selectedMarche.title}</div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
-              {selectedMarche.city && (
-                <span>📍 {selectedMarche.city}</span>
-              )}
-              {days !== null && (
-                <span>
-                  ⏰ {days > 0
-                    ? (isPt ? `${days} dias restantes` : `${days} jours restants`)
-                    : (isPt ? 'Prazo expirado' : 'Délai expiré')}
-                </span>
-              )}
-              {selectedMarche.candidatures_count !== undefined && (
-                <span>
-                  👥 {selectedMarche.candidatures_count} {isPt ? 'candidaturas' : 'candidatures'}
-                </span>
-              )}
-            </div>
-
-            {/* Budget */}
-            {(selectedMarche.budget_min || selectedMarche.budget_max) ? (
-              <div style={{ background: 'var(--v22-yellow-light)', borderRadius: 3, padding: '10px 12px', marginBottom: 12 }}>
-                <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }} className="v22-mono">
-                  {isPt ? 'Orçamento' : 'Budget'}
-                </div>
-                <div className="v22-mono" style={{ fontSize: 16, fontWeight: 600 }}>
-                  {selectedMarche.budget_min ? formatPrice(selectedMarche.budget_min, locale) : '—'}
-                  {' — '}
-                  {selectedMarche.budget_max ? formatPrice(selectedMarche.budget_max, locale) : '—'}
-                </div>
-              </div>
-            ) : (
-              <div style={{ background: 'var(--v22-bg)', borderRadius: 3, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
-                {isPt ? 'Orçamento não definido' : 'Budget non défini'}
-              </div>
-            )}
-
-            {/* Description */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{isPt ? 'Descrição' : 'Description'}</div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                {selectedMarche.description || (isPt ? 'Sem descrição.' : 'Aucune description.')}
-              </div>
-            </div>
-
-            {/* Photos gallery */}
-            {photos.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Fotos' : 'Photos'} ({photos.length})</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                  {photos.map((url, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedPhotoIdx(idx)}
-                      style={{ aspectRatio: '1', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none' }}
-                    >
-                      <img src={url} alt={`Photo ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </button>
-                  ))}
-                </div>
-
-                {/* Lightbox */}
-                {selectedPhotoIdx !== null && (
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-                    onClick={() => setSelectedPhotoIdx(null)}
-                  >
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedPhotoIdx(null) }}
-                      style={{ position: 'absolute', top: 16, right: 16, color: '#fff', fontSize: 24, background: 'none', border: 'none', cursor: 'pointer', zIndex: 301 }}
-                    >
-                      ✕
-                    </button>
-                    {selectedPhotoIdx > 0 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedPhotoIdx(selectedPhotoIdx - 1) }}
-                        style={{ position: 'absolute', left: 16, color: '#fff', fontSize: 32, background: 'none', border: 'none', cursor: 'pointer' }}
-                      >
-                        ‹
-                      </button>
-                    )}
-                    {selectedPhotoIdx < photos.length - 1 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedPhotoIdx(selectedPhotoIdx + 1) }}
-                        style={{ position: 'absolute', right: 16, color: '#fff', fontSize: 32, background: 'none', border: 'none', cursor: 'pointer' }}
-                      >
-                        ›
-                      </button>
-                    )}
-                    <img
-                      src={photos[selectedPhotoIdx]}
-                      alt={`Photo ${selectedPhotoIdx + 1}`}
-                      style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 4, objectFit: 'contain' }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Message thread */}
-            {selectedMarche.my_candidature_id && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
-                  &#x1F4AC; {isPt ? 'Mensagens' : 'Messages'}
-                </div>
-
-                {!msgCandidatureId ? (
-                  <button
-                    onClick={() => {
-                      setMsgCandidatureId(selectedMarche.my_candidature_id)
-                      loadMessages(selectedMarche.id, selectedMarche.my_candidature_id)
-                    }}
-                    className="v22-btn"
-                    style={{ width: '100%', textAlign: 'center' }}
-                  >
-                    {isPt ? 'Abrir conversa com o publicador' : 'Ouvrir la conversation avec le donneur d\'ordre'}
-                  </button>
-                ) : (
-                  <div>
-                    {/* Messages list */}
-                    <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 10, padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {msgLoading ? (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
-                          <div style={{ width: 20, height: 20, border: '2px solid var(--v22-yellow)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                        </div>
-                      ) : messages.length === 0 ? (
-                        <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', textAlign: 'center', padding: '20px 0' }}>
-                          {isPt ? 'Nenhuma mensagem ainda. Inicie a conversa!' : 'Aucun message pour l\'instant. Lancez la conversation !'}
-                        </div>
-                      ) : (
-                        messages.map((msg, idx) => (
-                          <div
-                            key={msg.id || idx}
-                            style={{ display: 'flex', justifyContent: msg.sender_type === 'artisan' ? 'flex-end' : 'flex-start' }}
-                          >
-                            <div style={{
-                              maxWidth: '80%', borderRadius: 3, padding: '8px 10px', fontSize: 12,
-                              background: msg.sender_type === 'artisan' ? 'var(--v22-yellow-light)' : 'var(--v22-bg)',
-                              color: 'var(--v22-text)',
-                            }}>
-                              <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                              <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 4 }}>
-                                {new Date(msg.created_at).toLocaleString(isPt ? 'pt-PT' : 'fr-FR', {
-                                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    {/* Input */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="text"
-                        value={msgInput}
-                        onChange={e => setMsgInput(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            sendMessage(selectedMarche.id, selectedMarche.my_candidature_id)
-                          }
-                        }}
-                        placeholder={isPt ? 'Escreva a sua mensagem...' : 'Écrivez votre message...'}
-                        className="v22-form-input"
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        onClick={() => sendMessage(selectedMarche.id, selectedMarche.my_candidature_id)}
-                        disabled={!msgInput.trim() || msgSending}
-                        className="v22-btn v22-btn-primary"
-                        style={{ opacity: (!msgInput.trim() || msgSending) ? 0.5 : 1, cursor: (!msgInput.trim() || msgSending) ? 'not-allowed' : 'pointer' }}
-                      >
-                        {msgSending ? '...' : (isPt ? 'Enviar' : 'Envoyer')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Bid form area */}
-            {!showBidForm ? (
-              <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14, marginTop: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                  {isPt ? 'Interessado?' : 'Intéressé ?'}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
-                  {isPt
-                    ? 'Envie a sua candidatura com o seu preço e prazo estimado.'
-                    : 'Envoyez votre candidature avec votre prix et délai estimé.'}
-                </div>
-                <button
-                  onClick={() => setShowBidForm(true)}
-                  className="v22-btn v22-btn-primary"
-                  style={{ width: '100%' }}
-                >
-                  {isPt ? 'Candidatar-me' : 'Postuler'} 🚀
-                </button>
-              </div>
-            ) : bidSuccess ? (
-              <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14, marginTop: 14, textAlign: 'center', padding: '24px 0' }}>
-                <div style={{ fontSize: 48, marginBottom: 10 }}>🎉</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-green)', marginBottom: 6 }}>
-                  {isPt ? 'Candidatura enviada!' : 'Candidature envoyée !'}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
-                  {isPt
-                    ? 'Receberá uma notificação quando o cliente responder.'
-                    : 'Vous recevrez une notification quand le client répondra.'}
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitBid} style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 14, marginTop: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
-                  {isPt ? 'A sua proposta' : 'Votre proposition'}
-                </div>
-
-                {bidError && (
-                  <div className="v22-alert v22-alert-red" style={{ marginBottom: 10, fontSize: 12 }}>{bidError}</div>
-                )}
-
-                {/* Price */}
-                <div style={{ marginBottom: 10 }}>
-                  <label className="v22-form-label">
-                    {isPt ? 'Preço (€)' : 'Prix (€)'} *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    value={bidPrice}
-                    onChange={e => setBidPrice(e.target.value)}
-                    placeholder="ex: 5000"
-                    className="v22-form-input"
-                  />
-                </div>
-
-                {/* Timeline */}
-                <div style={{ marginBottom: 10 }}>
-                  <label className="v22-form-label">
-                    {isPt ? 'Prazo estimado' : 'Délai estimé'} *
-                  </label>
-                  <select
-                    required
-                    value={bidTimeline}
-                    onChange={e => setBidTimeline(e.target.value)}
-                    className="v22-form-input"
-                  >
-                    <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
-                    {TIMELINE_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>
-                        {isPt ? opt.labelPt : opt.labelFr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Description */}
-                <div style={{ marginBottom: 10 }}>
-                  <label className="v22-form-label">
-                    {isPt ? 'Descrição da proposta' : 'Description de la proposition'} *
-                  </label>
-                  <textarea
-                    required
-                    value={bidDescription}
-                    onChange={e => setBidDescription(e.target.value)}
-                    rows={4}
-                    placeholder={isPt
-                      ? 'Descreva a sua abordagem, experiência e o que inclui...'
-                      : 'Décrivez votre approche, expérience et ce qui est inclus...'}
-                    className="v22-form-input"
-                    style={{ resize: 'none' }}
-                  />
-                </div>
-
-                {/* Materials toggle */}
-                <div style={{ marginBottom: 10 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                    <div
-                      style={{
-                        width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer',
-                        background: bidMaterials ? 'var(--v22-yellow)' : 'var(--v22-border)',
-                        transition: 'background 0.15s',
-                      }}
-                      onClick={() => setBidMaterials(!bidMaterials)}
-                    >
-                      <div style={{
-                        position: 'absolute', top: 2, width: 16, height: 16, borderRadius: '50%',
-                        background: 'var(--v22-surface)', transition: 'left 0.15s',
-                        left: bidMaterials ? 18 : 2,
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-                      }} />
-                    </div>
-                    <span style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>
-                      {isPt ? 'Materiais incluídos' : 'Matériaux inclus'}
-                    </span>
-                  </label>
-                </div>
-
-                {/* Guarantee */}
-                <div style={{ marginBottom: 14 }}>
-                  <label className="v22-form-label">
-                    {isPt ? 'Garantia (opcional)' : 'Garantie (optionnel)'}
-                  </label>
-                  <input
-                    type="text"
-                    value={bidGuarantee}
-                    onChange={e => setBidGuarantee(e.target.value)}
-                    placeholder={isPt ? 'Ex: 2 anos' : 'Ex : 2 ans'}
-                    className="v22-form-input"
-                  />
-                </div>
-
-                {/* Effectif — pro_societe uniquement */}
-                {isSociete && (
-                  <div style={{ marginBottom: 14 }}>
-                    <label className="v22-form-label">
-                      👷 {isPt ? 'Efectivo mobilizável (companheiros)' : 'Effectif mobilisable (compagnons)'}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="500"
-                      value={bidEffectif}
-                      onChange={e => setBidEffectif(e.target.value)}
-                      placeholder={isPt ? 'Ex: 8' : 'Ex : 8'}
-                      className="v22-form-input"
-                    />
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => { setShowBidForm(false); setBidError('') }}
-                    className="v22-btn"
-                    style={{ flex: 1 }}
-                  >
-                    {isPt ? 'Cancelar' : 'Annuler'}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={bidSubmitting}
-                    className="v22-btn v22-btn-primary"
-                    style={{ flex: 1, opacity: bidSubmitting ? 0.5 : 1, cursor: bidSubmitting ? 'not-allowed' : 'pointer' }}
-                  >
-                    {bidSubmitting
-                      ? (isPt ? 'A enviar...' : 'Envoi...')
-                      : (isPt ? 'Enviar proposta' : 'Envoyer la proposition')}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      </div>
+      <DetailModalView
+        isPt={isPt}
+        locale={locale}
+        isSociete={isSociete}
+        selectedMarche={selectedMarche}
+        artisan={artisan}
+        messages={messages}
+        msgLoading={msgLoading}
+        msgSending={msgSending}
+        msgInput={msgInput}
+        msgCandidatureId={msgCandidatureId}
+        onMsgInputChange={setMsgInput}
+        onMsgCandidatureIdChange={setMsgCandidatureId}
+        onLoadMessages={loadMessages}
+        onSendMessage={sendMessage}
+        onSubmitBid={handleSubmitBid}
+        bidSubmitting={bidSubmitting}
+        bidError={bidError}
+        bidSuccess={bidSuccess}
+        showBidForm={showBidForm}
+        onShowBidFormChange={setShowBidForm}
+        bidPrice={bidPrice}
+        bidTimeline={bidTimeline}
+        bidDescription={bidDescription}
+        bidMaterials={bidMaterials}
+        bidGuarantee={bidGuarantee}
+        bidEffectif={bidEffectif}
+        onBidPriceChange={setBidPrice}
+        onBidTimelineChange={setBidTimeline}
+        onBidDescriptionChange={setBidDescription}
+        onBidMaterialsChange={setBidMaterials}
+        onBidGuaranteeChange={setBidGuarantee}
+        onBidEffectifChange={setBidEffectif}
+        onBidErrorChange={setBidError}
+        onClose={resetDetail}
+      />
     )
   }
 
-  // ─── MAIN LIST VIEW ───────────────────────────────────
+  // ── MAIN LIST VIEW ──
   const wonBids = myBids.filter(b => b.status === 'accepted')
 
-  // Tab definitions
   const tabs = [
     { key: 'browse' as const, labelFr: 'Marchés', labelPt: 'Mercados' },
     { key: 'mybids' as const, labelFr: 'Candidatures', labelPt: 'Candidaturas' },
@@ -1155,996 +627,64 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         ))}
       </div>
 
-      {/* ─── BROWSE TAB ─────────────────────────────── */}
+      {/* Tab content */}
       {activeTab === 'browse' && (
-        <div>
-          {/* Alerts banner */}
-          {(alerts.expiringCount > 0 || alerts.unreadMessages > 0) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-              {alerts.expiringCount > 0 && (
-                <div className="v22-alert v22-alert-red" style={{ fontSize: 12 }}>
-                  <span>&#x23F0;</span>
-                  <span>
-                    {isPt
-                      ? `${alerts.expiringCount} mercado${alerts.expiringCount > 1 ? 's' : ''} expira${alerts.expiringCount > 1 ? 'm' : ''} nos próximos 3 dias`
-                      : `${alerts.expiringCount} marché${alerts.expiringCount > 1 ? 's' : ''} expire${alerts.expiringCount > 1 ? 'nt' : ''} dans les 3 prochains jours`}
-                  </span>
-                </div>
-              )}
-              {alerts.unreadMessages > 0 && (
-                <div className="v22-alert v22-alert-amber" style={{ fontSize: 12 }}>
-                  <span>&#x1F4AC;</span>
-                  <span>
-                    {isPt
-                      ? `Tem ${alerts.unreadMessages} mensagen${alerts.unreadMessages > 1 ? 's' : ''} não lida${alerts.unreadMessages > 1 ? 's' : ''}`
-                      : `Vous avez ${alerts.unreadMessages} message${alerts.unreadMessages > 1 ? 's' : ''} non lu${alerts.unreadMessages > 1 ? 's' : ''}`}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Opt-in info banner */}
-          {prefsLoaded && !marchesPrefs.marches_opt_in && (
-            <div className="v22-alert v22-alert-amber" style={{ marginBottom: 14, fontSize: 12 }}>
-              <span style={{ fontSize: 16 }}>💡</span>
-              <span style={{ flex: 1 }}>
-                {isPt
-                  ? 'Ative a bolsa de mercados nas configurações para receber mercados personalizados'
-                  : 'Activez la bourse aux marchés dans les paramètres pour recevoir des marchés personnalisés'}
-              </span>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className="v22-btn v22-btn-sm"
-              >
-                {isPt ? 'Configurações' : 'Paramètres'} →
-              </button>
-            </div>
-          )}
-
-          {/* Filters card */}
-          <div className="v22-card" style={{ marginBottom: 14, overflow: 'visible' }}>
-            <div className="v22-card-head">
-              <div className="v22-card-title">{isPt ? 'Filtros' : 'Filtres'}</div>
-            </div>
-            <div className="v22-card-body" style={{ overflow: 'visible' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Categoria' : 'Catégorie'}</label>
-                  <select
-                    value={filterCategory}
-                    onChange={e => setFilterCategory(e.target.value)}
-                    className="v22-form-input"
-                  >
-                    <option value="">{isPt ? 'Todas' : 'Toutes'}</option>
-                    {CATEGORIES.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.emoji} {isPt ? cat.label : cat.labelFr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Région filter (FR only) */}
-                {!isPt && (
-                  <div>
-                    <label className="v22-form-label">Région</label>
-                    <select
-                      value={filterRegion}
-                      onChange={e => {
-                        setFilterRegion(e.target.value)
-                        setFilterDepartments([]) // Reset dept selection when region changes
-                      }}
-                      className="v22-form-input"
-                    >
-                      <option value="">Toute la France</option>
-                      {FR_REGIONS.map(r => (
-                        <option key={r.id} value={r.id}>{r.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Département dropdown with checkboxes (FR only, when region selected) */}
-                {!isPt && filterRegion && (
-                  <div style={{ position: 'relative' }} ref={deptDropdownRef}>
-                    <label className="v22-form-label">
-                      Départements {filterDepartments.length > 0 && <span style={{ color: '#f59e0b', fontWeight: 700 }}>({filterDepartments.length})</span>}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setDeptDropdownOpen(v => !v)}
-                      className="v22-form-input"
-                      style={{
-                        width: '100%', textAlign: 'left', cursor: 'pointer',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        background: '#fff', minWidth: 200,
-                      }}
-                    >
-                      <span style={{ fontSize: 12, color: filterDepartments.length > 0 ? '#1a1a1a' : '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {filterDepartments.length === 0
-                          ? 'Tous les départements'
-                          : filterDepartments.length <= 2
-                            ? filterDepartments.map(d => DEPT_LABELS[d]?.split(' - ')[1] || d).join(', ')
-                            : `${filterDepartments.length} départements`}
-                      </span>
-                      <span style={{ fontSize: 10, marginLeft: 6, color: '#9ca3af' }}>{deptDropdownOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {deptDropdownOpen && (
-                      <div style={{
-                        position: 'absolute', top: '100%', left: 0, zIndex: 200,
-                        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.13)', width: 280,
-                        marginTop: 4,
-                      }}>
-                        {/* Select all / Deselect all */}
-                        <div style={{ padding: '7px 12px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => setFilterDepartments(FR_REGIONS.find(r => r.id === filterRegion)?.depts || [])}
-                            style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                          >
-                            Choisir tous
-                          </button>
-                          <span style={{ color: '#d1d5db' }}>|</span>
-                          <button
-                            type="button"
-                            onClick={() => setFilterDepartments([])}
-                            style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                          >
-                            Tout désélectionner
-                          </button>
-                        </div>
-                        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                          {(FR_REGIONS.find(r => r.id === filterRegion)?.depts || []).map(d => {
-                            const isSelected = filterDepartments.includes(d)
-                            return (
-                              <label
-                                key={d}
-                                onClick={() => setFilterDepartments(prev => isSelected ? prev.filter(x => x !== d) : [...prev, d])}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 8,
-                                  padding: '7px 12px', cursor: 'pointer', fontSize: 12,
-                                  background: isSelected ? '#fffbeb' : 'transparent',
-                                  borderBottom: '1px solid #f9fafb',
-                                }}
-                                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#f9fafb' }}
-                                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                              >
-                                <div
-                                  style={{
-                                    width: 15, height: 15, borderRadius: 3, flexShrink: 0,
-                                    border: isSelected ? '2px solid #f59e0b' : '2px solid #d1d5db',
-                                    background: isSelected ? '#f59e0b' : '#fff',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    transition: 'all 0.15s',
-                                  }}
-                                >
-                                  {isSelected && (
-                                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                                      <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                  )}
-                                </div>
-                                <span style={{ color: isSelected ? '#92400e' : '#374151', fontWeight: isSelected ? 500 : 400 }}>
-                                  {DEPT_LABELS[d] || d}
-                                </span>
-                              </label>
-                            )
-                          })}
-                        </div>
-                        {/* Valider button */}
-                        <div style={{ padding: '8px 12px', borderTop: '1px solid #f3f4f6' }}>
-                          <button
-                            type="button"
-                            onClick={() => setDeptDropdownOpen(false)}
-                            style={{
-                              width: '100%', padding: '6px 0', borderRadius: 6, border: 'none',
-                              background: '#FFC107', color: '#1a1a1a',
-                              fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                            }}
-                          >
-                            Valider ({filterDepartments.length || 'tous'})
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Action buttons row */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={handleScanMarches}
-                    disabled={scanning}
-                    style={{
-                      padding: '8px 20px', borderRadius: 8, border: 'none',
-                      background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
-                      cursor: scanning ? 'not-allowed' : 'pointer',
-                      fontWeight: 600, fontSize: 13,
-                      display: 'flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    {scanning ? (
-                      <>
-                        <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                        {isPt ? 'A analisar...' : 'Scan en cours...'}
-                      </>
-                    ) : (
-                      <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
-                    )}
-                  </button>
-                  {scanMeta && (
-                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', alignSelf: 'center' }}>
-                      Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-                      {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
-                    </span>
-                  )}
-                </div>
-                {!isPt && (
-                  <button
-                    type="button"
-                    onClick={saveGeoPrefs}
-                    style={{
-                      padding: '8px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb',
-                      background: prefsSaved ? '#f0fdf4' : '#fff', color: prefsSaved ? '#16a34a' : '#374151',
-                      cursor: 'pointer', fontWeight: 600, fontSize: 12,
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    {prefsSaved ? '✓ Enregistré' : '💾 Enregistrer mes préférences'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Scan Results Panel ── */}
-          {scanError && (
-            <div style={{ padding: '10px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12 }}>
-              ⚠️ {scanError}
-            </div>
-          )}
-
-          {scanResults.length > 0 && (
-            <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
-              <div className="v22-card-head" style={{ background: '#fffbeb' }}>
-                <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  📡 {isPt ? 'Marchés publics scannés' : 'Marchés publics scannés'}
-                  <span style={{ background: '#FFC107', color: '#1a1a1a', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
-                    {scanResults.length} {isPt ? 'resultados' : 'résultats'}
-                  </span>
-                </div>
-                {scanMeta && (
-                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
-                    {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </div>
-              <div style={{ padding: 0 }}>
-                {scanMeta && (
-                  <div style={{ padding: '8px 14px', background: '#f8f9fa', borderBottom: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 16 }}>
-                    {!isPt && <span>🇫🇷 BOAMP: {(scanMeta.sources?.boamp || 0) + (scanMeta.sources?.marches_online || 0)}</span>}
-                    <span>🇪🇺 TED: {scanMeta.sources?.ted || 0}</span>
-                    {isPt && <span>🇵🇹 BASE.gov: {scanMeta.sources?.base_gov || 0}</span>}
-                    {(scanMeta.sources?.stored || 0) > 0 && <span>📋 Sites+Mairies: {scanMeta.sources.stored}</span>}
-                    <span>📊 Scannés: {scanMeta.totalScanned}</span>
-                  </div>
-                )}
-                {scanResults.map((m: any, idx: number) => {
-                  const score = m.scoring?.scoreTotal || m.scoreTotal || 0
-                  const priority = m.scoring?.priority || m.priority || 'medium'
-                  const priorityEmoji = priority === 'high' ? '🔥' : priority === 'medium' ? '⚖️' : 'ℹ️'
-                  const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#d97706' : '#6b7280'
-                  const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : m.source === 'marches_online' ? '🇫🇷 BOAMP' : m.source === 'base_gov' ? '🇵🇹 BASE.gov' : m.source === 'decp' ? '🇫🇷 DECP' : m.source === 'stored' ? '📋 Plateformes' : m.source
-
-                  return (
-                    <div
-                      key={m.sourceId || idx}
-                      style={{
-                        padding: '12px 14px',
-                        borderBottom: idx < scanResults.length - 1 ? '1px solid var(--v22-border)' : 'none',
-                        display: 'flex', gap: 12, alignItems: 'flex-start',
-                        background: priority === 'high' ? '#fffbeb' : 'transparent',
-                      }}
-                    >
-                      {/* Score circle */}
-                      <div style={{
-                        minWidth: 44, height: 44, borderRadius: '50%',
-                        background: priority === 'high' ? '#FFC107' : priority === 'medium' ? '#e5e7eb' : '#f3f4f6',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 700, fontSize: 14, color: priority === 'high' ? '#1a1a1a' : '#374151',
-                        border: priority === 'high' ? '2px solid #d97706' : '1px solid #d1d5db',
-                      }}>
-                        {score}
-                      </div>
-
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                          <span style={{ fontSize: 14 }}>{priorityEmoji}</span>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--v22-text)' }}>
-                            {m.title?.slice(0, 120)}{m.title?.length > 120 ? '...' : ''}
-                          </span>
-                        </div>
-
-                        {/* AI Summary */}
-                        {m.aiSummary && (
-                          <div style={{ fontSize: 12, color: '#4b5563', marginBottom: 4, fontStyle: 'italic' }}>
-                            🤖 {m.aiSummary}
-                          </div>
-                        )}
-
-                        {/* Meta row */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11, color: 'var(--v22-text-muted)' }}>
-                          <span>{sourceLabel}</span>
-                          <span>📍 {m.location}</span>
-                          {m.buyer && <span>🏢 {m.buyer.slice(0, 40)}</span>}
-                          {m.budgetMin && <span>💰 {formatPrice(m.budgetMin)}</span>}
-                          {m.deadline && <span>📅 {new Date(m.deadline).toLocaleDateString('fr-FR')}</span>}
-                          {m.scoring?.matchedMetiers?.length > 0 && (
-                            <span style={{ color: priorityColor, fontWeight: 600 }}>
-                              🎯 {m.scoring.matchedMetiers.join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Link */}
-                      {m.sourceUrl && m.sourceUrl !== '#' && (
-                        <a
-                          href={m.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            padding: '6px 12px', borderRadius: 6, border: '1px solid var(--v22-border)',
-                            background: '#fff', color: 'var(--v22-text)', fontSize: 11, fontWeight: 500,
-                            textDecoration: 'none', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Voir ↗
-                        </a>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {showScanResults && scanResults.length === 0 && !scanning && !scanError && (
-            <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 14, background: '#f9fafb', borderRadius: 8 }}>
-              <div style={{ fontSize: 28, marginBottom: 6 }}>📭</div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>
-                {isPt ? 'Nenhum mercado público pertinente encontrado' : 'Aucun marché public pertinent trouvé'}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>
-                {isPt ? 'Tente alterar os filtros ou alargue a pesquisa' : 'Essayez de modifier vos filtres ou d\'élargir la recherche'}
-              </div>
-            </div>
-          )}
-
-          {/* Loading */}
-          {loading && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
-              <div style={{ width: 24, height: 24, border: '2px solid var(--v22-yellow)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!loading && marches.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 0' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                {isPt ? 'Nenhum mercado encontrado' : 'Aucun marché trouvé'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', maxWidth: 360, margin: '0 auto' }}>
-                {isPt
-                  ? 'Não há mercados disponíveis com os filtros selecionados. Tente ajustar os critérios ou volte mais tarde.'
-                  : 'Aucun marché disponible avec les filtres sélectionnés. Essayez d\'ajuster les critères ou revenez plus tard.'}
-              </div>
-            </div>
-          )}
-
-          {/* Opportunités card with list */}
-          {!loading && marches.length > 0 && (
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{isPt ? 'Oportunidades' : 'Opportunités'}</div>
-                <div className="v22-card-meta">{marches.length} {isPt ? 'resultados' : 'résultats'}</div>
-              </div>
-              <div>
-                {marches.map((m) => {
-                  const days = m.deadline ? daysRemaining(m.deadline) : null
-                  const maxCand = m.max_candidatures || 5
-                  const currentCand = m.candidatures_count || 0
-                  const isFull = currentCand >= maxCand
-                  const WORK_MODE_LABELS: Record<string, { emoji: string; fr: string; pt: string }> = {
-                    forfait: { emoji: '💼', fr: 'Forfait', pt: 'Forfait' },
-                    journee: { emoji: '📅', fr: 'Journée', pt: 'Por dia' },
-                    horaire: { emoji: '⏰', fr: 'Horaire', pt: 'Por hora' },
-                    tache: { emoji: '✅', fr: 'Tâche', pt: 'Por tarefa' },
-                  }
-                  const workMode = m.preferred_work_mode ? WORK_MODE_LABELS[m.preferred_work_mode] : null
-
-                  return (
-                    <div
-                      key={m.id}
-                      onClick={() => !isFull && setSelectedMarche(m)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                        borderBottom: '1px solid #F0F0EE',
-                        cursor: isFull ? 'not-allowed' : 'pointer',
-                        opacity: isFull ? 0.5 : 1,
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={e => { if (!isFull) (e.currentTarget as HTMLElement).style.background = '#FAFAF7' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
-                    >
-                      {/* Type label (mono) */}
-                      <div style={{ flexShrink: 0, width: 90 }}>
-                        <span className="v22-tag v22-tag-yellow">
-                          {getCategoryEmoji(m.category)} {isPt
-                            ? (CATEGORIES.find(c => c.id === m.category)?.label || m.category)
-                            : (CATEGORIES.find(c => c.id === m.category)?.labelFr || m.category)}
-                        </span>
-                      </div>
-
-                      {/* Title + location */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.title}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {(m.location_city || m.city) && <span>📍 {m.location_city || m.city}{m.concelho && m.concelho !== m.location_city ? `, ${m.concelho}` : ''}</span>}
-                          {days !== null && (
-                            <span style={{ color: days <= 3 ? 'var(--v22-red)' : undefined }}>
-                              ⏰ {days > 0 ? (isPt ? `${days}d` : `${days}j`) : (isPt ? 'Expirado' : 'Expiré')}
-                            </span>
-                          )}
-                          {urgencyTag(m.urgency, isPt)}
-                          {isFull && <span className="v22-tag v22-tag-gray">{isPt ? 'Completo' : 'Complet'}</span>}
-                          {workMode && (
-                            <span className="v22-tag" style={{ background: '#EEF2FF', color: '#4338CA' }}>
-                              {workMode.emoji} {isPt ? workMode.pt : workMode.fr}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Requirements badges */}
-                        {(m.require_rc_pro || m.require_decennale || m.require_rge || m.require_qualibat) && (
-                          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                            {m.require_rc_pro && <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🛡️ RC Pro</span>}
-                            {m.require_decennale && <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🏗️ {isPt ? 'Decenal' : 'Décennale'}</span>}
-                            {m.require_rge && <span className="v22-tag v22-tag-green">🌿 RGE</span>}
-                            {m.require_qualibat && <span className="v22-tag" style={{ background: '#F3E8FF', color: '#7C3AED' }}>🏅 QualiBAT</span>}
-                          </div>
-                        )}
-
-                        {/* Progress bar */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          <div className="v22-prog-bar" style={{ flex: 1 }}>
-                            <div className="v22-prog-fill" style={{
-                              width: `${Math.min(100, (currentCand / maxCand) * 100)}%`,
-                              background: isFull ? 'var(--v22-text-muted)' : currentCand / maxCand > 0.7 ? 'var(--v22-amber)' : 'var(--v22-green)',
-                            }} />
-                          </div>
-                          <span className="v22-mono" style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>
-                            {currentCand}/{maxCand}
-                          </span>
-                        </div>
-
-                        {/* Availability info */}
-                        {m.artisan_dispo_info && (
-                          <div style={{ marginTop: 4 }}>
-                            <span className="v22-tag v22-tag-green">
-                              &#x1F4C5; {m.artisan_dispo_info.available_now
-                                ? (isPt ? 'Disponível imediatamente' : 'Disponible immédiatement')
-                                : m.artisan_dispo_info.available_from
-                                  ? (isPt
-                                    ? `Disponível a partir de ${new Date(m.artisan_dispo_info.available_from).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' })}`
-                                    : `Disponible à partir du ${new Date(m.artisan_dispo_info.available_from).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`)
-                                  : (isPt ? 'Disponibilidade a confirmar' : 'Disponibilité à confirmer')}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Budget (mono, right-aligned) */}
-                      <div className="v22-amount" style={{ flexShrink: 0, textAlign: 'right' }}>
-                        {(m.budget_min || m.budget_max) ? (
-                          <>
-                            {m.budget_min ? formatPrice(m.budget_min, locale) : '—'}
-                            {' - '}
-                            {m.budget_max ? formatPrice(m.budget_max, locale) : '—'}
-                          </>
-                        ) : (
-                          <span style={{ color: 'var(--v22-text-muted)', fontStyle: 'italic', fontSize: 11 }}>
-                            {isPt ? 'N/D' : 'N/D'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Publisher tag */}
-                      <div style={{ flexShrink: 0 }}>
-                        {publisherTag(m.publisher_type, isPt)}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+        <BrowseTabView
+          isPt={isPt}
+          locale={locale}
+          marches={marches}
+          loading={loading}
+          scanning={scanning}
+          scanResults={scanResults}
+          scanMeta={scanMeta}
+          scanError={scanError}
+          showScanResults={showScanResults}
+          alerts={alerts}
+          prefsLoaded={prefsLoaded}
+          marchesOptIn={marchesPrefs.marches_opt_in}
+          filterCategory={filterCategory}
+          filterRegion={filterRegion}
+          filterDepartments={filterDepartments}
+          prefsSaved={prefsSaved}
+          onFilterCategoryChange={setFilterCategory}
+          onFilterRegionChange={setFilterRegion}
+          onFilterDepartmentsChange={setFilterDepartments}
+          onScanMarches={handleScanMarches}
+          onSaveGeoPrefs={saveGeoPrefs}
+          onSelectMarche={setSelectedMarche}
+          onGoToSettings={() => setActiveTab('settings')}
+        />
       )}
 
-      {/* ─── MY BIDS TAB ────────────────────────────── */}
       {activeTab === 'mybids' && (
-        <div>
-          {myBids.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                {isPt ? 'Nenhuma candidatura' : 'Aucune candidature'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', maxWidth: 360, margin: '0 auto', marginBottom: 14 }}>
-                {isPt
-                  ? 'Ainda não se candidatou a nenhum mercado. Explore os mercados abertos e envie a sua primeira proposta!'
-                  : 'Vous n\'avez pas encore postulé à un marché. Explorez les marchés ouverts et envoyez votre première proposition !'}
-              </div>
-              <button
-                onClick={() => setActiveTab('browse')}
-                className="v22-btn v22-btn-primary"
-              >
-                {isPt ? 'Explorar mercados' : 'Explorer les marchés'} →
-              </button>
-            </div>
-          ) : (
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{isPt ? 'As minhas candidaturas' : 'Mes candidatures'}</div>
-                <div className="v22-card-meta">{myBids.length}</div>
-              </div>
-              <div>
-                {myBids.map((bid) => (
-                  <div
-                    key={bid.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid #F0F0EE' }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
-                        <span className="v22-tag v22-tag-yellow">
-                          {getCategoryEmoji(bid.marche_category || bid.category)} {isPt
-                            ? CATEGORIES.find(c => c.id === (bid.marche_category || bid.category))?.label
-                            : CATEGORIES.find(c => c.id === (bid.marche_category || bid.category))?.labelFr
-                          }
-                        </span>
-                        {statusTag(bid.status, isPt)}
-                      </div>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>
-                        {bid.marche_title || bid.title || (isPt ? 'Mercado' : 'Marché')}
-                      </div>
-                      {bid.marche_city && (
-                        <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>📍 {bid.marche_city}</div>
-                      )}
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div className="v22-amount" style={{ fontSize: 14, fontWeight: 600 }}>
-                        {formatPrice(bid.price, locale)}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
-                        {isPt ? 'Prazo:' : 'Délai :'} {bid.timeline || '—'}
-                      </div>
-                      {bid.materials_included && (
-                        <span className="v22-tag v22-tag-green" style={{ marginTop: 2 }}>
-                          ✓ {isPt ? 'Materiais' : 'Matériaux'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <MyBidsTabView
+          isPt={isPt}
+          locale={locale}
+          myBids={myBids}
+          onGoToBrowse={() => setActiveTab('browse')}
+        />
       )}
 
-      {/* ─── WON CONTRACTS TAB ──────────────────────── */}
       {activeTab === 'won' && (
-        <div>
-          {wonBids.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🏆</div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                {isPt ? 'Nenhum contrato ganho ainda' : 'Aucun contrat remporté pour l\'instant'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', maxWidth: 360, margin: '0 auto', marginBottom: 14 }}>
-                {isPt
-                  ? 'Continue a candidatar-se aos mercados. Os seus contratos ganhos aparecerão aqui.'
-                  : 'Continuez à postuler aux marchés. Vos contrats remportés apparaîtront ici.'}
-              </div>
-              <button
-                onClick={() => setActiveTab('browse')}
-                className="v22-btn v22-btn-primary"
-              >
-                {isPt ? 'Ver mercados' : 'Voir les marchés'} →
-              </button>
-            </div>
-          ) : (
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{isPt ? 'Contratos ganhos' : 'Contrats gagnés'}</div>
-                <div className="v22-card-meta">{wonBids.length}</div>
-              </div>
-              <div>
-                {wonBids.map((bid) => (
-                  <div key={bid.id} style={{ padding: 14, borderBottom: '1px solid #F0F0EE' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                          <span className="v22-tag v22-tag-green">✅ {isPt ? 'Contrato ganho' : 'Contrat remporté'}</span>
-                          <span className="v22-tag v22-tag-yellow">
-                            {getCategoryLabel(bid.marche_category || bid.category, isPt)}
-                          </span>
-                        </div>
-                        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
-                          {bid.marche_title || bid.title || (isPt ? 'Mercado' : 'Marché')}
-                        </div>
-                        {bid.marche_city && (
-                          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 4 }}>📍 {bid.marche_city}</div>
-                        )}
-                        {bid.marche_description && (
-                          <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any }}>
-                            {bid.marche_description}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ flexShrink: 0, background: 'var(--v22-bg)', borderRadius: 3, padding: '10px 14px', border: '1px solid var(--v22-border)', minWidth: 160 }}>
-                        <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }} className="v22-mono">
-                          {isPt ? 'O seu preço' : 'Votre prix'}
-                        </div>
-                        <div className="v22-mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--v22-green)', marginBottom: 8 }}>
-                          {formatPrice(bid.price, locale)}
-                        </div>
-                        {bid.publisher_contact && (
-                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 8, marginTop: 8 }}>
-                            <div className="v22-mono" style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                              {isPt ? 'Contacto' : 'Contact'}
-                            </div>
-                            <div style={{ fontSize: 12, fontWeight: 500 }}>{bid.publisher_contact.name}</div>
-                            {bid.publisher_contact.email && (
-                              <a href={`mailto:${bid.publisher_contact.email}`} style={{ fontSize: 11, color: '#1A56DB' }}>
-                                {bid.publisher_contact.email}
-                              </a>
-                            )}
-                            {bid.publisher_contact.phone && (
-                              <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{bid.publisher_contact.phone}</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Evaluation section for won contracts */}
-                    <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 10, marginTop: 10 }}>
-                      {/* Received evaluation from publisher */}
-                      {receivedEval[bid.marche_id] && (
-                        <div style={{ marginBottom: 10, borderRadius: 3, background: '#E8F0FE', border: '1px solid #B6D4FE', padding: 10 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#1A56DB', marginBottom: 6 }}>
-                            &#x2B50; {isPt ? 'Avaliação recebida do cliente' : 'Évaluation reçue du donneur d\'ordre'}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 4 }}>
-                            {[1, 2, 3, 4, 5].map(s => (
-                              <span key={s} style={{ fontSize: 14, color: s <= receivedEval[bid.marche_id].note_globale ? '#D4A00A' : 'var(--v22-border)' }}>
-                                &#x2605;
-                              </span>
-                            ))}
-                            <span className="v22-mono" style={{ marginLeft: 6, fontSize: 12, fontWeight: 600 }}>{receivedEval[bid.marche_id].note_globale}/5</span>
-                          </div>
-                          {receivedEval[bid.marche_id].comment && (
-                            <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', fontStyle: 'italic', marginTop: 4 }}>
-                              &quot;{receivedEval[bid.marche_id].comment}&quot;
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Evaluate this mission */}
-                      {evalBidId === bid.id ? (
-                        <div style={{ borderRadius: 3, background: 'var(--v22-amber-light)', border: '1px solid var(--v22-yellow-border)', padding: 10 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--v22-amber)', marginBottom: 8 }}>
-                            {isPt ? 'Avaliar esta missão' : 'Évaluer cette mission'}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 8 }}>
-                            {[1, 2, 3, 4, 5].map(s => (
-                              <button
-                                key={s}
-                                type="button"
-                                onClick={() => setEvalRating(s)}
-                                style={{
-                                  fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-                                  color: s <= evalRating ? '#D4A00A' : 'var(--v22-border)',
-                                  transition: 'transform 0.1s',
-                                }}
-                              >
-                                &#x2605;
-                              </button>
-                            ))}
-                            {evalRating > 0 && <span className="v22-mono" style={{ marginLeft: 6, fontSize: 12, fontWeight: 600 }}>{evalRating}/5</span>}
-                          </div>
-                          <textarea
-                            value={evalComment}
-                            onChange={e => setEvalComment(e.target.value)}
-                            rows={3}
-                            placeholder={isPt ? 'Comentário (opcional)...' : 'Commentaire (optionnel)...'}
-                            className="v22-form-input"
-                            style={{ resize: 'none', marginBottom: 8 }}
-                          />
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => { setEvalBidId(null); setEvalRating(0); setEvalComment('') }}
-                              className="v22-btn"
-                              style={{ flex: 1 }}
-                            >
-                              {isPt ? 'Cancelar' : 'Annuler'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => submitEvaluation(bid.marche_id || bid.marche?.id, bid.id || bid.my_candidature_id)}
-                              disabled={evalRating < 1 || evalSubmitting}
-                              className="v22-btn v22-btn-primary"
-                              style={{ flex: 1, opacity: (evalRating < 1 || evalSubmitting) ? 0.5 : 1, cursor: (evalRating < 1 || evalSubmitting) ? 'not-allowed' : 'pointer' }}
-                            >
-                              {evalSubmitting
-                                ? (isPt ? 'A enviar...' : 'Envoi...')
-                                : (isPt ? 'Enviar avaliação' : 'Envoyer l\'évaluation')}
-                            </button>
-                          </div>
-                        </div>
-                      ) : evalSuccess ? (
-                        <div style={{ borderRadius: 3, background: 'var(--v22-green-light)', border: '1px solid var(--v22-green)', padding: 10, textAlign: 'center' }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--v22-green)' }}>
-                            &#x2705; {isPt ? 'Avaliação enviada com sucesso!' : 'Évaluation envoyée avec succès !'}
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEvalBidId(bid.id)
-                            loadReceivedEvaluation(bid.marche_id)
-                          }}
-                          className="v22-btn"
-                          style={{ width: '100%', textAlign: 'center' }}
-                        >
-                          &#x2B50; {isPt ? 'Avaliar esta missão' : 'Évaluer cette mission'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <WonContractsTabView
+          isPt={isPt}
+          locale={locale}
+          wonBids={wonBids}
+          receivedEval={receivedEval}
+          onGoToBrowse={() => setActiveTab('browse')}
+          onSubmitEvaluation={submitEvaluation}
+          onLoadReceivedEvaluation={loadReceivedEvaluation}
+        />
       )}
 
-      {/* ─── SETTINGS TAB ─────────────────────────────── */}
       {activeTab === 'settings' && (
-        <div style={{ maxWidth: 560 }}>
-          {/* 1. Opt-in toggle */}
-          <div className="v22-card" style={{ marginBottom: 14 }}>
-            <div className="v22-card-head">
-              <div className="v22-card-title">
-                {isPt ? 'Receber propostas de mercados' : 'Recevoir des propositions de marchés'}
-              </div>
-            </div>
-            <div className="v22-card-body">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div
-                  onClick={() => setMarchesPrefs(p => ({ ...p, marches_opt_in: !p.marches_opt_in }))}
-                  style={{
-                    width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer',
-                    background: marchesPrefs.marches_opt_in ? 'var(--v22-green)' : 'var(--v22-border)',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  <div style={{
-                    position: 'absolute', top: 2, width: 16, height: 16, borderRadius: '50%',
-                    background: 'var(--v22-surface)', transition: 'left 0.15s',
-                    left: marchesPrefs.marches_opt_in ? 18 : 2,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-                  }} />
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 500, color: marchesPrefs.marches_opt_in ? 'var(--v22-green)' : 'var(--v22-text-muted)' }}>
-                  {marchesPrefs.marches_opt_in
-                    ? (isPt ? 'Ativado' : 'Activé')
-                    : (isPt ? 'Desativado' : 'Désactivé')}
-                </span>
-              </div>
-              {!marchesPrefs.marches_opt_in && (
-                <div style={{ marginTop: 10, borderRadius: 3, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', padding: '8px 10px', fontSize: 12, color: 'var(--v22-text-muted)' }}>
-                  {isPt
-                    ? 'Não receberá notificações para novos mercados'
-                    : 'Vous ne recevrez plus de notifications pour les nouveaux marchés'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 2. Categories checkboxes */}
-          <div className="v22-card" style={{ marginBottom: 14, opacity: !marchesPrefs.marches_opt_in ? 0.5 : 1, pointerEvents: !marchesPrefs.marches_opt_in ? 'none' : undefined }}>
-            <div className="v22-card-head">
-              <div className="v22-card-title">
-                {isPt ? 'As minhas especialidades' : 'Mes spécialités'}
-              </div>
-            </div>
-            <div className="v22-card-body">
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 10 }}>
-                {isPt
-                  ? 'Selecione as categorias de trabalho que lhe interessam'
-                  : 'Sélectionnez les catégories de travaux qui vous intéressent'}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                {CATEGORIES.map(cat => {
-                  const checked = marchesPrefs.marches_categories.includes(cat.id)
-                  return (
-                    <label
-                      key={cat.id}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, borderRadius: 3, cursor: 'pointer',
-                        border: checked ? '1px solid var(--v22-yellow)' : '1px solid var(--v22-border)',
-                        background: checked ? 'var(--v22-yellow-light)' : 'var(--v22-surface)',
-                        padding: '6px 8px', fontSize: 12, transition: 'all 0.1s',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          setMarchesPrefs(p => ({
-                            ...p,
-                            marches_categories: checked
-                              ? p.marches_categories.filter(c => c !== cat.id)
-                              : [...p.marches_categories, cat.id],
-                          }))
-                        }}
-                        style={{ display: 'none' }}
-                      />
-                      <div style={{
-                        width: 14, height: 14, borderRadius: 2, flexShrink: 0,
-                        border: checked ? '2px solid var(--v22-yellow)' : '2px solid var(--v22-border-dark)',
-                        background: checked ? 'var(--v22-yellow)' : 'var(--v22-surface)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.1s',
-                      }}>
-                        {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                      </div>
-                      <span>{cat.emoji} {isPt ? cat.label : cat.labelFr}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Work mode radio */}
-          <div className="v22-card" style={{ marginBottom: 14, opacity: !marchesPrefs.marches_opt_in ? 0.5 : 1, pointerEvents: !marchesPrefs.marches_opt_in ? 'none' : undefined }}>
-            <div className="v22-card-head">
-              <div className="v22-card-title">
-                {isPt ? 'O meu modo de trabalho' : 'Mon mode de travail'}
-              </div>
-            </div>
-            <div className="v22-card-body">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-                {([
-                  { value: 'forfait', emoji: '💼', fr: 'Forfait', pt: 'Forfait', desc_fr: 'Prix fixe pour la mission', desc_pt: 'Preço fixo para a missão' },
-                  { value: 'journee', emoji: '📅', fr: 'À la journée', pt: 'Por dia', desc_fr: 'Tarif journalier', desc_pt: 'Tarifa diária' },
-                  { value: 'horaire', emoji: '⏰', fr: 'À l\'heure', pt: 'Por hora', desc_fr: 'Tarif horaire', desc_pt: 'Tarifa por hora' },
-                  { value: 'tache', emoji: '✅', fr: 'À la tâche', pt: 'Por tarefa', desc_fr: 'Prix défini par candidature', desc_pt: 'Preço definido por candidatura' },
-                ] as const).map(mode => {
-                  const selected = marchesPrefs.marches_work_mode === mode.value
-                  return (
-                    <button
-                      key={mode.value}
-                      type="button"
-                      onClick={() => setMarchesPrefs(p => ({ ...p, marches_work_mode: mode.value }))}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4,
-                        borderRadius: 3, padding: '10px 12px', textAlign: 'left',
-                        border: selected ? '2px solid var(--v22-yellow)' : '1px solid var(--v22-border)',
-                        background: selected ? 'var(--v22-yellow-light)' : 'var(--v22-surface)',
-                        cursor: 'pointer', transition: 'all 0.1s',
-                      }}
-                    >
-                      <span style={{ fontSize: 16 }}>{mode.emoji}</span>
-                      <span style={{ fontSize: 12, fontWeight: selected ? 600 : 400 }}>
-                        {isPt ? mode.pt : mode.fr}
-                      </span>
-                      <span style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>{isPt ? mode.desc_pt : mode.desc_fr}</span>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Tariff inputs based on work mode */}
-              {marchesPrefs.marches_work_mode === 'journee' && (
-                <div style={{ marginTop: 10 }}>
-                  <label className="v22-form-label">
-                    {isPt ? 'Tarifa diária (€)' : 'Tarif journalier (€)'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={marchesPrefs.marches_tarif_journalier ?? ''}
-                    onChange={e => setMarchesPrefs(p => ({ ...p, marches_tarif_journalier: e.target.value ? Number(e.target.value) : null }))}
-                    placeholder="ex: 350"
-                    className="v22-form-input"
-                  />
-                </div>
-              )}
-              {marchesPrefs.marches_work_mode === 'horaire' && (
-                <div style={{ marginTop: 10 }}>
-                  <label className="v22-form-label">
-                    {isPt ? 'Tarifa por hora (€)' : 'Tarif horaire (€)'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={marchesPrefs.marches_tarif_horaire ?? ''}
-                    onChange={e => setMarchesPrefs(p => ({ ...p, marches_tarif_horaire: e.target.value ? Number(e.target.value) : null }))}
-                    placeholder="ex: 45"
-                    className="v22-form-input"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 4. Description textarea */}
-          <div className="v22-card" style={{ marginBottom: 14, opacity: !marchesPrefs.marches_opt_in ? 0.5 : 1, pointerEvents: !marchesPrefs.marches_opt_in ? 'none' : undefined }}>
-            <div className="v22-card-head">
-              <div className="v22-card-title">
-                {isPt ? 'Apresentação bolsa de mercados' : 'Présentation bourse aux marchés'}
-              </div>
-            </div>
-            <div className="v22-card-body">
-              <textarea
-                value={marchesPrefs.marches_description}
-                onChange={e => setMarchesPrefs(p => ({ ...p, marches_description: e.target.value.slice(0, 2000) }))}
-                rows={5}
-                maxLength={2000}
-                placeholder={isPt
-                  ? 'Descreva a sua empresa, experiência e competências principais...'
-                  : 'Décrivez votre entreprise, expérience et compétences principales...'}
-                className="v22-form-input"
-                style={{ resize: 'none' }}
-              />
-              <div className="v22-mono" style={{ marginTop: 4, fontSize: 10, color: 'var(--v22-text-muted)', textAlign: 'right' }}>
-                {marchesPrefs.marches_description.length}/2000
-              </div>
-            </div>
-          </div>
-
-          {/* Save button */}
-          <button
-            type="button"
-            onClick={saveMarchesPrefs}
-            disabled={prefsSaving}
-            className="v22-btn v22-btn-primary"
-            style={{ width: '100%', padding: '8px 16px', fontSize: 13, opacity: prefsSaving ? 0.5 : 1, cursor: prefsSaving ? 'not-allowed' : 'pointer' }}
-          >
-            {prefsSaving
-              ? (isPt ? 'A guardar...' : 'Enregistrement...')
-              : (isPt ? 'Guardar preferências' : 'Enregistrer les préférences')}
-          </button>
-        </div>
+        <SettingsTabView
+          isPt={isPt}
+          marchesPrefs={marchesPrefs}
+          prefsSaving={prefsSaving}
+          onPrefsChange={setMarchesPrefs}
+          onSave={saveMarchesPrefs}
+        />
       )}
     </div>
   )

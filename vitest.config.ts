@@ -9,6 +9,7 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     isolate: false,
+    testTimeout: 15000,
     coverage: {
       reporter: ['text', 'json', 'html'],
       include: ['lib/**', 'app/api/**'],

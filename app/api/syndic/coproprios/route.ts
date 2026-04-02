@@ -72,7 +72,9 @@ export async function POST(request: NextRequest) {
     if (!user || !isSyndicRole(user)) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
-    const userRole = user.user_metadata?.role || ''
+    // Double-check write permissions using server-side app_metadata (non-forgeable)
+    const { getUserRole } = await import('@/lib/auth-helpers')
+    const userRole = getUserRole(user)
     if (userRole !== 'syndic' && userRole !== 'syndic_admin' && userRole !== 'syndic_gestionnaire') {
       return NextResponse.json({ error: 'Droits insuffisants' }, { status: 403 })
     }

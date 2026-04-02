@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { CreateListingPayload } from '@/lib/marketplace-btp-types'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 function getAdmin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -15,6 +16,9 @@ function getAnon() {
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`mpl_get_${ip}`, 30, 60_000))) return rateLimitResponse()
+
     const { searchParams } = new URL(req.url)
     const categorie   = searchParams.get('categorie')
     const country     = searchParams.get('country')
@@ -48,6 +52,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIP(req)
+    if (!(await checkRateLimit(`mpl_post_${ip}`, 10, 60_000))) return rateLimitResponse()
+
     const token = req.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

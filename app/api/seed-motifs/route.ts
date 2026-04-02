@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[seed-motifs] Insert error:', error.message)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
     // Insérer les étapes pour les motifs qui en ont

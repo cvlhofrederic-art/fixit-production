@@ -12,8 +12,7 @@ import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/next";
+import ConsentAnalytics from "@/components/common/ConsentAnalytics";
 import type { Locale } from "@/lib/i18n/config";
 
 const dmSans = DM_Sans({
@@ -372,8 +371,7 @@ export default async function RootLayout({
           </ConditionalLayout>
           <CookieConsent />
         </Providers>
-        <SpeedInsights />
-        <Analytics />
+        <ConsentAnalytics />
       </body>
     </html>
   );

@@ -5,6 +5,9 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { normalizeForSearch, fuzzyFind } from '@/lib/fuzzy-match'
+import { generateRapportPDF } from '@/lib/rapport-pdf'
+import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
+import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
 import type { Artisan, Service, Booking } from '@/lib/types'
 
 interface CompanyData {
@@ -441,312 +444,25 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     saveRapports(rapports.filter(r => r.id !== id))
   }
 
-  // ═══ PDF generation — jsPDF vectoriel haute qualité (comme devis/factures) ═══
-  const generatePDF = async (r: RapportIntervention) => {
+  // ═══ PDF generation — delegated to lib/rapport-pdf.ts ═══
+  const handleGeneratePDF = async (r: RapportIntervention) => {
     setPdfLoading(r.id)
     try {
-      // Load photos if rapport has linked photos
       if (r.linkedPhotoIds?.length && availablePhotos.length === 0) {
         await loadAvailablePhotos()
       }
-      const { jsPDF } = await import('jspdf')
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()  // 210mm
-      const pageH = pdf.internal.pageSize.getHeight() // 297mm
-      const mL = 18, mR = 18
-      const contentW = pageW - mL - mR
-      const col = '#1E293B', colLight = '#64748B', colAccent = '#FFC107'
-
-      // ─── Helper functions ───
-      const drawLine = (x1: number, yPos: number, x2: number, color = '#E2E8F0', width = 0.3) => {
-        pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
-      }
-      const checkPage = (need: number, currentY: number): number => {
-        if (currentY + need > pageH - 15) { pdf.addPage(); return 18 }
-        return currentY
-      }
-      const sectionHeader = (text: string, yPos: number, bgColor = '#1E293B'): number => {
-        yPos = checkPage(12, yPos)
-        pdf.setFillColor(bgColor)
-        pdf.roundedRect(mL, yPos, contentW, 7, 1.5, 1.5, 'F')
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
-        pdf.text(text.toUpperCase(), mL + 4, yPos + 4.8)
-        return yPos + 8
-      }
-      const sectionBody = (yStart: number, render: (x: number, y: number, w: number) => number): number => {
-        pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-        const bodyY = yStart
-        const endY = render(mL + 4, bodyY + 4, contentW - 8)
-        pdf.roundedRect(mL, yStart - 0.5, contentW, endY - yStart + 2, 0, 0, 'S')
-        return endY + 4
-      }
-      let y = 0
-
-      // ═══ 1. EN-TÊTE BANDEAU SOMBRE ═══
-      pdf.setFillColor('#1E293B')
-      pdf.rect(0, 0, pageW, 32, 'F')
-      // Titre
-      pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
-      pdf.text("RAPPORT D'INTERVENTION", mL, 14)
-      // Numéro
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#FFC107')
-      pdf.text(r.rapportNumber, mL, 21)
-      // Date
-      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#94A3B8')
-      pdf.text(`Établi le ${new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}`, mL, 27)
-      // Référence devis/facture à droite
-      if (r.refDevisFact) {
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#94A3B8')
-        pdf.text(`Réf : ${r.refDevisFact}`, pageW - mR, 21, { align: 'right' })
-      }
-      // Bande jaune
-      pdf.setFillColor('#FFC107')
-      pdf.rect(0, 32, pageW, 1.5, 'F')
-      y = 40
-
-      // ═══ 2. ÉMETTEUR + CLIENT (2 colonnes) ═══
-      const boxW = (contentW - 6) / 2
-      const boxStartY = y
-
-      // Émetteur
-      pdf.setDrawColor('#E2E8F0'); pdf.setLineWidth(0.3)
-      pdf.setFillColor('#F8FAFC')
-      pdf.roundedRect(mL, boxStartY, boxW, 36, 2, 2, 'FD')
-      let ey = boxStartY + 4
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(colLight)
-      pdf.text('PRESTATAIRE', mL + 4, ey); ey += 5
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(r.artisanName || '', mL + 4, ey); ey += 4
-      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
-      if (r.artisanAddress) { pdf.text(r.artisanAddress, mL + 4, ey); ey += 3.2 }
-      if (r.artisanPhone) { pdf.text(r.artisanPhone, mL + 4, ey); ey += 3.2 }
-      if (r.artisanEmail) { pdf.text(r.artisanEmail, mL + 4, ey); ey += 3.2 }
-      if (r.artisanSiret) { pdf.setFontSize(6.5); pdf.setTextColor('#94A3B8'); pdf.text(`SIRET : ${r.artisanSiret}`, mL + 4, ey); ey += 3 }
-      if (r.artisanInsurance) { pdf.text(r.artisanInsurance, mL + 4, ey) }
-
-      // Client
-      const destX = mL + boxW + 6
-      pdf.setFillColor('#FFFBF0')
-      pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
-      pdf.roundedRect(destX, boxStartY, boxW, 36, 2, 2, 'FD')
-      // Bord jaune gauche
-      pdf.setFillColor('#FFC107')
-      pdf.rect(destX, boxStartY + 2, 1.5, 32, 'F')
-      let dy = boxStartY + 4
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#B45309')
-      pdf.text('CLIENT', destX + 6, dy); dy += 5
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-      pdf.text(r.clientName || '', destX + 6, dy); dy += 4
-      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#475569')
-      if (r.clientAddress) { pdf.text(r.clientAddress, destX + 6, dy); dy += 3.2 }
-      if (r.clientPhone) { pdf.text(r.clientPhone, destX + 6, dy); dy += 3.2 }
-      if (r.clientEmail) { pdf.text(r.clientEmail, destX + 6, dy) }
-
-      y = boxStartY + 38
-
-      // ═══ 3. DÉTAILS INTERVENTION ═══
-      pdf.setFillColor('#FFFBEB'); pdf.setDrawColor('#FDE68A'); pdf.setLineWidth(0.3)
-      pdf.roundedRect(mL, y, contentW, 18, 2, 2, 'FD')
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#92400E')
-      pdf.text("DÉTAILS DE L'INTERVENTION", mL + 4, y + 4)
-      // 4 colonnes
-      const colW4 = contentW / 4
-      const detY = y + 9
-      const detailCol = (label: string, value: string, cx: number) => {
-        pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-        pdf.text(label, cx, detY)
-        pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(value || '—', cx, detY + 4)
-      }
-      detailCol('Date', r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : '—', mL + 4)
-      detailCol('Heure début', r.startTime || '—', mL + 4 + colW4)
-      detailCol('Heure fin', r.endTime || '—', mL + 4 + colW4 * 2)
-      // Durée calculée
-      let durationStr = '—'
-      if (r.startTime && r.endTime) {
-        const [sh, sm] = r.startTime.split(':').map(Number)
-        const [eh, em] = r.endTime.split(':').map(Number)
-        const mins = (eh * 60 + em) - (sh * 60 + sm)
-        if (mins > 0) durationStr = `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : '00'}`
-      }
-      detailCol('Durée', durationStr, mL + 4 + colW4 * 3)
-      // Adresse chantier
-      if (r.siteAddress) {
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-        pdf.text('Adresse chantier : ', mL + 4, y + 16)
-        pdf.setFont('helvetica', 'bold'); pdf.setTextColor(col)
-        pdf.text(r.siteAddress, mL + 4 + pdf.getTextWidth('Adresse chantier : '), y + 16)
-      }
-      y += 22
-
-      // ═══ 4. MOTIF D'INTERVENTION ═══
-      if (r.motif) {
-        y = sectionHeader("Motif d'intervention", y)
-        y = sectionBody(y, (x, sy, w) => {
-          pdf.setFontSize(8.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
-          const lines = pdf.splitTextToSize(r.motif, w)
-          pdf.text(lines, x, sy)
-          return sy + lines.length * 3.5 + 1
-        })
-      }
-
-      // ═══ 5. TRAVAUX RÉALISÉS ═══
-      const travaux = r.travaux?.filter(t => t) || []
-      if (travaux.length > 0) {
-        y = sectionHeader('Travaux réalisés', y)
-        y = sectionBody(y, (x, sy, w) => {
-          let ty = sy
-          travaux.forEach(t => {
-            ty = checkPage(5, ty)
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#059669')
-            pdf.text('✓', x, ty)
-            pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
-            const tLines = pdf.splitTextToSize(t, w - 6)
-            pdf.text(tLines, x + 5, ty)
-            ty += tLines.length * 3.5 + 1
-          })
-          return ty
-        })
-      }
-
-      // ═══ 6. MATÉRIAUX UTILISÉS ═══
-      const materiaux = r.materiaux?.filter(m => m) || []
-      if (materiaux.length > 0) {
-        y = sectionHeader('Matériaux utilisés', y)
-        y = sectionBody(y, (x, sy, w) => {
-          let my = sy
-          materiaux.forEach(m => {
-            my = checkPage(5, my)
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(colLight)
-            pdf.text('•', x, my)
-            pdf.setTextColor(col)
-            const mLines = pdf.splitTextToSize(m, w - 6)
-            pdf.text(mLines, x + 5, my)
-            my += mLines.length * 3.5 + 1
-          })
-          return my
-        })
-      }
-
-      // ═══ 7. OBSERVATIONS + RECOMMANDATIONS ═══
-      if (r.observations || r.recommendations) {
-        y = checkPage(25, y)
-        const hasObs = !!r.observations
-        const hasRec = !!r.recommendations
-        const splitW = hasObs && hasRec ? (contentW - 4) / 2 : contentW
-
-        if (hasObs) {
-          // Observations
-          pdf.setFillColor('#475569')
-          pdf.roundedRect(mL, y, splitW, 7, 1.5, 1.5, 'F')
-          pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
-          pdf.text('OBSERVATIONS', mL + 4, y + 4.8)
-          pdf.setDrawColor('#E2E8F0'); pdf.setFillColor('#F8FAFC')
-          pdf.roundedRect(mL, y + 7, splitW, 20, 0, 0, 'FD')
-          pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
-          const obsLines = pdf.splitTextToSize(r.observations, splitW - 8)
-          pdf.text(obsLines, mL + 4, y + 12)
-        }
-
-        if (hasRec) {
-          const recX = hasObs ? mL + splitW + 4 : mL
-          pdf.setFillColor('#2563EB')
-          pdf.roundedRect(recX, y, splitW, 7, 1.5, 1.5, 'F')
-          pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#ffffff')
-          pdf.text('RECOMMANDATIONS', recX + 4, y + 4.8)
-          pdf.setDrawColor('#E2E8F0'); pdf.setFillColor('#EFF6FF')
-          pdf.roundedRect(recX, y + 7, splitW, 20, 0, 0, 'FD')
-          pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(col)
-          const recLines = pdf.splitTextToSize(r.recommendations, splitW - 8)
-          pdf.text(recLines, recX + 4, y + 12)
-        }
-        y += 30
-      }
-
-      // ═══ 8. PHOTOS CHANTIER ═══
-      const linkedPhotosList = r.linkedPhotoIds?.length
-        ? availablePhotos.filter(p => r.linkedPhotoIds?.includes(p.id))
-        : []
-      if (linkedPhotosList.length > 0) {
-        y = checkPage(20, y)
-        y = sectionHeader(`Photos chantier (${linkedPhotosList.length})`, y)
-        y += 2
-
-        const photoW = (contentW - 6) / 2
-        const photoH = 50
-        let photoCol = 0
-
-        const loadImage = (url: string): Promise<HTMLImageElement> => {
-          return new Promise((resolve, reject) => {
-            const img = new window.Image()
-            img.crossOrigin = 'anonymous'
-            img.onload = () => resolve(img)
-            img.onerror = () => reject(new Error('Image load failed'))
-            img.src = url
-          })
-        }
-
-        for (let i = 0; i < linkedPhotosList.length; i++) {
-          const photo = linkedPhotosList[i]
-          if (photoCol === 0) y = checkPage(photoH + 16, y)
-          const x = mL + photoCol * (photoW + 6)
-
-          try {
-            const img = await loadImage(photo.url || '')
-            pdf.setDrawColor('#E5E7EB'); pdf.setLineWidth(0.3)
-            pdf.roundedRect(x, y, photoW, photoH + 10, 1.5, 1.5, 'S')
-
-            const imgRatio = img.width / img.height
-            let drawW = photoW - 4, drawH = photoH - 2
-            if (imgRatio > drawW / drawH) { drawH = drawW / imgRatio } else { drawW = drawH * imgRatio }
-            const imgX = x + (photoW - drawW) / 2
-            const imgY = y + 1 + (photoH - 2 - drawH) / 2
-
-            // Haute résolution 2400px
-            const canvas = document.createElement('canvas')
-            canvas.width = Math.min(img.width, 2400)
-            canvas.height = Math.round(canvas.width / imgRatio)
-            const ctx = canvas.getContext('2d')
-            if (ctx) {
-              ctx.imageSmoothingEnabled = true
-              ctx.imageSmoothingQuality = 'high'
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-              const imgData = canvas.toDataURL('image/jpeg', 0.92)
-              pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
-            }
-
-            // Info photo
-            pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-            const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString(dateFmtLocale) : ''
-            if (dateStr) pdf.text(dateStr, x + 2, y + photoH + 3)
-            if (photo.lat && photo.lng) {
-              pdf.text(`GPS ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, y + photoH + 6.5)
-            }
-          } catch {
-            pdf.setFillColor('#F3F4F6')
-            pdf.roundedRect(x, y, photoW, photoH + 10, 1.5, 1.5, 'FD')
-            pdf.setFontSize(7); pdf.setTextColor('#9CA3AF')
-            pdf.text('Photo non disponible', x + photoW / 2, y + photoH / 2, { align: 'center' })
-          }
-
-          photoCol++
-          if (photoCol >= 2) { photoCol = 0; y += photoH + 14 }
-        }
-        if (photoCol > 0) y += photoH + 14
-      }
-
-      // ═══ FOOTER ═══
-      pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#94A3B8')
-      const footerText = `${r.artisanName}${r.artisanSiret ? ` — SIRET ${r.artisanSiret}` : ''} — Document généré par Vitfix Pro — ${new Date().toLocaleDateString(dateFmtLocale)}`
-      pdf.text(footerText, pageW / 2, pageH - 8, { align: 'center' })
-
-      pdf.save(`${r.rapportNumber}.pdf`)
+      await generateRapportPDF(r, availablePhotos, dateFmtLocale)
     } catch (e) {
       console.error('PDF error:', e)
     } finally {
       setPreviewRapport(null)
       setPdfLoading(null)
     }
+  }
+
+  const markRapportSent = (id: string) => {
+    const now = new Date().toISOString()
+    saveRapports(rapports.map(x => x.id === id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
   }
 
   const fv = (v: string | undefined) => v || ''
@@ -1189,130 +905,20 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                 </tr>
               </thead>
               <tbody>
-                {rapports.map(r => {
-                  const st = RAPPORT_STATUS_MAP[r.status] || RAPPORT_STATUS_MAP.termine
-                  const duration = r.startTime && r.endTime ? (() => {
-                    const [sh, sm] = r.startTime.split(':').map(Number)
-                    const [eh, em] = r.endTime.split(':').map(Number)
-                    const mins = (eh * 60 + em) - (sh * 60 + sm)
-                    if (mins <= 0) return null
-                    return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : '00'}`
-                  })() : null
-
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        <span className="v22-ref">{r.rapportNumber}</span>
-                        {r.refDevisFact && <div className="v22-card-meta" style={{ marginTop: '2px' }}>{r.refDevisFact}</div>}
-                        {(r.linkedDevisId || r.linkedDevisRef) && (() => {
-                          let label = r.linkedDevisRef || ''
-                          if (r.linkedDevisId && artisan?.id) {
-                            try {
-                              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-                              const doc = docs.find((d: { id: string }) => d.id === r.linkedDevisId)
-                              if (doc) label = `Devis ${doc.service || doc.clientName || doc.id}`
-                            } catch { /* ignore */ }
-                          }
-                          return (
-                            <div
-                              className="v22-card-meta"
-                              style={{ marginTop: '2px', color: 'var(--v22-yellow)', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
-                              onClick={() => onNavigate?.('devis')}
-                            >
-                              📋 Lié au devis: {label}
-                            </div>
-                          )
-                        })()}
-                        {(r.linkedFactureId || r.linkedFactureRef) && (() => {
-                          let label = r.linkedFactureRef || ''
-                          if (r.linkedFactureId && artisan?.id) {
-                            try {
-                              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-                              const doc = docs.find((d: { id: string }) => d.id === r.linkedFactureId)
-                              if (doc) label = `Facture ${doc.service || doc.clientName || doc.id}`
-                            } catch { /* ignore */ }
-                          }
-                          return (
-                            <div
-                              className="v22-card-meta"
-                              style={{ marginTop: '2px', color: 'var(--v22-yellow)', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
-                              onClick={() => onNavigate?.('devis')}
-                            >
-                              🧾 Lié à la facture: {label}
-                            </div>
-                          )
-                        })()}
-                      </td>
-                      <td>
-                        <span className="v22-client-name">{r.clientName || 'Client non defini'}</span>
-                        {r.siteAddress && <div className="v22-card-meta">{r.siteAddress}</div>}
-                      </td>
-                      <td>
-                        <div style={{ maxWidth: '200px' }}>{r.motif}</div>
-                        {r.travaux?.filter(t => t).length > 0 && (
-                          <div className="v22-card-meta" style={{ marginTop: '2px' }}>
-                            {r.travaux.filter(t => t).slice(0, 2).map((t, i) => <span key={i} style={{ marginRight: '8px' }}>✓ {t}</span>)}
-                            {r.travaux.filter(t => t).length > 2 && <span>+{r.travaux.filter(t => t).length - 2}</span>}
-                          </div>
-                        )}
-                        {(r.linkedPhotoIds?.length || 0) > 0 && (
-                          <div style={{ marginTop: '4px' }}>
-                            <span className="v22-tag v22-tag-gray">📸 {r.linkedPhotoIds!.length} photo{r.linkedPhotoIds!.length > 1 ? 's' : ''}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                        {r.startTime && <div className="v22-card-meta">{r.startTime}{r.endTime ? ` → ${r.endTime}` : ''}{duration ? ` (${duration})` : ''}</div>}
-                      </td>
-                      <td><span className={st.tagClass}>{st.label}</span></td>
-                      <td>
-                        <span className={r.sentStatus === 'envoye' ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-gray'}>
-                          {r.sentStatus === 'envoye' ? 'Envoye' : 'Non envoye'}
-                        </span>
-                        {r.sentAt && (
-                          <div className="v22-card-meta" style={{ marginTop: '2px' }}>
-                            {new Date(r.sentAt).toLocaleDateString(dateFmtLocale, { day: '2-digit', month: 'short' })}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                          <button
-                            onClick={() => generatePDF(r)}
-                            disabled={pdfLoading === r.id}
-                            className="v22-btn v22-btn-sm"
-                          >
-                            {pdfLoading === r.id ? '⏳' : 'PDF'}
-                          </button>
-                          <button onClick={() => openEdit(r)} className="v22-btn v22-btn-sm">✏️</button>
-                          <button onClick={() => deleteRapport(r.id)} className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>🗑️</button>
-                          {r.sentStatus !== 'envoye' && (
-                            <button onClick={() => {
-                              const now = new Date().toISOString()
-                              saveRapports(rapports.map(x => x.id === r.id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
-                            }}
-                              className="v22-btn v22-btn-sm">
-                              Marquer envoye
-                            </button>
-                          )}
-                          {r.clientEmail && (
-                            <button onClick={() => {
-                              const subject = encodeURIComponent(`Rapport ${r.rapportNumber} — ${r.artisanName || 'Fixit'}`)
-                              const body = encodeURIComponent(`Bonjour ${r.clientName || ''},\n\nVeuillez trouver ci-joint le rapport d'intervention ${r.rapportNumber} du ${r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : ''}.\n\nCordialement,\n${r.artisanName || ''}${r.artisanPhone ? '\n' + r.artisanPhone : ''}`)
-                              window.open(`mailto:${r.clientEmail}?subject=${subject}&body=${body}`)
-                              const now = new Date().toISOString()
-                              saveRapports(rapports.map(x => x.id === r.id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
-                            }}
-                              className="v22-btn v22-btn-sm">
-                              Email
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {rapports.map(r => (
+                  <RapportTableRow
+                    key={r.id}
+                    rapport={r}
+                    artisanId={artisan?.id}
+                    dateFmtLocale={dateFmtLocale}
+                    onEdit={openEdit}
+                    onDelete={deleteRapport}
+                    onGeneratePDF={handleGeneratePDF}
+                    onMarkSent={markRapportSent}
+                    pdfLoading={pdfLoading}
+                    onNavigate={onNavigate}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
@@ -1321,210 +927,14 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
       {/* ── Hidden PDF Template ── */}
       {previewRapport && (
-        <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff' }}>
-          <div ref={pdfRef} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', color: '#1a1a1a', padding: '48px 48px 40px 48px', background: '#fff', width: '794px', boxSizing: 'border-box', lineHeight: '1.5' }}>
-            {/* En-tete bandeau */}
-            <div style={{ backgroundColor: '#1E293B', margin: '-48px -48px 0 -48px', padding: '30px 48px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.3px' }}>RAPPORT D&apos;INTERVENTION</div>
-                <div style={{ fontSize: '13px', color: '#FFC107', fontWeight: '700', marginTop: '6px', letterSpacing: '1px' }}>{previewRapport.rapportNumber}</div>
-                <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '4px' }}>
-                  Etabli le {new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
-                </div>
-              </div>
-              {previewRapport.refDevisFact && (
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>Ref : {previewRapport.refDevisFact}</div>
-                </div>
-              )}
-              {(previewRapport.linkedDevisId || previewRapport.linkedDevisRef) && (() => {
-                let label = previewRapport.linkedDevisRef || ''
-                if (previewRapport.linkedDevisId && artisan?.id) {
-                  try {
-                    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-                    const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedDevisId)
-                    if (doc) label = `Devis ${doc.service || doc.clientName || doc.id}`
-                  } catch { /* ignore */ }
-                }
-                return (
-                  <div
-                    style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
-                    onClick={() => onNavigate?.('devis')}
-                  >
-                    📋 Lié au devis: {label}
-                  </div>
-                )
-              })()}
-              {(previewRapport.linkedFactureId || previewRapport.linkedFactureRef) && (() => {
-                let label = previewRapport.linkedFactureRef || ''
-                if (previewRapport.linkedFactureId && artisan?.id) {
-                  try {
-                    const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-                    const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedFactureId)
-                    if (doc) label = `Facture ${doc.service || doc.clientName || doc.id}`
-                  } catch { /* ignore */ }
-                }
-                return (
-                  <div
-                    style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
-                    onClick={() => onNavigate?.('devis')}
-                  >
-                    🧾 Lié à la facture: {label}
-                  </div>
-                )
-              })()}
-            </div>
-            {/* Bande jaune decorative */}
-            <div style={{ height: '4px', background: 'linear-gradient(90deg, #FFC107 0%, #FFD54F 50%, #FFC107 100%)', margin: '0 -48px 28px -48px' }}></div>
-
-            {/* Artisan + Client */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>Prestataire</div>
-                <div style={{ fontWeight: '700', fontSize: '14px', color: '#1E293B', marginBottom: '4px' }}>{previewRapport.artisanName}</div>
-                {previewRapport.artisanAddress && <div style={{ fontSize: '10px', color: '#475569', marginBottom: '2px' }}>{previewRapport.artisanAddress}</div>}
-                {previewRapport.artisanPhone && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.artisanPhone}</div>}
-                {previewRapport.artisanEmail && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.artisanEmail}</div>}
-                {previewRapport.artisanSiret && <div style={{ fontSize: '9px', color: '#94A3B8', marginTop: '6px' }}>SIRET : {previewRapport.artisanSiret}</div>}
-                {previewRapport.artisanInsurance && <div style={{ fontSize: '9px', color: '#94A3B8' }}>{previewRapport.artisanInsurance}</div>}
-              </div>
-              <div style={{ background: '#F8FAFC', borderLeft: '4px solid #FFC107', borderRadius: '0 10px 10px 0', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: '#B45309', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>Client</div>
-                <div style={{ fontWeight: '700', fontSize: '14px', color: '#1E293B', marginBottom: '4px' }}>{previewRapport.clientName}</div>
-                {previewRapport.clientAddress && <div style={{ fontSize: '10px', color: '#475569', marginBottom: '2px' }}>{previewRapport.clientAddress}</div>}
-                {previewRapport.clientPhone && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.clientPhone}</div>}
-                {previewRapport.clientEmail && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.clientEmail}</div>}
-              </div>
-            </div>
-
-            {/* Details intervention */}
-            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '9px', fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '10px' }}>Details de l&apos;intervention</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Date</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.interventionDate ? new Date(previewRapport.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : '—'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure debut</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.startTime || '—'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure fin</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.endTime || '—'}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280' }}>Duree</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '11px' }}>
-                    {previewRapport.startTime && previewRapport.endTime ? (() => {
-                      const [sh, sm] = previewRapport.startTime.split(':').map(Number)
-                      const [eh, em] = previewRapport.endTime.split(':').map(Number)
-                      const mins = (eh * 60 + em) - (sh * 60 + sm)
-                      return mins > 0 ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : '00'}` : '—'
-                    })() : '—'}
-                  </div>
-                </div>
-              </div>
-              {previewRapport.siteAddress && (
-                <div style={{ marginTop: '8px' }}>
-                  <span style={{ fontSize: '9px', color: '#6b7280' }}>Adresse chantier : </span>
-                  <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.siteAddress}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Motif */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Motif d&apos;intervention
-              </div>
-              <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', fontSize: '11px', minHeight: '30px', color: '#1E293B' }}>
-                {previewRapport.motif}
-              </div>
-            </div>
-
-            {/* Travaux */}
-            {previewRapport.travaux?.filter(t => t).length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Travaux realises
-                </div>
-                <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC' }}>
-                  {previewRapport.travaux.filter(t => t).map((t, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '5px', fontSize: '11px', color: '#1E293B' }}>
-                      <span style={{ color: '#059669', fontWeight: 'bold' }}>✓</span>
-                      <span>{t}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Materiaux */}
-            {previewRapport.materiaux?.filter(m => m).length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Materiaux utilises
-                </div>
-                <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC' }}>
-                  {previewRapport.materiaux.filter(m => m).map((m, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '5px', fontSize: '11px', color: '#1E293B' }}>
-                      <span style={{ color: '#64748B' }}>•</span>
-                      <span>{m}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Observations + Recommandations */}
-            {(previewRapport.observations || previewRapport.recommendations) && (
-              <div style={{ display: 'grid', gridTemplateColumns: previewRapport.recommendations ? '1fr 1fr' : '1fr', gap: '14px', marginBottom: '16px' }}>
-                {previewRapport.observations && (
-                  <div>
-                    <div style={{ background: '#475569', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Observations</div>
-                    <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', fontSize: '11px', minHeight: '40px', color: '#1E293B', lineHeight: '1.6' }}>{previewRapport.observations}</div>
-                  </div>
-                )}
-                {previewRapport.recommendations && (
-                  <div>
-                    <div style={{ background: '#2563EB', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Recommandations</div>
-                    <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#EFF6FF', fontSize: '11px', minHeight: '40px', color: '#1E293B', lineHeight: '1.6' }}>{previewRapport.recommendations}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Photos chantier */}
-            {(previewRapport.linkedPhotoIds?.length || 0) > 0 && (() => {
-              const photos = availablePhotos.filter(p => previewRapport.linkedPhotoIds?.includes(p.id))
-              return photos.length > 0 ? (
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    Photos chantier ({photos.length})
-                  </div>
-                  <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                    {photos.map(photo => (
-                      <div key={photo.id} style={{ width: '140px' }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element -- Used for html2canvas PDF capture, requires native img */}
-                        <img src={photo.url} alt="Photo chantier" style={{ width: '140px', height: '100px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} crossOrigin="anonymous" />
-                        <div style={{ fontSize: '8px', color: '#6b7280', marginTop: '3px' }}>
-                          {new Date(photo.taken_at).toLocaleDateString(dateFmtLocale)} {new Date(photo.taken_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
-                          {photo.lat && photo.lng ? ` · GPS ${photo.lat.toFixed(4)}, ${photo.lng.toFixed(4)}` : ''}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null
-            })()}
-
-            {/* Footer */}
-            <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '2px solid #E2E8F0', textAlign: 'center', fontSize: '8px', color: '#94A3B8' }}>
-              {previewRapport.artisanName} — {previewRapport.artisanSiret ? `SIRET ${previewRapport.artisanSiret}` : ''} — Document genere par Vitfix Pro — {new Date().toLocaleDateString(dateFmtLocale)}
-            </div>
-          </div>
-        </div>
+        <RapportPDFPreview
+          ref={pdfRef}
+          previewRapport={previewRapport}
+          availablePhotos={availablePhotos}
+          artisanId={artisan?.id}
+          dateFmtLocale={dateFmtLocale}
+          onNavigate={onNavigate}
+        />
       )}
     </div>
   )

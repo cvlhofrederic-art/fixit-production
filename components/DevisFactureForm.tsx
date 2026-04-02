@@ -19,16 +19,17 @@ import {
   UNITE_VALUES,
 } from '@/lib/devis-types'
 import {
-  formatUnitForPdf,
   resolveLineUnit,
   getSelectValue,
-  titleCaseAddress,
   mapLegalFormToCode,
   getStatusLabel,
   getCompanyStatuses,
   isSocieteStatus,
   isSmallBusinessStatus,
 } from '@/lib/devis-utils'
+import { buildV2Input } from '@/lib/pdf/build-v2-input'
+import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
+import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 
 // ═══════════════════════════════════════════════
 // COMPONENT
@@ -1005,94 +1006,62 @@ export default function DevisFactureForm({
     setTimeout(() => setSavedMsg(''), 3000)
   }
 
+  // ─── Shared V2 input builder helper ───
+  const freshArtisanData = async () => {
+    let freshLogoUrl = (artisan?.logo_url as string) || null
+    let freshInsuranceName = insuranceName
+    let freshInsuranceNumber = insuranceNumber
+    let freshInsuranceCoverage = insuranceCoverage
+    let freshInsuranceType = insuranceType
+    let freshInsuranceExpiry: string | null = null
+    try {
+      const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type, insurance_expiry').eq('id', artisan?.id).single()
+      if (freshArtisan?.logo_url) freshLogoUrl = freshArtisan.logo_url
+      if (freshArtisan?.insurance_name && !insuranceName) freshInsuranceName = freshArtisan.insurance_name
+      if (freshArtisan?.insurance_number && !insuranceNumber) freshInsuranceNumber = freshArtisan.insurance_number
+      if (freshArtisan?.insurance_coverage) freshInsuranceCoverage = freshArtisan.insurance_coverage
+      if (freshArtisan?.insurance_type) freshInsuranceType = freshArtisan.insurance_type
+      if (freshArtisan?.insurance_expiry) freshInsuranceExpiry = freshArtisan.insurance_expiry
+    } catch { /* use cached value */ }
+    return { freshLogoUrl, freshInsuranceName, freshInsuranceNumber, freshInsuranceCoverage, freshInsuranceType, freshInsuranceExpiry }
+  }
+
+  const getV2InputParams = (overrides: { logoUrl: string | null; insName: string | null; insNumber: string | null; insCoverage: string | null; insType: string | null }) => {
+    return buildV2Input({
+      logoUrl: overrides.logoUrl,
+      companyName, artisanCompanyName: artisan?.company_name,
+      companySiret, artisanRm: artisan?.rm as string | null,
+      companyAddress, companyPhone, companyEmail,
+      artisanRcPro: artisan?.rc_pro as string | null,
+      insuranceName: overrides.insName, insuranceNumber: overrides.insNumber,
+      insuranceCoverage: overrides.insCoverage, insuranceType: overrides.insType,
+      tvaEnabled, paymentMode,
+      clientName, clientSiret, clientAddress, clientPhone, clientEmail,
+      interventionAddress, interventionBatiment, interventionEtage, interventionEspacesCommuns,
+      docType, docNumber, docTitle, docDate, docValidity, executionDelay, prestationDate,
+      lines, acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
+    })
+  }
+
   // ─── TEST PDF V2 (parallel generator, rollback-safe) ───
   const handleTestPdfV2 = async () => {
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
-      // Re-fetch logo_url from DB (may have been updated after page load)
-      let freshLogoUrl = (artisan?.logo_url as string) || null
-      let freshInsuranceName = insuranceName
-      let freshInsuranceNumber = insuranceNumber
-      let freshInsuranceCoverage = insuranceCoverage
-      let freshInsuranceType = insuranceType
-      let freshInsuranceExpiry: string | null = null
-      try {
-        const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type, insurance_expiry').eq('id', artisan?.id).single()
-        if (freshArtisan?.logo_url) freshLogoUrl = freshArtisan.logo_url
-        if (freshArtisan?.insurance_name && !insuranceName) freshInsuranceName = freshArtisan.insurance_name
-        if (freshArtisan?.insurance_number && !insuranceNumber) freshInsuranceNumber = freshArtisan.insurance_number
-        if (freshArtisan?.insurance_coverage) freshInsuranceCoverage = freshArtisan.insurance_coverage
-        if (freshArtisan?.insurance_type) freshInsuranceType = freshArtisan.insurance_type
-        if (freshArtisan?.insurance_expiry) freshInsuranceExpiry = freshArtisan.insurance_expiry
-        // Alerte si assurance expirée
-        if (freshInsuranceExpiry && new Date(freshInsuranceExpiry) < new Date()) {
-          const proceed = confirm(`⚠️ Votre assurance ${freshInsuranceName || 'RC Pro'} a expiré le ${new Date(freshInsuranceExpiry).toLocaleDateString('fr-FR')}.\n\nLe document sera généré mais les mentions légales indiqueront une assurance potentiellement non valide.\n\nVoulez-vous continuer ?`)
-          if (!proceed) { setPdfLoading(false); return }
-        }
-      } catch { /* use cached value */ }
-      const input = {
-        artisan: {
-          logo_url: freshLogoUrl,
-          nom: companyName || artisan?.company_name || '',
-          siret: companySiret || '',
-          rm: (artisan?.rm as string) || null,
-          adresse: companyAddress || '',
-          telephone: companyPhone || '',
-          email: companyEmail || '',
-          rc_pro: (artisan?.rc_pro as string) || null,
-          insurance_name: freshInsuranceName || null,
-          insurance_number: freshInsuranceNumber || null,
-          insurance_coverage: freshInsuranceCoverage || null,
-          insurance_type: freshInsuranceType || null,
-          tva_mention: tvaEnabled ? 'TVA applicable' : 'TVA non applicable, article 293 B du CGI.',
-          mode_paiement: paymentMode || 'Virement bancaire',
-        },
-        client: {
-          nom: clientName || '',
-          siret: clientSiret || null,
-          adresse: clientAddress || null,
-          telephone: clientPhone || null,
-          email: clientEmail || null,
-          intervention_adresse: interventionAddress || null,
-          intervention_batiment: interventionBatiment || null,
-          intervention_etage: interventionEtage || null,
-          intervention_espaces_communs: interventionEspacesCommuns || null,
-        },
-        devis: {
-          numero: docNumber || 'DEVIS-TEST',
-          titre: docTitle || (docType === 'devis' ? 'DEVIS' : 'FACTURE'),
-          date_emission: new Date(docDate),
-          validite_jours: docValidity || 30,
-          delai_execution: executionDelay || 'À convenir',
-          date_prestation: prestationDate ? new Date(prestationDate) : null,
-        },
-        mode_affichage: 'bloc' as const,
-        lignes: lines.filter(l => l.description.trim()).map(l => ({
-          designation: l.description,
-          quantite: l.qty,
-          unite: l.unit || 'u',
-          prix_unitaire: l.priceHT,
-          total: l.totalHT,
-          section: null,
-          etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
-            ordre: e.ordre,
-            designation: e.designation,
-          })),
-        })),
-        acomptes: acomptesEnabled ? acomptes.map(ac => {
-          const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
-          return {
-            label: ac.label,
-            montant: totalNet * ac.pourcentage / 100,
-            declencheur: ac.declencheur,
-            statut: 'en attente' as const,
-          }
-        }) : undefined,
-        notes: notes || undefined,
-        mediateur: mediatorName || undefined,
-        mediateur_url: mediatorUrl || undefined,
+      const fresh = await freshArtisanData()
+      // Alerte si assurance expirée
+      if (fresh.freshInsuranceExpiry && new Date(fresh.freshInsuranceExpiry) < new Date()) {
+        const proceed = confirm(`⚠️ Votre assurance ${fresh.freshInsuranceName || 'RC Pro'} a expiré le ${new Date(fresh.freshInsuranceExpiry).toLocaleDateString('fr-FR')}.\n\nLe document sera généré mais les mentions légales indiqueront une assurance potentiellement non valide.\n\nVoulez-vous continuer ?`)
+        if (!proceed) { setPdfLoading(false); return }
       }
+      const input = getV2InputParams({
+        logoUrl: fresh.freshLogoUrl,
+        insName: fresh.freshInsuranceName,
+        insNumber: fresh.freshInsuranceNumber,
+        insCoverage: fresh.freshInsuranceCoverage,
+        insType: fresh.freshInsuranceType,
+      })
+      input.devis.numero = docNumber || 'DEVIS-TEST'
       const pdf = await generateDevisPdfV2(input)
       pdf.save(`${docNumber || 'devis'}.pdf`)
     } catch (err) {
@@ -1107,81 +1076,15 @@ export default function DevisFactureForm({
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
-      let freshLogoUrl = (artisan?.logo_url as string) || null
-      let freshInsuranceName = insuranceName
-      let freshInsuranceNumber = insuranceNumber
-      let freshInsuranceCoverage = insuranceCoverage
-      let freshInsuranceType = insuranceType
-      try {
-        const { data: freshArtisan } = await supabase.from('profiles_artisan').select('logo_url, insurance_name, insurance_number, insurance_coverage, insurance_type').eq('id', artisan?.id).single()
-        if (freshArtisan?.logo_url) freshLogoUrl = freshArtisan.logo_url
-        if (freshArtisan?.insurance_name && !insuranceName) freshInsuranceName = freshArtisan.insurance_name
-        if (freshArtisan?.insurance_number && !insuranceNumber) freshInsuranceNumber = freshArtisan.insurance_number
-        if (freshArtisan?.insurance_coverage) freshInsuranceCoverage = freshArtisan.insurance_coverage
-        if (freshArtisan?.insurance_type) freshInsuranceType = freshArtisan.insurance_type
-      } catch { /* use cached value */ }
-      const input = {
-        artisan: {
-          logo_url: freshLogoUrl,
-          nom: companyName || artisan?.company_name || '',
-          siret: companySiret || '',
-          rm: (artisan?.rm as string) || null,
-          adresse: companyAddress || '',
-          telephone: companyPhone || '',
-          email: companyEmail || '',
-          rc_pro: (artisan?.rc_pro as string) || null,
-          insurance_name: freshInsuranceName || null,
-          insurance_number: freshInsuranceNumber || null,
-          insurance_coverage: freshInsuranceCoverage || null,
-          insurance_type: freshInsuranceType || null,
-          tva_mention: tvaEnabled ? 'TVA applicable' : 'TVA non applicable, article 293 B du CGI.',
-          mode_paiement: paymentMode || 'Virement bancaire',
-        },
-        client: {
-          nom: clientName || '',
-          siret: clientSiret || null,
-          adresse: clientAddress || null,
-          telephone: clientPhone || null,
-          email: clientEmail || null,
-          intervention_adresse: interventionAddress || null,
-          intervention_batiment: interventionBatiment || null,
-          intervention_etage: interventionEtage || null,
-          intervention_espaces_communs: interventionEspacesCommuns || null,
-        },
-        devis: {
-          numero: docNumber || 'DEVIS-PREVIEW',
-          titre: docTitle || (docType === 'devis' ? 'DEVIS' : 'FACTURE'),
-          date_emission: new Date(docDate),
-          validite_jours: docValidity || 30,
-          delai_execution: executionDelay || 'À convenir',
-          date_prestation: prestationDate ? new Date(prestationDate) : null,
-        },
-        mode_affichage: 'bloc' as const,
-        lignes: lines.filter(l => l.description.trim()).map(l => ({
-          designation: l.description,
-          quantite: l.qty,
-          unite: l.unit || 'u',
-          prix_unitaire: l.priceHT,
-          total: l.totalHT,
-          section: null,
-          etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
-            ordre: e.ordre,
-            designation: e.designation,
-          })),
-        })),
-        acomptes: acomptesEnabled ? acomptes.map(ac => {
-          const totalNet = lines.filter(l => l.description.trim()).reduce((s, l) => s + l.totalHT, 0)
-          return {
-            label: ac.label,
-            montant: totalNet * ac.pourcentage / 100,
-            declencheur: ac.declencheur,
-            statut: 'en attente' as const,
-          }
-        }) : undefined,
-        notes: notes || undefined,
-        mediateur: mediatorName || undefined,
-        mediateur_url: mediatorUrl || undefined,
-      }
+      const fresh = await freshArtisanData()
+      const input = getV2InputParams({
+        logoUrl: fresh.freshLogoUrl,
+        insName: fresh.freshInsuranceName,
+        insNumber: fresh.freshInsuranceNumber,
+        insCoverage: fresh.freshInsuranceCoverage,
+        insType: fresh.freshInsuranceType,
+      })
+      input.devis.numero = docNumber || 'DEVIS-PREVIEW'
       const pdf = await generateDevisPdfV2(input)
       const blob = pdf.output('blob')
       const blobUrl = URL.createObjectURL(blob)
@@ -1281,30 +1184,8 @@ export default function DevisFactureForm({
   const handleGeneratePDF = async () => {
     setPdfLoading(true)
     try {
-      let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
-      try {
-        [jsPDFMod, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
-      } catch (chunkErr) {
-        // Chunk invalide (déploiement Vercel en cours) — retry une fois après reload
-        const retryKey = 'pdf_chunk_retry'
-        if (!sessionStorage.getItem(retryKey)) {
-          sessionStorage.setItem(retryKey, '1')
-          window.location.reload()
-        } else {
-          sessionStorage.removeItem(retryKey)
-          alert('Erreur de chargement PDF. Rechargez la page (Ctrl+R) et réessayez.')
-        }
-        setPdfLoading(false)
-        return
-      }
-      const { jsPDF } = jsPDFMod
-      const autoTable = autoTableModule.default
-
       // ── PT Fiscal: Register document with AT engine (Portugal only) ──
-      let ptFiscalData: {
-        docNumber: string; hashDisplay: string; atcudDisplay: string;
-        qrCodeString: string; certNumber: string;
-      } | null = null
+      let ptFiscalData: PdfV3PtFiscalData | null = null
 
       if (locale === 'pt' && docType === 'facture') {
         try {
@@ -1342,931 +1223,36 @@ export default function DevisFactureForm({
         }
       }
 
-      // ════════════════════════════════════════════════════════════════
-      // NOUVEAU DESIGN PDF V3 — spec devis_lepore_logo_arbre.pdf
-      // ════════════════════════════════════════════════════════════════
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()   // 210mm
-      const pageH = pdf.internal.pageSize.getHeight()   // 297mm
-
-      // ─── Couleurs spec ───
-      const COLOR_TEXT = '#0D0D0D'
-      const COLOR_TEXT_LIGHT = '#888888'
-      const COLOR_BG_GRAY = '#F5F5F3'
-      const COLOR_BORDER = '#E0E0DC'
-      const COLOR_ACCENT = '#E8A020'
-      const COLOR_WHITE = '#FFFFFF'
-
-      // ─── Marges (mm) ───
-      const mL = 18.0
-      const mR = 18.0
-      const contentW = pageW - mL - mR  // ~174mm
-      const xRight = pageW - mR          // 192mm
-      let y = 0  // curseur vertical courant
-
-      // ─── Helpers ───
-      const dateLocaleStr = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-      const ptToMm = (pt: number) => pt / 2.835
-      const totalPages = () => (pdf as any).internal.getNumberOfPages()
-
-      const drawHLine = (x1: number, yPos: number, x2: number, color = COLOR_BORDER, width = 0.18) => {
-        pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x1, yPos, x2, yPos)
-      }
-      const drawVLine = (x: number, y1: number, y2: number, color = COLOR_BORDER, width = 0.18) => {
-        pdf.setDrawColor(color); pdf.setLineWidth(width); pdf.line(x, y1, x, y2)
-      }
-      const addPageNumber = (pageNum: number, total: number) => {
-        pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-        pdf.text(`Page ${pageNum}/${total}`, xRight - 2, pageH - 3.2, { align: 'right' })
-      }
-      const checkPageBreak = (needed: number): boolean => {
-        if (y + needed > pageH - 15) { pdf.addPage(); y = 18; return true }
-        return false
-      }
-
-      // ═══ 1. LOGO (coin haut-gauche) ═══
-      // Re-fetch logo from DB (may have been uploaded after page load)
-      let logoUrl = artisan?.logo_url as string | undefined
-      try {
-        const { data: freshA } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
-        if (freshA?.logo_url) logoUrl = freshA.logo_url
-      } catch { /* use cached */ }
-      if (logoUrl) {
-        try {
-          const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const img = new Image()
-            img.crossOrigin = 'anonymous'
-            img.onload = () => resolve(img)
-            img.onerror = () => reject(new Error('Logo load failed'))
-            img.src = logoUrl
-          })
-          const canvas = document.createElement('canvas')
-          const maxSize = 500
-          const ratio = logoImg.width / logoImg.height
-          canvas.width = Math.min(logoImg.width, maxSize)
-          canvas.height = Math.round(canvas.width / ratio)
-          const ctx = canvas.getContext('2d')
-          if (ctx) {
-            ctx.drawImage(logoImg, 0, 0, canvas.width, canvas.height)
-            const logoData = canvas.toDataURL('image/png')
-            // 23mm max box (65pt / 2.835)
-            const logoMaxW = 23, logoMaxH = 23
-            let lw = logoMaxW, lh = logoMaxH
-            if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
-            pdf.addImage(logoData, 'PNG', 5.3, 2.8, lw, lh)
-          }
-        } catch {
-          // pas de logo = on saute
-        }
-      }
-
-      // ═══ 2. TITRE DOCUMENT (centré) ═══
-      y = 25  // ~71pt du haut
-      const displayDocNumber = ptFiscalData?.docNumber || docNumber
-      if (docTitle) {
-        pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(docTitle, pageW / 2, y, { align: 'center' })
-        y += 7
-      } else {
-        // Titre générique
-        const genericTitle = docType === 'devis'
-          ? (locale === 'pt' ? 'Orçamento' : 'Devis')
-          : (locale === 'pt' ? 'Fatura' : 'Facture')
-        pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(genericTitle, pageW / 2, y, { align: 'center' })
-        y += 7
-      }
-
-      // Numéro document
-      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
-      y += 3
-
-      // ── PT Fiscal: ATCUD + Hash ──
-      if (ptFiscalData) {
-        y += 1
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
-        pdf.text(ptFiscalData.atcudDisplay, pageW / 2, y, { align: 'center' })
-        y += 3
-        pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-        pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, pageW / 2, y, { align: 'center' })
-        y += 3
-      }
-
-      // ═══ 3. LIGNE D'ACCENT OR ═══
-      y += 1
-      pdf.setFillColor(COLOR_ACCENT)
-      pdf.rect(mL, y, contentW, ptToMm(3), 'F')  // ~1.06mm de haut
-      y += ptToMm(3) + 5  // ~5mm gap
-
-      // ═══ 4. BLOCS ÉMETTEUR & DESTINATAIRE ═══
-      const gapBoxes = ptToMm(11)  // ~3.88mm gap
-      const emBoxW = ptToMm(235.62)  // ~83.1mm
-      const destBoxW = contentW - emBoxW - gapBoxes  // ~87mm
-      const boxX_em = mL
-      const boxX_dest = mL + emBoxW + gapBoxes
-      const boxStartY = y
-      const boxPadX = ptToMm(11)  // ~3.88mm padding intérieur
-      const boxPadTop = ptToMm(8)  // ~2.82mm padding top
-
-      // ── Mesure hauteur émetteur (PAS de pdf.text ici — FIX doublon V5) ──
-      let ey = boxStartY + boxPadTop
-      const emTx = boxX_em + boxPadX
-      const emMaxW = emBoxW - boxPadX * 2
-
-      ey += ptToMm(18)  // label ÉMETTEUR
-      ey += ptToMm(14)  // nom entreprise
-      if (companySiret) ey += ptToMm(14)
-      if (companyRCS) ey += ptToMm(14)
-      if (companyAddress) ey += ptToMm(14)  // adresse sur 1 ligne
-      if (companyPhone) ey += ptToMm(14)
-      if (companyEmail) ey += ptToMm(14)
-      if (tvaEnabled && tvaNumber) ey += ptToMm(14)
-      if (companyCapital) ey += ptToMm(14)
-
-      // ── Mesure hauteur destinataire (PAS de pdf.text ici) ──
-      let dy2 = boxStartY + boxPadTop
-      const destTx = boxX_dest + boxPadX
-      const destMaxW = destBoxW - boxPadX * 2
-
-      dy2 += ptToMm(18)  // label DESTINATAIRE
-      dy2 += ptToMm(14)  // nom client
-      if (clientAddress) dy2 += ptToMm(14)
-      if (interventionAddress || interventionBatiment || interventionEtage) dy2 += ptToMm(14)
-      if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
-      if (interventionEspacesCommuns || interventionExterieur) dy2 += ptToMm(14)
-      if (clientPhone) dy2 += ptToMm(14)
-      if (clientEmail) dy2 += ptToMm(14)
-      if (clientSiret) dy2 += ptToMm(14)
-
-      // Calculer la hauteur max et dessiner les encadrés
-      const boxH = Math.max(ey, dy2) - boxStartY + boxPadTop
-      // Fond gris + bordure
-      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-      pdf.rect(boxX_em, boxStartY, emBoxW, boxH, 'FD')
-      pdf.rect(boxX_dest, boxStartY, destBoxW, boxH, 'FD')
-
-      // Re-dessiner le texte PAR-DESSUS les fonds (jsPDF dessine dans l'ordre)
-      // Émetteur
-      let ey2 = boxStartY + boxPadTop
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey2)
-      ey2 += ptToMm(18)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      pdf.text(companyName, emTx, ey2)
-      ey2 += ptToMm(14)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      if (companySiret) { pdf.text(`SIRET : ${companySiret}`, emTx, ey2); ey2 += ptToMm(14) }
-      if (companyRCS) {
-        // FIX RM anti-doublon : ne pas ajouter "RM" si déjà présent
-        let rmRaw = companyRCS.trim()
-        if (!rmRaw.startsWith('RM ')) rmRaw = `RM ${rmRaw}`
-        const rmDisplay = rmRaw.includes(' : ') ? rmRaw : rmRaw.replace(/^(RM\s+[A-Za-zÀ-ÿ\s-]+?)\s+(\d+)$/, '$1 : $2')
-        pdf.text(rmDisplay, emTx, ey2); ey2 += ptToMm(14)
-      }
-      if (companyAddress) {
-        // FIX adresse : titleCase + single line (réduire police si trop long)
-        const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
-        const addrText = `Adresse : ${addrNorm}`
-        let addrFs = 10
-        pdf.setFontSize(addrFs)
-        if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 9; pdf.setFontSize(addrFs) }
-        if (pdf.getTextWidth(addrText) > emMaxW) { addrFs = 8; pdf.setFontSize(addrFs) }
-        pdf.text(addrText, emTx, ey2); ey2 += ptToMm(14)
-        pdf.setFontSize(10)
-      }
-      if (companyPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`, emTx, ey2); ey2 += ptToMm(14) }
-      if (companyEmail) { pdf.text(`E-mail : ${companyEmail}`, emTx, ey2); ey2 += ptToMm(14) }
-      if (tvaEnabled && tvaNumber) { pdf.text(`TVA Intra. : ${tvaNumber}`, emTx, ey2); ey2 += ptToMm(14) }
-      if (companyCapital) { pdf.text(`Capital : ${companyCapital} EUR`, emTx, ey2); ey2 += ptToMm(14) }
-
-      // Destinataire
-      let dy3 = boxStartY + boxPadTop
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      pdf.text(locale === 'pt' ? 'DESTINATÁRIO' : 'DESTINATAIRE', destTx, dy3)
-      dy3 += ptToMm(18)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      pdf.text(clientName || '---', destTx, dy3)
-      dy3 += ptToMm(14)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      if (clientAddress) {
-        const cAL = pdf.splitTextToSize(`Adresse : ${clientAddress}`, destMaxW)
-        pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
-      }
-      if (interventionAddress || interventionBatiment || interventionEtage) {
-        const interventionLabel = locale === 'pt' ? 'Local' : 'Intervention'
-        if (interventionAddress) {
-          const iAL = pdf.splitTextToSize(`${interventionLabel} : ${interventionAddress}`, destMaxW)
-          pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
-        }
-        // Bâtiment / Étage on a separate line
-        const batEtParts: string[] = []
-        if (interventionBatiment) batEtParts.push(`Bât. ${interventionBatiment}`)
-        if (interventionEtage) batEtParts.push(`Étage ${interventionEtage}`)
-        if (batEtParts.length > 0) {
-          pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
-        }
-        // Espaces communs / Extérieur
-        const locParts: string[] = []
-        if (interventionEspacesCommuns) locParts.push(`Espaces communs : ${interventionEspacesCommuns}`)
-        if (interventionExterieur) locParts.push(`Extérieur : ${interventionExterieur}`)
-        if (locParts.length > 0) {
-          pdf.text(locParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
-        }
-      }
-      if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
-      if (clientEmail) { pdf.text(`E-mail : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
-      if (clientSiret) { pdf.text(`SIRET : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
-
-      y = boxStartY + boxH + 4
-
-      // ═══ 5. TABLEAU DES DATES ═══
-      const dateBoxH = ptToMm(49)  // ~17.3mm
-      const dateSepY = y + ptToMm(20)  // séparateur horizontal labels/valeurs
-
-      // Fond + bordure
-      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-      pdf.rect(mL, y, contentW, dateBoxH, 'FD')
-
-      // Séparateurs verticaux (4 colonnes)
-      const dateCols = docType === 'devis'
-        ? [
-            { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
-            { label: locale === 'pt' ? 'VALIDADE' : 'VALIDITÉ', value: docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : '---' },
-            { label: locale === 'pt' ? 'PRAZO DE EXECUÇÃO' : 'DÉLAI D\'EXÉCUTION', value: executionDelay || '---' },
-            { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : '---' },
-          ]
-        : [
-            { label: locale === 'pt' ? 'DATA DE EMISSÃO' : 'DATE D\'ÉMISSION', value: docDate ? new Date(docDate).toLocaleDateString(dateLocaleStr) : '---' },
-            { label: locale === 'pt' ? 'DATA PRESTAÇÃO' : 'DATE PRESTATION', value: prestationDate ? new Date(prestationDate).toLocaleDateString(dateLocaleStr) : '---' },
-            { label: locale === 'pt' ? 'VENCIMENTO' : 'ÉCHÉANCE', value: paymentDue ? new Date(paymentDue).toLocaleDateString(dateLocaleStr) : '---' },
-            { label: locale === 'pt' ? 'MODO PAGAMENTO' : 'MODE RÈGLEMENT', value: paymentMode || '---' },
-          ]
-
-      const colW = contentW / dateCols.length
-      // Séparateur horizontal
-      drawHLine(mL, dateSepY, xRight, COLOR_BORDER, 0.18)
-      // Séparateurs verticaux
-      for (let i = 1; i < dateCols.length; i++) {
-        drawVLine(mL + colW * i, y, y + dateBoxH, COLOR_BORDER, 0.18)
-      }
-
-      // Labels (ligne du haut, centrés)
-      dateCols.forEach((c, i) => {
-        const cx = mL + colW * i + colW / 2
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-        pdf.text(c.label, cx, y + ptToMm(14), { align: 'center' })
-      })
-      // Valeurs (ligne du bas, centrées, bold)
-      dateCols.forEach((c, i) => {
-        const cx = mL + colW * i + colW / 2
-        pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(c.value, cx, dateSepY + ptToMm(17), { align: 'center' })
-      })
-
-      y += dateBoxH + 4
-
-      // ═══ 6. TABLEAU PRESTATIONS (autoTable) ═══
-      // Étapes are injected into each prestation's description text below
-      const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
-      const tableHead = tvaEnabled
-        ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
-        : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
-
-      const tableBody = lines.filter(l => l.description.trim()).map(l => {
-        const unitStr = formatUnitForPdf(l.unit, l.customUnit)
-        const cleanDesc = l.description.replace(/\s*\[[^\]]*\]/g, '').trim()
-        // Séparer titre et description
-        const parts = cleanDesc.split('\n')
-        const title = parts[0]
-        const detail = parts.slice(1).join('\n').trim()
-        let displayDesc = detail ? `${title}\n${detail}` : title
-        // Inject étapes de cette prestation (alignées avec le reste du texte)
-        if (l.etapes && l.etapes.length > 0) {
-          const sortedEtapes = [...l.etapes].sort((a, b) => a.ordre - b.ordre).filter(e => e.designation.trim())
-          if (sortedEtapes.length > 0) {
-            displayDesc += '\n' + sortedEtapes.map((e, i) => `${i + 1}. ${e.designation}`).join('\n')
-          }
-        }
-        const row = [displayDesc, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
-        if (tvaEnabled) row.push(`${l.tvaRate}%`)
-        row.push(localeFormats.currencyFormat(l.totalHT))
-        return row
-      })
-
-      if (tableBody.length === 0) {
-        tableBody.push(tvaEnabled
-          ? [t('devis.noLinesMessage'), '', '', '', '', '']
-          : [t('devis.noLinesMessage'), '', '', '', '']
-        )
-      }
-
-      const colStyles: Record<number, { cellWidth: number; halign: string }> = {
-        0: { cellWidth: contentW * 0.40, halign: 'left' },
-        1: { cellWidth: contentW * 0.08, halign: 'center' },
-        2: { cellWidth: contentW * 0.08, halign: 'center' },
-        3: { cellWidth: contentW * 0.16, halign: 'right' },
-      }
-      if (tvaEnabled) {
-        colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
-        colStyles[5] = { cellWidth: contentW * 0.18, halign: 'right' }
-      } else {
-        colStyles[4] = { cellWidth: contentW * 0.28, halign: 'right' }
-      }
-
-      const headColStyles: Record<number, { halign: string }> = {
-        0: { halign: 'left' },
-        1: { halign: 'center' },
-        2: { halign: 'center' },
-        3: { halign: 'right' },
-      }
-      if (tvaEnabled) {
-        headColStyles[4] = { halign: 'center' }
-        headColStyles[5] = { halign: 'right' }
-      } else {
-        headColStyles[4] = { halign: 'right' }
-      }
-
-      autoTable(pdf, {
-        head: tableHead,
-        body: tableBody,
-        startY: y,
-        margin: { left: mL, right: mR },
-        showHead: 'firstPage',
-        theme: 'plain',
-        headStyles: {
-          fillColor: [13, 13, 13],       // Noir #0D0D0D
-          textColor: [255, 255, 255],     // Blanc
-          fontStyle: 'bold',
-          fontSize: 8,
-          cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
-          halign: 'left',
-          minCellHeight: ptToMm(29),     // 29pt = ~10.2mm
-        },
-        bodyStyles: {
-          fontSize: 10,
-          cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
-          textColor: [13, 13, 13],
-          lineWidth: 0,
-          minCellHeight: ptToMm(32),     // 32pt = ~11.3mm
-        },
-        alternateRowStyles: { fillColor: [245, 245, 243] },  // #F5F5F3
-        columnStyles: colStyles as any,
-        tableLineColor: [224, 224, 220],
-        tableLineWidth: 0,
-        didDrawPage: () => {},
-        didParseCell: (data: any) => {
-          if (data.section === 'head' && headColStyles[data.column.index]) {
-            data.cell.styles.halign = headColStyles[data.column.index].halign
-          }
-          // Description en gris sous le titre
-          if (data.section === 'body' && data.column.index === 0 && data.cell.raw) {
-            const raw = String(data.cell.raw)
-            if (raw.includes('\n')) {
-              // On laisse autoTable gérer le multiline, mais on peut pas changer la couleur
-              // La description sera affichée en gris via didDrawCell
-            }
-          }
-          // Total ligne en bold
-          const lastCol = tvaEnabled ? 5 : 4
-          if (data.section === 'body' && data.column.index === lastCol) {
-            data.cell.styles.fontStyle = 'bold'
-          }
-        },
-        willDrawCell: (data: any) => {
-          // Pour les lignes alternées, dessiner le fond blanc pour les impaires
-          if (data.section === 'body' && data.row.index % 2 === 0) {
-            data.cell.styles.fillColor = [255, 255, 255]
-          }
-        },
-      })
-
-      y = (pdf as any).lastAutoTable.finalY
-
-      // ═══ 7. SOUS-TOTAL + TVA ═══
-      // Bande sous-total (fond gris, pleine largeur)
-      const stH = ptToMm(27)  // ~9.5mm
-      pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-      pdf.rect(mL, y, contentW, stH, 'FD')
-
-      // Mention TVA (gauche)
-      if (!tvaEnabled) {
-        pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-        pdf.text(locale === 'pt' ? 'IVA não aplicável, art. 53.º CIVA' : 'TVA non applicable, art. 293 B CGI', mL + boxPadX, y + stH / 2 + 1)
-      }
-
-      // Sous-total (droite)
-      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      const stLabel = tvaEnabled ? (locale === 'pt' ? 'Subtotal HT' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
-      pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
-      pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
-
-      y += stH
-
-      // Détail TVA par taux (si TVA active)
-      if (tvaEnabled) {
-        // Calculer TVA par taux
-        const tvaByRate: Record<number, { base: number; amount: number }> = {}
-        lines.filter(l => l.description.trim()).forEach(l => {
-          if (!tvaByRate[l.tvaRate]) tvaByRate[l.tvaRate] = { base: 0, amount: 0 }
-          tvaByRate[l.tvaRate].base += l.totalHT
-          tvaByRate[l.tvaRate].amount += l.totalHT * l.tvaRate / 100
-        })
-        Object.entries(tvaByRate).forEach(([rate, { base, amount }]) => {
-          if (Number(rate) === 0) return
-          pdf.setFillColor(COLOR_WHITE)
-          pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
-          pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-          pdf.text(`TVA ${rate}% sur ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
-          pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-          pdf.text(localeFormats.currencyFormat(amount), xRight - boxPadX, y + 4, { align: 'right' })
-          y += 6
-        })
-      }
-
-      // Remise (si applicable)
-      if (discount) {
-        pdf.setFillColor(COLOR_WHITE)
-        pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(locale === 'pt' ? 'Desconto' : 'Remise', xRight - 60, y + 4)
-        pdf.setFont('helvetica', 'bold')
-        pdf.text(`-${discount}`, xRight - boxPadX, y + 4, { align: 'right' })
-        y += 6
-      }
-
-      // ═══ 8. BLOC TOTAL NET ═══
-      y += 4  // même gap que sous TOTAL NET → BON POUR ACCORD
-
-      const totalVal = tvaEnabled ? totalTTC : subtotalHT
-      const totBoxX = boxX_dest
-      const totBoxW = destBoxW
-      const totH = ptToMm(27)  // ~9.5mm
-
-      pdf.setFillColor(COLOR_BG_GRAY)
-      pdf.rect(totBoxX, y, totBoxW, totH, 'F')
-      pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-      const totalLabel = tvaEnabled ? (locale === 'pt' ? 'TOTAL TTC' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
-      pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
-      pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
-
-      y += totH + 6
-
-      // ═══ 9. CONDITIONS + BON POUR ACCORD + ACOMPTES (devis) ou RÈGLEMENT (facture) ═══
-      checkPageBreak(55)
-
-      if (docType === 'devis') {
-        const condX = mL
-        const condW = emBoxW
-        const sigX = boxX_dest
-        const sigW = destBoxW
-        const condStartY = y
-
-        // ── CONDITIONS (côté gauche, fond blanc, pas de bordure) ──
-        pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text('CONDITIONS', condX, condStartY + 5)
-        let cy = condStartY + 12
-
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        const validityStr = docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : `30 ${locale === 'pt' ? 'dias' : 'jours'}`
-        const condTextLines = [
-          t('devis.pdf.validityCondition').replace('{validity}', validityStr),
-          ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
-          t('devis.pdf.amendmentClause'),
-          ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
-          ...(iban ? [`IBAN : ${iban}${bic ? ` | BIC : ${bic}` : ''}`] : []),
-        ]
-        condTextLines.forEach(line => {
-          const wrapped = pdf.splitTextToSize(line, condW - 4)
-          pdf.text(wrapped, condX, cy)
-          cy += wrapped.length * ptToMm(13)
-        })
-        if (notes) {
-          cy += 2
-          pdf.setFont('helvetica', 'italic')
-          const noteWrapped = pdf.splitTextToSize(notes, condW - 4)
-          pdf.text(noteWrapped, condX, cy)
-          cy += noteWrapped.length * ptToMm(13)
-        }
-
-        // ── BON POUR ACCORD (côté droit, fond gris, bordure) ──
-        const sigContentH = Math.max(cy - condStartY, 46)
-        // Fond gris
-        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-        pdf.rect(sigX, condStartY, sigW, sigContentH, 'FD')
-
-        // Titre
-        pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text('BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
-
-        let sy = condStartY + 12
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        const approvalText = locale === 'pt'
-          ? 'Orçamento recebido antes da execução dos trabalhos, lido e aprovado, bom para acordo.'
-          : 'Devis reçu avant exécution des travaux, lu et approuvé, bon pour accord.'
-        const appWrapped = pdf.splitTextToSize(approvalText, sigW - boxPadX * 2)
-        pdf.text(appWrapped, sigX + boxPadX, sy)
-        sy += appWrapped.length * ptToMm(13) + 4
-
-        if (signatureData) {
-          // Signature électronique
+      // Generate PDF via extracted V3 generator
+      await generateDevisPdfV3({
+        locale, localeFormats, t,
+        docType, docNumber, docTitle, docDate, docValidity,
+        prestationDate, executionDelay,
+        companyStatus, companyName, companySiret, companyAddress,
+        companyRCS, companyCapital, companyPhone, companyEmail,
+        tvaEnabled, tvaNumber,
+        insuranceName, insuranceNumber, insuranceCoverage, insuranceType,
+        mediatorName, mediatorUrl, isHorsEtablissement,
+        clientName, clientEmail, clientAddress, clientPhone, clientSiret,
+        interventionAddress, interventionBatiment, interventionEtage,
+        interventionEspacesCommuns, interventionExterieur,
+        paymentMode, paymentDue, paymentCondition, discount, iban, bic,
+        lines, subtotalHT, totalTTC,
+        acomptesEnabled, acomptes,
+        notes: notes ?? null, sourceDevisRef: sourceDevisRef ?? null,
+        signatureData, attachedRapport, selectedPhotos,
+        artisan: artisan ? { id: artisan.id, logo_url: artisan.logo_url as string | null, company_name: artisan.company_name, rm: artisan.rm as string | null, rc_pro: artisan.rc_pro as string | null } : null,
+        ptFiscalData,
+        svgToImageDataUrl,
+        fetchFreshLogo: async () => {
+          let logoUrl = (artisan?.logo_url as string) || null
           try {
-            const sigImgDataUrl = await svgToImageDataUrl(signatureData.svg_data, 400, 140)
-            const sigImgW = sigW - boxPadX * 2 - 10
-            const sigImgH = sigImgW * (140 / 400)
-            pdf.addImage(sigImgDataUrl, 'PNG', sigX + boxPadX, sy, sigImgW, sigImgH)
-            sy += sigImgH + 2
-            pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-            pdf.text(signatureData.signataire, sigX + boxPadX, sy)
-            pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-            pdf.text(new Date(signatureData.timestamp).toLocaleString(dateLocaleStr), sigX + boxPadX, sy + 3)
-            sy += 8
-            // Audit trail eIDAS
-            pdf.setFontSize(4.5); pdf.setTextColor('#9CA3AF')
-            pdf.text(`SHA-256: ${signatureData.hash_sha256.substring(0, 32)}...`, sigX + boxPadX, sy)
-            pdf.text(locale === 'pt' ? 'Assinatura eletrónica simples art. 25.1 eIDAS' : 'Signature électronique simple art. 25.1 eIDAS', sigX + boxPadX, sy + 2.5)
-          } catch {
-            pdf.setFontSize(9); pdf.setTextColor(COLOR_TEXT)
-            pdf.text(signatureData.signataire, sigX + boxPadX, sy)
-          }
-        } else {
-          // Zones vierges
-          pdf.text(`Date : ___ / ___ / ______`, sigX + boxPadX, sy)
-          sy += ptToMm(18)
-          pdf.text(`Signature :`, sigX + boxPadX, sy)
-        }
-
-        y = condStartY + sigContentH + 4
-
-        // ═══ ACOMPTES — carré gris sous BON POUR ACCORD (côté droit) ═══
-        if (acomptesEnabled && acomptes.length > 0) {
-          const acompteTotal = tvaEnabled ? totalTTC : subtotalHT
-          const validAcomptes = acomptes.filter(ac => ac.pourcentage > 0)
-          if (validAcomptes.length > 0) {
-            const acBlockH = 12 + validAcomptes.length * ptToMm(13) + 4
-            checkPageBreak(acBlockH + 4)
-            // Carré gris — même largeur et x que BON POUR ACCORD
-            pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-            pdf.rect(sigX, y, sigW, acBlockH, 'FD')
-            // Titre — même espacement que BON POUR ACCORD
-            pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-            pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, y + 5)
-            let ay = y + 12
-            // Lignes acomptes
-            pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-            for (const ac of validAcomptes) {
-              const montant = acompteTotal * ac.pourcentage / 100
-              const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
-              pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
-              pdf.setFont('helvetica', 'bold')
-              pdf.text(localeFormats.currencyFormat(montant), sigX + sigW - boxPadX, ay, { align: 'right' })
-              pdf.setFont('helvetica', 'normal')
-              ay += ptToMm(13)
-            }
-            y += acBlockH + 4
-          }
-        }
-
-      } else if (docType === 'facture') {
-        // ── Section RÈGLEMENT pour facture ──
-        const payLines: string[] = []
-        if (paymentCondition) payLines.push(paymentCondition)
-        if (paymentMode) payLines.push(t('devis.pdf.paymentModeLabel').replace('{mode}', paymentMode))
-        if (paymentDue) payLines.push(t('devis.pdf.paymentDueLabel').replace('{date}', new Date(paymentDue).toLocaleDateString(dateLocaleStr)))
-        if (iban) payLines.push(bic ? t('devis.pdf.ibanBicLabel').replace('{iban}', iban).replace('{bic}', bic) : t('devis.pdf.ibanLabel').replace('{iban}', iban))
-        payLines.push(t('devis.pdf.latePenalties'))
-        if (discount) payLines.push(t('devis.pdf.earlyDiscountYes').replace('{discount}', discount))
-        else payLines.push(t('devis.pdf.earlyDiscountNo'))
-        if (sourceDevisRef) {
-          const datePart = prestationDate ? ` ${locale === 'pt' ? 'com data de' : 'en date du'} ${new Date(prestationDate).toLocaleDateString(dateLocaleStr)}` : ''
-          payLines.push(t('devis.pdf.invoiceFromDevis').replace('{ref}', sourceDevisRef).replace('{date}', datePart))
-        } else if (notes && (notes.includes('Réf. devis') || notes.includes('Ref. orçamento'))) {
-          const devisRef = notes.match(/(?:Réf\. devis|Ref\. orçamento)\s*:\s*([^\n]+)/)?.[1]?.trim()
-          if (devisRef) payLines.push(t('devis.pdf.invoiceFromDevis').replace('{ref}', devisRef).replace('{date}', ''))
-        }
-        payLines.push(t('devis.pdf.contestationClause'))
-
-        const condStartY = y
-        let measureY = condStartY + 10
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal')
-        payLines.forEach(line => {
-          const wrapped = pdf.splitTextToSize(line, contentW - 8)
-          measureY += wrapped.length * ptToMm(13) + 0.5
-        })
-        const condH = Math.max(measureY - condStartY + 2, 20)
-
-        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-        pdf.rect(mL, condStartY, contentW, condH, 'FD')
-
-        pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(locale === 'pt' ? 'CONDIÇÕES DE PAGAMENTO' : 'CONDITIONS DE RÈGLEMENT', mL + boxPadX, condStartY + 5)
-
-        let cy = condStartY + 12
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        payLines.forEach(line => {
-          const wrapped = pdf.splitTextToSize(line, contentW - boxPadX * 2)
-          pdf.text(wrapped, mL + boxPadX, cy)
-          cy += wrapped.length * ptToMm(13) + 0.5
-        })
-        y = condStartY + condH + 4
-      }
-
-      // ═══ 10. RAPPORT JOINT (optionnel) ═══
-      if (attachedRapport && !checkPageBreak(20)) {
-        pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-        const rapportTextLines: string[] = []
-        rapportTextLines.push(t('devis.pdf.attachedReport').replace('{number}', attachedRapport.rapportNumber))
-        if (attachedRapport.interventionDate) rapportTextLines.push(t('devis.pdf.reportDate').replace('{date}', new Date(attachedRapport.interventionDate).toLocaleDateString(dateLocaleStr)) + (attachedRapport.startTime ? ` ${locale === 'pt' ? 'das' : 'de'} ${attachedRapport.startTime}` : '') + (attachedRapport.endTime ? ` ${locale === 'pt' ? 'às' : 'à'} ${attachedRapport.endTime}` : ''))
-        if (attachedRapport.motif) rapportTextLines.push(t('devis.pdf.reportMotif').replace('{motif}', attachedRapport.motif))
-        if (attachedRapport.siteAddress) rapportTextLines.push(t('devis.pdf.reportLocation').replace('{location}', attachedRapport.siteAddress))
-        const rapH = rapportTextLines.length * 4 + 4
-        pdf.rect(mL, y, contentW, rapH, 'FD')
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(rapportTextLines[0], mL + boxPadX, y + 4)
-        pdf.setFont('helvetica', 'normal')
-        rapportTextLines.slice(1).forEach((rl, i) => pdf.text(rl, mL + boxPadX, y + 4 + (i + 1) * 3.5))
-        y += rapH + 4
-      }
-
-      // ═══ 11. PT FISCAL: QR CODE + CERTIFICATION ═══
-      if (ptFiscalData) {
-        checkPageBreak(35)
-        const qrSize = 28
-        const qrX = pageW - mR - qrSize
-        const qrY = y
-        try {
-          const QRCode = (await import('qrcode')).default
-          const qrDataUrl = await QRCode.toDataURL(ptFiscalData.qrCodeString, { width: 200, margin: 1, errorCorrectionLevel: 'M' })
-          pdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize)
-        } catch {
-          pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.3)
-          pdf.rect(qrX, qrY, qrSize, qrSize)
-          pdf.setFontSize(5); pdf.setTextColor(COLOR_TEXT_LIGHT)
-          pdf.text('QR Code', qrX + qrSize / 2, qrY + qrSize / 2, { align: 'center' })
-        }
-        const certY = qrY + 2
-        pdf.setFontSize(6); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
-        pdf.text(ptFiscalData.atcudDisplay, mL, certY)
-        pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-        pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, mL, certY + 3.5)
-        pdf.text(`Processado por programa certificado n.º ${ptFiscalData.certNumber}`, mL, certY + 7)
-        pdf.text('Vitfix Pro — https://vitfix.pt', mL, certY + 10.5)
-        y = qrY + qrSize + 4
-      }
-
-      // ═══ 12. MENTIONS LÉGALES ═══
-      checkPageBreak(25)
-      // Trait séparateur optionnel
-      drawHLine(mL, y, xRight, COLOR_BORDER, 0.18)
-      y += 3
-
-      pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-
-      // Ligne 1 : Statut + TVA + Assurance
-      const statusLabel = getStatusLabel(companyStatus, t)
-      let legal1 = `${statusLabel}.`
-      if (companyStatus === 'ei') legal1 += ' Loi n°2022-172 du 14 février 2022.'
-      if (!tvaEnabled) {
-        legal1 += locale === 'pt' ? ' IVA não aplicável, artigo 53.º do CIVA.' : ' TVA non applicable, article 293 B du CGI.'
-      } else if (tvaNumber) {
-        legal1 += ` TVA intracommunautaire : ${tvaNumber}.`
-      }
-      if (insuranceName) {
-        const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Décennale'
-        legal1 += ` ${insLabel} ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'}.`
-      }
-
-      // Ligne 2 : Devis gratuit + rétractation
-      let legal2 = locale === 'pt'
-        ? 'Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96.'
-        : 'Devis gratuit, conformément à l\'article L. 111-1 du Code de la consommation.'
-      if (isHorsEtablissement && clientSiret.trim().length === 0) {
-        legal2 += locale === 'pt'
-          ? ' Direito de retratação: 14 dias (Lei n.º 24/96, art. 8.º).'
-          : ' Droit de rétractation : 14 jours calendaires à compter de la signature (art. L. 221-18 C. conso.).'
-      }
-
-      // Ligne 3 : Paiement + médiation
-      let legal3 = ''
-      if (isHorsEtablissement && clientSiret.trim().length === 0) {
-        legal3 += locale === 'pt'
-          ? 'Nenhum pagamento exigível antes de 7 dias após assinatura (Lei n.º 24/96), salvo trabalhos urgentes.'
-          : 'Aucun paiement exigible avant 7 jours après signature (art. L. 221-10 C. conso.), sauf travaux urgents.'
-      }
-      if (locale === 'pt') {
-        legal3 += ' Resolução alternativa de litígios (Lei n.º 144/2015).'
-      } else {
-        legal3 += ' Médiation de la consommation (art. L. 612-1 C. conso.).'
-      }
-      if (mediatorName) {
-        legal3 += ` ${mediatorName}${mediatorUrl ? ` — ${mediatorUrl}` : ''}.`
-      }
-
-      // Ligne 4 : Générateur
-      const legal4 = `Document généré par Vitfix Pro le ${new Date().toLocaleDateString(dateLocaleStr)}.`
-
-      const fullLegal = `${legal1} ${legal2} ${legal3} ${legal4}`
-      const legalWrapped = pdf.splitTextToSize(fullLegal, ptFiscalData ? contentW - 32 : contentW)
-      pdf.text(legalWrapped, mL, y)
-      y += legalWrapped.length * ptToMm(10)
-
-      // ═══ PAGE 2 — RÉTRACTATION ═══
-      if (docType === 'devis' && isHorsEtablissement && clientSiret.trim().length === 0) {
-        pdf.addPage()
-        let ry = 8
-
-        // Ligne d'accent or en haut
-        pdf.setFillColor(COLOR_ACCENT)
-        pdf.rect(mL, ry, contentW, ptToMm(3), 'F')
-        ry += ptToMm(3) + 8
-
-        // Titre
-        pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(locale === 'pt' ? 'DIREITO DE RETRATAÇÃO' : 'DROIT DE RÉTRACTATION', mL, ry)
-        ry += 5
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(locale === 'pt' ? 'Lei n.º 24/96, artigo 8.º' : 'Article L. 221-18 du Code de la consommation', mL, ry)
-        ry += 8
-
-        // Texte légal
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        const retTexts = [
-          t('devis.pdf.withdrawalText1'),
-          t('devis.pdf.withdrawalText2'),
-          t('devis.pdf.withdrawalPayment'),
-        ]
-        retTexts.forEach(txt => {
-          const wrapped = pdf.splitTextToSize(txt, contentW)
-          pdf.text(wrapped, mL, ry)
-          ry += wrapped.length * ptToMm(13) + 4
-        })
-
-        ry += 4
-
-        // Formulaire de rétractation
-        // Bandeau noir header
-        pdf.setFillColor(COLOR_TEXT)
-        pdf.rect(mL, ry, contentW, 8, 'F')
-        pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_WHITE)
-        pdf.text(locale === 'pt' ? 'FORMULÁRIO DE RETRATAÇÃO' : 'FORMULAIRE DE RÉTRACTATION', mL + boxPadX, ry + 5.5)
-        ry += 12
-
-        // Contenu formulaire
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-        const formAttention = locale === 'pt'
-          ? `À atenção de : ${companyName}, ${companyAddress}`
-          : `À l'attention de : ${companyName}, ${companyAddress}`
-        pdf.setFont('helvetica', 'normal')
-        const attParts = formAttention.split(companyName)
-        pdf.text(attParts[0], mL + boxPadX, ry)
-        const atW = pdf.getTextWidth(attParts[0])
-        pdf.setFont('helvetica', 'bold')
-        pdf.text(`${companyName}${attParts[1] || ''}`, mL + boxPadX + atW, ry)
-        ry += 6
-
-        pdf.setFont('helvetica', 'normal')
-        const noticeText = locale === 'pt'
-          ? 'Notifico pela presente a minha retratação do contrato relativo à prestação de serviços acima.'
-          : 'Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.'
-        pdf.text(noticeText, mL + boxPadX, ry)
-        ry += 8
-
-        const formFields = [
-          locale === 'pt' ? 'Encomendado em / recebido em :' : 'Commandé le / reçu le :',
-          locale === 'pt' ? 'Nome do cliente :' : 'Nom du client :',
-          locale === 'pt' ? 'Morada :' : 'Adresse :',
-          'Date : ___ / ___ / ______',
-          'Signature :',
-        ]
-        formFields.forEach(f => {
-          pdf.text(f, mL + boxPadX, ry)
-          if (!f.startsWith('Date') && !f.startsWith('Signature')) {
-            const fw = pdf.getTextWidth(f) + 2
-            drawHLine(mL + boxPadX + fw, ry + 0.5, xRight - boxPadX, COLOR_BORDER, 0.2)
-          }
-          ry += 8
-        })
-      }
-
-      // ═══ ANNEXE PHOTOS CHANTIER ═══
-      if (selectedPhotos.length > 0) {
-        // Load all selected photos as base64 images
-        const loadImage = (url: string): Promise<HTMLImageElement> => {
-          return new Promise((resolve, reject) => {
-            const img = new Image()
-            img.crossOrigin = 'anonymous'
-            img.onload = () => resolve(img)
-            img.onerror = () => reject(new Error('Image load failed'))
-            img.src = url
-          })
-        }
-
-        // Photo annexe page(s)
-        pdf.addPage()
-        let py = 18
-        pdf.setFillColor(COLOR_ACCENT)
-        pdf.rect(mL, py - 4, contentW, ptToMm(3), 'F')
-        py += 2
-        pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-        pdf.text(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotos')}`, pageW / 2, py, { align: 'center' })
-        py += 5
-        pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-        pdf.text(t('devis.pdf.photosGeotagged').replace('{count}', String(selectedPhotos.length)), pageW / 2, py, { align: 'center' })
-        py += 8
-
-        // 2 columns layout, 3 rows per page max = 6 photos per page
-        const photoW = (contentW - 6) / 2  // ~84mm each
-        const photoH = 60  // 60mm height per photo
-        const photoGap = 4
-        let col2 = 0
-
-        for (let i = 0; i < selectedPhotos.length; i++) {
-          const photo = selectedPhotos[i]
-
-          // Check if we need a new page
-          if (py + photoH + 12 > pageH - 10 && col2 === 0) {
-            pdf.addPage()
-            py = 18
-            pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-            pdf.text(`${docType === 'devis' ? t('devis.devisTab') : t('devis.factureTab')} ${docNumber} — ${t('devis.pdf.annexePhotosSuite')}`, pageW / 2, py, { align: 'center' })
-            py += 8
-          }
-
-          const x = mL + col2 * (photoW + photoGap)
-
-          try {
-            const img = await loadImage(photo.url)
-            // Draw photo border
-            pdf.setDrawColor('#E5E7EB'); pdf.setLineWidth(0.3)
-            pdf.roundedRect(x, py, photoW, photoH + 10, 1.5, 1.5, 'S')
-
-            // Draw photo
-            const imgRatio = img.width / img.height
-            let drawW = photoW - 4
-            let drawH = photoH - 2
-            if (imgRatio > drawW / drawH) {
-              drawH = drawW / imgRatio
-            } else {
-              drawW = drawH * imgRatio
-            }
-            const imgX = x + (photoW - drawW) / 2
-            const imgY = py + 1 + (photoH - 2 - drawH) / 2
-
-            // Convert image to canvas → base64 (haute résolution professionnelle)
-            const canvas = document.createElement('canvas')
-            // Résolution max 2400px pour qualité professionnelle d'impression (300 DPI sur A4)
-            const maxRes = 2400
-            canvas.width = Math.min(img.width, maxRes)
-            canvas.height = Math.round(canvas.width / imgRatio)
-            const ctx = canvas.getContext('2d')
-            if (ctx) {
-              // Anti-aliasing haute qualité
-              ctx.imageSmoothingEnabled = true
-              ctx.imageSmoothingQuality = 'high'
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-              // JPEG qualité 0.92 pour un rendu professionnel sans artefacts de compression
-              const imgData = canvas.toDataURL('image/jpeg', 0.92)
-              pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
-            }
-
-            // Photo info below
-            const infoY = py + photoH + 1
-            pdf.setFontSize(5.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#6B7280')
-            const dateStr = photo.taken_at ? new Date(photo.taken_at).toLocaleString(dateLocaleStr) : 'N/D'
-            pdf.text(`📅 ${dateStr}`, x + 2, infoY + 2)
-            if (photo.lat && photo.lng) {
-              pdf.text(`📍 ${Number(photo.lat).toFixed(5)}, ${Number(photo.lng).toFixed(5)}`, x + 2, infoY + 5.5)
-            }
-            if (photo.label) {
-              pdf.setFont('helvetica', 'bold')
-              const labelTrunc = photo.label.length > 35 ? photo.label.substring(0, 35) + '...' : photo.label
-              pdf.text(labelTrunc, x + photoW / 2, infoY + 2, { align: 'center' })
-            }
-          } catch {
-            // If image fails to load, show placeholder
-            pdf.setFillColor('#F3F4F6')
-            pdf.roundedRect(x, py, photoW, photoH + 10, 1.5, 1.5, 'FD')
-            pdf.setFontSize(7); pdf.setTextColor('#9CA3AF')
-            pdf.text(t('devis.pdf.photoNotAvailable'), x + photoW / 2, py + photoH / 2, { align: 'center' })
-          }
-
-          col2++
-          if (col2 >= 2) {
-            col2 = 0
-            py += photoH + 12 + photoGap
-          }
-        }
-      }
-
-      const safeName = clientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_À-ÿ]/g, '') || 'Client'
-      const fileLabel = docType === 'devis' ? (locale === 'pt' ? 'Orcamento' : 'Devis') : (locale === 'pt' ? 'Fatura' : 'Facture')
-      // PT: utiliser le numéro AT (ex: "FT VTF/1") sanitisé pour le nom de fichier; FR: numéro interne
-      const fileDocNumber = (locale === 'pt' && ptFiscalData?.docNumber)
-        ? ptFiscalData.docNumber.replace(/\s+/g, '_').replace(/\//g, '-')
-        : docNumber
-      const filename = `${fileLabel}_${fileDocNumber}_${safeName}.pdf`
-      pdf.save(filename)
+            const { data: freshA } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
+            if (freshA?.logo_url) logoUrl = freshA.logo_url
+          } catch { /* use cached */ }
+          return logoUrl
+        },
+      })
 
       // Auto-sauvegarder le template de settings pour les prochains devis
       if (artisan?.id) {
@@ -2285,7 +1271,6 @@ export default function DevisFactureForm({
       // Auto-sauvegarder le document dans l'historique à chaque génération PDF
       const data = buildData()
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      // Éviter les doublons : remplacer si même numéro existe déjà
       const existingIdx = docs.findIndex((d: Record<string, unknown>) => d.docNumber === data.docNumber)
       const docEntry = { ...data, savedAt: new Date().toISOString(), status: 'envoye' as const, sentAt: new Date().toISOString() }
       if (existingIdx >= 0) {

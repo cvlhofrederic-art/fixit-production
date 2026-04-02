@@ -9,11 +9,15 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { validateBody, rapportIaSchema } from '@/lib/validation'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export const maxDuration = 30
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIP(request)
+    if (!(await checkRateLimit(`rapport_ia_${ip}`, 10, 60_000))) return rateLimitResponse()
+
     // Auth check
     const cookieStore = await cookies()
     const supabase = createServerClient(

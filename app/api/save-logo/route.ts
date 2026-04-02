@@ -39,11 +39,13 @@ export async function POST(request: NextRequest) {
       .eq('id', artisan.id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('[save-logo] Update error:', error.message)
+      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Erreur serveur' }, { status: 500 })
+    console.error('[save-logo] Unexpected error:', e.message)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

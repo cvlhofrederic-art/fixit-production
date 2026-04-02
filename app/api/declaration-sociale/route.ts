@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, declarationSocialeSchema } from '@/lib/validation'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import {
   getPeriodeActuelle,
   calculerCotisations,
@@ -17,6 +18,9 @@ export const maxDuration = 15
 // GET — Charger les données de déclaration
 export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIP(request)
+    if (!(await checkRateLimit(`decl_sociale_get_${ip}`, 20, 60_000))) return rateLimitResponse()
+
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -92,6 +96,9 @@ export async function GET(request: NextRequest) {
 // POST — Configurer le profil ou marquer comme déclaré
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIP(request)
+    if (!(await checkRateLimit(`decl_sociale_post_${ip}`, 10, 60_000))) return rateLimitResponse()
+
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
