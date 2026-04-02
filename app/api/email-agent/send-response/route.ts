@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -11,22 +11,6 @@ const sendResponseSchema = z.object({
   response_text: z.string().min(1, 'Le texte de réponse est requis').max(10000),
   syndic_id: z.string().uuid('syndic_id doit être un UUID'),
 })
-
-// ── Rafraîchit un access_token Gmail expiré ───────────────────────────────────
-async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: refreshToken,
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      grant_type: 'refresh_token',
-    }),
-  })
-  if (!res.ok) return null
-  return res.json()
-}
 
 // ── Construit un message RFC 2822 en base64url ────────────────────────────────
 function buildRawMessage(opts: {
@@ -123,7 +107,7 @@ export async function POST(request: NextRequest) {
     let accessToken = tokenRow.access_token
     const isExpired = new Date(tokenRow.token_expiry) < new Date(Date.now() + 5 * 60 * 1000)
     if (isExpired && tokenRow.refresh_token) {
-      const refreshed = await refreshAccessToken(tokenRow.refresh_token)
+      const refreshed = await refreshGmailAccessToken(tokenRow.refresh_token)
       if (refreshed?.access_token) {
         accessToken = refreshed.access_token
         const newExpiry = new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString()

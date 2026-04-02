@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { callGroqWithRetry } from '@/lib/groq'
-import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
+import { getAuthUser, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
 import type { EmailClassification } from '../classify/route'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
@@ -9,22 +9,6 @@ import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
 export const maxDuration = 60
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
-
-// ── Rafraîchit un access_token Gmail expiré ───────────────────────────────────
-async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: refreshToken,
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      grant_type: 'refresh_token',
-    }),
-  })
-  if (!res.ok) return null
-  return res.json()
-}
 
 // ── Lit les emails Gmail via l'API ────────────────────────────────────────────
 async function fetchGmailMessages(accessToken: string, maxResults = 20, firstRun = false) {
@@ -235,7 +219,7 @@ export async function POST(request: NextRequest) {
         // 2. Rafraîchir le token si expiré (avec 5min de marge)
         const isExpired = new Date(tokenRow.token_expiry) < new Date(Date.now() + 5 * 60 * 1000)
         if (isExpired && tokenRow.refresh_token) {
-          const refreshed = await refreshAccessToken(tokenRow.refresh_token)
+          const refreshed = await refreshGmailAccessToken(tokenRow.refresh_token)
           if (refreshed) {
             accessToken = refreshed.access_token
             const newExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString()

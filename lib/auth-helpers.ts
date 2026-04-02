@@ -171,3 +171,21 @@ export async function verifyCabinetOwnership(
   if (!userCabinetId) return false
   return userCabinetId === resourceCabinetId
 }
+
+// ── Rafraîchit un access_token Gmail via OAuth2 refresh_token ─────────────
+export async function refreshGmailAccessToken(
+  refreshToken: string
+): Promise<{ access_token: string; expires_in: number } | null> {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      refresh_token: refreshToken,
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      grant_type: 'refresh_token',
+    }),
+  })
+  if (!res.ok) return null
+  return res.json()
+}
