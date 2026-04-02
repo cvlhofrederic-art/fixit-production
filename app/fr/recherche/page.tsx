@@ -833,6 +833,7 @@ function RechercheContent() {
                 onFocus={() => setCatDropOpen(true)}
                 onKeyDown={handleCategoryKeyDown}
                 placeholder={tp('Spécialité ou motif (ex: plombier, fuite...)', 'Especialidade (ex: canalizador, fuga...)')}
+                aria-label="Rechercher une spécialité"
                 className="w-full pl-9 pr-4 py-2.5 bg-white border-[1.5px] border-[#E0E0E0] rounded-xl focus:outline-none focus:border-yellow transition text-sm"
                 autoComplete="off"
               />
@@ -865,6 +866,7 @@ function RechercheContent() {
                 onFocus={() => setLocDropOpen(true)}
                 onKeyDown={handleLocationKeyDown}
                 placeholder={tp('Ville ou code postal', 'Cidade ou código postal')}
+                aria-label="Rechercher une ville"
                 className={`w-full pl-9 pr-4 py-2.5 border-[1.5px] rounded-xl focus:outline-none focus:border-yellow transition text-sm ${userCoords ? 'border-yellow bg-amber-50' : 'bg-white border-[#E0E0E0]'}`}
                 autoComplete="off"
               />

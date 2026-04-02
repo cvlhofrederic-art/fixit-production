@@ -463,6 +463,7 @@ export default function FixyChatGeneric({ role, userName, context, getAuthToken 
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input) } }}
               placeholder={ui.placeholder}
+              aria-label="Votre message"
               disabled={loading || streaming}
               className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] disabled:opacity-50"
             />

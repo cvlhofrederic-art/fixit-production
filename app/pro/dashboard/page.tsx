@@ -1475,6 +1475,7 @@ function DashboardPage() {
                   onChange={e => setDashMsgText(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDashMessage()}
                   placeholder={dashMsgRecording ? `🔴 ${t('proDash.msg.recording')}` : t('proDash.msg.placeholder')}
+                  aria-label="Écrire un message"
                   disabled={dashMsgRecording}
                   className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] disabled:bg-gray-50"
                 />

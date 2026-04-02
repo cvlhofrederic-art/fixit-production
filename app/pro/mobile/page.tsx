@@ -1750,7 +1750,7 @@ export default function MobileDashboard() {
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.address')}</label>
                 <input value={newRdv.address} onChange={e => setNewRdv(p => ({ ...p, address: e.target.value }))}
-                  placeholder={t('mob.interventionAddress')} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                  placeholder={t('mob.interventionAddress')} aria-label="Adresse du rendez-vous" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">{t('mob.notes')}</label>
@@ -1778,7 +1778,7 @@ export default function MobileDashboard() {
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Nom du motif *</label>
                 <input value={motifForm.name} onChange={e => setMotifForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Ex: Installation prise électrique" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
+                  placeholder="Ex: Installation prise électrique" aria-label="Nom du service" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Durée estimée <span className="text-gray-500 font-normal">(optionnel)</span></label>

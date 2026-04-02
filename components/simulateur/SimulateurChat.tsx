@@ -299,6 +299,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Décrivez vos travaux..."
+          aria-label="Décrivez vos travaux"
           disabled={isStreaming}
           className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
           autoFocus

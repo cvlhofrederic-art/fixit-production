@@ -1007,6 +1007,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={isRecording ? '🎙️ Parlez maintenant...' : pendingAction ? 'Répondez oui ou non...' : 'Ex: RDV mardi 14h Mme Dupont...'}
+                aria-label="Message pour l'assistant IA"
                 className={`flex-1 px-3.5 py-2.5 border-2 rounded-xl focus:outline-none transition text-sm ${
                   isRecording
                     ? 'border-red-300 bg-red-50 text-red-700'

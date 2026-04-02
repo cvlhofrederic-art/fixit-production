@@ -240,6 +240,7 @@ export default function MesDonneesPage() {
                 value={deleteInput}
                 onChange={(e) => setDeleteInput(e.target.value)}
                 placeholder="SUPPRIMER"
+                aria-label="Tapez SUPPRIMER pour confirmer"
                 className="w-full px-4 py-2 border-2 border-red-300 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none text-sm mb-3"
               />
               <div className="flex gap-3">
