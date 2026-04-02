@@ -1,4 +1,11 @@
+import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
+
+export const metadata: Metadata = {
+  title: 'Mentions légales | Vitfix',
+  robots: { index: false, follow: true },
+  alternates: { canonical: 'https://vitfix.io/fr/mentions-legales' },
+}
 
 export default async function MentionsLegalesPage() {
   const { t } = await getServerTranslation()

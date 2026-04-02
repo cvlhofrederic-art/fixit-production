@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
+
+export const metadata: Metadata = {
+  title: 'Politique de confidentialité | Vitfix',
+  robots: { index: false, follow: true },
+}
 
 export default async function ConfidentialitePage() {
   const { t } = await getServerTranslation()

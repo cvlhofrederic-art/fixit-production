@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
+
+export const metadata: Metadata = {
+  title: 'Politique de cookies | Vitfix',
+  robots: { index: false, follow: true },
+}
 
 export default async function CookiesPage() {
   const { t } = await getServerTranslation()

@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
+
+export const metadata: Metadata = {
+  title: 'Conditions générales | Vitfix',
+  robots: { index: false, follow: true },
+}
 
 export default async function CGUPage() {
   const { t } = await getServerTranslation()
