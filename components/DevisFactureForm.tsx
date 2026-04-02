@@ -341,27 +341,34 @@ export default function DevisFactureForm({
     return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="140">${paths}</svg>`
   }, [sigPoints])
 
-  // Generate document number — séquences séparées devis / facture / avoir (art. L441-9 C. com.)
+  // Generate document number — séquence atomique serveur (art. L441-9 C. com.)
   const isConversion = docType === 'facture' && initialData?.docType === 'devis' && initialData?.docNumber
 
-  const [devisCount] = useState(() => {
-    try {
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      const devisDocs = docs.filter((d: Record<string, unknown>) => d.docType === 'devis')
-      return devisDocs.length + 1
-    } catch (e) { console.warn('[DevisFactureForm] Failed to count devis:', e); return 1 }
-  })
-  const [factureCount] = useState(() => {
-    try {
-      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-      const factureDocs = docs.filter((d: Record<string, unknown>) => d.docType === 'facture')
-      return factureDocs.length + 1
-    } catch (e) { console.warn('[DevisFactureForm] Failed to count factures:', e); return 1 }
-  })
+  const [docNumber, setDocNumber] = useState('')
+  const docNumberRef = useRef('')
 
-  const docNumber = docType === 'devis'
-    ? `DEV-${new Date().getFullYear()}-${String(devisCount).padStart(3, '0')}`
-    : `FACT-${new Date().getFullYear()}-${String(factureCount).padStart(3, '0')}`
+  // Fetch next sequential number from server (atomic DB sequence)
+  const fetchDocNumber = async (): Promise<string> => {
+    if (docNumberRef.current) return docNumberRef.current
+    try {
+      const res = await fetch('/api/doc-number', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docType, year: new Date().getFullYear() }),
+      })
+      if (!res.ok) throw new Error('Erreur serveur')
+      const { number } = await res.json()
+      docNumberRef.current = number
+      setDocNumber(number)
+      return number
+    } catch (err) {
+      console.error('[DevisFactureForm] Failed to fetch doc number:', err)
+      // Fallback visible — never silent N/A
+      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${new Date().getFullYear()}-DRAFT`
+      setDocNumber(fallback)
+      return fallback
+    }
+  }
 
   // ─── Signature: sign + SVG→PNG conversion ───
   const handleSignDocument = useCallback(async () => {
@@ -1068,9 +1075,10 @@ export default function DevisFactureForm({
         insCoverage: fresh.freshInsuranceCoverage,
         insType: fresh.freshInsuranceType,
       })
-      input.devis.numero = docNumber || 'DEVIS-TEST'
+      const numero = await fetchDocNumber()
+      input.devis.numero = numero
       const pdf = await generateDevisPdfV2(input)
-      pdf.save(`${docNumber || 'devis'}.pdf`)
+      pdf.save(`${numero || 'devis'}.pdf`)
     } catch (err) {
       console.error('PDF V2 error:', err)
       alert('Erreur PDF V2: ' + (err instanceof Error ? err.message : String(err)))
@@ -1097,7 +1105,8 @@ export default function DevisFactureForm({
         insCoverage: fresh.freshInsuranceCoverage,
         insType: fresh.freshInsuranceType,
       })
-      input.devis.numero = docNumber || 'DEVIS-PREVIEW'
+      const numero = await fetchDocNumber()
+      input.devis.numero = numero
       const pdf = await generateDevisPdfV2(input)
       const blob = pdf.output('blob')
       const blobUrl = URL.createObjectURL(blob)
