@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { supabase } from '@/lib/supabase'
+import type { Artisan } from '@/lib/types'
 import {
   PlusCircle, Pencil, Trash2, HardHat, MapPin, Calendar,
   User, Euro, FileText, CheckCircle2, AlertTriangle, AlertCircle,
@@ -33,7 +34,7 @@ const EMPTY_FORM: ChantierForm = {
 
 interface DevisSummary {
   id: string; numero: string; client_name: string; client_address: string
-  total_ht_cents: number; items: any; created_at: string; status: string
+  total_ht_cents: number; items: Array<{ description: string; [k: string]: unknown }>; created_at: string; status: string
   execution_delay_days?: number; prestation_date?: string
 }
 
@@ -44,7 +45,7 @@ interface MembreSummary {
 
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
-export function ChantiersBTPV2({ artisan }: { artisan: any }) {
+export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dl = isPt ? 'pt-PT' : 'fr-FR'
@@ -69,7 +70,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
   const [loadingDevis, setLoadingDevis] = useState(false)
 
   // Alerte fin de chantier
-  const [prolongModal, setProlongModal] = useState<{ chantier: any } | null>(null)
+  const [prolongModal, setProlongModal] = useState<{ chantier: ChantierForm & { id: string; statut?: string } } | null>(null)
   const [prolongDays, setProlongDays] = useState(2)
 
   // Confirmation suppression
@@ -86,15 +87,15 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
         supabase.from('devis').select('id, numero, client_name, client_address, total_ht_cents, items, created_at, status').eq('artisan_id', artisan?.id).order('created_at', { ascending: false }).limit(50),
         fetch('/api/btp?table=membres', { headers }),
       ])
-      if (devisRes.data) setDevisList(devisRes.data as any)
+      if (devisRes.data) setDevisList(devisRes.data as DevisSummary[])
       if (membresRes.ok) {
         const j = await membresRes.json()
-        const membres = (j.membres || []).filter((m: any) => m.actif !== false)
+        const membres = (j.membres || []).filter((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; daily_cost?: number }) => m.actif !== false)
         // Calculer le coût journalier via payroll engine
         const { calculateEmployeeCost } = await import('@/lib/payroll/engine')
         const country = (settings.country || 'FR') as 'FR' | 'PT'
         const companyType = settings.company_type || settings.statut_juridique || (country === 'FR' ? 'sarl' : 'lda')
-        const mapped: MembreSummary[] = membres.map((m: any) => {
+        const mapped: MembreSummary[] = membres.map((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; poste?: string; salaire_net_mensuel?: number; salaire_net?: number; heures_hebdo?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number; prime_mensuelle?: number; charges_salariales_pct?: number; charges_patronales_pct?: number; cout_horaire?: number; id: string }) => {
           const netSalary = m.salaire_net_mensuel || m.salaire_net || 0
           let dailyCost = 0
           if (netSalary > 0) {
@@ -178,7 +179,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
       devis_id: devis.id,
       dateDebut: (devis as any).prestation_date || today,
       dateFin: dateFin || f.dateFin,
-      description: `${isPt ? 'Ref. orçamento' : 'Réf. devis'}: ${devis.numero}\n${items.map((it: any) => `• ${it.description}`).join('\n')}`,
+      description: `${isPt ? 'Ref. orçamento' : 'Réf. devis'}: ${devis.numero}\n${items.map((it: { description: string }) => `• ${it.description}`).join('\n')}`,
     }))
 
     // Géocoder l'adresse importée
@@ -197,7 +198,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
     setSaving(false); setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
   }
 
-  const handleEdit = (c: any) => {
+  const handleEdit = (c: ChantierForm & { id: string }) => {
     setEditId(c.id)
     setForm({
       titre: c.titre, client: c.client, adresse: c.adresse,
@@ -230,7 +231,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
   }
 
   // ── Rentabilité par chantier ──
-  const getRenta = useCallback((c: any) => {
+  const getRenta = useCallback((c: ChantierForm & { id: string; statut?: string }) => {
     const budget = Number(c.budget) || 0
     if (!budget || !c.dateDebut || !c.dateFin) return null
 
@@ -304,7 +305,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
 
   const filtered = filter === 'Tous'
     ? chantiers
-    : chantiers.filter((c: any) => filter === 'Terminés' ? c.statut === 'Terminé' : c.statut === filter)
+    : chantiers.filter((c: ChantierForm & { id: string; statut?: string }) => filter === 'Terminés' ? c.statut === 'Terminé' : c.statut === filter)
 
   const STATUS_V22: Record<string, string> = {
     'En cours': 'v22-tag v22-tag-green', 'Terminé': 'v22-tag v22-tag-gray',
@@ -339,7 +340,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
               'Tous': isPt ? 'Todas' : 'Toutes', 'En cours': isPt ? 'Em curso' : 'En cours',
               'En attente': isPt ? 'Pendentes' : 'En attente', 'Terminés': isPt ? 'Concluídas' : 'Terminés',
             }
-            const count = f === 'Tous' ? chantiers.length : chantiers.filter((c: any) => c.statut === (f === 'Terminés' ? 'Terminé' : f)).length
+            const count = f === 'Tous' ? chantiers.length : chantiers.filter((c: ChantierForm & { statut?: string }) => c.statut === (f === 'Terminés' ? 'Terminé' : f)).length
             return (
               <button key={f} onClick={() => setFilter(f)}
                 className={`v22-tag ${filter === f ? 'v22-tag-yellow' : 'v22-tag-gray'}`}
@@ -362,7 +363,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {filtered.map((c: any) => {
+            {filtered.map((c: ChantierForm & { id: string; statut?: string }) => {
               const renta = getRenta(c)
               return (
                 <div key={c.id} className="v22-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -383,7 +384,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                           {c.budget && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Euro size={12} /> {Number(c.budget).toLocaleString(dl)} €</span>}
                         </div>
                         {/* Employés assignés */}
-                        {c.membres_ids?.length > 0 && (
+                        {(c.membres_ids?.length ?? 0) > 0 && (
                           <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                             {(c.membres_ids as string[]).map((mid: string) => {
                               const m = membresList.find(mm => mm.id === mid)

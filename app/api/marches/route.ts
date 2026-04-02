@@ -6,6 +6,28 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { haversineDistance } from '@/lib/geo'
 import crypto from 'crypto'
 
+interface MarcheRow {
+  id: string
+  title: string
+  location_lat: number | null
+  location_lng: number | null
+  status?: string
+  created_at?: string
+  [key: string]: unknown
+}
+interface ArtisanCandidate {
+  id: string
+  user_id: string
+  latitude?: number | null
+  longitude?: number | null
+  category?: string
+  specialties?: string[]
+  rating_avg?: number
+  distance?: number
+  distance_km?: number
+  [key: string]: unknown
+}
+
 // ── Geocoding helper ────────────────────────────────────────────────────────
 async function geocodeLocation(city: string, postal?: string): Promise<{lat: number, lng: number} | null> {
   try {
@@ -90,7 +112,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Flatten: merge marche data into each candidature
-    const enriched = (candidatures || []).map((c: any) => ({
+    const enriched = (candidatures || []).map((c: Record<string, unknown>) => ({
       ...c,
       marche: c.marches,
       my_candidature_id: c.id,
@@ -134,7 +156,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  let marches: any[] = data || []
+  let marches: MarcheRow[] = data || []
 
   // If artisan_user_id provided, enrich with distance calculation
   if (artisanUserId && marches.length > 0) {
@@ -145,7 +167,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (artisan?.latitude && artisan?.longitude) {
-      marches = marches.map((m: any) => {
+      marches = marches.map((m: MarcheRow) => {
         const mLat = m.location_lat as number | null
         const mLng = m.location_lng as number | null
         if (mLat && mLng) {
@@ -274,20 +296,20 @@ export async function POST(request: NextRequest) {
 
         // 4-5. Calculate distance & filter by zone
         const withDistance = categoryMatched
-          .map((a: any) => {
+          .map((a: ArtisanCandidate) => {
             const dist = haversineDistance(
               coords.lat, coords.lng,
               a.latitude as number, a.longitude as number
             )
             return { ...a, distance_km: dist }
           })
-          .filter((a: any) => {
+          .filter((a: ArtisanCandidate & { distance_km: number }) => {
             const radius = (a.zone_radius_km as number) || 50
             return a.distance_km <= radius
           })
 
         // 6. Check compliance requirements
-        const compliant = withDistance.filter((a: any) => {
+        const compliant = withDistance.filter((a: ArtisanCandidate) => {
           if (v.require_rc_pro && !a.rc_pro_valid) return false
           if (v.require_decennale && !a.decennale_valid) return false
           if (v.require_rge && !a.rge_valid) return false
@@ -296,14 +318,14 @@ export async function POST(request: NextRequest) {
         })
 
         // 7. Sort by distance ASC, then rating_avg DESC
-        compliant.sort((a: any, b: any) => {
-          const distDiff = a.distance_km - b.distance_km
+        compliant.sort((a: ArtisanCandidate, b: ArtisanCandidate) => {
+          const distDiff = (a.distance_km ?? 0) - (b.distance_km ?? 0)
           if (Math.abs(distDiff) > 0.5) return distDiff
           return ((b.rating_avg as number) || 0) - ((a.rating_avg as number) || 0)
         })
 
         // 8. Store matched artisan user_ids
-        const matchedUserIds = compliant.map((a: any) => a.user_id as string)
+        const matchedUserIds = compliant.map((a: ArtisanCandidate) => a.user_id as string)
         if (matchedUserIds.length > 0) {
           await supabaseAdmin
             .from('marches')
@@ -311,7 +333,7 @@ export async function POST(request: NextRequest) {
             .eq('id', marcheId)
 
           // 9. Create notifications for matched artisans
-          const artisanIds = compliant.map((a: any) => a.id as string)
+          const artisanIds = compliant.map((a: ArtisanCandidate) => a.id as string)
           const notifications = artisanIds.map((artisanId: string) => ({
             artisan_id: artisanId,
             type: 'marche_new',

@@ -1,6 +1,16 @@
 'use client'
 
 import React from 'react'
+import type { Artisan } from '@/lib/types'
+
+interface SettingsForm {
+  company_name: string
+  phone: string
+  bio: string
+  auto_reply_message: string
+  auto_block_duration_minutes: number
+  zone_radius_km: number
+}
 
 const ARTISAN_MODULES = [
   { key: 'ponctualite',     label: 'Score de ponctualité',           labelKey: 'mob.modules.ponctualite',     icon: '⏱️', description: 'Affiche votre taux de réalisation sur l\'accueil',    descriptionKey: 'mob.modules.ponctualiteDesc',     default: true  },
@@ -15,25 +25,25 @@ const ARTISAN_MODULES = [
 ] as const
 
 interface MobileSettingsSectionProps {
-  artisan: any
+  artisan: Artisan
   initials: string
   locale: string
   dateFmtLocale: string
   t: (key: string, fallback?: string) => string
-  settingsForm: any
-  setSettingsForm: (v: any) => void
+  settingsForm: SettingsForm
+  setSettingsForm: React.Dispatch<React.SetStateAction<SettingsForm>>
   savingSettings: boolean
   saveSettings: () => void
   autoAccept: boolean
   toggleAutoAccept: () => void
-  availability: any[]
+  availability: Array<{ day_of_week: number }>
   toggleDayAvailability: (day: number) => void
   enabledModules: Record<string, boolean>
   isModuleEnabled: (key: string) => boolean
   toggleModule: (key: string) => void
   handleLogout: () => void
   DAY_NAMES: string[]
-  MobilePasswordChange: React.ComponentType<any>
+  MobilePasswordChange: React.ComponentType<Record<string, never>>
 }
 
 export default function MobileSettingsSection({
@@ -98,7 +108,7 @@ export default function MobileSettingsSection({
                   <label className="text-xs text-gray-500 block mb-1">Durée de blocage par RDV</label>
                   <select
                     value={settingsForm.auto_block_duration_minutes}
-                    onChange={e => setSettingsForm((p: any) => ({ ...p, auto_block_duration_minutes: parseInt(e.target.value) }))}
+                    onChange={e => setSettingsForm((p: SettingsForm) => ({ ...p, auto_block_duration_minutes: parseInt(e.target.value) }))}
                     className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-[#FFC107]"
                   >
                     <option value={60}>1 heure</option>
@@ -119,7 +129,7 @@ export default function MobileSettingsSection({
               <p className="text-[10px] text-gray-500 mb-3">{t('mob.autoReplyDesc')}</p>
               <textarea
                 value={settingsForm.auto_reply_message}
-                onChange={e => setSettingsForm((p: any) => ({ ...p, auto_reply_message: e.target.value }))}
+                onChange={e => setSettingsForm((p: SettingsForm) => ({ ...p, auto_reply_message: e.target.value }))}
                 rows={3}
                 placeholder="Ex: Bonjour, merci pour votre réservation ! Pouvez-vous m'envoyer des photos du lieu et les infos d'accès (code porte, étage) ?"
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none"
@@ -137,7 +147,7 @@ export default function MobileSettingsSection({
                   max={100}
                   step={5}
                   value={settingsForm.zone_radius_km}
-                  onChange={e => setSettingsForm((p: any) => ({ ...p, zone_radius_km: parseInt(e.target.value) }))}
+                  onChange={e => setSettingsForm((p: SettingsForm) => ({ ...p, zone_radius_km: parseInt(e.target.value) }))}
                   className="flex-1 accent-[#FFC107]"
                 />
                 <span className="text-sm font-bold text-gray-900 min-w-[50px] text-right">{settingsForm.zone_radius_km} km</span>
@@ -197,17 +207,17 @@ export default function MobileSettingsSection({
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">{t('mob.companyName')}</label>
-                  <input value={settingsForm.company_name} onChange={e => setSettingsForm((p: any) => ({ ...p, company_name: e.target.value }))}
+                  <input value={settingsForm.company_name} onChange={e => setSettingsForm((p: SettingsForm) => ({ ...p, company_name: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">{t('mob.phone')}</label>
-                  <input value={settingsForm.phone} onChange={e => setSettingsForm((p: any) => ({ ...p, phone: e.target.value }))}
+                  <input value={settingsForm.phone} onChange={e => setSettingsForm((p: SettingsForm) => ({ ...p, phone: e.target.value }))}
                     type="tel" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">{t('mob.bio')}</label>
-                  <textarea value={settingsForm.bio} onChange={e => setSettingsForm((p: any) => ({ ...p, bio: e.target.value }))}
+                  <textarea value={settingsForm.bio} onChange={e => setSettingsForm((p: SettingsForm) => ({ ...p, bio: e.target.value }))}
                     rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] resize-none" />
                 </div>
                 <button disabled={savingSettings} onClick={saveSettings}

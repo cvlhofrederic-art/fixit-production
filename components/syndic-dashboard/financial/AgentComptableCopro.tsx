@@ -7,6 +7,32 @@ import type { Immeuble } from '../types'
 import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
+interface CoproLot {
+  numero: string
+  proprietaire: string
+  tantieme: number
+  etage?: string
+  surface?: number
+}
+interface CoproEcriture {
+  date: string
+  journal: string
+  libelle: string
+  debit: number
+  credit: number
+  compte: string
+}
+interface CoproAppel {
+  statut: string
+  periode: string
+  totalBudget: number
+}
+interface CoproBudget {
+  immeuble: string
+  annee: number
+  postes: Array<{ nom: string; montant: number }>
+}
+
 export default function AgentComptableCopro({
   immeubles, selectedImmeubleId, setSelectedImmeubleId,
   lots, ecritures, appels, budgets,
@@ -14,10 +40,10 @@ export default function AgentComptableCopro({
   immeubles: Immeuble[]
   selectedImmeubleId: string
   setSelectedImmeubleId: (id: string) => void
-  lots: any[]
-  ecritures: any[]
-  appels: any[]
-  budgets: any[]
+  lots: CoproLot[]
+  ecritures: CoproEcriture[]
+  appels: CoproAppel[]
+  budgets: CoproBudget[]
 }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -43,9 +69,9 @@ export default function AgentComptableCopro({
 
   // Construire le contexte comptable pour Léa (envoyé au backend)
   const buildLeaContext = () => {
-    const totalTantiemes = lots.reduce((s: number, l: any) => s + (l.tantieme || 0), 0)
-    const totalDebit = ecritures.reduce((s: number, e: any) => s + (e.debit || 0), 0)
-    const totalCredit = ecritures.reduce((s: number, e: any) => s + (e.credit || 0), 0)
+    const totalTantiemes = lots.reduce((s: number, l: CoproLot) => s + (l.tantieme || 0), 0)
+    const totalDebit = ecritures.reduce((s: number, e: CoproEcriture) => s + (e.debit || 0), 0)
+    const totalCredit = ecritures.reduce((s: number, e: CoproEcriture) => s + (e.credit || 0), 0)
 
     return {
       immeuble: imm ? {
@@ -57,12 +83,12 @@ export default function AgentComptableCopro({
         reglementMajoriteAG: imm.reglementMajoriteAG, reglementFondsTravaux: imm.reglementFondsTravaux,
         reglementFondsRoulementPct: imm.reglementFondsRoulementPct,
       } : null,
-      lots: lots.map((l: any) => ({ numero: l.numero, proprietaire: l.proprietaire, tantieme: l.tantieme, etage: l.etage, surface: l.surface })),
+      lots: lots.map((l: CoproLot) => ({ numero: l.numero, proprietaire: l.proprietaire, tantieme: l.tantieme, etage: l.etage, surface: l.surface })),
       totalTantiemes,
-      ecritures: ecritures.slice(0, 30).map((e: any) => ({ date: e.date, journal: e.journal, libelle: e.libelle, debit: e.debit, credit: e.credit, compte: e.compte })),
+      ecritures: ecritures.slice(0, 30).map((e: CoproEcriture) => ({ date: e.date, journal: e.journal, libelle: e.libelle, debit: e.debit, credit: e.credit, compte: e.compte })),
       ecrituresStats: { totalDebit, totalCredit, solde: totalCredit - totalDebit },
-      appels: appels.map((a: any) => ({ statut: a.statut, periode: a.periode, totalBudget: a.totalBudget })),
-      budgets: budgets.map((b: any) => ({ immeuble: b.immeuble, annee: b.annee, postes: b.postes })),
+      appels: appels.map((a: CoproAppel) => ({ statut: a.statut, periode: a.periode, totalBudget: a.totalBudget })),
+      budgets: budgets.map((b: CoproBudget) => ({ immeuble: b.immeuble, annee: b.annee, postes: b.postes })),
     }
   }
 
