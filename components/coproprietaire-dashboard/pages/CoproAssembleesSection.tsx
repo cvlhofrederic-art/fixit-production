@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -277,12 +278,12 @@ export default function CoproAssembleesSection({ t, locale, ags, profile, majori
                             ? `[O seu nome e morada]\n\n[Nome e morada do administrador]\n\nAssunto: Impugnação de deliberação(ões) da Assembleia de ${new Date(ag.date).toLocaleDateString(dateFmtLocale)}\n\nCarta registada com aviso de receção\n\nExmo(a) Sr(a) Administrador(a),\n\nEu, [O seu nome], condómino do condomínio [nome/morada do edifício], fração n.º ${profile.numLot || '___'}, titular de ${profile.tantiemes} permilagens,\n\nPela presente, venho impugnar a(s) seguinte(s) deliberação(ões) tomada(s) na assembleia geral ${ag.type === 'ordinaire' ? 'ordinária' : 'extraordinária'} de ${new Date(ag.date).toLocaleDateString(dateFmtLocale)}:\n\n- [Especificar a(s) deliberação(ões) impugnada(s)]\n\nFundamento(s) da impugnação:\n- [Vício de forma / irregularidade na convocação / abuso de maioria / outro]\n\nNos termos do artigo 1433.º do Código Civil, solicito que tomem conhecimento da presente impugnação no prazo de 15 dias.\n\nNa falta de resposta satisfatória, reservo-me o direito de recorrer ao Tribunal competente.\n\nCom os melhores cumprimentos,\n\nFeito em [Cidade], a ${new Date().toLocaleDateString(dateFmtLocale)}\n\n[Assinatura]`
                             : `[Votre nom et adresse]\n\n[Nom et adresse du syndic]\n\nObjet : Contestation de résolution(s) adoptée(s) lors de l'AG du ${new Date(ag.date).toLocaleDateString(dateFmtLocale)}\n\nLettre recommandée avec accusé de réception\n\nMadame, Monsieur le Syndic,\n\nJe soussigné(e) [Votre nom], copropriétaire au sein de la copropriété [nom/adresse immeuble], lot n°${profile.numLot || '___'}, titulaire de ${profile.tantiemes} tantièmes,\n\nPar la présente, je conteste la/les résolution(s) suivante(s) adoptée(s) lors de l'assemblée générale ${ag.type} du ${new Date(ag.date).toLocaleDateString(dateFmtLocale)} :\n\n- [Préciser la/les résolution(s) contestée(s)]\n\nMotif(s) de la contestation :\n- [Vice de forme / irrégularité de convocation / abus de majorité / autre]\n\nConformément à l'article 42 de la loi du 10 juillet 1965, je vous mets en demeure de prendre acte de cette contestation dans un délai de 15 jours.\n\nÀ défaut de réponse satisfaisante, je me réserve le droit de saisir le Tribunal judiciaire compétent.\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.\n\nFait à [Ville], le ${new Date().toLocaleDateString(dateFmtLocale)}\n\n[Signature]`
                           navigator.clipboard.writeText(template).then(() => {
-                            alert(locale === 'pt' ? 'Modelo de impugnação copiado!' : 'Template de mise en demeure copié dans le presse-papier !')
+                            toast.success(locale === 'pt' ? 'Modelo de impugnação copiado!' : 'Template de mise en demeure copié dans le presse-papier !')
                           }).catch(() => {
                             const el = document.createElement('textarea')
                             el.value = template; document.body.appendChild(el); el.select()
                             document.execCommand('copy'); document.body.removeChild(el)
-                            alert(locale === 'pt' ? 'Modelo copiado!' : 'Template copié !')
+                            toast.success(locale === 'pt' ? 'Modelo copiado!' : 'Template copié !')
                           })
                         }}
                         className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-bold text-sm transition"

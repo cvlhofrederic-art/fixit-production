@@ -22,6 +22,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useServices, useAbsences, useAvailability, useCalendar, useSettings, useBookings } from '@/hooks/dashboard'
 import { getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
 import type { Service, Booking, Notification, ChatMessage } from '@/lib/types'
+import { toast } from 'sonner'
 
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
 // ssr:false was causing React hydration error #419 that broke all button handlers
@@ -226,12 +227,12 @@ function DashboardPage() {
 
     // Load localStorage data first (instant) — unblocks UI immediately
     try { setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')) } catch { setAbsences([]) }
-    try { const s = localStorage.getItem(`fixit_availability_services_${aid}`); if (s) setDayServices(JSON.parse(s)) } catch {}
+    try { const s = localStorage.getItem(`fixit_availability_services_${aid}`); if (s) setDayServices(JSON.parse(s)) } catch { console.warn('fixit_availability_services: JSON.parse failed (private browsing?)') }
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${aid}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${aid}`) || '[]')
       setSavedDocuments([...docs, ...drafts])
-    } catch {}
+    } catch { console.warn('fixit_documents/drafts: JSON.parse failed (private browsing?)') }
 
     setLoading(false)
 
@@ -365,7 +366,7 @@ function DashboardPage() {
                           })
                           setNotifications(prev => prev.map(n => ({ ...n, read: true })))
                           setUnreadNotifCount(0)
-                        } catch {}
+                        } catch { toast.error('Impossible de marquer les notifications comme lues') }
                       }}
                       className="text-[10px] v22-mono hover:underline" style={{ color: 'var(--v22-yellow)' }}
                     >
@@ -394,7 +395,7 @@ function DashboardPage() {
                               })
                               setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
                               setUnreadNotifCount(prev => Math.max(0, prev - 1))
-                            } catch {}
+                            } catch { toast.error('Impossible de marquer la notification comme lue') }
                           }
                           setShowNotifDropdown(false)
                           // Navigation selon le type
@@ -1246,11 +1247,11 @@ function DashboardPage() {
             try {
               const dsJson = await dsRes.json()
               if (dsJson.dayServices) setDayServices(dsJson.dayServices)
-            } catch {}
+            } catch { toast.error('Erreur lors du chargement des disponibilités') }
             try {
               const absJson = await absRes.json()
               if (absJson.data) setAbsences(absJson.data)
-            } catch {}
+            } catch { toast.error('Erreur lors du chargement des absences') }
           }}
         />
       )}

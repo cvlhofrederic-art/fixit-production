@@ -3,6 +3,7 @@ import { callGroqWithRetry } from '@/lib/groq'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, emailAgentClassifySchema } from '@/lib/validation'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -65,20 +66,24 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`classify_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   try {
-    const { from, subject, body } = await request.json()
+    const body = await request.json()
+    const v = validateBody(emailAgentClassifySchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
-    if (!subject && !body) {
+    const { from, subject, body: emailBody } = v.data
+
+    if (!subject && !emailBody) {
       return NextResponse.json({ error: 'Email vide' }, { status: 400 })
     }
 
     const emailContent = `De : ${from || 'Inconnu'}
 Objet : ${subject || '(sans objet)'}
 Corps du message :
-${(body || '').substring(0, 800)}`
+${(emailBody || '').substring(0, 800)}`
 
     if (!GROQ_API_KEY) {
       // Fallback heuristique sans IA
-      return NextResponse.json({ classification: getFallbackClassification(subject || '', body || '') })
+      return NextResponse.json({ classification: getFallbackClassification(subject || '', emailBody || '') })
     }
 
     let groqData: any
@@ -94,7 +99,7 @@ ${(body || '').substring(0, 800)}`
         response_format: { type: 'json_object' },
       }, { fallbackModel: 'llama-3.1-8b-instant' })
     } catch {
-      return NextResponse.json({ classification: getFallbackClassification(subject || '', body || '') })
+      return NextResponse.json({ classification: getFallbackClassification(subject || '', emailBody || '') })
     }
     const rawContent = groqData.choices?.[0]?.message?.content || '{}'
 
@@ -102,7 +107,7 @@ ${(body || '').substring(0, 800)}`
     try {
       classification = JSON.parse(rawContent)
     } catch {
-      classification = getFallbackClassification(subject || '', body || '')
+      classification = getFallbackClassification(subject || '', emailBody || '')
     }
 
     // Validation et valeurs par défaut

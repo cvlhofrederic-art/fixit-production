@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 import type { User } from '@supabase/supabase-js'
 import type { SignatureData } from '../types'
 import { ROLE_COLORS, getRoleLabel } from '../types'
@@ -73,11 +74,11 @@ export default function ParametresSection({
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 200 * 1024) {
-      alert(locale === 'pt' ? 'O logo deve ter menos de 200KB' : 'Le logo doit faire moins de 200KB')
+      toast.error(locale === 'pt' ? 'O logo deve ter menos de 200KB' : 'Le logo doit faire moins de 200KB')
       return
     }
     if (!file.type.startsWith('image/')) {
-      alert(locale === 'pt' ? 'Apenas imagens (PNG, JPG)' : 'Images uniquement (PNG, JPG)')
+      toast.error(locale === 'pt' ? 'Apenas imagens (PNG, JPG)' : 'Images uniquement (PNG, JPG)')
       return
     }
     const reader = new FileReader()

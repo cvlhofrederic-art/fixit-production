@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import type { Mission } from '../types'
 import { Badge, PrioriteBadge } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -355,7 +356,7 @@ export default function MissionDetailsModal({
                     <button
                       onClick={() => {
                         const url = `${window.location.origin}/tracking/${localData.trackingToken}`
-                        navigator.clipboard.writeText(url).catch(() => {})
+                        navigator.clipboard.writeText(url).catch(() => toast.error('Impossible de copier le lien'))
                       }}
                       className="flex-shrink-0 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition"
                     >

@@ -791,6 +791,55 @@ export function validateBody<T>(schema: z.ZodSchema<T>, data: unknown):
   return { success: false, error: messages }
 }
 
+// ── Admin API schemas ─────────────────────────────────────────────────────────
+
+// GET /api/admin/users — query params
+export const adminUsersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  role: z.string().max(50).default(''),
+  search: z.string().max(200).default(''),
+})
+
+// GET /api/admin/subscriptions — query params
+export const adminSubscriptionsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  plan: z.string().max(50).default(''),
+  status: z.string().max(50).default(''),
+})
+
+// GET /api/admin/kyc — query params
+export const adminKycQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.string().max(50).default('pending'),
+})
+
+// PATCH /api/admin/kyc — approve or reject
+export const adminKycPatchSchema = z.object({
+  artisan_id: z.string().uuid('artisan_id must be a valid UUID'),
+  action: z.enum(['approve', 'reject']),
+  rejection_reason: z.string().max(2000).optional(),
+}).refine(
+  (data) => data.action !== 'reject' || (data.rejection_reason && data.rejection_reason.length > 0),
+  { message: 'rejection_reason is required when action is reject', path: ['rejection_reason'] }
+)
+
+// GET /api/admin/setup — query params
+export const adminSetupQuerySchema = z.object({
+  step: z.enum(['tables', 'admin', 'insurance', 'all']).default('all'),
+})
+
+// POST /api/admin/init-team-table — body
+export const adminInitTeamTableSchema = z.object({
+  cabinet_id: z.string().uuid('cabinet_id must be a valid UUID'),
+  user_id: z.string().uuid('user_id must be a valid UUID').optional().nullable(),
+  email: strictEmail,
+  full_name: z.string().max(200).default(''),
+  role: z.string().max(50).default('syndic_tech'),
+})
+
 // ── BTP Sous-traitance — création d'offre ────────────────────────────────────
 export const createSousTraitanceOffreSchema = z.object({
   // Infos publieur (entreprise BTP)
@@ -847,4 +896,58 @@ export const createSousTraitanceCandidatureSchema = z.object({
   experience_years: z.number().int().min(0).max(50).optional(),
   materials_included: z.boolean().default(false),
   guarantee: z.string().max(500).optional(),
+})
+
+// ── Verification routes schemas ──────────────────────────────────────────────
+
+export const verifySiretQuerySchema = z.object({
+  siret: z.string().min(1, 'SIRET requis').max(20),
+})
+
+export const verifyNifQuerySchema = z.object({
+  nif: z.string().min(1, 'NIF obrigatório').max(15),
+})
+
+export const verifyIdFormSchema = z.object({
+  nom: z.string().min(1, 'Nom requis').max(200),
+  prenom: z.string().min(1, 'Prénom requis').max(200),
+})
+
+export const verifyKbisFormSchema = z.object({
+  market: z.enum(['fr_artisan', 'fr_btp', 'pt_artisan'], {
+    error: 'Paramètre market invalide. Valeurs acceptées : fr_artisan, fr_btp, pt_artisan',
+  }),
+})
+
+// ── Email Agent Classify schema ──────────────────────────────────────────────
+export const emailAgentClassifySchema = z.object({
+  from: z.string().max(500).optional(),
+  subject: z.string().max(1000).optional(),
+  body: z.string().max(50000).optional(),
+})
+
+// ── Email Agent Callback schema (OAuth GET query params) ─────────────────────
+export const emailAgentCallbackSchema = z.object({
+  code: z.string().max(2000).optional(),
+  state: z.string().max(500).optional(),
+  error: z.string().max(200).optional(),
+})
+
+// ── Email Agent Connect schema (GET query params) ────────────────────────────
+export const emailAgentConnectSchema = z.object({
+  token: z.string().max(5000).optional(),
+})
+
+// ── Email Agent OCR schema ───────────────────────────────────────────────────
+export const emailAgentOcrSchema = z.object({
+  image_base64: z.string().min(1, 'image_base64 requis').max(14_000_000),
+  mime_type: z.string().max(100).optional().default('image/jpeg'),
+})
+
+// ── Email Agent Poll GET schema (query params) ──────────────────────────────
+export const emailAgentPollGetSchema = z.object({
+  syndic_id: z.string().uuid('syndic_id doit être un UUID valide').optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+  urgence: z.enum(['haute', 'moyenne', 'basse']).optional(),
+  statut: z.string().max(50).optional(),
 })

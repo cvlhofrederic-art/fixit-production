@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry } from '@/lib/groq'
 import { logger } from '@/lib/logger'
+import { validateBody, emailAgentOcrSchema } from '@/lib/validation'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
@@ -58,16 +59,10 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { image_base64, mime_type = 'image/jpeg' } = body
+    const v = validateBody(emailAgentOcrSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
-    if (!image_base64) {
-      return NextResponse.json({ error: 'image_base64 requis' }, { status: 400 })
-    }
-
-    // Limiter la taille de l'image (max ~10MB base64)
-    if (image_base64.length > 14_000_000) {
-      return NextResponse.json({ error: 'Image trop grande (max 10MB)' }, { status: 400 })
-    }
+    const { image_base64, mime_type } = v.data
 
     if (!GROQ_API_KEY) {
       return NextResponse.json({ error: 'Groq API non configurée' }, { status: 500 })

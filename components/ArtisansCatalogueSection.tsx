@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 interface Artisan {
   id: string
@@ -30,7 +31,7 @@ export default function ArtisansCatalogueSection({ city, service, waPhone }: Pro
     fetch(`/api/artisans-catalogue?city=${encodeURIComponent(city)}&service=${encodeURIComponent(service)}&limit=8`)
       .then(r => r.json())
       .then(d => setArtisans(d.artisans || []))
-      .catch(() => {})
+      .catch(() => toast.error('Erreur de chargement du catalogue artisans'))
       .finally(() => setLoading(false))
   }, [city, service])
 

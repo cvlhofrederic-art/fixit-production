@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ export default function CoproDocumentsSection({ t, locale, documents, docTypeLab
                 <button
                   onClick={() => {
                     markDocConsulte(doc.id)
-                    alert(locale === 'pt' ? `A descarregar "${doc.nom}"...` : `Téléchargement de "${doc.nom}" en cours...`)
+                    toast.info(locale === 'pt' ? `A descarregar "${doc.nom}"...` : `Téléchargement de "${doc.nom}" en cours...`)
                   }}
                   className="flex-1 flex items-center justify-center gap-1 bg-[#0D1B2E] hover:bg-[#152338] text-white text-xs font-medium py-2 rounded-lg transition"
                 >

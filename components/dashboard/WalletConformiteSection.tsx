@@ -98,6 +98,8 @@ interface DocumentRowProps {
   status: 'missing' | 'valid' | 'expiring' | 'expired'
   isLast: boolean
   uploading: boolean
+  removing: boolean
+  savingExpiry: boolean
   editExpiry: boolean
   dateLocale: string
   onUploadClick: () => void
@@ -115,7 +117,7 @@ interface DocumentRowProps {
 }
 
 function DocumentRow({
-  docDef, doc, status, isLast, uploading, editExpiry, dateLocale,
+  docDef, doc, status, isLast, uploading, removing, savingExpiry, editExpiry, dateLocale,
   onUploadClick, onEditExpiry, onSetExpiry, onCancelExpiry, onView, onRemove,
   fileInputRef, onFileChange, t, scanResult, scanning, legalForm,
 }: DocumentRowProps) {
@@ -236,7 +238,15 @@ function DocumentRow({
           {doc?.url && (
             <>
               <button onClick={onView} className="v22-btn v22-btn-sm" title="Voir">👁️</button>
-              <button onClick={onRemove} className="v22-btn v22-btn-sm" title="Supprimer">🗑️</button>
+              <button
+                onClick={onRemove}
+                disabled={removing}
+                className="v22-btn v22-btn-sm"
+                title="Supprimer"
+                style={{ opacity: removing ? 0.5 : 1 }}
+              >
+                {removing ? '⏳' : '🗑️'}
+              </button>
             </>
           )}
 
@@ -269,18 +279,21 @@ function DocumentRow({
                 className="v22-form-input"
                 style={{ padding: '3px 6px', fontSize: 11, width: 130 }}
                 defaultValue={doc?.expiryDate || ''}
+                disabled={savingExpiry}
                 onBlur={e => onSetExpiry(e.target.value)}
                 autoFocus
               />
-              <button onClick={onCancelExpiry} className="v22-btn v22-btn-sm">✕</button>
+              <button onClick={onCancelExpiry} disabled={savingExpiry} className="v22-btn v22-btn-sm">✕</button>
             </div>
           ) : (
             <button
               onClick={onEditExpiry}
+              disabled={savingExpiry}
               className="v22-btn v22-btn-sm"
               title={doc?.expiryDate ? t('proDash.wallet.echeance') : t('proDash.wallet.ajouterEcheance')}
+              style={{ opacity: savingExpiry ? 0.5 : 1 }}
             >
-              📅
+              {savingExpiry ? '⏳' : '📅'}
             </button>
           )}
 
@@ -330,6 +343,8 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
     } catch { return {} }
   })
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
+  const [removing, setRemoving] = useState<Record<string, boolean>>({})
+  const [savingExpiry, setSavingExpiry] = useState<Record<string, boolean>>({})
   const [editExpiry, setEditExpiry] = useState<string | null>(null)
   const [sendEmail, setSendEmail] = useState('')
   const [showUploadModal, setShowUploadModal] = useState<string | null>(null)
@@ -419,18 +434,28 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
     }
   }
 
-  const setExpiry = (docKey: string, date: string) => {
-    const updated = { ...docs, [docKey]: { ...docs[docKey], expiryDate: date } }
-    saveToStorage(updated)
-    setEditExpiry(null)
-    if (updated[docKey]?.url) syncToSyndic(docKey, true, date)
+  const setExpiry = async (docKey: string, date: string) => {
+    setSavingExpiry(prev => ({ ...prev, [docKey]: true }))
+    try {
+      const updated = { ...docs, [docKey]: { ...docs[docKey], expiryDate: date } }
+      saveToStorage(updated)
+      setEditExpiry(null)
+      if (updated[docKey]?.url) await syncToSyndic(docKey, true, date)
+    } finally {
+      setSavingExpiry(prev => ({ ...prev, [docKey]: false }))
+    }
   }
 
-  const removeDoc = (docKey: string) => {
-    const updated = { ...docs }
-    delete updated[docKey]
-    saveToStorage(updated)
-    syncToSyndic(docKey, false)
+  const removeDoc = async (docKey: string) => {
+    setRemoving(prev => ({ ...prev, [docKey]: true }))
+    try {
+      const updated = { ...docs }
+      delete updated[docKey]
+      saveToStorage(updated)
+      await syncToSyndic(docKey, false)
+    } finally {
+      setRemoving(prev => ({ ...prev, [docKey]: false }))
+    }
   }
 
   const getStatus = (doc: WalletDoc | undefined): 'missing' | 'valid' | 'expiring' | 'expired' => {
@@ -539,6 +564,8 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               status={getStatus(docs[docDef.id])}
               isLast={i === WALLET_DOCS.length - 1}
               uploading={!!uploading[docDef.id]}
+              removing={!!removing[docDef.id]}
+              savingExpiry={!!savingExpiry[docDef.id]}
               editExpiry={editExpiry === docDef.id}
               dateLocale={dateLocale}
               onUploadClick={() => fileInputRefs.current[docDef.id]?.click()}

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { adminSetupQuerySchema } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,11 @@ export async function GET(request: NextRequest) {
   }
 
   const url = new URL(request.url)
-  const step = url.searchParams.get('step') || 'all'
+  const parsed = adminSetupQuerySchema.safeParse(Object.fromEntries(url.searchParams))
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join('; ') }, { status: 400 })
+  }
+  const { step } = parsed.data
   const results: Record<string, any> = {}
 
   // ── ÉTAPE 1 : Créer les tables ──────────────────────────────────────────────

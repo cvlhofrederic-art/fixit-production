@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
 export default function CarnetEntretienSection({ user, userRole }: { user: any; userRole: string }) {
@@ -169,7 +170,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: any; 
         doc.text(`État daté — ${e.immeuble}  |  Généré par Vitfix Pro le ${new Date().toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}  |  Page ${p}/${pages}`, W/2, 292, { align: 'center' })
       }
       doc.save(`EtatDate_${e.immeuble.replace(/\s+/g,'_')}_${new Date(e.dateGeneration).toISOString().split('T')[0]}.pdf`)
-    } catch(err) { alert('Erreur PDF : ' + err) }
+    } catch(err) { toast.error('Erreur PDF : ' + err) }
     setPdfLoading(null)
   }
 
@@ -219,7 +220,7 @@ export default function CarnetEntretienSection({ user, userRole }: { user: any; 
       const pages = doc.getNumberOfPages()
       for (let p=1; p<=pages; p++) { doc.setPage(p); doc.setFontSize(7); doc.setTextColor(150,150,150); doc.text(`Vitfix Pro — Carnet d'entretien — Page ${p}/${pages}`, W/2, 292, { align: 'center' }) }
       doc.save(`CarnetEntretien_${new Date().toISOString().split('T')[0]}.pdf`)
-    } catch(err) { alert('Erreur PDF : ' + err) }
+    } catch(err) { toast.error('Erreur PDF : ' + err) }
     setPdfLoading(null)
   }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import type { Immeuble, Coproprio } from '../types'
 import { getCoproKey } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -172,7 +173,7 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
       setShowModal(false)
     } catch (e) {
       console.error('[CopropriosSection] save error:', e)
-      alert(locale === 'pt' ? 'Erro ao guardar' : 'Erreur lors de l\'enregistrement')
+      toast.error(locale === 'pt' ? 'Erro ao guardar' : 'Erreur lors de l\'enregistrement')
     } finally {
       setSaving(false)
     }
@@ -282,14 +283,14 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
         setImportImmeuble(immeubles[0].nom)
       }
     } catch (err: any) {
-      alert(locale === 'pt' ? `Erro ao analisar o CSV: ${err.message}` : `Erreur d'analyse CSV : ${err.message}`)
+      toast.error(locale === 'pt' ? `Erro ao analisar o CSV: ${err.message}` : `Erreur d'analyse CSV : ${err.message}`)
     }
   }
 
   const handleImport = async () => {
     const targetImmeuble = importCreateImmeuble ? importNewImmeuble.trim() : importImmeuble
     if (!targetImmeuble) {
-      alert(locale === 'pt' ? 'Selecione ou crie um condomínio' : 'Sélectionnez ou créez un immeuble')
+      toast.error(locale === 'pt' ? 'Selecione ou crie um condomínio' : 'Sélectionnez ou créez un immeuble')
       return
     }
     if (!importCsvContent) return

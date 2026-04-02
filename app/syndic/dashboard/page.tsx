@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useTransition } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { POLL_MISSIONS, TOAST_SHORT, TOAST_DEFAULT } from '@/lib/constants'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
@@ -726,7 +727,10 @@ export default function SyndicDashboard() {
             setCoproprios(mapped)
           }
         }
-      } catch (e) { console.warn('[dashboard] coproprios load failed:', e) }
+      } catch (e) {
+        console.warn('[dashboard] coproprios load failed:', e)
+        toast.error('Impossible de charger les copropriétaires')
+      }
 
       // ── Charger les modules personnalisés si c'est un membre d'équipe ──────
       const cabinetId = freshUser.user_metadata?.cabinet_id
@@ -2426,6 +2430,20 @@ export default function SyndicDashboard() {
 
   const isAdminOverride = user?.user_metadata?._admin_override === true
 
+  // ── Page-level loading: wait for auth + initial data before rendering ──
+  if (!user || !dataLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F7F4EE' }}>
+        <div className="text-center">
+          <div className="inline-flex items-center gap-3 px-6 py-4 bg-white rounded-2xl shadow-sm">
+            <div className="w-5 h-5 border-2 border-[#FFC107] border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-semibold text-gray-600">Chargement du tableau de bord…</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div id="syndic-dashboard" className="flex h-screen bg-[#F7F4EE] overflow-hidden">
 
@@ -3457,7 +3475,7 @@ export default function SyndicDashboard() {
                   console.info('[SYNDIC onAdd] assign-mission status:', assignRes.status, assignData)
                   if (assignRes.status === 401) {
                     // Session expirée ou conflit de compte — recharger
-                    window.alert(locale === 'pt' ? '⚠️ Sessão expirada. Atualize a página e reconecte-se como administrador síndico.' : '⚠️ Session expirée. Veuillez actualiser la page et vous reconnecter en tant qu\'administrateur syndic.')
+                    toast.error(locale === 'pt' ? 'Sessão expirada. Atualize a página e reconecte-se como administrador síndico.' : 'Session expirée. Veuillez actualiser la page et vous reconnecter en tant qu\'administrateur syndic.')
                   } else if (!assignData.artisan_found) {
                     if (process.env.NODE_ENV !== 'production') console.warn('[SYNDIC onAdd] Artisan non trouvé en base :', m.artisan, assignData)
                   }
@@ -4002,8 +4020,8 @@ export default function SyndicDashboard() {
                   </button>
                   <button
                     onClick={async () => {
-                      if (!pdfSelectedImmeuble) { alert(isPt ? 'Selecione um condomínio' : 'Sélectionnez un immeuble'); return }
-                      if (!pdfSelectedCopro) { alert(isPt ? 'Selecione um destinatário' : 'Sélectionnez un destinataire'); return }
+                      if (!pdfSelectedImmeuble) { toast.error(isPt ? 'Selecione um condomínio' : 'Sélectionnez un immeuble'); return }
+                      if (!pdfSelectedCopro) { toast.error(isPt ? 'Selecione um destinatário' : 'Sélectionnez un destinataire'); return }
                       setPdfGenerating(true)
                       try {
                         // Merge modal selections into docData
@@ -4033,7 +4051,7 @@ export default function SyndicDashboard() {
                         setShowPdfModal(false)
                       } catch (err) {
                         console.error('[PDF Modal] Error:', err)
-                        alert(isPt ? 'Erro ao gerar o PDF' : 'Erreur lors de la génération du PDF')
+                        toast.error(isPt ? 'Erro ao gerar o PDF' : 'Erreur lors de la génération du PDF')
                       } finally {
                         setPdfGenerating(false)
                       }

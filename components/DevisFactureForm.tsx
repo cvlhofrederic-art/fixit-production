@@ -27,6 +27,7 @@ import {
   isSocieteStatus,
   isSmallBusinessStatus,
 } from '@/lib/devis-utils'
+import { toast } from 'sonner'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
@@ -191,7 +192,9 @@ export default function DevisFactureForm({
         const parsed = JSON.parse(saved) as { label: string; pourcentage: number }[]
         if (parsed.length > 0) return parsed.map((s, i) => ({ id: crypto.randomUUID(), ordre: i + 1, label: `Acompte ${i + 1}`, pourcentage: s.pourcentage, declencheur: s.label }))
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to parse saved écheancier from localStorage:', err)
+    }
     return [{ id: 'default-1', ordre: 1, pourcentage: 30, declencheur: 'À la signature', label: 'Acompte 1' }]
   }
   const [acomptesEnabled, setAcomptesEnabled] = useState(initialData?.acomptesEnabled !== undefined ? initialData.acomptesEnabled : true)
@@ -203,7 +206,9 @@ export default function DevisFactureForm({
       localStorage.setItem(echeancierStorageKey, JSON.stringify(toSave))
       setEcheancierSaved(true)
       setTimeout(() => setEcheancierSaved(false), 2000)
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to save écheancier to localStorage:', err)
+    }
   }
   // ─── Linked booking for Vitfix channel ───
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null)
@@ -269,7 +274,7 @@ export default function DevisFactureForm({
           const json = await res.json()
           setAvailablePhotos(json.data || [])
         }
-      } catch (e) { console.warn('[DevisFactureForm] Failed to fetch photos:', e) }
+      } catch (e) { console.warn('[DevisFactureForm] Failed to fetch photos:', e); toast.error('Impossible de charger les photos') }
       setPhotosLoading(false)
     }
     fetchPhotos()
@@ -422,7 +427,7 @@ export default function DevisFactureForm({
       if (session?.access_token) {
         return { 'Authorization': `Bearer ${session.access_token}` }
       }
-    } catch (e) { console.warn('[DevisFactureForm] Failed to get auth headers:', e) }
+    } catch (e) { console.warn('[DevisFactureForm] Failed to get auth headers:', e); toast.error('Erreur d\'authentification, veuillez vous reconnecter') }
     return {}
   }
 
@@ -514,6 +519,7 @@ export default function DevisFactureForm({
       }
     } catch (err) {
       console.error('Error fetching verified company data:', err)
+      toast.error('Impossible de charger les données entreprise vérifiées')
     }
     setLoadingCompany(false)
   }
@@ -741,10 +747,11 @@ export default function DevisFactureForm({
             if (clientData.email) setClientEmail(clientData.email)
             if (!booking.address && clientData.address) setClientAddress(clientData.address)
           }
-        } catch { /* ignore — we already have notes data */ }
+        } catch (err) { /* ignore — we already have notes data */ console.warn('Could not enrich client data from account:', err) }
       }
     } catch (e) {
       console.error('importFromBooking error:', e)
+      toast.error('Impossible d\'importer la réservation')
     } finally {
       setImportingBooking(false)
     }
@@ -819,6 +826,7 @@ export default function DevisFactureForm({
       setRentaNbEmployees(mapped.length || 1)
     } catch (e) {
       console.error('Rentabilité load error:', e)
+      toast.error('Impossible de charger les données de rentabilité')
     }
     setRentaLoading(false)
   }, [])
@@ -1054,10 +1062,20 @@ export default function DevisFactureForm({
   const handleTestPdfV2 = async () => {
     // Bloquer si assurance RC Pro manquante (art. L243-2 C. assurances)
     if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
-      alert(locale === 'pt'
+      toast.error(locale === 'pt'
         ? 'Seguro profissional obrigatório. Preencha o nome e número da apólice antes de gerar o PDF.'
         : 'Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
       return
+    }
+    // Bloquer si acomptes activés mais total != 100%
+    if (acomptesEnabled && acomptes.length > 0) {
+      const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
+      if (totalPct !== 100) {
+        toast.error(locale === 'pt'
+          ? `O total dos adiantamentos deve ser 100% (atualmente ${totalPct}%).`
+          : `Le total des acomptes doit être égal à 100% (actuellement ${totalPct}%).`)
+        return
+      }
     }
     setPdfLoading(true)
     try {
@@ -1065,8 +1083,9 @@ export default function DevisFactureForm({
       const fresh = await freshArtisanData()
       // Alerte si assurance expirée
       if (fresh.freshInsuranceExpiry && new Date(fresh.freshInsuranceExpiry) < new Date()) {
-        const proceed = confirm(`⚠️ Votre assurance ${fresh.freshInsuranceName || 'RC Pro'} a expiré le ${new Date(fresh.freshInsuranceExpiry).toLocaleDateString('fr-FR')}.\n\nLe document sera généré mais les mentions légales indiqueront une assurance potentiellement non valide.\n\nVoulez-vous continuer ?`)
-        if (!proceed) { setPdfLoading(false); return }
+        alert(`⚠️ Votre assurance ${fresh.freshInsuranceName || 'RC Pro'} a expiré le ${new Date(fresh.freshInsuranceExpiry).toLocaleDateString('fr-FR')}.\n\nVous ne pouvez pas générer de document avec une assurance expirée. Renouvelez votre assurance avant de continuer.`)
+        setPdfLoading(false)
+        return
       }
       const input = getV2InputParams({
         logoUrl: fresh.freshLogoUrl,
@@ -1081,7 +1100,7 @@ export default function DevisFactureForm({
       pdf.save(`${numero || 'devis'}.pdf`)
     } catch (err) {
       console.error('PDF V2 error:', err)
-      alert('Erreur PDF V2: ' + (err instanceof Error ? err.message : String(err)))
+      toast.error('Erreur PDF V2: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setPdfLoading(false)
     }
@@ -1089,10 +1108,20 @@ export default function DevisFactureForm({
 
   const handlePreviewPdf = async () => {
     if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
-      alert(locale === 'pt'
+      toast.error(locale === 'pt'
         ? 'Seguro profissional obrigatório. Preencha o nome e número da apólice antes de gerar o PDF.'
         : 'Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
       return
+    }
+    // Bloquer si acomptes activés mais total != 100%
+    if (acomptesEnabled && acomptes.length > 0) {
+      const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
+      if (totalPct !== 100) {
+        toast.error(locale === 'pt'
+          ? `O total dos adiantamentos deve ser 100% (atualmente ${totalPct}%).`
+          : `Le total des acomptes doit être égal à 100% (actuellement ${totalPct}%).`)
+        return
+      }
     }
     setPdfLoading(true)
     try {
@@ -1113,7 +1142,7 @@ export default function DevisFactureForm({
       window.open(blobUrl, '_blank')
     } catch (err) {
       console.error('PDF Preview error:', err)
-      alert('Erreur aperçu: ' + (err instanceof Error ? err.message : String(err)))
+      toast.error('Erreur aperçu: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setPdfLoading(false)
     }
@@ -1122,6 +1151,11 @@ export default function DevisFactureForm({
   // ─── FACTUR-X EXPORT (facturation électronique 2026) ───
   const handleExportFacturX = async () => {
     if (docType !== 'facture' || locale !== 'fr') return
+    // Bloquer si assurance RC Pro manquante (art. L243-2 C. assurances)
+    if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
+      toast.error('Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
+      return
+    }
     setFacturxLoading(true)
     try {
       const payload = {
@@ -1197,13 +1231,23 @@ export default function DevisFactureForm({
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error('[Factur-X] Export error:', err)
-      alert('Erreur export Factur-X: ' + (err instanceof Error ? err.message : String(err)))
+      toast.error('Erreur export Factur-X: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setFacturxLoading(false)
     }
   }
 
   const handleGeneratePDF = async () => {
+    // Bloquer si acomptes activés mais total != 100%
+    if (acomptesEnabled && acomptes.length > 0) {
+      const totalPct = acomptes.reduce((s, a) => s + a.pourcentage, 0)
+      if (totalPct !== 100) {
+        toast.error(locale === 'pt'
+          ? `O total dos adiantamentos deve ser 100% (atualmente ${totalPct}%).`
+          : `Le total des acomptes doit être égal à 100% (actuellement ${totalPct}%).`)
+        return
+      }
+    }
     setPdfLoading(true)
     try {
       // ── PT Fiscal: Register document with AT engine (Portugal only) ──
@@ -3053,8 +3097,8 @@ export default function DevisFactureForm({
                     </div>
                   ) : (
                     <button onClick={handlePreviewPdf}
-                      disabled={pdfLoading}
-                      className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer' }}>
+                      disabled={pdfLoading || !compliance.insurance}
+                      className="v22-btn" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: (pdfLoading || !compliance.insurance) ? 0.6 : 1, cursor: (pdfLoading || !compliance.insurance) ? 'not-allowed' : 'pointer' }}>
                       {pdfLoading ? '...' : (locale === 'pt' ? 'Pré-visualização' : 'Aperçu')}
                     </button>
                   )}
@@ -3082,19 +3126,19 @@ export default function DevisFactureForm({
                 </button>
                 <button
                   onClick={handleTestPdfV2}
-                  disabled={pdfLoading}
+                  disabled={pdfLoading || !compliance.insurance}
                   className="v22-btn v22-btn-primary"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: pdfLoading ? 0.6 : 1, cursor: pdfLoading ? 'wait' : 'pointer' }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: (pdfLoading || !compliance.insurance) ? 0.6 : 1, cursor: (pdfLoading || !compliance.insurance) ? 'not-allowed' : 'pointer' }}
                 >
                   {pdfLoading ? t('devis.generatingPdf') : t('devis.downloadPdf')}
                 </button>
                 {docType === 'facture' && locale === 'fr' && (
                   <button
                     onClick={handleExportFacturX}
-                    disabled={facturxLoading}
+                    disabled={facturxLoading || !compliance.insurance}
                     className="v22-btn"
                     title="Exporter en format Factur-X (PDF/A-3 + XML CII) — obligatoire à partir de sept. 2026"
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: facturxLoading ? 0.6 : 1, cursor: facturxLoading ? 'wait' : 'pointer', fontSize: 12, border: '1px solid #e8a020', color: '#b07810' }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 14px', opacity: (facturxLoading || !compliance.insurance) ? 0.6 : 1, cursor: (facturxLoading || !compliance.insurance) ? 'not-allowed' : 'pointer', fontSize: 12, border: '1px solid #e8a020', color: '#b07810' }}
                   >
                     {facturxLoading ? 'Génération...' : '📄 Exporter Factur-X'}
                   </button>

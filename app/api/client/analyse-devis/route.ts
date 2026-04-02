@@ -520,11 +520,11 @@ export async function POST(req: NextRequest) {
             siretVerified: siretResult.verified,
             scores, extracted, analysisText: '[streamed]',
             model: 'llama-3.3-70b-versatile',
-          }).catch(() => {})
+          }).catch((err) => { logger.warn('saveAnalysis (client stream) failed silently:', err) })
         },
       })
 
-      analyseStream.pipeTo(transformStream.writable).catch(() => {})
+      analyseStream.pipeTo(transformStream.writable).catch((err) => { logger.warn('Stream pipeTo error (likely client disconnect):', err) })
 
       return new Response(transformStream.readable, {
         headers: {
@@ -572,7 +572,7 @@ export async function POST(req: NextRequest) {
       siretVerified: siretResult.verified,
       scores, extracted, analysisText: analysis,
       model: analyseData.model, tokens: totalTokens,
-    }).catch(() => {})
+    }).catch((err) => { logger.warn('saveAnalysis (client non-stream) failed silently:', err) })
 
     return NextResponse.json({
       success: true,

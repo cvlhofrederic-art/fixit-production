@@ -164,7 +164,8 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: a
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+            disabled={uploading}
+            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {'➕'} {isSociete ? 'Chantier de référence' : t('proDash.carnet.ajouterPhoto')}
           </button>
@@ -176,6 +177,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: a
         type="file"
         accept="image/*"
         className="hidden"
+        disabled={uploading}
         ref={fileInputRef}
         onChange={e => {
           const f = e.target.files?.[0]
@@ -261,7 +263,8 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: a
             <div className="flex gap-3 mt-5">
               <button
                 onClick={() => { setShowForm(false); setPendingFile(null) }}
-                className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-2.5 font-semibold text-sm hover:bg-gray-50 transition"
+                disabled={uploading}
+                className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-2.5 font-semibold text-sm hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('proDash.carnet.annuler')}
               </button>
@@ -321,7 +324,8 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: a
           </p>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition-all"
+            disabled={uploading}
+            className="bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 px-6 py-3 rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSociete ? '🏗️ Ajouter un premier chantier' : `${'📸'} ${t('proDash.carnet.ajouterPremiereRealisation')}`}
           </button>

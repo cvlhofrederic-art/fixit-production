@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -591,7 +592,7 @@ export default function ExtranetEnrichiSection({ user, userRole }: { user: any; 
                   <p style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)', lineHeight: 1.5, marginBottom: 12 }}>
                     Decret n 2006-1341 du 9 novembre 2006 — Document obligatoire en cas de vente d'un lot de copropriete. Atteste du montant des charges courantes et des charges hors budget previsionnel.
                   </p>
-                  <button style={btnPrimary} onClick={() => alert('Generation attestation de charges pour ' + selectedCopro.nom)}>
+                  <button style={btnPrimary} onClick={() => toast.info('Generation attestation de charges pour ' + selectedCopro.nom)}>
                     Generer l'attestation
                   </button>
                 </div>
@@ -600,7 +601,7 @@ export default function ExtranetEnrichiSection({ user, userRole }: { user: any; 
                   <p style={{ fontSize: 12, color: 'var(--sd-ink-2, #4A5E78)', lineHeight: 1.5, marginBottom: 12 }}>
                     Article L721-2 du Code de la construction et de l'habitation — Fiche synthetique regroupant les donnees financieres et techniques de la copropriete, obligatoire pour toute promesse de vente.
                   </p>
-                  <button style={btnPrimary} onClick={() => alert('Generation fiche de synthese pour ' + selectedCopro.nom)}>
+                  <button style={btnPrimary} onClick={() => toast.info('Generation fiche de synthese pour ' + selectedCopro.nom)}>
                     Generer la fiche
                   </button>
                 </div>
@@ -689,7 +690,7 @@ export default function ExtranetEnrichiSection({ user, userRole }: { user: any; 
                 <div style={{ display: 'flex', gap: 8 }}>
                   {doc.statut === 'en_ligne' ? (
                     <>
-                      <button style={{ ...btnSecondary, padding: '6px 12px', fontSize: 12 }} onClick={() => alert(`Telechargement de ${doc.fichier}`)}>
+                      <button style={{ ...btnSecondary, padding: '6px 12px', fontSize: 12 }} onClick={() => toast.info(`Telechargement de ${doc.fichier}`)}>
                         Telecharger
                       </button>
                       <button

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -216,6 +217,7 @@ export default function AdminDashboardPage() {
       }
     } catch (e) {
       console.error('[admin] fetchStats error:', e)
+      toast.error('Erreur chargement des statistiques')
     } finally {
       setStatsLoading(false)
     }
@@ -238,6 +240,7 @@ export default function AdminDashboardPage() {
       }
     } catch (e) {
       console.error('[admin] fetchUsers error:', e)
+      toast.error('Erreur chargement des utilisateurs')
     } finally {
       setUsersLoading(false)
     }
@@ -260,6 +263,7 @@ export default function AdminDashboardPage() {
       }
     } catch (e) {
       console.error('[admin] fetchSubs error:', e)
+      toast.error('Erreur chargement des abonnements')
     } finally {
       setSubsLoading(false)
     }

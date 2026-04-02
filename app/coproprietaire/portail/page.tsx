@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { useLocale } from '@/lib/i18n/context'
 import Image from 'next/image'
 
@@ -120,7 +121,7 @@ export default function PortailCopropriétaire() {
         loadCanalMessages(parsed)
         setLoadingProfile(false)
         return
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('Erreur lecture portail_profile:', e) }
     }
 
     // Recherche dans copropriétaires du syndic
@@ -148,7 +149,7 @@ export default function PortailCopropriétaire() {
           }
         }
         if (found) break
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('Erreur lecture copropriétaires localStorage:', e) }
     }
 
     if (found) {
@@ -181,7 +182,7 @@ export default function PortailCopropriétaire() {
     try {
       const msgs = JSON.parse(localStorage.getItem(key) || '[]')
       setCanalMessages(msgs)
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('Erreur lecture messages canal:', e) }
   }
 
   const saveCanalMessages = (msgs: CanalMessage[], p: DemandeurProfile) => {
@@ -273,7 +274,7 @@ ${form.description}${photoFile ? '\n📸 Photo jointe' : ''}`
         existing.unshift(missionData)
         localStorage.setItem(key, JSON.stringify(existing))
         break // écrire dans le premier compte syndic trouvé
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('Erreur écriture mission syndic:', e) }
     }
 
     setSignalementEnvoye(true)

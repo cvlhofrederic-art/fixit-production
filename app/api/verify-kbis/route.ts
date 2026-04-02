@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import Tesseract from 'tesseract.js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, verifyKbisFormSchema } from '@/lib/validation'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -163,7 +164,6 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const market = formData.get('market') as KbisMarket | null
 
     if (!file) {
       return NextResponse.json({ error: 'Fichier requis' }, { status: 400 })
@@ -175,21 +175,18 @@ export async function POST(request: NextRequest) {
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
     if (!allowedTypes.includes(file.type)) {
+      const rawMarket = formData.get('market') as string | null
       return NextResponse.json(
-        { error: market === 'pt_artisan'
+        { error: rawMarket === 'pt_artisan'
             ? 'Formato não suportado. Use JPG, PNG ou PDF.'
             : 'Format non supporté. Utilisez JPG, PNG ou PDF.' },
         { status: 400 }
       )
     }
 
-    const validMarkets: KbisMarket[] = ['fr_artisan', 'fr_btp', 'pt_artisan']
-    if (!market || !validMarkets.includes(market)) {
-      return NextResponse.json(
-        { error: 'Paramètre market invalide. Valeurs acceptées : fr_artisan, fr_btp, pt_artisan' },
-        { status: 400 }
-      )
-    }
+    const v = validateBody(verifyKbisFormSchema, { market: formData.get('market') })
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const market = v.data.market
 
     // Langue OCR : français pour FR, portugais pour PT
     const ocrLang = market === 'pt_artisan' ? 'por' : 'fra'

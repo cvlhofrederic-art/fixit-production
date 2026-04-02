@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/context'
 
 export default function GmailConnectButton({ syndicId, userEmail }: { syndicId?: string; userEmail?: string }) {
@@ -33,7 +34,7 @@ export default function GmailConnectButton({ syndicId, userEmail }: { syndicId?:
             setConnected(true)
           }
         })
-        .catch(() => {})
+        .catch(() => toast.error('Erreur de vérification de la connexion email'))
     }
   }, [syndicId])
 

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import Tesseract from 'tesseract.js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, verifyIdFormSchema } from '@/lib/validation'
 
 // Normalise un texte pour comparaison (minuscules, sans accents, sans ponctuation)
 function normalize(text: string): string {
@@ -85,15 +86,18 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const expectedNom = formData.get('nom') as string | null
-    const expectedPrenom = formData.get('prenom') as string | null
 
     if (!file) {
       return NextResponse.json({ error: 'Fichier requis' }, { status: 400 })
     }
-    if (!expectedNom || !expectedPrenom) {
-      return NextResponse.json({ error: 'Nom et prénom requis' }, { status: 400 })
-    }
+
+    const v = validateBody(verifyIdFormSchema, {
+      nom: formData.get('nom'),
+      prenom: formData.get('prenom'),
+    })
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const expectedNom = v.data.nom
+    const expectedPrenom = v.data.prenom
 
     // Convertir le fichier en buffer
     const arrayBuffer = await file.arrayBuffer()

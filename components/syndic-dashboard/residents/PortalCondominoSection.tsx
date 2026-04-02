@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { toast } from 'sonner'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -574,7 +575,7 @@ export default function PortalCondominoSection({ user, userRole }: Props) {
             </select>
             <button
               style={btnSecondary}
-              onClick={() => { alert('Extrato PDF gerado (demo).') }}
+              onClick={() => { toast.info('Extrato PDF gerado (demo).') }}
             >
               📥 Descarregar extrato PDF
             </button>
@@ -690,7 +691,7 @@ export default function PortalCondominoSection({ user, userRole }: Props) {
                   </div>
                 </div>
                 <button
-                  onClick={() => { alert(`Download: ${d.nome} (demo)`) }}
+                  onClick={() => { toast.info(`Download: ${d.nome} (demo)`) }}
                   style={{ background: 'var(--sd-navy, #0D1B2E)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'Outfit', sans-serif", whiteSpace: 'nowrap' }}
                 >
                   📥 Download

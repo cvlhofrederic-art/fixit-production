@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { adminInitTeamTableSchema, validateBody } from '@/lib/validation'
 
 /**
  * Route d'initialisation de la table syndic_team_members
@@ -18,12 +19,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Accès réservé aux super_admin' }, { status: 403 })
     }
 
-    const body = await request.json().catch(err => { logger.warn('[admin/init-team-table] Failed to parse request body:', err); return {}; })
-    const { cabinet_id, user_id, email, full_name, role: memberRole } = body
-
-    if (!cabinet_id || !email) {
-      return NextResponse.json({ error: 'cabinet_id et email requis' }, { status: 400 })
+    let rawBody: unknown
+    try {
+      rawBody = await request.json()
+    } catch (err) {
+      logger.warn('[admin/init-team-table] Failed to parse request body:', err)
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
+
+    const v = validateBody(adminInitTeamTableSchema, rawBody)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+
+    const { cabinet_id, user_id, email, full_name, role: memberRole } = v.data
 
     const { data: insertData, error: insertError } = await supabaseAdmin
       .from('syndic_team_members')

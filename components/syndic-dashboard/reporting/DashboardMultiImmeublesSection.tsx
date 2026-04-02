@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { toast } from 'sonner'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -173,7 +174,7 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
           setImmeubles(parsed)
           setLoading(false)
         }
-      } catch { /* ignore */ }
+      } catch { toast.error('Erreur lors du chargement du cache local') }
     }
 
     fetch(`/api/syndic/immeubles?user_id=${uid}`)
@@ -198,6 +199,7 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
       })
       .catch(() => {
         if (immeubles.length === 0) setError('Erro ao carregar imóveis')
+        toast.error('Erreur lors du chargement des immeubles')
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps

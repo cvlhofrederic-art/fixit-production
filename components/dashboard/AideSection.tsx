@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 interface AideSectionProps {
   navigateTo: (page: string) => void
@@ -69,7 +70,7 @@ export default function AideSection({ navigateTo }: AideSectionProps) {
                 <span style={{ color: 'var(--v22-text-mid)' }}>Horaires</span>
                 <span className="v22-mono font-medium" style={{ color: 'var(--v22-text)' }}>Lun – Ven · 9h – 18h</span>
               </div>
-              <button className="v22-btn v22-btn-primary w-full mt-3" onClick={() => alert('Ticket créé — réponse sous 24h')}>Ouvrir un ticket</button>
+              <button className="v22-btn v22-btn-primary w-full mt-3" onClick={() => toast.info('Ticket créé — réponse sous 24h')}>Ouvrir un ticket</button>
             </div>
           </div>
 

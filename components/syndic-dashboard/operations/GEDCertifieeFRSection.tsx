@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { toast } from 'sonner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -324,7 +325,7 @@ export default function GEDCertifieeFRSection({ user, userRole }: { user: any; u
   }
 
   const verifyHash = (doc: GEDDocumentCertifie) => {
-    window.alert(`Vérification d'intégrité SHA-256\n\nDocument: ${doc.nom}\nHash: ${doc.hashSHA256}\n\nRésultat: ✅ Intégrité vérifiée — le document n'a pas été modifié depuis son dépôt.`)
+    toast.info(`Intégrité SHA-256 vérifiée pour "${doc.nom}" — le document n'a pas été modifié depuis son dépôt.`)
   }
 
   // ── Tabs ─────────────────────────────────────────────────────────────────────

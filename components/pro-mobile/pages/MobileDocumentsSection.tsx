@@ -2,6 +2,7 @@
 
 import { useState, useEffect, RefObject } from 'react'
 import Image from 'next/image'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 
@@ -392,7 +393,7 @@ export default function MobileDocumentsSection({
                         doc.text(`G\u00E9n\u00E9r\u00E9 par Vitfix Pro \u2014 ${new Date().toLocaleString(dateFmtLocale)}`, 15, 285)
                         doc.text(contenuIA?.source === 'groq' ? `Rapport g\u00E9n\u00E9r\u00E9 automatiquement le ${new Date().toLocaleDateString(dateFmtLocale)}` : 'Document \u00E0 valeur probante \u2014 GPS + horodatage + signature client', 15, 290)
                         doc.save(`Rapport_${bk?.services?.name?.replace(/\s+/g, '_') || 'chantier'}_${p.completedAt ? new Date(p.completedAt).toISOString().split('T')[0] : 'date'}.pdf`)
-                      }).catch(() => alert('Erreur lors de la g\u00E9n\u00E9ration du PDF'))
+                      }).catch(() => toast.error('Erreur lors de la génération du PDF'))
                     }}
                     className="mt-2 w-full bg-blue-50 border border-blue-200 text-blue-700 py-2 rounded-xl text-xs font-bold active:scale-95 transition"
                   >
@@ -575,13 +576,13 @@ export default function MobileDocumentsSection({
                       body: formData,
                     })
                     if (res.ok) {
-                      alert('✅ Photo enregistrée avec GPS et horodatage !')
+                      toast.success('Photo enregistrée avec GPS et horodatage !')
                     } else {
                       const err = await res.json()
-                      alert(`❌ ${err.error || 'Erreur upload'}`)
+                      toast.error(err.error || 'Erreur upload')
                     }
                   } catch (gpsErr) {
-                    alert('❌ GPS requis pour prendre une photo chantier. Activez la géolocalisation.')
+                    toast.error('GPS requis pour prendre une photo chantier. Activez la géolocalisation.')
                   }
                 }}
               />

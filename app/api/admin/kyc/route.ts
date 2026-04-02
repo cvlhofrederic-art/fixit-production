@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { adminKycQuerySchema, adminKycPatchSchema, validateBody } from '@/lib/validation'
 
 interface KycRow {
   id: string
@@ -38,9 +39,11 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url)
-  const status = searchParams.get('status') ?? 'pending'
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1') || 1)
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20') || 20))
+  const parsed = adminKycQuerySchema.safeParse(Object.fromEntries(searchParams))
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join('; ') }, { status: 400 })
+  }
+  const { status, page, limit } = parsed.data
   const from = (page - 1) * limit
   const to = from + limit - 1
 
@@ -77,24 +80,17 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: { artisan_id?: string; action?: string; rejection_reason?: string }
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { artisan_id, action, rejection_reason } = body
+  const v = validateBody(adminKycPatchSchema, rawBody)
+  if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
-  if (!artisan_id || !action) {
-    return NextResponse.json({ error: 'artisan_id and action are required' }, { status: 400 })
-  }
-  if (action !== 'approve' && action !== 'reject') {
-    return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 })
-  }
-  if (action === 'reject' && !rejection_reason) {
-    return NextResponse.json({ error: 'rejection_reason is required when action is reject' }, { status: 400 })
-  }
+  const { artisan_id, action, rejection_reason } = v.data
 
   const newStatus = action === 'approve' ? 'approved' : 'rejected'
   const reviewedAt = new Date().toISOString()

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Hammer, FileText, MapPin, User, Calendar, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 
 interface ClientMarchesSectionProps {
@@ -21,7 +22,10 @@ export default function ClientMarchesSection({ userId, locale }: ClientMarchesSe
         const data = await res.json()
         setMyMarches(data.marches || [])
       }
-    } catch { /* silent */ }
+    } catch (e) {
+      console.warn('[ClientMarchesSection] fetchMyMarches failed:', e)
+      toast.error('Impossible de charger vos marchés')
+    }
     finally { setMarchesLoading(false) }
   }, [])
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, isSuperAdmin, unauthorizedResponse } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { adminSubscriptionsQuerySchema } from '@/lib/validation'
 
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
@@ -13,10 +14,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const planFilter = searchParams.get('plan') || ''
-    const statusFilter = searchParams.get('status') || ''
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20')))
+    const parsed = adminSubscriptionsQuerySchema.safeParse(Object.fromEntries(searchParams))
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join('; ') }, { status: 400 })
+    }
+    const { plan: planFilter, status: statusFilter, page, limit } = parsed.data
 
     // Build query
     let query = supabaseAdmin

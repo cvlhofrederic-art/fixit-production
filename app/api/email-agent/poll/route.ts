@@ -4,6 +4,7 @@ import { callGroqWithRetry } from '@/lib/groq'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import type { EmailClassification } from '../classify/route'
 import { logger } from '@/lib/logger'
+import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
 
 export const maxDuration = 60
 
@@ -322,11 +323,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Accès réservé aux syndics' }, { status: 403 })
   }
 
-  const { searchParams } = new URL(request.url)
-  const syndic_id = searchParams.get('syndic_id')
-  const limit = parseInt(searchParams.get('limit') || '50')
-  const urgence = searchParams.get('urgence')
-  const statut = searchParams.get('statut')
+  const params = Object.fromEntries(request.nextUrl.searchParams)
+  const v = validateBody(emailAgentPollGetSchema, params)
+  if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+
+  const { syndic_id, limit, urgence, statut } = v.data
 
   if (!syndic_id) return NextResponse.json({ error: 'syndic_id requis' }, { status: 400 })
 

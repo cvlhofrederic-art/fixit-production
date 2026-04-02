@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { FileSearch, Shield, CheckCircle, AlertTriangle, Copy, Check, X, Star, FileText, MessageSquare, ChevronRight } from 'lucide-react'
@@ -104,9 +105,9 @@ export default function ClientAnalyseSection({ user, locale, t }: ClientAnalyseS
                                 setAnalysePdfReady(true)
                                 if (data.isVitfix) setAnalyseIsVitfix(true)
                               } else {
-                                alert(data.error || t('clientDash.analyse.pdfExtractionError'))
+                                toast.error(data.error || t('clientDash.analyse.pdfExtractionError'))
                               }
-                            } catch { alert(t('clientDash.analyse.networkError')) }
+                            } catch { toast.error(t('clientDash.analyse.networkError')) }
                             finally { setAnalyseExtracting(false) }
                           }}
                         />
@@ -176,9 +177,9 @@ export default function ClientAnalyseSection({ user, locale, t }: ClientAnalyseS
                         }].slice(-20)
                         setAnalyseHistory(hist)
                       } else {
-                        alert(data.error || t('clientDash.analyse.analysisError'))
+                        toast.error(data.error || t('clientDash.analyse.analysisError'))
                       }
-                    } catch { alert(t('clientDash.analyse.networkError')) }
+                    } catch { toast.error(t('clientDash.analyse.networkError')) }
                     finally { setAnalyseLoading(false) }
                   }}
                   className="w-full bg-[#FFC107] hover:bg-[#FFB300] disabled:opacity-40 text-dark font-bold py-4 rounded-xl text-sm transition flex items-center justify-center gap-2 mt-4"

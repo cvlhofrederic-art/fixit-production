@@ -1,13 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { validateBody, emailAgentConnectSchema } from '@/lib/validation'
 
 // ── Initie le flux OAuth2 Gmail ──────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
+    const params = Object.fromEntries(request.nextUrl.searchParams)
+    const v = validateBody(emailAgentConnectSchema, params)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
     // Récupérer le token depuis query param (envoyé par le client)
-    const token = searchParams.get('token')
+    const token = v.data.token
     const authHeader = request.headers.get('authorization')
     const bearerToken = authHeader?.replace('Bearer ', '') || token
 

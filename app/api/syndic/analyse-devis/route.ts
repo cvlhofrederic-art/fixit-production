@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
       siretVerified: siretResult.verified,
       scores, extracted, analysisText: analysis,
       model: analyseData.model, tokens: totalTokens,
-    }).catch(() => {})
+    }).catch((err) => { logger.warn('saveAnalysis (syndic) failed silently:', err) })
 
     return NextResponse.json({
       success: true,

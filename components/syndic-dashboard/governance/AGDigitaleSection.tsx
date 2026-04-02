@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
 export default function AGDigitaleSection({ user, userRole, getToken }: { user: any; userRole: string; getToken?: () => Promise<string | null> }) {
@@ -483,7 +484,7 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
       }
 
       doc.save(`PV_AG_${ag.titre.replace(/\s+/g,'_')}_${ag.date.split('T')[0]}.pdf`)
-    } catch(e) { alert(t('syndicDash.ag.pdfError') + ' : ' + e) }
+    } catch(e) { toast.error(t('syndicDash.ag.pdfError') + ' : ' + e) }
     setPvPdfLoading(false)
   }
 

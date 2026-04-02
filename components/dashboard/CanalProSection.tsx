@@ -65,8 +65,9 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
       // Fallback localStorage
       const local = localStorage.getItem(`fixit_canal_msgs_${artisan?.id}_${contact.id}`)
       if (local) setMessages(JSON.parse(local))
+    } finally {
+      setMsgLoading(false)
     }
-    setMsgLoading(false)
   }
 
   // Polling messages toutes les 5s
@@ -109,8 +110,9 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
       const key = `fixit_canal_msgs_${artisan?.id}_${selectedContact.id}`
       const existing = JSON.parse(localStorage.getItem(key) || '[]')
       localStorage.setItem(key, JSON.stringify([...existing, optimistic]))
+    } finally {
+      setSending(false)
     }
-    setSending(false)
   }
 
   // Commande vocale
@@ -401,16 +403,16 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
                         disabled={sending || (!newMsg.trim() && !attachFile)}
                         className="v22-btn v22-btn-primary"
                         style={{ opacity: (sending || (!newMsg.trim() && !attachFile)) ? 0.5 : 1 }}
-                      >Envoyer</button>
+                      >{sending ? 'Envoi...' : 'Envoyer'}</button>
                     </div>
                   </div>
                 </div>
                 {/* Actions rapides vocales */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} className="v22-tag v22-tag-gray" style={{ cursor: 'pointer', border: '1px solid var(--v22-border)' }}>🚗 En route</button>
-                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} className="v22-tag v22-tag-gray" style={{ cursor: 'pointer', border: '1px solid var(--v22-border)' }}>📍 Arrivé</button>
-                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} className="v22-tag v22-tag-green" style={{ cursor: 'pointer' }}>✅ Terminé</button>
-                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} className="v22-tag v22-tag-red" style={{ cursor: 'pointer' }}>🚨 Alerte</button>
+                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} disabled={sending} className="v22-tag v22-tag-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: '1px solid var(--v22-border)' }}>🚗 En route</button>
+                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} disabled={sending} className="v22-tag v22-tag-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: '1px solid var(--v22-border)' }}>📍 Arrivé</button>
+                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} disabled={sending} className="v22-tag v22-tag-green" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>✅ Terminé</button>
+                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} disabled={sending} className="v22-tag v22-tag-red" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚨 Alerte</button>
                 </div>
               </div>
             </>

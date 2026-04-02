@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 import { formatPrice, formatDate } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -111,7 +112,7 @@ export default function CoproPaiementsSection({ t, locale, paiements }: Props) {
                   <td className="px-5 py-3 text-right">
                     {p.statut === 'payee' && (
                       <button
-                        onClick={() => alert(locale === 'pt' ? `A descarregar o recibo ${p.reference}...` : `Téléchargement du reçu ${p.reference}...`)}
+                        onClick={() => toast.info(locale === 'pt' ? `A descarregar o recibo ${p.reference}...` : `Téléchargement du reçu ${p.reference}...`)}
                         className="text-xs text-[#C9A84C] hover:text-[#A8842A] font-medium"
                       >
                         {t.recu}

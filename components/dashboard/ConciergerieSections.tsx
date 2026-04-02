@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan } from '@/lib/types'
 
@@ -636,7 +637,7 @@ export function LivretAccueilSection({ userId }: { userId: string }) {
   }
   const copyLivret = (l: Livret) => {
     const text = `🏠 ${t('proDash.conciergerie.livret.bienvenue')} — ${l.logement}\n\n📶 WiFi : ${l.wifi}\n🔑 ${t('proDash.conciergerie.livret.motDePasse')} : ${l.wifiMdp}\n🔐 ${t('proDash.conciergerie.livret.codeAcces')} : ${l.codeAcces}\n\n📋 ${t('proDash.conciergerie.livret.reglement').toUpperCase()}\n${l.reglement}\n\n📖 ${t('proDash.conciergerie.livret.instructions').toUpperCase()}\n${l.instructions}\n\n🚨 ${t('proDash.conciergerie.livret.urgences').toUpperCase()}\n${l.urgences}\n\n🚌 ${t('proDash.conciergerie.livret.transports').toUpperCase()}\n${l.transports}\n\n🍽️ ${t('proDash.conciergerie.livret.restaurants').toUpperCase()}\n${l.restaurants}\n\n📞 CONTACT\n${l.contact}`
-    navigator.clipboard.writeText(text).then(() => alert(t('proDash.conciergerie.livret.livretCopie')))
+    navigator.clipboard.writeText(text).then(() => toast.success(t('proDash.conciergerie.livret.livretCopie')))
   }
 
   const fields: [string, keyof Livret, string, boolean][] = [

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -163,6 +164,7 @@ export default function ClientDashboardPage() {
 
     if (error) {
       console.error('Error fetching bookings:', error)
+      toast.error('Erreur de chargement des réservations')
     }
     setBookings((data as Booking[]) || [])
     // Generate Carnet de Santé entries
@@ -174,7 +176,9 @@ export default function ClientDashboardPage() {
       if (saved) setRatings(JSON.parse(saved))
       const savedFavoris = localStorage.getItem(`fixit_client_favoris_${userId}`)
       if (savedFavoris) setFavoris(JSON.parse(savedFavoris))
-    } catch {}
+    } catch (e) {
+      console.warn('[client/dashboard] localStorage parse failed:', e)
+    }
   }
 
   const handleLogout = async () => {
@@ -188,7 +192,7 @@ export default function ClientDashboardPage() {
     try {
       await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id)
       setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b))
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); toast.error('Erreur lors de l\'annulation') }
     setCancellingId(null)
     setCancelConfirm(null)
   }
@@ -215,9 +219,12 @@ export default function ClientDashboardPage() {
         // Cache local pour éviter de re-afficher le bouton
         const newRatings = { ...ratings, [ratingModal.id]: { stars: ratingVal, comment: ratingComment } }
         setRatings(newRatings)
-        try { localStorage.setItem(`fixit_client_ratings_${user.id}`, JSON.stringify(newRatings)) } catch {}
+        try { localStorage.setItem(`fixit_client_ratings_${user.id}`, JSON.stringify(newRatings)) } catch (e) { console.warn('[client/dashboard] ratings localStorage write failed:', e) }
       }
-    } catch { /* silent */ }
+    } catch (e) {
+      console.warn('[client/dashboard] submitRating failed:', e)
+      toast.error('Impossible d\'envoyer la notation. Veuillez réessayer.')
+    }
     setRatingSubmitting(false)
     setRatingModal(null)
     setRatingComment('')
@@ -307,6 +314,7 @@ export default function ClientDashboardPage() {
       pdf.save(`devis-${doc.docNumber || 'vitfix'}.pdf`)
     } catch (e) {
       console.error('[downloadDevisPdf] Error:', e)
+      toast.error('Erreur de génération du PDF')
     }
   }
 
@@ -326,7 +334,9 @@ export default function ClientDashboardPage() {
           [booking.id]: { lat: data.lat, lng: data.lng, eta: data.eta_minutes || 0, active: true }
         }))
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[client/dashboard] loadTracking failed:', e)
+    }
   }
 
   // ── Toggle favori artisan ──
@@ -335,7 +345,7 @@ export default function ClientDashboardPage() {
       ? favoris.filter(f => f !== artisanId)
       : [...favoris, artisanId]
     setFavoris(next)
-    try { localStorage.setItem(`fixit_client_favoris_${user?.id}`, JSON.stringify(next)) } catch {}
+    try { localStorage.setItem(`fixit_client_favoris_${user?.id}`, JSON.stringify(next)) } catch (e) { console.warn('[client/dashboard] favoris localStorage write failed:', e) }
   }
 
   // ── Messagerie ──
@@ -351,7 +361,7 @@ export default function ClientDashboardPage() {
       if (json.data) setMessages(json.data)
       // Clear unread count
       setUnreadCounts(prev => ({ ...prev, [booking.id]: 0 }))
-    } catch (e) { console.error('Error fetching messages:', e) }
+    } catch (e) { console.error('Error fetching messages:', e); toast.error('Erreur de chargement des messages') }
   }
 
   const sendMessage = async () => {
@@ -371,7 +381,7 @@ export default function ClientDashboardPage() {
         setMessages(prev => [...prev, json.data])
         setNewMessage('')
       }
-    } catch (e) { console.error('Error sending message:', e) }
+    } catch (e) { console.error('Error sending message:', e); toast.error('Erreur d\'envoi du message') }
     setSendingMessage(false)
   }
 
@@ -393,7 +403,7 @@ export default function ClientDashboardPage() {
       })
       const json = await res.json()
       return json.url || null
-    } catch (e) { console.error('Upload error:', e); return null }
+    } catch (e) { console.error('Upload error:', e); toast.error('Erreur d\'envoi du fichier'); return null }
     finally { setMsgUploading(false) }
   }
 
@@ -410,7 +420,7 @@ export default function ClientDashboardPage() {
       })
       const json = await res.json()
       if (json.data) setMessages(prev => [...prev, json.data])
-    } catch (e) { console.error('Error sending photo:', e) }
+    } catch (e) { console.error('Error sending photo:', e); toast.error('Erreur d\'envoi de la photo') }
   }
 
   const startVoiceRecording = async () => {
@@ -436,7 +446,7 @@ export default function ClientDashboardPage() {
           })
           const json = await res.json()
           if (json.data) setMessages(prev => [...prev, json.data])
-        } catch (e) { console.error('Error sending voice:', e) }
+        } catch (e) { console.error('Error sending voice:', e); toast.error('Erreur d\'envoi du message vocal') }
       }
       recorder.start()
       setMediaRecorderRef(recorder)
@@ -546,7 +556,7 @@ export default function ClientDashboardPage() {
       const newUnread: Record<string, number> = {}
       for (const c of results) { if (c.unread > 0) newUnread[c.bookingId] = c.unread }
       setUnreadCounts(prev => ({ ...prev, ...newUnread }))
-    } catch (e) { console.error('Error fetching conversations:', e) }
+    } catch (e) { console.error('Error fetching conversations:', e); toast.error('Erreur de chargement des conversations') }
     setConversationsLoading(false)
   }
 
@@ -580,7 +590,7 @@ export default function ClientDashboardPage() {
       }
       allDocs.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
       setDocuments(allDocs)
-    } catch (e) { console.error('Error fetching documents:', e) }
+    } catch (e) { console.error('Error fetching documents:', e); toast.error('Erreur de chargement des documents') }
     setDocumentsLoading(false)
   }
 

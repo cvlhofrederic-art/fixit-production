@@ -83,7 +83,8 @@ export default function RegisterPage() {
       } else {
         setSiretError(data.error || 'SIRET non vérifié')
       }
-    } catch {
+    } catch (e) {
+      console.warn('[register] SIRET verification failed:', e)
       setSiretError('Erreur de connexion. Réessayez.')
     } finally {
       setSiretVerifying(false)
@@ -177,7 +178,8 @@ export default function RegisterPage() {
       }
 
       setSuccess(true)
-    } catch {
+    } catch (e) {
+      console.warn('[register] handleRegister failed:', e)
       setError('Une erreur est survenue. Veuillez réessayer.')
     } finally {
       setLoading(false)

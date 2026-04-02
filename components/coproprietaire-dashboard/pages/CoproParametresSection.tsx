@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { toast } from 'sonner'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -180,7 +181,7 @@ export default function CoproParametresSection({
         <h2 className="font-bold text-[#0D1B2E] text-lg mb-4">{t.exportTelecharge}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
-            onClick={() => alert(locale === 'pt' ? 'A gerar o resumo anual em PDF...' : 'Génération du récapitulatif annuel en PDF...')}
+            onClick={() => toast.info(locale === 'pt' ? 'A gerar o resumo anual em PDF...' : 'Génération du récapitulatif annuel en PDF...')}
             className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
           >
             <span className="text-2xl">📊</span>
@@ -190,7 +191,7 @@ export default function CoproParametresSection({
             </div>
           </button>
           <button
-            onClick={() => alert(locale === 'pt' ? 'A gerar o resumo de votos AG em PDF...' : 'Génération du récapitulatif votes AG en PDF...')}
+            onClick={() => toast.info(locale === 'pt' ? 'A gerar o resumo de votos AG em PDF...' : 'Génération du récapitulatif votes AG en PDF...')}
             className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
           >
             <span className="text-2xl">🗳️</span>
@@ -200,7 +201,7 @@ export default function CoproParametresSection({
             </div>
           </button>
           <button
-            onClick={() => alert(locale === 'pt' ? 'A gerar a declaração de condomínio em PDF...' : 'Génération de l\'attestation de copropriété en PDF...')}
+            onClick={() => toast.info(locale === 'pt' ? 'A gerar a declaração de condomínio em PDF...' : 'Génération de l\'attestation de copropriété en PDF...')}
             className="flex items-center gap-3 bg-[#F7F4EE] hover:bg-[#F7F4EE] border border-[#E4DDD0] rounded-lg p-4 transition text-left"
           >
             <span className="text-2xl">📜</span>

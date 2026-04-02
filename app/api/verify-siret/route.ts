@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { validateBody, verifySiretQuerySchema } from '@/lib/validation'
 
 // Codes NAF typiques pour les artisans du bâtiment et services
 const ARTISAN_NAF_PREFIXES = [
@@ -53,11 +54,11 @@ export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`verify_siret_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-  const siret = request.nextUrl.searchParams.get('siret')
+  const params = Object.fromEntries(request.nextUrl.searchParams)
+  const v = validateBody(verifySiretQuerySchema, params)
+  if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
-  if (!siret) {
-    return NextResponse.json({ error: 'SIRET requis' }, { status: 400 })
-  }
+  const siret = v.data.siret
 
   const cleanSiret = siret.replace(/\s/g, '')
 

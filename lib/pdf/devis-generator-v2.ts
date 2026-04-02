@@ -771,9 +771,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // PAGE 2: DROIT DE RÉTRACTATION
+  // PAGE 2: DROIT DE RÉTRACTATION (B2C uniquement — art. L. 221-18 C. conso.)
   // ═══════════════════════════════════════════════════════════
 
+  if (!input.client.siret) {
   pdf.addPage()
   let ry = 8
   pdf.setFillColor(COLOR.ACCENT); pdf.rect(ML, ry, contentW, ptToMm(3), 'F')
@@ -825,6 +826,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     }
     ry += 8
   }
+  } // end B2C retractation guard
 
   // ═══════════════════════════════════════════════════════════
   // PAGINATION

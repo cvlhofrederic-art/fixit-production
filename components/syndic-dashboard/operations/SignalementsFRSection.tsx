@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { toast } from 'sonner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -919,7 +920,7 @@ export default function SignalementsFRSection({ user, userRole }: Props) {
                         // Cr\u00e9er une description pr\u00e9-remplie pour l\u2019ordre de mission
                         const missionInfo = `Mission pour : ${selected.titre}\nImmeuble : ${selected.immeuble}\nLot : ${selected.lot}\nCat\u00e9gorie : ${CATEGORIES[selected.categorie]?.label}\nPriorit\u00e9 : ${PRIORITES[selected.priorite]?.label}\nSignalement : ${selected.id}`
                         navigator.clipboard?.writeText(missionInfo)
-                        alert('Informations du signalement copi\u00e9es. Allez dans le module Missions pour cr\u00e9er l\u2019ordre de mission.')
+                        toast.success('Informations du signalement copiées. Allez dans le module Missions pour créer l\u2019ordre de mission.')
                       }}
                     >
                       Cr\u00e9er mission

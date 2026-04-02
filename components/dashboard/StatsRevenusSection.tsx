@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import ResumeActivite from '@/components/stats/ResumeActivite'
@@ -8,7 +9,7 @@ import ResumeActivite from '@/components/stats/ResumeActivite'
 async function downloadCsv(type: 'clients' | 'bookings' | 'revenue') {
   const res = await fetch(`/api/user/export-csv?type=${type}`)
   if (!res.ok) {
-    alert('Erreur lors de l\'export')
+    toast.error('Erreur lors de l\'export')
     return
   }
   const blob = await res.blob()

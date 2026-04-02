@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { useLocale } from '@/lib/i18n/context'
 import {
   TYPES_ACTIVITE_FR,
@@ -84,7 +85,7 @@ export default function DeclarationSocialeSection() {
       if (!res.ok) throw new Error()
       await fetchData()
     } catch {
-      alert(isPt ? 'Erro ao guardar' : 'Erreur de sauvegarde')
+      toast.error(isPt ? 'Erro ao guardar' : 'Erreur de sauvegarde')
     } finally {
       setSaving(false)
     }
@@ -113,7 +114,7 @@ export default function DeclarationSocialeSection() {
       setMarked(true)
       await fetchData()
     } catch {
-      alert(isPt ? 'Erro ao registar' : 'Erreur d\'enregistrement')
+      toast.error(isPt ? 'Erro ao registar' : 'Erreur d\'enregistrement')
     } finally {
       setMarking(false)
     }

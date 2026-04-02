@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import Image from 'next/image'
 import { useTranslation } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
@@ -92,7 +93,7 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
         setMentionDevis(data.paiement_mention_devis ?? true)
         setMentionFacture(data.paiement_mention_facture ?? true)
       })
-      .catch(() => {})
+      .catch(() => toast.error('Erreur de chargement des paramètres de paiement'))
       .finally(() => setLoading(false))
   }, [artisanId])
 
@@ -662,7 +663,7 @@ export default function SettingsSection({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
                     className="v22-form-input" style={{ flex: 1, background: 'var(--v22-bg)', color: 'var(--v22-text-muted)', fontSize: 12 }} />
-                  <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); alert(t('proDash.settings.lienCopie')) }}
+                  <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); toast.success(t('proDash.settings.lienCopie')) }}
                     className="v22-btn v22-btn-primary" style={{ whiteSpace: 'nowrap' }}>
                     {'📋'} {t('proDash.settings.copier')}
                   </button>

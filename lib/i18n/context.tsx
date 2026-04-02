@@ -39,7 +39,7 @@ export function LanguageProvider({
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale)
     // Persist to cookie (1 year)
-    document.cookie = `${LOCALE_COOKIE}=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`
+    document.cookie = `${LOCALE_COOKIE}=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax;Secure`
     // Persist to localStorage
     try { localStorage.setItem(LOCALE_LS_KEY, newLocale) } catch (e) { console.warn('[i18n] localStorage setItem failed:', e) }
     // Client-side navigation vers l'URL avec le bon préfixe locale (pas de full page reload)

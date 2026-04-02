@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { toast } from 'sonner'
 import type { Immeuble, Mission, Artisan, Coproprio } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
@@ -60,7 +61,7 @@ export default function RapportMensuelSection({ immeubles, missions, artisans, s
       pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
       while (imgHeight > pageHeight + Math.abs(position)) { position -= pageHeight; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight) }
       pdf.save(`rapport-mensuel-${monthLabel.replace(' ', '-').toLowerCase()}.pdf`)
-    } catch { alert(t('syndicDash.rapport.pdfError')) }
+    } catch { toast.error(t('syndicDash.rapport.pdfError')) }
     setGenerating(false)
   }
 

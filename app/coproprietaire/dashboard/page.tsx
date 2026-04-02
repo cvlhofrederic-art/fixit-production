@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
@@ -2268,8 +2269,12 @@ export default function CoproprietaireDashboard() {
               COPRO_MODULES.forEach(m => { defaults[m.key] = m.default })
               setEnabledModules(defaults)
             }
-          } catch {}
-        } catch { /* silent */ }
+          } catch (e) {
+            console.warn('[dashboard] localStorage modules read failed (private browsing?)', e)
+          }
+        } catch (e) {
+          console.warn('[dashboard] localStorage data load failed (private browsing?)', e)
+        }
       } else {
         // Mode démo sans auth
         setProfile(PROFILE_DEMO)
@@ -2288,7 +2293,9 @@ export default function CoproprietaireDashboard() {
     if (!dataLoaded) return
     const uid = user?.id || 'demo'
     const s = (key: string, data: any) => {
-      try { localStorage.setItem(`fixit_copro_${key}_${uid}`, JSON.stringify(data)) } catch {}
+      try { localStorage.setItem(`fixit_copro_${key}_${uid}`, JSON.stringify(data)) } catch (e) {
+        console.warn(`[dashboard] localStorage.setItem fixit_copro_${key} failed (private browsing?)`, e)
+      }
     }
     s('profile', profile)
     s('charges', charges)
@@ -2353,7 +2360,9 @@ export default function CoproprietaireDashboard() {
     try {
       const existing = JSON.parse(localStorage.getItem(canalKey) || '[]')
       localStorage.setItem(canalKey, JSON.stringify([...existing, newMsg]))
-    } catch { /* silent */ }
+    } catch (e) {
+      console.warn('[dashboard] localStorage canal write failed (private browsing?)', e)
+    }
     // Créer la mission dans les données syndic
     const missionData = {
       id: Date.now().toString(),
@@ -2384,7 +2393,9 @@ export default function CoproprietaireDashboard() {
         existing.unshift(missionData)
         localStorage.setItem(key, JSON.stringify(existing))
         break
-      } catch { /* silent */ }
+      } catch (e) {
+        console.warn('[dashboard] localStorage syndic missions write failed (private browsing?)', e)
+      }
     }
     // Ajouter à l'historique
     const newEntry: HistoriqueEntry = {

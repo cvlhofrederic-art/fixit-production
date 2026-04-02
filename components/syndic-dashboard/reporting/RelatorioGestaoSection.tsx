@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { toast } from 'sonner'
 
 // ─── Composant ────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ export default function RelatorioGestaoSection({ user, userRole }: { user: { id:
       pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
       while (imgHeight > pageHeight + Math.abs(position)) { position -= pageHeight; pdf.addPage(); pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight) }
       pdf.save(`relatorio-gestao-${monthLabel.replace(' ', '-').toLowerCase()}.pdf`)
-    } catch { alert('Erro ao gerar o PDF') }
+    } catch { toast.error('Erro ao gerar o PDF') }
     setGenerating(false)
   }
 

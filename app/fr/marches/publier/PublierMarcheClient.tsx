@@ -24,6 +24,7 @@ import {
   RefreshCw,
   LayoutGrid,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { MARCHE_TEMPLATES, type MarcheTemplate } from '@/lib/data/marches-templates'
 
 const CATEGORIES = [
@@ -319,7 +320,10 @@ export default function PublierMarcheClient({ isPt }: { isPt: boolean }) {
             }))
           }
         })
-        .catch(() => { /* silent */ })
+        .catch((e: unknown) => {
+          console.warn('[PublierMarcheClient] clone fetch failed:', e)
+          toast.error('Impossible de charger le marché à dupliquer')
+        })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

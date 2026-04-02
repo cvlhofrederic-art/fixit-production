@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef } from 'react'
+import { toast } from 'sonner'
 import type { Artisan, SyndicMessage } from '@/components/syndic-dashboard/types'
 import type { User } from '@supabase/supabase-js'
 
@@ -183,10 +184,10 @@ export default function ArtisansPageSection({
         setArtisans(prev => prev.filter(a => a.id !== artisanId))
       } else {
         const data = await res.json()
-        alert(data.error || (locale === 'pt' ? 'Erro ao eliminar' : 'Erreur lors de la suppression'))
+        toast.error(data.error || (locale === 'pt' ? 'Erro ao eliminar' : 'Erreur lors de la suppression'))
       }
     } catch {
-      alert(locale === 'pt' ? 'Ocorreu um erro' : 'Une erreur est survenue')
+      toast.error(locale === 'pt' ? 'Ocorreu um erro' : 'Une erreur est survenue')
     }
   }
 

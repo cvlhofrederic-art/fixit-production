@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import type { TeamMember } from '../types'
 import { ROLE_LABELS_TEAM, ROLE_COLORS, ROLE_EMOJIS_TEAM, getRoleLabel } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -285,7 +286,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
           <div className="flex items-center gap-2">
             <code className="flex-1 bg-white border border-green-200 rounded-lg px-3 py-2 text-xs text-gray-700 truncate">{inviteUrl}</code>
             <button
-              onClick={() => { navigator.clipboard.writeText(inviteUrl); alert(t('syndicDash.equipe.linkCopied')) }}
+              onClick={() => { navigator.clipboard.writeText(inviteUrl); toast.success(t('syndicDash.equipe.linkCopied')) }}
               className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-green-700 transition"
             >
               {t('syndicDash.common.copy')}
@@ -468,7 +469,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
                               onClick={() => {
                                 const url = `${window.location.origin}/syndic/invite?token=${m.invite_token}`
                                 navigator.clipboard.writeText(url)
-                                alert(t('syndicDash.equipe.linkCopied'))
+                                toast.success(t('syndicDash.equipe.linkCopied'))
                               }}
                               className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-200 hover:bg-blue-50 transition"
                             >

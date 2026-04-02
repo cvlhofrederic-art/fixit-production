@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { isValidNif } from '@/lib/validation'
+import { isValidNif, validateBody, verifyNifQuerySchema } from '@/lib/validation'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,11 +8,11 @@ export async function GET(request: NextRequest) {
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`verify_nif_${ip}`, 10, 60_000))) return rateLimitResponse()
 
-    const nif = request.nextUrl.searchParams.get('nif')
+    const params = Object.fromEntries(request.nextUrl.searchParams)
+    const v = validateBody(verifyNifQuerySchema, params)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
-    if (!nif) {
-      return NextResponse.json({ error: 'NIF obrigatório' }, { status: 400 })
-    }
+    const nif = v.data.nif
 
     const cleanNif = nif.replace(/\s/g, '')
 

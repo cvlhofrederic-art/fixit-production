@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import type { Artisan, Mission, Page, DevisExtracted, InputMode } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
@@ -307,7 +308,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
         buildMission()
       }
     } catch {
-      alert('Erreur réseau')
+      toast.error('Erreur réseau')
     } finally {
       setMissionCreating(false)
     }
@@ -702,7 +703,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                   💾 Exporter
                 </button>
                 <button
-                  onClick={() => navigator.clipboard.writeText(analysis).then(() => alert('Analyse copiée !'))}
+                  onClick={() => navigator.clipboard.writeText(analysis).then(() => toast.success('Analyse copiée !'))}
                   className="flex items-center gap-2 px-5 py-2.5 bg-[#F7F4EE] hover:bg-gray-200 text-gray-700 rounded-xl font-medium text-sm transition"
                 >
                   📋 Copier

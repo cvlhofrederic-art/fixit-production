@@ -3,6 +3,8 @@ import { getAuthUser, isSuperAdmin, unauthorizedResponse } from '@/lib/auth-help
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
+// No query params to validate — this route returns aggregate stats with no user input
+
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   const allowed = await checkRateLimit(`admin_stats_${ip}`, 10, 60_000)

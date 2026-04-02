@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { validateBody, emailAgentCallbackSchema } from '@/lib/validation'
 
 // ── Reçoit le code OAuth Google, échange en tokens, stocke dans Supabase ─────
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const code = searchParams.get('code')
-  const state = searchParams.get('state') // = syndic_id:nonce
-  const error = searchParams.get('error')
+  const params = Object.fromEntries(request.nextUrl.searchParams)
+  const v = validateBody(emailAgentCallbackSchema, params)
+  if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+
+  const { code, state, error } = v.data
 
   const APP_URL = process.env.NEXT_PUBLIC_APP_URL || ''
 

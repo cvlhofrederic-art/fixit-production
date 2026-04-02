@@ -19,8 +19,8 @@ interface MotifsSectionProps {
   openNewMotif: () => void
   openEditMotif: (service: any) => void
   saveMotif: () => void
-  toggleMotifActive: (serviceId: string, currentActive: boolean) => void
-  deleteMotif: (serviceId: string) => void
+  toggleMotifActive: (serviceId: string, currentActive: boolean) => void | Promise<void>
+  deleteMotif: (serviceId: string) => void | Promise<void>
   getPriceRangeLabel: (service: any) => string
   getPricingUnit: (service: any) => string
   getCleanDescription: (service: any) => string
@@ -34,6 +34,9 @@ export default function MotifsSection({
 }: MotifsSectionProps) {
   const { t } = useTranslation()
   const [localEtapes, setLocalEtapes] = useState<string[]>([])
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [savingWithEtapes, setSavingWithEtapes] = useState(false)
   const isSociete = orgRole === 'pro_societe'
 
   // Reset local étapes when modal opens/closes
@@ -108,10 +111,14 @@ export default function MotifsSection({
                   </span>
                 </td>
                 <td>
-                  <button onClick={() => toggleMotifActive(service.id, service.active)}
+                  <button onClick={async () => {
+                    setTogglingId(service.id)
+                    try { await toggleMotifActive(service.id, service.active) } finally { setTogglingId(null) }
+                  }}
+                    disabled={togglingId === service.id}
                     className={`v22-tag ${service.active ? 'v22-tag-green' : 'v22-tag-gray'}`}
-                    style={{ cursor: 'pointer' }}>
-                    {service.active ? `✅ ${t('proDash.motifs.actif')}` : `⏸ ${t('proDash.motifs.inactif')}`}
+                    style={{ cursor: togglingId === service.id ? 'not-allowed' : 'pointer', opacity: togglingId === service.id ? 0.5 : 1 }}>
+                    {togglingId === service.id ? 'Chargement...' : service.active ? `✅ ${t('proDash.motifs.actif')}` : `⏸ ${t('proDash.motifs.inactif')}`}
                   </button>
                 </td>
                 <td>
@@ -119,8 +126,14 @@ export default function MotifsSection({
                     <button onClick={() => openEditMotif(service)} className="v22-btn v22-btn-sm">
                       {'✏️'} {t('proDash.motifs.modifier')}
                     </button>
-                    <button onClick={() => deleteMotif(service.id)} className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>
-                      {'🗑️'}
+                    <button onClick={async () => {
+                      setDeletingId(service.id)
+                      try { await deleteMotif(service.id) } finally { setDeletingId(null) }
+                    }}
+                      disabled={deletingId === service.id}
+                      className="v22-btn v22-btn-sm"
+                      style={{ color: 'var(--v22-red)', opacity: deletingId === service.id ? 0.5 : 1, cursor: deletingId === service.id ? 'not-allowed' : 'pointer' }}>
+                      {deletingId === service.id ? '...' : '🗑️'}
                     </button>
                   </div>
                 </td>
@@ -359,26 +372,31 @@ export default function MotifsSection({
                 {t('proDash.motifs.annuler')}
               </button>
               <button onClick={async () => {
-                const etapesToSave = !editingMotif ? localEtapes.filter(e => e.trim()) : []
-                await saveMotif()
-                // Nouveau motif avec étapes → insérer après sauvegarde
-                if (etapesToSave.length > 0) {
-                  try {
-                    const { supabase } = await import('@/lib/supabase')
-                    const { data: found } = await supabase.from('services').select('id').eq('name', motifForm.name).order('created_at', { ascending: false }).limit(1)
-                    if (found?.[0]) {
-                      for (let i = 0; i < etapesToSave.length; i++) {
-                        await fetch('/api/service-etapes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ service_id: found[0].id, designation: etapesToSave[i], ordre: i + 1 }) })
+                setSavingWithEtapes(true)
+                try {
+                  const etapesToSave = !editingMotif ? localEtapes.filter(e => e.trim()) : []
+                  await saveMotif()
+                  // Nouveau motif avec étapes → insérer après sauvegarde
+                  if (etapesToSave.length > 0) {
+                    try {
+                      const { supabase } = await import('@/lib/supabase')
+                      const { data: found } = await supabase.from('services').select('id').eq('name', motifForm.name).order('created_at', { ascending: false }).limit(1)
+                      if (found?.[0]) {
+                        for (let i = 0; i < etapesToSave.length; i++) {
+                          await fetch('/api/service-etapes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ service_id: found[0].id, designation: etapesToSave[i], ordre: i + 1 }) })
+                        }
                       }
-                    }
-                  } catch { /* non-bloquant */ }
-                  setLocalEtapes([])
+                    } catch { /* non-bloquant */ }
+                    setLocalEtapes([])
+                  }
+                } finally {
+                  setSavingWithEtapes(false)
                 }
-              }} disabled={!motifForm.name || savingMotif}
+              }} disabled={!motifForm.name || savingMotif || savingWithEtapes}
                 className="v22-btn v22-btn-primary"
-                style={{ opacity: (!motifForm.name || savingMotif) ? 0.4 : 1, cursor: (!motifForm.name || savingMotif) ? 'not-allowed' : 'pointer' }}>
-                {savingMotif ? t('proDash.motifs.sauvegarde') : editingMotif ? `💾 ${t('proDash.motifs.modifier')}` : t('proDash.motifs.creerLeMotif')}
+                style={{ opacity: (!motifForm.name || savingMotif || savingWithEtapes) ? 0.4 : 1, cursor: (!motifForm.name || savingMotif || savingWithEtapes) ? 'not-allowed' : 'pointer' }}>
+                {(savingMotif || savingWithEtapes) ? t('proDash.motifs.sauvegarde') : editingMotif ? `💾 ${t('proDash.motifs.modifier')}` : t('proDash.motifs.creerLeMotif')}
               </button>
             </div>
           </div>

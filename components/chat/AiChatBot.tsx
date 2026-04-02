@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { MessageSquare, Send, X, Calendar, FileText, Loader2, Mic, Camera } from 'lucide-react'
 import { FixyAvatar } from '@/components/common/RobotAvatars'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
@@ -221,7 +222,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
           }
           setClientsLoaded(true)
         })
-        .catch(() => setClientsLoaded(true))
+        .catch(() => { setClientsLoaded(true); toast.error('Impossible de charger la liste des clients') })
     }
   }, [artisan?.id, clientsLoaded])
 
@@ -494,6 +495,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         return true
       }
       console.error('AI processing error:', err)
+      toast.error('Erreur de traitement IA')
       return false
     }
   }

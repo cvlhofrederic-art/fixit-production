@@ -123,6 +123,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   const [form, setForm] = useState<Partial<RapportIntervention>>({})
   const [importSource, setImportSource] = useState<'intervention' | 'mission'>('intervention')
+  const [linkingBooking, setLinkingBooking] = useState(false)
 
   // Photos chantier pour liaison
   const [availablePhotos, setAvailablePhotos] = useState<PhotoRecord[]>([])
@@ -343,53 +344,58 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     const b = bookings.find(x => x.id === bookingId)
     if (!b) return
 
-    // Parse client info from notes — two formats:
-    //   Client booking: "Client: Jean | Tel: 06… | Email: jean@… | notes…"
-    //   Artisan RDV:    "Client: Jean Dupont. description…"
-    const rawNotes = b.notes || ''
-    const hasPipes = rawNotes.includes('|')
-    const parseField = (label: string) => {
-      if (hasPipes) {
-        const m = rawNotes.match(new RegExp(`${label}:\\s*([^|\\n]+)`, 'i'))
-        return m ? m[1].trim() : ''
-      } else {
-        const m = rawNotes.match(new RegExp(`${label}:\\s*([^.\\n]+)`, 'i'))
-        return m ? m[1].trim() : ''
-      }
-    }
-
-    const clientName = parseField('Client')
-    const clientPhone = parseField('Tel')
-    const clientEmail = parseField('Email')
-
-    setForm(prev => ({
-      ...prev,
-      linkedBookingId: bookingId,
-      clientName: clientName || '',
-      clientPhone: clientPhone || '',
-      clientEmail: clientEmail && clientEmail !== '-' ? clientEmail : '',
-      siteAddress: b.address || '',
-      interventionDate: b.booking_date || prev.interventionDate,
-      startTime: b.booking_time?.substring(0, 5) || prev.startTime,
-      motif: b.services?.name || prev.motif || '',
-    }))
-
-    // Enrich via API if client has a Fixit account
-    if (b.client_id) {
-      try {
-        const headers = await getAuthHeaders()
-        const res = await fetch(`/api/artisan-clients?client_id=${b.client_id}`, { headers })
-        if (res.ok) {
-          const cd = await res.json()
-          setForm(prev => ({
-            ...prev,
-            clientName: cd.name || prev.clientName,
-            clientPhone: cd.phone || prev.clientPhone,
-            clientEmail: cd.email || prev.clientEmail,
-            clientAddress: cd.address || prev.clientAddress,
-          }))
+    setLinkingBooking(true)
+    try {
+      // Parse client info from notes — two formats:
+      //   Client booking: "Client: Jean | Tel: 06… | Email: jean@… | notes…"
+      //   Artisan RDV:    "Client: Jean Dupont. description…"
+      const rawNotes = b.notes || ''
+      const hasPipes = rawNotes.includes('|')
+      const parseField = (label: string) => {
+        if (hasPipes) {
+          const m = rawNotes.match(new RegExp(`${label}:\\s*([^|\\n]+)`, 'i'))
+          return m ? m[1].trim() : ''
+        } else {
+          const m = rawNotes.match(new RegExp(`${label}:\\s*([^.\\n]+)`, 'i'))
+          return m ? m[1].trim() : ''
         }
-      } catch { /* ignore — we already have notes data */ }
+      }
+
+      const clientName = parseField('Client')
+      const clientPhone = parseField('Tel')
+      const clientEmail = parseField('Email')
+
+      setForm(prev => ({
+        ...prev,
+        linkedBookingId: bookingId,
+        clientName: clientName || '',
+        clientPhone: clientPhone || '',
+        clientEmail: clientEmail && clientEmail !== '-' ? clientEmail : '',
+        siteAddress: b.address || '',
+        interventionDate: b.booking_date || prev.interventionDate,
+        startTime: b.booking_time?.substring(0, 5) || prev.startTime,
+        motif: b.services?.name || prev.motif || '',
+      }))
+
+      // Enrich via API if client has a Fixit account
+      if (b.client_id) {
+        try {
+          const headers = await getAuthHeaders()
+          const res = await fetch(`/api/artisan-clients?client_id=${b.client_id}`, { headers })
+          if (res.ok) {
+            const cd = await res.json()
+            setForm(prev => ({
+              ...prev,
+              clientName: cd.name || prev.clientName,
+              clientPhone: cd.phone || prev.clientPhone,
+              clientEmail: cd.email || prev.clientEmail,
+              clientAddress: cd.address || prev.clientAddress,
+            }))
+          }
+        } catch { /* ignore — we already have notes data */ }
+      }
+    } finally {
+      setLinkingBooking(false)
     }
   }
 
@@ -522,8 +528,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                       onChange={e => linkBooking(e.target.value)}
                       defaultValue=""
                       className="v22-form-input"
+                      disabled={linkingBooking}
                     >
-                      <option value="">Selectionner une intervention pour pre-remplir...</option>
+                      <option value="">{linkingBooking ? 'Chargement des donnees client...' : 'Selectionner une intervention pour pre-remplir...'}</option>
                       {[...bookings].filter(b => b.status === 'confirmed' || b.status === 'completed').slice(0, 20).map(b => (
                         <option key={b.id} value={b.id}>
                           {b.booking_date} {b.booking_time?.substring(0, 5)} — {b.services?.name || 'Intervention'} — {b.address || 'Adresse non definie'}
@@ -759,8 +766,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     type="button"
                     onClick={() => { setShowPhotoPicker(!showPhotoPicker); if (!showPhotoPicker && availablePhotos.length === 0) loadAvailablePhotos() }}
                     className="v22-btn v22-btn-sm"
+                    disabled={photosLoading}
                   >
-                    {showPhotoPicker ? (locale === 'pt' ? '✕ Fechar' : '✕ Fermer') : (locale === 'pt' ? '+ Adicionar fotos' : '+ Ajouter des photos')}
+                    {photosLoading ? 'Chargement...' : showPhotoPicker ? (locale === 'pt' ? '✕ Fechar' : '✕ Fermer') : (locale === 'pt' ? '+ Adicionar fotos' : '+ Ajouter des photos')}
                   </button>
                 </div>
                 <div className="v22-card-body" style={{ padding: '14px' }}>

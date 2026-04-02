@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { Star, Check, Home, Send, MessageSquare } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/context'
@@ -119,6 +120,7 @@ function ConfirmationContent() {
       }
     } catch (err) {
       console.error('Error fetching booking data:', err)
+      toast.error('Erreur de chargement de la réservation')
       setError(true)
     }
 
@@ -136,6 +138,7 @@ function ConfirmationContent() {
       }
     } catch (msgErr) {
       console.warn('[confirmation] messages fetch failed:', msgErr)
+      toast.error('Impossible de charger les messages')
     }
   }
 
@@ -186,6 +189,7 @@ function ConfirmationContent() {
       }
     } catch (sendErr) {
       console.warn('[confirmation] send message failed:', sendErr)
+      toast.error('Erreur d\'envoi du message')
     }
     setSendingMessage(false)
   }

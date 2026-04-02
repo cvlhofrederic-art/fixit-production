@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
@@ -1011,7 +1012,10 @@ export default function MobileDashboard() {
           const d = await res.json()
           if (d.notifications) setArtisanNotifs(d.notifications)
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[pro/mobile] loadNotifs failed:', e)
+        toast.error('Impossible de charger les notifications')
+      }
     }
     loadNotifs()
 
@@ -1072,7 +1076,10 @@ export default function MobileDashboard() {
       const r = await fetch(`/api/availability-services?artisan_id=${artisanData.id}`)
       const j = await r.json()
       if (j.data) setDayServices(j.data)
-    } catch {}
+    } catch (e) {
+      console.warn('[pro/mobile] availability-services load failed:', e)
+      toast.error('Impossible de charger les services disponibles')
+    }
 
     // auto_accept is now loaded from DB (line above), no localStorage fallback needed
 
@@ -1080,13 +1087,17 @@ export default function MobileDashboard() {
     try {
       const saved = localStorage.getItem(`fixit_compliance_${artisanData.id}`)
       if (saved) setComplianceDocs(JSON.parse(saved))
-    } catch {}
+    } catch (e) {
+      console.warn('[pro/mobile] compliance localStorage parse failed:', e)
+    }
 
     // Service price ranges
     try {
       const savedRanges = localStorage.getItem(`fixit_service_ranges_${artisanData.id}`)
       if (savedRanges) setServiceRanges(JSON.parse(savedRanges))
-    } catch {}
+    } catch (e) {
+      console.warn('[pro/mobile] service ranges localStorage parse failed:', e)
+    }
 
     // Load enabled modules
     try {
@@ -1098,7 +1109,9 @@ export default function MobileDashboard() {
         ARTISAN_MODULES.forEach(m => { defaults[m.key] = m.default })
         setEnabledModules(defaults)
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[pro/mobile] modules localStorage parse failed:', e)
+    }
 
     setLoading(false)
   }
@@ -1136,14 +1149,14 @@ export default function MobileDashboard() {
             booking_time: booking.booking_time,
             address: booking.address,
             serviceName: booking.services?.name,
-          }).catch(() => {})
-        }).catch(() => {})
+          }).catch(() => toast.error('Impossible de programmer le rappel d\'intervention'))
+        }).catch(() => toast.error('Erreur chargement du module de notifications'))
       }
     }
     if (status === 'cancelled') {
       import('@/lib/notifications').then(({ cancelInterventionReminder }) => {
-        cancelInterventionReminder(id).catch(() => {})
-      }).catch(() => {})
+        cancelInterventionReminder(id).catch(() => toast.error('Impossible d\'annuler le rappel d\'intervention'))
+      }).catch(() => toast.error('Erreur chargement du module de notifications'))
     }
   }
 
@@ -1264,7 +1277,7 @@ export default function MobileDashboard() {
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setComplianceCopied(true)
       setTimeout(() => setComplianceCopied(false), 2500)
-    }).catch(() => {})
+    }).catch(() => toast.error('Impossible de copier dans le presse-papiers'))
   }
 
   const expiringCount = complianceDocs.filter(d => ['expiring', 'expired'].includes(getComplianceStatus(d))).length
@@ -1311,7 +1324,7 @@ export default function MobileDashboard() {
             photos: [],
             startedAt: new Date().toISOString(),
           }),
-        }).catch(() => {})
+        }).catch(() => toast.error('Erreur de mise à jour du suivi GPS'))
       }, () => {
         // Sans GPS : envoyer quand même sans coordonnées
         const nom = artisan?.company_name || artisan?.user_metadata?.full_name || 'Artisan'
@@ -1326,7 +1339,7 @@ export default function MobileDashboard() {
             missionAdresse: booking.address || '',
             photos: [], startedAt: new Date().toISOString(),
           }),
-        }).catch(() => {})
+        }).catch(() => toast.error('Erreur de mise à jour du suivi'))
       })
     }
 
@@ -1357,7 +1370,7 @@ export default function MobileDashboard() {
         missionAdresse: booking.address || '',
         photos: [],
       }),
-    }).catch(() => {})
+    }).catch(() => toast.error('Erreur de mise à jour du statut de suivi'))
   }
 
   const stopTracking = (bookingId: string) => {
@@ -1365,7 +1378,7 @@ export default function MobileDashboard() {
     if (intervalId) { clearInterval(intervalId); delete trackingIntervalsRef.current[bookingId] }
     const token = activeTrackings[bookingId]
     if (token) {
-      fetch(`/api/tracking/${token}`, { method: 'DELETE' }).catch(() => {})
+      fetch(`/api/tracking/${token}`, { method: 'DELETE' }).catch(() => toast.error('Impossible d\'arrêter le suivi GPS'))
     }
     setActiveTrackings(prev => { const n = { ...prev }; delete n[bookingId]; return n })
   }
@@ -1420,8 +1433,8 @@ export default function MobileDashboard() {
             booking_time: data.booking_time,
             address: data.address,
             serviceName: service?.name,
-          }).catch(() => {})
-        }).catch(() => {})
+          }).catch(() => toast.error('Impossible de programmer le rappel du RDV'))
+        }).catch(() => toast.error('Erreur chargement du module de notifications'))
       }
     }
   }
@@ -1619,8 +1632,8 @@ export default function MobileDashboard() {
                   texte_dictee: proof.description || undefined,
                   notes: proofBooking.notes || undefined,
                 }),
-              }).catch(() => { /* silencieux — le fallback est en base */ })
-            } catch { /* non-bloquant */ }
+              }).catch((e) => { console.warn('Rapport IA non généré, fallback en base:', e) })
+            } catch { toast.error('Erreur lors de la génération du rapport IA') }
 
             // 3. Si booking a un syndic_id → envoyer rapport automatiquement
             const syndicId = proofBooking?.syndic_id || proofBooking?.metadata?.syndic_id

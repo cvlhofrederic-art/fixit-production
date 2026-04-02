@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
 export default function ImpayésSection({ user, userRole, getToken, coproprios }: { user: any; userRole: string; getToken?: () => Promise<string | null>; coproprios?: any[] }) {
@@ -48,7 +49,7 @@ export default function ImpayésSection({ user, userRole, getToken, coproprios }
 
   // ── Envoyer un email de relance au copropriétaire ──────────────────
   const handleSendRelanceEmail = useCallback(async (imp: Impayé) => {
-    if (!getToken) { alert(locale === 'pt' ? 'Token indisponível' : 'Token non disponible'); return }
+    if (!getToken) { toast.error(locale === 'pt' ? 'Token indisponível' : 'Token non disponible'); return }
 
     // Chercher l'email du copropriétaire dans la liste
     const copro = coproprios?.find(c =>
@@ -57,7 +58,7 @@ export default function ImpayésSection({ user, userRole, getToken, coproprios }
     )
     const email = copro?.emailProprietaire
     if (!email) {
-      alert(locale === 'pt'
+      toast.error(locale === 'pt'
         ? `Email não encontrado para ${imp.copropriétaire}. Verifique a ficha do copropietário.`
         : `Email introuvable pour ${imp.copropriétaire}. Vérifiez la fiche copropriétaire.`)
       return
@@ -89,19 +90,19 @@ export default function ImpayésSection({ user, userRole, getToken, coproprios }
 
       const data = await res.json()
       if (res.ok && data.success) {
-        alert(locale === 'pt'
-          ? `✅ Email de lembrete enviado para ${email}`
-          : `✅ Email de relance envoyé à ${email}`)
+        toast.success(locale === 'pt'
+          ? `Email de lembrete enviado para ${email}`
+          : `Email de relance envoyé à ${email}`)
         // Marquer l'impayé comme ayant reçu un email
         saveImpayés(impayés.map(i => i.id === imp.id ? { ...i, emailSent: true } : i))
       } else {
-        alert(locale === 'pt'
-          ? `❌ Erro ao enviar: ${data.error || 'Erro desconhecido'}`
-          : `❌ Erreur d'envoi : ${data.error || 'Erreur inconnue'}`)
+        toast.error(locale === 'pt'
+          ? `Erro ao enviar: ${data.error || 'Erro desconhecido'}`
+          : `Erreur d'envoi : ${data.error || 'Erreur inconnue'}`)
       }
     } catch (err: any) {
       console.error('[IMPAYES] Email send error:', err)
-      alert(locale === 'pt' ? '❌ Erro ao enviar o email' : '❌ Erreur lors de l\'envoi de l\'email')
+      toast.error(locale === 'pt' ? 'Erro ao enviar o email' : 'Erreur lors de l\'envoi de l\'email')
     } finally {
       setEmailSending(null)
     }
@@ -196,7 +197,7 @@ export default function ImpayésSection({ user, userRole, getToken, coproprios }
         doc.text(`Vitfix Pro — Appel de fonds généré le ${new Date().toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}  |  Page ${p}/${pages}`, W/2, 290, { align: 'center' })
       }
       doc.save(`AppelFonds_${af.immeuble.replace(/\s+/g,'_')}_${af.periode.replace(/\s+/g,'_')}.pdf`)
-    } catch(e) { alert(t('syndicDash.impayes.pdfError') + ' : ' + e) }
+    } catch(e) { toast.error(t('syndicDash.impayes.pdfError') + ' : ' + e) }
     setPdfLoading(null)
   }
 
@@ -279,7 +280,7 @@ Le montant restant dû s'élève à :`
       doc.text(`Généré par Vitfix Pro — ${new Date().toLocaleString(locale === 'pt' ? 'pt-PT' : 'fr-FR')}`, margin, y)
 
       doc.save(`Relance${relanceNum}_${i.copropriétaire.replace(/\s+/g,'_')}_${i.lot || 'lot'}.pdf`)
-    } catch(e) { alert(t('syndicDash.impayes.pdfError') + ' : ' + e) }
+    } catch(e) { toast.error(t('syndicDash.impayes.pdfError') + ' : ' + e) }
     setPdfLoading(null)
   }
 
