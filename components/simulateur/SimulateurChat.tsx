@@ -56,7 +56,7 @@ export default function SimulateurChat({ userId, onPublishBourse, embedded = fal
     if (!userId && conversationCount >= 3 && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: 'Vous avez atteint la limite de 3 estimations par jour. Créez un compte gratuit pour des estimations illimitées et un historique sauvegardé !\n\n[Créer un compte →](/auth/signup)',
+        content: 'Vous avez atteint la limite de 3 estimations par jour. Créez un compte gratuit pour des estimations illimitées et un historique sauvegardé !\n\n[Créer un compte →](/auth/register)',
       }])
       return
     }

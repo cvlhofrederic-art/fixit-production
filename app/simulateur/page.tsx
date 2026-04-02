@@ -32,7 +32,7 @@ export default function SimulateurPage() {
               Connexion
             </a>
             <a
-              href="/auth/signup"
+              href="/auth/register"
               className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-600"
             >
               Créer un compte
