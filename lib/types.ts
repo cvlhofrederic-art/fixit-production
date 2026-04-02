@@ -143,12 +143,24 @@ export interface ChatMessage {
 export interface SavedDocument {
   id: string
   type: 'devis' | 'facture' | 'avoir'
+  docType?: string
   docNumber?: string
   clientName?: string
+  client_name?: string
+  client?: string
+  ref?: string
+  number?: string
   service?: string
+  title?: string
+  description?: string
+  lines?: Array<{ description?: string; totalHT?: number; total?: number; [key: string]: unknown }>
   totalTTC?: number
   totalHT?: number
+  total?: number
+  amount?: number
   status?: string
+  signatureData?: string | null
+  date?: string
   created_at?: string
 }
 

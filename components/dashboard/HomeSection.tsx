@@ -3,14 +3,15 @@
 import { useState, useEffect } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
 
 interface HomeSectionProps {
-  artisan: any
+  artisan: Artisan
   orgRole: 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
-  bookings: any[]
-  services: any[]
-  pendingBookings: any[]
-  completedBookings: any[]
+  bookings: Booking[]
+  services: Service[]
+  pendingBookings: Booking[]
+  completedBookings: Booking[]
   totalRevenue: number
   firstName: string
   navigateTo: (page: string) => void
@@ -22,7 +23,7 @@ interface HomeSectionProps {
   openNewMotif: () => void
 }
 
-function extractClientName(booking: any): string {
+function extractClientName(booking: Booking): string {
   const notes = booking.notes || ''
   // Pattern: "Client: Name|..." or "Client: Name."
   const match = notes.match(/Client:\s*([^|.]+)/)
@@ -90,8 +91,8 @@ export default function HomeSection({
   const conversionRate = totalReceived > 0 ? Math.round((completedBookings.length / totalReceived) * 100) : 0
 
   // Devis from localStorage
-  const [recentDevis, setRecentDevis] = useState<any[]>([])
-  const [alerts, setAlerts] = useState<any[]>([])
+  const [recentDevis, setRecentDevis] = useState<SavedDocument[]>([])
+  const [alerts, setAlerts] = useState<Array<{ type: string; title: string; sub: string; time: string }>>([])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
@@ -100,16 +101,16 @@ export default function HomeSection({
       if (raw) {
         const docs = JSON.parse(raw)
         const devisList = (docs || [])
-          .filter((d: any) => d.type === 'devis')
-          .sort((a: any, b: any) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime())
+          .filter((d: SavedDocument) => d.type === 'devis')
+          .sort((a: SavedDocument, b: SavedDocument) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime())
           .slice(0, 5)
         setRecentDevis(devisList)
 
         // Generate alerts from data
-        const alertItems: any[] = []
+        const alertItems: Array<{ type: string; title: string; sub: string; time: string }> = []
         // Unpaid invoices
-        const unpaidInvoices = (docs || []).filter((d: any) => d.type === 'facture' && d.status !== 'paid' && d.status !== 'payée')
-        unpaidInvoices.slice(0, 2).forEach((inv: any) => {
+        const unpaidInvoices = (docs || []).filter((d: SavedDocument) => d.type === 'facture' && d.status !== 'paid' && d.status !== 'payée')
+        unpaidInvoices.slice(0, 2).forEach((inv: SavedDocument) => {
           alertItems.push({
             type: 'red',
             title: `${locale === 'pt' ? 'Fatura não paga' : 'Facture impayée'} — ${inv.client || inv.clientName || 'Client'}`,
@@ -118,8 +119,8 @@ export default function HomeSection({
           })
         })
         // Pending devis without response
-        const pendingDevis = (docs || []).filter((d: any) => d.type === 'devis' && (!d.status || d.status === 'pending' || d.status === 'en_attente'))
-        pendingDevis.slice(0, 2).forEach((dv: any) => {
+        const pendingDevis = (docs || []).filter((d: SavedDocument) => d.type === 'devis' && (!d.status || d.status === 'pending' || d.status === 'en_attente'))
+        pendingDevis.slice(0, 2).forEach((dv: SavedDocument) => {
           alertItems.push({
             type: 'amber',
             title: `${locale === 'pt' ? 'Orçamento pendente' : 'Devis en attente'} — ${dv.client || dv.clientName || 'Client'}`,

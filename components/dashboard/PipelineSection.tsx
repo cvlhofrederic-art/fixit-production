@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import type { Artisan, SavedDocument } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 interface PipelineSectionProps {
-  artisan: any
+  artisan: Artisan
   orgRole?: OrgRole
   navigateTo: (page: string) => void
 }
@@ -36,7 +37,7 @@ function formatEur(n: number) {
   return n.toLocaleString('fr-FR') + ' €'
 }
 
-function computeStage(doc: any, isDraft: boolean): string {
+function computeStage(doc: SavedDocument, isDraft: boolean): string {
   if (isDraft) return 'draft'
   if (doc.signatureData) return 'signed'
   if (doc.status === 'envoye') return 'sent'
@@ -52,35 +53,35 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
   useEffect(() => {
     if (!artisan?.id) return
     try {
-      const docs: any[]   = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
-      const drafts: any[] = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
+      const docs: SavedDocument[]   = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]')
+      const drafts: SavedDocument[] = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
 
       // Devis documents (saved + drafts)
-      const devisDocs = docs.filter((d: any) => d.docType === 'devis' || !d.docType)
-      const draftDocs = drafts.filter((d: any) => d.docType === 'devis' || !d.docType)
+      const devisDocs = docs.filter((d: SavedDocument) => d.docType === 'devis' || !d.docType)
+      const draftDocs = drafts.filter((d: SavedDocument) => d.docType === 'devis' || !d.docType)
 
       // Factures → invoiced stage
-      const factureDocs = docs.filter((d: any) => d.docType === 'facture')
+      const factureDocs = docs.filter((d: SavedDocument) => d.docType === 'facture')
 
       const mapped: PipelineItem[] = [
-        ...devisDocs.map((d: any) => ({
+        ...devisDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: any) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
           stage:   computeStage(d, false),
           service: d.title || d.description || d.lines?.[0]?.description || 'Prestation',
         })),
-        ...draftDocs.map((d: any) => ({
+        ...draftDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || 'Brouillon',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: any) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
           stage:   'draft',
           service: d.title || d.description || d.lines?.[0]?.description || 'Prestation',
         })),
-        ...factureDocs.map((d: any) => ({
+        ...factureDocs.map((d: SavedDocument) => ({
           ref:     d.docNumber || '—',
           client:  d.clientName || d.client_name || 'Client',
-          montant: d.lines?.reduce((s: number, l: any) => s + (l.totalHT || l.total || 0), 0) || 0,
+          montant: d.lines?.reduce((s: number, l: { totalHT?: number; total?: number }) => s + (l.totalHT || l.total || 0), 0) || 0,
           stage:   'invoiced',
           service: d.title || d.description || d.lines?.[0]?.description || 'Prestation',
         })),
