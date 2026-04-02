@@ -6,9 +6,10 @@ import Image from 'next/image'
 import { useTranslation } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { SITE_URL } from '@/lib/constants'
+import type { Artisan } from '@/lib/types'
 
 interface SettingsSectionProps {
-  artisan: Record<string, unknown> & { id: string; company_name?: string; phone?: string; email?: string; bio?: string; profile_photo_url?: string }
+  artisan: Artisan
   initials: string
   settingsTab: 'profil' | 'modules' | 'parrainage'
   setSettingsTab: (v: 'profil' | 'modules' | 'parrainage') => void

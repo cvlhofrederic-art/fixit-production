@@ -13,6 +13,7 @@ import {
   type ClientData, type ServiceItem, type Intent,
 } from '@/lib/chat-parsers'
 import DocumentPreviewCard from './DocumentPreviewCard'
+import type { Artisan } from '@/lib/types'
 
 type DocumentPreview = {
   type: 'devis' | 'facture' | 'rapport'
@@ -39,12 +40,7 @@ type Message = {
   documentPreview?: DocumentPreview
 }
 
-interface ArtisanProfile {
-  id: string
-  company_name?: string
-  user_id?: string
-  [key: string]: unknown
-}
+type ArtisanProfile = Artisan
 
 interface BookingItem {
   id: string

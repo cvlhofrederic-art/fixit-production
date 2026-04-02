@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { Artisan } from '@/lib/types'
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ParrainageSection — Module dashboard parrainage artisan
@@ -10,7 +11,7 @@ import { useState, useEffect, useCallback } from 'react'
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 interface ParrainageSectionProps {
-  artisan: Record<string, unknown> & { id: string }
+  artisan: Artisan
   orgRole?: OrgRole
 }
 

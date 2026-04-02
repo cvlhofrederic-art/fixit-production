@@ -29,7 +29,22 @@ export interface Artisan {
   stripe_customer_id?: string | null
   created_at?: string
   updated_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  profile_photo_url?: string | null
+  user_metadata?: { full_name?: string; avatar_url?: string; [key: string]: unknown } | null
+  slug?: string
+  category?: string
+  specialties?: string[]
+  latitude?: number | null
+  longitude?: number | null
+  city?: string
+  postal_code?: string
+  full_name?: string
+  kbis_url?: string | null
+  insurance_url?: string | null
+  insurance_verified?: boolean
+  insurance_scan_data?: Record<string, unknown> | null
+  is_active?: boolean
+  verified?: boolean
 }
 
 export interface Service {
@@ -45,7 +60,6 @@ export interface Service {
   validation_auto?: boolean
   delai_minimum_heures?: number
   created_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface Booking {
@@ -67,7 +81,16 @@ export interface Booking {
   created_at?: string
   services?: { name: string; price_ttc?: number } | null
   profiles_artisan?: Partial<Artisan> | null
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  client_name?: string
+  client_phone?: string
+  client_email?: string
+  client_address?: string
+  name?: string
+  phone?: string
+  email?: string
+  expires_at?: string | null
+  syndic_id?: string | null
+  metadata?: Record<string, unknown> | null
 }
 
 export interface Availability {
@@ -99,8 +122,8 @@ export interface Notification {
   body?: string
   read?: boolean
   data?: Record<string, unknown>
+  data_json?: string | Record<string, unknown> | null
   created_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface ChatMessage {
@@ -114,7 +137,7 @@ export interface ChatMessage {
   read?: boolean
   metadata?: Record<string, unknown>
   created_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  sender_name?: string
 }
 
 export interface SavedDocument {
@@ -127,7 +150,6 @@ export interface SavedDocument {
   totalHT?: number
   status?: string
   created_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface SyndicCabinet {
@@ -141,7 +163,6 @@ export interface SyndicCabinet {
   telephone?: string
   email?: string
   created_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface Immeuble {
@@ -153,5 +174,4 @@ export interface Immeuble {
   code_postal: string
   nb_lots?: number
   created_at?: string
-  [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
