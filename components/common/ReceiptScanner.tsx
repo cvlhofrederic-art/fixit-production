@@ -157,7 +157,7 @@ export default function ReceiptScanner({ onInject, onClose, mode = 'modal' }: Re
             <ReceiptText className="w-5 h-5" />
             <span className="font-semibold text-sm">Scanner ticket de caisse</span>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white">
+          <button onClick={onClose} className="text-white/80 hover:text-white" aria-label="Fermer">
             <X className="w-5 h-5" />
           </button>
         </div>

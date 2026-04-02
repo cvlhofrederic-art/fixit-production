@@ -649,12 +649,12 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                     </span>
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }}><Pencil size={14} /></button>
+                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }} aria-label="Modifier cette annonce"><Pencil size={14} /></button>
                       {l.status === 'active'
                         ? <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'paused')}><Pause size={12} /> {isPt ? 'Pausar' : 'Pauser'}</button>
                         : <button className="v22-btn v22-btn-primary" style={{ fontSize: 11, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'active')}><Play size={12} /> {isPt ? 'Ativar' : 'Activer'}</button>
                       }
-                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--v22-red)' }} onClick={() => setConfirmDeleteId(l.id)}><Trash2 size={14} /></button>
+                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--v22-red)' }} onClick={() => setConfirmDeleteId(l.id)} aria-label="Supprimer cette annonce"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>

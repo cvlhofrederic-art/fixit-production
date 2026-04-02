@@ -176,7 +176,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                     {equipe && <div className="v22-card-meta" style={{ fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}><HardHat size={12} /> {equipe.nom}</div>}
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => openEditMembre(m)}><Pencil size={14} /> {isPt ? 'Editar' : 'Modifier'}</button>
-                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteMembre(m.id)}><Trash2 size={14} /></button>
+                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteMembre(m.id)} aria-label="Supprimer ce collaborateur"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -215,8 +215,8 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds }); setShowEquipeModal(true) }}><Pencil size={14} /></button>
-                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteEquipe(eq.id)}><Trash2 size={14} /></button>
+                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds }); setShowEquipeModal(true) }} aria-label="Modifier cette équipe"><Pencil size={14} /></button>
+                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteEquipe(eq.id)} aria-label="Supprimer cette équipe"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -292,6 +292,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                               <td key={mod} style={{ padding: '8px 8px', textAlign: 'center' }}>
                                 <button
                                   onClick={() => toggleRolePerm(role.id, mod)}
+                                  aria-label="Basculer la permission"
                                   style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                     color: role.permissions[mod] ? 'var(--v22-green)' : 'var(--v22-border)' }}>
                                   {role.permissions[mod] ? <Check size={14} /> : <Minus size={14} />}
@@ -299,7 +300,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
                               </td>
                             ))}
                             <td style={{ padding: '8px 8px' }}>
-                              <button className="v22-btn v22-btn-sm" style={{ padding: '2px 8px', background: 'none', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteRole(role.id)}>✕</button>
+                              <button className="v22-btn v22-btn-sm" style={{ padding: '2px 8px', background: 'none', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteRole(role.id)} aria-label="Supprimer ce rôle">✕</button>
                             </td>
                           </tr>
                         ))}
@@ -319,7 +320,7 @@ export function EquipesBTPSection({ artisan }: { artisan: any }) {
           <div className="v22-card" style={{ width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="v22-card-head">
               <span className="v22-card-title"><Users size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
-              <button className="v22-btn v22-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null) }}>✕</button>
+              <button className="v22-btn v22-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null) }} aria-label="Fermer">✕</button>
             </div>
             <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

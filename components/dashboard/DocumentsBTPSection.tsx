@@ -149,7 +149,7 @@ export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; 
                     <option value="complet">Complet</option>
                     <option value="remis">Remis</option>
                   </select>
-                  <button onClick={() => setConfirmDeleteId(doe.id)} className="text-red-400 hover:text-red-600 text-sm"><X size={14} /></button>
+                  <button onClick={() => setConfirmDeleteId(doe.id)} className="text-red-400 hover:text-red-600 text-sm" aria-label="Supprimer ce document"><X size={14} /></button>
                 </div>
               </div>
               <p className="text-sm text-gray-500">Remise : {doe.dateRemise || '—'}</p>

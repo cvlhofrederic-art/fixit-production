@@ -322,7 +322,7 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
             <div className="v22-card">
               <div className="v22-card-head">
                 <div className="v22-card-title">{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
-                <button className="v22-btn v22-btn-sm" onClick={() => setShowForm(false)}><X size={14} /></button>
+                <button className="v22-btn v22-btn-sm" onClick={() => setShowForm(false)} aria-label="Fermer"><X size={14} /></button>
               </div>
               <div className="v22-card-body">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>

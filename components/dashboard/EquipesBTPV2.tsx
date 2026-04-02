@@ -525,11 +525,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
                               </td>
                               <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button className="v22-btn v22-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'}><Pencil size={14} /></button>
+                                  <button className="v22-btn v22-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label="Modifier"><Pencil size={14} /></button>
                                   <button className="v22-btn v22-btn-sm" onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
-                                    style={{ background: 'var(--v22-amber-bg, #FFF8E1)', color: '#B8860B' }}><Minus size={14} /></button>
+                                    style={{ background: 'var(--v22-amber-bg, #FFF8E1)', color: '#B8860B' }} aria-label="Désactiver"><Minus size={14} /></button>
                                   <button className="v22-btn v22-btn-sm" onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
-                                    style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red)' }}><Trash2 size={14} /></button>
+                                    style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red)' }} aria-label="Supprimer"><Trash2 size={14} /></button>
                                 </div>
                               </td>
                             </tr>

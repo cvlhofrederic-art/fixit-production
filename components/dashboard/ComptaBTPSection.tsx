@@ -417,7 +417,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontWeight: 700, color: '#EF4444' }}>{fmt(f.montant, dl)} €{f.frequence === 'annuel' ? '/an' : '/mois'}</span>
-                  <button onClick={() => removeFrai(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A' }}><X size={14} /></button>
+                  <button onClick={() => removeFrai(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A' }} aria-label="Supprimer ce frais"><X size={14} /></button>
                 </div>
               </div>
             ))}

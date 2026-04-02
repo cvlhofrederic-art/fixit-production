@@ -393,7 +393,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button className="v22-btn v22-btn-sm" onClick={() => handleEdit(c)} style={{ background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 12, display: 'inline-flex', alignItems: 'center' }}><Pencil size={14} /></button>
+                        <button className="v22-btn v22-btn-sm" onClick={() => handleEdit(c)} style={{ background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 12, display: 'inline-flex', alignItems: 'center' }} aria-label="Modifier"><Pencil size={14} /></button>
                         <select value={c.statut} onChange={e => changeStatut(c.id, e.target.value)} className="v22-form-input" style={{ minWidth: 130, fontSize: 13, padding: '6px 10px' }}>
                           {['En attente', 'En cours', 'Terminé', 'Annulé'].map(s => {
                             const sl: Record<string, string> = isPt
@@ -402,7 +402,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: any }) {
                             return <option key={s} value={s}>{sl[s]}</option>
                           })}
                         </select>
-                        <button onClick={() => setDeleteConfirm(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', display: 'inline-flex', alignItems: 'center' }}><Trash2 size={16} /></button>
+                        <button onClick={() => setDeleteConfirm(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', display: 'inline-flex', alignItems: 'center' }} aria-label="Supprimer"><Trash2 size={16} /></button>
                       </div>
                     </div>
                   </div>
