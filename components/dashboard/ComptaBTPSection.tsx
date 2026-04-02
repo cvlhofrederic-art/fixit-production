@@ -9,7 +9,7 @@ import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
 import { calculateChantierProfitability, calculateGlobalProfitability } from '@/lib/services/profitability'
 import { simulateTax } from '@/lib/services/tax-simulation'
-import type { ChantierContext, ChantierCosts, ChantierProfitability, KPIAlert } from '@/lib/services/pipeline-types'
+import type { ChantierContext, ChantierCosts, ChantierProfitability, KPIAlert, WorkerDetail } from '@/lib/services/pipeline-types'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPTA BTP INTELLIGENTE — Version complète
@@ -28,7 +28,7 @@ interface RentaData {
   total_materiaux: number; total_autres: number; total_depenses: number
   cout_total: number; ca_reel: number; benefice_net: number
   benefice_par_homme_jour: number; perte_par_jour_retard: number
-  detail_ouvriers: any[]
+  detail_ouvriers: WorkerDetail[]
 }
 
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
@@ -39,7 +39,7 @@ const TVA_LABELS: Record<string, string> = {
   reel_normal: 'Réel normal', reel_simplifie: 'Réel simplifié', franchise: 'Franchise de TVA', mini_reel: 'Mini-réel',
 }
 
-export function ComptaBTPSection({ artisan }: { artisan: any }) {
+export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dl = isPt ? 'pt-PT' : 'fr-FR'
@@ -54,7 +54,8 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
   // Frais fixes form
   const [newFrai, setNewFrai] = useState<FraiFixe>({ label: '', montant: 0, frequence: 'mensuel' })
   // Membres pour l'onglet équipe
-  const [membres, setMembres] = useState<any[]>([])
+  interface MembreCompta { id: string; prenom?: string; nom?: string; typeCompte?: string; type_compte?: string; type_contrat?: string; cout_horaire?: number; coutHoraire?: number; charges_pct?: number; chargesPct?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number }
+  const [membres, setMembres] = useState<MembreCompta[]>([])
 
   useEffect(() => {
     async function load() {
@@ -199,12 +200,12 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
   const addFrai = () => {
     if (!newFrai.label || !newFrai.montant) return
     const updated = [...(settings.frais_fixes_mensuels || []), newFrai]
-    saveSettings({ frais_fixes_mensuels: updated } as any)
+    saveSettings({ frais_fixes_mensuels: updated })
     setNewFrai({ label: '', montant: 0, frequence: 'mensuel' })
   }
   const removeFrai = (idx: number) => {
-    const updated = (settings.frais_fixes_mensuels || []).filter((_: any, i: number) => i !== idx)
-    saveSettings({ frais_fixes_mensuels: updated } as any)
+    const updated = (settings.frais_fixes_mensuels || []).filter((_: FraiFixe, i: number) => i !== idx)
+    saveSettings({ frais_fixes_mensuels: updated })
   }
 
   if (loading || loadingS) return (
@@ -253,7 +254,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
             <div>
               <label className="v22-form-label">{isPt ? 'Tipo de salário' : 'Type de salaire'}</label>
               <select className="v22-form-input" value={settings.salaire_patron_type}
-                onChange={e => saveSettings({ salaire_patron_type: e.target.value as any })}>
+                onChange={e => saveSettings({ salaire_patron_type: e.target.value as 'net' | 'brut' })}>
                 <option value="net">Net</option>
                 <option value="brut">Brut</option>
               </select>
@@ -367,7 +368,7 @@ export function ComptaBTPSection({ artisan }: { artisan: any }) {
                   <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--v22-text-mid)' }}>
                     {isPt ? 'Adicione funcionários em "Equipas"' : 'Ajoutez des employés dans "Équipes"'}
                   </td></tr>
-                ) : membres.map((m: any) => {
+                ) : membres.map((m: MembreCompta) => {
                   const ch = m.cout_horaire || m.coutHoraire || settings.cout_horaire_ouvrier
                   const cp = m.charges_pct || m.chargesPct || settings.charges_patronales_pct
                   const indemnJ = (m.panier_repas_jour || 0) + (m.indemnite_trajet_jour || 0)

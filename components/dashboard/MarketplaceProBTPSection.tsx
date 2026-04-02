@@ -195,7 +195,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
 
 // ─── FORMULAIRE ANNONCE ────────────────────────────────────────────────────────
 function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
-  isPt: boolean; artisan: any; initial?: MarketplaceListing; onSave: (data: CreateListingPayload) => void; onCancel: () => void
+  isPt: boolean; artisan: import('@/lib/types').Artisan; initial?: MarketplaceListing; onSave: (data: CreateListingPayload) => void; onCancel: () => void
 }) {
   const [title, setTitle] = useState(initial?.title || '')
   const [desc, setDesc] = useState(initial?.description || '')
@@ -226,7 +226,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
       prix_location_mois: prixMois ? parseFloat(prixMois) : undefined,
       disponible_de: dispo_de || undefined, disponible_jusqu: dispo_jusqu || undefined,
       localisation: localisation.trim() || undefined,
-      country: artisan?.country || 'FR',
+      country: (artisan as unknown as { country?: string })?.country ?? 'FR',
       marque: marque.trim() || undefined, modele: modele.trim() || undefined,
       annee: annee ? parseInt(annee) : undefined,
       vendeur_nom: vendeurNom.trim() || undefined,
@@ -361,7 +361,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
 }
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan: any; orgRole: string }) {
+export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const isProSociete = orgRole === 'pro_societe'
@@ -401,14 +401,15 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       if (filterCat)  params.set('categorie', filterCat)
       if (filterType) params.set('type', filterType)
       if (aeOnly)     params.set('ae_only', 'true')
-      if (artisan?.country) params.set('country', artisan.country)
+      const artisanCountry = (artisan as unknown as { country?: string })?.country
+      if (artisanCountry) params.set('country', artisanCountry)
 
       const res = await fetch(`/api/marketplace-btp?${params.toString()}`)
       const data = await res.json()
       setListings(data.listings ?? [])
     } catch {}
     setLoading(false)
-  }, [filterCat, filterType, aeOnly, artisan?.country])
+  }, [filterCat, filterType, aeOnly, (artisan as unknown as { country?: string })?.country])
 
   const loadMyListings = useCallback(async () => {
     if (!artisan?.user_id) return

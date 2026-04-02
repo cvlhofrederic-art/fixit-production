@@ -7,12 +7,19 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { toast } from 'sonner'
 
 /* ========== PHOTOS CHANTIER ========== */
-export default function PhotosChantierSection({ artisan, bookings }: { artisan: any; bookings: any[] }) {
+
+interface PhotoItem {
+  id: string; url?: string; storage_path?: string; booking_id?: string | null; created_at?: string
+  label?: string; lat?: number; lng?: number; source?: string; taken_at?: string
+}
+interface RapportItem { id: string; titre?: string; rapportNumber?: string; clientName?: string; interventionDate?: string; linkedPhotoIds?: string[] }
+
+export default function PhotosChantierSection({ artisan, bookings }: { artisan: import('@/lib/types').Artisan; bookings: import('@/lib/types').Booking[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
 
-  const [photos, setPhotos] = useState<any[]>([])
+  const [photos, setPhotos] = useState<PhotoItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'unassigned' | string>('all')
   const [assigning, setAssigning] = useState<string | null>(null) // photo_id
@@ -20,7 +27,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
   const [fullscreen, setFullscreen] = useState<string | null>(null)
 
   // Load rapports from localStorage for linking
-  const [rapports, setRapports] = useState<any[]>([])
+  const [rapports, setRapports] = useState<RapportItem[]>([])
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
     try {
@@ -35,7 +42,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
     try {
       const storageKey = `fixit_rapports_${artisan.id}`
       const allRapports = JSON.parse(localStorage.getItem(storageKey) || '[]')
-      const updated = allRapports.map((r: any) => {
+      const updated = allRapports.map((r: RapportItem) => {
         const linkedPhotos = r.linkedPhotoIds || []
         if (rapportId === r.id) {
           if (!linkedPhotos.includes(photoId)) {
@@ -56,7 +63,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
 
   // Get which rapport a photo is linked to
   const getPhotoRapport = (photoId: string) => {
-    return rapports.find((r: any) => (r.linkedPhotoIds || []).includes(photoId))
+    return rapports.find((r: RapportItem) => (r.linkedPhotoIds || []).includes(photoId))
   }
 
   const loadPhotos = async () => {
@@ -195,7 +202,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
             gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
             gap: 12
           }}>
-            {photos.map((photo: any) => {
+            {photos.map((photo: PhotoItem) => {
               const booking = bookings.find(b => b.id === photo.booking_id)
               return (
                 <div key={photo.id} className="v22-card" style={{ overflow: 'hidden', padding: 0 }}>
@@ -205,7 +212,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
                       src={photo.url}
                       alt={photo.label || t('proDash.photos.title')}
                       style={{ width: '100%', height: 120, objectFit: 'cover', cursor: 'pointer', display: 'block' }}
-                      onClick={() => setFullscreen(photo.url)}
+                      onClick={() => setFullscreen(photo.url ?? null)}
                     />
                     {/* GPS badge */}
                     {photo.lat && photo.lng && (
@@ -229,7 +236,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
                   <div style={{ padding: 10 }}>
                     {/* Timestamp */}
                     <div className="v22-ref" style={{ marginBottom: 6 }}>
-                      {'🕐'} {new Date(photo.taken_at).toLocaleDateString(dateLocale)} {t('proDash.common.a')} {new Date(photo.taken_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
+                      {'🕐'} {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString(dateLocale) : ''} {t('proDash.common.a')} {photo.taken_at ? new Date(photo.taken_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' }) : ''}
                     </div>
 
                     {/* Booking association tag */}
@@ -291,7 +298,7 @@ export default function PhotosChantierSection({ artisan, bookings }: { artisan: 
                             onChange={e => linkPhotoToRapport(photo.id, e.target.value || null)}
                           >
                             <option value="">{t('proDash.photos.aucunDissocier')}</option>
-                            {rapports.map((r: any) => (
+                            {rapports.map((r: RapportItem) => (
                               <option key={r.id} value={r.id}>{r.rapportNumber} — {r.clientName || 'Client'} — {r.interventionDate || 'N/D'}</option>
                             ))}
                           </select>

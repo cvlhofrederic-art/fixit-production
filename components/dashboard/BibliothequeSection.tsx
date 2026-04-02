@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react'
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 interface BibliothequeSectionProps {
-  artisan: any
+  artisan: import('@/lib/types').Artisan
   orgRole?: OrgRole
   navigateTo: (page: string) => void
 }

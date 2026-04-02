@@ -10,8 +10,10 @@ import { getTvaStatus, type TvaCountry, type TvaStatusResult } from '@/lib/tva-t
 
 /* ══════════ AGENT COMPTABLE LÉA ══════════ */
 
+interface Expense { id?: string; label?: string; amount?: number | string; category?: string; date?: string; notes?: string }
+
 function AgentComptable({ bookings, artisan, services, expenses, annualHT, annualCA, totalExpenses, quarterData, currentMonth, currentYear, formatEur, orgRole }: {
-  bookings: any[]; artisan: any; services: any[]; expenses: any[]; annualHT: number; annualCA: number; totalExpenses: number; quarterData: number[]; currentMonth: number; currentYear: number; formatEur: (v: number) => string; orgRole?: string
+  bookings: import('@/lib/types').Booking[]; artisan: import('@/lib/types').Artisan; services: import('@/lib/types').Service[]; expenses: Expense[]; annualHT: number; annualCA: number; totalExpenses: number; quarterData: number[]; currentMonth: number; currentYear: number; formatEur: (v: number) => string; orgRole?: string
 }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -30,16 +32,17 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     scrollToBottom()
   }, [messages])
 
-  const expenseCategories = expenses.reduce((acc: any, e: any) => {
-    acc[e.category] = (acc[e.category] || 0) + parseFloat(e.amount || 0)
+  const expenseCategories = expenses.reduce((acc: Record<string, number>, e: Expense) => {
+    const cat = e.category ?? 'autre'
+    acc[cat] = (acc[cat] || 0) + parseFloat(String(e.amount || 0))
     return acc
   }, {})
 
   // ── Enrichir chaque booking avec clientName et serviceName déjà résolus
-  const allBookingsEnriched = useMemo(() => bookings.map((b: any) => ({
+  const allBookingsEnriched = useMemo(() => bookings.map((b: import('@/lib/types').Booking) => ({
     ...b,
     clientName: b.notes?.match(/Client:\s*([^|.\n]+)/)?.[1]?.trim() || 'Client',
-    serviceName: b.services?.name || services.find((s: any) => s.id === b.service_id)?.name || 'Intervention',
+    serviceName: b.services?.name || services.find((s: import('@/lib/types').Service) => s.id === b.service_id)?.name || 'Intervention',
   })), [bookings, services])
 
   const financialContext = {
@@ -48,7 +51,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     // Agrégats (référence rapide)
     annualCA,
     annualCAHT: annualHT,
-    completedCount: bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === currentYear).length,
+    completedCount: bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === currentYear).length,
     tvaCollectee: annualCA - annualHT,
     avgMonthlyCA: annualCA / (currentMonth + 1),
     totalExpenses,
@@ -345,7 +348,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
 /* ══════════ COMPTABILITÉ SECTION ══════════ */
 
-export default function ComptabiliteSection({ bookings, artisan, services, orgRole }: { bookings: any[]; artisan: any; services: any[]; orgRole?: string }) {
+export default function ComptabiliteSection({ bookings, artisan, services, orgRole }: { bookings: import('@/lib/types').Booking[]; artisan: import('@/lib/types').Artisan; services: import('@/lib/types').Service[]; orgRole?: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
@@ -354,7 +357,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [selectedPeriod, setSelectedPeriod] = useState<'mois' | 'trimestre' | 'annee'>('mois')
   const [selectedMonth, setSelectedMonthC] = useState(currentMonth)
-  const [expenses, setExpenses] = useState<any[]>(() => {
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
     try { return JSON.parse(localStorage.getItem(`fixit_expenses_${artisan?.id}`) || '[]') } catch { return [] }
   })
   const [showAddExpense, setShowAddExpense] = useState(false)
@@ -427,14 +430,14 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const tvaCollectee = chiffreAffaires - chiffreAffairesHT
 
   const filteredExpenses = expenses.filter(e => {
-    const d = new Date(e.date)
+    const d = new Date(e.date ?? '')
     if (d.getFullYear() !== selectedYear) return false
     if (selectedPeriod === 'mois') return d.getMonth() === selectedMonth
     if (selectedPeriod === 'trimestre') return Math.floor(d.getMonth() / 3) === getQuarter()
     return true
   })
 
-  const totalExpenses = filteredExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0)
+  const totalExpenses = filteredExpenses.reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)
   const resultatNet = chiffreAffairesHT - totalExpenses
 
   // Monthly revenue for chart
@@ -452,8 +455,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   // Expense breakdown by category
   const expenseByCategory = EXPENSE_CATEGORIES.map(cat => ({
     ...cat,
-    total: expenses.filter(e => e.category === cat.key && new Date(e.date).getFullYear() === selectedYear)
-      .reduce((s, e) => s + parseFloat(e.amount || 0), 0)
+    total: expenses.filter(e => e.category === cat.key && e.date && new Date(e.date).getFullYear() === selectedYear)
+      .reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)
   })).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
   const saveExpense = () => {
@@ -501,7 +504,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const formatEur = (v: number) => new Intl.NumberFormat(dateFmtLocale, { style: 'currency', currency: 'EUR' }).format(v)
 
   // ── TVA : calcul status en temps réel ────────────────────────────────────
-  const tvaCountry: TvaCountry = (artisan?.country || (isPt ? 'PT' : 'FR')) as TvaCountry
+  const tvaCountry: TvaCountry = ((artisan as unknown as { country?: string })?.country || (isPt ? 'PT' : 'FR')) as TvaCountry
   const tvaStatus: TvaStatusResult = getTvaStatus(annualHT, tvaCountry)
 
   // Charger les settings TVA une fois au montage
@@ -762,7 +765,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--v22-green)', marginTop: 4 }}>
-                  {isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
+                  {isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
                   {' / '}{isPt ? '200 000 €' : '77 700 €'}
                 </div>
               </div>
@@ -818,13 +821,13 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     </tr>
                   </thead>
                   <tbody>
-                    {completedFiltered.sort((a, b) => b.booking_date.localeCompare(a.booking_date)).map(b => {
+                    {completedFiltered.sort((a, b) => (b.booking_date ?? '').localeCompare(a.booking_date ?? '')).map(b => {
                       const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || 'Client'
                       const ht = b.price_ht || (b.price_ttc || 0) / 1.2
                       const tva = (b.price_ttc || 0) - ht
                       return (
                         <tr key={b.id} style={{ borderTop: '1px solid var(--v22-border)' }}>
-                          <td style={{ padding: '10px 16px', color: 'var(--v22-text-muted)' }}>{new Date(b.booking_date).toLocaleDateString(dateFmtLocale)}</td>
+                          <td style={{ padding: '10px 16px', color: 'var(--v22-text-muted)' }}>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale) : ''}</td>
                           <td style={{ padding: '10px 16px' }}>
                             <div className="v22-client-name">{clientName}</div>
                             <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{b.services?.name}</div>
@@ -854,7 +857,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div className="v22-card-head"><div className="v22-card-title">{isPt ? `🔧 Faturação por serviço (${selectedYear})` : `🔧 CA par motif (${selectedYear})`}</div></div>
                 <div className="v22-card-body" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {services.map(s => {
-                    const sBookings = bookings.filter(b => b.service_id === s.id && b.status === 'completed' && new Date(b.booking_date).getFullYear() === selectedYear)
+                    const sBookings = bookings.filter(b => b.service_id === s.id && b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear)
                     const sCA = sBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0)
                     const pct = maxCA > 0 ? (sCA / (chiffreAffaires || 1)) * 100 : 0
                     return (
@@ -965,18 +968,18 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 </div>
               ) : (
                 <div>
-                  {filteredExpenses.sort((a, b) => b.date.localeCompare(a.date)).map(e => {
+                  {filteredExpenses.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(e => {
                     const cat = EXPENSE_CATEGORIES.find(c => c.key === e.category)
                     return (
                       <div key={e.id} className="expense-row" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: '1px solid var(--v22-border)' }}>
                         <div style={{ fontSize: 20 }}>{cat?.icon || '📦'}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{e.label}</div>
-                          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{cat?.label} · {new Date(e.date).toLocaleDateString(dateFmtLocale)}</div>
+                          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{cat?.label} · {e.date ? new Date(e.date).toLocaleDateString(dateFmtLocale) : ''}</div>
                           {e.notes && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>{e.notes}</div>}
                         </div>
-                        <div className="v22-amount" style={{ color: 'var(--v22-red)' }}>{formatEur(parseFloat(e.amount))}</div>
-                        <button onClick={() => deleteExpense(e.id)}
+                        <div className="v22-amount" style={{ color: 'var(--v22-red)' }}>{formatEur(parseFloat(String(e.amount ?? 0)))}</div>
+                        <button onClick={() => deleteExpense(e.id ?? '')}
                           style={{ opacity: 0, color: 'var(--v22-red)', cursor: 'pointer', background: 'none', border: 'none', fontSize: 16, marginLeft: 6, transition: 'opacity 0.15s' }}
                           className="del-btn">🗑</button>
                       </div>
@@ -1153,8 +1156,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             services={services}
             expenses={expenses}
             annualHT={annualHT}
-            annualCA={bookings.filter(b => b.status === 'completed' && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
-            totalExpenses={expenses.filter(e => new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(e.amount || 0), 0)}
+            annualCA={bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === currentYear).reduce((s, b) => s + (b.price_ttc || 0), 0)}
+            totalExpenses={expenses.filter(e => e.date && new Date(e.date).getFullYear() === currentYear).reduce((s, e) => s + parseFloat(String(e.amount || 0)), 0)}
             quarterData={quarterData}
             currentMonth={currentMonth}
             currentYear={currentYear}

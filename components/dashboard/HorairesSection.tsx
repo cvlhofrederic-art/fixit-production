@@ -1,13 +1,14 @@
 'use client'
 
 import { useTranslation } from '@/lib/i18n/context'
+import type { Artisan, Service, Availability } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 interface HorairesSectionProps {
-  artisan: any
-  services: any[]
-  availability: any[]
+  artisan: Artisan
+  services: Service[]
+  availability: Availability[]
   dayServices: Record<string, string[]>
   autoAccept: boolean
   savingAvail: boolean

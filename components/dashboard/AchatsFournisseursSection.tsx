@@ -31,7 +31,7 @@ function genRef(prefix: string, list: { reference: string }[]) {
   return `${prefix}-${year}-${String(next).padStart(3, '0')}`
 }
 
-export function AchatsFournisseursSection({ artisan }: { artisan: any }) {
+export function AchatsFournisseursSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'commandes' | 'fournisseurs'>('commandes')
   const [commandes, setCommandes] = useState<BonCommande[]>([])

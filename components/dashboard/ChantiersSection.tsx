@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 
 interface ChantiersSectionProps {
-  artisan: any
+  artisan: import('@/lib/types').Artisan
   navigateTo: (page: string) => void
 }
 

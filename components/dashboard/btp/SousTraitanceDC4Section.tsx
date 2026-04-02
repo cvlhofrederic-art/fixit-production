@@ -13,6 +13,17 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
   const DCE_KEY = `dce_analyses_${userId}`
 
   // ── Types ──
+  interface DCEResult {
+    error?: string
+    scoring?: { technique?: number | string; prix?: number | string; probabilite?: number | string }
+    analyse_marche?: string | Record<string, unknown>
+    exigences?: string | Record<string, unknown>
+    strategie?: string | Record<string, unknown>
+    memoire_technique?: string | Record<string, unknown>
+    analyse_financiere?: string | Record<string, unknown>
+    sous_traitance?: string | Record<string, unknown>
+    checklist_depot?: string | Record<string, unknown>
+  }
   interface SousTraitant {
     id: string; entreprise: string; siret: string; responsable: string; email: string
     telephone: string; adresse: string; chantier: string; lot: string
@@ -20,7 +31,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
   }
   interface DCEAnalysis {
     id: string; titre: string; country: 'FR' | 'PT'; projectType: string; createdAt: string
-    result?: any; status: 'pending' | 'done' | 'error'
+    result?: DCEResult; status: 'pending' | 'done' | 'error'
   }
 
   // ── State ──
@@ -327,7 +338,7 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
                   )}
                   {/* Sections de l'analyse */}
                   {['analyse_marche', 'exigences', 'strategie', 'memoire_technique', 'analyse_financiere', 'sous_traitance', 'checklist_depot'].map(key => {
-                    const section = selectedAnalysis.result?.[key]
+                    const section = selectedAnalysis.result ? (selectedAnalysis.result as Record<string, unknown>)[key] : undefined
                     if (!section) return null
                     const titles: Record<string, string> = { analyse_marche: 'Analyse du marché', exigences: 'Exigences', strategie: 'Stratégie de réponse', memoire_technique: 'Mémoire technique', analyse_financiere: 'Analyse financière', sous_traitance: 'Sous-traitance', checklist_depot: 'Checklist avant dépôt' }
                     return (

@@ -39,7 +39,7 @@ const STATUT_COLORS: Record<string, string> = {
 }
 const STATUT_LABELS: Record<string, string> = { en_cours: 'En cours', complet: 'Complet', remis: 'Remis' }
 
-export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: any; locale?: string }) {
+export function DocumentsBTPSection({ artisan, locale = 'fr' }: { artisan: import('@/lib/types').Artisan; locale?: string }) {
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'reglementation' | 'modeles' | 'doe'>('reglementation')
   const [doeList, setDoeList] = useState<DOEEntry[]>([])

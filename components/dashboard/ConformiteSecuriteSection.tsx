@@ -43,7 +43,7 @@ function habilitationStatut(dateExpiration: string): { label: string; color: str
   return { label: 'Valide', color: 'bg-green-100 text-green-700' }
 }
 
-export function ConformiteSecuriteSection({ artisan }: { artisan: any }) {
+export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'habilitations' | 'ppsps' | 'registre'>('habilitations')
   const [habilitations, setHabilitations] = useState<Habilitation[]>([])

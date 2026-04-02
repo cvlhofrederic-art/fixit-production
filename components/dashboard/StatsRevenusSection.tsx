@@ -24,11 +24,11 @@ async function downloadCsv(type: 'clients' | 'bookings' | 'revenue') {
 }
 
 interface StatsRevenusSectionProps {
-  artisan: any
-  bookings: any[]
-  services: any[]
-  pendingBookings: any[]
-  completedBookings: any[]
+  artisan: import('@/lib/types').Artisan
+  bookings: import('@/lib/types').Booking[]
+  services: import('@/lib/types').Service[]
+  pendingBookings: import('@/lib/types').Booking[]
+  completedBookings: import('@/lib/types').Booking[]
   totalRevenue: number
   activePage: string
 }

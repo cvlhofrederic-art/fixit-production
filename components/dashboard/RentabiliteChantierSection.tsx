@@ -148,7 +148,7 @@ function BadgeIcon({ type, size = 12 }: { type: 'check' | 'warn' | 'risk'; size?
 // COMPOSANT PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function RentabiliteChantierSection({ artisan }: { artisan: any }) {
+export default function RentabiliteChantierSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const isPt = typeof document !== 'undefined' && document.cookie.includes('locale=pt')
   const t = (fr: string, pt: string) => isPt ? pt : fr
 
@@ -196,7 +196,7 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: any }
         const mb = mbRes.ok ? await mbRes.json() : null
         const dp = dpRes.ok ? await dpRes.json() : null
         const pt = ptRes.ok ? await ptRes.json() : null
-        if (ch?.chantiers?.length) setChantiers(ch.chantiers.map((c: any) => ({
+        if (ch?.chantiers?.length) setChantiers(ch.chantiers.map((c: Record<string, unknown>) => ({
           id: c.id, titre: c.titre || c.title || '', client: c.client || '',
           adresse: c.adresse || c.address || '', dateDebut: c.date_debut || c.dateDebut || '',
           dateFin: c.date_fin || c.dateFin || '', budget: String(c.budget || '0'),
@@ -204,18 +204,18 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: any }
           equipe: c.equipe || '', createdAt: c.created_at || '',
         })))
         else setChantiers(load(`fixit_chantiers_${artisan.id}`))
-        if (mb?.membres?.length) setMembres(mb.membres.map((m: any) => ({
+        if (mb?.membres?.length) setMembres(mb.membres.map((m: Record<string, unknown>) => ({
           id: m.id, prenom: m.prenom || '', nom: m.nom || '', telephone: m.telephone || '',
           email: m.email || '', typeCompte: m.type_compte || m.typeCompte || 'ouvrier',
           rolePerso: m.role_perso || m.rolePerso || '', equipeId: m.equipe_id || '', createdAt: m.created_at || '',
         })))
         else setMembres(load(`fixit_membres_${artisan.id}`))
-        if (dp?.depenses?.length) setExpenses(dp.depenses.map((d: any) => ({
+        if (dp?.depenses?.length) setExpenses(dp.depenses.map((d: Record<string, unknown>) => ({
           id: d.id, label: d.label || '', amount: d.amount || 0, category: d.category || '',
           date: d.date || '', notes: d.notes || '', chantierId: d.chantier_id || '',
         })))
         else setExpenses(load(`fixit_expenses_${artisan.id}`))
-        if (pt?.pointages?.length) setPointages(pt.pointages.map((p: any) => ({
+        if (pt?.pointages?.length) setPointages(pt.pointages.map((p: Record<string, unknown>) => ({
           id: p.id, employe: p.employe || '', poste: p.poste || '', chantier: p.chantier || p.chantier_id || '',
           date: p.date || '', heureArrivee: p.heure_arrivee || '', heureDepart: p.heure_depart || '',
           pauseMinutes: p.pause_minutes || 0, heuresTravaillees: p.heures_travaillees || 0, notes: p.notes || '',

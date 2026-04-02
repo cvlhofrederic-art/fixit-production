@@ -2,13 +2,28 @@
 
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { Artisan, Booking } from '@/lib/types'
+
+interface ImmeubleItem {
+  id: string; nom: string; adresse: string; lots: string; anneeConstruction: string
+  syndic: string; gestionnaire: string; typeImmeuble: string; charges: string; notes: string; createdAt: string
+}
+interface MissionItem {
+  id: string; titre: string; immeuble: string; lot: string; locataire: string; type: string
+  priorite: string; description: string; artisan: string; dateIntervention: string; devis: string
+  statut: string; createdAt: string
+}
+interface ContratItem {
+  id: string; titre: string; client: string; type: string; dateDebut: string; dateFin: string
+  montant: string; periodicite: string; statut: string; description: string; createdAt: string
+}
 
 /* ========== IMMEUBLES GESTIONNAIRE SECTION ========== */
-export function ImmeublesGestionnaireSection({ artisan }: { artisan: any }) {
+export function ImmeublesGestionnaireSection({ artisan }: { artisan: Artisan }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const storageKey = `fixit_imm_gest_${artisan?.id}`
-  const [immeubles, setImmeubles] = useState<any[]>(() => {
+  const [immeubles, setImmeubles] = useState<ImmeubleItem[]>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
   })
   const [showModal, setShowModal] = useState(false)
@@ -130,11 +145,11 @@ export function ImmeublesGestionnaireSection({ artisan }: { artisan: any }) {
 }
 
 /* ========== MISSIONS GESTIONNAIRE SECTION ========== */
-export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: any; bookings: any[] }) {
+export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: Artisan; bookings: Booking[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const storageKey = `fixit_missions_gest_${artisan?.id}`
-  const [missions, setMissions] = useState<any[]>(() => {
+  const [missions, setMissions] = useState<MissionItem[]>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
   })
   const [showModal, setShowModal] = useState(false)
@@ -291,11 +306,11 @@ export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: an
 }
 
 /* ========== CONTRATS SECTION ========== */
-export function ContratsSection({ artisan }: { artisan: any }) {
+export function ContratsSection({ artisan }: { artisan: Artisan }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const storageKey = `fixit_contrats_${artisan?.id}`
-  const [contrats, setContrats] = useState<any[]>(() => {
+  const [contrats, setContrats] = useState<ContratItem[]>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
   })
   const [showModal, setShowModal] = useState(false)

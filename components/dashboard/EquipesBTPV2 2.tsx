@@ -103,7 +103,7 @@ const EMPTY_MFORM = {
   _lastEdited: '' as '' | 'brut' | 'net' | 'horaire', // tracks which field the user changed last
 }
 
-export default function EquipesBTPV2({ artisan }: { artisan: any }) {
+export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const userId = artisan?.user_id || ''
@@ -172,7 +172,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
     if (!mForm.prenom.trim() || !mForm.nom.trim()) return
     setSaving(true)
 
-    const data: any = {
+    const data: Omit<Membre, 'id' | 'createdAt'> = {
       prenom: mForm.prenom,
       nom: mForm.nom,
       telephone: mForm.telephone,
@@ -182,8 +182,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: any }) {
       equipeId: mForm.equipeId,
       coutHoraire: mForm.coutHoraire,
       chargesPct: mForm.chargesPct,
-      salaire_brut_mensuel: mForm.salaire_brut_mensuel ? parseFloat(mForm.salaire_brut_mensuel) : null,
-      salaire_net_mensuel: mForm.salaire_net_mensuel ? parseFloat(mForm.salaire_net_mensuel) : null,
+      salaire_brut_mensuel: mForm.salaire_brut_mensuel ? parseFloat(mForm.salaire_brut_mensuel) : undefined,
+      salaire_net_mensuel: mForm.salaire_net_mensuel ? parseFloat(mForm.salaire_net_mensuel) : undefined,
       charges_salariales_pct: mForm.charges_salariales_pct,
       charges_patronales_pct: mForm.charges_patronales_pct,
       type_contrat: mForm.type_contrat,

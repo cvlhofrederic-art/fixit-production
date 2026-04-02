@@ -12,7 +12,7 @@ function safeBlobUrl(file: File): string {
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
-export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: any; orgRole?: OrgRole }) {
+export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: OrgRole }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'

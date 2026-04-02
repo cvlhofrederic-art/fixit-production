@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase'
 interface MatPrice { store: string; price: number; url: string | null }
 interface MatItem { name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string; prices: MatPrice[]; bestPrice: { store: string; price: number } | null; avgPrice: number }
 interface MatSearch { id: string; date: string; query: string; city: string | null; materials: MatItem[]; totalEstimate: { min: number; max: number } | null }
+interface ProductResult { name: string; description: string; price: number; store: string; url: string; image: string | null; condition: 'new' | 'refurbished' }
+interface ExportLine { id: number; description: string; qty: number; unit: string; priceHT: number; tvaRate: number; totalHT: number }
 
 const JOB_PRESETS_FR = [
   { label: '🚿 Chauffe-eau', q: 'Remplacement chauffe-eau thermodynamique 200L' },
@@ -133,7 +135,7 @@ const PRODUCT_PRESETS_PT = [
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
-export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { artisan: any; onExportDevis: (lines: any[]) => void; orgRole?: OrgRole }) {
+export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { artisan: import('@/lib/types').Artisan; onExportDevis: (lines: ExportLine[]) => void; orgRole?: OrgRole }) {
   const isSociete = orgRole === 'pro_societe'
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -154,11 +156,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
   })
   const [globalMarkup, setGlobalMarkup] = useState(15)
   const [searchMode, setSearchMode] = useState<'project' | 'product'>('project')
-  const [productResults, setProductResults] = useState<Array<{
-    name: string; description: string; price: number;
-    store: string; url: string; image: string | null;
-    condition: 'new' | 'refurbished';
-  }> | null>(null)
+  const [productResults, setProductResults] = useState<ProductResult[] | null>(null)
   const [productRecommendations, setProductRecommendations] = useState('')
   const [productFetchedAt, setProductFetchedAt] = useState<string | null>(null)
   const [productTab, setProductTab] = useState<'new' | 'refurbished'>('new')
@@ -264,7 +262,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
       // Handle product mode response
       if (searchMode === 'product') {
-        const products = data.products?.length > 0 ? data.products.map((p: any) => ({
+        const products = data.products?.length > 0 ? data.products.map((p: ProductResult) => ({
           ...p,
           condition: p.condition === 'refurbished' ? 'refurbished' : 'new',
         })) : null
@@ -273,8 +271,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
         setProductFetchedAt(data.fetchedAt || new Date().toISOString())
         // Auto-select tab with results
         if (products) {
-          const hasNew = products.some((p: any) => p.condition === 'new')
-          const hasRefurb = products.some((p: any) => p.condition === 'refurbished')
+          const hasNew = products.some((p: ProductResult) => p.condition === 'new')
+          const hasRefurb = products.some((p: ProductResult) => p.condition === 'refurbished')
           setProductTab(hasNew ? 'new' : hasRefurb ? 'refurbished' : 'new')
         }
         setMessages(prev => [...prev, {
@@ -322,7 +320,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
   }
 
   // ─── Logique fiscale selon statut artisan ────────────────────────────────
-  const artisanLegalForm = (artisan?.legal_form || '').toLowerCase()
+  const artisanLegalForm = ((artisan as unknown as { legal_form?: string })?.legal_form || '').toLowerCase()
   const isAutoEntrepreneur = artisanLegalForm.includes('auto') || artisanLegalForm.includes('micro') || artisanLegalForm.includes('individuel')
   const isAssujetti = artisanLegalForm.includes('sarl') || artisanLegalForm.includes('sas') || artisanLegalForm.includes('eurl') || artisanLegalForm.includes('sa ')
 
@@ -792,7 +790,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           <div className="v22-card-meta">
                             <span className={`v22-tag ${isAssujetti ? 'v22-tag-gray' : 'v22-tag-amber'}`}>
                               {isAssujetti
-                                ? `📋 ${artisan?.legal_form || 'Société'} — TVA ${TVA_REVENTE}%`
+                                ? `📋 ${(artisan as unknown as { legal_form?: string })?.legal_form || 'Société'} — TVA ${TVA_REVENTE}%`
                                 : `📋 ${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise TVA (293B CGI)`
                               }
                             </span>

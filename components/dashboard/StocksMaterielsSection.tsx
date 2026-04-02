@@ -24,7 +24,7 @@ const ETAT_COLORS: Record<string, string> = {
   usé: 'bg-amber-100 text-amber-700', HS: 'bg-red-100 text-red-700',
 }
 
-export function StocksMaterielsSection({ artisan }: { artisan: any }) {
+export function StocksMaterielsSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'materiel' | 'consommables'>('materiel')
   const [materiels, setMateriels] = useState<Materiel[]>([])

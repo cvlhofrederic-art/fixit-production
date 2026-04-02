@@ -37,7 +37,7 @@ interface CanalMessage {
   created_at: string
 }
 
-export default function OrdresMissionPage({ artisan, userId }: { artisan: any; userId: string }) {
+export default function OrdresMissionPage({ artisan, userId }: { artisan: import('@/lib/types').Artisan; userId: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'

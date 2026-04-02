@@ -9,7 +9,7 @@ import {
   DEFAULT_PERMS, METIERS_FR, EMPTY_PERM,
 } from './types'
 
-export function EquipesBTPSection({ artisan }: { artisan: any }) {
+export function EquipesBTPSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
 

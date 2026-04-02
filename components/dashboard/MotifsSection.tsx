@@ -3,27 +3,30 @@
 import { useState } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
+import type { Service } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
+type MotifForm = {
+  name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number
+}
+
 interface MotifsSectionProps {
-  services: any[]
+  services: Service[]
   showMotifModal: boolean
   setShowMotifModal: (v: boolean) => void
-  editingMotif: any
-  motifForm: {
-    name: string; description: string; duration_minutes: number | ''; price_min: number | ''; price_max: number | ''; pricing_unit: string; validation_auto: boolean; delai_minimum_heures: number
-  }
-  setMotifForm: (v: any) => void
+  editingMotif: Service | null
+  motifForm: MotifForm
+  setMotifForm: (v: MotifForm) => void
   savingMotif: boolean
   openNewMotif: () => void
-  openEditMotif: (service: any) => void
+  openEditMotif: (service: Service) => void
   saveMotif: () => void
   toggleMotifActive: (serviceId: string, currentActive: boolean) => void | Promise<void>
   deleteMotif: (serviceId: string) => void | Promise<void>
-  getPriceRangeLabel: (service: any) => string
-  getPricingUnit: (service: any) => string
-  getCleanDescription: (service: any) => string
+  getPriceRangeLabel: (service: Service) => string
+  getPricingUnit: (service: Service) => string
+  getCleanDescription: (service: Service) => string
   orgRole?: OrgRole
 }
 
@@ -113,7 +116,7 @@ export default function MotifsSection({
                 <td>
                   <button onClick={async () => {
                     setTogglingId(service.id)
-                    try { await toggleMotifActive(service.id, service.active) } finally { setTogglingId(null) }
+                    try { await toggleMotifActive(service.id, service.active ?? false) } finally { setTogglingId(null) }
                   }}
                     disabled={togglingId === service.id}
                     className={`v22-tag ${service.active ? 'v22-tag-green' : 'v22-tag-gray'}`}

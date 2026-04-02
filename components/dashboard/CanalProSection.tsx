@@ -16,7 +16,7 @@ type CanalMsg = {
   read_at?: string
 }
 
-export default function CanalProSection({ artisan, orgRole }: { artisan: any; orgRole: string }) {
+export default function CanalProSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `fixit_canal_contacts_${artisan?.id}`
@@ -79,7 +79,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
   }, [selectedContact?.id])
 
   // Envoyer message texte
-  const sendMessage = async (content?: string, type = 'text', metadata?: any) => {
+  const sendMessage = async (content?: string, type = 'text', metadata?: Record<string, unknown>) => {
     const msgContent = content || newMsg.trim()
     if (!msgContent && type === 'text') return
     if (!selectedContact) return
@@ -126,7 +126,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
     recognitionRef.current = recognition
 
     recognition.onstart = () => { setIsRecording(true); setVoiceStatus('recording') }
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: { results: { [key: number]: { [key: number]: { transcript: string } } } }) => {
       const transcript = event.results[0][0].transcript
       setVoiceStatus('processing')
 
@@ -134,7 +134,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: any; or
       const lower = transcript.toLowerCase()
       let processedContent = transcript
       let type = 'voice'
-      let metadata: any = { original: transcript }
+      let metadata: Record<string, unknown> = { original: transcript }
 
       if (lower.includes('bâtiment') || lower.includes('batiment') || lower.includes('résidence') || lower.includes('immeuble')) {
         type = 'voice_location'

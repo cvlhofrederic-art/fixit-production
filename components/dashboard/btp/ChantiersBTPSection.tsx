@@ -3,13 +3,19 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { PlusCircle, Users, HardHat, Calendar, DollarSign, MapPin, Check } from 'lucide-react'
+import type { Artisan, Booking } from '@/lib/types'
 
-export function ChantiersBTPSection({ artisan, bookings }: { artisan: any; bookings: any[] }) {
+interface ChantierItem {
+  id: string; titre: string; client: string; adresse: string; dateDebut: string
+  dateFin: string; budget: string; statut: string; description: string; equipe: string; createdAt: string
+}
+
+export function ChantiersBTPSection({ artisan, bookings }: { artisan: Artisan; bookings: Booking[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_chantiers_${artisan?.id}`
-  const [chantiers, setChantiers] = useState<any[]>(() => {
+  const [chantiers, setChantiers] = useState<ChantierItem[]>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
   })
   const [showModal, setShowModal] = useState(false)

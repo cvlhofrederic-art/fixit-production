@@ -132,7 +132,7 @@ const EMPTY_FORM = {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function SousTraitanceOffresSection({ artisan }: { artisan: any }) {
+export default function SousTraitanceOffresSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const isPt = typeof document !== 'undefined' && document.cookie.includes('locale=pt')
 
   const [tab, setTab] = useState<'annonces' | 'publier' | 'candidats'>('annonces')
@@ -285,8 +285,8 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
       setTab('annonces')
       await loadOffers()
       showToast('✅ Annonce publiée — les artisans correspondants ont été notifiés')
-    } catch (e: any) {
-      setPublishError(e.message || 'Erreur lors de la publication')
+    } catch (e: unknown) {
+      setPublishError(e instanceof Error ? e.message : 'Erreur lors de la publication')
     } finally {
       setPublishing(false)
     }

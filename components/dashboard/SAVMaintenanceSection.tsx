@@ -31,7 +31,7 @@ function genRef(prefix: string, list: { reference: string }[]) {
   return `${prefix}-${year}-${String(count).padStart(3, '0')}`
 }
 
-export function SAVMaintenanceSection({ artisan }: { artisan: any }) {
+export function SAVMaintenanceSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
   const userId = artisan?.id || 'anon'
   const [tab, setTab] = useState<'contrats' | 'sav'>('contrats')
   const [contrats, setContrats] = useState<ContratMaintenance[]>([])

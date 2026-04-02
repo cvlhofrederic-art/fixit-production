@@ -17,8 +17,7 @@ interface SettingsSectionProps {
     company_name: string; email: string; phone: string; bio: string;
     auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setSettingsForm: any
+  setSettingsForm: (v: { company_name: string; email: string; phone: string; bio: string; auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number }) => void
   savingSettings: boolean
   saveSettings: () => void
   autoAccept: boolean
@@ -572,8 +571,8 @@ export default function SettingsSection({
                           const data = await res.json()
                           if (!res.ok) throw new Error(data.error || 'Erreur')
                           setUploadMsg({ text: '✅ Photo enregistrée !', type: 'success' })
-                        } catch (err: any) {
-                          setUploadMsg({ text: `❌ ${err.message}`, type: 'error' })
+                        } catch (err: unknown) {
+                          setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
                         } finally {
                           setProfilePhotoUploading(false)
                         }
@@ -620,8 +619,8 @@ export default function SettingsSection({
                           const data = await res.json()
                           if (!res.ok) throw new Error(data.error || 'Erreur')
                           setUploadMsg({ text: '✅ Logo enregistré !', type: 'success' })
-                        } catch (err: any) {
-                          setUploadMsg({ text: `❌ ${err.message}`, type: 'error' })
+                        } catch (err: unknown) {
+                          setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
                         } finally {
                           setLogoUploading(false)
                         }

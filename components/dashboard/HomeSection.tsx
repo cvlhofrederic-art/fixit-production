@@ -115,7 +115,7 @@ export default function HomeSection({
             type: 'red',
             title: `${locale === 'pt' ? 'Fatura não paga' : 'Facture impayée'} — ${inv.client || inv.clientName || 'Client'}`,
             sub: `${inv.ref || inv.number || '—'} · ${formatPrice(inv.total || inv.amount || 0)}`,
-            time: formatRelativeTime(inv.date || inv.created_at, locale),
+            time: formatRelativeTime(inv.date || inv.created_at || '', locale),
           })
         })
         // Pending devis without response
@@ -125,7 +125,7 @@ export default function HomeSection({
             type: 'amber',
             title: `${locale === 'pt' ? 'Orçamento pendente' : 'Devis en attente'} — ${dv.client || dv.clientName || 'Client'}`,
             sub: `${dv.ref || dv.number || '—'} · ${locale === 'pt' ? 'sem resposta' : 'sans réponse'}`,
-            time: formatRelativeTime(dv.date || dv.created_at, locale),
+            time: formatRelativeTime(dv.date || dv.created_at || '', locale),
           })
         })
         setAlerts(alertItems)
@@ -198,8 +198,8 @@ export default function HomeSection({
                 const clientName = extractClientName(b)
                 const initials = getInitials(clientName)
                 const isUrgent = b.notes?.toLowerCase().includes('urgent')
-                const desc = b.services?.name || b.service_name || 'Intervention'
-                const time = b.booking_time?.substring(0, 5) || formatRelativeTime(b.created_at || b.booking_date, locale)
+                const desc = b.services?.name || (b as unknown as { service_name?: string }).service_name || 'Intervention'
+                const time = b.booking_time?.substring(0, 5) || formatRelativeTime(b.created_at || b.booking_date || '', locale)
                 return (
                   <div
                     key={b.id}
@@ -263,7 +263,7 @@ export default function HomeSection({
                         <span className="v22-ref">{b.booking_time?.substring(0, 5) || '—'}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{b.services?.name || 'RDV'} — {clientName}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)' }}>{b.address || ''}{b.duration ? ` · ${b.duration}` : ''}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)' }}>{b.address || ''}{ (b as unknown as { duration?: string | number }).duration ? ` · ${(b as unknown as { duration?: string | number }).duration}` : ''}</div>
                         </div>
                       </div>
                     )
@@ -353,7 +353,7 @@ export default function HomeSection({
                       </div>
                     </div>
                     <span className="v22-ref" style={{ flexShrink: 0 }}>
-                      {b.booking_time?.substring(0, 5) || formatRelativeTime(b.created_at, locale)}
+                      {b.booking_time?.substring(0, 5) || formatRelativeTime(b.created_at || '', locale)}
                     </span>
                   </div>
                 )

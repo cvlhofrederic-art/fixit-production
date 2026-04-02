@@ -116,7 +116,7 @@ export default function DevisSection({
                 </tr>
               </thead>
               <tbody>
-                {devisDocs.sort((a: any, b: any) => new Date(b.savedAt || b.docDate || 0).getTime() - new Date(a.savedAt || a.docDate || 0).getTime()).map((doc: any, i: number) => {
+                {devisDocs.sort((a: DevisDocument, b: DevisDocument) => new Date(b.savedAt || b.docDate || 0).getTime() - new Date(a.savedAt || a.docDate || 0).getTime()).map((doc: DevisDocument, i: number) => {
                   const totalHT = doc.lines?.reduce((s: number, l: DevisLine) => s + (l.totalHT || 0), 0) || 0
                   return (
                     <tr key={`saved-dev-${i}`}>
@@ -144,7 +144,7 @@ export default function DevisSection({
                           </button>
                           <button onClick={() => {
                             const { docNumber: _dn, id: _id, status: _st, sentAt: _sa, savedAt: _svd, signatureData: _sig, ...rest } = doc
-                            setConvertingDevis({ ...rest, docType: 'devis', isDuplicate: true })
+                            setConvertingDevis({ ...rest, id: Date.now().toString(), docType: 'devis', isDuplicate: true })
                             setShowDevisForm(true)
                           }}
                             className="v22-btn v22-btn-sm" title={locale === 'pt' ? 'Duplicar orçamento' : 'Dupliquer le devis'}>

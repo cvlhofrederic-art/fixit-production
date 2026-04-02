@@ -4,7 +4,7 @@ import React from 'react'
 
 interface EntrepriseLayoutProps {
   children: React.ReactNode
-  artisan: any
+  artisan: import('@/lib/types').Artisan
   activePage: string
   navigateTo: (page: string) => void
   sidebarOpen: boolean
@@ -124,7 +124,7 @@ export default function EntrepriseLayout({
     return activePage === item.page
   }
 
-  const companyName = artisan?.company_name || artisan?.name || 'Entreprise'
+  const companyName = artisan?.company_name || (artisan as unknown as { name?: string })?.name || 'Entreprise'
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: '#F5F4F0' }}>

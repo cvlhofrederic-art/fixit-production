@@ -11,6 +11,14 @@ import {
 } from '@/lib/declaration-sociale'
 import type { PeriodeDeclaration, ResultatCotisations } from '@/lib/declaration-sociale'
 
+interface HistoriqueEntry {
+  id: string
+  periode_label: string
+  ca_periode: number
+  cotisations_estimees: number
+  statut: 'declare' | 'ignore' | string
+}
+
 interface DeclarationData {
   configure: boolean
   pays: 'FR' | 'PT'
@@ -21,7 +29,7 @@ interface DeclarationData {
   ca: { montant: number; nb_factures: number }
   source_ca: 'factures' | 'bookings'
   cotisations: ResultatCotisations
-  historique: any[]
+  historique: HistoriqueEntry[]
 }
 
 function formatEur(v: number): string {
@@ -58,8 +66,8 @@ export default function DeclarationSocialeSection() {
       if (json.type_activite) setFormTypeActivite(json.type_activite)
       if (json.periodicite) setFormPeriodicite(json.periodicite)
       if (json.acre_actif) setFormAcre(json.acre_actif)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
@@ -312,7 +320,7 @@ export default function DeclarationSocialeSection() {
   const { periode, ca, cotisations, historique, pays, acre_actif } = data
   const urlDeclaration = pays === 'FR' ? URL_DECLARATION_FR : URL_DECLARATION_PT
   const alreadyDeclared = historique.some(
-    (h: any) => h.periode_label === periode.label && h.statut === 'declare'
+    (h: HistoriqueEntry) => h.periode_label === periode.label && h.statut === 'declare'
   )
 
   return (
@@ -490,7 +498,7 @@ export default function DeclarationSocialeSection() {
                 </tr>
               </thead>
               <tbody>
-                {historique.map((h: any) => (
+                {historique.map((h: HistoriqueEntry) => (
                   <tr key={h.id}>
                     <td style={{ padding: '10px 14px', fontWeight: 600 }}>{h.periode_label}</td>
                     <td style={{ padding: '10px 14px', textAlign: 'right' }}>{formatEur(h.ca_periode)}</td>

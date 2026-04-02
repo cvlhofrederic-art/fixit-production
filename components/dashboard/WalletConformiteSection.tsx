@@ -7,6 +7,24 @@ import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from 
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
+interface ScanResult {
+  docType?: string
+  confidence?: number
+  antiFraud?: {
+    suspicious?: boolean
+    reasons?: string[]
+    nameMatch?: boolean
+    nameOnDoc?: string
+    siretMatch?: boolean
+  }
+  extractedData?: {
+    insurerName?: string
+    contractNumber?: string
+    validTo?: string
+    [key: string]: unknown
+  }
+}
+
 // Documents supplémentaires spécifiques aux sociétés (en plus des docs communs + métier)
 const DOCS_SOCIETE_EXTRA: WalletDocConfig[] = [
   {
@@ -111,7 +129,7 @@ interface DocumentRowProps {
   fileInputRef: (el: HTMLInputElement | null) => void
   onFileChange: (f: File) => void
   t: (key: string) => string
-  scanResult?: any
+  scanResult?: ScanResult
   scanning?: boolean
   legalForm?: string | null
 }
@@ -193,20 +211,20 @@ function DocumentRow({
           {/* Résultat scan anti-fraude */}
           {scanResult && !scanning && (
             <div style={{ marginTop: 4, padding: '6px 8px', borderRadius: 6, fontSize: 11, lineHeight: 1.4,
-              background: scanResult.antiFraud.suspicious ? '#FEF2F2' : '#F0FDF4',
-              border: `1px solid ${scanResult.antiFraud.suspicious ? '#FECACA' : '#BBF7D0'}`,
+              background: scanResult.antiFraud?.suspicious ? '#FEF2F2' : '#F0FDF4',
+              border: `1px solid ${scanResult.antiFraud?.suspicious ? '#FECACA' : '#BBF7D0'}`,
             }}>
-              {scanResult.antiFraud.suspicious ? (
+              {scanResult.antiFraud?.suspicious ? (
                 <>
                   <div style={{ fontWeight: 700, color: '#DC2626', marginBottom: 2 }}>⚠️ Document suspect</div>
-                  {scanResult.antiFraud.reasons.map((r: string, i: number) => (
+                  {(scanResult.antiFraud.reasons ?? []).map((r: string, i: number) => (
                     <div key={i} style={{ color: '#991B1B' }}>• {r}</div>
                   ))}
                 </>
               ) : (
                 <>
                   <div style={{ fontWeight: 700, color: '#16A34A', marginBottom: 2 }}>✅ Document vérifié</div>
-                  {scanResult.antiFraud.nameMatch && (
+                  {scanResult.antiFraud?.nameMatch && (
                     <div style={{ color: '#166534' }}>• Nom correspondant : {scanResult.antiFraud.nameOnDoc}</div>
                   )}
                   {scanResult.extractedData?.insurerName && (
@@ -218,13 +236,13 @@ function DocumentRow({
                   {scanResult.extractedData?.validTo && (
                     <div style={{ color: '#166534' }}>• Valide jusqu&apos;au {new Date(scanResult.extractedData.validTo).toLocaleDateString(dateLocale)}</div>
                   )}
-                  {scanResult.antiFraud.siretMatch === true && (
+                  {scanResult.antiFraud?.siretMatch === true && (
                     <div style={{ color: '#166534' }}>• SIRET vérifié ✓</div>
                   )}
                 </>
               )}
               <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 2 }}>
-                Type détecté : {scanResult.docType} — confiance : {Math.round(scanResult.confidence * 100)}%
+                Type détecté : {scanResult.docType} — confiance : {Math.round((scanResult.confidence ?? 0) * 100)}%
               </div>
             </div>
           )}
@@ -306,7 +324,7 @@ function DocumentRow({
 }
 
 // ── Composant principal ──────────────────────────────────────
-export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }: { artisan: any; orgRole?: OrgRole }) {
+export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }: { artisan: import('@/lib/types').Artisan; orgRole?: OrgRole }) {
   const isSociete = orgRole === 'pro_societe'
   const { t } = useTranslation()
   const locale = useLocale()
@@ -315,7 +333,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
 
   // Docs dynamiques selon le/les métier(s) de l'artisan — tri intelligent par corps de métier
   // artisan.categories est un tableau de slugs ex: ['espaces-verts', 'nettoyage']
-  const { docs: baseDocs, metierLabel, fallback } = getWalletDocuments(artisan?.categories ?? artisan?.category)
+  const { docs: baseDocs, metierLabel, fallback } = getWalletDocuments((artisan as unknown as { categories?: string | string[] })?.categories ?? artisan?.category)
 
   // Pour pro_societe : ajouter les docs société extra non déjà présents (Statuts + Attestation fiscale)
   const WALLET_DOCS = isSociete
@@ -579,7 +597,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               t={t}
               scanResult={scanResults[docDef.id]}
               scanning={!!scanning[docDef.id]}
-              legalForm={(artisan?.legal_form as string) || null}
+              legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null}
             />
           ))}
         </div>
