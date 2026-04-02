@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -719,7 +720,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: any }
                           overflow: 'hidden',
                         }}>
                           {cand.profile?.photo_url
-                            ? <img src={cand.profile.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ? <Image src={cand.profile.photo_url} alt="" width={44} height={44} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : (cand.artisan_company_name || cand.profile?.company_name || '?')[0].toUpperCase()
                           }
                         </div>

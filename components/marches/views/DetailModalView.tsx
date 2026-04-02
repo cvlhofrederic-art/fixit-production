@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import Image from 'next/image'
 import { formatPrice } from '@/lib/utils'
 import { getCategoryLabel, daysRemaining, TIMELINE_OPTIONS } from './shared'
 
@@ -159,9 +160,9 @@ export default function DetailModalView({
                   <button
                     key={idx}
                     onClick={() => setSelectedPhotoIdx(idx)}
-                    style={{ aspectRatio: '1', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none' }}
+                    style={{ aspectRatio: '1', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none', position: 'relative' }}
                   >
-                    <img src={url} alt={`Photo ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <Image src={url} alt={`Photo ${idx + 1}`} fill style={{ objectFit: 'cover' }} />
                   </button>
                 ))}
               </div>
@@ -194,9 +195,11 @@ export default function DetailModalView({
                       ›
                     </button>
                   )}
-                  <img
+                  <Image
                     src={photos[selectedPhotoIdx]}
                     alt={`Photo ${selectedPhotoIdx + 1}`}
+                    width={1200}
+                    height={900}
                     style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 4, objectFit: 'contain' }}
                     onClick={(e) => e.stopPropagation()}
                   />
