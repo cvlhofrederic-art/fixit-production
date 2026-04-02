@@ -1,8 +1,18 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+
+const BTP_VALID_TABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp'] as const
+
+const btpBodySchema = z.object({
+  table: z.enum(BTP_VALID_TABLES),
+  action: z.enum(['insert', 'update', 'delete', 'upsert_settings', 'import']),
+  data: z.unknown().optional(),
+  id: z.string().optional(),
+})
 
 // ── GET /api/btp — Fetch all BTP data for the authenticated user ─────────────
 // Returns: chantiers, membres, equipes, pointages, depenses, settings
@@ -108,17 +118,15 @@ export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-  let body: any
-  try { body = await request.json() } catch {
+  let rawBody: unknown
+  try { rawBody = await request.json() } catch {
     return NextResponse.json({ error: 'Corps invalide' }, { status: 400 })
   }
 
-  const { table, action, data, id } = body
-  const validTables = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp']
+  const parsed = btpBodySchema.safeParse(rawBody)
+  if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-  if (!validTables.includes(table)) {
-    return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
-  }
+  const { table, action, data, id } = parsed.data as { table: typeof BTP_VALID_TABLES[number]; action: string; data: any; id?: string }
 
   try {
     // ── Import from localStorage (batch insert) ──────────────────────────────

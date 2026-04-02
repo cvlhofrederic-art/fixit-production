@@ -12,7 +12,26 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 // Modèle : llama-3.3-70b-versatile (Groq)
 // Périmètre strict : comptabilité syndic + copropriété (JAMAIS artisan)
 
-function buildSystemPrompt(ctx: any): string {
+interface LeaContext {
+  immeuble?: {
+    nom?: string; adresse?: string; codePostal?: string; ville?: string;
+    typeImmeuble?: string; nbLots?: number; anneeConstruction?: number;
+    budgetAnnuel?: number; depensesAnnee?: number; pctBudget?: number;
+    reglementTexte?: string; reglementChargesRepartition?: string;
+    reglementMajoriteAG?: string; reglementFondsTravaux?: boolean;
+    reglementFondsRoulementPct?: number;
+  }
+  cabinet?: { nom?: string; gestionnaire?: string }
+  lots?: Array<{ numero: string | number; proprietaire: string; tantieme: number }>
+  ecritures?: Array<{ date: string; journal: string; libelle: string; debit: number; credit: number; compte: string }>
+  ecrituresStats?: { totalDebit?: number; totalCredit?: number; solde?: number }
+  appels?: Array<{ statut: string; periode: string; totalBudget: number | string }>
+  budgets?: Array<{ immeuble: string; annee: string | number; postes?: Array<{ libelle: string; budget: number; realise: number }> }>
+  totalTantiemes?: number
+  user_name?: string
+}
+
+function buildSystemPrompt(ctx: LeaContext): string {
   const today = new Date().toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
@@ -21,7 +40,7 @@ function buildSystemPrompt(ctx: any): string {
 
   // ── Données comptables injectées ──────────────────────────────────
   const lotsBlock = (ctx.lots || []).length > 0
-    ? (ctx.lots as any[]).map((l: any) => {
+    ? (ctx.lots || []).map((l) => {
         const totalT = ctx.totalTantiemes || 1
         const pct = ((l.tantieme / totalT) * 100).toFixed(2)
         const quotePart = ((l.tantieme / totalT) * (imm.budgetAnnuel || 0)).toFixed(2)
@@ -31,16 +50,16 @@ function buildSystemPrompt(ctx: any): string {
 
   const ecrituresStats = ctx.ecrituresStats || {}
   const ecrituresBlock = (ctx.ecritures || []).length > 0
-    ? `${(ctx.ecritures as any[]).slice(0, 30).map((e: any) => `  [${e.date}] ${e.journal} | ${e.libelle} | D:${e.debit}€ C:${e.credit}€ | Cpte:${e.compte}`).join('\n')}`
+    ? `${(ctx.ecritures || []).slice(0, 30).map((e) => `  [${e.date}] ${e.journal} | ${e.libelle} | D:${e.debit}€ C:${e.credit}€ | Cpte:${e.compte}`).join('\n')}`
     : '  (aucune écriture)'
 
   const appelsBlock = (ctx.appels || []).length > 0
-    ? (ctx.appels as any[]).map((a: any) => `  [${a.statut}] ${a.periode} — Budget: ${Number(a.totalBudget).toLocaleString('fr-FR')} €`).join('\n')
+    ? (ctx.appels || []).map((a) => `  [${a.statut}] ${a.periode} — Budget: ${Number(a.totalBudget).toLocaleString('fr-FR')} €`).join('\n')
     : '  (aucun appel de charges)'
 
   const budgetsBlock = (ctx.budgets || []).length > 0
-    ? (ctx.budgets as any[]).map((b: any) =>
-        `  ${b.immeuble} ${b.annee} — ${(b.postes || []).map((p: any) => `${p.libelle}: ${p.budget}€ prévu / ${p.realise}€ réalisé`).join(', ')}`
+    ? (ctx.budgets || []).map((b) =>
+        `  ${b.immeuble} ${b.annee} — ${(b.postes || []).map((p) => `${p.libelle}: ${p.budget}€ prévu / ${p.realise}€ réalisé`).join(', ')}`
       ).join('\n')
     : ''
 
@@ -254,7 +273,7 @@ Chaque réponse doit être : comptablement exacte, immédiatement exploitable, j
 
 // ── Léa PT — Assistente Contabilística Profissional Condomínio ───────────────
 // Versão portuguesa — legislação PT, SNC, IVA, PT-PT
-function buildPtSystemPrompt(ctx: any): string {
+function buildPtSystemPrompt(ctx: LeaContext): string {
   const today = new Date().toLocaleDateString('pt-PT', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
@@ -263,7 +282,7 @@ function buildPtSystemPrompt(ctx: any): string {
 
   // ── Dados contabilísticos injetados ────────────────────────────────
   const lotsBlock = (ctx.lots || []).length > 0
-    ? (ctx.lots as any[]).map((l: any) => {
+    ? (ctx.lots || []).map((l) => {
         const totalT = ctx.totalTantiemes || 1
         const pct = ((l.tantieme / totalT) * 100).toFixed(2)
         const quotePart = ((l.tantieme / totalT) * (imm.budgetAnnuel || 0)).toFixed(2)
@@ -273,16 +292,16 @@ function buildPtSystemPrompt(ctx: any): string {
 
   const ecrituresStats = ctx.ecrituresStats || {}
   const ecrituresBlock = (ctx.ecritures || []).length > 0
-    ? `${(ctx.ecritures as any[]).slice(0, 30).map((e: any) => `  [${e.date}] ${e.journal} | ${e.libelle} | D:${e.debit}€ C:${e.credit}€ | Conta:${e.compte}`).join('\n')}`
+    ? `${(ctx.ecritures || []).slice(0, 30).map((e) => `  [${e.date}] ${e.journal} | ${e.libelle} | D:${e.debit}€ C:${e.credit}€ | Conta:${e.compte}`).join('\n')}`
     : '  (nenhum lançamento)'
 
   const appelsBlock = (ctx.appels || []).length > 0
-    ? (ctx.appels as any[]).map((a: any) => `  [${a.statut}] ${a.periode} — Orçamento: ${Number(a.totalBudget).toLocaleString('pt-PT')} €`).join('\n')
+    ? (ctx.appels || []).map((a) => `  [${a.statut}] ${a.periode} — Orçamento: ${Number(a.totalBudget).toLocaleString('pt-PT')} €`).join('\n')
     : '  (nenhum aviso de cobrança)'
 
   const budgetsBlock = (ctx.budgets || []).length > 0
-    ? (ctx.budgets as any[]).map((b: any) =>
-        `  ${b.immeuble} ${b.annee} — ${(b.postes || []).map((p: any) => `${p.libelle}: ${p.budget}€ previsto / ${p.realise}€ realizado`).join(', ')}`
+    ? (ctx.budgets || []).map((b) =>
+        `  ${b.immeuble} ${b.annee} — ${(b.postes || []).map((p) => `${p.libelle}: ${p.budget}€ previsto / ${p.realise}€ realizado`).join(', ')}`
       ).join('\n')
     : ''
 
@@ -514,7 +533,7 @@ Cada resposta deve ser: contabilisticamente exata, imediatamente utilizável, ju
 }
 
 // ── Fallback sans API Groq ────────────────────────────────────────────────────
-function generateFallback(message: string, ctx: any, isPt = false): string {
+function generateFallback(message: string, ctx: LeaContext, isPt = false): string {
   const msg = message.toLowerCase()
   const imm = ctx.immeuble || {}
 
@@ -585,8 +604,8 @@ export async function POST(request: NextRequest) {
     const systemPrompt = isPt ? buildPtSystemPrompt(syndic_context) : buildSystemPrompt(syndic_context)
 
     const historyMessages = limitedHistory
-      .filter((m: any) => m.role && m.content)
-      .map((m: any) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+      .filter((m: { role?: string; content?: string }) => m.role && m.content)
+      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -594,7 +613,7 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    let groqData: any
+    let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
     try {
       groqData = await callGroqWithRetry({
         messages,
@@ -613,7 +632,7 @@ export async function POST(request: NextRequest) {
       || (isPt ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
 
     // Extraire l'action comptable si présente
-    let comptaAction: any = null
+    let comptaAction: Record<string, unknown> | null = null
     const actionMatch = response.match(/##COMPTA_ACTION##([\s\S]*?)##/)
     if (actionMatch) {
       try {
@@ -626,7 +645,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ response, action: comptaAction })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Léa Comptable error:', err)
     return NextResponse.json({ error: 'Uma erro interno ocorreu / Une erreur interne est survenue' }, { status: 500 })
   }

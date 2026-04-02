@@ -1,10 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 const log = logger.withTenant('api/user/delete-account')
+
+const deleteAccountSchema = z.object({
+  confirmation: z.literal('DELETE_MY_ACCOUNT'),
+})
 
 // DELETE /api/user/delete-account
 // RGPD Art. 17 — Droit à l'effacement
@@ -18,6 +23,11 @@ export async function DELETE(request: NextRequest) {
 
   // Rate limit par user (pas IP) — un seul user ne peut tenter que 3 suppressions/min
   if (!(await checkRateLimit(`delete_account_${user.id}`, 3, 60_000))) return rateLimitResponse()
+
+  let body: unknown
+  try { body = await request.json() } catch { body = {} }
+  const parsed = deleteAccountSchema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
   const userId = user.id
   const errors: string[] = []

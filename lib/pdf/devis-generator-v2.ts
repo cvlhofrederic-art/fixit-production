@@ -53,6 +53,7 @@ export interface DevisGeneratorInput {
   mediateur_url?: string
   penalite_retard?: string
   dechets_chantier?: string // FIX FINAL #6: mention optionnelle déchets
+  isHorsEtablissement?: boolean // Rétractation B2C hors établissement uniquement
   locale?: 'fr' | 'pt'
 }
 
@@ -196,6 +197,32 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const { jsPDF } = await import('jspdf')
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+  // ── Embed Liberation Sans TTF for full Unicode support (€, ², °, accents) ──
+  try {
+    const [regularRes, boldRes] = await Promise.all([
+      fetch('/fonts/LiberationSans-Regular.ttf'),
+      fetch('/fonts/LiberationSans-Bold.ttf'),
+    ])
+    if (regularRes.ok && boldRes.ok) {
+      const [regularBuf, boldBuf] = await Promise.all([regularRes.arrayBuffer(), boldRes.arrayBuffer()])
+      const toBase64 = (buf: ArrayBuffer) => {
+        const bytes = new Uint8Array(buf)
+        let binary = ''
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+        return btoa(binary)
+      }
+      pdf.addFileToVFS('LiberationSans-Regular.ttf', toBase64(regularBuf))
+      pdf.addFont('LiberationSans-Regular.ttf', 'LiberationSans', 'normal')
+      pdf.addFileToVFS('LiberationSans-Bold.ttf', toBase64(boldBuf))
+      pdf.addFont('LiberationSans-Bold.ttf', 'LiberationSans', 'bold')
+      pdf.setFont('LiberationSans', 'normal')
+    }
+  } catch { /* fallback to helvetica */ }
+
+  // Use loaded font or fallback
+  const FONT = pdf.getFontList()['LiberationSans'] ? 'LiberationSans' : 'helvetica'
+
   const pageW = pdf.internal.pageSize.getWidth()   // 210
   const pageH = pdf.internal.pageSize.getHeight()   // 297
   const contentW = pageW - ML - MR                   // ~174mm
@@ -252,11 +279,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // ═══════════════════════════════════════════════════════════
 
   y = ptToMm(71)
-  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(16); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFont(FONT, 'bold'); pdf.setFontSize(16); pdf.setTextColor(COLOR.TEXT)
   pdf.text(input.devis.titre, pageW / 2, y, { align: 'center' })
 
   y += ptToMm(20)
-  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.setFont(FONT, 'normal'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text(input.devis.numero, pageW / 2, y, { align: 'center' })
 
   y += ptToMm(12)
@@ -304,11 +331,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   // ── Émetteur (texte par-dessus, UNE SEULE FOIS) ──
   let ey = boxStartY + boxPadTop
-  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.setFontSize(7); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text('ÉMETTEUR', TEXT_X_EM, ey)
   ey += ptToMm(18)
 
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(10); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   pdf.text(`Société : ${input.artisan.nom}`, TEXT_X_EM, ey)
   ey += ptToMm(14)
   if (input.artisan.siret) { pdf.text(`SIRET : ${input.artisan.siret}`, TEXT_X_EM, ey); ey += ptToMm(14) }
@@ -363,11 +390,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   // ── Destinataire (texte par-dessus, UNE SEULE FOIS) ──
   let dy = boxStartY + boxPadTop
-  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.setFontSize(7); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text('DESTINATAIRE', TEXT_X_DEST, dy)
   dy += ptToMm(18)
 
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(10); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   // FIX FINAL #3: "Société" si SIRET client, "Nom" si particulier
   const clientLabel = input.client.siret ? 'Société' : 'Nom'
   pdf.text(`${clientLabel} : ${input.client.nom || '---'}`, TEXT_X_DEST, dy)
@@ -420,11 +447,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   dateVSeps.forEach(x => drawVLine(x, y, y + dateBoxH, COLOR.BORDER, 0.18))
 
   dateCols.forEach((c, i) => {
-    pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.setFontSize(7); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
     pdf.text(c.label, dateCenters[i], y + ptToMm(14), { align: 'center' })
   })
   dateCols.forEach((c, i) => {
-    pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+    pdf.setFontSize(10); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
     pdf.text(c.value, dateCenters[i], dateSepY + ptToMm(17), { align: 'center' })
   })
 
@@ -441,7 +468,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const drawTableHeader = () => {
     pdf.setFillColor(COLOR.BLACK)
     pdf.rect(ML, y, contentW, headerH, 'F')
-    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.WHITE)
+    pdf.setFont(FONT, 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.WHITE)
     const hTextY = y + headerH / 2 + 1
     pdf.text('DÉSIGNATION', ptToMm(62), hTextY)
     pdf.text('QTÉ', 121.92, hTextY, { align: 'center' })
@@ -461,7 +488,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
     // Mesurer les hauteurs nécessaires — largeur = de x=62pt à la colonne QTÉ
     const desigTextW = tColWidths.designation - (ptToMm(62) - ML) - 2
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10)
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(10)
     const titleWrapped = pdf.splitTextToSize(title, desigTextW)
     let descWrapped: string[] = []
     if (detail) {
@@ -484,7 +511,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
     // Titre (10pt TEXT) — UNE SEULE FOIS
     let textY = y + 5
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
     for (let i = 0; i < titleWrapped.length; i++) {
       pdf.text(titleWrapped[i], TEXT_LEFT, textY)
       textY += ptToMm(14)
@@ -502,7 +529,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     // Étapes du chantier — alignées avec TEXT_LEFT (même x que Désignation)
     if (lineEtapes.length > 0) {
       textY += ptToMm(4)
-      pdf.setFontSize(7.5); pdf.setTextColor('#555555'); pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(7.5); pdf.setTextColor('#555555'); pdf.setFont(FONT, 'normal')
       for (let ei = 0; ei < lineEtapes.length; ei++) {
         pdf.text(`${ei + 1}. ${lineEtapes[ei].designation}`, TEXT_LEFT, textY)
         textY += ptToMm(11)
@@ -511,11 +538,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
     // Données numériques — alignées avec le TITRE (y + 5), pas centrées verticalement
     const numY = y + 5
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
     pdf.text(String(line.quantite), 121.92, numY, { align: 'center' })
     pdf.text(formatUnitForPdf(line.unite), 135.41, numY, { align: 'center' })
     pdf.text(formatPrice(line.prix_unitaire), 162.26, numY, { align: 'right' })
-    pdf.setFont('helvetica', 'bold')
+    pdf.setFont(FONT, 'bold')
     pdf.text(formatPrice(line.total), 188.71, numY, { align: 'right' })
 
     // Bordure bas
@@ -550,13 +577,13 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     let globalIdx = 0
     for (const [section, lines] of Object.entries(grouped)) {
       checkPageBreak(headerH + minRowH * lines.length + 12)
-      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
       pdf.text(SECTION_LABELS[section] || section.toUpperCase(), ML, y + 4)
       y += 7
       drawTableHeader()
       let st = 0
       lines.forEach((l, i) => { drawRow(l, i, getEtapesForLine(l, globalIdx)); st += l.total; globalIdx++ })
-      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
+      pdf.setFont(FONT, 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
       pdf.text(`Sous-total : ${formatPrice(st)}`, ML + contentW - 3, y + 4, { align: 'right' })
       y += 8
     }
@@ -573,11 +600,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.setFillColor(COLOR.BG_GRAY); pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
   pdf.rect(ML, y, contentW, stH, 'FD')
 
-  pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+  pdf.setFontSize(7.5); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
   pdf.text(input.artisan.tva_mention, 21.16, y + stH / 2 + 1)
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('Sous-total', 148.15, y + stH / 2 + 1)
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(10); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text(formatPrice(totalNet), 188.71, y + stH / 2 + 1, { align: 'right' })
   y += stH
 
@@ -589,7 +616,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const totH = ptToMm(27)
   pdf.setFillColor(COLOR.BG_GRAY)
   pdf.rect(DEST_X0, y, DEST_W, totH, 'F')
-  pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(12); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('TOTAL NET', DEST_X0 + boxPadX, y + totH / 2 + 1.5)
   pdf.text(formatPrice(totalNet), DEST_X0 + DEST_W - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
   y += totH + 4
@@ -602,11 +629,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const condStartY = y
 
   // CONDITIONS (fond blanc, pas de bordure) — aligné avec BON POUR ACCORD (+5mm)
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(10); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('CONDITIONS', ML, condStartY + 5)
   let cy = condStartY + 13
 
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   const condLines = [
     `Validité du devis : ${input.devis.validite_jours} jours à compter de la date d'émission.`,
     `Délai d'exécution : ${input.devis.delai_execution || 'À convenir'}.`,
@@ -622,7 +649,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   if (input.notes && input.notes.trim()) {
     cy += 2
-    pdf.setFont('helvetica', 'italic'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
+    pdf.setFont(FONT, 'italic'); pdf.setFontSize(9); pdf.setTextColor(COLOR.TEXT)
     const noteWrapped = pdf.splitTextToSize(input.notes.trim(), EM_W - 4)
     pdf.text(noteWrapped, ML, cy)
     cy += noteWrapped.length * ptToMm(13)
@@ -630,7 +657,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   // FIX FINAL #1: Pénalités de retard (obligation légale, toujours affiché)
   cy += 3
-  pdf.setFontSize(7); pdf.setFont('helvetica', 'normal'); pdf.setTextColor('#888888')
+  pdf.setFontSize(7); pdf.setFont(FONT, 'normal'); pdf.setTextColor('#888888')
   const penaltyRate = input.penalite_retard || '3 fois le taux d\'intérêt légal'
   const penaltyLines = [
     `Pénalités de retard : ${penaltyRate}.`,
@@ -651,19 +678,19 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   pdf.line(DEST_X0 + DEST_W, condStartY, DEST_X0 + DEST_W, condStartY + sigH) // droite
   pdf.line(DEST_X0, condStartY + sigH, DEST_X0 + DEST_W, condStartY + sigH)   // bas
 
-  pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9.5); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('BON POUR ACCORD', DEST_X0 + boxPadX, condStartY + 5)
 
   let sy = condStartY + 12
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
 
   if (input.signature) {
     try {
       pdf.addImage(input.signature.image_base64, 'PNG', DEST_X0 + boxPadX, sy, DEST_W - boxPadX * 2 - 10, 18)
       sy += 20
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(7); pdf.setFont(FONT, 'bold')
       pdf.text(input.signature.signe_par, DEST_X0 + boxPadX, sy)
-      pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
+      pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
       pdf.text(formatDate(input.signature.signe_le), DEST_X0 + boxPadX, sy + 3)
     } catch { pdf.text(input.signature.signe_par, DEST_X0 + boxPadX, sy) }
   } else {
@@ -689,11 +716,11 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.setFillColor(COLOR.BG_GRAY); pdf.setDrawColor(COLOR.BORDER); pdf.setLineWidth(0.18)
     pdf.rect(DEST_X0, y, DEST_W, acBlockH, 'FD')
     // Titre — même position relative que BON POUR ACCORD (+5mm)
-    pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+    pdf.setFontSize(9); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
     pdf.text('ÉCHÉANCIER DE PAIEMENT', DEST_X0 + boxPadX, y + 5)
     // Première ligne à +12mm (même gap que BON POUR ACCORD titre→contenu)
     let ay = y + 12
-    pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+    pdf.setFontSize(8); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
     // Normaliser les labels acomptes en FR (éviter mélange PT/FR)
     const normLabel = (label: string, idx: number) => {
       if (/adiantamento/i.test(label)) return `Acompte ${idx + 1}`
@@ -715,9 +742,9 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       // FIX FINAL #4: afficher pourcentage si disponible
       const pctStr = ac.pourcentage ? `${ac.pourcentage}% ` : ''
       pdf.text(`${label} : ${pctStr}${trigger}`, DEST_X0 + boxPadX, ay)
-      pdf.setFont('helvetica', 'bold')
+      pdf.setFont(FONT, 'bold')
       pdf.text(formatPrice(ac.montant), DEST_X0 + DEST_W - boxPadX, ay, { align: 'right' })
-      pdf.setFont('helvetica', 'normal')
+      pdf.setFont(FONT, 'normal')
       ay += ptToMm(13)
     }
     y += acBlockH + 4
@@ -760,12 +787,12 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const legalY = pageH - 18
   if (y < legalY - 2) {
     drawHLine(ML, legalY, xRight, COLOR.BORDER, 0.18)
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
     pdf.text(pdf.splitTextToSize(legalParagraph, contentW), ML, legalY + 3)
   } else {
     y += 4
     drawHLine(ML, y, xRight, COLOR.BORDER, 0.18); y += 3
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(COLOR.TEXT_LIGHT)
     const lw = pdf.splitTextToSize(legalParagraph, contentW)
     pdf.text(lw, ML, y); y += lw.length * ptToMm(10)
   }
@@ -774,18 +801,18 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // PAGE 2: DROIT DE RÉTRACTATION (B2C uniquement — art. L. 221-18 C. conso.)
   // ═══════════════════════════════════════════════════════════
 
-  if (!input.client.siret) {
+  if (input.isHorsEtablissement !== false && !input.client.siret) {
   pdf.addPage()
   let ry = 8
   pdf.setFillColor(COLOR.ACCENT); pdf.rect(ML, ry, contentW, ptToMm(3), 'F')
   ry += ptToMm(3) + 8
 
-  pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(12); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('DROIT DE RÉTRACTATION', ML, ry); ry += 5
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   pdf.text('Article L. 221-18 du Code de la consommation', ML, ry); ry += 8
 
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   const retTexts = [
     "Le client dispose d'un délai de 14 jours calendaires à compter de la signature du présent devis pour exercer son droit de rétractation, sans avoir à justifier de motifs ni à payer de pénalités.",
     "Pour exercer ce droit, le client peut utiliser le formulaire ci-dessous ou adresser toute déclaration dénuée d'ambiguïté exprimant sa volonté de se rétracter.",
@@ -799,21 +826,21 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
 
   // Formulaire rétractation
   pdf.setFillColor(COLOR.TEXT); pdf.rect(ML, ry, contentW, 8, 'F')
-  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR.WHITE)
+  pdf.setFontSize(10); pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.WHITE)
   pdf.text('FORMULAIRE DE RÉTRACTATION', ML + boxPadX, ry + 5.5)
   ry += 12
 
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR.TEXT)
+  pdf.setFontSize(9); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT)
   const formAttn = `À l'attention de : `
   pdf.text(formAttn, ML + boxPadX, ry)
   const atW = pdf.getTextWidth(formAttn)
-  pdf.setFont('helvetica', 'bold')
+  pdf.setFont(FONT, 'bold')
   // Utiliser l'adresse normalisée pour le formulaire aussi
   const artAddr = titleCaseAddress(input.artisan.adresse)
   pdf.text(`${input.artisan.nom}, ${artAddr}`, ML + boxPadX + atW, ry)
   ry += 6
 
-  pdf.setFont('helvetica', 'normal')
+  pdf.setFont(FONT, 'normal')
   pdf.text('Je notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessus.', ML + boxPadX, ry)
   ry += 8
 
@@ -835,7 +862,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   const totalPages = pdf.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     pdf.setPage(i)
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
+    pdf.setFont(FONT, 'normal'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT_LIGHT)
     pdf.text(`Page ${i}/${totalPages}`, xRight - 2, pageH - 3.2, { align: 'right' })
   }
 

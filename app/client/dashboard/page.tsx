@@ -86,6 +86,9 @@ export default function ClientDashboardPage() {
   const [trackingData, setTrackingData] = useState<Record<string, { lat: number; lng: number; eta: number; active: boolean }>>({})
   // ── Favoris ──
   const [favoris, setFavoris] = useState<string[]>([])
+  // ── Loading states ──
+  const [logoutLoading, setLogoutLoading] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   // ── Messagerie ──
   const [messageModal, setMessageModal] = useState<Booking | null>(null)
@@ -182,6 +185,7 @@ export default function ClientDashboardPage() {
   }
 
   const handleLogout = async () => {
+    setLogoutLoading(true)
     await supabase.auth.signOut()
     window.location.href = `/${locale}/`
   }
@@ -233,6 +237,7 @@ export default function ClientDashboardPage() {
 
   // ── Télécharger devis en PDF ──
   const downloadDevisPdf = async (doc: BookingDocument) => {
+    setDownloadingPdf(true)
     try {
       const { default: jsPDF } = await import('jspdf')
       const pdf = new jsPDF('p', 'mm', 'a4')
@@ -315,6 +320,8 @@ export default function ClientDashboardPage() {
     } catch (e) {
       console.error('[downloadDevisPdf] Error:', e)
       toast.error('Erreur de génération du PDF')
+    } finally {
+      setDownloadingPdf(false)
     }
   }
 
@@ -872,13 +879,14 @@ export default function ClientDashboardPage() {
               })}
               <button
                 onClick={handleLogout}
+                disabled={logoutLoading}
                 className="flex items-center gap-3 w-full text-left transition-colors"
-                style={{ padding: '10px 12px', borderRadius: 10, fontSize: 14, color: '#EF4444', border: 'none', cursor: 'pointer', background: 'transparent' }}
-                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2'}
+                style={{ padding: '10px 12px', borderRadius: 10, fontSize: 14, color: '#EF4444', border: 'none', cursor: logoutLoading ? 'not-allowed' : 'pointer', background: 'transparent', opacity: logoutLoading ? 0.6 : 1 }}
+                onMouseEnter={e => { if (!logoutLoading) (e.currentTarget as HTMLButtonElement).style.background = '#FEF2F2' }}
                 onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'transparent'}
               >
                 <LogOut className="w-[18px] h-[18px]" />
-                <span>{t('clientDash.header.logout')}</span>
+                <span>{logoutLoading ? '...' : t('clientDash.header.logout')}</span>
               </button>
             </nav>
           </div>
@@ -944,6 +952,7 @@ export default function ClientDashboardPage() {
               fetchDocuments={fetchDocuments}
               openMessages={openMessages}
               downloadDevisPdf={downloadDevisPdf}
+              downloadingPdf={downloadingPdf}
               setActiveTab={setActiveTab}
               formatDateLocal={formatDateLocal}
             />

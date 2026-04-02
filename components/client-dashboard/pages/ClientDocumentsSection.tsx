@@ -29,6 +29,7 @@ interface ClientDocumentsSectionProps {
   fetchDocuments: () => void
   openMessages: (booking: Booking) => void
   downloadDevisPdf: (doc: BookingDocument) => void
+  downloadingPdf?: boolean
   setActiveTab: (tab: string) => void
   setAnalyseFilename: (name: string) => void
   formatDateLocal: (dateStr: string) => string
@@ -37,7 +38,7 @@ interface ClientDocumentsSectionProps {
 export default function ClientDocumentsSection(props: ClientDocumentsSectionProps) {
   const {
     documents, documentsLoading, bookings, locale, t,
-    fetchDocuments, openMessages, downloadDevisPdf, setActiveTab, setAnalyseFilename, formatDateLocal,
+    fetchDocuments, openMessages, downloadDevisPdf, downloadingPdf = false, setActiveTab, setAnalyseFilename, formatDateLocal,
   } = props
 
   const [compareMode, setCompareMode] = useState(false)
@@ -224,9 +225,10 @@ export default function ClientDocumentsSection(props: ClientDocumentsSectionProp
                       </button>
                       <button
                         onClick={() => downloadDevisPdf(doc)}
-                        className="text-xs font-semibold px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1"
+                        disabled={downloadingPdf}
+                        className="text-xs font-semibold px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <FileText className="w-3 h-3" /> PDF
+                        <FileText className="w-3 h-3" /> {downloadingPdf ? '...' : 'PDF'}
                       </button>
                       <button
                         onClick={() => openMessages(booking)}
@@ -240,9 +242,10 @@ export default function ClientDocumentsSection(props: ClientDocumentsSectionProp
                     <div className="flex gap-2 mt-3">
                       <button
                         onClick={() => downloadDevisPdf(doc)}
-                        className="text-xs font-semibold px-3 py-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition flex items-center gap-1"
+                        disabled={downloadingPdf}
+                        className="text-xs font-semibold px-3 py-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <FileText className="w-3 h-3" /> Télécharger PDF signé
+                        <FileText className="w-3 h-3" /> {downloadingPdf ? '...' : 'Télécharger PDF signé'}
                       </button>
                     </div>
                   )}

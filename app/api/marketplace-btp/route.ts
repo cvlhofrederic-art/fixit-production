@@ -3,9 +3,38 @@
  * POST /api/marketplace-btp  — créer une annonce (auth requis)
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import type { CreateListingPayload } from '@/lib/marketplace-btp-types'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+
+const MARKETPLACE_CATEGORIE_IDS = [
+  'engins_tp', 'grues_levage', 'camions', 'echafaudages', 'outillage_pro',
+  'materiaux_gros', 'materiaux_second', 'materiel_electro', 'autre_pro',
+  'mini_engins', 'materiel_leger',
+] as const
+
+const listingBodySchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  categorie: z.enum(MARKETPLACE_CATEGORIE_IDS),
+  type_annonce: z.enum(['vente', 'location', 'vente_location']),
+  etat: z.enum(['neuf', 'bon', 'correct', 'use']),
+  prix_vente: z.number().positive().optional(),
+  prix_location_jour: z.number().positive().optional(),
+  prix_location_semaine: z.number().positive().optional(),
+  prix_location_mois: z.number().positive().optional(),
+  disponible_de: z.string().optional(),
+  disponible_jusqu: z.string().optional(),
+  localisation: z.string().optional(),
+  country: z.string().optional(),
+  marque: z.string().optional(),
+  modele: z.string().optional(),
+  annee: z.number().int().min(1900).max(2100).optional(),
+  caracteristiques: z.record(z.string(), z.string()).optional(),
+  vendeur_nom: z.string().optional(),
+  vendeur_phone: z.string().optional(),
+})
 
 function getAdmin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -61,16 +90,15 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authErr } = await getAnon().auth.getUser(token)
     if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body: CreateListingPayload & { accessible_ae?: boolean } = await req.json()
-    const { title, categorie, type_annonce, etat } = body
+    const rawBody = await req.json()
+    const parsed = listingBodySchema.safeParse(rawBody)
+    if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-    if (!title || !categorie || !type_annonce || !etat) {
-      return NextResponse.json({ error: 'title, categorie, type_annonce, etat requis' }, { status: 400 })
-    }
+    const body = parsed.data
 
     // Déterminer accessible_ae selon la catégorie
     const AE_CATS = ['mini_engins', 'materiel_leger']
-    const accessible_ae = AE_CATS.includes(categorie)
+    const accessible_ae = AE_CATS.includes(body.categorie)
 
     const { data, error } = await getAdmin()
       .from('marketplace_listings')

@@ -23,9 +23,10 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
   })
 
   // ── Sérialisation de toutes les interventions terminées
-  const bookingLines = (ctx.allBookings || [])
-    .filter((b: any) => b.status === 'completed')
-    .map((b: any) => {
+  interface BookingEntry { status: string; clientName?: string; serviceName?: string; price_ht?: number; price_ttc?: number; booking_date: string; duration_minutes?: number; address?: string }
+  const bookingLines = (ctx.allBookings as BookingEntry[] || [])
+    .filter((b) => b.status === 'completed')
+    .map((b) => {
       const client = b.clientName || 'Client'
       const service = b.serviceName || 'Intervention'
       const ht = b.price_ht ?? (b.price_ttc ? b.price_ttc / 1.2 : 0)
@@ -36,9 +37,10 @@ function buildSystemPrompt(ctx: Record<string, any>): string {
     .join('\n')
 
   // ── Sérialisation de toutes les charges
-  const expenseLines = (ctx.allExpenses || [])
-    .map((e: any) =>
-      `  ${e.date} | ${e.category} | ${e.label} | ${fmt(parseFloat(e.amount ?? 0))}${e.notes ? ` | Note: ${e.notes}` : ''}`
+  interface ExpenseEntry { date: string; category: string; label: string; amount?: string | number; notes?: string }
+  const expenseLines = (ctx.allExpenses as ExpenseEntry[] || [])
+    .map((e) =>
+      `  ${e.date} | ${e.category} | ${e.label} | ${fmt(parseFloat(String(e.amount ?? 0)))}${e.notes ? ` | Note: ${e.notes}` : ''}`
     )
     .join('\n')
 
@@ -296,16 +298,15 @@ export async function POST(request: NextRequest) {
       }
     }
     const { message, conversationHistory, messages: directMessages, systemPrompt: customSystemPrompt, locale: bodyLocale } = body
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context has dynamic shape from frontend
-    const financialContext = body.financialContext as Record<string, any> | undefined
-    const locale = bodyLocale || financialContext?.locale
+    const financialContext = body.financialContext as Record<string, unknown> | undefined
+    const locale = (bodyLocale || financialContext?.locale) as string | undefined
 
     // ── Mode direct (agent copropriété) : messages + systemPrompt fournis directement ──
     if (directMessages && Array.isArray(directMessages)) {
       const systemPrompt = customSystemPrompt || buildSystemPrompt({})
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...directMessages.slice(-20).map((m: any) => ({ role: m.role, content: m.content })),
+        ...directMessages.slice(-20).map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
       ]
 
       if (!GROQ_API_KEY) {
@@ -336,9 +337,10 @@ export async function POST(request: NextRequest) {
         new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(v)
 
       // ── Sérialisation interventions PT
-      const bookingLinesPt = (ctx.allBookings || [])
-        .filter((b: any) => b.status === 'completed')
-        .map((b: any) => {
+      interface BookingRecord { status: string; clientName?: string; serviceName?: string; price_ht?: number; price_ttc?: number; booking_date: string; duration_minutes?: number; address?: string }
+      const bookingLinesPt = (ctx.allBookings as BookingRecord[] || [])
+        .filter((b) => b.status === 'completed')
+        .map((b) => {
           const client = b.clientName || 'Cliente'
           const service = b.serviceName || 'Intervenção'
           const sIVA = b.price_ht ?? (b.price_ttc ? b.price_ttc / 1.23 : 0)
@@ -349,16 +351,17 @@ export async function POST(request: NextRequest) {
         .join('\n')
 
       // ── Sérialisation despesas PT
-      const expenseLinesPt = (ctx.allExpenses || [])
-        .map((e: any) =>
-          `  ${e.date} | ${e.category} | ${e.label} | ${fmtPt(parseFloat(e.amount ?? 0))}${e.notes ? ` | Nota: ${e.notes}` : ''}`
+      interface ExpenseRecord { date: string; category: string; label: string; amount?: string | number; notes?: string }
+      const expenseLinesPt = (ctx.allExpenses as ExpenseRecord[] || [])
+        .map((e) =>
+          `  ${e.date} | ${e.category} | ${e.label} | ${fmtPt(parseFloat(String(e.amount ?? 0)))}${e.notes ? ` | Nota: ${e.notes}` : ''}`
         )
         .join('\n')
 
       // ── Cálculos PT
-      const ht = ctx.annualCAHT ?? 0
-      const ca = ctx.annualCA ?? 0
-      const totalDep = ctx.totalExpenses ?? 0
+      const ht = (ctx.annualCAHT ?? 0) as number
+      const ca = (ctx.annualCA ?? 0) as number
+      const totalDep = (ctx.totalExpenses ?? 0) as number
       // Seg. Social: 21,4% sobre rendimento relevante = 70% dos serviços
       const rendRelevante = ht * 0.70
       const segSocial = rendRelevante * 0.214
@@ -373,7 +376,7 @@ export async function POST(request: NextRequest) {
         : `✅ Abaixo do limite isenção IVA art.53.º CIVA (${fmtPt(14500)}) — isento`
 
       // ── Declarações trimestrais PT
-      const quarterLinesPt = (ctx.quarterData || [0, 0, 0, 0])
+      const quarterLinesPt = (ctx.quarterData as number[] || [0, 0, 0, 0])
         .map((caQ: number, q: number) => {
           const ssQ = caQ * 0.70 * 0.214
           // IVA declaração periódica trimestral: prazo até dia 15 do 2.º mês seguinte ao trimestre
@@ -631,24 +634,25 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
     net = ht - urssaf - ir - totalExpenses - 200
   }
 
+  interface FbExpenseRecord { category: string; date: string; label: string; amount?: string | number }
   if (msgLower.includes('matériau') || msgLower.includes('matériaux') || msgLower.includes('matière')) {
-    const matLines = (ctx.allExpenses || []).filter((e: any) => e.category === 'materiel')
-    const total = matLines.reduce((s: number, e: any) => s + parseFloat(e.amount || 0), 0)
-    const lines = matLines.map((e: any) => `- ${e.date} : ${e.label} → **${fmt(parseFloat(e.amount || 0))}**`).join('\n')
+    const matLines = (ctx.allExpenses as FbExpenseRecord[] || []).filter((e) => e.category === 'materiel')
+    const total = matLines.reduce((s: number, e) => s + parseFloat(String(e.amount || 0)), 0)
+    const lines = matLines.map((e) => `- ${e.date} : ${e.label} → **${fmt(parseFloat(String(e.amount || 0)))}**`).join('\n')
     return `🔧 **Dépenses matériaux**\n\n**Total : ${fmt(total)}**\n\n${lines || '(Aucune dépense matériaux enregistrée)'}\n\n💡 **Optimisation :** Ces charges sont déductibles à 100% (compte 601). Conservez toutes les factures fournisseurs (10 ans). En régime réel, la TVA est récupérable.`
   }
 
   if (msgLower.includes('transport') || msgLower.includes('carburant') || msgLower.includes('km')) {
-    const lines = (ctx.allExpenses || []).filter((e: any) => e.category === 'transport')
-    const total = lines.reduce((s: number, e: any) => s + parseFloat(e.amount || 0), 0)
-    return `🚗 **Dépenses transport**\n\n**Total : ${fmt(total)}**\n\n${lines.map((e: any) => `- ${e.date} : ${e.label} → **${fmt(parseFloat(e.amount || 0))}**`).join('\n') || '(Aucune dépense transport)'}\n\n💡 **Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+). Notez chaque trajet professionnel avec date, départ, arrivée et motif.`
+    const lines = (ctx.allExpenses as FbExpenseRecord[] || []).filter((e) => e.category === 'transport')
+    const total = lines.reduce((s: number, e) => s + parseFloat(String(e.amount || 0)), 0)
+    return `🚗 **Dépenses transport**\n\n**Total : ${fmt(total)}**\n\n${lines.map((e) => `- ${e.date} : ${e.label} → **${fmt(parseFloat(String(e.amount || 0)))}**`).join('\n') || '(Aucune dépense transport)'}\n\n💡 **Barème km 2026 :** 0,541€/km (≤5CV) | 0,635€/km (6CV) | 0,679€/km (7CV+). Notez chaque trajet professionnel avec date, départ, arrivée et motif.`
   }
 
   if (msgLower.includes('urssaf') || msgLower.includes('cotisation') || msgLower.includes('charges sociales')) {
     if (isEntrepriseFB) {
       return `💳 **Charges sociales — Entreprise BTP 2026**\n\nEn tant qu'entreprise (SARL/SAS), les cotisations ne se calculent PAS sur le CA mais sur la rémunération du dirigeant et les salaires.\n\n**Gérant majoritaire SARL (TNS) :** ~45% du revenu net\n**Président SAS (assimilé salarié) :** ~65-80% du salaire brut\n**Salariés :** ~45% charges patronales sur salaire brut\n\n💡 Pas de plafond micro-entrepreneur. L'entreprise paie l'IS sur le bénéfice (15% ≤ 42 500€, 25% au-delà).`
     }
-    const quarters = ctx.quarterData || [0, 0, 0, 0]
+    const quarters = (ctx.quarterData as number[] || [0, 0, 0, 0])
     return `💳 **Cotisations URSSAF 2026**\n\nCA HT annuel : **${fmt(ht)}**\nTaux artisan BTP : **21,2%**\n\n**Total URSSAF : ${fmt(urssaf)}**\n\nDétail par trimestre :\n${quarters.map((ca: number, q: number) => `  T${q + 1} : CA ${fmt(ca)} → URSSAF **${fmt(ca * 0.212)}** + IR **${fmt(ca * 0.017)}**`).join('\n')}\n\n💡 **Rappel :** Déclaration et paiement sur autoentrepreneur.urssaf.fr. ACRE = -50% l'année de création.`
   }
 

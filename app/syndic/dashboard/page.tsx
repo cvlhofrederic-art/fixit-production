@@ -130,6 +130,23 @@ const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashbo
 const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
 const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
 
+// ─── Web Speech API types (not in standard TS lib — no @types/dom-speech-recognition) ──
+interface SpeechRecognitionResultItem {
+  transcript: string
+  confidence: number
+}
+interface SpeechRecognitionResult {
+  readonly length: number
+  isFinal: boolean
+  [index: number]: SpeechRecognitionResultItem
+}
+interface SpeechRecognitionEvent extends Event {
+  readonly results: { readonly length: number; [index: number]: SpeechRecognitionResult }
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string
+}
+
 // ─── Inline interfaces for syndic-specific types ─────────────────────────────
 
 /** Document data extracted from Max AI [DOC_PDF] blocks */
@@ -362,6 +379,9 @@ export default function SyndicDashboard() {
   const [maxInput, setMaxInput] = useState('')
   const [maxLoading, setMaxLoading] = useState(false)
   const maxEndRef = useRef<HTMLDivElement>(null)
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [planningAddLoading, setPlanningAddLoading] = useState(false)
   const [maxTab, setMaxTab] = useState<'chat' | 'conformite' | 'documents'>('chat')
   const [maxFavorites, setMaxFavorites] = useState<string[]>([])
   const [maxSelectedImmeuble, setMaxSelectedImmeuble] = useState<string>('all')
@@ -372,6 +392,7 @@ export default function SyndicDashboard() {
   useEffect(() => {
     // Vérifier support Web Speech API
     if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supported = !!(
         (window as any).SpeechRecognition ||
         (window as any).webkitSpeechRecognition
@@ -1080,6 +1101,7 @@ export default function SyndicDashboard() {
 
   const addPlanningEvent = async () => {
     if (!planningEventForm.titre.trim() || !selectedPlanningDay) return
+    setPlanningAddLoading(true)
     const assignedMember = teamMembers.find(m => m.full_name === planningEventForm.assigneA)
     const newEvent: PlanningEvent = {
       id: `tmp-${Date.now()}`,
@@ -1121,6 +1143,7 @@ export default function SyndicDashboard() {
         }
       }
     } catch { /* silencieux — optimistic update déjà en place */ }
+    finally { setPlanningAddLoading(false) }
   }
 
   // ── Gestion Missions ─────────────────────────────────────────────────────────
@@ -1418,6 +1441,7 @@ export default function SyndicDashboard() {
   // ── Reconnaissance vocale V2 — latence optimisée + NLP + auto-restart ────────
   const startVoiceRecognition = () => {
     if (typeof window === 'undefined') return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) return
 
@@ -1461,7 +1485,7 @@ export default function SyndicDashboard() {
       }, 1000)
     }
 
-    recognition.onresult = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = ''
       finalTranscript = ''
 
@@ -1518,7 +1542,7 @@ export default function SyndicDashboard() {
       }
     }
 
-    recognition.onerror = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (process.env.NODE_ENV !== 'production') console.warn('Speech recognition error:', event.error)
 
       // Auto-restart sur timeout "no-speech" (micro ouvert mais pas de voix)
@@ -2452,13 +2476,15 @@ export default function SyndicDashboard() {
         <div className="fixed top-3 right-3 z-[9999]">
           <button
             onClick={async () => {
+              setAdminLoading(true)
               await supabase.auth.updateUser({ data: { ...user?.user_metadata, role: 'super_admin', _admin_override: false } })
               await supabase.auth.refreshSession()
               window.location.href = '/admin/dashboard'
             }}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg transition"
+            disabled={adminLoading}
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-xs px-4 py-2 rounded-full shadow-lg transition disabled:opacity-60"
           >
-            ⚡ {t('syndicDash.sidebar.backAdmin')}
+            ⚡ {adminLoading ? '…' : t('syndicDash.sidebar.backAdmin')}
           </button>
         </div>
       )}
@@ -2652,8 +2678,8 @@ export default function SyndicDashboard() {
                   </div>
                   {notifs.length > 0 && (
                     <div style={{ padding: '10px 16px', borderTop: '1px solid var(--sd-border)', display: 'flex', justifyContent: 'center' }}>
-                      <button onClick={() => { markAllNotifsRead(); setNotifPanelOpen(false) }} style={{ fontSize: 12, color: 'var(--sd-gold)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                        ✓ {t('syndicDash.common.markAllRead')}
+                      <button onClick={async () => { setNotifLoading(true); await markAllNotifsRead(); setNotifLoading(false); setNotifPanelOpen(false) }} disabled={notifLoading} style={{ fontSize: 12, color: 'var(--sd-gold)', background: 'none', border: 'none', cursor: notifLoading ? 'default' : 'pointer', fontWeight: 600, opacity: notifLoading ? 0.6 : 1 }}>
+                        ✓ {notifLoading ? '…' : t('syndicDash.common.markAllRead')}
                       </button>
                     </div>
                   )}
@@ -3620,10 +3646,10 @@ export default function SyndicDashboard() {
               </button>
               <button
                 onClick={addPlanningEvent}
-                disabled={!planningEventForm.titre.trim()}
+                disabled={!planningEventForm.titre.trim() || planningAddLoading}
                 className="flex-1 py-2.5 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-xl text-sm font-bold transition disabled:opacity-40 shadow-sm"
               >
-                ✅ {locale === 'pt' ? 'Adicionar' : 'Ajouter'}
+                {planningAddLoading ? '…' : `✅ ${locale === 'pt' ? 'Adicionar' : 'Ajouter'}`}
               </button>
             </div>
           </div>
@@ -3956,12 +3982,12 @@ export default function SyndicDashboard() {
                         {isPt ? '👥 Todos os condóminos' : '👥 Tous les copropriétaires'}
                       </option>
                     )}
-                    {filteredCopros.map((c: any, idx: number) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-                      const label = `${c.prenomProprietaire || c.prenom || ''} ${c.nomProprietaire || c.nom || ''}`.trim()
+                    {filteredCopros.map((c: Coproprio, idx: number) => {
+                      const label = `${c.prenomProprietaire || ''} ${c.nomProprietaire || ''}`.trim()
                       const details: string[] = []
                       if (c.batiment) details.push(`${isPt ? 'Bl.' : 'Bât.'} ${c.batiment}`)
                       if (c.etage) details.push(`${c.etage}${isPt ? 'º' : 'e'} ${isPt ? 'andar' : 'ét.'}`)
-                      if (c.numeroPorte || c.porte) details.push(`${isPt ? 'Porta' : 'Porte'} ${c.numeroPorte || c.porte}`)
+                      if (c.numeroPorte) details.push(`${isPt ? 'Porta' : 'Porte'} ${c.numeroPorte}`)
                       return (
                         <option key={idx} value={JSON.stringify(c)}>
                           {label}{details.length > 0 ? ` — ${details.join(', ')}` : ''}

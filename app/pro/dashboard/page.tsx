@@ -21,7 +21,8 @@ import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useServices, useAbsences, useAvailability, useCalendar, useSettings, useBookings } from '@/hooks/dashboard'
 import { getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
-import type { Service, Booking, Notification, ChatMessage } from '@/lib/types'
+import type { Artisan, Service, Booking, Notification, ChatMessage } from '@/lib/types'
+import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
@@ -79,6 +80,18 @@ const MissionsGestionnaireSection = dynamic(() => import('@/components/dashboard
 const ContratsSection = dynamic(() => import('@/components/dashboard/GestionnaireSections').then(mod => mod.ContratsSection))
 
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
+interface DevisLine {
+  id: number
+  description: string
+  qty: number
+  unit: string
+  priceHT: number
+  tvaRate: number
+  totalHT: number
+}
+
 export default function DashboardPageWrapper() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#F8F9FA]"><DashboardSkeleton /></div>}>
@@ -95,10 +108,12 @@ function DashboardPage() {
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
 
   // ── Core auth state (kept here — loadDashboardData initializes all hooks) ──
-  const [artisan, setArtisan] = useState<any>(null)
-  const [orgRole, setOrgRole] = useState<'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'>('artisan')
+  const [artisan, setArtisan] = useState<Artisan | null>(null)
+  const [orgRole, setOrgRole] = useState<OrgRole>('artisan')
   const [loading, setLoading] = useState(true)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
   const [activePage, setActivePage] = useState(() => searchParams?.get('p') || 'home')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -163,7 +178,7 @@ function DashboardPage() {
   const navigateRef = useRef<(page: string) => void>(() => {})
   const notifCallbacks = useMemo(() => ({
     onNavigate: (page: string) => navigateRef.current(page),
-    onNewBooking: (b: any) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
+    onNewBooking: (b: Booking) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
     getAuthToken: getDashAuthToken,
     t, isPt,
   }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
@@ -203,11 +218,11 @@ function DashboardPage() {
   }, [])
 
   /** Central data loader — initializes state across all hooks */
-  const loadDashboardData = async (user: any) => {
+  const loadDashboardData = async (user: User) => {
     if (!user) { router.push('/pro/login'); return }
 
     const role = user.user_metadata?.role || 'artisan'
-    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) setOrgRole(role as any)
+    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) setOrgRole(role as OrgRole)
 
     const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (user.user_metadata?._admin_override) setShowAdminBtn(true)
@@ -245,7 +260,7 @@ function DashboardPage() {
     setServices(servicesRes.data || [])
 
     // Auto-add clients from bookings (deferred, non-blocking)
-    const confirmed = (bookingsRes.data || []).filter((b: any) => b.status === 'confirmed' || b.status === 'completed')
+    const confirmed = (bookingsRes.data || []).filter((b: Booking) => b.status === 'confirmed' || b.status === 'completed')
     requestAnimationFrame(() => { for (const b of confirmed) autoAddClientFromBooking(b) })
   }
 
@@ -311,13 +326,19 @@ function DashboardPage() {
         <div className="fixed top-1 right-16 z-[9999]">
           <button
             onClick={async () => {
-              const { data: { user: u } } = await supabase.auth.getUser()
-              if (u?.user_metadata?._admin_override) {
-                await supabase.auth.updateUser({ data: { ...u.user_metadata, role: 'super_admin', _admin_override: false } })
-                await supabase.auth.refreshSession()
-                window.location.href = '/admin/dashboard'
+              setAdminLoading(true)
+              try {
+                const { data: { user: u } } = await supabase.auth.getUser()
+                if (u?.user_metadata?._admin_override) {
+                  await supabase.auth.updateUser({ data: { ...u.user_metadata, role: 'super_admin', _admin_override: false } })
+                  await supabase.auth.refreshSession()
+                  window.location.href = '/admin/dashboard'
+                }
+              } finally {
+                setAdminLoading(false)
               }
             }}
+            disabled={adminLoading}
             className="v22-btn v22-btn-primary text-[10px] px-3 py-1"
           >
             ⚡ Retour Admin
@@ -357,6 +378,7 @@ function DashboardPage() {
                   {unreadNotifCount > 0 && (
                     <button
                       onClick={async () => {
+                        setNotifLoading(true)
                         try {
                           const token = await getDashAuthToken()
                           await fetch('/api/syndic/notify-artisan', {
@@ -367,7 +389,9 @@ function DashboardPage() {
                           setNotifications(prev => prev.map(n => ({ ...n, read: true })))
                           setUnreadNotifCount(0)
                         } catch { toast.error('Impossible de marquer les notifications comme lues') }
+                        finally { setNotifLoading(false) }
                       }}
+                      disabled={notifLoading}
                       className="text-[10px] v22-mono hover:underline" style={{ color: 'var(--v22-yellow)' }}
                     >
                       Tout marquer lu
@@ -383,9 +407,11 @@ function DashboardPage() {
                     notifications.slice(0, 20).map((n: Notification) => (
                       <button
                         key={n.id}
+                        disabled={notifLoading}
                         onClick={async () => {
                           // Marquer comme lue
                           if (!n.read) {
+                            setNotifLoading(true)
                             try {
                               const token = await getDashAuthToken()
                               await fetch('/api/syndic/notify-artisan', {
@@ -396,6 +422,7 @@ function DashboardPage() {
                               setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
                               setUnreadNotifCount(prev => Math.max(0, prev - 1))
                             } catch { toast.error('Impossible de marquer la notification comme lue') }
+                            finally { setNotifLoading(false) }
                           }
                           setShowNotifDropdown(false)
                           // Navigation selon le type
@@ -404,7 +431,7 @@ function DashboardPage() {
                             // Ouvrir le booking detail directement
                             const dataJson = typeof n.data_json === 'string' ? JSON.parse(n.data_json || '{}') : (n.data_json || {})
                             const bookingId = dataJson.booking_id
-                            const found = bookingId ? bookings.find((b: any) => b.id === bookingId) : null
+                            const found = bookingId ? bookings.find((b: Booking) => b.id === bookingId) : null
                             if (found) {
                               setSelectedBooking(found)
                               setShowBookingDetail(true)
@@ -849,20 +876,24 @@ function DashboardPage() {
           {activePage === 'devis' && (
             <DevisSection
               artisan={artisan} services={services} bookings={bookings}
+              /* eslint-disable @typescript-eslint/no-explicit-any */
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
               convertDevisToFacture={handleConvertDevisToFacture as any}
+              /* eslint-enable @typescript-eslint/no-explicit-any */
             />
           )}
 
           {/* ────── FACTURES ────── */}
           {activePage === 'factures' && (
             <FacturesSection
-              artisan={artisan} services={services} bookings={bookings}
+              artisan={artisan!} services={services} bookings={bookings}
+              /* eslint-disable @typescript-eslint/no-explicit-any */
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showFactureForm={showFactureForm} setShowFactureForm={setShowFactureForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
+              /* eslint-enable @typescript-eslint/no-explicit-any */
             />
           )}
 
@@ -879,7 +910,7 @@ function DashboardPage() {
           {/* ────── PARAMETRES ────── */}
           {activePage === 'settings' && (
             <SettingsSection
-              artisan={artisan}
+              artisan={artisan!}
               initials={initials}
               settingsTab={settingsTab}
               setSettingsTab={setSettingsTab}
@@ -922,7 +953,7 @@ function DashboardPage() {
               <MateriauxSection
                 artisan={artisan}
                 orgRole={orgRole}
-                onExportDevis={(lines: any[]) => {
+                onExportDevis={(lines: DevisLine[]) => {
                   setConvertingDevis({ docType: 'devis', lines })
                   setShowDevisForm(true)
                   navigateTo('devis')
@@ -948,7 +979,7 @@ function DashboardPage() {
           )}
 
           {/* ────── DEVIS PRO BTP ────── */}
-          {activePage === 'rfq_btp' && orgRole === 'pro_societe' && (
+          {activePage === 'rfq_btp' && orgRole === 'pro_societe' && artisan && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis pro'}>
               <RFQSection artisan={artisan} />
             </SectionErrorBoundary>
@@ -1023,7 +1054,7 @@ function DashboardPage() {
           {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <PointageGeoSection artisan={artisan} />
+              <PointageGeoSection artisan={artisan!} />
             </div>
           )}
 
@@ -1165,7 +1196,7 @@ function DashboardPage() {
           {/* ────── PARRAINAGE ────── */}
           {activePage === 'parrainage' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le module parrainage">
-              <ParrainageSection artisan={artisan} orgRole={orgRole} />
+              <ParrainageSection artisan={artisan!} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
@@ -1196,10 +1227,13 @@ function DashboardPage() {
       {artisan && (
         <AiChatBot
           artisan={artisan}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           bookings={bookings as any}
           services={services}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           availability={availability as any}
           dayServices={dayServices}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           absences={absences as any}
           onCreateRdv={async (data) => {
             const service = data.service_id ? services.find((s: Service) => s.id === data.service_id) : services[0]
@@ -1323,7 +1357,7 @@ function DashboardPage() {
 
                   // ── Devis sent (côté artisan = carte informative) ──
                   if (msg.type === 'devis_sent' && msg.metadata) {
-                    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
+                    const m = msg.metadata as { signed?: boolean; docNumber?: string; totalStr?: string; docTitle?: string; signer_name?: string }
                     const isSigned = m.signed === true
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -1346,7 +1380,7 @@ function DashboardPage() {
 
                   // ── Devis signed (artisan voit avec bouton bloquer agenda) ──
                   if (msg.type === 'devis_signed' && msg.metadata) {
-                    const m: any = msg.metadata // eslint-disable-line @typescript-eslint/no-explicit-any
+                    const m = msg.metadata as { docNumber?: string; totalStr?: string; signer_name?: string; signed_at?: string; prestationDate?: string }
                     return (
                       <div key={msg.id} className="flex justify-start">
                         <div className="max-w-[85%] rounded-2xl border-2 border-green-400 bg-green-50 overflow-hidden">

@@ -21,6 +21,8 @@ export default function ImmeublesSection({ immeubles, setImmeubles, locale, t, u
   const [showModalImmeuble, setShowModalImmeuble] = useState(false)
   const [editingImmeuble, setEditingImmeuble] = useState<Immeuble | null>(null)
   const [immeubleForm, setImmeubleForm] = useState<Partial<Immeuble>>(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const openAddImmeuble = () => {
     setEditingImmeuble(null)
@@ -36,6 +38,7 @@ export default function ImmeublesSection({ immeubles, setImmeubles, locale, t, u
 
   const handleSaveImmeuble = async () => {
     if (!immeubleForm.nom?.trim() || !immeubleForm.adresse?.trim()) return
+    setSaving(true)
     enregistrerBatiment(immeubleForm.nom || '')
 
     if (editingImmeuble) {
@@ -84,10 +87,12 @@ export default function ImmeublesSection({ immeubles, setImmeubles, locale, t, u
         }
       }
     } catch { /* silencieux */ }
+    finally { setSaving(false) }
   }
 
   const handleDeleteImmeuble = async (id: string) => {
     if (!confirm(locale === 'pt' ? 'Eliminar este edifício? Esta ação é irreversível.' : 'Supprimer cet immeuble ? Cette action est irréversible.')) return
+    setDeleting(id)
     setImmeubles(prev => prev.filter(i => i.id !== id))
     try {
       const token = await getAdminToken()
@@ -97,6 +102,7 @@ export default function ImmeublesSection({ immeubles, setImmeubles, locale, t, u
         headers: { 'Authorization': `Bearer ${token}` },
       })
     } catch { /* silencieux */ }
+    finally { setDeleting(null) }
   }
 
   // ── Computed values ──
@@ -182,8 +188,8 @@ export default function ImmeublesSection({ immeubles, setImmeubles, locale, t, u
               <button onClick={() => openEditImmeuble(i)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--sd-cream)', color: 'var(--sd-ink-2)', border: '1px solid var(--sd-border)', fontFamily: "'Outfit',sans-serif", transition: 'all 0.14s' }}>
                 ✏️ {t('syndicDash.immeubles.editBtn')}
               </button>
-              <button onClick={() => handleDeleteImmeuble(i.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, fontSize: 14, cursor: 'pointer', background: '#FDECEA', color: '#C0392B', border: '1px solid rgba(192,57,43,0.18)', transition: 'all 0.14s' }}>
-                🗑
+              <button onClick={() => handleDeleteImmeuble(i.id)} disabled={deleting === i.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, fontSize: 14, cursor: deleting === i.id ? 'default' : 'pointer', background: '#FDECEA', color: '#C0392B', border: '1px solid rgba(192,57,43,0.18)', transition: 'all 0.14s', opacity: deleting === i.id ? 0.6 : 1 }}>
+                {deleting === i.id ? '…' : '🗑'}
               </button>
               <button onClick={() => setShowModalMission(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', background: 'var(--sd-navy)', color: '#fff', border: '1px solid var(--sd-navy)', fontFamily: "'Outfit',sans-serif", transition: 'all 0.14s' }}>
                 + Mission
@@ -486,10 +492,10 @@ export default function ImmeublesSection({ immeubles, setImmeubles, locale, t, u
                 </button>
                 <button
                   onClick={handleSaveImmeuble}
-                  disabled={!immeubleForm.nom?.trim() || !immeubleForm.adresse?.trim()}
+                  disabled={!immeubleForm.nom?.trim() || !immeubleForm.adresse?.trim() || saving}
                   className="flex-1 px-4 py-2 bg-[#0D1B2E] hover:bg-[#152338] text-white rounded-lg text-sm font-semibold transition disabled:opacity-40"
                 >
-                  {editingImmeuble ? (locale === 'pt' ? '✅ Guardar' : '✅ Sauvegarder') : (locale === 'pt' ? '+ Adicionar o edifício' : '+ Ajouter l\'immeuble')}
+                  {saving ? '…' : editingImmeuble ? (locale === 'pt' ? '✅ Guardar' : '✅ Sauvegarder') : (locale === 'pt' ? '+ Adicionar o edifício' : '+ Ajouter l\'immeuble')}
                 </button>
               </div>
             </div>

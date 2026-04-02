@@ -3,7 +3,12 @@
  * PATCH /api/tva/settings — Met à jour tva_auto_activate
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
+
+const tvaSettingsSchema = z.object({
+  tva_auto_activate: z.boolean(),
+})
 
 // Lazy init — évite le crash au build CI
 function getSupabaseAdmin() {
@@ -45,10 +50,11 @@ export async function PATCH(req: NextRequest) {
     const user = await authenticate(req)
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { tva_auto_activate } = await req.json()
-    if (typeof tva_auto_activate !== 'boolean') {
-      return NextResponse.json({ error: 'tva_auto_activate must be boolean' }, { status: 400 })
-    }
+    const body = await req.json()
+    const parsed = tvaSettingsSchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+
+    const { tva_auto_activate } = parsed.data
 
     const { error } = await getSupabaseAdmin()
       .from('profiles_artisan')

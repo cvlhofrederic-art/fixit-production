@@ -108,6 +108,7 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
   const locale = useLocale()
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ email: '', full_name: '', role: 'syndic_tech' })
   const [formModules, setFormModules] = useState<string[]>([])
@@ -195,23 +196,29 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
   }
 
   const handleToggleActive = async (member: TeamMember) => {
-    const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
-    await fetch('/api/syndic/team', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ member_id: member.id, is_active: !member.is_active }),
-    })
-    fetchTeam()
+    setActionLoading(`toggle-${member.id}`)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      await fetch('/api/syndic/team', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ member_id: member.id, is_active: !member.is_active }),
+      })
+      fetchTeam()
+    } finally { setActionLoading(null) }
   }
 
   const handleDelete = async (memberId: string) => {
     if (!confirm(t('syndicDash.equipe.confirmDelete'))) return
-    const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
-    await fetch(`/api/syndic/team?member_id=${memberId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${session?.access_token}` },
-    })
-    fetchTeam()
+    setActionLoading(`delete-${memberId}`)
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession()
+      await fetch(`/api/syndic/team?member_id=${memberId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      })
+      fetchTeam()
+    } finally { setActionLoading(null) }
   }
 
   const openModuleEditor = (member: TeamMember) => {
@@ -478,15 +485,17 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
                           )}
                           <button
                             onClick={() => handleToggleActive(m)}
-                            className={`text-xs px-2 py-1 rounded border transition ${m.is_active ? 'text-[#C9A84C] border-orange-200 hover:bg-orange-50' : 'text-green-600 border-green-200 hover:bg-green-50'}`}
+                            disabled={actionLoading === `toggle-${m.id}`}
+                            className={`text-xs px-2 py-1 rounded border transition disabled:opacity-60 ${m.is_active ? 'text-[#C9A84C] border-orange-200 hover:bg-orange-50' : 'text-green-600 border-green-200 hover:bg-green-50'}`}
                           >
-                            {m.is_active ? t('syndicDash.equipe.suspend') : t('syndicDash.equipe.reactivate')}
+                            {actionLoading === `toggle-${m.id}` ? '…' : m.is_active ? t('syndicDash.equipe.suspend') : t('syndicDash.equipe.reactivate')}
                           </button>
                           <button
                             onClick={() => handleDelete(m.id)}
-                            className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded border border-red-200 hover:bg-red-50 transition"
+                            disabled={actionLoading === `delete-${m.id}`}
+                            className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded border border-red-200 hover:bg-red-50 transition disabled:opacity-60"
                           >
-                            {t('syndicDash.common.delete')}
+                            {actionLoading === `delete-${m.id}` ? '…' : t('syndicDash.common.delete')}
                           </button>
                         </div>
                       </td>

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings, useGeoPointage } from '@/lib/hooks/use-btp-data'
+import { Artisan } from '@/lib/types'
 import { Loader2, Clock, ClipboardList, Radio, Plus, MapPin, CheckCircle, Search, AlertTriangle, Square, Ruler, Calendar, Pencil, Satellite, X } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -11,7 +12,43 @@ import { Loader2, Clock, ClipboardList, Radio, Plus, MapPin, CheckCircle, Search
 // le pointage se déclenche automatiquement ou propose confirmation.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function PointageGeoSection({ artisan }: { artisan: any }) {
+interface Chantier {
+  id: string
+  titre: string
+  statut: string
+  adresse?: string
+  latitude?: number
+  longitude?: number
+  geoRayonM?: number
+}
+
+interface Membre {
+  id: string
+  prenom: string
+  nom: string
+  typeCompte?: string
+}
+
+interface Pointage {
+  id: string
+  employe: string
+  poste?: string
+  chantier?: string
+  date: string
+  heureArrivee: string
+  heureDepart?: string
+  pauseMinutes: number
+  heuresTravaillees: number
+  notes?: string
+  mode?: 'manuel' | 'geo_confirme' | 'geo_auto'
+}
+
+interface NearestChantier extends Chantier {
+  distance: number
+  isDepot?: boolean
+}
+
+export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
@@ -34,7 +71,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0])
   const [filterEmploye, setFilterEmploye] = useState('')
   const [geoStatus, setGeoStatus] = useState<'idle' | 'watching' | 'in_zone' | 'pointed'>('idle')
-  const [nearestChantier, setNearestChantier] = useState<any>(null)
+  const [nearestChantier, setNearestChantier] = useState<NearestChantier | null>(null)
   const [form, setForm] = useState({
     employe: '', poste: '', chantier: '', chantierId: '',
     date: new Date().toISOString().split('T')[0],
@@ -51,12 +88,12 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
   useEffect(() => {
     if (!geo.position || !settings.geo_pointage_enabled) return
 
-    const activeChantiers = chantiers.filter((c: any) => c.statut === 'En cours' && c.latitude && c.longitude)
-    let nearest: any = null
+    const activeChantiers = (chantiers as Chantier[]).filter(c => c.statut === 'En cours' && c.latitude && c.longitude)
+    let nearest: NearestChantier | null = null
     let minDist = Infinity
 
     for (const c of activeChantiers) {
-      const dist = geo.distanceTo(c.latitude, c.longitude)
+      const dist = geo.distanceTo(c.latitude!, c.longitude!)
       if (dist !== null && dist < minDist) {
         minDist = dist
         nearest = { ...c, distance: Math.round(dist) }
@@ -68,7 +105,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
       const depotDist = geo.distanceTo(settings.depot_lat, settings.depot_lng)
       if (depotDist !== null && depotDist < minDist) {
         minDist = depotDist
-        nearest = { titre: isPt ? 'Depósito' : 'Dépôt', distance: Math.round(depotDist), geoRayonM: settings.depot_rayon_m, latitude: settings.depot_lat, longitude: settings.depot_lng, isDepot: true }
+        nearest = { id: 'depot', titre: isPt ? 'Depósito' : 'Dépôt', statut: 'En cours', distance: Math.round(depotDist), geoRayonM: settings.depot_rayon_m, latitude: settings.depot_lat, longitude: settings.depot_lng, isDepot: true }
       }
     }
 
@@ -82,7 +119,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
   }, [geo.position, chantiers, settings, isPt, geo])
 
   // ── Pointage auto/confirmé par GPS ────────────────────────────────────────
-  const pointGeo = useCallback(async (chantier: any) => {
+  const pointGeo = useCallback(async (chantier: NearestChantier) => {
     const now = new Date()
     const heure = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
 
@@ -101,7 +138,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
       arriveeLat: geo.position?.lat,
       arriveeLng: geo.position?.lng,
       distanceM: chantier.distance,
-    } as any)
+    })
 
     setGeoStatus('pointed')
     await refresh()
@@ -114,19 +151,20 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
       ...form,
       heuresTravaillees: Math.round(calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes) * 100) / 100,
       mode: 'manuel',
-    } as any)
+    })
     setShowForm(false)
     setForm({ employe: '', poste: '', chantier: '', chantierId: '', date: new Date().toISOString().split('T')[0], heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, notes: '' })
   }
 
   // ── Filtres et stats ──────────────────────────────────────────────────────
-  const employes = [...new Set(pointages.map((p: any) => p.employe))].filter(Boolean)
-  const filtered = pointages.filter((p: any) => (!filterDate || p.date === filterDate) && (!filterEmploye || p.employe === filterEmploye))
-  const totalH = filtered.reduce((s: number, p: any) => s + (p.heuresTravaillees || 0), 0)
+  const allPointages = pointages as Pointage[]
+  const employes = [...new Set(allPointages.map(p => p.employe))].filter(Boolean)
+  const filtered = allPointages.filter(p => (!filterDate || p.date === filterDate) && (!filterEmploye || p.employe === filterEmploye))
+  const totalH = filtered.reduce((s, p) => s + (p.heuresTravaillees || 0), 0)
   const heuresByEmp = employes.map(e => ({
     employe: e,
-    heures: pointages.filter((p: any) => p.employe === e).reduce((s: number, p: any) => s + (p.heuresTravaillees || 0), 0),
-    jours: new Set(pointages.filter((p: any) => p.employe === e).map((p: any) => p.date)).size,
+    heures: allPointages.filter(p => p.employe === e).reduce((s, p) => s + (p.heuresTravaillees || 0), 0),
+    jours: new Set(allPointages.filter(p => p.employe === e).map(p => p.date)).size,
   }))
 
   // Postes dropdown
@@ -231,7 +269,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
               <div className="v22-card-title"><MapPin size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
             </div>
             <div className="v22-card-body">
-              {chantiers.filter((c: any) => c.latitude && c.statut === 'En cours').length === 0 ? (
+              {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 20 }}>
                   <p className="v22-card-meta">
                     {isPt
@@ -241,8 +279,8 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {chantiers.filter((c: any) => c.latitude && c.statut === 'En cours').map((c: any) => {
-                    const dist = geo.position ? geo.distanceTo(c.latitude, c.longitude) : null
+                  {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').map(c => {
+                    const dist = geo.position ? geo.distanceTo(c.latitude!, c.longitude!) : null
                     const inZone = dist !== null && dist <= (c.geoRayonM || 100)
                     return (
                       <div key={c.id} style={{
@@ -292,11 +330,11 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                     <label className="v22-form-label">{isPt ? 'Funcionário *' : 'Employé *'}</label>
                     {membres.length > 0 ? (
                       <select className="v22-form-input" value={form.employe} onChange={e => {
-                        const m = membres.find((m: any) => `${m.prenom} ${m.nom}` === e.target.value) as any
+                        const m = (membres as Membre[]).find(m => `${m.prenom} ${m.nom}` === e.target.value)
                         setForm({ ...form, employe: e.target.value, poste: m?.typeCompte || form.poste })
                       }}>
                         <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
-                        {membres.map((m: any) => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
+                        {(membres as Membre[]).map(m => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
                       </select>
                     ) : (
                       <input className="v22-form-input" value={form.employe} onChange={e => setForm({ ...form, employe: e.target.value })}
@@ -312,13 +350,13 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                   </div>
                   <div>
                     <label className="v22-form-label">{isPt ? 'Obra' : 'Chantier'}</label>
-                    {chantiers.filter((c: any) => c.statut === 'En cours').length > 0 ? (
+                    {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').length > 0 ? (
                       <select className="v22-form-input" value={form.chantier} onChange={e => {
-                        const c = chantiers.find((c: any) => c.titre === e.target.value)
-                        setForm({ ...form, chantier: e.target.value, chantierId: (c as any)?.id || '' })
+                        const c = (chantiers as Chantier[]).find(c => c.titre === e.target.value)
+                        setForm({ ...form, chantier: e.target.value, chantierId: c?.id || '' })
                       }}>
                         <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
-                        {chantiers.filter((c: any) => c.statut === 'En cours').map((c: any) => (
+                        {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').map(c => (
                           <option key={c.id} value={c.titre}>{c.titre}</option>
                         ))}
                       </select>
@@ -376,7 +414,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                     <label className="v22-form-label">{isPt ? 'Funcionário' : 'Employé'}</label>
                     <select className="v22-form-input" style={{ width: 160 }} value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
                       <option value="">{isPt ? 'Todos' : 'Tous'}</option>
-                      {employes.map((e: any) => <option key={e}>{e}</option>)}
+                      {employes.map(e => <option key={e}>{e}</option>)}
                     </select>
                   </div>
                   <button className="v22-btn v22-btn-sm" onClick={() => setFilterDate('')}
@@ -403,7 +441,7 @@ export function PointageGeoSection({ artisan }: { artisan: any }) {
                       <tr><td colSpan={9} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--v22-text-mid)', fontSize: 13 }}>
                         {isPt ? 'Nenhuma pontagem' : 'Aucun pointage'}
                       </td></tr>
-                    ) : filtered.map((p: any) => (
+                    ) : filtered.map(p => (
                       <tr key={p.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 600 }}>{p.employe}</td>
                         <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.poste}</td>

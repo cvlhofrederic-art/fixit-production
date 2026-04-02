@@ -3,8 +3,14 @@
  * Vérifie le seuil TVA d'un artisan et crée une notification si nécessaire.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { getTvaStatus, shouldNotify, type TvaCountry, type TvaNotifiedLevel } from '@/lib/tva-thresholds'
+
+const tvaCheckSchema = z.object({
+  ca_ht: z.number().nonnegative(),
+  country: z.string().min(2).max(2),
+})
 
 // Lazy init — évite le crash au build CI
 function getSupabaseAdmin() {
@@ -22,10 +28,11 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { ca_ht, country } = await req.json()
-    if (typeof ca_ht !== 'number' || !country) {
-      return NextResponse.json({ error: 'Missing ca_ht or country' }, { status: 400 })
-    }
+    const body = await req.json()
+    const parsed = tvaCheckSchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+
+    const { ca_ht, country } = parsed.data
 
     const supabaseAdmin = getSupabaseAdmin()
     const { data: profile, error: profileError } = await supabaseAdmin

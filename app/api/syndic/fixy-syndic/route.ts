@@ -58,6 +58,13 @@ const ROLE_CONFIGS: Record<string, { name: string; emoji: string; expertise: str
   },
 }
 
+interface ImmeubleSummary { nom: string; ville: string; nbLots: number; budgetAnnuel?: number; depensesAnnee?: number; pctBudget: number | string }
+interface ArtisanSummary { nom: string; metier?: string; statut: string; rcProValide: boolean; rcProExpiration?: string; note: number; vitfixCertifie?: boolean; email?: string; artisan_user_id?: string }
+interface MissionSummary { priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
+interface AlerteSummary { urgence?: string; message: string }
+interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
+interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
 function buildSystemPrompt(ctx: Record<string, any>, userRole: string, locale?: string): string {
   const now = new Date()
@@ -105,27 +112,27 @@ function buildSystemPrompt(ctx: Record<string, any>, userRole: string, locale?: 
   const roleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS['syndic']
 
   // Sérialisation données cabinet
-  const immeublesStr = (ctx.immeubles || []).map((i: any) =>
+  const immeublesStr = (ctx.immeubles as ImmeubleSummary[] || []).map((i) =>
     `  • ${i.nom} (${i.ville}) — ${i.nbLots} lots — Budget: ${i.budgetAnnuel?.toLocaleString(fmtLocale)}€ — ${locale === 'pt' ? 'Gasto' : 'Dépensé'}: ${i.depensesAnnee?.toLocaleString(fmtLocale)}€ (${i.pctBudget}%)`
   ).join('\n')
 
-  const artisansStr = (ctx.artisans || []).map((a: any) =>
+  const artisansStr = (ctx.artisans as ArtisanSummary[] || []).map((a) =>
     `  • ${a.nom} [${a.metier}] — ${locale === 'pt' ? 'Estado' : 'Statut'}: ${a.statut} — RC Pro: ${a.rcProValide ? `✅ ${locale === 'pt' ? 'válido até' : 'valide jusqu\'au'} ${a.rcProExpiration}` : `❌ ${locale === 'pt' ? 'EXPIRADO' : 'EXPIRÉE'}`} — ${locale === 'pt' ? 'Nota' : 'Note'}: ${a.note}/5${a.vitfixCertifie ? ' — ⭐ Vitfix Certifié' : ''}`
   ).join('\n')
 
-  const missionsStr = (ctx.missions || []).map((m: any) =>
+  const missionsStr = (ctx.missions as MissionSummary[] || []).map((m) =>
     `  • [${m.priorite?.toUpperCase()}] ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — ${locale === 'pt' ? 'Estado' : 'Statut'}: ${m.statut}${m.dateIntervention ? ` — ${locale === 'pt' ? 'Intervenção' : 'Intervention'}: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — ${locale === 'pt' ? 'Orçamento' : 'Devis'}: ${m.montantDevis?.toLocaleString(fmtLocale)}€` : ''}`
   ).join('\n')
 
-  const alertesStr = (ctx.alertes || []).map((a: any) =>
+  const alertesStr = (ctx.alertes as AlerteSummary[] || []).map((a) =>
     `  • [${a.urgence?.toUpperCase()}] ${a.message}`
   ).join('\n')
 
-  const echeancesStr = (ctx.echeances || []).slice(0, 10).map((e: any) =>
+  const echeancesStr = (ctx.echeances as EcheanceSummary[] || []).slice(0, 10).map((e) =>
     `  • ${e.immeuble} — ${e.label}: ${e.dateEcheance}`
   ).join('\n')
 
-  const documentsStr = (ctx.documents || []).slice(0, 10).map((d: any) =>
+  const documentsStr = (ctx.documents as DocumentSummary[] || []).slice(0, 10).map((d) =>
     `  • [${d.type}] ${d.nom} — ${d.immeuble || 'Cabinet'} — ${d.date}`
   ).join('\n')
 
@@ -134,7 +141,7 @@ function buildSystemPrompt(ctx: Record<string, any>, userRole: string, locale?: 
   const actionsDisponibles = roleConfig.actions.join(', ')
 
   // Actions disponibles selon le rôle
-  const artisanListForLLM = (ctx.artisans || []).map((a: any) => `  • ${a.nom} — email: ${a.email || 'non renseigné'} — métier: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'
+  const artisanListForLLM = (ctx.artisans as ArtisanSummary[] || []).map((a) => `  • ${a.nom} — email: ${a.email || 'non renseigné'} — métier: ${a.metier || '?'}${a.artisan_user_id ? ' ✅ lié' : ''}`).join('\n') || '  (aucun artisan enregistré)'
 
   const actionsSection = `
 ## Tes capacités d'action (exécutables directement)
@@ -323,9 +330,9 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
   const fmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
 
   if (msg.includes('alerta') || msg.includes('alerte') || msg.includes('urgent')) {
-    const alerts = (ctx.alertes || []).filter((a: any) => a.urgence === 'haute')
+    const alerts = (ctx.alertes as AlerteSummary[] || []).filter((a) => a.urgence === 'haute')
     if (alerts.length === 0) return locale === 'pt' ? '✅ **Nenhum alerta urgente** neste momento.' : '✅ **Aucune alerte urgente** en ce moment.'
-    return `🔴 **${alerts.length} alerta(s) urgente(s):**\n\n${alerts.map((a: any) => `- ${a.message}`).join('\n')}`
+    return `🔴 **${alerts.length} alerta(s) urgente(s):**\n\n${alerts.map((a) => `- ${a.message}`).join('\n')}`
   }
 
   if (msg.includes('budget') || msg.includes('orçamento') || msg.includes('dépense') || msg.includes('despesa') || msg.includes('finance') || msg.includes('finança')) {
@@ -338,20 +345,20 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
 
   if (msg.includes('mission') || msg.includes('missão') || msg.includes('missões')) {
     if (locale === 'pt') {
-      return `📋 **Missões**: ${ctx.missions?.length || 0} no total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions || []).slice(0, 3).map((m: any) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan}: ${m.description}`).join('\n')}`
+      return `📋 **Missões**: ${ctx.missions?.length || 0} no total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions as MissionSummary[] || []).slice(0, 3).map((m) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan}: ${m.description}`).join('\n')}`
     }
-    return `📋 **Missions** : ${ctx.missions?.length || 0} au total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions || []).slice(0, 3).map((m: any) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
+    return `📋 **Missions** : ${ctx.missions?.length || 0} au total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions as MissionSummary[] || []).slice(0, 3).map((m) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
   }
 
   if (msg.includes('artisan') || msg.includes('profissional') || msg.includes('rc pro')) {
-    const expired = (ctx.artisans || []).filter((a: any) => !a.rcProValide)
+    const expired = (ctx.artisans as ArtisanSummary[] || []).filter((a) => !a.rcProValide)
     if (locale === 'pt') {
       return expired.length > 0
-        ? `⚠️ **${expired.length} profissional(ais) com RC Pro expirado:**\n\n${expired.map((a: any) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Ação necessária: suspender até renovação.`
+        ? `⚠️ **${expired.length} profissional(ais) com RC Pro expirado:**\n\n${expired.map((a) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Ação necessária: suspender até renovação.`
         : `✅ Todos os profissionais têm **RC Pro válido**.`
     }
     return expired.length > 0
-      ? `⚠️ **${expired.length} artisan(s) avec RC Pro expirée :**\n\n${expired.map((a: any) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Action requise : suspendre jusqu'au renouvellement.`
+      ? `⚠️ **${expired.length} artisan(s) avec RC Pro expirée :**\n\n${expired.map((a) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Action requise : suspendre jusqu'au renouvellement.`
       : `✅ Tous les artisans ont une **RC Pro valide**.`
   }
 
@@ -400,8 +407,8 @@ export async function POST(request: NextRequest) {
     const systemPrompt = buildSystemPrompt(syndic_context, userRole, locale)
 
     const historyMessages = limitedHistory
-      .filter((m: any) => m.role && m.content)
-      .map((m: any) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+      .filter((m: { role?: string; content?: string }) => m.role && m.content)
+      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -426,8 +433,7 @@ export async function POST(request: NextRequest) {
     let response: string = groqData.choices?.[0]?.message?.content || (locale === 'pt' ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
 
     // Extraire l'action si présente
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Dynamic AI action response
-    let action: Record<string, any> | null = null
+    let action: Record<string, unknown> | null = null
     const actionMatch = response.match(/##ACTION##([\s\S]*?)##/)
     if (actionMatch) {
       try {
@@ -452,7 +458,7 @@ export async function POST(request: NextRequest) {
             send_message: '✉️ Message préparé.',
             create_document: '📄 Document préparé.',
           }
-          response = actionLabels[action.type] || (locale === 'pt' ? '✅ Ação preparada. Verifique os detalhes abaixo.' : '✅ Action préparée. Vérifiez les détails ci-dessous.')
+          response = actionLabels[action.type as string] || (locale === 'pt' ? '✅ Ação preparada. Verifique os detalhes abaixo.' : '✅ Action préparée. Vérifiez les détails ci-dessous.')
         }
       } catch {
         // Ignore les actions malformées

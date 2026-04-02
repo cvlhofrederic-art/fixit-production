@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
 import dynamic from 'next/dynamic'
+import type { User } from '@supabase/supabase-js'
+import type { Artisan, Booking, Service, Availability, ChatMessage } from '@/lib/types'
 
 // Dynamic imports for extracted page sections
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,6 +87,14 @@ interface InterventionProof {
   gpsLng?: number
 }
 
+interface OcrResult {
+  scannedAt: string
+  photoDataUrl: string
+  detectedType?: ComplianceType
+  confidence?: number
+  suggestedExpiration?: string
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -155,8 +165,8 @@ function BottomNav({ active, onChange, pendingCount, notifCount }: { active: Tab
 
 // ─── Proof of Work Component ───────────────────────────────────────────────────
 function ProofOfWork({ booking, artisan, onClose, onComplete }: {
-  booking: any
-  artisan: any
+  booking: Booking
+  artisan: Artisan
   onClose: () => void
   onComplete: (proof: InterventionProof) => void
 }) {
@@ -602,8 +612,8 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
 }
 
 // ─── Booking Card ──────────────────────────────────────────────────────────────
-function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingToken, onStartTracking, onStopTracking, onCopyLink, linkCopied }: {
-  booking: any
+function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingToken, onStartTracking, onStopTracking, onCopyLink, linkCopied, actionLoading }: {
+  booking: Booking
   onProof: () => void
   onStatusChange: (id: string, status: string) => void
   onMessages?: () => void
@@ -612,6 +622,7 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
   onStopTracking?: () => void
   onCopyLink?: () => void
   linkCopied?: boolean
+  actionLoading?: boolean
 }) {
   const { t, locale } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -633,7 +644,7 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-gray-900 text-sm truncate">{clientName}</div>
           <div className="text-xs text-gray-500 truncate">{booking.services?.name || 'Service'}</div>
-          <div className="text-xs text-gray-500 mt-0.5">{formatDateLocale(booking.booking_date, locale)} · {booking.booking_time?.substring(0, 5)}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{formatDateLocale(booking.booking_date || '', locale)} · {booking.booking_time?.substring(0, 5)}</div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getStatusColor(booking.status)}`}>
@@ -684,12 +695,14 @@ function BookingCard({ booking, onProof, onStatusChange, onMessages, trackingTok
               <>
                 <button
                   onClick={() => onStatusChange(booking.id, 'confirmed')}
+                  disabled={actionLoading}
                   className="flex-1 bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold"
                 >
                   ✓ {t('mob.confirm')}
                 </button>
                 <button
                   onClick={() => onStatusChange(booking.id, 'cancelled')}
+                  disabled={actionLoading}
                   className="flex-1 bg-red-100 text-red-600 py-2 rounded-xl text-xs font-semibold"
                 >
                   ✕ {t('mob.refuse')}
@@ -938,20 +951,20 @@ export default function MobileDashboard() {
   const { t, locale } = useTranslation()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<Tab>('home')
-  const [artisan, setArtisan] = useState<any>(null)
-  const [bookings, setBookings] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
-  const [availability, setAvailability] = useState<any[]>([])
+  const [artisan, setArtisan] = useState<Artisan | null>(null)
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [availability, setAvailability] = useState<Availability[]>([])
   const [loading, setLoading] = useState(true)
-  const [proofBooking, setProofBooking] = useState<any>(null)
+  const [proofBooking, setProofBooking] = useState<Booking | null>(null)
   const [showNewRdv, setShowNewRdv] = useState(false)
   const [newRdv, setNewRdv] = useState({ client_name: '', service_id: '', date: '', time: '', address: '', notes: '' })
   const [savingRdv, setSavingRdv] = useState(false)
   const [settingsForm, setSettingsForm] = useState({ company_name: '', phone: '', bio: '', auto_reply_message: '', auto_block_duration_minutes: 240, zone_radius_km: 30 })
   const [savingSettings, setSavingSettings] = useState(false)
   // ── Messagerie artisan ──
-  const [msgModal, setMsgModal] = useState<any>(null)
-  const [msgList, setMsgList] = useState<any[]>([])
+  const [msgModal, setMsgModal] = useState<Booking | null>(null)
+  const [msgList, setMsgList] = useState<ChatMessage[]>([])
   const [msgText, setMsgText] = useState('')
   const [msgSending, setMsgSending] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -961,8 +974,10 @@ export default function MobileDashboard() {
   const [serviceRanges, setServiceRanges] = useState<Record<string, { priceMin: number; priceMax: number; durationEstimate?: string; pricingUnit?: string }>>({})
   const [autoAccept, setAutoAccept] = useState(false)
   const [dayServices, setDayServices] = useState<Record<string, string[]>>({})
-  const [artisanNotifs, setArtisanNotifs] = useState<{ id: string; title: string; body: string; type: string; read: boolean; created_at: string; data_json?: any }[]>([])
-  const [notifToast, setNotifToast] = useState<{ title: string; body: string; type?: string; data_json?: any } | null>(null)
+  const [artisanNotifs, setArtisanNotifs] = useState<{ id: string; title: string; body: string; type: string; read: boolean; created_at: string; data_json?: Record<string, unknown> }[]>([])
+  const [notifToast, setNotifToast] = useState<{ title: string; body: string; type?: string; data_json?: Record<string, unknown> } | null>(null)
+  const [bookingActionLoading, setBookingActionLoading] = useState(false)
+  const [notifActionLoading, setNotifActionLoading] = useState(false)
   // ── Compliance Wallet ──
   const [complianceDocs, setComplianceDocs] = useState<ComplianceDoc[]>([])
   const [showComplianceModal, setShowComplianceModal] = useState(false)
@@ -970,7 +985,7 @@ export default function MobileDashboard() {
   const [complianceCopied, setComplianceCopied] = useState(false)
   // ── OCR Compliance ──
   const [ocrScanning, setOcrScanning] = useState(false)
-  const [ocrResult, setOcrResult] = useState<any>(null)
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const ocrInputRef = useRef<HTMLInputElement>(null)
   // ── Tracking en temps réel ──
   const [activeTrackings, setActiveTrackings] = useState<Record<string, string>>({}) // bookingId → token
@@ -1027,7 +1042,7 @@ export default function MobileDashboard() {
         table: 'artisan_notifications',
         filter: `artisan_id=eq.${artisan.user_id}`,
       }, (payload) => {
-        const n = payload.new as any
+        const n = payload.new as { id: string; title: string; body: string; type: string; created_at: string; data_json?: Record<string, unknown> }
         setArtisanNotifs(prev => [{ id: n.id, title: n.title, body: n.body, type: n.type, read: false, created_at: n.created_at, data_json: n.data_json }, ...prev])
         // Afficher toast in-app (persistent for new_booking so artisan can act)
         setNotifToast({ title: n.title, body: n.body, type: n.type, data_json: n.data_json })
@@ -1044,7 +1059,7 @@ export default function MobileDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [artisan?.user_id])
 
-  const loadData = async (user: any) => {
+  const loadData = async (user: User) => {
     const { data: artisanData } = await supabase
       .from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (!artisanData) { router.push('/pro/login'); return }
@@ -1131,7 +1146,7 @@ export default function MobileDashboard() {
     : 'PR'
 
   const updateBookingStatus = async (id: string, status: string) => {
-    const updates: any = { status }
+    const updates: Partial<Booking> & { status: string } = { status }
     if (status === 'confirmed') updates.confirmed_at = new Date().toISOString()
     if (status === 'cancelled') updates.cancelled_at = new Date().toISOString()
     if (status === 'completed') updates.completed_at = new Date().toISOString()
@@ -1145,8 +1160,8 @@ export default function MobileDashboard() {
         import('@/lib/notifications').then(({ scheduleInterventionReminder }) => {
           scheduleInterventionReminder({
             id: booking.id,
-            booking_date: booking.booking_date,
-            booking_time: booking.booking_time,
+            booking_date: booking.booking_date || '',
+            booking_time: booking.booking_time || '',
             address: booking.address,
             serviceName: booking.services?.name,
           }).catch(() => toast.error('Impossible de programmer le rappel d\'intervention'))
@@ -1157,6 +1172,15 @@ export default function MobileDashboard() {
       import('@/lib/notifications').then(({ cancelInterventionReminder }) => {
         cancelInterventionReminder(id).catch(() => toast.error('Impossible d\'annuler le rappel d\'intervention'))
       }).catch(() => toast.error('Erreur chargement du module de notifications'))
+    }
+  }
+
+  const handleBookingStatusChange = async (id: string, status: string) => {
+    setBookingActionLoading(true)
+    try {
+      await updateBookingStatus(id, status)
+    } finally {
+      setBookingActionLoading(false)
     }
   }
 
@@ -1203,7 +1227,7 @@ export default function MobileDashboard() {
         reader.readAsDataURL(file)
       })
 
-      const result: any = {
+      const result: OcrResult = {
         scannedAt: new Date().toISOString(),
         photoDataUrl: dataUrl,
       }
@@ -1245,9 +1269,10 @@ export default function MobileDashboard() {
 
       // Auto-fill the form with detected data
       if (result.detectedType) {
+        const detectedType = result.detectedType
         setComplianceForm(prev => ({
           ...prev,
-          type: result.detectedType,
+          type: detectedType,
           dateExpiration: result.suggestedExpiration || prev.dateExpiration,
         }))
       }
@@ -1297,7 +1322,7 @@ export default function MobileDashboard() {
   }
 
   // ── Démarrer le suivi GPS temps réel ──
-  const startTracking = (booking: any) => {
+  const startTracking = (booking: Booking) => {
     if (!isModuleEnabled('gps_tracking')) return
     if (activeTrackings[booking.id]) return // déjà actif
     const token = `TRK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
@@ -1486,7 +1511,7 @@ export default function MobileDashboard() {
   }
 
   // ── Messagerie artisan ──
-  const openArtisanMessages = async (booking: any) => {
+  const openArtisanMessages = async (booking: Booking) => {
     setMsgModal(booking)
     setMsgList([])
     setMsgText('')
@@ -1583,24 +1608,36 @@ export default function MobileDashboard() {
               </div>
               <button onClick={() => setNotifToast(null)} className="text-gray-500 text-lg leading-none flex-shrink-0">×</button>
             </div>
-            {notifToast.type === 'new_booking' && notifToast.data_json?.booking_id && (
+            {notifToast.type === 'new_booking' && !!notifToast.data_json?.booking_id && (
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={async () => {
-                    const bookingId = notifToast.data_json.booking_id
-                    await updateBookingStatus(bookingId, 'confirmed')
-                    setNotifToast(null)
+                    setNotifActionLoading(true)
+                    try {
+                      const bookingId = notifToast.data_json?.booking_id as string
+                      await updateBookingStatus(bookingId, 'confirmed')
+                      setNotifToast(null)
+                    } finally {
+                      setNotifActionLoading(false)
+                    }
                   }}
+                  disabled={notifActionLoading}
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl font-bold text-sm transition"
                 >
                   {t('mob.confirm')}
                 </button>
                 <button
                   onClick={async () => {
-                    const bookingId = notifToast.data_json.booking_id
-                    await updateBookingStatus(bookingId, 'cancelled')
-                    setNotifToast(null)
+                    setNotifActionLoading(true)
+                    try {
+                      const bookingId = notifToast.data_json?.booking_id as string
+                      await updateBookingStatus(bookingId, 'cancelled')
+                      setNotifToast(null)
+                    } finally {
+                      setNotifActionLoading(false)
+                    }
                   }}
+                  disabled={notifActionLoading}
                   className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl font-bold text-sm transition"
                 >
                   {t('mob.refuse')}
@@ -1615,7 +1652,7 @@ export default function MobileDashboard() {
       {proofBooking && (
         <ProofOfWork
           booking={proofBooking}
-          artisan={artisan}
+          artisan={artisan!}
           onClose={() => setProofBooking(null)}
           onComplete={async (proof) => {
             // 1. Mettre à jour le statut booking
@@ -1694,7 +1731,7 @@ export default function MobileDashboard() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107]">
                   <option value="">{t('mob.chooseMotif')}</option>
                   {services.filter(s => s.active).map(s => (
-                    <option key={s.id} value={s.id}>{s.name} — {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}</option>
+                    <option key={s.id} value={s.id}>{s.name} — {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc ?? 0)}</option>
                   ))}
                 </select>
               </div>
@@ -1805,7 +1842,7 @@ export default function MobileDashboard() {
           setMotifModal={setMotifModal}
           setShowDevisModal={setShowDevisModal}
           setProofBooking={setProofBooking}
-          updateBookingStatus={updateBookingStatus}
+          updateBookingStatus={handleBookingStatusChange}
           openArtisanMessages={openArtisanMessages}
           startTracking={startTracking}
           stopTracking={stopTracking}
@@ -1887,8 +1924,8 @@ export default function MobileDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {selectedDateBookings.sort((a, b) => a.booking_time?.localeCompare(b.booking_time)).map(b => (
-                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
+                {selectedDateBookings.sort((a, b) => (a.booking_time || '').localeCompare(b.booking_time || '')).map(b => (
+                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={handleBookingStatusChange} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} actionLoading={bookingActionLoading} />
                 ))}
               </div>
             )}
@@ -1935,7 +1972,7 @@ export default function MobileDashboard() {
             ) : (
               <div className="space-y-3">
                 {bookings.map(b => (
-                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={updateBookingStatus} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} />
+                  <BookingCard key={b.id} booking={b} onProof={() => setProofBooking(b)} onStatusChange={handleBookingStatusChange} onMessages={() => openArtisanMessages(b)} trackingToken={activeTrackings[b.id]} onStartTracking={() => startTracking(b)} onStopTracking={() => stopTracking(b.id)} onCopyLink={() => copyTrackingLink(b.id)} linkCopied={trackingCopied === b.id} actionLoading={bookingActionLoading} />
                 ))}
               </div>
             )}
@@ -2042,7 +2079,7 @@ export default function MobileDashboard() {
                             <span className="text-[10px] text-gray-500">Confiance :</span>
                             <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[80px]">
                               <div
-                                className={`h-1.5 rounded-full ${ocrResult.confidence >= 80 ? 'bg-green-500' : ocrResult.confidence >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                className={`h-1.5 rounded-full ${(ocrResult.confidence ?? 0) >= 80 ? 'bg-green-500' : (ocrResult.confidence ?? 0) >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
                                 style={{ width: `${ocrResult.confidence || 0}%` }}
                               />
                             </div>
@@ -2158,7 +2195,7 @@ export default function MobileDashboard() {
                   {t('mob.noMessage')}
                 </div>
               ) : (
-                msgList.map((msg: any) => (
+                msgList.map((msg: ChatMessage) => (
                   <div key={msg.id} className={`flex ${msg.sender_role === 'artisan' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                       msg.sender_role === 'artisan'
@@ -2175,7 +2212,7 @@ export default function MobileDashboard() {
                       )}
                       <p className="text-sm">{msg.content}</p>
                       <p className={`text-[10px] mt-1 ${msg.sender_role === 'artisan' ? 'text-gray-700' : 'text-gray-500'}`}>
-                        {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(msg.created_at || '').toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </div>

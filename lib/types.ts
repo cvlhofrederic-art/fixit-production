@@ -65,7 +65,7 @@ export interface Booking {
   cancelled_at?: string | null
   completed_at?: string | null
   created_at?: string
-  services?: { name: string } | null
+  services?: { name: string; price_ttc?: number } | null
   profiles_artisan?: Partial<Artisan> | null
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }

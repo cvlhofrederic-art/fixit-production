@@ -181,6 +181,7 @@ export default function AppelsFondsSection({ user, userRole }: { user: any; user
 
   // ── Etat individuel ──
   const [selectedCoproId, setSelectedCoproId] = useState<string>('')
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   // ── Load/save ──
   useEffect(() => {
@@ -314,6 +315,7 @@ export default function AppelsFondsSection({ user, userRole }: { user: any; user
   const exportPdfIndividuel = async (coproId: string) => {
     const copro = copros.find(c => c.id === coproId)
     if (!copro) return
+    setPdfLoading(true)
     const { jsPDF } = await import('jspdf')
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
     const W = 210; const M = 20
@@ -377,6 +379,7 @@ export default function AppelsFondsSection({ user, userRole }: { user: any; user
     doc.text('Pr\u00e9-\u00e9tat dat\u00e9 au sens de l\'art. L721-2 du Code de la construction et de l\'habitation', M, y)
 
     doc.save(`etat-individuel-${copro.nom}-${CURRENT_YEAR}.pdf`)
+    setPdfLoading(false)
   }
 
   // ── Simulateur: computed per-copro ──
@@ -720,9 +723,10 @@ export default function AppelsFondsSection({ user, userRole }: { user: any; user
           </select>
           <button
             onClick={() => exportPdfIndividuel(selectedCoproId)}
-            style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--sd-navy, #0D1B2E)', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+            disabled={pdfLoading}
+            style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--sd-navy, #0D1B2E)', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: pdfLoading ? 'default' : 'pointer', opacity: pdfLoading ? 0.6 : 1 }}
           >
-            T\u00e9l\u00e9charger PDF
+            {pdfLoading ? '\u2026' : 'T\u00e9l\u00e9charger PDF'}
           </button>
         </div>
 
@@ -823,9 +827,10 @@ export default function AppelsFondsSection({ user, userRole }: { user: any; user
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sd-navy, #0D1B2E)', marginTop: 4 }}>Obligatoire en cas de vente</div>
                 <button
                   onClick={() => exportPdfIndividuel(selectedCoproId)}
-                  style={{ marginTop: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--sd-navy, #0D1B2E)', color: '#fff', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                  disabled={pdfLoading}
+                  style={{ marginTop: 8, padding: '6px 12px', borderRadius: 6, background: 'var(--sd-navy, #0D1B2E)', color: '#fff', fontSize: 11, fontWeight: 600, border: 'none', cursor: pdfLoading ? 'default' : 'pointer', opacity: pdfLoading ? 0.6 : 1 }}
                 >
-                  G\u00e9n\u00e9rer attestation PDF
+                  {pdfLoading ? '\u2026' : 'G\u00e9n\u00e9rer attestation PDF'}
                 </button>
               </div>
             </div>

@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
+const specialtiesBodySchema = z.object({
+  user_id: z.string().uuid(),
+  slugs: z.array(z.string().min(1)).min(1),
+  verified_source: z.string().optional().default('self_declared'),
+})
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let rawBody: unknown
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { user_id, slugs, verified_source = 'self_declared' } = body ?? {}
+  const parsed = specialtiesBodySchema.safeParse(rawBody)
+  if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-  if (!user_id || !Array.isArray(slugs) || slugs.length === 0) {
-    return NextResponse.json(
-      { error: 'user_id and slugs (non-empty array) are required' },
-      { status: 400 },
-    )
-  }
+  const { user_id, slugs, verified_source } = parsed.data
 
   // Resolve slugs → specialty UUIDs
   const { data: specialties, error: fetchError } = await supabaseAdmin

@@ -150,8 +150,8 @@ export interface ServiceBasic {
 
 export interface BookingBasic {
   id: string
-  booking_date: string
-  booking_time: string
+  booking_date?: string
+  booking_time?: string
   status: string
   client_id?: string
   client_name?: string
@@ -160,7 +160,7 @@ export interface BookingBasic {
   price_ht?: number
   price_ttc?: number
   service_id?: string
-  services?: { name: string }
+  services?: { name: string } | null
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 

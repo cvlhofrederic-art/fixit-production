@@ -2,17 +2,33 @@
 
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
+import { Artisan, Service, Booking } from '@/lib/types'
+import { DevisFactureData } from '@/lib/devis-types'
+
+// A persisted document extends DevisFactureData with storage metadata
+interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
+  docType: 'devis' | 'facture' | 'avoir'
+  docNumber: string
+  savedAt?: string
+  status?: string
+  sentAt?: string
+  clientName?: string
+  clientEmail?: string
+  docDate?: string
+  paymentDue?: string
+  lines?: Array<{ totalHT?: number; [key: string]: unknown }>
+}
 
 interface FacturesSectionProps {
-  artisan: any
-  services: any[]
-  bookings: any[]
-  savedDocuments: any[]
-  setSavedDocuments: (docs: any[]) => void
+  artisan: Artisan
+  services: Service[]
+  bookings: Booking[]
+  savedDocuments: PersistedDocument[]
+  setSavedDocuments: (docs: PersistedDocument[]) => void
   showFactureForm: boolean
   setShowFactureForm: (v: boolean) => void
-  convertingDevis: any
-  setConvertingDevis: (v: any) => void
+  convertingDevis: PersistedDocument | null
+  setConvertingDevis: (v: PersistedDocument | null) => void
 }
 
 export default function FacturesSection({
@@ -32,7 +48,7 @@ export default function FacturesSection({
   if (showFactureForm) {
     return (
       <DevisFactureForm artisan={artisan} services={services} bookings={bookings} initialDocType="facture"
-        initialData={convertingDevis}
+        initialData={convertingDevis as Partial<DevisFactureData> | undefined}
         onBack={() => { setShowFactureForm(false); setConvertingDevis(null); refreshDocuments() }}
         onSave={() => { setConvertingDevis(null); refreshDocuments() }}
       />
@@ -41,7 +57,7 @@ export default function FacturesSection({
 
   const factureDocs = savedDocuments.filter(d => d.docType === 'facture')
 
-  const getStatusTag = (doc: any, isOverdue: boolean) => {
+  const getStatusTag = (doc: PersistedDocument, isOverdue: boolean) => {
     if (isOverdue && doc.status !== 'envoye') return { cls: 'v22-tag v22-tag-red', label: t('proDash.factures.echue') }
     if (doc.status === 'envoye') return { cls: 'v22-tag v22-tag-green', label: t('proDash.factures.envoyee') }
     return { cls: 'v22-tag v22-tag-amber', label: t('proDash.factures.nonEnvoyee') }
@@ -70,7 +86,7 @@ export default function FacturesSection({
           <div className="v22-stat">
             <div className="v22-stat-label">{t('proDash.factures.caHTTotal')}</div>
             <div className="v22-stat-val">
-              {factureDocs.reduce((s, d) => s + (d.lines?.reduce((t: number, l: any) => t + (l.totalHT || 0), 0) || 0), 0).toFixed(2)} €
+              {factureDocs.reduce((s, d) => s + (d.lines?.reduce((t: number, l) => t + (l.totalHT || 0), 0) || 0), 0).toFixed(2)} €
             </div>
           </div>
           <div className="v22-stat">
@@ -101,9 +117,9 @@ export default function FacturesSection({
                 </tr>
               </thead>
               <tbody>
-                {factureDocs.sort((a, b) => new Date(b.savedAt || b.docDate).getTime() - new Date(a.savedAt || a.docDate).getTime()).map((doc, i) => {
-                  const totalHT = doc.lines?.reduce((s: number, l: any) => s + (l.totalHT || 0), 0) || 0
-                  const isOverdue = doc.paymentDue && new Date(doc.paymentDue) < new Date()
+                {factureDocs.sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime()).map((doc, i) => {
+                  const totalHT = doc.lines?.reduce((s: number, l) => s + (l.totalHT || 0), 0) || 0
+                  const isOverdue = !!(doc.paymentDue && new Date(doc.paymentDue) < new Date())
                   const status = getStatusTag(doc, isOverdue)
                   return (
                     <tr key={`saved-fact-${i}`} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
@@ -121,8 +137,8 @@ export default function FacturesSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = docs.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = drafts.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = (docs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
@@ -139,8 +155,8 @@ export default function FacturesSection({
                               const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                               const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                               const now = new Date().toISOString()
-                              const updDocs = docs.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
-                              const updDrafts = drafts.map((d: any) => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDocs = (docs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                              const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
                               localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
@@ -153,8 +169,8 @@ export default function FacturesSection({
                             if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
                             const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                             const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                            const updDocs = docs.filter((d: any) => d.docNumber !== doc.docNumber)
-                            const updDrafts = drafts.filter((d: any) => d.docNumber !== doc.docNumber)
+                            const updDocs = (docs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
+                            const updDrafts = (drafts as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
                             localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                             setSavedDocuments([...updDocs, ...updDrafts])

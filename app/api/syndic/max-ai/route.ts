@@ -52,6 +52,14 @@ const ROLE_CONFIGS: Record<string, { name: string; namePt: string; emoji: string
   },
 }
 
+interface ImmeubleSummary { nom: string; ville: string; nbLots: number; budgetAnnuel?: number; depensesAnnee?: number; pctBudget: number | string }
+interface ArtisanSummary { nom: string; metier: string; statut: string; rcProValide: boolean; rcProExpiration?: string; note: number; vitfixCertifie?: boolean }
+interface MissionSummary { priorite?: string; immeuble: string; artisan: string; type: string; description: string; statut: string; dateIntervention?: string; montantDevis?: number }
+interface AlerteSummary { urgence?: string; message: string }
+interface EcheanceSummary { immeuble: string; label: string; dateEcheance: string }
+interface DocumentSummary { type: string; nom: string; immeuble?: string; date: string }
+interface CopropriSummary { prenom?: string; nom?: string; immeuble: string; batiment?: string; etage?: string; porte?: string; email?: string; telephone?: string; locataire?: string }
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Syndic context from frontend with dynamic shape
 function buildContextBlock(ctx: Record<string, any>, userRole: string, isPt: boolean): string {
   const loc = isPt ? 'pt-PT' : 'fr-FR'
@@ -65,31 +73,31 @@ function buildContextBlock(ctx: Record<string, any>, userRole: string, isPt: boo
 
   const fmtN = (n: number | undefined) => (n || 0).toLocaleString(loc)
 
-  const immeublesStr = (ctx.immeubles || []).map((i: any) =>
+  const immeublesStr = (ctx.immeubles as ImmeubleSummary[] || []).map((i) =>
     `  • ${i.nom} (${i.ville}) — ${i.nbLots} ${isPt ? 'frações' : 'lots'} — ${isPt ? 'Orçamento' : 'Budget'}: ${fmtN(i.budgetAnnuel)}€ — ${isPt ? 'Gasto' : 'Dépensé'}: ${fmtN(i.depensesAnnee)}€ (${i.pctBudget}%)`
   ).join('\n')
 
-  const artisansStr = (ctx.artisans || []).map((a: any) =>
+  const artisansStr = (ctx.artisans as ArtisanSummary[] || []).map((a) =>
     `  • ${a.nom} [${a.metier}] — ${isPt ? 'Estado' : 'Statut'}: ${a.statut} — RC Pro: ${a.rcProValide ? `✅ ${isPt ? 'válido até' : 'valide jusqu\'au'} ${a.rcProExpiration}` : `❌ ${isPt ? 'EXPIRADO' : 'EXPIRÉE'}`} — ${isPt ? 'Nota' : 'Note'}: ${a.note}/5${a.vitfixCertifie ? ' — ⭐ Vitfix Certifié' : ''}`
   ).join('\n')
 
-  const missionsStr = (ctx.missions || []).map((m: any) =>
+  const missionsStr = (ctx.missions as MissionSummary[] || []).map((m) =>
     `  • [${m.priorite?.toUpperCase()}] ${m.immeuble} → ${m.artisan} — ${m.type}: ${m.description} — ${isPt ? 'Estado' : 'Statut'}: ${m.statut}${m.dateIntervention ? ` — ${isPt ? 'Intervenção' : 'Intervention'}: ${m.dateIntervention}` : ''}${m.montantDevis ? ` — ${isPt ? 'Orçamento' : 'Devis'}: ${fmtN(m.montantDevis)}€` : ''}`
   ).join('\n')
 
-  const alertesStr = (ctx.alertes || []).map((a: any) =>
+  const alertesStr = (ctx.alertes as AlerteSummary[] || []).map((a) =>
     `  • [${a.urgence?.toUpperCase()}] ${a.message}`
   ).join('\n')
 
-  const echeancesStr = (ctx.echeances || []).slice(0, 10).map((e: any) =>
+  const echeancesStr = (ctx.echeances as EcheanceSummary[] || []).slice(0, 10).map((e) =>
     `  • ${e.immeuble} — ${e.label}: ${e.dateEcheance}`
   ).join('\n')
 
-  const documentsStr = (ctx.documents || []).slice(0, 10).map((d: any) =>
+  const documentsStr = (ctx.documents as DocumentSummary[] || []).slice(0, 10).map((d) =>
     `  • [${d.type}] ${d.nom} — ${d.immeuble || (isPt ? 'Gabinete' : 'Cabinet')} — ${d.date}`
   ).join('\n')
 
-  const copropriosStr = (ctx.coproprios || []).slice(0, 30).map((c: any) =>
+  const copropriosStr = (ctx.coproprios as CopropriSummary[] || []).slice(0, 30).map((c) =>
     `  • ${c.prenom || ''} ${c.nom || ''} — ${c.immeuble}${c.batiment ? `, ${isPt ? 'Bloco' : 'Bât.'} ${c.batiment}` : ''}${c.etage ? `, ${c.etage}${isPt ? 'º andar' : 'e ét.'}` : ''}${c.porte ? `, ${isPt ? 'Porta' : 'Porte'} ${c.porte}` : ''}${c.email ? ` — ${c.email}` : ''}${c.telephone ? ` — ${c.telephone}` : ''}${c.locataire ? ` — ${isPt ? 'Inquilino' : 'Locataire'}: ${c.locataire}` : ''}`
   ).join('\n')
 
@@ -229,9 +237,9 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
   const roleName = isPt ? roleConfig.namePt : roleConfig.name
 
   if (msg.includes('alerta') || msg.includes('alerte') || msg.includes('urgent')) {
-    const alerts = (ctx.alertes || []).filter((a: any) => a.urgence === 'haute')
+    const alerts = (ctx.alertes as AlerteSummary[] || []).filter((a) => a.urgence === 'haute')
     if (alerts.length === 0) return isPt ? '✅ **Nenhum alerta urgente** de momento.' : '✅ **Aucune alerte urgente** en ce moment.'
-    return `🔴 **${alerts.length} ${isPt ? 'alerta(s) urgente(s)' : 'alerte(s) urgente(s)'} :**\n\n${alerts.map((a: any) => `- ${a.message}`).join('\n')}`
+    return `🔴 **${alerts.length} ${isPt ? 'alerta(s) urgente(s)' : 'alerte(s) urgente(s)'} :**\n\n${alerts.map((a) => `- ${a.message}`).join('\n')}`
   }
 
   if (msg.includes('budget') || msg.includes('orçamento') || msg.includes('dépense') || msg.includes('despesa') || msg.includes('finance') || msg.includes('finanç')) {
@@ -244,16 +252,16 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
 
   if (msg.includes('mission') || msg.includes('missão') || msg.includes('intervenção')) {
     return isPt
-      ? `📋 **Missões** : ${ctx.missions?.length || 0} no total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions || []).slice(0, 3).map((m: any) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
-      : `📋 **Missions** : ${ctx.missions?.length || 0} au total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions || []).slice(0, 3).map((m: any) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
+      ? `📋 **Missões** : ${ctx.missions?.length || 0} no total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions as MissionSummary[] || []).slice(0, 3).map((m) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
+      : `📋 **Missions** : ${ctx.missions?.length || 0} au total — ${stats.missionsUrgentes || 0} urgentes.\n\n${(ctx.missions as MissionSummary[] || []).slice(0, 3).map((m) => `- **${m.priorite?.toUpperCase()}** — ${m.immeuble} → ${m.artisan} : ${m.description}`).join('\n')}`
   }
 
   if (msg.includes('artisan') || msg.includes('artesão') || msg.includes('rc pro')) {
-    const expired = (ctx.artisans || []).filter((a: any) => !a.rcProValide)
+    const expired = (ctx.artisans as ArtisanSummary[] || []).filter((a) => !a.rcProValide)
     return expired.length > 0
       ? isPt
-        ? `⚠️ **${expired.length} artesão(s) com RC Pro expirado :**\n\n${expired.map((a: any) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Ação necessária: suspender até renovação.`
-        : `⚠️ **${expired.length} artisan(s) avec RC Pro expirée :**\n\n${expired.map((a: any) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Action requise : suspendre jusqu'au renouvellement.`
+        ? `⚠️ **${expired.length} artesão(s) com RC Pro expirado :**\n\n${expired.map((a) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Ação necessária: suspender até renovação.`
+        : `⚠️ **${expired.length} artisan(s) avec RC Pro expirée :**\n\n${expired.map((a) => `- **${a.nom}** (${a.metier})`).join('\n')}\n\n📌 Action requise : suspendre jusqu'au renouvellement.`
       : isPt
         ? `✅ Todos os artesãos têm **RC Pro válido**.`
         : `✅ Tous les artisans ont une **RC Pro valide**.`
@@ -305,8 +313,8 @@ export async function POST(request: NextRequest) {
       : buildFrSystemPrompt(syndic_context, userRole)
 
     const historyMessages = limitedHistory
-      .filter((m: any) => m.role && m.content)
-      .map((m: any) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+      .filter((m: { role?: string; content?: string }) => m.role && m.content)
+      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
 
     const messages = [
       { role: 'system', content: systemPrompt },

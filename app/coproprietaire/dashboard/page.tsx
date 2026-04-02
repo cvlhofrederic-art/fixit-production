@@ -2214,6 +2214,8 @@ export default function CoproprietaireDashboard() {
   const [historique, setHistorique] = useState<HistoriqueEntry[]>(HISTORIQUE_DEMO)
   const [params, setParams] = useState<ParamConfidentialite>(PARAMS_DEMO)
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
 
   // Signalement (mini form dans Communication)
   const [signalemType, setSignalemType] = useState('')
@@ -2322,6 +2324,7 @@ export default function CoproprietaireDashboard() {
 
   // ── Actions ──
   const handleLogout = async () => {
+    setLogoutLoading(true)
     await supabase.auth.signOut()
     window.location.href = '/'
   }
@@ -2574,13 +2577,15 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
         <div className="fixed top-3 right-3 z-[9999]">
           <button
             onClick={async () => {
+              setAdminLoading(true)
               await supabase.auth.updateUser({ data: { ...user?.user_metadata, role: 'super_admin', _admin_override: false } })
               await supabase.auth.refreshSession()
               window.location.href = '/admin/dashboard'
             }}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-[#0D1B2E] font-bold text-xs px-4 py-2 rounded-full shadow-lg transition"
+            disabled={adminLoading}
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-[#0D1B2E] font-bold text-xs px-4 py-2 rounded-full shadow-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {t.retourAdmin}
+            {adminLoading ? '...' : t.retourAdmin}
           </button>
         </div>
       )}
@@ -2665,12 +2670,13 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
           })}
           <button
             onClick={handleLogout}
-            style={{ width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', margin: '1px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13, background: 'transparent', border: '1px solid transparent', color: 'rgba(255,255,255,0.45)', textAlign: 'left' as const, transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(192,57,43,0.15)'; (e.currentTarget as HTMLElement).style.color = '#e74c3c' }}
+            disabled={logoutLoading}
+            style={{ width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', margin: '1px 8px', borderRadius: 8, cursor: logoutLoading ? 'not-allowed' : 'pointer', fontSize: 13, background: 'transparent', border: '1px solid transparent', color: 'rgba(255,255,255,0.45)', textAlign: 'left' as const, transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif", opacity: logoutLoading ? 0.6 : 1 }}
+            onMouseEnter={e => { if (!logoutLoading) { (e.currentTarget as HTMLElement).style.background = 'rgba(192,57,43,0.15)'; (e.currentTarget as HTMLElement).style.color = '#e74c3c' } }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' }}
           >
             <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>🚪</span>
-            {sidebarOpen && <span>{t.deconnexion}</span>}
+            {sidebarOpen && <span>{logoutLoading ? '...' : t.deconnexion}</span>}
           </button>
         </nav>
 

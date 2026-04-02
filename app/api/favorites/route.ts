@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+
+const favoriteBodySchema = z.object({
+  artisan_id: z.string().uuid(),
+})
 
 // GET /api/favorites — liste des artisans favoris du client
 export async function GET(request: NextRequest) {
@@ -34,14 +39,15 @@ export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
 
-  let body: { artisan_id?: string }
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Corps invalide' }, { status: 400 }) }
+  let rawBody: unknown
+  try { rawBody = await request.json() } catch { return NextResponse.json({ error: 'Corps invalide' }, { status: 400 }) }
 
-  if (!body.artisan_id) return NextResponse.json({ error: 'artisan_id requis' }, { status: 400 })
+  const parsed = favoriteBodySchema.safeParse(rawBody)
+  if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
   const { error } = await supabaseAdmin
     .from('client_favorites')
-    .upsert({ client_id: user.id, artisan_id: body.artisan_id }, { onConflict: 'client_id,artisan_id' })
+    .upsert({ client_id: user.id, artisan_id: parsed.data.artisan_id }, { onConflict: 'client_id,artisan_id' })
 
   if (error) {
     logger.error('[favorites] POST error:', { error: error.message })

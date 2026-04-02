@@ -70,7 +70,7 @@ export default function CanalCommunicationsPage({
   setCanalTacheAssignee: (v: string) => void
   canalTachePriorite: 'normale' | 'urgente'
   setCanalTachePriorite: (v: 'normale' | 'urgente') => void
-  onSendCanalInterne: () => void
+  onSendCanalInterne: () => Promise<void> | void
   onMarkCanalInterneRead: () => void
   userName: string
   onAddPlanningEvent: (evt: PlanningEvent) => void
@@ -79,6 +79,7 @@ export default function CanalCommunicationsPage({
   const locale = useLocale()
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null)
   const [channelView, setChannelView] = useState<'artisans' | 'interne' | 'demandeurs'>('artisans')
+  const [sending, setSending] = useState(false)
   const [canalTab, setCanalTab] = useState<'artisan' | 'demandeur'>('artisan')
   const [newMsg, setNewMsg] = useState('')
   const [newMsgDemandeur, setNewMsgDemandeur] = useState('')
@@ -751,9 +752,9 @@ export default function CanalCommunicationsPage({
                       value={canalInterneInput}
                       rows={1}
                       onChange={e => setCanalInterneInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), onSendCanalInterne())}
+                      onKeyDown={async e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); setSending(true); await onSendCanalInterne(); setSending(false) } }}
                     />
-                    <button className="sd-send-btn" onClick={onSendCanalInterne} title="Envoyer">
+                    <button className="sd-send-btn" disabled={sending} onClick={async () => { setSending(true); await onSendCanalInterne(); setSending(false) }} title="Envoyer">
                       <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 8L2 2l2.5 6L2 14l12-6z" fill="currentColor"/></svg>
                     </button>
                   </div>

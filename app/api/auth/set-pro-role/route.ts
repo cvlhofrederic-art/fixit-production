@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
+
+const setProRoleSchema = z.object({
+  user_id: z.string().uuid(),
+  role: z.enum(['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']),
+  org_type: z.string().min(1),
+})
 
 /**
  * POST /api/auth/set-pro-role
@@ -8,16 +15,11 @@ import { supabaseAdmin } from '@/lib/supabase-server'
  */
 export async function POST(req: NextRequest) {
   try {
-    const { user_id, role, org_type } = await req.json()
+    const body = await req.json()
+    const parsed = setProRoleSchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-    if (!user_id || !role || !org_type) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    const allowedRoles = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
-    if (!allowedRoles.includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-    }
+    const { user_id, role, org_type } = parsed.data
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
       user_metadata: { role, org_type },

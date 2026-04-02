@@ -38,6 +38,7 @@ export default function PlanningSection({
   const [planningDate, setPlanningDate] = useState(new Date())
   const [showPlanningModal, setShowPlanningModal] = useState(false)
   const [selectedPlanningDay, setSelectedPlanningDay] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [planningViewFilter, setPlanningViewFilter] = useState('tous')
   const [planningNeedsMigration, setPlanningNeedsMigration] = useState(false)
   const [planningEventForm, setPlanningEventForm] = useState({
@@ -71,6 +72,7 @@ export default function PlanningSection({
   // ── Handlers ──
   const handleDeletePlanningEvent = async (id: string) => {
     if (!confirm(locale === 'pt' ? 'Eliminar este evento do planeamento?' : 'Supprimer cet événement du planning ?')) return
+    setDeleting(id)
     setPlanningEvents(prev => prev.filter(e => e.id !== id))
     // Supprimer en DB aussi
     try {
@@ -82,6 +84,7 @@ export default function PlanningSection({
         })
       }
     } catch {}
+    finally { setDeleting(null) }
   }
 
   return (
@@ -185,7 +188,7 @@ CREATE INDEX IF NOT EXISTS idx_planning_events_cabinet ON syndic_planning_events
                 {dayEvents.slice(0, 2).map(e => (
                   <div key={e.id} className={`text-xs px-1 py-0.5 rounded mb-0.5 flex items-center gap-0.5 font-medium ${EVENT_COLORS[e.type].bg} ${EVENT_COLORS[e.type].text}`} title={`${e.heure} — ${e.titre} (${e.assigneA})`}>
                     <span className="truncate flex-1">{e.heure} {e.titre}</span>
-                    <button onClick={ev => { ev.stopPropagation(); handleDeletePlanningEvent(e.id) }} className="flex-shrink-0 opacity-60 hover:opacity-100 font-bold leading-none text-xs" title={t('syndicDash.common.delete')} aria-label={t('syndicDash.common.delete')}>×</button>
+                    <button onClick={ev => { ev.stopPropagation(); handleDeletePlanningEvent(e.id) }} disabled={deleting === e.id} className="flex-shrink-0 opacity-60 hover:opacity-100 font-bold leading-none text-xs disabled:cursor-default" title={t('syndicDash.common.delete')} aria-label={t('syndicDash.common.delete')}>{deleting === e.id ? '…' : '×'}</button>
                   </div>
                 ))}
                 {/* Missions artisans volontairement exclues du planning (agenda secrétaire) */}

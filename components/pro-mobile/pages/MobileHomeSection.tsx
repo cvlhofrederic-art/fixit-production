@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { formatPrice } from '@/lib/utils'
+import { Artisan, Service, Booking, Notification } from '@/lib/types'
 
 const formatDateLocale = (dateStr: string, locale: string) => {
   if (!dateStr) return ''
@@ -10,38 +11,56 @@ const formatDateLocale = (dateStr: string, locale: string) => {
   return d.toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
+interface BookingCardProps {
+  booking: Booking
+  onProof: () => void
+  onStatusChange: (id: string, status: string) => void
+  onMessages: () => void
+  trackingToken?: string
+  onStartTracking: () => void
+  onStopTracking: () => void
+  onCopyLink: () => void
+  linkCopied: boolean
+}
+
+interface QuickBtnProps {
+  icon: string
+  label: string
+  onClick: () => void
+}
+
 interface MobileHomeSectionProps {
-  artisan: any
-  bookings: any[]
-  services: any[]
+  artisan: Artisan
+  bookings: Booking[]
+  services: Service[]
   initials: string
   locale: string
   dateFmtLocale: string
   t: (key: string) => string
-  todayBookings: any[]
-  tomorrowBookings: any[]
-  pendingBookings: any[]
-  confirmedBookings: any[]
-  completedBookings: any[]
+  todayBookings: Booking[]
+  tomorrowBookings: Booking[]
+  pendingBookings: Booking[]
+  confirmedBookings: Booking[]
+  completedBookings: Booking[]
   totalRevenue: number
   activeTrackings: Record<string, string>
   trackingCopied: string | null
-  artisanNotifs: any[]
+  artisanNotifs: Notification[]
   serviceRanges: Record<string, { priceMin: number; priceMax: number; durationEstimate?: string; pricingUnit?: string }>
   isModuleEnabled: (key: string) => boolean
   setActiveTab: (tab: string) => void
   setShowNewRdv: (v: boolean) => void
   setMotifModal: (v: boolean) => void
   setShowDevisModal: (v: boolean) => void
-  setProofBooking: (v: any) => void
+  setProofBooking: (v: Booking) => void
   updateBookingStatus: (id: string, status: string) => void
-  openArtisanMessages: (booking: any) => void
-  startTracking: (booking: any) => void
+  openArtisanMessages: (booking: Booking) => void
+  startTracking: (booking: Booking) => void
   stopTracking: (bookingId: string) => void
   copyTrackingLink: (bookingId: string) => void
   markNotifRead: (id: string) => void
-  BookingCard: React.ComponentType<any>
-  QuickBtn: React.ComponentType<any>
+  BookingCard: React.ComponentType<BookingCardProps>
+  QuickBtn: React.ComponentType<QuickBtnProps>
 }
 
 export default function MobileHomeSection({
@@ -167,8 +186,8 @@ export default function MobileHomeSection({
                 : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`
               const completedThisMonth = bookings.filter(b => b.status === 'completed' && b.booking_date?.startsWith(thisMonth))
               const completedLastMonth = bookings.filter(b => b.status === 'completed' && b.booking_date?.startsWith(lastMonth))
-              const revThisMonth = completedThisMonth.reduce((s: number, b: any) => s + (b.services?.price_ttc || 0), 0)
-              const revLastMonth = completedLastMonth.reduce((s: number, b: any) => s + (b.services?.price_ttc || 0), 0)
+              const revThisMonth = completedThisMonth.reduce((s: number, b) => s + (b.services?.price_ttc || 0), 0)
+              const revLastMonth = completedLastMonth.reduce((s: number, b) => s + (b.services?.price_ttc || 0), 0)
               const diff = revLastMonth > 0 ? Math.round(((revThisMonth - revLastMonth) / revLastMonth) * 100) : 0
               const topServices = services
                 .map(s => ({ ...s, count: bookings.filter(b => b.service_id === s.id && b.status === 'completed').length }))
@@ -204,7 +223,7 @@ export default function MobileHomeSection({
                             <div className="flex-1 min-w-0">
                               <div className="text-xs font-semibold text-gray-800 truncate">{s.name}</div>
                             </div>
-                            <span className="text-xs text-gray-500 flex-shrink-0">{s.count} fois · {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc)}</span>
+                            <span className="text-xs text-gray-500 flex-shrink-0">{s.count} fois · {serviceRanges[s.id] ? `${serviceRanges[s.id].priceMin}€ - ${serviceRanges[s.id].priceMax}€` : formatPrice(s.price_ttc ?? 0)}</span>
                           </div>
                         ))}
                       </div>
@@ -232,7 +251,7 @@ export default function MobileHomeSection({
                     <div key={b.id} className="bg-white rounded-xl p-3 mb-2 border border-amber-100 flex items-center gap-3">
                       <div className="flex-1">
                         <div className="font-semibold text-sm text-gray-900">{clientName}</div>
-                        <div className="text-xs text-gray-500">{b.services?.name} · {formatDateLocale(b.booking_date, locale)}</div>
+                        <div className="text-xs text-gray-500">{b.services?.name} · {formatDateLocale(b.booking_date ?? '', locale)}</div>
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✓</button>

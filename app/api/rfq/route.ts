@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
+
+const rfqItemSchema = z.object({
+  product_name: z.string().min(1),
+  product_ref: z.string().optional(),
+  category: z.string().optional(),
+  quantity: z.number().positive(),
+  unit: z.string().min(1),
+  notes: z.string().optional(),
+})
+
+const rfqBodySchema = z.object({
+  title: z.string().min(1),
+  message: z.string().optional(),
+  country: z.enum(['FR', 'PT']),
+  items: z.array(rfqItemSchema).min(1),
+})
 
 // Lazy init — évite le crash au build CI quand SUPABASE_SERVICE_ROLE_KEY n'est pas défini
 function getSupabase() {
@@ -47,12 +64,11 @@ export async function POST(req: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const supabase = getSupabase()
-    const body: CreateRFQPayload = await req.json()
-    const { title, message, country, items } = body
+    const rawBody = await req.json()
+    const parsed = rfqBodySchema.safeParse(rawBody)
+    if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-    if (!title || !items?.length) {
-      return NextResponse.json({ error: 'title and items required' }, { status: 400 })
-    }
+    const { title, message, country, items } = parsed.data
 
     const { data: rfq, error: rfqError } = await supabase
       .from('rfqs')

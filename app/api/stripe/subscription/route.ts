@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { z } from 'zod'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { getUserSubscription } from '@/lib/subscription'
+
+const subscriptionBodySchema = z.object({
+  plan: z.string().min(1),
+  priceId: z.string().min(1),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +19,23 @@ export async function GET(request: NextRequest) {
     })
   } catch (err) {
     console.error('[stripe/subscription/GET] Unexpected error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getAuthUser(request)
+    if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+    const body = await request.json()
+    const parsed = subscriptionBodySchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+
+    const { plan, priceId } = parsed.data
+    return NextResponse.json({ received: true, plan, priceId })
+  } catch (err) {
+    console.error('[stripe/subscription/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

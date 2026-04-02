@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { logger } from '@/lib/logger'
+
+const kycEmailSchema = z.object({
+  to: z.string().email(),
+  name: z.string().min(1),
+  company: z.string().min(1),
+  action: z.enum(['approve', 'reject']),
+  rejection_reason: z.string().optional(),
+  market: z.string().optional(),
+})
 
 interface SendKycEmailBody {
   to: string
@@ -67,21 +77,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: Partial<SendKycEmailBody>
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { to, name, company, action, rejection_reason, market } = body
+  const parsed = kycEmailSchema.safeParse(rawBody)
+  if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-  if (!to || !name || !company || !action) {
-    return NextResponse.json({ error: 'Missing required fields: to, name, company, action' }, { status: 400 })
-  }
-  if (action !== 'approve' && action !== 'reject') {
-    return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 })
-  }
+  const { to, name, company, action, rejection_reason, market } = parsed.data
 
   const resendApiKey = process.env.RESEND_API_KEY
   if (!resendApiKey) {
