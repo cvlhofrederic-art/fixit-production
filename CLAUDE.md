@@ -9,7 +9,7 @@
 
 **Vitfix.io** — Plateforme de mise en relation entre artisans/professionnels de construction et clients (B2C + B2B).
 
-- **Stack :** Next.js 14, TypeScript, Tailwind CSS, Supabase, Vercel
+- **Stack :** Next.js 16.2.2, TypeScript, Tailwind CSS, Supabase, Vercel
 - **Marchés actifs :** France (Marseille/PACA) et Portugal (Porto/Tâmega e Sousa)
 - **URL production :** https://vitfix.io
 - **URL provisoire :** https://fixit-production.vercel.app
@@ -71,7 +71,24 @@ fixit-production/
 │   │   └── confirmacoes-lembretes-reclamacoes.md  ← Templates de emails
 │   └── faq-responses/
 │       └── faq-completo.md              ← FAQ completo da plataforma
-└── components/                 ← Composants React partagés
+├── components/                 ← Composants React partagés
+│   ├── client-dashboard/       ← Sections dashboard client (10 modules)
+│   ├── coproprietaire-dashboard/ ← Sections dashboard copropriétaire (10 modules)
+│   ├── syndic-dashboard/       ← Sections dashboard syndic (pages/, operations/, financial/, etc.)
+│   ├── pro-mobile/             ← Sections dashboard mobile artisan
+│   ├── dashboard/              ← Sections dashboard pro (btp/, rapports/, etc.)
+│   ├── chat/                   ← Composants chat IA (AiChatBot, FixyChatGeneric)
+│   └── common/                 ← Composants partagés (Providers, ConsentAnalytics, etc.)
+├── lib/
+│   ├── pdf/                    ← Générateurs PDF (devis-generator-v2, devis-pdf-v3, build-v2-input)
+│   ├── validation.ts           ← Schemas Zod centralisés pour API routes
+│   ├── logger.ts               ← Logger structuré JSON + Sentry
+│   ├── types.ts                ← Types partagés (Artisan, Booking, Service, etc.)
+│   └── i18n/                   ← Système i18n (FR/PT/EN)
+├── supabase/
+│   └── migrations/             ← Migrations SQL (RLS, FK, Storage policies)
+└── public/
+    └── fonts/                  ← Liberation Sans TTF (embarquée dans PDF)
 ```
 
 ---
@@ -150,4 +167,30 @@ fixit-production/
 
 ---
 
-*Dernière mise à jour : 18 mars 2026 — PT: 14 services, 12 villes, ~350 pages, GEO (llms.txt + AI crawlers)*
+## Conventions code
+
+### Error handling
+- Toujours utiliser `toast` (Sonner) pour feedback utilisateur sur erreurs
+- `console.warn` pour les erreurs localStorage (attendues en navigation privée)
+- `logger` (lib/logger.ts) côté serveur — envoie automatiquement à Sentry pour error/fatal
+- Ne jamais laisser de `catch {}` vide
+
+### PDF / Devis
+- 3 code paths PDF : `handleTestPdfV2` (download), `handlePreviewPdf` (aperçu), `handleExportFacturX`
+- Assurance RC Pro obligatoire — hard block sur les 3 paths (art. L243-2)
+- Rétractation B2C uniquement (conditionné sur `!client.siret`)
+- Font Liberation Sans embarquée pour Unicode (€, ², °)
+- Numérotation devis côté serveur (API `/api/devis-number`, séquence atomique)
+
+### API routes
+- Valider les inputs avec Zod (`lib/validation.ts` ou schema inline)
+- Utiliser `logger` pour les erreurs, ne pas exposer les détails internes au client
+- Rate limiting sur les endpoints IA et data-heavy
+
+### Types
+- Éviter `any` — utiliser les types de `lib/types.ts` (Artisan, Booking, Service, etc.)
+- `Record<string, unknown>` pour les objets dynamiques
+
+---
+
+*Dernière mise à jour : 2 avril 2026 — Audit sécurité complet terminé, Next.js 16.2.2, 5 Storage buckets RLS, Zod validation*
