@@ -20,24 +20,17 @@ export async function POST(request: NextRequest) {
   const results: string[] = []
   const errors: string[] = []
 
-  // 1. Ajouter les colonnes à profiles_artisan
-  const migrations = [
-    `ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS insurance_url TEXT`,
-    `ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS kbis_url TEXT`,
-    `ALTER TABLE profiles_artisan ADD COLUMN IF NOT EXISTS profile_photo_url TEXT`,
-  ]
+  // 1. Vérifier les colonnes de profiles_artisan
+  // Columns should exist from migrations. Verify presence.
+  const { data: colTest, error: colError } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('insurance_url, kbis_url, profile_photo_url')
+    .limit(0)
 
-  for (const sql of migrations) {
-    try {
-      const { error } = await supabaseAdmin.rpc('exec_sql', { sql })
-      if (error) {
-        errors.push(`SQL: ${sql.substring(0, 50)}... → ${error.message}`)
-      } else {
-        results.push(`OK: ${sql.substring(0, 60)}...`)
-      }
-    } catch (e: unknown) {
-      errors.push(`SQL: ${sql.substring(0, 50)}... → ${e instanceof Error ? e.message : String(e)}`)
-    }
+  if (colError) {
+    errors.push(`Colonnes manquantes dans profiles_artisan: ${colError.message}. Exécutez les migrations Supabase.`)
+  } else {
+    results.push('OK: Colonnes insurance_url, kbis_url, profile_photo_url présentes')
   }
 
   // 2. Créer les buckets (si pas déjà existants)

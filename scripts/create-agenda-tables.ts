@@ -8,50 +8,9 @@ const supabase = createClient(
 async function createTables() {
   console.log('🗄️  Création des tables agenda...\n')
 
-  // 1. Table artisan_availability - plages horaires récurrentes par jour
-  console.log('1️⃣  Création table artisan_availability...')
-  const { error: e1 } = await supabase.rpc('exec_sql', {
-    sql: `
-      CREATE TABLE IF NOT EXISTS artisan_availability (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        artisan_id UUID NOT NULL REFERENCES profiles_artisan(id) ON DELETE CASCADE,
-        day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-        start_time TIME NOT NULL,
-        end_time TIME NOT NULL,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(artisan_id, day_of_week)
-      );
-    `
-  })
-
-  if (e1) {
-    console.log('   Trying direct SQL approach...')
-    // Fallback: créer via REST API en insérant dans une table de migration
-    // On va utiliser les tables directement avec des requêtes
-  }
-
-  // 2. Table artisan_settings - paramètres de l'artisan dont auto_accept
-  console.log('2️⃣  Création table artisan_settings...')
-  const { error: e2 } = await supabase.rpc('exec_sql', {
-    sql: `
-      CREATE TABLE IF NOT EXISTS artisan_settings (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        artisan_id UUID NOT NULL UNIQUE REFERENCES profiles_artisan(id) ON DELETE CASCADE,
-        auto_accept_bookings BOOLEAN DEFAULT false,
-        slot_duration_minutes INTEGER DEFAULT 60,
-        buffer_minutes INTEGER DEFAULT 0,
-        max_bookings_per_day INTEGER DEFAULT 10,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `
-  })
-
-  if (e2) {
-    console.log('   ⚠️ RPC not available, tables need to be created via Supabase Dashboard SQL Editor')
-  }
+  // exec_sql RPC was removed in security audit.
+  // Tables should be created via Supabase migrations or Dashboard SQL Editor.
+  console.log('⚠️  exec_sql RPC supprimé (audit sécurité). Utilisez les migrations ou le SQL Editor.')
 
   console.log('\n✅ Script terminé.')
   console.log('\n📋 Si les tables n\'ont pas été créées automatiquement,')
