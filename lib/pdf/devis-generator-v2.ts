@@ -742,7 +742,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   } else if (input.artisan.rc_pro) {
     insuranceLine = `RC Pro ${input.artisan.rc_pro}, couverture ${insCoverage}.`
   } else {
-    insuranceLine = `${insTypeLabel} N/A, couverture ${insCoverage}.`
+    throw new Error('Assurance RC Pro obligatoire pour générer un devis (art. L243-2 C. assurances)')
   }
   const legalParagraph = [
     'Entrepreneur individuel (EI). Loi n\u00B02022-172 du 14 f\u00E9vrier 2022.',

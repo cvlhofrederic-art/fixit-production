@@ -862,7 +862,7 @@ export default function DevisFactureForm({
   const compliance = {
     siret: companySiret.trim().length > 0,
     rcs: companyRCS.trim().length > 0,
-    insurance: insuranceNumber.trim().length > 0,
+    insurance: insuranceName.trim().length > 0 && insuranceNumber.trim().length > 0,
     client: clientName.trim().length > 0,
     lines: lines.some(l => l.description.trim().length > 0 && l.totalHT > 0),
     ...(isSociete ? { capital: companyCapital.trim().length > 0 } : {}),
@@ -1045,6 +1045,13 @@ export default function DevisFactureForm({
 
   // ─── TEST PDF V2 (parallel generator, rollback-safe) ───
   const handleTestPdfV2 = async () => {
+    // Bloquer si assurance RC Pro manquante (art. L243-2 C. assurances)
+    if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
+      alert(locale === 'pt'
+        ? 'Seguro profissional obrigatório. Preencha o nome e número da apólice antes de gerar o PDF.'
+        : 'Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
+      return
+    }
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
@@ -1073,6 +1080,12 @@ export default function DevisFactureForm({
   }
 
   const handlePreviewPdf = async () => {
+    if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
+      alert(locale === 'pt'
+        ? 'Seguro profissional obrigatório. Preencha o nome e número da apólice antes de gerar o PDF.'
+        : 'Assurance RC Pro obligatoire. Renseignez le nom et le numéro de contrat avant de générer le PDF.')
+      return
+    }
     setPdfLoading(true)
     try {
       const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
