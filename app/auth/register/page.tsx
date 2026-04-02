@@ -572,8 +572,24 @@ export default function RegisterPage() {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
                     className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none"
-                    placeholder="Min. 6 caractères"
+                    placeholder="Min. 8 caractères"
                   />
+                  {formData.password.length > 0 && (
+                    <ul className="mt-2 space-y-1 text-xs">
+                      <li className={formData.password.length >= 8 ? 'text-green-600' : 'text-gray-400'}>
+                        {formData.password.length >= 8 ? '✓' : '○'} Min. 8 caractères
+                      </li>
+                      <li className={/[A-Z]/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}>
+                        {/[A-Z]/.test(formData.password) ? '✓' : '○'} Une majuscule
+                      </li>
+                      <li className={/[a-z]/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}>
+                        {/[a-z]/.test(formData.password) ? '✓' : '○'} Une minuscule
+                      </li>
+                      <li className={/[0-9]/.test(formData.password) ? 'text-green-600' : 'text-gray-400'}>
+                        {/[0-9]/.test(formData.password) ? '✓' : '○'} Un chiffre
+                      </li>
+                    </ul>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-mid mb-2">Confirmer <span className="text-red-500">*</span></label>
@@ -585,6 +601,11 @@ export default function RegisterPage() {
                     className="w-full px-4 py-3 border-[1.5px] border-[#E0E0E0] rounded-xl bg-warm-gray focus:border-yellow focus:bg-white focus:outline-none"
                     placeholder="Retapez le mot de passe"
                   />
+                  {formData.confirmPassword.length > 0 && (
+                    <p className={`mt-2 text-xs ${formData.password === formData.confirmPassword ? 'text-green-600' : 'text-red-500'}`}>
+                      {formData.password === formData.confirmPassword ? '✓ Les mots de passe correspondent' : '✗ Les mots de passe ne correspondent pas'}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
