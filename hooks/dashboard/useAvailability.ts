@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authFetch } from '@/lib/api-client'
 
 export function useAvailability(
   artisan: any,
@@ -73,16 +74,15 @@ export function useAvailability(
     if (artisan) {
       localStorage.setItem(`fixit_availability_services_${artisan.id}`, JSON.stringify(newDayServices))
       try {
-        const res = await fetch('/api/availability-services', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          },
-          body: JSON.stringify({ artisan_id: artisan.id, dayServices: newDayServices }),
-        })
-        const result = await res.json()
-        if (result.bio) setArtisan({ ...artisan, bio: result.bio })
+        const token = (await supabase.auth.getSession()).data.session?.access_token
+        if (token) {
+          const res = await authFetch('/api/availability-services', token, {
+            method: 'POST',
+            body: JSON.stringify({ artisan_id: artisan.id, dayServices: newDayServices }),
+          })
+          const result = await res.json()
+          if (result.bio) setArtisan({ ...artisan, bio: result.bio })
+        }
       } catch (e) {
         console.error('DayService save error:', e)
       }

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authFetch } from '@/lib/api-client'
 
 interface SettingsForm {
   company_name: string
@@ -41,9 +42,8 @@ export function useSettings(
       const token = session?.access_token
       if (!token) { alert(t('proDash.alerts.sessionExpired')); setSavingSettings(false); return }
 
-      const res = await fetch('/api/artisan-settings', {
+      const res = await authFetch('/api/artisan-settings', token, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           company_name: settingsForm.company_name,
           bio: settingsForm.bio,
@@ -71,14 +71,13 @@ export function useSettings(
       // Re-save dayServices marker after bio update
       if (Object.values(dayServices).some(arr => arr.length > 0)) {
         try {
-          await fetch('/api/availability-services', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            },
-            body: JSON.stringify({ artisan_id: artisan.id, dayServices }),
-          })
+          const token2 = (await supabase.auth.getSession()).data.session?.access_token
+          if (token2) {
+            await authFetch('/api/availability-services', token2, {
+              method: 'POST',
+              body: JSON.stringify({ artisan_id: artisan.id, dayServices }),
+            })
+          }
         } catch {}
       }
       if (json.partial && json.warning) {

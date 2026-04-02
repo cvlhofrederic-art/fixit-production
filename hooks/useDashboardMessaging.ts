@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { toast } from 'sonner'
 import type { Booking, ChatMessage } from '@/lib/types'
+import { authFetch } from '@/lib/api-client'
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,9 +42,8 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
     setDashMsgList([])
     setDashMsgText('')
     try {
-      const res = await fetch(`/api/booking-messages?booking_id=${booking.id}`, {
-        headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
-      })
+      const token = (await supabase.auth.getSession()).data.session?.access_token || ''
+      const res = await authFetch(`/api/booking-messages?booking_id=${booking.id}`, token)
       const json = await res.json()
       if (json.data) setDashMsgList(json.data)
     } catch (e) {
@@ -56,12 +56,9 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
     if (!dashMsgModal || !dashMsgText.trim() || dashMsgSending) return
     setDashMsgSending(true)
     try {
-      const res = await fetch('/api/booking-messages', {
+      const token = (await supabase.auth.getSession()).data.session?.access_token || ''
+      const res = await authFetch('/api/booking-messages', token, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
         body: JSON.stringify({ booking_id: dashMsgModal.id, content: dashMsgText.trim() }),
       })
       const json = await res.json()
@@ -105,9 +102,8 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
     if (!url) { toast.error(isPt ? '❌ Erro ao enviar foto' : '❌ Erreur upload photo'); return }
     try {
       const token = await getDashAuthToken()
-      const res = await fetch('/api/booking-messages', {
+      const res = await authFetch('/api/booking-messages', token, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ booking_id: dashMsgModal.id, content: '', type: 'photo', attachment_url: url }),
       })
       const json = await res.json()
@@ -136,9 +132,8 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
         if (!url) { toast.error(isPt ? '❌ Erro ao enviar áudio' : '❌ Erreur upload vocal'); return }
         try {
           const token = await getDashAuthToken()
-          const res = await fetch('/api/booking-messages', {
+          const res = await authFetch('/api/booking-messages', token, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ booking_id: dashMsgModal.id, content: '🎤 Message vocal', type: 'voice', attachment_url: url }),
           })
           const json = await res.json()
@@ -195,9 +190,8 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
       }
       const label = `${m.signer_name || 'Client'}${m.docTitle ? ' - ' + m.docTitle : ''}`
       const token = await getDashAuthToken()
-      const res = await fetch('/api/artisan-absences', {
+      const res = await authFetch('/api/artisan-absences', token, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           artisan_id: artisan.id,
           start_date: prDate,
