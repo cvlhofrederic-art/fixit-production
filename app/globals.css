@@ -1501,6 +1501,58 @@
   /* ── Font stacks ── */
   --font-sans: var(--font-dm-sans), 'DM Sans', sans-serif;
   --font-display: var(--font-montserrat), 'Montserrat', sans-serif;
+
+  /* ── V22 Artisan Dashboard ── */
+  --color-v22-yellow: var(--v22-yellow);
+  --color-v22-yellow-light: var(--v22-yellow-light);
+  --color-v22-yellow-border: var(--v22-yellow-border);
+  --color-v22-bg: var(--v22-bg);
+  --color-v22-surface: var(--v22-surface);
+  --color-v22-border: var(--v22-border);
+  --color-v22-border-dark: var(--v22-border-dark);
+  --color-v22-text: var(--v22-text);
+  --color-v22-text-mid: var(--v22-text-mid);
+  --color-v22-text-muted: var(--v22-text-muted);
+  --color-v22-green: var(--v22-green);
+  --color-v22-green-light: var(--v22-green-light);
+  --color-v22-red: var(--v22-red);
+  --color-v22-red-light: var(--v22-red-light);
+  --color-v22-red-bg: var(--v22-red-bg);
+  --color-v22-amber: var(--v22-amber);
+  --color-v22-amber-light: var(--v22-amber-light);
+  --color-v22-blue: var(--v22-blue);
+  --color-v22-blue-light: var(--v22-blue-light);
+
+  /* ── SD Syndic Dashboard ── */
+  --color-sd-navy: var(--sd-navy);
+  --color-sd-navy-mid: var(--sd-navy-mid);
+  --color-sd-navy-soft: var(--sd-navy-soft);
+  --color-sd-navy-muted: var(--sd-navy-muted);
+  --color-sd-gold: var(--sd-gold);
+  --color-sd-gold-light: var(--sd-gold-light);
+  --color-sd-gold-dim: var(--sd-gold-dim);
+  --color-sd-cream: var(--sd-cream);
+  --color-sd-cream-dark: var(--sd-cream-dark);
+  --color-sd-white: var(--sd-white);
+  --color-sd-ink: var(--sd-ink);
+  --color-sd-ink-2: var(--sd-ink-2);
+  --color-sd-ink-3: var(--sd-ink-3);
+  --color-sd-border: var(--sd-border);
+  --color-sd-border-dark: var(--sd-border-dark);
+  --color-sd-red: var(--sd-red);
+  --color-sd-red-soft: var(--sd-red-soft);
+  --color-sd-amber: var(--sd-amber);
+  --color-sd-amber-soft: var(--sd-amber-soft);
+  --color-sd-teal: var(--sd-teal);
+  --color-sd-teal-soft: var(--sd-teal-soft);
+
+  /* ── Spacing (v22 scale) ── */
+  --spacing-v22-1: var(--v22-space-1);
+  --spacing-v22-2: var(--v22-space-2);
+  --spacing-v22-3: var(--v22-space-3);
+  --spacing-v22-4: var(--v22-space-4);
+  --spacing-v22-6: var(--v22-space-6);
+  --spacing-v22-8: var(--v22-space-8);
 }
 
 body {
