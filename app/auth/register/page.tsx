@@ -33,7 +33,7 @@ export default function RegisterPage() {
   const [siretError, setSiretError] = useState('')
   const [siretWarning, setSiretWarning] = useState('')
   const [emailError, setEmailError] = useState('')
-  const emailDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const emailDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const formatSiret = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 14)
