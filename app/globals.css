@@ -99,6 +99,10 @@
   color: var(--v22-text);
   transition: all 0.15s;
   font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 #artisan-dashboard-v22 .v22-btn:hover { background: var(--v22-bg); }
 #artisan-dashboard-v22 .v22-btn-primary {
@@ -107,7 +111,7 @@
   color: var(--v22-text);
 }
 #artisan-dashboard-v22 .v22-btn-primary:hover { background: #FFE030; }
-#artisan-dashboard-v22 .v22-btn-sm { padding: 6px 12px; font-size: 11px; min-height: 32px; }
+#artisan-dashboard-v22 .v22-btn-sm { padding: 6px 12px; font-size: 11px; min-height: 36px; }
 /* Focus & disabled states */
 #artisan-dashboard-v22 .v22-btn:focus-visible { box-shadow: var(--v22-focus-ring); outline: none; }
 #artisan-dashboard-v22 .v22-btn:disabled,
@@ -1576,6 +1580,18 @@ textarea:focus-visible {
   border-radius: 4px;
 }
 
+/* ── Touch device minimum targets (WCAG 2.5.8) ─────────── */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* ── Design System — Disabled states ──────────────────────── */
 button:disabled {
   cursor: not-allowed;
@@ -2481,8 +2497,9 @@ table tbody tr:nth-child(even) {
 }
 
 /* ── Accessibility — Focus trap for modals ───────────────── */
-[role="dialog"]:focus {
-  outline: none;
+[role="dialog"]:focus-visible {
+  outline: 2px solid #FFC107;
+  outline-offset: 2px;
 }
 [role="dialog"] {
   position: relative;
