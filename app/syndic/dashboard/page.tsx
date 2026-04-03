@@ -130,6 +130,12 @@ const InfractionsSection = d(() => import('@/components/syndic-dashboard/legal/I
 const ReconciliationBancaireSection = d(() => import('@/components/syndic-dashboard/financial/ReconciliationBancaireSection'))
 const BenchmarkingSection = d(() => import('@/components/syndic-dashboard/reporting/BenchmarkingSection'))
 const ChatbotWhatsAppSection = d(() => import('@/components/syndic-dashboard/communication/ChatbotWhatsAppSection'))
+// ── Extracted layout + misc components ──
+const Sidebar = d(() => import('@/components/syndic-dashboard/layout/Sidebar'))
+const Header = d(() => import('@/components/syndic-dashboard/layout/Header'))
+const MaxExpertSection = d(() => import('@/components/syndic-dashboard/pages/MaxExpertSection'))
+const FixyPanel = d(() => import('@/components/syndic-dashboard/pages/FixyPanel'))
+const PDFGenerationModal = d(() => import('@/components/syndic-dashboard/misc/PDFGenerationModal'))
 
 // ─── Web Speech API types (not in standard TS lib — no @types/dom-speech-recognition) ──
 interface SpeechRecognitionResultItem {
@@ -1419,6 +1425,16 @@ export default function SyndicDashboard() {
     })
   }
 
+  // ── Stop voice recognition (used by FixyPanel) ─────────────────────────────
+  const stopVoiceRecognition = () => {
+    iaRecognitionRef.current?.stop()
+    setIaVoiceActive(false)
+    clearInterval(iaVoiceDurationRef.current)
+    setIaVoiceDuration(0)
+    setIaVoiceInterim('')
+    setIaVoiceConfidence(0)
+  }
+
   // Sauvegarder préférence TTS
   const toggleSpeechEnabled = () => {
     setIaSpeechEnabled(prev => {
@@ -2481,204 +2497,35 @@ export default function SyndicDashboard() {
       )}
 
       {/* ── SIDEBAR ── */}
-      <aside
-        style={{ width: sidebarOpen ? 240 : 64, background: 'var(--sd-navy)', flexShrink: 0, display: 'flex', flexDirection: 'column', transition: 'width 0.25s ease', borderRight: '1px solid var(--sd-border-dark)', position: 'relative', overflowY: 'auto' }}
-      >
-        {/* Grid texture overlay */}
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)', backgroundSize: '32px 32px', pointerEvents: 'none' }} />
-
-        {/* Logo */}
-        <div style={{ padding: '0 20px', height: 80, display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--sd-border-dark)', position: 'relative', gap: 12, flexShrink: 0 }}>
-          {/* Logo mark — always visible */}
-          <div
-            style={{ width: 36, height: 36, background: 'linear-gradient(135deg,var(--sd-gold),#A8842A)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display',serif", color: 'var(--sd-navy)', fontSize: 17, fontWeight: 600, boxShadow: '0 4px 12px rgba(201,168,76,0.3)', flexShrink: 0, cursor: 'pointer' }}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            title={sidebarOpen ? t('syndicDash.sidebar.collapse') : t('syndicDash.sidebar.expand')}
-          >V</div>
-          {sidebarOpen && (
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: "'Playfair Display',serif", color: '#fff', fontSize: 16, lineHeight: 1.1, letterSpacing: '0.5px' }}>VitFix Pro</div>
-              <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '2.5px', textTransform: 'uppercase', color: 'var(--sd-gold)', marginTop: 3 }}>
-                {t(`syndicDash.roles.${userRole}`) || 'Gestionnaire Pro'}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, paddingTop: 8, paddingBottom: 8, overflowY: 'auto', position: 'relative' }}>
-          {/* ── Catégories sidebar groupées ── */}
-          {SIDEBAR_CATEGORIES.map(cat => {
-            const catItems = navItems.filter(item => item.category === cat.key)
-            if (catItems.length === 0) return null
-            return (
-              <div key={cat.key}>
-                {sidebarOpen && (
-                  <div style={{ padding: '20px 24px 6px', fontSize: 9, fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
-                    {cat.label}
-                  </div>
-                )}
-                {catItems.map(item => {
-                  const isActive = page === item.id
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setPage(item.id)}
-                      style={{
-                        width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11,
-                        padding: '10px 16px', margin: '1px 8px',
-                        borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: isActive ? 500 : 400,
-                        fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
-                        transition: 'all 0.18s ease', border: isActive ? '1px solid rgba(201,168,76,0.2)' : '1px solid transparent', textAlign: 'left',
-                        background: isActive ? 'var(--sd-gold-dim)' : 'transparent',
-                        color: isActive ? 'var(--sd-gold-light)' : 'rgba(255,255,255,0.45)',
-                        position: 'relative',
-                      }}
-                      onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)' } }}
-                      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' } }}
-                    >
-                      {isActive && <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 3, height: 18, background: 'var(--sd-gold)', borderRadius: '0 3px 3px 0' }} />}
-                      <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0, filter: isActive ? 'none' : 'grayscale(30%)' }}>{item.emoji}</span>
-                      {sidebarOpen && (
-                        <>
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-                          {item.badge !== undefined && item.badge > 0 && (
-                            <span style={{ marginLeft: 'auto', background: isActive ? 'rgba(201,168,76,0.25)' : 'rgba(255,255,255,0.1)', color: isActive ? 'var(--sd-gold-light)' : 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20 }}>
-                              {item.badge}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )
-          })}
-          <button
-            onClick={handleLogout}
-            style={{ width: 'calc(100% - 16px)', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 16px', margin: '1px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13, background: 'transparent', border: '1px solid transparent', color: 'rgba(255,255,255,0.45)', textAlign: 'left', transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(192,57,43,0.15)'; (e.currentTarget as HTMLElement).style.color = '#e74c3c' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' }}
-          >
-            <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>🚪</span>
-            {sidebarOpen && <span>{t('syndicDash.sidebar.logout')}</span>}
-          </button>
-        </nav>
-
-        {/* User footer */}
-        <div style={{ padding: '12px 8px', borderTop: '1px solid var(--sd-border-dark)', position: 'relative', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'default' }}>
-            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,var(--sd-gold),#A8842A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sd-navy)', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
-              {initials}
-            </div>
-            {sidebarOpen && (
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
-                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, letterSpacing: '0.4px', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t(`syndicDash.roles.${userRole}`) || getRoleLabel(userRole, locale) || 'Admin Cabinet'}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        page={page}
+        setPage={setPage}
+        navItems={navItems}
+        sidebarCategories={SIDEBAR_CATEGORIES}
+        userRole={userRole}
+        userName={userName}
+        initials={initials}
+        handleLogout={handleLogout}
+      />
 
       {/* ── CONTENU PRINCIPAL ── */}
       <main className="flex-1 overflow-y-auto" style={{ background: 'var(--sd-cream)' }}>
         {/* Topbar */}
-        <header style={{ background: '#fff', borderBottom: '1px solid var(--sd-border)', padding: '0 36px', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50, boxShadow: '0 1px 0 var(--sd-border), 0 4px 16px rgba(13,27,46,0.04)' }}>
-          <div>
-            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 400, color: 'var(--sd-navy)', letterSpacing: '0.2px' }}>
-              {navItems.find(n => n.id === page)?.emoji} {navItems.find(n => n.id === page)?.label}
-            </h1>
-            <p style={{ fontSize: 11, color: 'var(--sd-ink-3)', letterSpacing: '0.3px' }}>
-              {companyName} · {new Date().toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Alertes urgentes */}
-            {alertes.filter(a => a.urgence === 'haute').length > 0 && (
-              <button
-                onClick={() => setPage('alertes')}
-                title={t('syndicDash.accueil.urgentAlerts')}
-                style={{ width: 38, height: 38, border: '1px solid var(--sd-border)', background: 'var(--sd-red-soft)', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--sd-red)" strokeWidth="1.5"><path d="M8 2a5 5 0 00-5 5v2l-1 2h12l-1-2V7a5 5 0 00-5-5z"/><path d="M6.5 13a1.5 1.5 0 003 0"/></svg>
-                <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, background: 'var(--sd-red)', border: '2px solid #fff', borderRadius: '50%' }} />
-              </button>
-            )}
-            {/* ── Bouton Notifications (style Facebook) ── */}
-            <div style={{ position: 'relative' }} ref={notifBtnRef}>
-              <button
-                onClick={() => setNotifPanelOpen(!notifPanelOpen)}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'linear-gradient(135deg, var(--sd-gold), #A8842A)', color: 'var(--sd-navy)', border: 'none', padding: '9px 18px', borderRadius: 9, fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.2px', boxShadow: '0 2px 8px rgba(201,168,76,0.35)', position: 'relative' }}
-              >
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="var(--sd-navy)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1.5a4.5 4.5 0 00-4.5 4.5v2.5L2 10.5h12L12.5 8.5V6A4.5 4.5 0 008 1.5z"/><path d="M6.5 12.5a1.5 1.5 0 003 0"/></svg>
-                {t('syndicDash.common.notifications')}
-                {notifUnread > 0 && (
-                  <span style={{ background: '#e74c3c', color: '#fff', fontSize: 10, fontWeight: 700, minWidth: 18, height: 18, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', marginLeft: 2 }}>
-                    {notifUnread > 9 ? '9+' : notifUnread}
-                  </span>
-                )}
-              </button>
-              {/* Panel dropdown notifications */}
-              {notifPanelOpen && (
-                <div style={{ position: 'absolute', right: 0, top: 48, width: 360, background: '#fff', borderRadius: 14, boxShadow: '0 8px 32px rgba(13,27,46,0.18)', border: '1px solid var(--sd-border)', zIndex: 50, overflow: 'hidden' }}>
-                  <div style={{ background: 'var(--sd-navy)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 13 }}>🔔 {t('syndicDash.common.notifications')}</span>
-                    <button onClick={() => setNotifPanelOpen(false)} aria-label={t('syndicDash.common.close')} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
-                  </div>
-                  <div style={{ maxHeight: 380, overflowY: 'auto' }}>
-                    {notifs.length === 0 ? (
-                      <div style={{ padding: 32, textAlign: 'center', color: 'var(--sd-ink-3)', fontSize: 13 }}>
-                        <div style={{ fontSize: 28, marginBottom: 8 }}>🔔</div>
-                        {t('syndicDash.common.noNotification')}
-                      </div>
-                    ) : notifs.slice(0, 20).map(n => {
-                      // Temps relatif
-                      const diff = Date.now() - new Date(n.created_at).getTime()
-                      const mins = Math.floor(diff / 60000)
-                      const hrs = Math.floor(diff / 3600000)
-                      const days = Math.floor(diff / 86400000)
-                      const timeAgo = mins < 1 ? (locale === 'pt' ? 'agora' : "à l'instant") : mins < 60 ? (locale === 'pt' ? `há ${mins}min` : `il y a ${mins}min`) : hrs < 24 ? (locale === 'pt' ? `há ${hrs}h` : `il y a ${hrs}h`) : (locale === 'pt' ? `há ${days}j` : `il y a ${days}j`)
-                      // Navigation cible
-                      const targetPage: Page = n.type === 'rapport_intervention' || n.type === 'new_mission' || n.type === 'mission_completed' ? 'missions' : 'alertes'
-                      return (
-                        <div
-                          key={n.id}
-                          onClick={() => { setPage(targetPage); setNotifPanelOpen(false) }}
-                          style={{ padding: '12px 16px', borderBottom: '1px solid var(--sd-border)', background: !n.read ? 'rgba(201,168,76,0.06)' : '#fff', cursor: 'pointer', transition: 'background 0.15s' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = !n.read ? 'rgba(201,168,76,0.12)' : 'rgba(0,0,0,0.02)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = !n.read ? 'rgba(201,168,76,0.06)' : '#fff' }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                            <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>
-                              {n.type === 'rapport_intervention' ? '📋' : n.type === 'new_mission' ? '✅' : n.type === 'mission_completed' ? '🏁' : '📣'}
-                            </span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 13, fontWeight: !n.read ? 600 : 500, color: 'var(--sd-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</p>
-                              {n.body && <p style={{ fontSize: 12, color: 'var(--sd-ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</p>}
-                              <p style={{ fontSize: 11, color: 'var(--sd-gold)', marginTop: 4, fontWeight: 500 }}>{timeAgo}</p>
-                            </div>
-                            {!n.read && <div style={{ width: 8, height: 8, background: 'var(--sd-gold)', borderRadius: '50%', flexShrink: 0, marginTop: 6 }} />}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {notifs.length > 0 && (
-                    <div style={{ padding: '10px 16px', borderTop: '1px solid var(--sd-border)', display: 'flex', justifyContent: 'center' }}>
-                      <button onClick={async () => { setNotifLoading(true); await markAllNotifsRead(); setNotifLoading(false); setNotifPanelOpen(false) }} disabled={notifLoading} style={{ fontSize: 12, color: 'var(--sd-gold)', background: 'none', border: 'none', cursor: notifLoading ? 'default' : 'pointer', fontWeight: 600, opacity: notifLoading ? 0.6 : 1 }}>
-                        ✓ {notifLoading ? '…' : t('syndicDash.common.markAllRead')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
+        <Header
+          page={page}
+          setPage={setPage}
+          navItems={navItems}
+          companyName={companyName}
+          alertes={alertes}
+          notifs={notifs}
+          notifUnread={notifUnread}
+          notifPanelOpen={notifPanelOpen}
+          setNotifPanelOpen={setNotifPanelOpen}
+          notifLoading={notifLoading}
+          markAllNotifsRead={markAllNotifsRead}
+        />
 
         <div className={page === 'canal' ? '' : 'p-6'}>
 
@@ -2832,415 +2679,32 @@ export default function SyndicDashboard() {
 
           {/* ── MAX EXPERT-CONSEIL ── */}
           {page === 'ia' && (
-            <div className="sd-mx-zone">
-              <div className="sd-mx-inner">
-
-                {/* ── Identity Banner ── */}
-                <div className="sd-mx-banner">
-                  <div className="sd-mx-id-left">
-                    <div className="sd-mx-monogram" style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}>
-                      <MaxAvatar size={54} />
-                    </div>
-                    <div>
-                      <div className="sd-mx-title-row">
-                        <div className="sd-mx-title">{t('syndicDash.ai.maxTitleFull')}</div>
-                        <span className="sd-mx-ia-chip">IA</span>
-                      </div>
-                      <div className="sd-mx-expertise">
-                        {locale === 'pt' ? (
-                          <>
-                            <span className="sd-mx-exp-tag">Condomínio</span>
-                            <span className="sd-mx-exp-tag">Legislação PT</span>
-                            <span className="sd-mx-exp-tag">Regulamentação</span>
-                            <span className="sd-mx-exp-tag">Contabilidade</span>
-                            <span className="sd-mx-exp-tag">Contencioso</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="sd-mx-exp-tag">Copropriété</span>
-                            <span className="sd-mx-exp-tag">Droit ALUR / ELAN</span>
-                            <span className="sd-mx-exp-tag">Réglementation</span>
-                            <span className="sd-mx-exp-tag">Comptabilité</span>
-                            <span className="sd-mx-exp-tag">Contentieux</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="sd-mx-banner-right">
-                    <div className="sd-mx-stat">
-                      <div className="sd-mx-stat-num">{maxMessages.length}</div>
-                      <div className="sd-mx-stat-lbl">Messages</div>
-                    </div>
-                    <div className="sd-mx-stat">
-                      <div className="sd-mx-stat-num">∞</div>
-                      <div className="sd-mx-stat-lbl">{locale === 'pt' ? 'Disponível' : 'Disponible'}</div>
-                    </div>
-                    <button
-                      className="sd-mx-clear"
-                      onClick={() => { const cleared = [{ role: 'assistant' as const, content: t('syndicDash.ai.cleared') }]; setMaxMessages(cleared); try { localStorage.setItem(`fixit_max_history_${user?.id}`, JSON.stringify(cleared)) } catch {} }}
-                      title={locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation'}
-                      aria-label={locale === 'pt' ? 'Nova conversa' : 'Nouvelle conversation'}
-                    >✕</button>
-                  </div>
-                </div>
-
-                {/* ── Tab Bar (Chat / Conformité / Documents) ── */}
-                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--sd-border)', marginBottom: 0, background: '#fff' }}>
-                  {([
-                    { id: 'chat' as const, icon: '💬', label: locale === 'pt' ? 'Consultor' : 'Consultant' },
-                    { id: 'conformite' as const, icon: '✅', label: locale === 'pt' ? 'Conformidade' : 'Conformité' },
-                    { id: 'documents' as const, icon: '📄', label: locale === 'pt' ? 'Documentos' : 'Documents' },
-                  ]).map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setMaxTab(tab.id)}
-                      style={{
-                        flex: 1, padding: '12px 8px', fontSize: 13, fontWeight: maxTab === tab.id ? 600 : 400,
-                        color: maxTab === tab.id ? 'var(--sd-gold)' : 'var(--sd-ink-3)',
-                        borderBottom: maxTab === tab.id ? '2px solid var(--sd-gold)' : '2px solid transparent',
-                        background: 'transparent', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none',
-                        cursor: 'pointer', transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
-                      }}
-                    >
-                      {tab.icon} {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* ═══════════════════════════════════════════════════════
-                    TAB: CHAT (Consultant)
-                ═══════════════════════════════════════════════════════ */}
-                {maxTab === 'chat' && (
-                  <>
-                    {/* ── Sélecteur immeuble contextuel ── */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderBottom: '1px solid var(--sd-border)', background: 'var(--sd-cream)' }}>
-                      <span style={{ fontSize: 11, color: 'var(--sd-ink-3)', fontWeight: 500 }}>🏢 {locale === 'pt' ? 'Contexto' : 'Contexte'} :</span>
-                      <select
-                        value={maxSelectedImmeuble}
-                        onChange={e => setMaxSelectedImmeuble(e.target.value)}
-                        style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--sd-border)', background: '#fff', color: 'var(--sd-navy)', fontFamily: "var(--font-outfit), 'Outfit', sans-serif", cursor: 'pointer' }}
-                      >
-                        <option value="all">{locale === 'pt' ? 'Todos os edifícios' : 'Tous les immeubles'}</option>
-                        {immeubles.map(i => <option key={i.nom} value={i.nom}>{i.nom}</option>)}
-                      </select>
-                    </div>
-
-                    {/* ── Messages Area ── */}
-                    <div className="sd-mx-messages">
-                      {maxMessages.map((msg, i) => (
-                        msg.role === 'assistant' ? (() => {
-                          const { text: msgText, docData } = parseDocPDF(msg.content)
-                          return (
-                          <div key={i} className="sd-mx-msg-max">
-                            <div className="sd-mx-msg-av"><MaxAvatar size={34} /></div>
-                            <div className="sd-mx-msg-inner">
-                              <div className="sd-mx-msg-label">Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}</div>
-                              <div className="sd-mx-msg-bubble" suppressHydrationWarning>
-                                <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msgText) }} />
-                              </div>
-                              {/* ── Copy + Fixy + PDF action buttons ── */}
-                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                                <button
-                                  onClick={() => { navigator.clipboard.writeText(msgText); }}
-                                  style={{ fontSize: 11, color: 'var(--sd-ink-3)', background: 'transparent', border: '1px solid var(--sd-border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
-                                  title={locale === 'pt' ? 'Copiar' : 'Copier'}
-                                >📋 {locale === 'pt' ? 'Copiar' : 'Copier'}</button>
-                                <button
-                                  onClick={() => { setFixyPanelOpen(true); }}
-                                  style={{ fontSize: 11, color: 'var(--sd-gold)', background: 'transparent', border: '1px solid var(--sd-gold)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', transition: 'all 0.15s' }}
-                                  title={locale === 'pt' ? 'Enviar ao Fixy para executar' : 'Envoyer à Fixy pour exécuter'}
-                                >🤖 {locale === 'pt' ? 'Fixy →' : 'Fixy →'}</button>
-                                {docData && (
-                                  <button
-                                    onClick={() => {
-                                      setPendingDocData(docData)
-                                      setPdfObjet(docData.objet || '')
-                                      // Pre-select immeuble if specified by Max
-                                      if (docData.destinataire?.immeuble) {
-                                        const match = immeubles.find(im => im.nom.toLowerCase().includes(docData.destinataire!.immeuble!.toLowerCase()))
-                                        setPdfSelectedImmeuble(match ? match.nom : '')
-                                      } else {
-                                        setPdfSelectedImmeuble(immeubles.length === 1 ? immeubles[0].nom : '')
-                                      }
-                                      setPdfSelectedCopro(null)
-                                      setShowPdfModal(true)
-                                    }}
-                                    style={{ fontSize: 11, color: '#ffffff', background: '#0D1B2E', border: '1px solid #0D1B2E', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', transition: 'all 0.15s', fontWeight: 600 }}
-                                    title={locale === 'pt' ? 'Descarregar PDF oficial' : 'Télécharger le PDF officiel'}
-                                  >📄 {locale === 'pt' ? 'Descarregar PDF' : 'Télécharger PDF'}</button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          )
-                        })() : (
-                          <div key={i} className="sd-mx-msg-user">
-                            <div className="sd-mx-msg-user-inner">
-                              <div className="sd-mx-msg-user-bubble">{msg.content}</div>
-                              <button
-                                onClick={() => {
-                                  if (!maxFavorites.includes(msg.content)) {
-                                    const newFavs = [...maxFavorites, msg.content]
-                                    setMaxFavorites(newFavs)
-                                    try { localStorage.setItem(`fixit_max_favorites_${user?.id}`, JSON.stringify(newFavs)) } catch {}
-                                  }
-                                }}
-                                style={{ fontSize: 10, color: maxFavorites.includes(msg.content) ? 'var(--sd-gold)' : 'var(--sd-ink-3)', background: 'transparent', border: 'none', cursor: 'pointer', marginTop: 4, padding: 0, textAlign: 'right' as const, width: '100%' }}
-                                title={locale === 'pt' ? 'Guardar como favorito' : 'Enregistrer en favori'}
-                              >{maxFavorites.includes(msg.content) ? '⭐' : '☆'} {locale === 'pt' ? 'Favorito' : 'Favori'}</button>
-                            </div>
-                          </div>
-                        )
-                      ))}
-
-                      {maxLoading && (
-                        <div className="sd-mx-typing">
-                          <div className="sd-mx-msg-av"><MaxAvatar size={34} /></div>
-                          <div className="sd-mx-typing-bubble">
-                            <div className="sd-mx-tdot" />
-                            <div className="sd-mx-tdot" />
-                            <div className="sd-mx-tdot" />
-                            <span style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginLeft: 8 }}>{locale === 'pt' ? 'Max a analisar...' : 'Max analyse...'}</span>
-                          </div>
-                        </div>
-                      )}
-                      <div ref={maxEndRef} />
-                    </div>
-
-                    {/* ── Ornamental Separator ── */}
-                    <div className="sd-mx-orn">
-                      <div className="sd-mx-orn-line" />
-                      <div className="sd-mx-orn-diamond">◆ ◆ ◆</div>
-                      <div className="sd-mx-orn-line" />
-                    </div>
-
-                    {/* ── Dynamic + Static Pills ── */}
-                    <div className="sd-mx-pills">
-                      {/* Dynamic context pills based on real data */}
-                      {(() => {
-                        const ctx = buildSyndicContext()
-                        const dynamicPills: { icon: string; text: string; priority: boolean }[] = []
-                        const rcExpired = ctx.artisans.filter(a => !a.rcProValide)
-                        if (rcExpired.length > 0) dynamicPills.push({ icon: '🔴', text: locale === 'pt' ? `${rcExpired.length} RC Pro expirado(s) — que fazer?` : `${rcExpired.length} RC Pro expirée(s) — que faire ?`, priority: true })
-                        const urgentMissions = ctx.missions.filter(m => m.priorite === 'urgente' && m.statut !== 'terminee')
-                        if (urgentMissions.length > 0) dynamicPills.push({ icon: '⚡', text: locale === 'pt' ? `${urgentMissions.length} missão(ões) urgente(s) — prioridades?` : `${urgentMissions.length} mission(s) urgente(s) — priorités ?`, priority: true })
-                        const overBudget = ctx.immeubles.filter(i => i.budgetAnnuel > 0 && i.depensesAnnee / i.budgetAnnuel > 0.85)
-                        if (overBudget.length > 0) dynamicPills.push({ icon: '💸', text: locale === 'pt' ? `Orçamento ${overBudget[0].nom} a ${Math.round(overBudget[0].depensesAnnee / overBudget[0].budgetAnnuel * 100)}%` : `Budget ${overBudget[0].nom} à ${Math.round(overBudget[0].depensesAnnee / overBudget[0].budgetAnnuel * 100)}%`, priority: true })
-                        const highAlerts = ctx.alertes.filter(a => a.urgence === 'haute')
-                        if (highAlerts.length > 0) dynamicPills.push({ icon: '🚨', text: locale === 'pt' ? `${highAlerts.length} alerta(s) urgente(s) — análise` : `${highAlerts.length} alerte(s) urgente(s) — analyse`, priority: true })
-                        return dynamicPills.map(p => (
-                          <button key={p.text} className="sd-mx-qpill" style={{ border: '1px solid var(--sd-red)', color: 'var(--sd-red)', background: 'var(--sd-red-soft)' }} onClick={() => sendMaxMessage(p.text)}>
-                            <span>{p.icon}</span> {p.text}
-                          </button>
-                        ))
-                      })()}
-                      {/* Favorites pills */}
-                      {maxFavorites.map(fav => (
-                        <button key={fav} className="sd-mx-qpill" style={{ border: '1px solid var(--sd-gold)', background: 'var(--sd-gold-dim)' }} onClick={() => sendMaxMessage(fav)}>
-                          <span>⭐</span> {fav}
-                        </button>
-                      ))}
-                      {/* Static pills */}
-                      {[
-                        { icon: '⚖️', text: t('syndicDash.ai.pillAG') },
-                        { icon: '🏗', text: t('syndicDash.ai.pillDPE') },
-                        { icon: '💶', text: t('syndicDash.ai.pillCharges') },
-                        { icon: '🔧', text: t('syndicDash.ai.pillElevator') },
-                        { icon: '📋', text: t('syndicDash.ai.pillFormalNotice') },
-                        { icon: '📜', text: t('syndicDash.ai.pillALUR') },
-                        { icon: '⚔️', text: t('syndicDash.ai.pillRecovery') },
-                      ].map(s => (
-                        <button
-                          key={s.text}
-                          className="sd-mx-qpill"
-                          onClick={() => sendMaxMessage(s.text)}
-                        >
-                          <span>{s.icon}</span> {s.text}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* ── Compose ── */}
-                    <div className="sd-mx-compose">
-                      <div className="sd-mx-compose-box">
-                        <textarea
-                          id="max-input"
-                          className="sd-mx-compose-input"
-                          value={maxInput}
-                          onChange={e => setMaxInput(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !e.shiftKey && !maxLoading) { e.preventDefault(); sendMaxMessage() }
-                          }}
-                          placeholder={locale === 'pt' ? 'Faça uma pergunta jurídica, técnica ou contabilística ao Max…' : 'Posez une question juridique, technique ou comptable à Max…'}
-                          rows={1}
-                          disabled={maxLoading}
-                          onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 150) + 'px'; }}
-                        />
-                        <button
-                          className="sd-mx-compose-send"
-                          onClick={() => sendMaxMessage()}
-                          disabled={maxLoading || !maxInput.trim()}
-                        >
-                          {maxLoading ? (
-                            <span style={{ width: 16, height: 16, border: '2px solid var(--sd-navy)', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-                          ) : '↑'}
-                        </button>
-                      </div>
-                      <div className="sd-mx-compose-foot">
-                        <span className="sd-mx-compose-hint">{t('syndicDash.ai.maxHint')} <strong>Fixy</strong></span>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* ═══════════════════════════════════════════════════════
-                    TAB: CONFORMITÉ (Checklist)
-                ═══════════════════════════════════════════════════════ */}
-                {maxTab === 'conformite' && (
-                  <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                      <div>
-                        <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, color: 'var(--sd-navy)', margin: 0 }}>
-                          {locale === 'pt' ? '✅ Checklist de Conformidade' : '✅ Checklist de Conformité'}
-                        </h2>
-                        <p style={{ fontSize: 12, color: 'var(--sd-ink-3)', marginTop: 4 }}>
-                          {locale === 'pt' ? 'Análise automática do estado do gabinete' : 'Analyse automatique de l\'état du cabinet'}
-                        </p>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {(() => {
-                          const checks = buildConformiteChecklist()
-                          const ok = checks.filter(c => c.status === 'ok').length
-                          const warn = checks.filter(c => c.status === 'warning').length
-                          const err = checks.filter(c => c.status === 'error').length
-                          return (
-                            <>
-                              <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20, background: 'var(--sd-teal-soft)', color: 'var(--sd-teal)', fontWeight: 600 }}>✅ {ok}</span>
-                              {warn > 0 && <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20, background: 'var(--sd-amber-soft)', color: 'var(--sd-amber)', fontWeight: 600 }}>⚠️ {warn}</span>}
-                              {err > 0 && <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20, background: 'var(--sd-red-soft)', color: 'var(--sd-red)', fontWeight: 600 }}>❌ {err}</span>}
-                            </>
-                          )
-                        })()}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {buildConformiteChecklist().map(check => (
-                        <div
-                          key={check.id}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px',
-                            background: '#fff', borderRadius: 10, border: `1px solid ${check.status === 'error' ? 'var(--sd-red)' : check.status === 'warning' ? 'var(--sd-amber)' : 'var(--sd-border)'}`,
-                            boxShadow: check.status === 'error' ? '0 0 0 1px rgba(192,57,43,0.1)' : 'none',
-                          }}
-                        >
-                          <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>
-                            {check.status === 'ok' ? '✅' : check.status === 'warning' ? '⚠️' : check.status === 'error' ? '❌' : 'ℹ️'}
-                          </span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sd-navy)' }}>{check.label}</div>
-                            <div style={{ fontSize: 12, color: 'var(--sd-ink-2)', marginTop: 2 }}>{check.detail}</div>
-                            {check.action && (
-                              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                <button
-                                  onClick={() => { setMaxTab('chat'); sendMaxMessage(locale === 'pt' ? `Analisa o problema: ${check.label}. ${check.detail}` : `Analyse le problème : ${check.label}. ${check.detail}`) }}
-                                  style={{ fontSize: 11, color: 'var(--sd-navy)', background: 'var(--sd-cream)', border: '1px solid var(--sd-border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
-                                >🎓 {locale === 'pt' ? 'Perguntar ao Max' : 'Demander à Max'}</button>
-                                <button
-                                  onClick={() => setFixyPanelOpen(true)}
-                                  style={{ fontSize: 11, color: 'var(--sd-gold)', background: 'var(--sd-gold-dim)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
-                                >🤖 {locale === 'pt' ? 'Fixy → ação' : 'Fixy → action'}</button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Score global */}
-                    <div style={{ marginTop: 20, padding: '16px 20px', background: 'var(--sd-navy)', borderRadius: 12, color: '#fff' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div>
-                          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 500, letterSpacing: '0.5px', textTransform: 'uppercase' as const }}>
-                            {locale === 'pt' ? 'Pontuação de conformidade' : 'Score de conformité'}
-                          </div>
-                          <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 32, fontWeight: 400, color: 'var(--sd-gold)', marginTop: 4 }}>
-                            {(() => {
-                              const checks = buildConformiteChecklist()
-                              const scored = checks.filter(c => c.status !== 'info')
-                              const ok = scored.filter(c => c.status === 'ok').length
-                              return scored.length > 0 ? Math.round(ok / scored.length * 100) : 100
-                            })()}%
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => { setMaxTab('chat'); sendMaxMessage(locale === 'pt' ? 'Faz uma análise completa da conformidade do meu gabinete e recomendações prioritárias' : 'Fais une analyse complète de la conformité de mon cabinet et recommandations prioritaires') }}
-                          style={{ fontSize: 12, color: 'var(--sd-navy)', background: 'var(--sd-gold)', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontWeight: 600, fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
-                        >🎓 {locale === 'pt' ? 'Análise detalhada Max' : 'Analyse détaillée Max'}</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ═══════════════════════════════════════════════════════
-                    TAB: DOCUMENTS (Générateur)
-                ═══════════════════════════════════════════════════════ */}
-                {maxTab === 'documents' && (
-                  <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
-                    <div style={{ marginBottom: 20 }}>
-                      <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, color: 'var(--sd-navy)', margin: 0 }}>
-                        {locale === 'pt' ? '📄 Gerador de Documentos' : '📄 Générateur de Documents'}
-                      </h2>
-                      <p style={{ fontSize: 12, color: 'var(--sd-ink-3)', marginTop: 4 }}>
-                        {locale === 'pt' ? 'Max gera modelos prontos a usar adaptados à legislação portuguesa' : 'Max génère des modèles prêts à l\'emploi adaptés à la législation française'}
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
-                      {(locale === 'pt' ? [
-                        { icon: '📩', title: 'Convocatória AG', desc: 'Art.º 1432.º CC — convocatória assembleia geral', prompt: 'Gera um modelo completo de convocatória para Assembleia Geral de condomínio, com todos os elementos obrigatórios segundo o Art.º 1432.º do Código Civil e Lei 8/2022' },
-                        { icon: '📝', title: 'Ata de AG', desc: 'Modelo de ata assembleia geral', prompt: 'Gera um modelo completo de ata de Assembleia Geral de condomínio, incluindo deliberações, votações por maioria (Art.º 1432.º/1433.º CC)' },
-                        { icon: '⚠️', title: 'Notificação formal', desc: 'Cobrança de quotas em atraso', prompt: 'Gera um modelo de notificação formal para cobrança de quotas de condomínio em atraso, com prazo e referência legal (Art.º 310.º CC prescrição 5 anos)' },
-                        { icon: '📋', title: 'Contrato manutenção', desc: 'Elevador, limpeza, jardim', prompt: 'Gera um modelo de contrato de manutenção para condomínio (elevador/limpeza/jardim), com cláusulas obrigatórias, SLA e penalizações' },
-                        { icon: '📊', title: 'Declaração de encargos', desc: 'Lei 8/2022 — obrigatória', prompt: 'Gera um modelo de declaração anual de encargos de condomínio conforme exigido pela Lei 8/2022 (regime do condomínio)' },
-                        { icon: '📜', title: 'Regulamento condomínio', desc: 'Modelo de regulamento interno', prompt: 'Gera um modelo de regulamento interno de condomínio conforme a Lei 8/2022 e Código Civil' },
-                        { icon: '🔧', title: 'Ordem de serviço', desc: 'Para artesão/prestador', prompt: 'Gera um modelo de ordem de serviço para artesão/prestador de serviços em condomínio, com escopo, prazo, valor e condições' },
-                        { icon: '💰', title: 'Orçamento previsional', desc: 'Modelo para AG aprovação', prompt: 'Gera um modelo de orçamento previsional para condomínio, com rubricas obrigatórias, fundo de reserva (≥10% DL 268/94), e formato para aprovação em AG' },
-                      ] : [
-                        { icon: '📩', title: 'Convocation AG', desc: 'Art. 9-1 décret 17/03/1967 — délai 21 jours minimum', prompt: 'Génère un modèle complet de convocation d\'Assemblée Générale de copropriété conforme au droit français. Mentions obligatoires : lieu, date, heure, ordre du jour détaillé (art. 9 et 9-1 décret n°67-223 du 17/03/1967), délai d\'envoi 21 jours minimum (art. 9 al. 2 modifié par loi ALUR 2014), notification par LRAR ou remise contre émargement (art. 64 décret 1967), joindre documents annexes obligatoires (art. 11 décret 1967 : comptes, budget prévisionnel, devis travaux). Prévoir les pouvoirs/mandats de représentation (art. 22 loi 10/07/1965). Indiquer les règles de majorité applicables (art. 24/25/25-1/26 loi 1965).' },
-                        { icon: '📝', title: 'PV d\'Assemblée', desc: 'Art. 17 décret 1967 — procès-verbal AG', prompt: 'Génère un modèle complet de procès-verbal d\'Assemblée Générale de copropriété conforme au droit français. Éléments obligatoires : date, lieu, feuille de présence (art. 14 décret 1967), constat du quorum, désignation président de séance/scrutateurs/secrétaire (art. 15 décret 1967), résumé des délibérations, texte exact de chaque résolution et résultat du vote avec majorité appliquée (art. 24 majorité simple, art. 25 majorité absolue, art. 25-1 passerelle, art. 26 double majorité, unanimité — loi 10/07/1965). Mentionner les noms et tantièmes des opposants et abstentionnistes (art. 17 décret 1967). Signature du président, scrutateurs et secrétaire. Notification aux absents et opposants dans le mois (art. 42 al. 2 loi 1965, délai contestation 2 mois).' },
-                        { icon: '⚠️', title: 'Mise en demeure', desc: 'Art. 19 loi 1965 — recouvrement charges impayées', prompt: 'Génère un modèle de mise en demeure pour charges de copropriété impayées conforme au droit français. Référencer : art. 19 loi n°65-557 du 10/07/1965 (solidarité des charges, privilège immobilier spécial du syndicat), art. 19-1 loi 1965 (les frais de recouvrement sont à la charge du débiteur), art. 19-2 loi 1965 (hypothèque légale du syndicat). Mentionner : détail des charges dues (provisionnelles et arrêtées), période concernée, montant total, délai de régularisation (8 à 15 jours), intérêts de retard (taux légal), conséquences en cas de non-paiement (procédure d\'injonction de payer tribunal judiciaire, art. 1405 CPC, ou saisie immobilière). Envoyer par LRAR.' },
-                        { icon: '📋', title: 'Contrat maintenance', desc: 'Art. 18 loi 1965 — obligation du syndic', prompt: 'Génère un modèle de contrat de maintenance pour copropriété (ascenseur/nettoyage/espaces verts) conforme au droit français. Le syndic est tenu d\'assurer la conservation de l\'immeuble (art. 18 loi 10/07/1965). Inclure : objet et périmètre de la prestation, durée et conditions de renouvellement, obligations de résultat/moyens, SLA et délais d\'intervention, pénalités de retard, montant et révision de prix (indexation), assurances du prestataire (RC Pro, décennale si applicable), clause de résiliation. Pour les ascenseurs spécifiquement : référencer le décret n°2004-964 du 09/09/2004 (contrôle technique quinquennal obligatoire), décret n°2012-674 (entretien). Mise en concurrence obligatoire si > seuil fixé en AG (art. 21 loi 1965, art. 19-2 décret 1967).' },
-                        { icon: '📊', title: 'Budget prévisionnel', desc: 'Art. 14-1 loi 1965 + fonds travaux ALUR', prompt: 'Génère un modèle de budget prévisionnel de copropriété conforme au droit français. Budget voté en AG (art. 14-1 loi 10/07/1965, majorité art. 24). Postes obligatoires : charges générales (entretien parties communes, assurance MRI, honoraires syndic, frais bancaires) et charges spéciales (ascenseur, chauffage collectif — art. 10 al. 1 et 2 loi 1965, répartition selon utilité). Fonds de travaux obligatoire : cotisation ≥5% du budget prévisionnel (art. 14-2 loi 1965 modifié par loi ALUR 2014, obligatoire copros >10 lots). Appels de fonds trimestriels : provisions exigibles au 1er jour de chaque trimestre (art. 14-1 al. 2). Prévoir comparatif N-1/N, écart budget/réalisé. Régularisation annuelle des charges (art. 18-2 loi 1965).' },
-                        { icon: '📜', title: 'Règlement copropriété', desc: 'Art. 8 loi 1965 — loi ELAN/ALUR', prompt: 'Génère un modèle de règlement intérieur de copropriété conforme au droit français. Fondement : art. 8 loi n°65-557 du 10/07/1965 (le règlement de copropriété détermine la destination des parties privatives et communes, les conditions de leur jouissance). Inclure : description de l\'immeuble et répartition lots/tantièmes (état descriptif de division), distinction parties communes générales/spéciales (art. 3 et 6-2 loi 1965 modifié par loi ELAN 2018), destination de l\'immeuble (habitation/mixte/commercial), règles de jouissance des parties privatives et communes, répartition des charges (art. 10 loi 1965), clause d\'habitation bourgeoise si applicable. Mise en conformité obligatoire avec loi ELAN avant le 23/11/2021 (art. 209 II loi ELAN — actualisation de la répartition des tantièmes).' },
-                        { icon: '🔧', title: 'Ordre de mission', desc: 'Art. 18 loi 1965 — travaux urgents', prompt: 'Génère un modèle d\'ordre de mission/bon de commande pour artisan ou prestataire intervenant en copropriété, conforme au droit français. Le syndic peut engager des travaux urgents nécessaires à la sauvegarde de l\'immeuble sans vote AG (art. 18 al. 2 loi 10/07/1965). Au-delà du seuil voté en AG, mise en concurrence obligatoire (art. 21 loi 1965, art. 19-2 décret 1967). Inclure : identification des parties (syndicat des copropriétaires / prestataire), description précise des travaux, localisation dans l\'immeuble, délai d\'exécution, montant HT et TTC (TVA 10% travaux rénovation ou 20% standard, art. 279-0 bis CGI), conditions de paiement, garanties (décennale, biennale — art. 1792 et 1792-3 Code civil, loi Spinetta 04/01/1978), réception des travaux (art. 1792-6 Code civil).' },
-                        { icon: '💰', title: 'Appel de charges', desc: 'Art. 14-1 loi 1965 — appel trimestriel', prompt: 'Génère un modèle d\'appel de charges trimestriel pour copropriété conforme au droit français. Fondement : les provisions sont exigibles le 1er jour de chaque trimestre (art. 14-1 al. 2 loi 10/07/1965). Détailler : charges générales (quote-part selon tantièmes généraux, art. 10 al. 1 loi 1965), charges spéciales (répartition selon utilité, art. 10 al. 2), cotisation fonds de travaux (art. 14-2 loi ALUR, ≥5% du budget prévisionnel). Mentionner le budget voté en AG (date et n° résolution), le montant annuel total du copropriétaire, le 1/4 trimestriel, l\'éventuel solde créditeur/débiteur de la régularisation N-1 (art. 18-2 loi 1965). Inclure RIB du syndicat et date limite de paiement. Rappeler que les intérêts de retard courent sans mise en demeure préalable si le règlement le prévoit (art. 36 décret 1967).' },
-                      ]).map(doc => (
-                        <button
-                          key={doc.title}
-                          onClick={() => { setMaxTab('chat'); sendMaxMessage(doc.prompt) }}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', textAlign: 'left' as const,
-                            background: '#fff', borderRadius: 10, border: '1px solid var(--sd-border)', cursor: 'pointer',
-                            transition: 'all 0.15s', fontFamily: "var(--font-outfit), 'Outfit', sans-serif",
-                          }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--sd-gold)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(201,168,76,0.15)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--sd-border)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
-                        >
-                          <span style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{doc.icon}</span>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sd-navy)' }}>{doc.title}</div>
-                            <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 2 }}>{doc.desc}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </div>
+            <MaxExpertSection
+              maxMessages={maxMessages}
+              maxInput={maxInput}
+              setMaxInput={setMaxInput}
+              maxLoading={maxLoading}
+              maxTab={maxTab}
+              setMaxTab={setMaxTab}
+              maxFavorites={maxFavorites}
+              setMaxFavorites={setMaxFavorites}
+              maxSelectedImmeuble={maxSelectedImmeuble}
+              setMaxSelectedImmeuble={setMaxSelectedImmeuble}
+              maxEndRef={maxEndRef}
+              sendMaxMessage={sendMaxMessage}
+              setFixyPanelOpen={setFixyPanelOpen}
+              setMaxMessages={setMaxMessages}
+              immeubles={immeubles}
+              userId={user?.id}
+              parseDocPDF={parseDocPDF}
+              buildSyndicContext={buildSyndicContext}
+              buildConformiteChecklist={buildConformiteChecklist}
+              setPendingDocData={setPendingDocData}
+              setPdfObjet={setPdfObjet}
+              setPdfSelectedImmeuble={setPdfSelectedImmeuble}
+              setPdfSelectedCopro={setPdfSelectedCopro}
+              setShowPdfModal={setShowPdfModal}
+            />
           )}
 
           {/* ── MON ÉQUIPE ── */}
@@ -3648,252 +3112,34 @@ export default function SyndicDashboard() {
       )}
 
       {/* ─── Fixy — Assistant d'Action (panneau flottant) ─── */}
-      {user && !fixyPanelOpen && (
-        <button
-          onClick={() => setFixyPanelOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#FFC107] hover:bg-[#FFD54F] rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center"
-          title={locale === 'pt' ? 'Abrir Fixy — Assistente de Ação' : 'Ouvrir Fixy — Assistant d\'Action'}
-        >
-          <svg width={32} height={32} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="25" y="45" width="50" height="35" rx="8" fill="#FFC107"/><rect x="28" y="18" width="44" height="30" rx="10" fill="#FFD54F"/>
-            <circle cx="40" cy="30" r="5" fill="#1a1a2e"/><circle cx="60" cy="30" r="5" fill="#1a1a2e"/>
-            <circle cx="42" cy="28" r="1.5" fill="white"/><circle cx="62" cy="28" r="1.5" fill="white"/>
-            <path d="M42 38 Q50 44 58 38" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-            <line x1="50" y1="18" x2="50" y2="8" stroke="#FFC107" strokeWidth="3" strokeLinecap="round"/><circle cx="50" cy="6" r="4" fill="#FF9800"/>
-            <rect x="12" y="50" width="13" height="6" rx="3" fill="#FFD54F"/>
-            <rect x="33" y="80" width="10" height="12" rx="4" fill="#FFD54F"/><rect x="57" y="80" width="10" height="12" rx="4" fill="#FFD54F"/>
-            <rect x="30" y="62" width="40" height="4" rx="2" fill="#FF9800"/><circle cx="50" cy="55" r="3" fill="#FF9800"/>
-          </svg>
-          {iaPendingAction && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-pulse border-2 border-white" />
-          )}
-        </button>
-      )}
-
-      {user && fixyPanelOpen && (
-        <div
-          role="dialog"
-          aria-label={locale === 'pt' ? 'Fixy — Assistente de Ação' : 'Fixy — Assistant d\'Action'}
-          onKeyDown={(e) => { if (e.key === 'Escape') setFixyPanelOpen(false) }}
-          className="fixed bottom-6 right-6 z-50 w-[420px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
-          style={{ height: 'min(680px, calc(100vh - 4rem))' }}
-        >
-
-          {/* ── Header Fixy ── */}
-          <div className="bg-gradient-to-r from-[#FFC107] to-[#FFD54F] p-3 flex items-center gap-2.5 flex-shrink-0">
-            <svg width={36} height={36} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="25" y="45" width="50" height="35" rx="8" fill="#FFC107"/><rect x="28" y="18" width="44" height="30" rx="10" fill="#FFD54F"/>
-              <circle cx="40" cy="30" r="5" fill="#1a1a2e"/><circle cx="60" cy="30" r="5" fill="#1a1a2e"/>
-              <circle cx="42" cy="28" r="1.5" fill="white"/><circle cx="62" cy="28" r="1.5" fill="white"/>
-              <path d="M42 38 Q50 44 58 38" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-              <line x1="50" y1="18" x2="50" y2="8" stroke="#FFC107" strokeWidth="3" strokeLinecap="round"/><circle cx="50" cy="6" r="4" fill="#FF9800"/>
-              <rect x="12" y="50" width="13" height="6" rx="3" fill="#FFD54F"/>
-              <rect x="33" y="80" width="10" height="12" rx="4" fill="#FFD54F"/><rect x="57" y="80" width="10" height="12" rx="4" fill="#FFD54F"/>
-              <rect x="30" y="62" width="40" height="4" rx="2" fill="#FF9800"/><circle cx="50" cy="55" r="3" fill="#FF9800"/>
-            </svg>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-gray-900 text-sm">{locale === 'pt' ? 'Fixy — Assistente de Ação' : 'Fixy — Assistant d\u0027Action'}</h3>
-              <p className="text-amber-800 text-xs">{locale === 'pt' ? 'Voz · Missões · Navegação · Alertas · Documentos' : 'Voix · Missions · Navigation · Alertes · Documents'}</p>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <button onClick={toggleSpeechEnabled} title={iaSpeechEnabled ? (locale === 'pt' ? 'Desativar voz Fixy' : 'Désactiver voix Fixy') : (locale === 'pt' ? 'Ativar voz Fixy' : 'Activer voix Fixy')} className={`p-1.5 rounded-lg transition text-sm ${iaSpeechEnabled ? 'bg-amber-600/20 text-amber-900' : 'text-amber-700 hover:text-amber-900'}`}>
-                {iaSpeechEnabled ? '🔊' : '🔇'}
-              </button>
-              <button onClick={() => setIaMessages([{ role: 'assistant', content: locale === 'pt' ? 'Conversa apagada. O que posso fazer por si?' : 'Conversation effacée. Que puis-je faire pour vous ?' }])} title={locale === 'pt' ? 'Apagar' : 'Effacer'} className="p-1.5 rounded-lg text-amber-700 hover:text-amber-900 transition text-sm">🗑️</button>
-              <button onClick={() => setFixyPanelOpen(false)} title={locale === 'pt' ? 'Fechar Fixy' : 'Fermer Fixy'} className="p-1.5 rounded-lg text-amber-700 hover:text-amber-900 transition text-base font-bold">×</button>
-            </div>
-          </div>
-
-          {/* ── Bandeau vocal Fixy ── */}
-          {iaVoiceActive && (
-            <div className="bg-gradient-to-r from-red-50 to-orange-50 border-b border-red-200 px-3 py-2 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="flex gap-0.5 items-center flex-shrink-0">
-                  {[0, 1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="w-1 bg-red-500 rounded-full" style={{ height: `${6 + Math.sin((Date.now() / 200) + i) * 8 + (i % 3) * 4}px`, animation: `pulse 0.${4 + (i % 3)}s ease-in-out infinite alternate`, animationDelay: `${i * 0.08}s` }} />
-                  ))}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-red-700 text-xs font-semibold">🎙️ {locale === 'pt' ? 'Fixy a ouvir' : 'Fixy écoute'}</span>
-                    <span className="text-red-400 text-xs font-mono bg-red-100 px-1 py-0.5 rounded">{String(Math.floor(iaVoiceDuration / 60)).padStart(2, '0')}:{String(iaVoiceDuration % 60).padStart(2, '0')}</span>
-                    {iaVoiceConfidence > 0 && <span className={`text-xs px-1 py-0.5 rounded ${iaVoiceConfidence > 80 ? 'bg-green-100 text-green-700' : iaVoiceConfidence > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600'}`}>{iaVoiceConfidence}%</span>}
-                  </div>
-                  <div className="mt-0.5 text-xs truncate">
-                    {iaInput ? (<><span className="text-gray-800">{iaInput.replace(iaVoiceInterim, '')}</span>{iaVoiceInterim && <span className="text-gray-400 italic">{iaVoiceInterim}</span>}</>) : (<span className="text-red-400 italic">{locale === 'pt' ? 'Fale agora...' : 'Parlez maintenant...'}</span>)}
-                  </div>
-                </div>
-                <button onClick={() => { iaRecognitionRef.current?.stop(); setIaVoiceActive(false); clearInterval(iaVoiceDurationRef.current); setIaVoiceDuration(0); setIaVoiceInterim(''); setIaVoiceConfidence(0) }} className="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-2 py-1 rounded-lg transition">⏹</button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Messages Fixy ── */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {iaMessages.map((msg, i) => (
-              <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'assistant' && (
-                  <div className="w-7 h-7 bg-amber-100 rounded-xl flex items-center justify-center text-sm flex-shrink-0 mt-0.5">🤖</div>
-                )}
-                <div className="max-w-[85%] flex flex-col gap-1">
-                  <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-[#FFC107] text-gray-900 rounded-tr-sm'
-                      : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'
-                  }`}>
-                    {msg.role === 'assistant' ? (
-                      <div className="prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msg.content) }} />
-                    ) : msg.content}
-                  </div>
-                  {/* Carte de confirmation action */}
-                  {msg.action && (
-                    <div className="mt-1">
-                      {msg.actionStatus === 'pending' ? (
-                        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-2.5 space-y-1.5">
-                          <p className="text-xs font-semibold text-amber-800">
-                            ⚡ {msg.action.type === 'create_mission' ? (locale === 'pt' ? 'Criar missão' : 'Créer mission') : msg.action.type === 'assign_mission' ? (locale === 'pt' ? `Atribuir ${msg.action.artisan || ''}` : `Assigner ${msg.action.artisan || ''}`) : (locale === 'pt' ? 'Atualizar missão' : 'Mise à jour mission')}
-                          </p>
-                          <div className="text-xs text-amber-700 space-y-0.5">
-                            {(msg.action.immeuble || msg.action.lieu) && <p>📍 {msg.action.immeuble || msg.action.lieu}</p>}
-                            {msg.action.artisan && <p>👤 {msg.action.artisan}</p>}
-                            {msg.action.description && <p>📋 {msg.action.description}</p>}
-                            {msg.action.type_travaux && <p>🔧 {msg.action.type_travaux}</p>}
-                            {msg.action.date_intervention && <p>📅 {new Date(msg.action.date_intervention).toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>}
-                            {msg.action.priorite && <p>⚡ {msg.action.priorite}</p>}
-                            {msg.action.statut && <p>📊 → {msg.action.statut}</p>}
-                          </div>
-                          <div className="flex gap-2 mt-1.5">
-                            <button onClick={handleConfirmIaAction} className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 rounded-lg font-semibold transition">✓ {locale === 'pt' ? 'Confirmar' : 'Confirmer'}</button>
-                            <button onClick={handleCancelIaAction} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs py-1.5 rounded-lg font-semibold transition">✕ {locale === 'pt' ? 'Cancelar' : 'Annuler'}</button>
-                          </div>
-                        </div>
-                      ) : msg.actionStatus === 'confirmed' ? (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
-                          ✅ {msg.action.type === 'create_mission' ? (locale === 'pt' ? `Missão criada — ${msg.action.immeuble || ''}` : `Mission créée — ${msg.action.immeuble || ''}`) : msg.action.type === 'assign_mission' ? (locale === 'pt' ? `Atribuída — ${msg.action.artisan || ''}` : `Assignée — ${msg.action.artisan || ''}`) : (locale === 'pt' ? 'Atualização' : 'Mise à jour')}
-                        </span>
-                      ) : msg.actionStatus === 'cancelled' ? (
-                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">🚫 {locale === 'pt' ? 'Cancelada' : 'Annulée'}</span>
-                      ) : msg.actionStatus === 'error' ? (
-                        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">❌ {locale === 'pt' ? 'Erro' : 'Erreur'}</span>
-                      ) : (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1">
-                          ⚡ {msg.action.type === 'navigate' ? `→ ${msg.action.page}` : msg.action.type === 'create_alert' ? (locale === 'pt' ? 'Alerta criado' : 'Alerte créée') : msg.action.type === 'send_message' ? (locale === 'pt' ? 'Mensagem enviada' : 'Message envoyé') : msg.action.type === 'create_document' ? (locale === 'pt' ? 'Documento gerado' : 'Document généré') : `${msg.action.type}`}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {msg.role === 'assistant' && !iaSpeaking && msg.content.length > 20 && (
-                    <button onClick={() => speakResponse(msg.content)} className="self-start text-xs text-gray-400 hover:text-amber-600 transition flex items-center gap-1 px-1">🔊 {locale === 'pt' ? 'Ler' : 'Lire'}</button>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {iaLoading && (
-              <div className="flex gap-2 justify-start">
-                <div className="w-7 h-7 bg-amber-100 rounded-xl flex items-center justify-center text-sm flex-shrink-0">🤖</div>
-                <div className="bg-white border border-gray-200 px-3 py-2 rounded-2xl rounded-tl-sm">
-                  <div className="flex gap-1 items-center">
-                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    <span className="text-xs text-gray-500 ml-1.5">{locale === 'pt' ? 'Fixy a pensar...' : 'Fixy réfléchit...'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={iaEndRef} />
-          </div>
-
-          {/* ── Suggestions Fixy ── */}
-          <div className="px-3 py-1.5 border-t border-gray-100 flex gap-1.5 overflow-x-auto flex-shrink-0">
-            {(locale === 'pt' ? [
-              { icon: '📋', text: 'Cria uma missão urgente' },
-              { icon: '🔴', text: 'Alertas?' },
-              { icon: '💶', text: 'Orçamento' },
-              { icon: '📄', text: 'RC Pro expirado?' },
-              { icon: '✉️', text: 'Convocatória AG' },
-              { icon: '📊', text: 'Resumo gabinete' },
-            ] : [
-              { icon: '📋', text: 'Crée une mission urgente' },
-              { icon: '🔴', text: 'Alertes ?' },
-              { icon: '💶', text: 'Budget' },
-              { icon: '📄', text: 'RC Pro expirée ?' },
-              { icon: '✉️', text: 'Courrier convocation AG' },
-              { icon: '📊', text: 'Résumé cabinet' },
-            ]).map(s => (
-              <button key={s.text} onClick={() => { setIaInput(s.text); setTimeout(() => document.getElementById('fixy-input')?.focus(), 50) }}
-                className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded-full whitespace-nowrap hover:bg-amber-100 transition flex-shrink-0">
-                {s.icon} {s.text}
-              </button>
-            ))}
-          </div>
-
-          {/* ── Voice Help Overlay ── */}
-          {iaVoiceHelp && (
-            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-20 rounded-2xl p-4 overflow-y-auto">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-gray-800 text-sm">🎙️ {locale === 'pt' ? 'Comandos vocais Fixy' : 'Commandes vocales Fixy'}</h3>
-                <button onClick={() => setIaVoiceHelp(false)} aria-label={t('syndicDash.common.close')} className="text-gray-400 hover:text-gray-600 text-lg">×</button>
-              </div>
-              <div className="space-y-2.5 text-xs">
-                {locale === 'pt' ? (<>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">📋 Criar uma missão</h4><p className="text-gray-600 italic">&quot;Cria uma missão canalização para Silva, urgente&quot;</p></div>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">👷 Atribuir um artesão</h4><p className="text-gray-600 italic">&quot;Silva João, jardinagem, 10 março, Parque Corot&quot;</p></div>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">✏️ Atualizar</h4><p className="text-gray-600 italic">&quot;Passa a missão de Silva para concluída&quot;</p></div>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">🧭 Navegação</h4><p className="text-gray-600 italic">&quot;Vai para missões&quot; · &quot;Mostra os alertas&quot;</p></div>
-                <div className="pt-1.5 border-t border-gray-200"><p className="text-gray-500 text-xs">💡 Navegação instantânea. Missões e alertas pedem confirmação.</p></div>
-                </>) : (<>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">📋 Créer une mission</h4><p className="text-gray-600 italic">&quot;Crée une mission plomberie pour Dupont, urgente&quot;</p></div>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">👷 Assigner un artisan</h4><p className="text-gray-600 italic">&quot;Lepore Sébastien, élagage, 10 mars, Parc Corot&quot;</p></div>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">✏️ Mettre à jour</h4><p className="text-gray-600 italic">&quot;Passe la mission de Lepore en terminée&quot;</p></div>
-                <div><h4 className="font-semibold text-amber-700 mb-0.5">🧭 Navigation</h4><p className="text-gray-600 italic">&quot;Va aux missions&quot; · &quot;Montre les alertes&quot;</p></div>
-                <div className="pt-1.5 border-t border-gray-200"><p className="text-gray-500 text-xs">💡 Navigation instantanée. Missions et alertes demandent confirmation.</p></div>
-                </>)}
-              </div>
-            </div>
-          )}
-
-          {/* ── Input Fixy + Micro ── */}
-          <div className="p-3 border-t border-gray-100 bg-white flex-shrink-0 relative">
-            <div className="flex gap-1.5">
-              {iaVoiceSupported && (
-                <button onClick={startVoiceRecognition} title={iaVoiceActive ? (locale === 'pt' ? 'Parar' : 'Arrêter') : (locale === 'pt' ? 'Falar com Fixy' : 'Parler à Fixy')}
-                  className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all text-base relative ${
-                    iaVoiceActive ? 'bg-red-500 text-white shadow-lg shadow-red-200' : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600'
-                  }`}>
-                  {iaVoiceActive ? (<><span className="absolute inset-0 rounded-xl bg-red-400 animate-ping opacity-30" /><span className="relative">⏹</span></>) : '🎙️'}
-                </button>
-              )}
-              <div className="flex-1 relative">
-                <input id="fixy-input" type="text" value={iaInput} onChange={e => setIaInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !iaLoading && !iaPendingAction) sendIaMessage() }}
-                  placeholder={iaVoiceActive ? (locale === 'pt' ? '🎙️ Fale — envio automático...' : '🎙️ Parlez — envoi auto...') : (locale === 'pt' ? 'Diga uma ação ao Fixy...' : 'Dites une action à Fixy...')}
-                  className={`w-full px-3 py-2 border-2 rounded-xl focus:outline-none text-sm pr-8 transition ${
-                    iaVoiceActive ? 'border-red-300 bg-red-50 text-red-800' : 'border-gray-200 focus:border-amber-400'
-                  }`}
-                  disabled={iaLoading || !!iaPendingAction} />
-                {iaInput && !iaVoiceActive && (
-                  <button onClick={() => setIaInput('')} aria-label={t('syndicDash.common.close')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">×</button>
-                )}
-              </div>
-              <button id="ia-send-btn" onClick={() => sendIaMessage()} disabled={iaLoading || !iaInput.trim() || !!iaPendingAction || iaVoiceActive}
-                className="flex-shrink-0 w-10 h-10 bg-[#FFC107] hover:bg-[#FFD54F] text-gray-900 rounded-xl flex items-center justify-center font-bold text-base transition disabled:opacity-40">
-                {iaLoading ? <span className="w-3.5 h-3.5 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /> : '↑'}
-              </button>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-xs text-gray-500">
-                {iaVoiceActive ? (locale === 'pt' ? '🔴 Envio automático após silêncio' : '🔴 Envoi auto après silence') : iaVoiceSupported ? (locale === 'pt' ? '🎙️ Voz disponível · Fixy executa em tempo real' : '🎙️ Voix disponible · Fixy exécute en temps réel') : (locale === 'pt' ? '🤖 Fixy executa as suas ações em tempo real' : '🤖 Fixy exécute vos actions en temps réel')}
-              </p>
-              {iaVoiceSupported && !iaVoiceActive && (
-                <button onClick={() => setIaVoiceHelp(p => !p)} className="text-xs text-amber-600 hover:text-amber-800 transition flex-shrink-0 ml-2" title={locale === 'pt' ? 'Ajuda vocal' : 'Aide vocale'}>❓</button>
-              )}
-            </div>
-          </div>
-
-        </div>
-      )}
+      <FixyPanel
+        user={user}
+        fixyPanelOpen={fixyPanelOpen}
+        setFixyPanelOpen={setFixyPanelOpen}
+        iaMessages={iaMessages}
+        setIaMessages={setIaMessages}
+        iaInput={iaInput}
+        setIaInput={setIaInput}
+        iaLoading={iaLoading}
+        iaPendingAction={iaPendingAction}
+        iaEndRef={iaEndRef}
+        iaVoiceActive={iaVoiceActive}
+        iaVoiceSupported={iaVoiceSupported}
+        iaSpeechEnabled={iaSpeechEnabled}
+        iaSpeaking={iaSpeaking}
+        iaVoiceDuration={iaVoiceDuration}
+        iaVoiceInterim={iaVoiceInterim}
+        iaVoiceHelp={iaVoiceHelp}
+        setIaVoiceHelp={setIaVoiceHelp}
+        iaVoiceConfidence={iaVoiceConfidence}
+        sendIaMessage={sendIaMessage}
+        handleConfirmIaAction={handleConfirmIaAction}
+        handleCancelIaAction={handleCancelIaAction}
+        speakResponse={speakResponse}
+        startVoiceRecognition={startVoiceRecognition}
+        toggleSpeechEnabled={toggleSpeechEnabled}
+        stopVoiceRecognition={stopVoiceRecognition}
+      />
 
       {/* ── Signature Modal ── */}
       {showSignatureModal && (
@@ -3910,184 +3156,25 @@ export default function SyndicDashboard() {
       )}
 
       {/* ── PDF Generation Modal ── */}
-      {showPdfModal && pendingDocData && (() => {
-        const isPt = locale === 'pt'
-        const todayStr = new Date().toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-        // Get copropriétaires filtered by selected immeuble
-        const allCopros = coproprios
-        const filteredCopros = pdfSelectedImmeuble
-          ? allCopros.filter((c: Coproprio) => (c.immeuble || '').toLowerCase().includes(pdfSelectedImmeuble.toLowerCase()))
-          : allCopros
-        const docTypeLabel = (pendingDocData.title || pendingDocData.type || 'Document').replace(/_/g, ' ')
-
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4" onClick={() => !pdfGenerating && setShowPdfModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="p-6 space-y-5">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    📄 {isPt ? 'Gerar o documento' : 'Générer le document'}
-                  </h2>
-                  <button onClick={() => !pdfGenerating && setShowPdfModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-                </div>
-
-                {/* Type + Date */}
-                <div className="bg-gray-50 rounded-xl p-3 space-y-1">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-gray-600">{isPt ? 'Tipo' : 'Type'} :</span>
-                    <span className="font-semibold text-gray-900">{docTypeLabel}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-gray-600">{isPt ? 'Data' : 'Date'} :</span>
-                    <span className="text-gray-800">{todayStr}</span>
-                  </div>
-                </div>
-
-                {/* Immeuble selector */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">🏢 {isPt ? 'Condomínio' : 'Immeuble'} *</label>
-                  <select
-                    value={pdfSelectedImmeuble}
-                    onChange={e => { setPdfSelectedImmeuble(e.target.value); setPdfSelectedCopro(null) }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white"
-                  >
-                    <option value="">{isPt ? '— Selecionar um condomínio —' : '— Sélectionner un immeuble —'}</option>
-                    {immeubles.map(im => <option key={im.id} value={im.nom}>{im.nom}{im.adresse ? ` — ${im.adresse}` : ''}</option>)}
-                  </select>
-                </div>
-
-                {/* Destinataire (copropriétaire) selector */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">👤 {isPt ? 'Destinatário' : 'Destinataire'} *</label>
-                  <select
-                    value={pdfSelectedCopro ? JSON.stringify(pdfSelectedCopro) : ''}
-                    onChange={e => { try { setPdfSelectedCopro(e.target.value ? JSON.parse(e.target.value) : null) } catch { setPdfSelectedCopro(null) } }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm bg-white"
-                    disabled={!pdfSelectedImmeuble}
-                  >
-                    <option value="">{!pdfSelectedImmeuble ? (isPt ? 'Selecione primeiro um condomínio' : 'Sélectionnez d\'abord un immeuble') : (isPt ? '— Selecionar um destinatário —' : '— Sélectionner un destinataire —')}</option>
-                    {/* Option "Tous les copropriétaires" for AG/charges docs */}
-                    {pdfSelectedImmeuble && ['convocation_ag', 'appel_charges', 'convocation', 'assemblee'].some(t => (pendingDocData.type || '').toLowerCase().includes(t)) && (
-                      <option value={JSON.stringify({ _all: true, nom: isPt ? 'Todos os condóminos' : 'Tous les copropriétaires', prenom: '' })}>
-                        {isPt ? '👥 Todos os condóminos' : '👥 Tous les copropriétaires'}
-                      </option>
-                    )}
-                    {filteredCopros.map((c: Coproprio, idx: number) => {
-                      const label = `${c.prenomProprietaire || ''} ${c.nomProprietaire || ''}`.trim()
-                      const details: string[] = []
-                      if (c.batiment) details.push(`${isPt ? 'Bl.' : 'Bât.'} ${c.batiment}`)
-                      if (c.etage) details.push(`${c.etage}${isPt ? 'º' : 'e'} ${isPt ? 'andar' : 'ét.'}`)
-                      if (c.numeroPorte) details.push(`${isPt ? 'Porta' : 'Porte'} ${c.numeroPorte}`)
-                      return (
-                        <option key={idx} value={JSON.stringify(c)}>
-                          {label}{details.length > 0 ? ` — ${details.join(', ')}` : ''}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </div>
-
-                {/* Objet */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">📝 {isPt ? 'Assunto' : 'Objet'}</label>
-                  <input
-                    type="text"
-                    value={pdfObjet}
-                    onChange={e => setPdfObjet(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#C9A84C] focus:outline-none text-sm"
-                    placeholder={isPt ? 'Assunto do documento...' : 'Objet du document...'}
-                  />
-                </div>
-
-                {/* Status indicators */}
-                <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span>{cabinetLogo ? '✅' : '⚠️'}</span>
-                    <span className="text-gray-700">Logo :</span>
-                    {cabinetLogo ? (
-                      <span className="text-green-600 font-medium">{isPt ? 'Configurado' : 'Configuré'}</span>
-                    ) : (
-                      <button onClick={() => { setShowPdfModal(false); setPage('parametres') }} className="text-amber-600 font-medium hover:underline">
-                        {isPt ? 'Não configurado → Configurar' : 'Non configuré → Configurer'}
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span>{syndicSignature ? '✅' : '⚠️'}</span>
-                    <span className="text-gray-700">{isPt ? 'Assinatura' : 'Signature'} :</span>
-                    {syndicSignature ? (
-                      <span className="text-green-600 font-medium">{isPt ? 'Configurada' : 'Configurée'}</span>
-                    ) : (
-                      <button onClick={() => { setShowPdfModal(false); setPage('parametres') }} className="text-amber-600 font-medium hover:underline">
-                        {isPt ? 'Não configurada → Mon Profil' : 'Non configurée → Mon Profil'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    onClick={() => setShowPdfModal(false)}
-                    disabled={pdfGenerating}
-                    className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition disabled:opacity-50"
-                  >
-                    {isPt ? 'Cancelar' : 'Annuler'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!pdfSelectedImmeuble) { toast.error(isPt ? 'Selecione um condomínio' : 'Sélectionnez un immeuble'); return }
-                      if (!pdfSelectedCopro) { toast.error(isPt ? 'Selecione um destinatário' : 'Sélectionnez un destinataire'); return }
-                      setPdfGenerating(true)
-                      try {
-                        // Merge modal selections into docData
-                        const mergedDocData = { ...pendingDocData }
-                        if (pdfObjet) mergedDocData.objet = pdfObjet
-                        // Build destinataire from selected copro
-                        const copro = pdfSelectedCopro
-                        if (copro && !copro._all) {
-                          mergedDocData.destinataire = {
-                            ...(mergedDocData.destinataire || {}),
-                            nom: copro.nomProprietaire || copro.nom || '',
-                            prenom: copro.prenomProprietaire || copro.prenom || '',
-                            immeuble: pdfSelectedImmeuble,
-                            batiment: copro.batiment || '',
-                            etage: copro.etage || '',
-                            porte: copro.numeroPorte || copro.porte || '',
-                          }
-                        } else if (copro?._all) {
-                          mergedDocData.destinataire = {
-                            ...(mergedDocData.destinataire || {}),
-                            nom: copro.nom,
-                            prenom: '',
-                            immeuble: pdfSelectedImmeuble,
-                          }
-                        }
-                        await generateMaxPDF(mergedDocData)
-                        setShowPdfModal(false)
-                      } catch (err) {
-                        console.error('[PDF Modal] Error:', err)
-                        toast.error(isPt ? 'Erro ao gerar o PDF' : 'Erreur lors de la génération du PDF')
-                      } finally {
-                        setPdfGenerating(false)
-                      }
-                    }}
-                    disabled={pdfGenerating || !pdfSelectedImmeuble || !pdfSelectedCopro}
-                    className="px-6 py-2.5 text-sm font-bold text-white bg-[#0D1B2E] hover:bg-[#152338] rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {pdfGenerating ? (
-                      <><span className="animate-spin">⏳</span> {isPt ? 'A gerar...' : 'Génération...'}</>
-                    ) : (
-                      <>📄 {isPt ? 'Gerar o PDF' : 'Générer le PDF'}</>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
+      <PDFGenerationModal
+        showPdfModal={showPdfModal}
+        pendingDocData={pendingDocData}
+        pdfSelectedImmeuble={pdfSelectedImmeuble}
+        setPdfSelectedImmeuble={setPdfSelectedImmeuble}
+        pdfSelectedCopro={pdfSelectedCopro}
+        setPdfSelectedCopro={setPdfSelectedCopro}
+        pdfObjet={pdfObjet}
+        setPdfObjet={setPdfObjet}
+        pdfGenerating={pdfGenerating}
+        setPdfGenerating={setPdfGenerating}
+        setShowPdfModal={setShowPdfModal}
+        setPage={setPage}
+        immeubles={immeubles}
+        coproprios={coproprios}
+        cabinetLogo={cabinetLogo}
+        syndicSignature={syndicSignature}
+        generateMaxPDF={generateMaxPDF}
+      />
     </div>
   )
 }
