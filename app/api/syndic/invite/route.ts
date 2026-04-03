@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       // Si le compte existe déjà, on le lie
       if (authError.message?.includes('already')) {
         // Récupérer le compte existant (pagination pour éviter de charger tous les users en mémoire)
-        let existingUser: any = null
+        let existingUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null
         let page = 1
         const perPage = 100
         while (!existingUser) {

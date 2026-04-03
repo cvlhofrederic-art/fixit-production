@@ -468,14 +468,14 @@ export const TOOLS: Record<string, ToolDef> = {
       if (!bookings || bookings.length === 0)
         return { success: true, detail: 'Aucun client trouve.', data: [] }
 
-      const byClient = new Map<string, any[]>()
+      const byClient = new Map<string, typeof bookings[number][]>()
       for (const b of bookings) {
         if (!b.client_id) continue
         if (!byClient.has(b.client_id)) byClient.set(b.client_id, [])
         byClient.get(b.client_id)!.push(b)
       }
 
-      const clients: any[] = []
+      const clients: { id: string; name: string; email: string; phone: string; bookings_count: number; last_booking: string; total_ca: number }[] = []
       for (const [cId, cBookings] of byClient.entries()) {
         try {
           const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(cId)
@@ -528,8 +528,8 @@ export const TOOLS: Record<string, ToolDef> = {
       if (!bookings || bookings.length === 0) return { success: true, detail: 'Aucun client trouve.' }
 
       const clientIds = [...new Set(bookings.map(b => b.client_id).filter(Boolean))]
-      let matchedClient: any = null
-      let matchedBookings: any[] = []
+      let matchedClient: { id: string; name: string; email: string; phone: string; address: string } | null = null
+      let matchedBookings: typeof bookings = []
 
       for (const cId of clientIds) {
         try {
@@ -551,7 +551,7 @@ export const TOOLS: Record<string, ToolDef> = {
 
       const totalCA = Math.round(matchedBookings.filter(b => b.status === 'completed').reduce((s, b) => s + (b.price_ttc || 0), 0) * 100) / 100
       const rdvLines = matchedBookings.slice(0, 10).map(b =>
-        `  ${b.booking_date} ${(b.booking_time || '').substring(0, 5)} — ${(b as any).services?.name || 'Intervention'} — ${b.status} — ${b.price_ttc || 0}E`
+        `  ${b.booking_date} ${(b.booking_time || '').substring(0, 5)} — ${(b.services as { name?: string } | null)?.name || 'Intervention'} — ${b.status} — ${b.price_ttc || 0}E`
       )
 
       const detail = [
@@ -879,7 +879,7 @@ export const TOOLS: Record<string, ToolDef> = {
       if (error) return { success: false, detail: `Erreur : ${error.message}` }
       if (!data || data.length === 0) return { success: true, detail: 'Aucune absence enregistrée', data: [] }
 
-      const lines = data.map((a: any) => {
+      const lines = data.map((a) => {
         const s = new Date(a.start_date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
         const e = new Date(a.end_date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
         return `- Du ${s} au ${e}${a.reason ? ` (${a.reason})` : ''}${a.label ? ` — ${a.label}` : ''}`

@@ -229,10 +229,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Action inconnue. Utilisez "parse" ou "import"' }, { status: 400 })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[import-gecond] Erreur:', err)
     return NextResponse.json(
-      { error: 'Erreur serveur', details: err?.message },
+      { error: 'Erreur serveur', details: err instanceof Error ? err.message : undefined },
       { status: 500 }
     )
   }

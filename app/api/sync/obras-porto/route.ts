@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
             const altJson = await altRes.json()
             const datasets = altJson.data || altJson.results || []
             for (const ds of datasets) {
-              const resources = (ds.resources || []).filter((r: any) =>
+              const resources = (ds.resources || []).filter((r: Record<string, unknown>) =>
                 r.format === 'json' || r.format === 'csv' || r.format === 'geojson'
               )
               for (const resource of resources.slice(0, 2)) {
@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
         const datasets = json.result?.results || json.results || []
 
         for (const ds of datasets) {
-          const resources = (ds.resources || []).filter((r: any) =>
-            r.format?.toLowerCase() === 'json' ||
-            r.format?.toLowerCase() === 'csv' ||
-            r.format?.toLowerCase() === 'geojson'
+          const resources = (ds.resources || []).filter((r: Record<string, unknown>) =>
+            (r.format as string | undefined)?.toLowerCase() === 'json' ||
+            (r.format as string | undefined)?.toLowerCase() === 'csv' ||
+            (r.format as string | undefined)?.toLowerCase() === 'geojson'
           )
 
           for (const resource of resources.slice(0, 2)) {
@@ -109,10 +109,11 @@ export async function POST(request: NextRequest) {
     await finishSyncJob(supabase, jobId, { source: 'cm-porto', zone: 'porto-pt', ...result })
 
     return NextResponse.json({ success: true, ...result, total_fetched: unique.length })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[sync:obras-porto] Fatal error:', err)
-    await failSyncJob(supabase, jobId, err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Internal error'
+    await failSyncJob(supabase, jobId, errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
 

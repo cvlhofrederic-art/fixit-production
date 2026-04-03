@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const userId = user.id
 
   // Helper : récupérer silencieusement (table peut ne pas exister)
-  const safeSelect = async (table: string, column: string, id: string): Promise<any[]> => {
+  const safeSelect = async (table: string, column: string, id: string): Promise<Record<string, unknown>[]> => {
     try {
       const { data } = await supabaseAdmin.from(table).select('*').eq(column, id)
       return data || []
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     // 3. Services artisan
-    let services: any[] = []
+    let services: Record<string, unknown>[] = []
     if (artisanProfile) {
       const { data } = await supabaseAdmin.from('services').select('*').eq('artisan_id', artisanProfile.id)
       services = data || []
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const clientBookings = await safeSelect('bookings', 'client_id', userId)
 
     // 5. Bookings (en tant qu'artisan)
-    let artisanBookings: any[] = []
+    let artisanBookings: Record<string, unknown>[] = []
     if (artisanProfile) {
       artisanBookings = await safeSelect('bookings', 'artisan_id', artisanProfile.id)
     }
@@ -73,15 +73,15 @@ export async function GET(request: NextRequest) {
     const factures = await safeSelect('factures', 'artisan_user_id', userId)
 
     // 9. Documents fiscaux PT
-    let ptFiscalSeries: any[] = []
-    let ptFiscalDocuments: any[] = []
+    let ptFiscalSeries: Record<string, unknown>[] = []
+    let ptFiscalDocuments: Record<string, unknown>[] = []
     if (artisanProfile) {
       ptFiscalSeries = await safeSelect('pt_fiscal_series', 'artisan_id', artisanProfile.id)
       ptFiscalDocuments = await safeSelect('pt_fiscal_documents', 'artisan_id', artisanProfile.id)
     }
 
     // 10. Photos artisan
-    let artisanPhotos: any[] = []
+    let artisanPhotos: Record<string, unknown>[] = []
     if (artisanProfile) {
       artisanPhotos = await safeSelect('artisan_photos', 'artisan_id', artisanProfile.id)
     }

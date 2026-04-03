@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         .from('syndic_artisans')
         .select('cabinet_id, nom')
       if (allArtisans) {
-        const nameMatch = allArtisans.find((a: any) => {
+        const nameMatch = allArtisans.find((a: { nom?: string; cabinet_id?: string }) => {
           const aNorm = (a.nom || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
           const normParts = normName.split(/\s+/)
           return normParts.every((p: string) => aNorm.includes(p)) || aNorm.includes(normName)
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     if (artErr) logger.error('[assign-mission] Strategy D query error:', artErr.message)
     if (allCabinetArtisans && allCabinetArtisans.length > 0) {
       const normParts = normName.split(/\s+/)
-      const match = allCabinetArtisans.find((a: any) => {
+      const match = allCabinetArtisans.find((a: { nom?: string; cabinet_id?: string; artisan_user_id?: string; email?: string; id?: string }) => {
         const aNorm = (a.nom || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         return normParts.every((p: string) => aNorm.includes(p)) || aNorm.includes(normName)
       })
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
             await supabaseAdmin
               .from('syndic_artisans')
               .update({ artisan_user_id: profile.user_id, updated_at: new Date().toISOString() })
-              .eq('id', (match as any).id || '')
+              .eq('id', match.id || '')
               .eq('cabinet_id', cabinetId)
           } // else: no artisan profile for email
         } // else: no user_id or email available
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
       let allDone = false
       while (!allDone && page <= 10) {
         const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
-        const found = users.find((u: any) => u.email?.toLowerCase() === artisan_email.toLowerCase())
+        const found = users.find((u) => u.email?.toLowerCase() === artisan_email.toLowerCase())
         if (found) {
           artisanUserId = found.id
           resolvedBy = `E:listUsers_page${page}`

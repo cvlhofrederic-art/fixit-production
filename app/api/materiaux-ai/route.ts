@@ -528,7 +528,7 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
             return cachedResponse({
               success: true,
               mode: 'product',
-              products: fallbackParsed.products.map((p: any) => ({
+              products: fallbackParsed.products.map((p: Record<string, unknown>) => ({
                 name: p.name || 'Produit',
                 description: p.description || '',
                 price: typeof p.price === 'number' ? p.price : 0,
@@ -694,13 +694,13 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown, sans backtick:
       if (productParsed?.products?.length) {
         // Filtrer les produits avec URLs invalides (hallucinations)
         const rawProducts = productParsed.products
-          .filter((p: any) => p.url && typeof p.url === 'string' && p.url.startsWith('http'))
-          .map((p: any) => ({
+          .filter((p: Record<string, unknown>) => p.url && typeof p.url === 'string' && p.url.startsWith('http'))
+          .map((p: Record<string, unknown>) => ({
             name: p.name || 'Produit',
             description: p.description || '',
             price: typeof p.price === 'number' ? p.price : 0,
             store: p.store || '',
-            url: normalizeUrl(p.url),
+            url: normalizeUrl(p.url as string),
             image: p.image || null,
             condition: p.condition === 'refurbished' ? 'refurbished' : 'new',
           }))

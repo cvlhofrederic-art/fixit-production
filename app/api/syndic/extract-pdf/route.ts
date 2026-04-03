@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
       const result = await extractText(uint8, { mergePages: true })
       text = result.text || ''
       numPages = result.totalPages || 0
-    } catch (parseErr: any) {
-      const errMsg = (parseErr?.message || '').toLowerCase()
-      const errName = parseErr?.name || ''
+    } catch (parseErr: unknown) {
+      const errMsg = (parseErr instanceof Error ? parseErr.message : '').toLowerCase()
+      const errName = parseErr instanceof Error ? parseErr.name : ''
 
       // PDF protégé par mot de passe
       if (
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Autres erreurs → probablement PDF scanné
-      logger.error('[EXTRACT-PDF] Parse error:', parseErr?.message || parseErr)
+      logger.error('[EXTRACT-PDF] Parse error:', parseErr instanceof Error ? parseErr.message : parseErr)
       return NextResponse.json({
         error: 'Impossible d\'extraire le texte. Ce PDF est peut-être scanné (image). Utilisez l\'onglet "Saisir le texte" pour saisir manuellement.',
         isScanned: true,
@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
       isVitfix,
     })
 
-  } catch (err: any) {
-    logger.error('[EXTRACT-PDF] Unexpected error:', err?.message || err)
+  } catch (err: unknown) {
+    logger.error('[EXTRACT-PDF] Unexpected error:', err instanceof Error ? err.message : err)
     return NextResponse.json({
       error: 'Une erreur inattendue s\'est produite. Réessayez ou utilisez l\'onglet "Saisir le texte".',
     }, { status: 500 })

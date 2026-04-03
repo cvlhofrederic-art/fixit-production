@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
             const { data: files } = await supabaseAdmin.storage
               .from('artisan-documents')
               .list(`wallet/${base}/rc_pro`, { limit: 5 })
-            const realFiles = (files || []).filter((f: any) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
+            const realFiles = (files || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
             if (realFiles.length > 0) {
               artisan.rc_pro_valide = true
               void supabaseAdmin
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
               const { data: files } = await supabaseAdmin.storage
                 .from('artisan-documents')
                 .list(`wallet/${base}/${docKey}`, { limit: 5 })
-              const realFiles = (files || []).filter((f: any) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
+              const realFiles = (files || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
               if (realFiles.length > 0) {
                 artisan.assurance_decennale_valide = true
                 void supabaseAdmin
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
   const { email, nom, prenom, telephone, metier, siret, action } = validation.data
 
   // 1. Chercher si l'artisan a déjà un compte Vitfix (d'abord par profiles_artisan, puis paginé)
-  let existingUser: any = null
+  let existingUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null
 
   // Stratégie rapide : chercher par email dans profiles_artisan
   const { data: existingProfile } = await supabaseAdmin
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
     let done = false
     while (!done && page <= 10) {
       const { data: { users: pageUsers } } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
-      const found = pageUsers.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+      const found = pageUsers.find((u) => u.email?.toLowerCase() === email.toLowerCase())
       if (found) { existingUser = found; break }
       if (pageUsers.length < perPage) done = true
       page++
@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
         const { data: rcFiles } = await supabaseAdmin.storage
           .from('artisan-documents')
           .list(`wallet/${base}/rc_pro`, { limit: 5 })
-        const realFiles = (rcFiles || []).filter((f: any) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
+        const realFiles = (rcFiles || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
         if (realFiles.length > 0) {
           rcProValide = true
           // RC Pro document found
@@ -317,7 +317,7 @@ export async function POST(request: NextRequest) {
           const { data: decFiles } = await supabaseAdmin.storage
             .from('artisan-documents')
             .list(`wallet/${base}/${docKey}`, { limit: 5 })
-          const realFiles = (decFiles || []).filter((f: any) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
+          const realFiles = (decFiles || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
           if (realFiles.length > 0) {
             decennaleValide = true
             // Decennale document found

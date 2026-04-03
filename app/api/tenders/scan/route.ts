@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
     const result = await scanDepartment(department)
     logger.info(`[tenders/scan] Completed: ${result.meta.total_after_dedup} tenders found`)
     return NextResponse.json({ success: true, ...result.meta })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[tenders/scan] Fatal error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal error' }, { status: 500 })
   }
 }
 

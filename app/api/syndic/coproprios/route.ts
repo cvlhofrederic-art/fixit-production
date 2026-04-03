@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Supporte un seul copropriétaire ou un tableau (batch import)
-    const items: any[] = Array.isArray(body.coproprios) ? body.coproprios : (body.coproprio ? [body.coproprio] : [body])
+    const items: Record<string, unknown>[] = Array.isArray(body.coproprios) ? body.coproprios : (body.coproprio ? [body.coproprio] : [body])
 
     if (items.length === 0) {
       return NextResponse.json({ error: 'Données requises' }, { status: 400 })
@@ -105,15 +105,15 @@ export async function POST(request: NextRequest) {
       cabinet_id: cabinetId,
       immeuble: item.immeuble || '',
       batiment: item.batiment || '',
-      etage: typeof item.etage === 'number' ? item.etage : parseInt(item.etage) || 0,
+      etage: typeof item.etage === 'number' ? item.etage : parseInt(item.etage as string) || 0,
       numero_porte: item.numeroPorte || item.numero_porte || '',
       nom_proprietaire: item.nomProprietaire || item.nom_proprietaire || '',
       prenom_proprietaire: item.prenomProprietaire || item.prenom_proprietaire || '',
-      email_proprietaire: (item.emailProprietaire || item.email_proprietaire || '').toLowerCase().trim(),
+      email_proprietaire: ((item.emailProprietaire || item.email_proprietaire || '') as string).toLowerCase().trim(),
       tel_proprietaire: item.telephoneProprietaire || item.tel_proprietaire || '',
       nom_locataire: item.nomLocataire || item.nom_locataire || null,
       prenom_locataire: item.prenomLocataire || item.prenom_locataire || null,
-      email_locataire: item.emailLocataire || item.email_locataire ? (item.emailLocataire || item.email_locataire || '').toLowerCase().trim() : null,
+      email_locataire: item.emailLocataire || item.email_locataire ? ((item.emailLocataire || item.email_locataire || '') as string).toLowerCase().trim() : null,
       tel_locataire: item.telephoneLocataire || item.tel_locataire || null,
       est_occupe: item.estOccupe ?? item.est_occupe ?? false,
       notes: item.notes || null,

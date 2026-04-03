@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    console.error('[save-logo] Unexpected error:', e.message)
+  } catch (e: unknown) {
+    console.error('[save-logo] Unexpected error:', e instanceof Error ? e.message : e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -71,17 +71,17 @@ function buildSystemPrompt(context: Record<string, any>, locale?: string): strin
   const dateMappingStr = dateMapping.join('\n')
 
   // Services
-  const serviceLines = (context.services || []).map((s: any) =>
+  const serviceLines = (context.services || []).map((s: Record<string, unknown>) =>
     `- ID:${s.id} | ${s.name} | ${s.active ? 'ACTIF' : 'INACTIF'} | ${s.price_ttc ? s.price_ttc + '€' : 'prix libre'} | ${s.duration_minutes || 60}min`
   ).join('\n') || '(Aucun)'
 
   // Availability
   const availLines = [0, 1, 2, 3, 4, 5, 6].map(d => {
-    const slot = (context.availability || []).find((a: any) => a.day_of_week === d)
+    const slot = (context.availability || []).find((a: Record<string, unknown>) => a.day_of_week === d)
     const linked = (context.dayServices || {})[String(d)]
     const linkedNames = linked?.length
       ? linked.map((sid: string) => {
-          const svc = (context.services || []).find((s: any) => s.id === sid)
+          const svc = (context.services || []).find((s: Record<string, unknown>) => s.id === sid)
           return svc?.name || sid.substring(0, 8)
         }).join(', ')
       : 'aucun'
@@ -90,12 +90,12 @@ function buildSystemPrompt(context: Record<string, any>, locale?: string): strin
   }).join('\n')
 
   // Bookings
-  const bookingLines = (context.bookings || []).slice(0, 10).map((b: any) =>
-    `- ID:${b.id} | ${b.booking_date} ${(b.booking_time || '').substring(0, 5)} | ${b.service_name || 'Intervention'} | ${b.client_name || 'Inconnu'} | ${b.status}`
+  const bookingLines = (context.bookings || []).slice(0, 10).map((b: Record<string, unknown>) =>
+    `- ID:${b.id} | ${b.booking_date} ${((b.booking_time as string) || '').substring(0, 5)} | ${b.service_name || 'Intervention'} | ${b.client_name || 'Inconnu'} | ${b.status}`
   ).join('\n') || '(Aucun)'
 
   // Clients
-  const clientLines = (context.clients || []).slice(0, 20).map((c: any) =>
+  const clientLines = (context.clients || []).slice(0, 20).map((c: Record<string, unknown>) =>
     `- ${c.name}${c.phone ? ` (${c.phone})` : ''}${c.email ? ` [${c.email}]` : ''}`
   ).join('\n') || '(Aucun)'
 
@@ -215,7 +215,7 @@ ABSENCES/CONGÉS :
 ${(() => {
     const abs = (context.absences || [])
     if (abs.length === 0) return '(Aucune absence planifiée)'
-    return abs.map((a: any) => {
+    return abs.map((a: Record<string, unknown>) => {
       const s = new Date(a.start_date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
       const e = new Date(a.end_date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
       return `- ID:${a.id} | Du ${s} au ${e}${a.reason ? ` (${a.reason})` : ''}${a.label ? ` — ${a.label}` : ''}`

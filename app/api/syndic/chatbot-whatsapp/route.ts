@@ -34,7 +34,7 @@ IMPORTANT RULES:
 - If you're not confident about the answer, set confidence below 0.6
 
 Available knowledge base:
-${(knowledgeBase || []).map((k: any) => `Q: ${k.question}\nA: ${k.answer}`).join('\n\n')}
+${(knowledgeBase || []).map((k: { question: string; answer: string }) => `Q: ${k.question}\nA: ${k.answer}`).join('\n\n')}
 
 Building context: ${buildingContext || 'No specific building context available'}
 
@@ -49,7 +49,7 @@ Respond in JSON format:
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...(conversationHistory || []).map((m: any) => ({
+      ...(conversationHistory || []).map((m: { sender: string; content: string }) => ({
         role: m.sender === 'resident' ? 'user' : 'assistant',
         content: m.content,
       })),

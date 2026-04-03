@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
       // Charger votes correspondance pour chaque résolution
       const resolutionIds = (resolutions || []).map(r => r.id)
-      let votesCorr: any[] = []
+      let votesCorr: Record<string, unknown>[] = []
       if (resolutionIds.length > 0) {
         const { data: vc } = await supabaseAdmin
           .from('syndic_votes_correspondance')
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     // ── Batch import (migration depuis localStorage) ──────────────────
     if (Array.isArray(body.assemblees)) {
-      const results: any[] = []
+      const results: Record<string, unknown>[] = []
 
       for (const ag of body.assemblees.slice(0, 50)) {
         // Insérer l'AG
@@ -168,17 +168,17 @@ export async function POST(request: NextRequest) {
 
         // Insérer les résolutions de cette AG
         if (ag.resolutions?.length > 0) {
-          const resInserts = ag.resolutions.map((r: any, idx: number) => ({
+          const resInserts = ag.resolutions.map((r: Record<string, unknown>, idx: number) => ({
             assemblee_id: newAG.id,
             cabinet_id: cabinetId,
             titre: r.titre || '',
             description: r.description || null,
             numero_ordre: idx + 1,
-            majorite: ['art24', 'art25', 'art26', 'unanimite'].includes(r.majorite) ? r.majorite : 'art24',
+            majorite: ['art24', 'art25', 'art26', 'unanimite'].includes(r.majorite as string) ? r.majorite as string : 'art24',
             vote_pour: r.votePour || 0,
             vote_contre: r.voteContre || 0,
             vote_abstention: r.voteAbstention || 0,
-            statut: ['en_cours', 'adoptée', 'rejetée'].includes(r.statut) ? r.statut : 'en_cours',
+            statut: ['en_cours', 'adoptée', 'rejetée'].includes(r.statut as string) ? r.statut as string : 'en_cours',
           }))
 
           const { data: newRes } = await supabaseAdmin
@@ -191,12 +191,12 @@ export async function POST(request: NextRequest) {
             for (let i = 0; i < newRes.length; i++) {
               const origRes = ag.resolutions[i]
               if (origRes?.votesCorrespondance?.length > 0) {
-                const vcInserts = origRes.votesCorrespondance.map((vc: any) => ({
+                const vcInserts = origRes.votesCorrespondance.map((vc: Record<string, unknown>) => ({
                   resolution_id: newRes[i].id,
                   cabinet_id: cabinetId,
                   copropriétaire: vc.copropriétaire || '',
                   tantiemes: vc.tantiemes || 0,
-                  vote: ['pour', 'contre', 'abstention'].includes(vc.vote) ? vc.vote : 'abstention',
+                  vote: ['pour', 'contre', 'abstention'].includes(vc.vote as string) ? vc.vote as string : 'abstention',
                   date_reception: vc.recu || new Date().toISOString().split('T')[0],
                 }))
 

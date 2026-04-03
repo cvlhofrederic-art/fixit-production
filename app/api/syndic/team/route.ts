@@ -146,8 +146,8 @@ export async function POST(request: NextRequest) {
     if (!emailResult.success) {
       logger.warn('[TEAM] Email invite failed:', emailResult.error)
     }
-  } catch (emailErr: any) {
-    logger.warn('[TEAM] Email invite error:', emailErr?.message)
+  } catch (emailErr: unknown) {
+    logger.warn('[TEAM] Email invite error:', emailErr instanceof Error ? emailErr.message : emailErr)
   }
 
   return NextResponse.json({

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       artisanAssigne: s.artisan_assigne || '',
       createdAt: s.created_at,
       updatedAt: s.updated_at,
-      messages: (s.syndic_signalement_messages || []).map((m: any) => ({
+      messages: (s.syndic_signalement_messages || []).map((m: { id: string; auteur: string; role: string; texte: string; created_at: string }) => ({
         id: m.id,
         auteur: m.auteur,
         role: m.role,

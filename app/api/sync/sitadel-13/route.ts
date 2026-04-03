@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
 
         for (const ds of datasets) {
           // Find JSON/CSV resources for dept 13
-          const resources = (ds.resources || []).filter((r: any) =>
+          const resources = (ds.resources || []).filter((r: Record<string, unknown>) =>
             (r.format === 'json' || r.format === 'csv') &&
-            (r.title || '').toLowerCase().includes('13')
+            ((r.title as string) || '').toLowerCase().includes('13')
           )
 
           for (const resource of resources.slice(0, 2)) {
@@ -87,14 +87,16 @@ export async function POST(request: NextRequest) {
     await finishSyncJob(supabase, jobId, { source: 'sitadel', zone: '13-paca', ...result })
 
     return NextResponse.json({ success: true, ...result, total_fetched: marches.length })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[sync:sitadel-13] Fatal error:', err)
-    await failSyncJob(supabase, jobId, err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Internal error'
+    await failSyncJob(supabase, jobId, errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
 
-function parsePermisRecord(record: any): SyncedMarche | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- External API data with unpredictable field names
+function parsePermisRecord(record: Record<string, any>): SyncedMarche | null {
   const fields = record.fields || record
   const dept = fields.dep || fields.departement || fields.code_departement || ''
   if (dept !== '13' && !String(dept).startsWith('13')) return null

@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, notification: data })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('notify-artisan error:', err)
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
@@ -120,7 +120,7 @@ export async function PATCH(request: NextRequest) {
       .eq('artisan_id', artisan_id)
 
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 }

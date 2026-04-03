@@ -96,11 +96,11 @@ export async function POST(request: NextRequest) {
 
     // Collecter les motifs à insérer (dédupliqués par nom)
     const seenNames = new Set<string>()
-    const motifsToInsert: any[] = []
+    const motifsToInsert: Record<string, unknown>[] = []
     const etapesMap: Record<string, string[]> = {} // nom → étapes
 
     for (const metierId of metierIds) {
-      const metierConfig = defaultMotifs.metiers.find((m: any) => m.id === metierId)
+      const metierConfig = defaultMotifs.metiers.find((m: { id: string }) => m.id === metierId)
       if (!metierConfig) continue
 
       for (const motif of metierConfig.motifs) {
@@ -170,8 +170,9 @@ export async function POST(request: NextRequest) {
       metiers: Array.from(metierIds),
     })
 
-  } catch (e: any) {
-    console.error('[seed-motifs] Error:', e.message)
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : 'Internal error'
+    console.error('[seed-motifs] Error:', errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }

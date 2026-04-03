@@ -640,8 +640,9 @@ export async function POST(request: NextRequest) {
       text_length: extractedText.length,
     })
 
-  } catch (e: any) {
-    console.error('[wallet-scan] Error:', e.message)
-    return NextResponse.json({ error: 'Erreur lors du scan', details: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    const errMsg = e instanceof Error ? e.message : 'Internal error'
+    console.error('[wallet-scan] Error:', errMsg)
+    return NextResponse.json({ error: 'Erreur lors du scan', details: errMsg }, { status: 500 })
   }
 }

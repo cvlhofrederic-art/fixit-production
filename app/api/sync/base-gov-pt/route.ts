@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         // Look for downloadable resources with CSV/JSON
         const datasets = dadosJson.data || []
         for (const ds of datasets.slice(0, 3)) {
-          const resources = (ds.resources || []).filter((r: any) =>
+          const resources = (ds.resources || []).filter((r: Record<string, unknown>) =>
             r.format === 'json' || r.format === 'csv'
           )
           if (resources.length > 0) {
@@ -108,14 +108,16 @@ export async function POST(request: NextRequest) {
       ...result,
       total_fetched: unique.length,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[sync:base-gov-pt] Fatal error:', err)
-    await failSyncJob(supabase, jobId, err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Internal error'
+    await failSyncJob(supabase, jobId, errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
 
-function parseBaseGovItem(item: any): SyncedMarche | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- External API response with unpredictable shape
+function parseBaseGovItem(item: Record<string, any>): SyncedMarche | null {
   const title = item.objeto_contrato || item.objectoBrevesDescricao || item.descricao || ''
   if (!title || title.length < 5) return null
 

@@ -78,9 +78,10 @@ export async function POST(request: NextRequest) {
 
         // Respectful delay between mairie sites
         await new Promise(r => setTimeout(r, 3000))
-      } catch (err: any) {
-        logger.warn(`[sync:mairies-13] ${mairie.name} error:`, err.message)
-        errors.push(`${mairie.name}: ${err.message}`)
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : 'Internal error'
+        logger.warn(`[sync:mairies-13] ${mairie.name} error:`, errMsg)
+        errors.push(`${mairie.name}: ${errMsg}`)
       }
     }
 
@@ -100,10 +101,11 @@ export async function POST(request: NextRequest) {
       mairies_scanned: MAIRIES.length,
       errors: errors.length > 0 ? errors : undefined,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[sync:mairies-13] Fatal error:', err)
-    await failSyncJob(supabase, jobId, err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Internal error'
+    await failSyncJob(supabase, jobId, errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
 

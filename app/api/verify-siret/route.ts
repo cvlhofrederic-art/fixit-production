@@ -112,11 +112,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Trouver l'entreprise qui correspond exactement au SIRET
-    const entreprise = data.results.find((r: any) => {
+    const entreprise = data.results.find((r: Record<string, unknown>) => {
       // Vérifier le SIRET du siège
-      if (r.siege?.siret === cleanSiret) return true
+      if ((r.siege as Record<string, unknown>)?.siret === cleanSiret) return true
       // Vérifier dans les établissements
-      if (r.matching_etablissements?.some((e: any) => e.siret === cleanSiret)) return true
+      if ((r.matching_etablissements as { siret?: string }[] | undefined)?.some((e) => e.siret === cleanSiret)) return true
       return false
     }) || data.results[0] // Fallback au premier résultat
 

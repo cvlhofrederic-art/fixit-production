@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     // Enrich with artisan profile
     const enriched = await Promise.all(
-      (candidatures || []).map(async (c: any) => {
+      (candidatures || []).map(async (c: { artisan_id: string; [key: string]: unknown }) => {
         const { data: profile } = await supabaseAdmin
           .from('profiles_artisan')
           .select('company_name, rating_avg, photo_url, city, services_offered, rc_pro_valid, decennale_valid, qualibat_valid')
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 
-  let offers: any[] = data || []
+  let offers: Record<string, unknown>[] = (data || []) as Record<string, unknown>[]
 
   // Enrich with distance if artisan coords provided
   if (artisanUserId && offers.length > 0) {
@@ -144,10 +144,10 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (artisan?.latitude && artisan?.longitude) {
-      offers = offers.map((o: any) => {
+      offers = offers.map((o) => {
         if (o.location_lat && o.location_lng) {
           const distance_km = Math.round(
-            haversineDistance(artisan.latitude, artisan.longitude, o.location_lat, o.location_lng) * 10
+            haversineDistance(artisan.latitude, artisan.longitude, o.location_lat as number, o.location_lng as number) * 10
           ) / 10
           return { ...o, distance_km }
         }
@@ -253,18 +253,18 @@ export async function POST(request: NextRequest) {
 
       if (artisans && artisans.length > 0) {
         const matched = artisans
-          .filter((a: any) => {
+          .filter((a) => {
             const cats = a.marches_categories as string[] | null
             return !cats || cats.length === 0 || cats.includes(v.category)
           })
-          .map((a: any) => ({
+          .map((a) => ({
             ...a,
-            distance_km: haversineDistance(coords.lat, coords.lng, a.latitude, a.longitude),
+            distance_km: haversineDistance(coords.lat, coords.lng, a.latitude as number, a.longitude as number),
           }))
-          .filter((a: any) => a.distance_km <= ((a.zone_radius_km as number) || 50))
+          .filter((a) => (a.distance_km as number) <= ((a.zone_radius_km as number) || 50))
 
         if (matched.length > 0) {
-          const notifications = matched.map((a: any) => ({
+          const notifications = matched.map((a) => ({
             artisan_id: a.id,
             type: 'marche_new',
             title: `Offre sous-traitance : ${v.title}`,

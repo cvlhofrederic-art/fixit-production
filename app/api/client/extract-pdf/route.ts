@@ -252,8 +252,8 @@ export async function POST(req: NextRequest) {
       const result = await extractText(uint8, { mergePages: true })
       text = result.text || ''
       numPages = result.totalPages || 0
-    } catch (parseErr: any) {
-      const errMsg = (parseErr?.message || '').toLowerCase()
+    } catch (parseErr: unknown) {
+      const errMsg = (parseErr instanceof Error ? parseErr.message : '').toLowerCase()
       if (errMsg.includes('password') || errMsg.includes('encrypted')) {
         return NextResponse.json({ error: 'Ce PDF est protégé par un mot de passe.', isPasswordProtected: true }, { status: 422 })
       }
@@ -288,8 +288,8 @@ export async function POST(req: NextRequest) {
       isVitfix,
       vitfixData, // null si pas Vitfix, sinon données structurées
     })
-  } catch (err: any) {
-    logger.error('[EXTRACT-PDF-CLIENT] Error:', err?.message || err)
+  } catch (err: unknown) {
+    logger.error('[EXTRACT-PDF-CLIENT] Error:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Erreur inattendue. Réessayez.' }, { status: 500 })
   }
 }

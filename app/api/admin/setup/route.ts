@@ -48,8 +48,8 @@ export async function GET(request: NextRequest) {
       results.tables = tableErrors.length === 0
         ? { success: true, message: 'Toutes les tables existent' }
         : { success: false, errors: tableErrors, action: 'Exécutez les migrations Supabase ou utilisez le SQL Editor' }
-    } catch (e: any) {
-      results.tables = { success: false, error: e.message }
+    } catch (e: unknown) {
+      results.tables = { success: false, error: e instanceof Error ? e.message : 'Internal error' }
     }
   }
 
@@ -102,8 +102,8 @@ export async function GET(request: NextRequest) {
             error: error?.message,
           }
         }
-      } catch (e: any) {
-        results.admin = { success: false, error: e.message }
+      } catch (e: unknown) {
+        results.admin = { success: false, error: e instanceof Error ? e.message : 'Internal error' }
       }
     }
   }
@@ -145,8 +145,8 @@ export async function GET(request: NextRequest) {
       } else {
         results.insurance = { success: true, action: 'columns_exist' }
       }
-    } catch (e: any) {
-      results.insurance = { success: false, error: e.message }
+    } catch (e: unknown) {
+      results.insurance = { success: false, error: e instanceof Error ? e.message : 'Internal error' }
     }
   }
 

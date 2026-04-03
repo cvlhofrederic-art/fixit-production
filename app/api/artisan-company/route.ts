@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Récupérer les user_metadata pour les infos d'assurance + email auth
-  let userMeta: any = {}
+  let userMeta: Record<string, unknown> = {}
   let authEmail = ''
   if (artisan.user_id) {
     try {
@@ -166,9 +166,9 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const entreprise = data.results.find((r: any) => {
-      if (r.siege?.siret === cleanSiret) return true
-      if (r.matching_etablissements?.some((e: any) => e.siret === cleanSiret)) return true
+    const entreprise = data.results.find((r: Record<string, unknown>) => {
+      if ((r.siege as Record<string, unknown>)?.siret === cleanSiret) return true
+      if ((r.matching_etablissements as { siret?: string }[] | undefined)?.some((e) => e.siret === cleanSiret)) return true
       return false
     }) || data.results[0]
 
@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
       company: companyDataWithInsurance,
     })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json({
       verified: false,
       error: 'Erreur de vérification',

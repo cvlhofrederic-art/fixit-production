@@ -84,14 +84,16 @@ export async function POST(request: NextRequest) {
     await finishSyncJob(supabase, jobId, { source: 'ted-eu', zone: 'porto-pt', ...result })
 
     return NextResponse.json({ success: true, ...result, total_fetched: unique.length })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[sync:ted-porto] Fatal error:', err)
-    await failSyncJob(supabase, jobId, err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Internal error'
+    await failSyncJob(supabase, jobId, errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
 
-function parseTedNotice(notice: any): SyncedMarche | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- External EU TED API with unpredictable field names
+function parseTedNotice(notice: Record<string, any>): SyncedMarche | null {
   const title = notice.title || notice.TI || notice.officialTitle || ''
   const titleText = typeof title === 'object' ? (title.pt || title.en || title.fr || Object.values(title)[0] || '') : String(title)
   if (!titleText || titleText.length < 5) return null

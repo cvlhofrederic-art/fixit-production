@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       photos_uploaded: photoUrls.length,
     })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('mission-report error:', err)
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }

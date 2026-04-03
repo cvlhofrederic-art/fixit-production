@@ -89,10 +89,11 @@ export async function POST(request: NextRequest) {
       ...result,
       total_fetched: marches.length,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[sync:decp-13] Fatal error:', err)
-    await failSyncJob(supabase, jobId, err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Internal error'
+    await failSyncJob(supabase, jobId, errMsg)
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }
 

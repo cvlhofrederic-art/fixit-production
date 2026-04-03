@@ -52,9 +52,9 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ordres: [] })
       }
 
-      const convIds = convs.map((c: any) => c.id)
-      const convMap: Record<string, any> = {}
-      convs.forEach((c: any) => { convMap[c.id] = c })
+      const convIds = convs.map((c: { id: string }) => c.id)
+      const convMap: Record<string, Record<string, unknown>> = {}
+      convs.forEach((c: { id: string; [key: string]: unknown }) => { convMap[c.id] = c })
 
       // 2. Récupérer tous les messages ordre_mission de ces conversations
       const { data: msgs, error: msgsErr } = await supabaseAdmin
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Enrichir chaque message avec les infos de sa conversation
-      const ordres = (msgs || []).map((m: any) => ({
+      const ordres = (msgs || []).map((m: { conversation_id: string; [key: string]: unknown }) => ({
         ...m,
         conversations: convMap[m.conversation_id] || { contact_name: 'Syndic', contact_type: 'pro' },
       }))

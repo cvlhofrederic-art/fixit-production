@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       )
     )
 
-    const clients: any[] = []
+    const clients: Record<string, unknown>[] = []
     for (const { cId, clientUser } of userResults) {
       if (!clientUser) continue
       const cBookings = byClient.get(cId)!
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
       const clientBookings = cBookings.map(b => ({
         id: b.id,
         date: b.booking_date,
-        service: (b.services as any)?.name || 'Intervention',
+        service: (b.services as { name?: string } | null)?.name || 'Intervention',
         status: b.status,
         address: b.address,
         price: b.price_ttc,
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json({ clients })
     response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
     return response
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('[artisan-clients] Erreur:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

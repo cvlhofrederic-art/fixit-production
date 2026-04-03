@@ -86,7 +86,7 @@ ${(emailBody || '').substring(0, 800)}`
       return NextResponse.json({ classification: getFallbackClassification(subject || '', emailBody || '') })
     }
 
-    let groqData: any
+    let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
     try {
       groqData = await callGroqWithRetry({
         model: 'llama-3.1-8b-instant',
@@ -118,7 +118,7 @@ ${(emailBody || '').substring(0, 800)}`
 
     return NextResponse.json({ classification })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Classify error:', err)
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }

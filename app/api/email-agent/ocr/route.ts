@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
         max_tokens: 800,
         response_format: { type: 'json_object' },
       }, { fallbackModel: 'meta-llama/llama-4-scout-17b-16e-instruct' })
-    } catch (groqErr: any) {
-      logger.error('Groq Vision error:', groqErr.message)
+    } catch (groqErr: unknown) {
+      logger.error('Groq Vision error:', groqErr instanceof Error ? groqErr.message : groqErr)
       return NextResponse.json({
         result: { confidence: 'basse' } as OCRResult,
         error: 'Analyse vision échouée',
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ result })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('OCR route error:', err)
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }

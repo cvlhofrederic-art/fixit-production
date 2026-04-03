@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     return NextResponse.json({ signalement: data })
-  } catch (e: any) {
+  } catch (e: unknown) {
     logger.error('[COPRO SIGNALEMENT]', e)
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }

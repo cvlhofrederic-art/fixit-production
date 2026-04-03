@@ -55,9 +55,9 @@ export async function GET(request: NextRequest) {
         .select('*, equipe_membres_btp(membre_id)')
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false })
-      result.equipes = (data || []).map((e: any) => ({
+      result.equipes = (data || []).map((e: { equipe_membres_btp?: { membre_id: string }[]; [key: string]: unknown }) => ({
         ...e,
-        membreIds: (e.equipe_membres_btp || []).map((m: any) => m.membre_id),
+        membreIds: (e.equipe_membres_btp || []).map((m) => m.membre_id),
       }))
     }
 
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ── POST /api/btp — Create or update BTP data ───────────────────────────────
-// Body: { table: string, action: 'insert'|'update'|'delete'|'upsert_settings'|'import', data: any, id?: string }
+// Body: { table: string, action: 'insert'|'update'|'delete'|'upsert_settings'|'import', data: unknown (varies per table), id?: string }
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`btp_post_${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -126,12 +126,12 @@ export async function POST(request: NextRequest) {
   const parsed = btpBodySchema.safeParse(rawBody)
   if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-  const { table, action, data, id } = parsed.data as { table: typeof BTP_VALID_TABLES[number]; action: string; data: any; id?: string }
+  const { table, action, data, id } = parsed.data as { table: typeof BTP_VALID_TABLES[number]; action: string; data: any; id?: string } // eslint-disable-line @typescript-eslint/no-explicit-any -- BTP data varies per table
 
   try {
     // ── Import from localStorage (batch insert) ──────────────────────────────
     if (action === 'import' && Array.isArray(data)) {
-      const rows = data.map((d: any) => ({ ...d, owner_id: user.id }))
+      const rows = data.map((d: Record<string, unknown>) => ({ ...d, owner_id: user.id }))
       const { data: inserted, error } = await supabaseAdmin
         .from(table)
         .insert(rows)

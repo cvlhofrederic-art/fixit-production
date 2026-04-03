@@ -58,8 +58,8 @@ function extractHeaders(headers: { name: string; value: string }[]) {
 }
 
 // ── Extrait le corps texte d'un message Gmail ─────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gmail API payload with dynamic nested structure
-function extractBody(payload: any): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gmail API payload with deeply nested dynamic structure
+function extractBody(payload: Record<string, any>): string {
   if (!payload) return ''
 
   // Message simple
@@ -198,10 +198,10 @@ export async function POST(request: NextRequest) {
       const { data: tokens } = await supabaseAdmin
         .from('syndic_oauth_tokens')
         .select('syndic_id')
-      syndicIds = (tokens || []).map((t: any) => t.syndic_id)
+      syndicIds = (tokens || []).map((t: { syndic_id: string }) => t.syndic_id)
     }
 
-    const results: any[] = []
+    const results: Record<string, unknown>[] = []
 
     for (const sid of syndicIds) {
       try {

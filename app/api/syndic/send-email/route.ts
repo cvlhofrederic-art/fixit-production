@@ -175,8 +175,8 @@ export async function POST(request: NextRequest) {
         ? `${batchResult.sent} email(s) enviado(s), ${batchResult.failed} falha(s)`
         : `${batchResult.sent} email(s) envoyé(s), ${batchResult.failed} échec(s)`,
     })
-  } catch (err: any) {
-    logger.error('[SEND-EMAIL] Error:', err?.message || err)
+  } catch (err: unknown) {
+    logger.error('[SEND-EMAIL] Error:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Erreur serveur lors de l\'envoi' }, { status: 500 })
   }
 }

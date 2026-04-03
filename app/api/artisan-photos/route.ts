@@ -217,7 +217,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
-    const updatePayload: any = {}
+    const updatePayload: Record<string, unknown> = {}
     if (booking_id !== undefined) updatePayload.booking_id = booking_id || null
     if (label !== undefined) updatePayload.label = label
 

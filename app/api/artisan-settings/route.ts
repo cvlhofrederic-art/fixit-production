@@ -16,7 +16,7 @@ const SETTINGS_FIELDS = [
   'auto_reply_message', 'auto_block_duration_minutes', 'zone_radius_km',
 ]
 
-async function getExistingColumns(supabaseAdmin: any): Promise<Set<string>> {
+async function getExistingColumns(supabaseAdmin: typeof import('@/lib/supabase-server')['supabaseAdmin']): Promise<Set<string>> {
   if (knownColumns && Date.now() - columnsCheckedAt < COLUMNS_CHECK_TTL) {
     return knownColumns
   }

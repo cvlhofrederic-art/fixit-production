@@ -74,16 +74,16 @@ export async function GET(req: NextRequest) {
 
     // ── Formate la réponse ────────────────────────────────────────────────────
     const formatted = results.slice(0, limit).map((a) => {
-      const activeServices = (a.services || []).filter((s: any) => s.active !== false)
+      const activeServices = (a.services || []).filter((s: Record<string, unknown>) => s.active !== false)
 
       // Prix réels depuis les services de l'artisan
       const prices: { name: string; price_ttc: number; duration_minutes: number }[] = activeServices
-        .filter((s: any) => s.price_ttc > 0)
+        .filter((s: Record<string, unknown>) => (s.price_ttc as number) > 0)
         .slice(0, 3)
-        .map((s: any) => ({
-          name: s.name,
-          price_ttc: s.price_ttc,
-          duration_minutes: s.duration_minutes || 60,
+        .map((s: Record<string, unknown>) => ({
+          name: s.name as string,
+          price_ttc: s.price_ttc as number,
+          duration_minutes: (s.duration_minutes as number) || 60,
         }))
 
       const minPrice = prices.length > 0 ? Math.min(...prices.map(p => p.price_ttc)) : null
