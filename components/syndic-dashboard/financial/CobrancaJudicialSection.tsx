@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ interface ProcessoCobranca {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

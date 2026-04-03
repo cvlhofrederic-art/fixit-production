@@ -28,9 +28,10 @@ interface CoproAppel {
   totalBudget: number
 }
 interface CoproBudget {
+  id?: string
   immeuble: string
   annee: number
-  postes: Array<{ nom: string; montant: number }>
+  postes: Array<{ nom?: string; montant?: number; libelle?: string; budget?: number; realise?: number }>
 }
 
 export default function AgentComptableCopro({

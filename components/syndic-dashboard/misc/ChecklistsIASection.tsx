@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ const genId = () => Math.random().toString(36).slice(2, 10)
 
 // ─── Composant ───────────────────────────────────────────────────────────────
 
-interface Props { user: any; userRole: string }
+interface Props { user: User; userRole: string }
 
 export default function ChecklistsIASection({ user }: Props) {
   const uid = user?.id || 'demo'
@@ -175,7 +176,7 @@ export default function ChecklistsIASection({ user }: Props) {
       try {
         const res = await fetch(`/api/syndic/immeubles?user_id=${uid}`)
         const data = await res.json()
-        const imms = (data.immeubles || []).map((i: any) => ({ id: i.id, nom: i.nom }))
+        const imms = (data.immeubles || []).map((i: { id: string; nom: string }) => ({ id: i.id, nom: i.nom }))
         setImmeubles(imms)
         if (imms.length > 0) setNewImm(imms[0].id)
       } catch {}

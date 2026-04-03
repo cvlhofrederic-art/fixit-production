@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import type { Immeuble } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function PreparateurAGSection({ user, userRole, immeubles }: { user: any; userRole: string; immeubles: Immeuble[] }) {
+export default function PreparateurAGSection({ user, userRole, immeubles }: { user: User; userRole: string; immeubles: Immeuble[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   type AGStep = 'infos' | 'ordre_du_jour' | 'documents' | 'convocation' | 'export'

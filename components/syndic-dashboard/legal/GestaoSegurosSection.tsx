@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ const daysDiff = (d: string) => {
 
 // ─── Composant ───────────────────────────────────────────────────────────────
 
-interface Props { user: any; userRole: string }
+interface Props { user: User; userRole: string }
 
 export default function GestaoSegurosSection({ user }: Props) {
   const uid = user?.id || 'demo'
@@ -112,7 +113,7 @@ export default function GestaoSegurosSection({ user }: Props) {
       try {
         const res = await fetch(`/api/syndic/immeubles?user_id=${uid}`)
         const data = await res.json()
-        setImmeubles((data.immeubles || []).map((i: any) => ({ id: i.id, nom: i.nom })))
+        setImmeubles((data.immeubles || []).map((i: { id: string; nom: string }) => ({ id: i.id, nom: i.nom })))
       } catch {}
       setApolices(JSON.parse(localStorage.getItem(lsKey('apolices_seguros')) || '[]'))
       setSinistros(JSON.parse(localStorage.getItem(lsKey('sinistros_seguros')) || '[]'))

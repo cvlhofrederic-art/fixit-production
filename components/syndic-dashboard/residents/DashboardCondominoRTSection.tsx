@@ -1,13 +1,14 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD CONDÓMINO TEMPO REAL — Barra progresso, estado intervenções
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

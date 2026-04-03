@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -299,7 +300,7 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-export default function SaisieIAFacturesSection({ user, userRole }: { user: any; userRole: string }) {
+export default function SaisieIAFacturesSection({ user, userRole }: { user: User; userRole: string }) {
   const uid = user?.id || 'demo'
   const storageKey = `fixit_saisie_ia_${uid}`
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { StatCard } from '../types'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -277,7 +278,7 @@ function uid(): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function InfractionsSection({ user, userRole }: { user: any; userRole: string }) {
+export default function InfractionsSection({ user, userRole }: { user: User; userRole: string }) {
   const STORAGE_KEY = `fixit_infractions_${user?.id}`
   const CONFIG_KEY = `fixit_infractions_config_${user?.id}`
   const ARTICLES_KEY = `fixit_infractions_articles_${user?.id}`

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -244,7 +245,7 @@ const sProgressFill: (pct: number, color: string) => React.CSSProperties = (pct,
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
-export default function VoteCorrespondanceSection({ user, userRole }: { user: any; userRole: string }) {
+export default function VoteCorrespondanceSection({ user, userRole }: { user: User; userRole: string }) {
   const uid = user?.id || 'demo'
   const storageKey = `fixit_votes_fr_${uid}`
 

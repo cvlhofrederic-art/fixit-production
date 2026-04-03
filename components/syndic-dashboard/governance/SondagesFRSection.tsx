@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ interface Sondage {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

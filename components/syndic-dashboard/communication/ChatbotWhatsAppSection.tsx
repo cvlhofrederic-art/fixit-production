@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { StatCard } from '../types'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -301,7 +302,7 @@ function buildHourlyData(): number[] {
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
-export default function ChatbotWhatsAppSection({ user, userRole }: { user: any; userRole: string }) {
+export default function ChatbotWhatsAppSection({ user, userRole }: { user: User; userRole: string }) {
   const STORAGE_KEY = `fixit_chatbot_whatsapp_${user?.id}`
   const messagesEndRef = useRef<HTMLDivElement>(null)
 

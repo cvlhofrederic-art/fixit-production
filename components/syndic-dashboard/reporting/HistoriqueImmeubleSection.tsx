@@ -215,7 +215,7 @@ export default function HistoriqueImmeubleSection({ user, userRole }: { user: { 
         const res = await fetch('/api/syndic/missions?limit=500')
         if (!res.ok) return
         const data = await res.json()
-        const missions: any[] = data.missions || []
+        const missions: Array<{ id: string; immeuble?: string; dateIntervention?: string; dateCreation?: string; created_at?: string; type?: string; description?: string; statut?: string; montantFacture?: number; montantDevis?: number }> = data.missions || []
 
         const apiEvents: HistEvent[] = []
         missions.forEach(m => {

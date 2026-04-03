@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ interface Reserva {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 
@@ -281,7 +282,7 @@ export default function ReservaEspacosSection({ user, userRole }: Props) {
     setReservas(prev => prev.map(r => r.id === id ? { ...r, estado: 'confirmada' as const } : r))
   }
 
-  const atualizarRegra = (espacoId: string, campo: keyof RegraEspaco, valor: any) => {
+  const atualizarRegra = (espacoId: string, campo: keyof RegraEspaco, valor: RegraEspaco[keyof RegraEspaco]) => {
     setRegras(prev => prev.map(r => r.espacoId === espacoId ? { ...r, [campo]: valor } : r))
   }
 

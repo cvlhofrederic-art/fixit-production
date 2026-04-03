@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function AGDigitaleSection({ user, userRole, getToken }: { user: any; userRole: string; getToken?: () => Promise<string | null> }) {
+export default function AGDigitaleSection({ user, userRole, getToken }: { user: User; userRole: string; getToken?: () => Promise<string | null> }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const uid = user?.id || 'demo'
@@ -47,37 +48,37 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
   const [saving, setSaving] = useState(false)
 
   // ── Mapper DB → frontend types ──────────────────────────────────────
-  const dbToAG = (row: any): AG => ({
-    id: row.id,
-    titre: row.titre || '',
-    immeuble: row.immeuble || '',
-    date: row.date_ag || '',
-    lieu: row.lieu || '',
-    type: row.type_ag || 'ordinaire',
-    statut: row.statut || 'brouillon',
-    ordre_du_jour: Array.isArray(row.ordre_du_jour) ? row.ordre_du_jour : [],
-    quorum: row.quorum || 50,
-    totalTantiemes: row.total_tantiemes || 10000,
-    presents: row.presents || 0,
-    signataireNom: row.signataire_nom || '',
-    signataireRole: row.signataire_role || '',
-    signatureTs: row.signature_ts || '',
-    createdAt: row.created_at || '',
-    resolutions: (row.resolutions || []).map((r: any) => ({
-      id: r.id,
-      titre: r.titre || '',
-      description: r.description || '',
-      majorite: r.majorite || 'art24',
-      votePour: r.vote_pour || 0,
-      voteContre: r.vote_contre || 0,
-      voteAbstention: r.vote_abstention || 0,
-      votesCorrespondance: (r.votesCorrespondance || []).map((vc: any) => ({
-        copropriétaire: vc.copropriétaire || vc['copropriétaire'] || '',
-        tantiemes: vc.tantiemes || 0,
-        vote: vc.vote || 'abstention',
-        recu: vc.date_reception || vc.recu || '',
+  const dbToAG = (row: Record<string, unknown>): AG => ({
+    id: row.id as string,
+    titre: (row.titre as string) || '',
+    immeuble: (row.immeuble as string) || '',
+    date: (row.date_ag as string) || '',
+    lieu: (row.lieu as string) || '',
+    type: (row.type_ag as AG['type']) || 'ordinaire',
+    statut: (row.statut as AG['statut']) || 'brouillon',
+    ordre_du_jour: Array.isArray(row.ordre_du_jour) ? (row.ordre_du_jour as string[]) : [],
+    quorum: (row.quorum as number) || 50,
+    totalTantiemes: (row.total_tantiemes as number) || 10000,
+    presents: (row.presents as number) || 0,
+    signataireNom: (row.signataire_nom as string) || '',
+    signataireRole: (row.signataire_role as string) || '',
+    signatureTs: (row.signature_ts as string) || '',
+    createdAt: (row.created_at as string) || '',
+    resolutions: ((row.resolutions as Array<Record<string, unknown>> | undefined) || []).map((r) => ({
+      id: r.id as string,
+      titre: (r.titre as string) || '',
+      description: (r.description as string) || '',
+      majorite: ((r.majorite as string) || 'art24') as MajoriteType,
+      votePour: (r.vote_pour as number) || 0,
+      voteContre: (r.vote_contre as number) || 0,
+      voteAbstention: (r.vote_abstention as number) || 0,
+      votesCorrespondance: ((r.votesCorrespondance as Array<Record<string, unknown>> | undefined) || []).map((vc) => ({
+        copropriétaire: (vc['copropriétaire'] as string) || '',
+        tantiemes: (vc.tantiemes as number) || 0,
+        vote: ((vc.vote as string) || 'abstention') as VoteCorrespondance['vote'],
+        recu: ((vc.date_reception || vc.recu) as string) || '',
       })),
-      statut: r.statut || 'en_cours',
+      statut: ((r.statut as string) || 'en_cours') as Resolution['statut'],
     })),
   })
 
@@ -99,7 +100,7 @@ export default function AGDigitaleSection({ user, userRole, getToken }: { user: 
         const data = await res.json()
         // La liste retourne les AG sans résolutions détaillées
         // Pour chaque AG, charger les détails complets
-        const agsList: AG[] = (data.assemblees || []).map((row: any) => dbToAG({
+        const agsList: AG[] = (data.assemblees || []).map((row: Record<string, unknown>) => dbToAG({
           ...row,
           resolutions: [], // Les résolutions seront chargées quand on ouvre une AG
         }))

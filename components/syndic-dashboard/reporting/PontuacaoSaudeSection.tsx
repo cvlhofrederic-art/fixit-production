@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -576,7 +577,7 @@ function TendanceIcon({ tendance }: { tendance: 'up' | 'down' | 'stable' }) {
 // ─── Composant Principal ─────────────────────────────────────────────────────
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

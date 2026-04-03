@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function RecouvrementSection({ user, userRole }: { user: any; userRole: string }) {
+export default function RecouvrementSection({ user, userRole }: { user: User; userRole: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   type StageRec = 'amiable' | 'relance_1' | 'relance_2' | 'mise_en_demeure' | 'contentieux' | 'huissier' | 'regle'

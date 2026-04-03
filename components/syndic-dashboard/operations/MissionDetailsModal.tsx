@@ -5,6 +5,19 @@ import { toast } from 'sonner'
 import type { Mission } from '../types'
 import { Badge, PrioriteBadge } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { DocIntervention } from '../types'
+
+interface TransfertCompta {
+  destinataire: string
+  date: string
+  par: string
+  note: string
+}
+
+interface ArchivedInDocs {
+  date: string
+  par: string
+}
 
 export default function MissionDetailsModal({
   mission, onClose, onUpdate, onValider, userRole
@@ -83,7 +96,7 @@ export default function MissionDetailsModal({
     const updated = {
       ...localData,
       transfertCompta: { destinataire, date: now.toISOString(), par: authorName, note: noteTransfert }
-    } as Mission & { transfertCompta: any }
+    } as Mission & { transfertCompta: TransfertCompta }
     setLocalData(updated as Mission); onUpdate(updated as Mission)
     setTransfertDone(true)
     setShowTransfertModal(false)
@@ -139,12 +152,12 @@ export default function MissionDetailsModal({
   }
 
   // ── Archiver le dossier de la mission dans Documents Interventions ─────────
-  const [archiveDone, setArchiveDone] = useState(!!(localData as any).archivedInDocs)
+  const [archiveDone, setArchiveDone] = useState(!!(localData as Mission & { archivedInDocs?: ArchivedInDocs }).archivedInDocs)
 
   const archiverDossier = () => {
     const now = new Date()
     const storageKey = 'vitfix_docs_interventions'
-    let existingDocs: any[] = []
+    let existingDocs: DocIntervention[] = []
     try { existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]') } catch {}
 
     const baseDoc = {
@@ -187,7 +200,7 @@ export default function MissionDetailsModal({
 
     try { localStorage.setItem(storageKey, JSON.stringify(existingDocs)) } catch {}
 
-    const updated = { ...localData, archivedInDocs: { date: now.toISOString(), par: authorName } } as Mission & { archivedInDocs: any }
+    const updated = { ...localData, archivedInDocs: { date: now.toISOString(), par: authorName } } as Mission & { archivedInDocs: ArchivedInDocs }
     setLocalData(updated); onUpdate(updated as Mission)
     setArchiveDone(true)
 

@@ -9,23 +9,23 @@ import type { GecondParseResult, GecondFraction } from '@/lib/gecond-parser'
 import { parseGecondCSV, gecondToFixit, parseComplemento, splitName } from '@/lib/gecond-parser'
 
 // ── Helper : DB row → Coproprio interface (camelCase) ──
-function dbToCoproprio(row: any): Coproprio {
+function dbToCoproprio(row: Record<string, unknown>): Coproprio {
   return {
-    id: row.id,
-    immeuble: row.immeuble || '',
-    batiment: row.batiment || '',
-    etage: row.etage ?? 0,
-    numeroPorte: row.numero_porte || '',
-    nomProprietaire: row.nom_proprietaire || '',
-    prenomProprietaire: row.prenom_proprietaire || '',
-    emailProprietaire: row.email_proprietaire || '',
-    telephoneProprietaire: row.tel_proprietaire || '',
-    nomLocataire: row.nom_locataire || undefined,
-    prenomLocataire: row.prenom_locataire || undefined,
-    emailLocataire: row.email_locataire || undefined,
-    telephoneLocataire: row.tel_locataire || undefined,
-    estOccupe: row.est_occupe ?? false,
-    notes: row.notes || undefined,
+    id: row.id as string,
+    immeuble: (row.immeuble as string) || '',
+    batiment: (row.batiment as string) || '',
+    etage: (row.etage as number) ?? 0,
+    numeroPorte: (row.numero_porte as string) || '',
+    nomProprietaire: (row.nom_proprietaire as string) || '',
+    prenomProprietaire: (row.prenom_proprietaire as string) || '',
+    emailProprietaire: (row.email_proprietaire as string) || '',
+    telephoneProprietaire: (row.tel_proprietaire as string) || '',
+    nomLocataire: (row.nom_locataire as string) || undefined,
+    prenomLocataire: (row.prenom_locataire as string) || undefined,
+    emailLocataire: (row.email_locataire as string) || undefined,
+    telephoneLocataire: (row.tel_locataire as string) || undefined,
+    estOccupe: (row.est_occupe as boolean) ?? false,
+    notes: (row.notes as string) || undefined,
   }
 }
 
@@ -282,8 +282,9 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
       if (immeubles.length === 1) {
         setImportImmeuble(immeubles[0].nom)
       }
-    } catch (err: any) {
-      toast.error(locale === 'pt' ? `Erro ao analisar o CSV: ${err.message}` : `Erreur d'analyse CSV : ${err.message}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(locale === 'pt' ? `Erro ao analisar o CSV: ${msg}` : `Erreur d'analyse CSV : ${msg}`)
     }
   }
 
@@ -321,8 +322,9 @@ export default function CopropriosSection({ immeubles, userId }: { immeubles: Im
       if (data.imported > 0) {
         await fetchCoproprios()
       }
-    } catch (err: any) {
-      setImportResult({ success: false, imported: 0, duplicates: 0, errors: [err.message] })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setImportResult({ success: false, imported: 0, duplicates: 0, errors: [msg] })
       setImportStep('result')
     } finally {
       setImportLoading(false)

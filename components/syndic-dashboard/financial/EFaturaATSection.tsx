@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -211,7 +212,7 @@ const sTd: React.CSSProperties = {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function EFaturaATSection({ user, userRole }: { user: any; userRole: string }) {
+export default function EFaturaATSection({ user, userRole }: { user: User; userRole: string }) {
   const uid = user?.id || 'local'
   const STORAGE_KEY = `fixit_syndic_efatura_${uid}`
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ function generateDemoData(userId: string) {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export default function SuiviEnergetiqueFRSection({ user, userRole }: { user: any; userRole: string }) {
+export default function SuiviEnergetiqueFRSection({ user, userRole }: { user: User; userRole: string }) {
   const STORAGE_KEY = `fixit_energie_fr_${user.id}`
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'consommations' | 'objectifs' | 'travaux'>('dashboard')

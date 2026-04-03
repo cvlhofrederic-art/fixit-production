@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MARKETPLACE ARTISANS BIDIRECTIONNEL — Pesquisa, comparação, avaliação
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

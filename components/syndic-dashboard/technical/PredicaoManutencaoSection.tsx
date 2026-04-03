@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PREDIÇÃO DE MANUTENÇÃO ML — Score prédictif + timeline interventions
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

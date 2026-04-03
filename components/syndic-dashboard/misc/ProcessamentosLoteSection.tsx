@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROCESSAMENTOS EM LOTE — Émission quotas, relances, clôture exercice
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

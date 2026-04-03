@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ interface ConfigCMD {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 
@@ -257,7 +258,7 @@ export default function AssinaturaCMDSection({ user, userRole }: Props) {
       try {
         const res = await fetch(`/api/syndic/immeubles?user_id=${uid}`)
         const data = await res.json()
-        setImmeubles((data.immeubles || []).map((i: any) => ({ id: i.id, nom: i.nom })))
+        setImmeubles((data.immeubles || []).map((i: { id: string; nom: string }) => ({ id: i.id, nom: i.nom })))
       } catch {
         // localStorage fallback
         try {

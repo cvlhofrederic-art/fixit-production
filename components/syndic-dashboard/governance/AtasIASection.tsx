@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ interface ModeloAta {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

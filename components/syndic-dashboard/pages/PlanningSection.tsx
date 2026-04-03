@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import type { PlanningEvent } from '../types'
+import type { PlanningEvent, Immeuble } from '../types'
 import { getRoleLabel } from '../types'
 import { EVENT_COLORS } from '../config'
+import type { User } from '@supabase/supabase-js'
 
 interface TeamMember {
   id: string
@@ -17,8 +18,8 @@ interface PlanningSectionProps {
   teamMembers: TeamMember[]
   locale: string
   t: (key: string) => string
-  user: any
-  immeubles: any[]
+  user: User
+  immeubles: Immeuble[]
   userRole: string
   getAdminToken: () => Promise<string>
 }

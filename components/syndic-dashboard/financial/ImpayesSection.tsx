@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
+import type { Coproprio } from '../types'
 
-export default function ImpayésSection({ user, userRole, getToken, coproprios }: { user: any; userRole: string; getToken?: () => Promise<string | null>; coproprios?: any[] }) {
+export default function ImpayésSection({ user, userRole, getToken, coproprios }: { user: User; userRole: string; getToken?: () => Promise<string | null>; coproprios?: Coproprio[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const uid = user?.id || 'demo'
@@ -100,8 +102,8 @@ export default function ImpayésSection({ user, userRole, getToken, coproprios }
           ? `Erro ao enviar: ${data.error || 'Erro desconhecido'}`
           : `Erreur d'envoi : ${data.error || 'Erreur inconnue'}`)
       }
-    } catch (err: any) {
-      console.error('[IMPAYES] Email send error:', err)
+    } catch (err: unknown) {
+      console.error('[IMPAYES] Email send error:', err instanceof Error ? err.message : String(err))
       toast.error(locale === 'pt' ? 'Erro ao enviar o email' : 'Erreur lors de l\'envoi de l\'email')
     } finally {
       setEmailSending(null)

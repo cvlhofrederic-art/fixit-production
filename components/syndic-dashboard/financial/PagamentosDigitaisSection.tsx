@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ interface ConfigPagamentos {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

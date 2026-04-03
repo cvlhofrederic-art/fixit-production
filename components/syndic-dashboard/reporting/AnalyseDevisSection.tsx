@@ -5,13 +5,31 @@ import { toast } from 'sonner'
 import type { Artisan, Mission, Page, DevisExtracted, InputMode } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import type { User } from '@supabase/supabase-js'
+
+interface DevisScores {
+  conformite: { total: number; max: number; details: { id?: string; label: string; ok?: boolean; status?: string; points?: number; poids?: number }[] }
+  prix: { ecart_moyen_pct: number }
+  confiance: number
+}
+
+interface SiretResult {
+  verified: boolean
+  company?: {
+    name: string
+    siret: string
+    nafLabel: string
+    nafCode: string
+    legalForm: string
+  }
+}
 
 function formatAnalysis(text: string): string {
   if (!text) return ''
   return safeMarkdownToHTML(text)
 }
 
-export default function AnalyseDevisSection({ artisans, setPage, missions, setMissions, user }: { artisans: Artisan[]; setPage: (p: Page) => void; missions: Mission[]; setMissions: React.Dispatch<React.SetStateAction<Mission[]>>; user: any }) {
+export default function AnalyseDevisSection({ artisans, setPage, missions, setMissions, user }: { artisans: Artisan[]; setPage: (p: Page) => void; missions: Mission[]; setMissions: React.Dispatch<React.SetStateAction<Mission[]>>; user: User }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const [mode, setMode] = useState<'main' | 'history'>('main')
@@ -26,10 +44,10 @@ export default function AnalyseDevisSection({ artisans, setPage, missions, setMi
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string; extracted?: DevisExtracted; scores?: any }[]>([])
+  const [history, setHistory] = useState<{ id: string; filename: string; date: string; verdict: string; score: string; analysis: string; extracted?: DevisExtracted; scores?: DevisScores }[]>([])
   const [selectedHistory, setSelectedHistory] = useState<string | null>(null)
-  const [scores, setScores] = useState<any>(null)
-  const [siretResult, setSiretResult] = useState<any>(null)
+  const [scores, setScores] = useState<DevisScores | null>(null)
+  const [siretResult, setSiretResult] = useState<SiretResult | null>(null)
   const [isVitfix, setIsVitfix] = useState(false)
   const [accordion, setAccordion] = useState<string | null>(null)
   const [showMissionModal, setShowMissionModal] = useState(false)
@@ -646,7 +664,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                   </button>
                   {accordion === 'conformite' && (
                     <div className="px-3 space-y-1">
-                      {scores.conformite.details.map((c: any) => (
+                      {scores.conformite.details.map((c) => (
                         <div key={c.id} className="flex items-center gap-2 text-xs">
                           <span>{c.status === 'ok' ? '✅' : c.status === 'partial' ? '⚠️' : c.status === 'na' ? '➖' : '❌'}</span>
                           <span className={c.status === 'ok' ? 'text-green-700' : c.status === 'missing' ? 'text-red-600' : 'text-gray-600'}>{c.label}</span>

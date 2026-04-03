@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ function generateBudgetIA(
 // ─── Composant Principal ─────────────────────────────────────────────────────
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 
@@ -177,7 +178,7 @@ export default function OrcamentoAnualIASection({ user }: Props) {
       // Immeubles depuis API
       const res = await fetch(`/api/syndic/immeubles?user_id=${uid}`)
       const data = await res.json()
-      const imms = (data.immeubles || []).map((i: any) => ({ id: i.id, nom: i.nom }))
+      const imms = (data.immeubles || []).map((i: { id: string; nom: string }) => ({ id: i.id, nom: i.nom }))
       setImmeubles(imms)
       if (imms.length > 0 && !selectedImm) setSelectedImm(imms[0].id)
 
@@ -187,13 +188,13 @@ export default function OrcamentoAnualIASection({ user }: Props) {
 
       // Historique exercices (depuis budgets existants ou données comptables)
       const budgets = JSON.parse(localStorage.getItem(`fixit_budgets_${uid}`) || '[]')
-      const hist: HistoricoExercicio[] = budgets.map((b: any) => ({
-        ano: b.annee || b.ano,
-        postes: (b.postes || []).map((p: any) => ({
-          categoria: p.libelle || p.categoria,
-          valor: p.realise || p.budget || p.valor || 0,
+      const hist: HistoricoExercicio[] = budgets.map((b: Record<string, unknown>) => ({
+        ano: (b.annee || b.ano) as number,
+        postes: ((b.postes as Array<Record<string, unknown>> | undefined) || []).map((p) => ({
+          categoria: (p.libelle || p.categoria) as string,
+          valor: ((p.realise || p.budget || p.valor || 0) as number),
         })),
-        total: (b.postes || []).reduce((s: number, p: any) => s + (p.realise || p.budget || p.valor || 0), 0),
+        total: ((b.postes as Array<Record<string, unknown>> | undefined) || []).reduce((s: number, p) => s + ((p.realise || p.budget || p.valor || 0) as number), 0),
       }))
       setHistorico(hist)
     } catch (err) {

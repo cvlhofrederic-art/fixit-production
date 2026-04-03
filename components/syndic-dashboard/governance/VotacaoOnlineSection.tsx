@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ interface ConfigVotacao {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

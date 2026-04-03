@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,7 +164,7 @@ function makeDemoData(): PVRecord[] {
 
 // ─── Composant principal ─────────────────────────────────────────────────────
 
-export default function PVAssembleeIASection({ user, userRole }: { user: any; userRole: string }) {
+export default function PVAssembleeIASection({ user, userRole }: { user: User; userRole: string }) {
   const STORAGE_KEY = `fixit_pv_ia_${user?.id || 'demo'}`
 
   // ── State

@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // QR CODE POR FRAÇÃO — Signalement géolocalisé via QR Code
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

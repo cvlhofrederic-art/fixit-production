@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -426,7 +427,7 @@ const MONTHLY_RECOVERIES = [
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function RecouvrementEnrichiFRSection({ user, userRole }: { user: any; userRole: string }) {
+export default function RecouvrementEnrichiFRSection({ user, userRole }: { user: User; userRole: string }) {
   const storageKey = `fixit_recouvrement_fr_${user.id}`
 
   const [activeTab, setActiveTab] = useState<TabKey>('pipeline')

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import DOMPurify from 'dompurify'
+import type { User } from '@supabase/supabase-js'
 
 interface ArquivoDoc {
   id: string
@@ -69,7 +70,7 @@ const DEFAULT_RETENTION: RetentionRule[] = [
   { categoria: 'correspondencia', label: 'Correspondência', anos: 3, obrigatorio: false },
 ]
 
-export default function ArquivoDigitalSection({ user }: { user: any; userRole: string }) {
+export default function ArquivoDigitalSection({ user }: { user: User; userRole: string }) {
   const [tab, setTab] = useState<'arquivo' | 'pesquisa' | 'certificacao' | 'configuracao'>('arquivo')
   const [docs, setDocs] = useState<ArquivoDoc[]>([])
   const [searchQuery, setSearchQuery] = useState('')

@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function CarnetEntretienSection({ user, userRole }: { user: any; userRole: string }) {
+export default function CarnetEntretienSection({ user, userRole }: { user: User; userRole: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const uid = user?.id || 'demo'

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ interface RegistoConsumo {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 
@@ -174,7 +175,7 @@ export default function ComparadorEnergiaSection({ user, userRole }: Props) {
           if (res.ok) {
             const data = await res.json()
             const imms = data.immeubles || data || []
-            nomesEdificios = imms.map((im: any) => im.nom || im.nome || im.name || 'Edifício').slice(0, 6)
+            nomesEdificios = (imms as Array<Record<string, unknown>>).map((im) => (im.nom || im.nome || im.name || 'Edifício') as string).slice(0, 6)
           }
         } catch {
           // API falhou — usar fallback

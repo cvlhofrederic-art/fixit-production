@@ -4,10 +4,32 @@ import { useState, useMemo } from 'react'
 import type { Mission } from '../types'
 import { Badge, StatCard } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
+
+interface Transfert {
+  id: string
+  statut: string
+  transferePar?: string
+  destinataire?: string
+  missionId?: string
+  immeuble?: string
+  type?: string
+  artisan?: string
+  locataire?: string
+  batiment?: string
+  etage?: string
+  numLot?: string
+  travailEffectue?: string
+  note?: string
+  montantFacture?: number
+  montantDevis?: number
+  dateTransfert: string
+  raisonRefus?: string
+}
 
 export default function FacturationPageWithTransferts({ missions, user, userRole, onOpenMission }: {
   missions: Mission[]
-  user: any
+  user: User
   userRole: string
   onOpenMission: (m: Mission) => void
 }) {
@@ -20,7 +42,7 @@ export default function FacturationPageWithTransferts({ missions, user, userRole
   // Charger tous les dossiers transférés (depuis tous les rôles tech/gestionnaire)
   const allTransferts = useMemo(() => {
     const keys = ['syndic_tech', 'syndic_gestionnaire', 'syndic', 'syndic_admin']
-    const all: any[] = []
+    const all: Transfert[] = []
     keys.forEach(k => {
       try {
         const items = JSON.parse(localStorage.getItem(`syndic_transferts_${k}`) || '[]')
@@ -132,13 +154,13 @@ export default function FacturationPageWithTransferts({ missions, user, userRole
               <p>Aucun dossier transféré pour l'instant</p>
               <p className="text-sm mt-1">Les gestionnaires techniques peuvent transférer des dossiers depuis les ordres de mission</p>
             </div>
-          ) : filtered.map((t: any) => (
+          ) : filtered.map((t: Transfert) => (
             <div key={t.id} className={`bg-white rounded-2xl shadow-sm p-5 border-l-4 ${t.statut === 'en_attente_validation' ? 'border-orange-400' : t.statut === 'validé' ? 'border-green-400' : 'border-red-400'}`}>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statutColors[t.statut] || 'bg-[#F7F4EE] text-gray-700'}`}>{t.statut.replace('_', ' ')}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${destColors[t.destinataire] || 'bg-[#F7F4EE] text-gray-700'}`}>{destLabels[t.destinataire] || t.destinataire}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${(t.destinataire && destColors[t.destinataire]) || 'bg-[#F7F4EE] text-gray-700'}`}>{(t.destinataire && destLabels[t.destinataire]) || t.destinataire}</span>
                     <span className="text-xs text-gray-500">Mission #{t.missionId}</span>
                   </div>
                   <h3 className="font-bold text-[#0D1B2E]">{t.immeuble} — {t.type}</h3>

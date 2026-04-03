@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import type { Mission, Artisan, CanalInterneMsg, PlanningEvent } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { createClient } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,7 +47,7 @@ export default function CanalCommunicationsPage({
   missions: Mission[]
   artisans: Artisan[]
   userRole: string
-  user: any
+  user: User
   onUpdateMission: (m: Mission) => void
   onAddMission: (m: Mission) => void
   onOpenMission: (m: Mission) => void

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { StatCard } from '../types'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -224,7 +225,7 @@ function generateDemoData(userId: string) {
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
-export default function ReconciliationBancaireSection({ user, userRole }: { user: any; userRole: string }) {
+export default function ReconciliationBancaireSection({ user, userRole }: { user: User; userRole: string }) {
   const storageKey = `fixit_reconciliation_${user?.id}`
 
   // ── State

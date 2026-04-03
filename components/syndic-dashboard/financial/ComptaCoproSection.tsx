@@ -6,7 +6,8 @@ import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
 import AgentComptableCopro from './AgentComptableCopro'
-export default function ComptaCoproSection({ user, userRole, immeubles }: { user: any; userRole: string; immeubles: Immeuble[] }) {
+import type { User } from '@supabase/supabase-js'
+export default function ComptaCoproSection({ user, userRole, immeubles }: { user: User; userRole: string; immeubles: Immeuble[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   type Lot = { id: string; numero: string; proprietaire: string; tantieme: number; etage: string; surface: number }

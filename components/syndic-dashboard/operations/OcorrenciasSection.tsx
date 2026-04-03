@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ interface QRCode {
 }
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 

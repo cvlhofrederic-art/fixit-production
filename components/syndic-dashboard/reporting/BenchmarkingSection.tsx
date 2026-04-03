@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { StatCard } from '../types'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ function generateBuildings(userId: string): ImmeubleMetrics[] {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function BenchmarkingSection({ user, userRole }: { user: any; userRole: string }) {
+export default function BenchmarkingSection({ user, userRole }: { user: User; userRole: string }) {
   const [tab, setTab] = useState<TabId>('overview')
   const [buildings, setBuildings] = useState<ImmeubleMetrics[]>([])
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([])

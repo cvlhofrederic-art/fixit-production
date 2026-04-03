@@ -18,8 +18,9 @@ import {
 import DemandesTab from './irve/DemandesTab'
 import BornesTab from './irve/BornesTab'
 import AidesTab from './irve/AidesTab'
+import type { User } from '@supabase/supabase-js'
 
-export default function IRVESection({ user, userRole }: { user: any; userRole: string }) {
+export default function IRVESection({ user, userRole }: { user: User; userRole: string }) {
   type TabKey = 'demandes' | 'bornes' | 'reglementation' | 'aides'
   const [activeTab, setActiveTab] = useState<TabKey>('demandes')
 

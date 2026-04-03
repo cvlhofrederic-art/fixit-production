@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import type { Immeuble, PointageSession, PointageActif } from '../types'
 import { haversineMetres, RAYON_DETECTION_DEFAUT } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Immeuble[]; user: any; onUpdateImmeuble: (imm: Immeuble) => void }) {
+export default function PointageSection({ immeubles, user, onUpdateImmeuble }: { immeubles: Immeuble[]; user: User; onUpdateImmeuble: (imm: Immeuble) => void }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'

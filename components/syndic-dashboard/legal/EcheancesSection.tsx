@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import type { Immeuble } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function EcheancesSection({ user, userRole, immeubles }: { user: any; userRole: string; immeubles: Immeuble[] }) {
+export default function EcheancesSection({ user, userRole, immeubles }: { user: User; userRole: string; immeubles: Immeuble[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   type EcheanceType = 'inspection_ascenseur' | 'ramonage' | 'controle_elec' | 'dta' | 'dtg' | 'pppt' | 'ag_annuelle' | 'verification_extincteurs' | 'controle_gaz' | 'assurance_immeuble' | 'audit_energetique' | 'revision_budget'

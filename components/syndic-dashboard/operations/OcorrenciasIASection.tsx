@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -205,7 +206,7 @@ function classifyOcorrencia(texto: string, hasImage: boolean): IAAnalysis {
 // ─── Composant Principal ─────────────────────────────────────────────────────
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 
@@ -231,7 +232,7 @@ export default function OcorrenciasIASection({ user }: Props) {
       try {
         const res = await fetch(`/api/syndic/immeubles?user_id=${uid}`)
         const data = await res.json()
-        const imms = (data.immeubles || []).map((i: any) => ({ id: i.id, nom: i.nom }))
+        const imms = (data.immeubles || []).map((i: { id: string; nom: string }) => ({ id: i.id, nom: i.nom }))
         setImmeubles(imms)
         if (imms.length > 0) setSelectedImm(imms[0].id)
       } catch {}

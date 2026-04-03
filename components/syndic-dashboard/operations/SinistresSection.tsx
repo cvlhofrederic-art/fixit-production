@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import type { Artisan } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
-export default function SinistresSection({ user, userRole, artisans = [] }: { user: any; userRole: string; artisans?: Artisan[] }) {
+export default function SinistresSection({ user, userRole, artisans = [] }: { user: User; userRole: string; artisans?: Artisan[] }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const uid = user?.id || 'demo'

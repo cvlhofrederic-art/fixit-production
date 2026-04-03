@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -246,7 +247,7 @@ function generateDemoData() {
 
 // ─── Composant principal ───────────────────────────────────────────────────────
 
-export default function ExtranetEnrichiSection({ user, userRole }: { user: any; userRole: string }) {
+export default function ExtranetEnrichiSection({ user, userRole }: { user: User; userRole: string }) {
   const uid = user?.id || 'demo'
   const STORAGE_KEY = `fixit_extranet_fr_${uid}`
 

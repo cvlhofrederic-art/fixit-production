@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import type { User } from '@supabase/supabase-js'
 
 type Signalement = {
   id: string; immeuble: string; demandeurNom: string; demandeurRole: string
@@ -38,7 +39,7 @@ const PRIORITE_LABELS: Record<string, string> = {
   basse: '⚪ Basse',
 }
 
-export default function ExtranetSection({ user, userRole }: { user: any; userRole: string }) {
+export default function ExtranetSection({ user, userRole }: { user: User; userRole: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const uid = user?.id || 'demo'

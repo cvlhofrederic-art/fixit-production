@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Props {
-  user: any
+  user: User
   userRole: string
 }
 
@@ -158,7 +159,7 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
   const [sortKey, setSortKey] = useState<SortKey>('scoreGlobal')
   const [sortAsc, setSortAsc] = useState(false)
 
-  const uid = user?.id || user?.user?.id || ''
+  const uid = user?.id || ''
   const storageKey = `fixit_syndic_multi_${uid}`
 
   // ─── Fetch immeubles ────────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ export default function DashboardMultiImmeublesSection({ user, userRole }: Props
     fetch(`/api/syndic/immeubles?user_id=${uid}`)
       .then(r => r.ok ? r.json() : Promise.reject('Erro'))
       .then(data => {
-        const list: Immeuble[] = (data.immeubles || []).map((i: any) => ({
+        const list: Immeuble[] = (data.immeubles || []).map((i: Record<string, unknown>) => ({
           id: i.id,
           nom: i.nom || 'Sem nome',
           adresse: i.adresse,

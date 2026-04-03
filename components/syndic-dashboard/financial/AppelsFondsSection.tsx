@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ function generateDemoData(uid: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function AppelsFondsSection({ user, userRole }: { user: any; userRole: string }) {
+export default function AppelsFondsSection({ user, userRole }: { user: User; userRole: string }) {
   const uid = user?.id || 'demo'
   const STORAGE_KEY = `fixit_appels_fr_${uid}`
 

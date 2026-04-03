@@ -15,7 +15,7 @@ export default function ModalNouveilleMission({
   onAdd: (m: Partial<Mission> & { demandeurEmail?: string; heureIntervention?: string }) => void
   batimentsConnus: string[]
   artisans: Artisan[]
-  coproprios?: any[]
+  coproprios?: Coproprio[]
 }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -63,18 +63,18 @@ export default function ModalNouveilleMission({
   })()
 
   // Auto-remplissage depuis copropriétaire existant
-  const filteredCopros = coproprios.filter((c: any) => {
+  const filteredCopros = coproprios.filter((c: Coproprio) => {
     const q = coproSearch.toLowerCase()
-    return !q || (c.nom || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) || (c.lot || '').toLowerCase().includes(q) || (c.nomLocataire || '').toLowerCase().includes(q)
+    return !q || `${c.nomProprietaire || ''} ${c.prenomProprietaire || ''}`.toLowerCase().includes(q) || (c.emailProprietaire || '').toLowerCase().includes(q) || (c.numeroPorte || '').toLowerCase().includes(q) || (c.nomLocataire || '').toLowerCase().includes(q)
   }).slice(0, 8)
 
-  const autoFillFromCopro = (copro: any) => {
+  const autoFillFromCopro = (copro: Coproprio) => {
     setForm(f => ({
       ...f,
       immeuble: copro.immeuble || f.immeuble,
       batiment: copro.batiment || f.batiment,
       etage: String(copro.etage || f.etage),
-      numLot: copro.numeroPorte || copro.lot || f.numLot,
+      numLot: copro.numeroPorte || f.numLot,
       locataire: copro.nomLocataire ? `${copro.prenomLocataire || ''} ${copro.nomLocataire}`.trim() : (copro.nomProprietaire ? `${copro.prenomProprietaire || ''} ${copro.nomProprietaire}`.trim() : f.locataire),
       telephoneLocataire: copro.telephoneLocataire || copro.telephoneProprietaire || f.telephoneLocataire,
       emailLocataire: copro.emailLocataire || copro.emailProprietaire || f.emailLocataire,
@@ -175,7 +175,7 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                     <div className="mt-1 max-h-40 overflow-y-auto bg-white rounded-lg border border-blue-100 shadow-sm">
                       {filteredCopros.length === 0 ? (
                         <p className="text-xs text-gray-500 text-center py-3">Aucun résultat</p>
-                      ) : filteredCopros.map((c: any, i: number) => (
+                      ) : filteredCopros.map((c: Coproprio, i: number) => (
                         <button
                           key={c.id || i}
                           onClick={() => autoFillFromCopro(c)}
@@ -184,14 +184,14 @@ Merci de confirmer la réception de cet ordre de mission en répondant dans ce c
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-gray-800">
-                                {c.prenomProprietaire ? `${c.prenomProprietaire} ` : ''}{c.nomProprietaire || c.nom || '—'}
+                                {c.prenomProprietaire ? `${c.prenomProprietaire} ` : ''}{c.nomProprietaire || '—'}
                                 {c.nomLocataire && <span className="text-xs text-blue-600 ml-1">(loc. {c.prenomLocataire || ''} {c.nomLocataire})</span>}
                               </p>
                               <p className="text-xs text-gray-500">
                                 {c.immeuble && `🏢 ${c.immeuble} · `}
                                 {c.batiment && `Bât. ${c.batiment} · `}
                                 {c.etage !== undefined && `Ét. ${c.etage} · `}
-                                Lot {c.numeroPorte || c.lot || '—'}
+                                Lot {c.numeroPorte || '—'}
                               </p>
                             </div>
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Remplir →</span>
