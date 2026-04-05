@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { isAnalyticsAllowed } from './CookieConsent'
+import { trackPageView } from '@/lib/analytics'
 
 /**
  * Renders Vercel Analytics + SpeedInsights only when the user
@@ -12,10 +13,19 @@ export default function ConsentAnalytics() {
   const [allowed, setAllowed] = useState(false)
 
   useEffect(() => {
-    setAllowed(isAnalyticsAllowed())
-    const id = setInterval(() => setAllowed(isAnalyticsAllowed()), 5_000)
+    const wasAllowed = allowed
+    const next = isAnalyticsAllowed()
+    setAllowed(next)
+    if (!wasAllowed && next) trackPageView()
+    const id = setInterval(() => {
+      setAllowed(prev => {
+        const now = isAnalyticsAllowed()
+        if (!prev && now) trackPageView()
+        return now
+      })
+    }, 5_000)
     return () => clearInterval(id)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!allowed) return null
 

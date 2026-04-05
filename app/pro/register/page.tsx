@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
+import { trackEvent, AnalyticsEventType } from '@/lib/analytics'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { useSearchParams } from 'next/navigation'
@@ -311,7 +312,7 @@ function FormulaireArtisan() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       return data.url
-    } catch (err: any) { setError(`${t('register.uploadError')} ${folder}: ${err.message}`); return '' }
+    } catch (err: unknown) { setError(`${t('register.uploadError')} ${folder}: ${err instanceof Error ? err.message : String(err)}`); return '' }
   }
 
   const validateStep1 = () => {
@@ -330,9 +331,10 @@ function FormulaireArtisan() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
+    trackEvent(AnalyticsEventType.SIGNUP_STARTED, { role: 'artisan' })
     setLoading(true)
     try {
-      const userMetadata: any = { full_name: `${formData.prenom} ${formData.nom}`, company_name: formData.companyName, phone: formData.telephone, role: 'artisan', plan: formData.plan, kyc_status: 'pending' }
+      const userMetadata: Record<string, string | boolean | undefined> = { full_name: `${formData.prenom} ${formData.nom}`, company_name: formData.companyName, phone: formData.telephone, role: 'artisan', plan: formData.plan, kyc_status: 'pending' }
       if (verifiedCompany) {
         Object.assign(userMetadata, {
           siret: verifiedCompany.siret, siren: verifiedCompany.siren,
@@ -348,7 +350,7 @@ function FormulaireArtisan() {
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
-        const profileInsert: any = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', first_name: formData.prenom, last_name: formData.nom, phone: formData.telephone, email: formData.email, country: artisanCountry }
+        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', first_name: formData.prenom, last_name: formData.nom, phone: formData.telephone, email: formData.email, country: artisanCountry }
         if (verifiedCompany) Object.assign(profileInsert, { legal_form: verifiedCompany.legalForm, siren: verifiedCompany.siren, naf_code: verifiedCompany.nafCode, naf_label: verifiedCompany.nafLabel, company_address: verifiedCompany.address, company_city: verifiedCompany.city, company_postal_code: verifiedCompany.postalCode })
         const { data: profileData, error: profileError } = await supabase.from('profiles_artisan').insert(profileInsert).select('id').single()
         if (profileError) { setError(profileError.message); setLoading(false); return }
@@ -408,6 +410,7 @@ function FormulaireArtisan() {
             try { localStorage.removeItem('vtfx_referral_code') } catch {}
           }
         }
+        trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: 'artisan' })
         setSuccess(true)
       }
     } catch { setError(t('register.genericError')) }
@@ -740,7 +743,17 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const [siretInput, setSiretInput] = useState('')
   const [siretStatus, setSiretStatus] = useState<SiretStatus>('idle')
   const [siretError, setSiretError] = useState('')
-  const [company, setCompany] = useState<any>(null)
+  const [company, setCompany] = useState<{
+    name?: string
+    siret?: string
+    siren?: string
+    nafCode?: string
+    nafLabel?: string
+    legalForm?: string
+    address?: string
+    city?: string
+    postalCode?: string
+  } | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -788,6 +801,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError(t('register.passwordMismatch')); return }
     if (form.password.length < 8 || !/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password)) { setError(t('register.passwordMin8')); return }
+    trackEvent(AnalyticsEventType.SIGNUP_STARTED, { role: orgType })
     setLoading(true); setError('')
     try {
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -839,9 +853,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               data: { kbis_url: kbisUrl || undefined, id_document_url: idUrl || undefined },
             })
           }
-        } catch (uploadErr: any) {
+        } catch (uploadErr: unknown) {
           // Non-blocking: account created, docs failed
-          setError(`Compte créé mais erreur upload documents: ${uploadErr.message}`)
+          setError(`Compte créé mais erreur upload documents: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
         }
       }
 
@@ -900,6 +914,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         } catch { /* non-bloquant */ }
       }
 
+      trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: orgType })
       setSuccess(true)
     } catch { setError(t('register.genericError')) }
     finally { setLoading(false) }

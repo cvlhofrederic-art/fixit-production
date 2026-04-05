@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { trackEvent, AnalyticsEventType } from '@/lib/analytics'
 
 type ClientType = 'particulier' | 'entreprise'
 
@@ -29,7 +30,15 @@ export default function RegisterPage() {
   // SIRET verification states
   const [siretVerifying, setSiretVerifying] = useState(false)
   const [siretVerified, setSiretVerified] = useState(false)
-  const [siretData, setSiretData] = useState<any>(null)
+  const [siretData, setSiretData] = useState<{
+    name?: string
+    siret?: string
+    siren?: string
+    nafCode?: string
+    nafLabel?: string
+    legalForm?: string
+    address?: string
+  } | null>(null)
   const [siretError, setSiretError] = useState('')
   const [siretWarning, setSiretWarning] = useState('')
   const [emailError, setEmailError] = useState('')
@@ -141,10 +150,11 @@ export default function RegisterPage() {
       return
     }
 
+    trackEvent(AnalyticsEventType.SIGNUP_STARTED, { role: 'client', client_type: clientType })
     setLoading(true)
 
     try {
-      const metadata: any = {
+      const metadata: Record<string, string | boolean | null | undefined> = {
         full_name: formData.fullName,
         phone: formData.phone,
         address: formData.address,
@@ -185,6 +195,8 @@ export default function RegisterPage() {
         setLoading(false)
         return
       }
+
+      trackEvent(AnalyticsEventType.SIGNUP_COMPLETED, { role: 'client' })
 
       // Auto-login after registration if email confirmation is disabled
       if (authData.session) {
