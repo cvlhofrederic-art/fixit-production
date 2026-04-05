@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false })
+        .limit(200)
       result.chantiers = data || []
     }
 
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('owner_id', user.id)
         .order('nom', { ascending: true })
+        .limit(500)
       result.membres = data || []
     }
 
@@ -79,6 +81,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('owner_id', user.id)
         .order('date', { ascending: false })
+        .limit(500)
       if (chantierId) q = q.eq('chantier_id', chantierId)
       const { data } = await q
       result.depenses = data || []
@@ -99,6 +102,7 @@ export async function GET(request: NextRequest) {
         .from('v_rentabilite_chantier')
         .select('*')
         .eq('owner_id', user.id)
+        .limit(100)
       result.rentabilite = data || []
     }
 

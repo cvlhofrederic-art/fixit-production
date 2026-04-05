@@ -75,45 +75,48 @@ const SIMILARITY_THRESHOLD = 0.85
 export function deduplicateTenders(tenders: Tender[]): Tender[] {
   if (tenders.length <= 1) return tenders
 
-  // Pre-compute normalized values for each tender
   const entries = tenders.map((t) => ({
     tender: t,
     normTitle: normalizeForDedup(t.title),
     normCity: normalizeForDedup(t.city),
+    deadlineDay: t.deadline ? t.deadline.slice(0, 10) : '',
     score: richness(t),
   }))
 
+  // Group by (city, deadline) to reduce comparison space
+  const groups = new Map<string, typeof entries>()
+  for (const entry of entries) {
+    const key = `${entry.normCity}|${entry.deadlineDay}`
+    const group = groups.get(key)
+    if (group) {
+      group.push(entry)
+    } else {
+      groups.set(key, [entry])
+    }
+  }
+
   const kept: typeof entries = []
 
-  for (const entry of entries) {
-    let isDuplicate = false
-
-    for (let i = 0; i < kept.length; i++) {
-      const existing = kept[i]
-
-      // Cities must match
-      if (entry.normCity !== existing.normCity) continue
-
-      // Deadlines must match (same day) if both are present
-      if (entry.tender.deadline && existing.tender.deadline) {
-        if (!sameDay(entry.tender.deadline, existing.tender.deadline)) continue
-      }
-
-      // Title similarity check
-      const similarity = jaccardSimilarity(entry.normTitle, existing.normTitle)
-      if (similarity >= SIMILARITY_THRESHOLD) {
-        // Replace if the new entry has richer data
-        if (entry.score > existing.score) {
-          kept[i] = entry
+  for (const group of groups.values()) {
+    const groupKept: typeof entries = []
+    for (const entry of group) {
+      let isDuplicate = false
+      for (let i = 0; i < groupKept.length; i++) {
+        const existing = groupKept[i]
+        const sim = jaccardSimilarity(entry.normTitle, existing.normTitle)
+        if (sim >= SIMILARITY_THRESHOLD) {
+          if (entry.score > existing.score) {
+            groupKept[i] = entry
+          }
+          isDuplicate = true
+          break
         }
-        isDuplicate = true
-        break
+      }
+      if (!isDuplicate) {
+        groupKept.push(entry)
       }
     }
-
-    if (!isDuplicate) {
-      kept.push(entry)
-    }
+    kept.push(...groupKept)
   }
 
   return kept.map((e) => e.tender)

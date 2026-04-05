@@ -63,7 +63,7 @@ export default function ChantiersSection({ artisan, navigateTo }: ChantiersSecti
     const sc = statutColor(selected.statut)
     const currentNotes = notes[selected.id] ?? selected.notes
     return (
-      <div className="space-y-4 font-[family-name:var(--font-ibm-plex-sans)]">
+      <div className="space-y-4 font-[family-name:var(--font-dm-sans)]">
         {/* Toast */}
         {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white" style={{ background: 'var(--v22-green)' }}>{toast}</div>}
 
@@ -74,7 +74,7 @@ export default function ChantiersSection({ artisan, navigateTo }: ChantiersSecti
           </button>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-[family-name:var(--font-ibm-plex-mono)]" style={{ color: 'var(--v22-text-muted)' }}>{selected.id}</span>
+              <span className="text-xs font-mono" style={{ color: 'var(--v22-text-muted)' }}>{selected.id}</span>
               <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: sc.bg, color: sc.color }}>{statutLabel(selected.statut)}</span>
             </div>
             <h2 className="text-lg font-semibold" style={{ color: 'var(--v22-text)' }}>{selected.titre}</h2>
@@ -87,8 +87,8 @@ export default function ChantiersSection({ artisan, navigateTo }: ChantiersSecti
           <div><span style={{ color: 'var(--v22-text-muted)' }}>Montant</span><p className="font-medium" style={{ color: 'var(--v22-text)' }}>{formatEur(selected.montant)}</p></div>
           <div><span style={{ color: 'var(--v22-text-muted)' }}>Adresse</span><p style={{ color: 'var(--v22-text)' }}>{selected.adresse}</p></div>
           <div><span style={{ color: 'var(--v22-text-muted)' }}>Dates</span><p style={{ color: 'var(--v22-text)' }}>{selected.dateDebut} &rarr; {selected.dateFin}</p></div>
-          <div><span style={{ color: 'var(--v22-text-muted)' }}>Devis</span><p className="font-[family-name:var(--font-ibm-plex-mono)]" style={{ color: 'var(--v22-text)' }}>{selected.devis}</p></div>
-          <div><span style={{ color: 'var(--v22-text-muted)' }}>Facture</span><p className="font-[family-name:var(--font-ibm-plex-mono)]" style={{ color: selected.facture ? 'var(--v22-text)' : 'var(--v22-red)' }}>{selected.facture || 'Non émise'}</p></div>
+          <div><span style={{ color: 'var(--v22-text-muted)' }}>Devis</span><p className="font-mono" style={{ color: 'var(--v22-text)' }}>{selected.devis}</p></div>
+          <div><span style={{ color: 'var(--v22-text-muted)' }}>Facture</span><p className="font-mono" style={{ color: selected.facture ? 'var(--v22-text)' : 'var(--v22-red)' }}>{selected.facture || 'Non émise'}</p></div>
         </div>
 
         {/* Alertes */}
@@ -108,7 +108,7 @@ export default function ChantiersSection({ artisan, navigateTo }: ChantiersSecti
               <div key={i} className="flex items-start gap-3">
                 <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0" style={{ background: t.type === 'green' ? 'var(--v22-green)' : t.type === 'red' ? 'var(--v22-red)' : 'var(--v22-border)' }} />
                 <div>
-                  <span className="text-xs font-[family-name:var(--font-ibm-plex-mono)]" style={{ color: 'var(--v22-text-muted)' }}>{t.date}</span>
+                  <span className="text-xs font-mono" style={{ color: 'var(--v22-text-muted)' }}>{t.date}</span>
                   <p className="text-sm" style={{ color: 'var(--v22-text)' }}>{t.label}</p>
                 </div>
               </div>
@@ -173,7 +173,7 @@ export default function ChantiersSection({ artisan, navigateTo }: ChantiersSecti
 
   // ── List view ──
   return (
-    <div className="space-y-4 font-[family-name:var(--font-ibm-plex-sans)]">
+    <div className="space-y-4 font-[family-name:var(--font-dm-sans)]">
       {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white" style={{ background: 'var(--v22-green)' }}>{toast}</div>}
 
       <h1 className="text-xl font-semibold" style={{ color: 'var(--v22-text)' }}>Chantiers</h1>
@@ -230,7 +230,7 @@ export default function ChantiersSection({ artisan, navigateTo }: ChantiersSecti
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-[family-name:var(--font-ibm-plex-mono)]" style={{ color: 'var(--v22-text-muted)' }}>{c.id}</span>
+                    <span className="text-xs font-mono" style={{ color: 'var(--v22-text-muted)' }}>{c.id}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: sc.bg, color: sc.color }}>{statutLabel(c.statut)}</span>
                     {c.alertes.length > 0 && <span className="w-2 h-2 rounded-full" style={{ background: 'var(--v22-red)' }} />}
                   </div>

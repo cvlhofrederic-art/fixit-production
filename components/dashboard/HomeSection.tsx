@@ -208,7 +208,7 @@ export default function HomeSection({
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                     onClick={() => navigateTo('calendar')}
                   >
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '10px', fontWeight: 600, fontFamily: 'var(--font-ibm-plex-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '10px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {initials}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -343,7 +343,7 @@ export default function HomeSection({
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                     onClick={() => navigateTo('messages')}
                   >
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '9px', fontWeight: 600, fontFamily: 'var(--font-ibm-plex-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '9px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {initials}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -399,7 +399,7 @@ export default function HomeSection({
                       >
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px' }}><span className="v22-ref">{d.ref || d.number || `${i + 1}`}</span></td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', fontWeight: 500 }}>{d.client || d.clientName || '—'}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', textAlign: 'right', fontFamily: 'var(--font-ibm-plex-mono)' }}>{formatPrice(d.total || d.amount || 0)}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(d.total || d.amount || 0)}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px' }}><span className={`v22-tag ${statusClass}`}>{statusLabel}</span></td>
                       </tr>
                     )

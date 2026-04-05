@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { cacheable } from '@/lib/cache'
 
 // Mapping service slug → metiers in artisans_catalogue
 const SERVICE_TO_METIERS: Record<string, string[]> = {
@@ -45,27 +46,32 @@ export async function GET(req: NextRequest) {
     // Pour Marseille, on cherche tous les arrondissements
     const isMars = city.toLowerCase().includes('marseille')
 
-    let query = supabaseAdmin
-      .from('artisans_catalogue')
-      .select('id, nom_entreprise, metier, specialite, adresse, ville, arrondissement, google_note, google_avis, telephone_pro, pappers_verifie')
-      .in('metier', metiers)
-      .order('google_note', { ascending: false, nullsFirst: false })
-      .limit(limit)
+    const cacheKey = `catalogue:${service}:${city.toLowerCase()}:${limit}`
+    const cached = await cacheable(cacheKey, async () => {
+      let query = supabaseAdmin
+        .from('artisans_catalogue')
+        .select('id, nom_entreprise, metier, specialite, adresse, ville, arrondissement, google_note, google_avis, telephone_pro, pappers_verifie')
+        .in('metier', metiers)
+        .order('google_note', { ascending: false, nullsFirst: false })
+        .limit(limit)
 
-    if (isMars) {
-      query = query.ilike('ville', '%arseille%')
-    } else {
-      query = query.eq('ville', city)
-    }
+      if (isMars) {
+        query = query.ilike('ville', '%arseille%')
+      } else {
+        query = query.eq('ville', city)
+      }
 
-    const { data, error } = await query
+      const { data, error } = await query
+      if (error) return null
+      return data || []
+    }, 600) // 10 min TTL
 
-    if (error) {
+    if (cached === null) {
       return NextResponse.json({ artisans: [] }, { status: 500 })
     }
 
     return NextResponse.json(
-      { artisans: data || [] },
+      { artisans: cached },
       { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } }
     )
   } catch (err) {

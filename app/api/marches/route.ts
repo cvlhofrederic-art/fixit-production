@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { cacheable } from '@/lib/cache'
 import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -123,40 +124,52 @@ export async function GET(request: NextRequest) {
 
   const today = new Date().toISOString().split('T')[0]
 
-  let query = supabaseAdmin
-    .from('marches')
-    .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue')
-    .eq('status', 'open')
-    .gte('deadline', today)
-    .order('created_at', { ascending: false })
-    .range(from, to)
+  // Only cache the non-personalized listing (artisanUserId triggers dynamic distance enrichment)
+  const isPersonalized = !!artisanUserId
+  const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}`
 
-  if (category) query = query.eq('category', category)
-  if (city) query = query.ilike('location_city', `%${city}%`)
-  if (budgetMin) query = query.gte('budget_min', parseInt(budgetMin))
-  if (budgetMax) query = query.lte('budget_max', parseInt(budgetMax))
-  if (urgency) query = query.eq('urgency', urgency)
-  if (sourceType) query = query.eq('source_type', sourceType)
-  if (pays) query = query.eq('pays', pays)
-  if (zone) query = query.eq('zone_test', zone)
-  if (district) query = query.eq('district', district)
-  if (concelho) query = query.ilike('concelho', `%${concelho}%`)
-  if (departement) query = query.eq('departement', departement)
-  if (source) query = query.eq('source', source)
+  const fetchMarches = async (): Promise<MarcheRow[]> => {
+    let query = supabaseAdmin
+      .from('marches')
+      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue')
+      .eq('status', 'open')
+      .gte('deadline', today)
+      .order('created_at', { ascending: false })
+      .range(from, to)
 
-  // Filter for artisan-specific matched marches
-  if (artisanUserId) {
-    query = query.contains('matched_artisans', [artisanUserId])
+    if (category) query = query.eq('category', category)
+    if (city) query = query.ilike('location_city', `%${city}%`)
+    if (budgetMin) query = query.gte('budget_min', parseInt(budgetMin))
+    if (budgetMax) query = query.lte('budget_max', parseInt(budgetMax))
+    if (urgency) query = query.eq('urgency', urgency)
+    if (sourceType) query = query.eq('source_type', sourceType)
+    if (pays) query = query.eq('pays', pays)
+    if (zone) query = query.eq('zone_test', zone)
+    if (district) query = query.eq('district', district)
+    if (concelho) query = query.ilike('concelho', `%${concelho}%`)
+    if (departement) query = query.eq('departement', departement)
+    if (source) query = query.eq('source', source)
+
+    if (artisanUserId) {
+      query = query.contains('matched_artisans', [artisanUserId])
+    }
+
+    const { data, error } = await query
+    if (error) throw error
+    return data || []
   }
 
-  const { data, error } = await query
-
-  if (error) {
-    logger.error('[marches] GET error', { error: error.message })
+  let marches: MarcheRow[]
+  try {
+    if (isPersonalized) {
+      marches = await fetchMarches()
+    } else {
+      marches = await cacheable(cacheKey, fetchMarches, 300) // 5 min TTL
+    }
+  } catch (error) {
+    logger.error('[marches] GET error', { error: error instanceof Error ? error.message : error })
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
-
-  let marches: MarcheRow[] = data || []
 
   // If artisan_user_id provided, enrich with distance calculation
   if (artisanUserId && marches.length > 0) {

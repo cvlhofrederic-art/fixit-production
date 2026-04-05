@@ -4,6 +4,8 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { validateBody, verifyIdFormSchema } from '@/lib/validation'
 
+export const maxDuration = 30
+
 // Normalise un texte pour comparaison (minuscules, sans accents, sans ponctuation)
 function normalize(text: string): string {
   return text

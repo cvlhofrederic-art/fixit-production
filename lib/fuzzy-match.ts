@@ -32,6 +32,24 @@ export function similarity(a: string, b: string): number {
   return 1 - levenshteinDistance(na, nb) / maxLen
 }
 
+const similarityCache = new Map<string, number>()
+const SIMILARITY_CACHE_MAX = 1000
+
+function cachedSimilarity(a: string, b: string): number {
+  const key = a < b ? `${a}|${b}` : `${b}|${a}`
+  const cached = similarityCache.get(key)
+  if (cached !== undefined) return cached
+
+  if (similarityCache.size >= SIMILARITY_CACHE_MAX) {
+    const firstKey = similarityCache.keys().next().value
+    if (firstKey) similarityCache.delete(firstKey)
+  }
+
+  const score = similarity(a, b)
+  similarityCache.set(key, score)
+  return score
+}
+
 /**
  * Fuzzy-match a search term against a list of items
  * Returns the best match with score >= threshold, or null
@@ -78,7 +96,7 @@ export function fuzzyFind<T>(
   let bestScore = 0
   for (const item of items) {
     const name = getName(item)
-    const score = similarity(search, name)
+    const score = cachedSimilarity(normalizeForSearch(search), normalizeForSearch(name))
     if (score >= threshold && score > bestScore) {
       bestScore = score
       bestMatch = item
@@ -88,7 +106,7 @@ export function fuzzyFind<T>(
     for (const sw of searchWords) {
       for (const iw of itemWords) {
         if (iw.length >= 3 && sw.length >= 3) {
-          const ws = similarity(sw, iw)
+          const ws = cachedSimilarity(sw, iw)
           if (ws >= threshold && ws > bestScore) {
             bestScore = ws
             bestMatch = item

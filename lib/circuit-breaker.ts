@@ -5,8 +5,8 @@
 type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
 
 interface CircuitBreakerOptions {
-  failureThreshold: number  // failures before opening
-  resetTimeoutMs: number    // time before trying again
+  failureThreshold: number
+  resetTimeoutMs: number
   name: string
 }
 
@@ -18,9 +18,22 @@ interface CircuitBreakerState {
 }
 
 const circuits = new Map<string, CircuitBreakerState>()
+const MAX_CIRCUITS = 20
+const STALE_CIRCUIT_MS = 3_600_000 // 1 hour
+
+function cleanupStaleCircuits() {
+  if (circuits.size <= MAX_CIRCUITS) return
+  const now = Date.now()
+  for (const [name, circuit] of circuits) {
+    if (circuit.state === 'CLOSED' && now - circuit.lastSuccess > STALE_CIRCUIT_MS) {
+      circuits.delete(name)
+    }
+  }
+}
 
 function getCircuit(name: string): CircuitBreakerState {
   if (!circuits.has(name)) {
+    cleanupStaleCircuits()
     circuits.set(name, { state: 'CLOSED', failures: 0, lastFailure: 0, lastSuccess: Date.now() })
   }
   return circuits.get(name)!
@@ -32,7 +45,6 @@ export function createCircuitBreaker(options: CircuitBreakerOptions) {
   return async function execute<T>(fn: () => Promise<T>): Promise<T> {
     const circuit = getCircuit(name)
 
-    // Check if circuit should transition from OPEN to HALF_OPEN
     if (circuit.state === 'OPEN') {
       if (Date.now() - circuit.lastFailure > resetTimeoutMs) {
         circuit.state = 'HALF_OPEN'
@@ -43,7 +55,6 @@ export function createCircuitBreaker(options: CircuitBreakerOptions) {
 
     try {
       const result = await fn()
-      // Success: reset circuit
       circuit.failures = 0
       circuit.state = 'CLOSED'
       circuit.lastSuccess = Date.now()

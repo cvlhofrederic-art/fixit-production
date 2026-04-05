@@ -205,7 +205,7 @@ export default function ArquivoDigitalSection({ user }: { user: User; userRole: 
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sd-navy)', margin: 0, fontFamily: "var(--font-playfair), 'Playfair Display', serif" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sd-navy)', margin: 0, fontFamily: "var(--font-montserrat), ui-sans-serif, system-ui, sans-serif" }}>
           🗄️ Arquivo Digital Certificado
         </h1>
         <p style={{ fontSize: 13, color: 'var(--sd-ink-3)', marginTop: 4, fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}>
@@ -238,7 +238,7 @@ export default function ArquivoDigitalSection({ user }: { user: User; userRole: 
             ].map((s, i) => (
               <div key={i} style={cardStyle()}>
                 <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sd-navy)', fontFamily: "var(--font-playfair), 'Playfair Display', serif" }}>{s.value}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--sd-navy)', fontFamily: "var(--font-montserrat), ui-sans-serif, system-ui, sans-serif" }}>{s.value}</div>
                 <div style={{ fontSize: 11, color: 'var(--sd-ink-3)', marginTop: 2 }}>{s.label}</div>
               </div>
             ))}

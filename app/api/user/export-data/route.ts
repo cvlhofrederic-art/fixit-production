@@ -4,6 +4,8 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
+export const maxDuration = 60
+
 // GET /api/user/export-data
 // RGPD Art. 20 — Droit à la portabilité des données
 // Retourne TOUTES les données personnelles de l'utilisateur en JSON

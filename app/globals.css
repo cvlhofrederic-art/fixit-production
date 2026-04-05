@@ -43,7 +43,7 @@
 
 /* V22 scoped to artisan dashboard */
 #artisan-dashboard-v22 {
-  font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.5;
   color: var(--v22-text);
@@ -54,7 +54,7 @@
 
 /* Mono text utility */
 #artisan-dashboard-v22 .v22-mono {
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* V22 Card */
@@ -77,12 +77,12 @@
   color: var(--v22-text);
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 #artisan-dashboard-v22 .v22-card-meta {
   font-size: 11px;
   color: var(--v22-text-muted);
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   margin-left: auto;
 }
 #artisan-dashboard-v22 .v22-card-body { padding: 14px; }
@@ -98,7 +98,7 @@
   background: var(--v22-surface);
   color: var(--v22-text);
   transition: all 0.15s;
-  font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -144,7 +144,7 @@
 #artisan-dashboard-v22 .v22-tag {
   display: inline-block;
   font-size: 10px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 500;
   padding: 2px 6px;
   border-radius: 2px;
@@ -172,7 +172,7 @@
 #artisan-dashboard-v22 .v22-stat-yellow { background: var(--v22-yellow); }
 #artisan-dashboard-v22 .v22-stat-label {
   font-size: 10px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: var(--v22-text-muted);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -195,7 +195,7 @@
 #artisan-dashboard-v22 th {
   text-align: left;
   font-size: 10px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 500;
   color: var(--v22-text-muted);
   letter-spacing: 0.07em;
@@ -213,12 +213,12 @@
 #artisan-dashboard-v22 tbody tr { cursor: pointer; transition: background 0.15s; }
 #artisan-dashboard-v22 tbody tr:hover td { background: #FAFAF7; }
 #artisan-dashboard-v22 .v22-ref {
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   color: var(--v22-text-muted);
 }
 #artisan-dashboard-v22 .v22-amount {
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 500;
   text-align: right;
 }
@@ -239,7 +239,7 @@
 #artisan-dashboard-v22 .v22-page-sub {
   font-size: 12px;
   color: var(--v22-text-muted);
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* V22 Alerts */
@@ -291,7 +291,7 @@
 #artisan-dashboard-v22 .v22-devis-table { width: 100%; border-collapse: collapse; }
 #artisan-dashboard-v22 .v22-devis-table th {
   text-align: left; padding: 8px 10px; font-size: 10px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
   background: var(--v22-text); color: #fff; border: none;
 }
@@ -311,7 +311,7 @@
   padding: 7px 10px;
   border: 1px solid var(--v22-border);
   border-radius: 3px;
-  font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', sans-serif;
+  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
   color: var(--v22-text);
   background: var(--v22-surface);
@@ -340,11 +340,11 @@
   font-size: 11px;
   color: var(--v22-red);
   margin-top: 4px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 #artisan-dashboard-v22 .v22-form-label {
   font-size: 11px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: var(--v22-text-mid);
   margin-bottom: 4px;
   display: block;
@@ -439,7 +439,7 @@
   background: var(--v22-text);
   color: #fff;
   font-size: 12px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   padding: 10px 16px;
   border-radius: 3px;
   border-left: 3px solid var(--v22-yellow);
@@ -464,7 +464,7 @@
 /* V22 Sidebar */
 #artisan-dashboard-v22 .v22-sidebar { background: var(--v22-sidebar-bg); }
 #artisan-dashboard-v22 .v22-sidebar-label {
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   font-weight: 500;
   color: #fff;
@@ -501,7 +501,7 @@
 #artisan-dashboard-v22 .v22-sidebar-item.active .v22-sidebar-dot { background: var(--v22-yellow); }
 #artisan-dashboard-v22 .v22-badge-count {
   margin-left: auto;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
   background: rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.5);
@@ -519,7 +519,7 @@
 /* V22 Offline indicator */
 #artisan-dashboard-v22 .v22-offline {
   font-size: 10px;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 500;
   color: #fff;
   background: var(--v22-red);
@@ -541,7 +541,7 @@
   padding: 6px 14px;
   font-size: 11px;
   font-weight: 500;
-  font-family: var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   background: var(--v22-surface);
@@ -1094,13 +1094,13 @@
 #syndic-dashboard [class*="text-xl"],
 #syndic-dashboard [class*="text-2xl"],
 #syndic-dashboard [class*="text-3xl"] {
-  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Sidebar conserve Outfit pour le body */
 #syndic-dashboard nav { font-family: var(--font-outfit), 'Outfit', sans-serif; }
 #syndic-dashboard nav h1,
-#syndic-dashboard nav h2 { font-family: var(--font-playfair), 'Playfair Display', serif; }
+#syndic-dashboard nav h2 { font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif; }
 
 /* Labels, inputs, boutons = Outfit */
 #syndic-dashboard button,
@@ -1121,14 +1121,14 @@
 #syndic-dashboard main h3,
 #syndic-dashboard [class*="font-bold"][class*="text-xl"],
 #syndic-dashboard [class*="font-bold"][class*="text-2xl"] {
-  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
   color: var(--sd-navy);
 }
 
 /* Gros chiffres KPI = Playfair */
 #syndic-dashboard [class*="text-3xl"],
 #syndic-dashboard [class*="text-4xl"] {
-  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Boutons primaires (navy) = Outfit 500 */
@@ -1167,12 +1167,12 @@
 #copro-dashboard [class*="text-xl"],
 #copro-dashboard [class*="text-2xl"],
 #copro-dashboard [class*="text-3xl"] {
-  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
 }
 
 #copro-dashboard nav { font-family: var(--font-outfit), 'Outfit', sans-serif; }
 #copro-dashboard nav h1,
-#copro-dashboard nav h2 { font-family: var(--font-playfair), 'Playfair Display', serif; }
+#copro-dashboard nav h2 { font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif; }
 
 #copro-dashboard button,
 #copro-dashboard input,
@@ -1191,13 +1191,13 @@
 #copro-dashboard main h3,
 #copro-dashboard [class*="font-bold"][class*="text-xl"],
 #copro-dashboard [class*="font-bold"][class*="text-2xl"] {
-  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
   color: var(--sd-navy);
 }
 
 #copro-dashboard [class*="text-3xl"],
 #copro-dashboard [class*="text-4xl"] {
-  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
 }
 
 #copro-dashboard button[class*="bg-\[#0D1B2E\]"],

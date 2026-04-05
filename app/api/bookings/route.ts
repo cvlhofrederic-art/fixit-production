@@ -73,13 +73,15 @@ export async function POST(request: NextRequest) {
     }
 
     let isAutoAccept = false
+    let serviceName = 'Intervention'
     if (service_id) {
       const { data: svc } = await supabaseAdmin
         .from('services')
-        .select('validation_auto, delai_minimum_heures')
+        .select('validation_auto, delai_minimum_heures, name')
         .eq('id', service_id)
         .single()
       isAutoAccept = svc?.validation_auto === true
+      if (svc?.name) serviceName = svc.name
 
       // Enforce minimum delay
       const delai = svc?.delai_minimum_heures || 0
@@ -134,17 +136,6 @@ export async function POST(request: NextRequest) {
         logger.warn(`[bookings] ⚠️ Cannot notify artisan: artisan_id=${artisan_id} has no user_id or profile not found`)
       }
       if (artisanProfile?.user_id) {
-        // Get service name for notification
-        let serviceName = 'Intervention'
-        if (service_id) {
-          const { data: svc } = await supabaseAdmin
-            .from('services')
-            .select('name')
-            .eq('id', service_id)
-            .single()
-          if (svc?.name) serviceName = svc.name
-        }
-
         // Extract client name from notes
         const clientMatch = (notes || '').match(/Client:\s*([^|]+)/)
         const clientName = clientMatch ? clientMatch[1].trim() : 'Un client'
