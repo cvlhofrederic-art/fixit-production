@@ -1,0 +1,63 @@
+# ── Post-Deploy Smoke Test ────────────────────────────────────────────────────
+# Vérifie que la production répond correctement après chaque deploy sur main.
+# Se déclenche après le workflow CI (build réussi = Vercel deploy).
+
+name: "Post-Deploy — Smoke Test"
+
+on:
+  workflow_run:
+    workflows: ["CI — Build"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: "Smoke test production"
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Attendre le deploy Vercel (propagation)
+        run: sleep 60
+
+      - name: Vérifier /api/health
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" https://fixit-production.vercel.app/api/health)
+          echo "Status: $HTTP_STATUS"
+          cat /tmp/health.json | jq .
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Health check failed with status $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Vérifier la page d'accueil FR
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixit-production.vercel.app/fr/)
+          echo "Homepage FR status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Homepage FR returned $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Vérifier la page d'accueil PT
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixit-production.vercel.app/pt/)
+          echo "Homepage PT status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Homepage PT returned $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Résumé
+        if: success()
+        run: echo "✓ Production smoke test passed — all endpoints healthy"
+
+      - name: Alerte échec
+        if: failure()
+        run: |
+          echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://fixit-production.vercel.app immédiatement"
+          echo "Rollback: Vercel Dashboard > Deployments > Promote previous"

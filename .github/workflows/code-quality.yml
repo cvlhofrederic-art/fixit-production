@@ -37,6 +37,65 @@ jobs:
       - name: Vérifier les types TypeScript
         run: npx tsc --noEmit
 
+  # ── Migrations SQL — Validation syntaxe et cohérence ─────────────────────
+  migrations:
+    name: "SQL Migrations — Validation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fixit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Activer les extensions Supabase courantes
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/fixit_test -c "
+            CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
+            CREATE EXTENSION IF NOT EXISTS pgcrypto;
+          "
+
+      - name: Appliquer les migrations séquentiellement
+        run: |
+          FAIL=0
+          for file in $(ls supabase/migrations/*.sql | sort); do
+            echo "== Applying: $(basename $file) =="
+            if ! psql postgresql://postgres:postgres@localhost:5432/fixit_test -v ON_ERROR_STOP=1 -f "$file" 2>&1; then
+              echo "::error::Migration failed: $(basename $file)"
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::One or more migrations failed"
+            exit 1
+          fi
+
+      - name: Vérifier les tables créées
+        run: |
+          TABLES=$(psql postgresql://postgres:postgres@localhost:5432/fixit_test -t -c "
+            SELECT count(*) FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
+          " | tr -d ' ')
+          echo "Tables created: $TABLES"
+          if [ "$TABLES" -eq 0 ]; then
+            echo "::error::No tables created — migrations may be empty"
+            exit 1
+          fi
+
   # ── SonarCloud — Analyse qualité ──────────────────────────────────────────
   # Requis : configurer SONAR_TOKEN dans GitHub Secrets
   # Créer le projet sur https://sonarcloud.io et lier le repo GitHub
