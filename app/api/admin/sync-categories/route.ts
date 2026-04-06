@@ -26,12 +26,12 @@ export async function POST(request: NextRequest) {
   // 1. Add display_order and featured columns if missing (already done via migration 047)
 
   // 2. Deactivate deprecated categories
-  const { count: deactivated } = await supabaseAdmin
+  const { data: deactivated } = await supabaseAdmin
     .from('categories')
     .update({ active: false })
     .in('slug', DEPRECATED_SLUGS)
-    .select('*', { count: 'exact', head: true })
-  results.push(`Deactivated ${deactivated || 0} deprecated categories`)
+    .select()
+  results.push(`Deactivated ${deactivated?.length || 0} deprecated categories`)
 
   // 3. Upsert all active categories
   for (const cat of CATEGORIES) {
