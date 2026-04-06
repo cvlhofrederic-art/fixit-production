@@ -82,6 +82,8 @@ const nextConfig: NextConfig = {
       { source: '/pesquisar/', destination: '/pt/pesquisar/', permanent: true },
       { source: '/condominio/', destination: '/pt/condominio/', permanent: true },
       { source: '/simulador-orcamento/', destination: '/pt/simulador-orcamento/', permanent: true },
+      // Espace Pro removed — redirect to unified login
+      { source: '/pro/espace-pro/', destination: '/pro/login/', permanent: true },
       // Legacy root FR paths → redirect to /fr/ prefix
       { source: '/a-propos/', destination: '/fr/a-propos/', permanent: true },
       { source: '/recherche/', destination: '/fr/recherche/', permanent: true },

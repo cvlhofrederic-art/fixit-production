@@ -163,9 +163,9 @@ export default function ProLoginPage() {
                   </button>
                 </p>
                 <p className="text-text-muted text-sm">
-                  Vous êtes une société ou entreprise BTP ?{' '}
-                  <Link href="/pro/espace-pro" className="text-blue-600 hover:underline font-semibold">
-                    Espace Pro →
+                  Vous êtes un client particulier ?{' '}
+                  <Link href="/auth/login" className="text-blue-600 hover:underline font-semibold">
+                    Connexion client →
                   </Link>
                 </p>
               </div>
