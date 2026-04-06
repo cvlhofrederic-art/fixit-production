@@ -22,7 +22,7 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue>({
   locale: DEFAULT_LOCALE,
   setLocale: () => {},
-  t: (key: string) => key,
+  t: (key: string, fallback?: string) => fallback || key,
 })
 
 // ─── Provider ───

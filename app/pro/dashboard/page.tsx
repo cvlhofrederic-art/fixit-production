@@ -555,7 +555,7 @@ function DashboardPage() {
             {(orgRole === 'artisan' || orgRole === 'pro_societe') && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
-            <V22SidebarItem label={t('proDash.modules.sitePhotos')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
+            <V22SidebarItem label={t('proDash.modules.sitePhotos', 'Photos Chantier')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
             {(orgRole === 'artisan' || orgRole === 'pro_societe') && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
             {isModuleEnabled('contrats') && (orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
               <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
@@ -574,7 +574,7 @@ function DashboardPage() {
               />
             )}
             {isModuleEnabled('marches') && (
-              <V22SidebarItem label={t('proDash.modules.marches') || 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
+              <V22SidebarItem label={t('proDash.modules.marches', 'Bourse aux Marchés')} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
             )}
             {isModuleEnabled('marketplace_btp') && <V22SidebarItem label="🏗️ Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />}
           </div>
@@ -584,7 +584,7 @@ function DashboardPage() {
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
               {isModuleEnabled('wallet') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Conformité' : t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
               {isModuleEnabled('portfolio') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Références chantiers' : t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
-              {isModuleEnabled('parrainage') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Parrainage entreprises' : t('proDash.modules.parrainage') || 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
+              {isModuleEnabled('parrainage') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Parrainage entreprises' : t('proDash.modules.parrainage', 'Parrainage')} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
             </div>
           )}
         </div>
