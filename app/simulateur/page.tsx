@@ -5,12 +5,12 @@ export const metadata: Metadata = {
   title: 'Estimateur de travaux gratuit | Vitfix',
   description: 'Décrivez vos travaux et obtenez une estimation de prix en quelques questions. Peinture, plomberie, électricité, rénovation... Estimation gratuite par IA.',
   alternates: {
-    canonical: 'https://vitfix.io/simulateur',
+    canonical: 'https://vitfix.io/simulateur/',
   },
   openGraph: {
     title: 'Estimateur de travaux gratuit | Vitfix',
     description: 'Estimez le prix de vos travaux en quelques questions. Gratuit et sans inscription.',
-    url: 'https://vitfix.io/simulateur',
+    url: 'https://vitfix.io/simulateur/',
     type: 'website',
   },
 }

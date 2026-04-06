@@ -19,12 +19,12 @@
 
 ## Bugs ativos
 
-### 🟡 URL da homepage PT inconsistente
-**Descrição:** A homepage redireciona para /pt sem o trailing slash em alguns casos
-**Impacto:** Possível conteúdo duplicado para o Google (/pt vs /pt/)
-**Ficheiro:** next.config.ts (`trailingSlash: true` já ativo), canonical tags corretas em cada layout PT
-**Resolução:** `trailingSlash: true` já está configurado e os canonicals nos layouts PT estão corretos. Monitorizar no Google Search Console após launch para confirmar.
-**Descoberto:** Março 2026
+### ✅ URL da homepage PT inconsistente
+**Descrição:** 6 páginas tinham canonical URLs sem trailing slash (`/pt`, `/fr`, `/simulateur`, etc.) enquanto `trailingSlash: true` estava ativo no next.config.ts — criando mismatch entre URL servido e canonical declarado.
+**Impacto:** Conteúdo duplicado potencial para o Google
+**Ficheiros corrigidos:** `app/pt/page.tsx`, `app/fr/page.tsx`, `app/simulateur/page.tsx`, `app/pt/pesquisar/page.tsx`, `app/pt/sobre/page.tsx`, `app/fr/mentions-legales/page.tsx`
+**Resolução:** Trailing slash adicionado a todos os canonical URLs para corresponder ao `trailingSlash: true` do next.config.ts.
+**Descoberto:** Março 2026 | **Resolvido:** Abril 2026
 
 ---
 
