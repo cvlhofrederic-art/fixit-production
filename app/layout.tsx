@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
 // Suspense removed from root layout to fix React hydration error #419
 import { PHONE_FR, PHONE_PT } from "@/lib/constants";
-import { DM_Sans, Montserrat, Outfit } from "next/font/google";
+import { DM_Sans } from "next/font/google";
+import { Syne } from "next/font/google";
+import { Montserrat } from "next/font/google";
+import { Outfit } from "next/font/google";
+import { Playfair_Display } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
 import Providers from "@/components/common/Providers";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import ConsentAnalytics from "@/components/common/ConsentAnalytics";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -16,16 +23,43 @@ const dmSans = DM_Sans({
   weight: ["300", "400", "500"],
 });
 
+const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+});
+
 const montserrat = Montserrat({
   variable: "--font-montserrat",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
+// Polices Syndic Dashboard (Outfit + Playfair Display)
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],
+});
+
+const playfairDisplay = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  style: ["normal", "italic"],
+});
+
+// V22 Artisan Dashboard fonts
+const ibmPlexSans = IBM_Plex_Sans({
+  variable: "--font-ibm-plex-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 const sharedMeta = {
@@ -327,7 +361,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body suppressHydrationWarning className={`${dmSans.variable} ${montserrat.variable} ${outfit.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} ${playfairDisplay.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
         <Providers locale={locale}>
           <a href="#main-content" className="skip-to-content">
             {locale === 'en' || locale === 'nl' ? 'Skip to main content' : locale === 'pt' ? 'Ir para o conte\u00fado principal' : locale === 'es' ? 'Ir al contenido principal' : 'Aller au contenu principal'}
@@ -340,6 +374,8 @@ export default async function RootLayout({
           <CookieConsent />
         </Providers>
         <ConsentAnalytics />
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
