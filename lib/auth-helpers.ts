@@ -129,6 +129,62 @@ export function isArtisanRole(user: User): boolean {
   return getUserRole(user) === 'artisan'
 }
 
+// ── Vérifie qu'un utilisateur est pro_societe (gérant ou sous-compte) ────────
+export function isProSocieteRole(user: User): boolean {
+  const role = getUserRole(user)
+  return role === 'pro_societe' || role === 'super_admin'
+}
+
+// ── Vérifie qu'un utilisateur est gérant pro_societe ─────────────────────────
+// Le gérant est l'utilisateur sans company_id dans ses metadata (il EST la company)
+// ou avec pro_team_role === 'GERANT'
+export function isProGerant(user: User): boolean {
+  const role = getUserRole(user)
+  if (role === 'super_admin') return true
+  if (role !== 'pro_societe') return false
+  const teamRole = user.user_metadata?.pro_team_role
+  return !teamRole || teamRole === 'GERANT'
+}
+
+// ── Cache company_id en mémoire (TTL 5min) ──────────────────────────────────
+const companyIdCache = new Map<string, { value: string; expiresAt: number }>()
+const COMPANY_CACHE_TTL = 5 * 60 * 1000
+
+// ── Résout le company_id d'un utilisateur pro_societe ────────────────────────
+// Si gérant → son propre id. Si sous-compte → company_id depuis pro_team_members.
+export async function resolveCompanyId(user: User, supabaseAdminClient: SupabaseClient): Promise<string | null> {
+  const role = getUserRole(user)
+
+  // Gérant ou super_admin : son propre ID est la company
+  if (role === 'super_admin') return user.id
+  if (role === 'pro_societe' && isProGerant(user)) return user.id
+
+  // Sous-compte pro_societe : résoudre via pro_team_members
+  if (role === 'pro_societe') {
+    const cached = companyIdCache.get(user.id)
+    if (cached && cached.expiresAt > Date.now()) return cached.value
+
+    try {
+      const { data: membership } = await supabaseAdminClient
+        .from('pro_team_members')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (membership?.company_id) {
+        companyIdCache.set(user.id, { value: membership.company_id, expiresAt: Date.now() + COMPANY_CACHE_TTL })
+        return membership.company_id
+      }
+    } catch (error) {
+      console.error('[auth-helpers] resolveCompanyId team lookup failed:', error instanceof Error ? error.message : error)
+    }
+  }
+
+  // Fallback
+  return user.id
+}
+
 // ── Vérifie qu'un utilisateur est propriétaire d'un profil artisan ───────────
 // Retourne l'artisan_id si ownership confirmé, null sinon
 export async function verifyArtisanOwnership(

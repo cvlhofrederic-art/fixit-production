@@ -702,6 +702,38 @@ export const syndicInviteSchema = z.object({
   password: z.string().min(8).max(200),
 })
 
+// ── Pro Team Invite schema ─────────────────────────────────────────────────
+export const proTeamInviteSchema = z.object({
+  email: strictEmail,
+  full_name: z.string().min(1, 'Nom requis').max(200),
+  phone: z.string().max(30).optional(),
+  memberRole: z.enum(['CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER']),
+  assigned_chantiers: z.array(z.string().uuid()).max(50).optional(),
+  permissionOverrides: z.array(z.object({
+    module_id: z.string().max(50),
+    access_level: z.enum(['FULL', 'READ', 'NONE']),
+  })).max(50).optional(),
+})
+
+// ── Pro Team Invite Accept schema ──────────────────────────────────────────
+export const proInviteAcceptSchema = z.object({
+  token: z.string().min(1).max(200),
+  password: z.string()
+    .min(8, 'Minimum 8 caractères')
+    .max(200)
+    .regex(/[A-Z]/, 'Au moins 1 majuscule')
+    .regex(/[0-9]/, 'Au moins 1 chiffre'),
+})
+
+// ── Pro Team Permissions Update schema ─────────────────────────────────────
+export const proPermissionsUpdateSchema = z.object({
+  member_id: z.string().uuid(),
+  permissions: z.array(z.object({
+    module_id: z.string().max(50),
+    access_level: z.enum(['FULL', 'READ', 'NONE']),
+  })).max(50),
+})
+
 // ── Syndic Import Gecond schema ────────────────────────────────────────────
 export const syndicImportGecondSchema = z.object({
   action: z.enum(['parse', 'import']),

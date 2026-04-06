@@ -18,6 +18,7 @@ import MessagerieArtisan from '@/components/dashboard/MessagerieArtisan'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
+import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useServices, useAbsences, useAvailability, useCalendar, useSettings, useBookings } from '@/hooks/dashboard'
 import { getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/service-utils'
@@ -63,6 +64,7 @@ const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/
 const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2))
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection))
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection))
+const CompteUtilisateursSection = dynamic(() => import('@/components/dashboard/CompteUtilisateursSection'))
 
 // Conciergerie sections — NO ssr:false (causes React #419 hydration error)
 const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection))
@@ -160,6 +162,9 @@ function DashboardPage() {
   // ── Modules config ──
   const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule } = useModulesConfig(artisan?.id, t)
 
+  // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
+  const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
+
   // ── Messagerie artisan dashboard ──
   const messaging = useDashboardMessaging({ artisan, isPt, dateFmtLocale })
   const {
@@ -223,6 +228,18 @@ function DashboardPage() {
 
     const role = user.user_metadata?.role || 'artisan'
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) setOrgRole(role as OrgRole)
+
+    // Store pro team role in localStorage for usePermissions hook
+    if (role === 'pro_societe') {
+      try {
+        const teamRole = user.user_metadata?.pro_team_role
+        const companyId = user.user_metadata?.company_id
+        if (teamRole) localStorage.setItem('fixit_pro_team_role', teamRole)
+        else localStorage.removeItem('fixit_pro_team_role')
+        if (companyId) localStorage.setItem('fixit_pro_company_id', companyId)
+        else localStorage.removeItem('fixit_pro_company_id')
+      } catch { /* private browsing */ }
+    }
 
     const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (user.user_metadata?._admin_override) setShowAdminBtn(true)
@@ -500,23 +517,23 @@ function DashboardPage() {
               {/* ── Gestion chantier ── */}
               <div className="mb-3">
                 <div className="v22-sidebar-label">{isPt ? 'Gestão de obra' : 'Gestion chantier'}</div>
-                <V22SidebarItem label={isPt ? '🏗️ Obras' : '🏗️ Chantiers'} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />
-                <V22SidebarItem label={isPt ? '👷 Equipas' : '👷 Équipes'} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />
-                <V22SidebarItem label={isPt ? '📅 Agenda' : '📅 Agenda / Planning'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />
-                <V22SidebarItem label={isPt ? '📊 Planificação Gantt' : '📊 Planification Gantt'} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />
-                <V22SidebarItem label={isPt ? '⏱️ Marcação de horas' : '⏱️ Pointage équipes'} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />
+                {proCanAccess('chantiers') && <V22SidebarItem label={isPt ? '🏗️ Obras' : '🏗️ Chantiers'} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />}
+                {proCanAccess('equipes') && <V22SidebarItem label={isPt ? '👷 Equipas' : '👷 Équipes'} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />}
+                {proCanAccess('calendar') && <V22SidebarItem label={isPt ? '📅 Agenda' : '📅 Agenda / Planning'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />}
+                {proCanAccess('gantt') && <V22SidebarItem label={isPt ? '📊 Planificação Gantt' : '📊 Planification Gantt'} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />}
+                {proCanAccess('pointage') && <V22SidebarItem label={isPt ? '⏱️ Marcação de horas' : '⏱️ Pointage équipes'} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />}
               </div>
               {/* ── Finance BTP ── */}
               <div className="mb-3">
                 <div className="v22-sidebar-label">{isPt ? 'Finanças BTP' : 'Finance BTP'}</div>
-                <V22SidebarItem label={isPt ? '🧠 Contabilidade IA' : '🧠 Compta Intelligente'} active={activePage === 'compta_btp'} onClick={() => navigateTo('compta_btp')} />
-                <V22SidebarItem label={isPt ? '💰 Rentabilidade' : '💰 Rentabilité Chantier'} active={activePage === 'rentabilite'} onClick={() => navigateTo('rentabilite')} />
-                <V22SidebarItem label={isPt ? '📋 Orçamentos Fornecedores' : '📋 Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
-                <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
-                <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
-                <V22SidebarItem label={isPt ? '🤝 Subempreitada DC4' : '🤝 Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
-                <V22SidebarItem label={isPt ? '🏗️ Recrutar Subempreiteiros' : '🏗️ Recruter sous-traitants'} active={activePage === 'sous_traitance_offres'} onClick={() => navigateTo('sous_traitance_offres')} />
-                <V22SidebarItem label={isPt ? '📁 Concursos / DPGF' : '📁 Appels d\'offres'} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
+                {proCanAccess('compta_btp') && <V22SidebarItem label={isPt ? '🧠 Contabilidade IA' : '🧠 Compta Intelligente'} active={activePage === 'compta_btp'} onClick={() => navigateTo('compta_btp')} />}
+                {proCanAccess('rentabilite') && <V22SidebarItem label={isPt ? '💰 Rentabilidade' : '💰 Rentabilité Chantier'} active={activePage === 'rentabilite'} onClick={() => navigateTo('rentabilite')} />}
+                {proCanAccess('rfq_btp') && <V22SidebarItem label={isPt ? '📋 Orçamentos Fornecedores' : '📋 Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />}
+                {proCanAccess('situations') && <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />}
+                {proCanAccess('garanties') && <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />}
+                {proCanAccess('sous_traitance') && <V22SidebarItem label={isPt ? '🤝 Subempreitada DC4' : '🤝 Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />}
+                {proCanAccess('sous_traitance_offres') && <V22SidebarItem label={isPt ? '🏗️ Recrutar Subempreiteiros' : '🏗️ Recruter sous-traitants'} active={activePage === 'sous_traitance_offres'} onClick={() => navigateTo('sous_traitance_offres')} />}
+                {proCanAccess('dpgf') && <V22SidebarItem label={isPt ? '📁 Concursos / DPGF' : '📁 Appels d\'offres'} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />}
               </div>
               {/* ── Lots & Paramétrage ── */}
               <div className="mb-3">
@@ -591,6 +608,9 @@ function DashboardPage() {
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
+          {orgRole === 'pro_societe' && isProGerant && (
+            <V22SidebarItem label={isPt ? '👥 Gestão de contas' : '👥 Gestion comptes'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} />
+          )}
           <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
           <V22SidebarItem label="Modules" active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
@@ -1203,6 +1223,13 @@ function DashboardPage() {
           {/* ────── CANAL PRO ────── */}
           {activePage === 'canal' && (
             <CanalProSection artisan={artisan!} orgRole={orgRole} />
+          )}
+
+          {/* ────── GESTION COMPTES (Société BTP - Gérant only) ────── */}
+          {activePage === 'gestion_comptes' && orgRole === 'pro_societe' && isProGerant && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na gestão de contas' : 'Erreur dans la gestion des comptes'}>
+              <CompteUtilisateursSection artisan={artisan!} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── AIDE V22 ────── */}

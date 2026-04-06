@@ -342,6 +342,50 @@ export function templateTeamInvite(params: {
   return { subject, html: baseLayout(content, locale) }
 }
 
+// ── 4b. Invitation membre équipe PRO (société BTP) ──────────────────────────
+export function templateProTeamInvite(params: {
+  memberName: string
+  roleName: string
+  companyName: string
+  inviteUrl: string
+  locale?: string
+}): { subject: string; html: string } {
+  const { memberName, roleName, companyName, inviteUrl, locale = 'fr' } = params
+  const isPt = locale === 'pt'
+
+  const subject = isPt
+    ? `${companyName} convida-o(a) para a equipa VITFIX`
+    : `${companyName} vous invite à rejoindre l'équipe VITFIX`
+
+  const content = `
+    <h2 style="color:#0D1B2E;margin:0 0 16px;font-size:20px;">
+      ${isPt ? '👷 Convite para a equipa' : '👷 Invitation à rejoindre l\'équipe'}
+    </h2>
+    <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
+      ${isPt ? 'Olá' : 'Bonjour'} <strong>${memberName}</strong>,
+    </p>
+    <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
+      ${isPt
+        ? `A empresa <strong>${companyName}</strong> convida-o(a) a juntar-se à sua equipa como <strong>${roleName}</strong> na plataforma VITFIX.`
+        : `L'entreprise <strong>${companyName}</strong> vous invite à rejoindre son équipe en tant que <strong>${roleName}</strong> sur la plateforme VITFIX.`}
+    </p>
+    <p style="color:#4A5E78;font-size:14px;line-height:1.6;margin:0 0 16px;">
+      ${isPt
+        ? 'Ao aceitar, terá acesso ao painel profissional com os módulos atribuídos ao seu perfil.'
+        : 'En acceptant, vous aurez accès au tableau de bord professionnel avec les modules attribués à votre profil.'}
+    </p>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${inviteUrl}" style="display:inline-block;background:#FFC107;color:#1a1a1a;padding:16px 40px;border-radius:10px;text-decoration:none;font-weight:700;font-size:16px;">
+        ${isPt ? '✅ Aceitar o convite' : '✅ Accepter l\'invitation'}
+      </a>
+    </div>
+    <p style="color:#8A9BB0;font-size:12px;text-align:center;margin:0;">
+      ${isPt ? 'Este link é válido por 7 dias.' : 'Ce lien est valable 7 jours.'}
+    </p>`
+
+  return { subject, html: baseLayout(content, locale) }
+}
+
 // ── 5. Notification générique ────────────────────────────────────────────────
 export function templateGenericNotif(params: {
   recipientName: string
