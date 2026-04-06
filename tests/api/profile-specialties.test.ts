@@ -35,7 +35,7 @@ describe('POST /api/profile/specialties', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id: 'user-uuid-123',
+        user_id: '00000000-0000-0000-0000-000000000123',
         slugs: ['ferronnerie', 'facadier'],
         verified_source: 'kbis',
       }),
@@ -63,7 +63,7 @@ describe('POST /api/profile/specialties', () => {
     const req = new Request('http://localhost/api/profile/specialties', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: 'user-uuid-123', slugs: [] }),
+      body: JSON.stringify({ user_id: '00000000-0000-0000-0000-000000000123', slugs: [] }),
     })
     const res = await POST(req as any)
     expect(res.status).toBe(400)
@@ -81,7 +81,7 @@ describe('POST /api/profile/specialties', () => {
     const req = new Request('http://localhost/api/profile/specialties', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: 'user-uuid-123', slugs: ['nonexistent-slug'] }),
+      body: JSON.stringify({ user_id: '00000000-0000-0000-0000-000000000123', slugs: ['nonexistent-slug'] }),
     })
     const res = await POST(req as any)
     expect(res.status).toBe(400)

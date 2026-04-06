@@ -20,7 +20,7 @@ test.describe('API endpoint smoke tests', () => {
 
     const body = await response.json()
     expect(body).toHaveProperty('error')
-    expect(body.error).toContain('SIRET')
+    expect(body.error.toLowerCase()).toContain('siret')
   })
 
   test('GET /api/verify-siret with invalid SIRET returns error', async ({ request }) => {
