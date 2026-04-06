@@ -3520,7 +3520,9 @@
       "planning": "Planeamento",
       "sitePhotos": "Fotos de Obra",
       "marches": "Bolsa de Mercados",
-      "marchesDesc": "Concursos e candidaturas"
+      "marchesDesc": "Concursos e candidaturas",
+      "parrainage": "Indicação",
+      "parrainageDesc": "Indique profissionais e ganhe meses grátis"
     },
     "categories": {
       "activity": "Atividade",

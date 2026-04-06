@@ -3541,7 +3541,9 @@
       "planning": "Planning",
       "sitePhotos": "Photos Chantier",
       "marches": "Bourse aux Marchés",
-      "marchesDesc": "Appels d'offres et candidatures"
+      "marchesDesc": "Appels d'offres et candidatures",
+      "parrainage": "Parrainage",
+      "parrainageDesc": "Parrainez des artisans, gagnez des mois gratuits"
     },
     "categories": {
       "activity": "Activité",

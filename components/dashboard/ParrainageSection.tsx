@@ -140,7 +140,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
                   style={{
                     padding: '6px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
                     fontWeight: 600, fontSize: 13, transition: 'all 0.15s',
-                    background: copied ? '#1D9E75' : '#C9A84C',
+                    background: copied ? '#1D9E75' : '#FFD600',
                     color: copied ? '#fff' : '#0D1B2E',
                   }}
                 >
@@ -170,7 +170,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
               <p style={{ color: '#4A5E78', marginBottom: 12 }}>Vous n&apos;avez pas encore de code de parrainage.</p>
               <button onClick={generateCode} disabled={generating} style={{
                 padding: '12px 28px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                fontWeight: 600, fontSize: 15, background: '#C9A84C', color: '#0D1B2E',
+                fontWeight: 600, fontSize: 15, background: '#FFD600', color: '#0D1B2E',
                 opacity: generating ? 0.5 : 1,
               }}>
                 {generating ? 'Génération...' : 'Générer mon code'}
@@ -260,7 +260,7 @@ function StepItem({ n, text }: { n: number; text: string }) {
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
       <div style={{
-        width: 28, height: 28, borderRadius: '50%', background: '#C9A84C', color: '#0D1B2E',
+        width: 28, height: 28, borderRadius: '50%', background: '#FFD600', color: '#0D1B2E',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontWeight: 700, fontSize: 13, flexShrink: 0,
       }}>
