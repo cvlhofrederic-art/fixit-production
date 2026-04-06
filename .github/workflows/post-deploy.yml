@@ -26,7 +26,7 @@ jobs:
 
       - name: Vérifier /api/health
         run: |
-          HTTP_STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" https://fixit-production.vercel.app/api/health)
+          HTTP_STATUS=$(curl -sL -o /tmp/health.json -w "%{http_code}" https://vitfix.io/api/health)
           echo "Status: $HTTP_STATUS"
           cat /tmp/health.json | jq .
           if [ "$HTTP_STATUS" -ne 200 ]; then
@@ -36,7 +36,7 @@ jobs:
 
       - name: Vérifier la page d'accueil FR
         run: |
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixit-production.vercel.app/fr/)
+          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" https://vitfix.io/fr/)
           echo "Homepage FR status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage FR returned $HTTP_STATUS"
@@ -45,7 +45,7 @@ jobs:
 
       - name: Vérifier la page d'accueil PT
         run: |
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixit-production.vercel.app/pt/)
+          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" https://vitfix.io/pt/)
           echo "Homepage PT status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage PT returned $HTTP_STATUS"
