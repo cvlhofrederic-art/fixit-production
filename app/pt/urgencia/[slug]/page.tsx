@@ -38,6 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       canonical: `https://vitfix.io/pt/urgencia/${slug}/`,
       languages: {
         'pt': `https://vitfix.io/pt/urgencia/${slug}/`,
+        'fr': 'https://vitfix.io/fr/urgence/',
         'x-default': `https://vitfix.io/pt/urgencia/${slug}/`,
       },
     },

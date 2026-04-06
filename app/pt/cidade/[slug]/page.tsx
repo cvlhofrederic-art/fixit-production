@@ -36,6 +36,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     alternates: {
       canonical: `https://vitfix.io/pt/cidade/${slug}/`,
+      languages: {
+        'pt': `https://vitfix.io/pt/cidade/${slug}/`,
+        'fr': 'https://vitfix.io/fr/',
+        'x-default': `https://vitfix.io/pt/cidade/${slug}/`,
+      },
     },
   }
 }
