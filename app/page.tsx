@@ -30,8 +30,6 @@ const SERVICE_KEYS_EXTRA = [
   // DB-only categories — need translation keys
   { icon: '🏡', key: 'exteriorDesign', slug: 'amenagement-exterieur' },
   { icon: '🧱', key: 'tiling', slug: 'carrelage' },
-  { icon: '🌳', key: 'gardening', slug: 'jardinage' },
-  { icon: '🌿', key: 'landscaping', slug: 'paysagiste' },
   { icon: '🔍', key: 'diagnostic', slug: 'diagnostic' },
   { icon: '🧹', key: 'postWorkCleaning', slug: 'nettoyage-travaux' },
   { icon: '🏢', key: 'condoCleaning', slug: 'nettoyage-copro' },
@@ -286,7 +284,7 @@ export default function HomePage() {
           <button onClick={() => setShowAllServices(p => !p)}>
             {showAllServices
               ? (isPt ? 'Ver menos ↑' : 'Voir moins ↑')
-              : (isPt ? 'Ver os 30 serviços →' : 'Voir les 30 services →')
+              : (isPt ? 'Ver os 28 serviços →' : 'Voir les 28 services →')
             }
           </button>
         </div>
