@@ -25,7 +25,7 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string)
     { id: 'chantiers_v22', icon: '🏗️', label: 'Chantiers', description: 'Gestion des chantiers en cours', category: t('proDash.categories.activity') },
     { id: 'pipeline', icon: '📊', label: 'Pipeline', description: 'Suivi commercial des devis', category: t('proDash.categories.billing') },
     { id: 'bibliotheque', icon: '📚', label: 'Bibliothèque', description: 'Ouvrages, matériaux et main-d\'œuvre', category: t('proDash.categories.billing') },
-    { id: 'parrainage', icon: '🎁', label: t('proDash.modules.parrainage', 'Parrainage'), description: t('proDash.modules.parrainageDesc', 'Parrainez des artisans, gagnez des mois gratuits'), category: t('proDash.categories.proProfil', 'Profil Pro') },
+    { id: 'parrainage', icon: '🎁', label: 'Parrainage', description: t('proDash.modules.parrainageDesc', 'Parrainez des artisans, gagnez des mois gratuits'), category: t('proDash.categories.proProfil', 'Profil Pro') },
     { id: 'marketplace_btp', icon: '🏗️', label: 'Marketplace BTP', description: 'Achats, ventes et échanges entre professionnels', category: t('proDash.categories.activity') },
     { id: 'settings', icon: '⚙️', label: t('proDash.modules.settings'), description: t('proDash.modules.settingsDesc'), category: t('proDash.categories.account'), locked: true },
   ], [t])
