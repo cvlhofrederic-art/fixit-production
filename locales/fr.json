@@ -438,7 +438,7 @@
     "espaceArtisan": "Artisan",
     "espaceArtisanDesc": "Gérez vos interventions",
     "espacePro": "Pro",
-    "espaceProDesc": "Syndics, gestionnaires, entreprises",
+    "espaceProDesc": "Entreprises (SARL, SAS, SASU…)",
     "connectionDash": "Connexion",
     "emailOrPasswordIncorrect": "Email ou mot de passe incorrect.",
     "genericError": "Une erreur est survenue.",
