@@ -118,7 +118,7 @@ export default function LoginPage() {
           textDecoration: 'none',
           fontFamily: "'Montserrat', sans-serif",
         }}>
-          VIT<span style={{ color: '#FFC107' }}>FIX</span>
+          <span style={{ color: '#FFD600' }}>VIT</span>FIX
         </LocaleLink>
         <LocaleLink href="/" style={{
           background: 'transparent',
@@ -183,7 +183,7 @@ export default function LoginPage() {
               lineHeight: 1,
               fontFamily: "'Montserrat', sans-serif",
             }}>
-              VIT<span style={{ color: '#FFC107' }}>FIX</span>
+              <span style={{ color: '#FFD600' }}>VIT</span>FIX
             </div>
           </div>
           <p style={{
