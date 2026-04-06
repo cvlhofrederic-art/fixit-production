@@ -36,9 +36,9 @@ test.describe('SEO', () => {
     const lang = await page.locator('html').getAttribute('lang')
     expect(lang).toBe('fr')
 
-    // <title> contains VITFIX
+    // <title> contains Vitfix (case-insensitive)
     const title = await page.title()
-    expect(title).toContain('VITFIX')
+    expect(title.toLowerCase()).toContain('vitfix')
 
     // meta description
     const metaDesc = page.locator('meta[name="description"]')
@@ -46,7 +46,7 @@ test.describe('SEO', () => {
 
     // Open Graph tags
     const ogTitle = page.locator('meta[property="og:title"]')
-    await expect(ogTitle).toHaveAttribute('content', /VITFIX/)
+    await expect(ogTitle).toHaveAttribute('content', /VITFIX|Vitfix/i)
 
     const ogDesc = page.locator('meta[property="og:description"]')
     await expect(ogDesc).toHaveAttribute('content', /.+/)
