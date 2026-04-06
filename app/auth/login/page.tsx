@@ -362,6 +362,7 @@ export default function LoginPage() {
                 </div>
               )}
 
+              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Email */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{
@@ -479,7 +480,6 @@ export default function LoginPage() {
               </div>
 
               {/* Login button */}
-              <form onSubmit={handleLogin}>
                 <button
                   type="submit"
                   disabled={loading}
