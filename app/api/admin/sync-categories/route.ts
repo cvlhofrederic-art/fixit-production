@@ -23,13 +23,7 @@ export async function POST(request: NextRequest) {
 
   const results: string[] = []
 
-  // 1. Add display_order and featured columns if missing (idempotent)
-  await supabaseAdmin.rpc('exec_sql', {
-    sql: `ALTER TABLE categories ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 99;
-          ALTER TABLE categories ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false;`
-  }).catch(() => {
-    // rpc may not exist — columns may already be there, continue
-  })
+  // 1. Add display_order and featured columns if missing (already done via migration 047)
 
   // 2. Deactivate deprecated categories
   const { count: deactivated } = await supabaseAdmin
