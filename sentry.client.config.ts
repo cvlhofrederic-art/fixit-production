@@ -18,13 +18,35 @@ Sentry.init({
 
   debug: false,
 
-  // Contexte agents IA — enrichit les erreurs avec le type d'agent
+  // Contexte agents IA + redaction PII (RGPD compliance)
   beforeSend(event) {
-    // Ajouter le contexte IA si disponible dans l'URL ou les tags
     const url = typeof window !== "undefined" ? window.location.pathname : "";
     if (url.includes("/pro/dashboard")) {
       event.tags = { ...event.tags, agent_context: "fixy-ai-artisan" };
     }
+
+    // Redact PII from error messages and breadcrumbs
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}/g;
+
+    function redactPII(str: string): string {
+      return str.replace(emailRegex, "[EMAIL]").replace(phoneRegex, "[PHONE]");
+    }
+
+    if (event.message) {
+      event.message = redactPII(event.message);
+    }
+    if (event.exception?.values) {
+      for (const ex of event.exception.values) {
+        if (ex.value) ex.value = redactPII(ex.value);
+      }
+    }
+    if (event.breadcrumbs) {
+      for (const bc of event.breadcrumbs) {
+        if (bc.message) bc.message = redactPII(bc.message);
+      }
+    }
+
     return event;
   },
 });

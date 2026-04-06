@@ -52,7 +52,17 @@ export function getCookieConsent(): ConsentState | null {
         date: parsed.date || new Date().toISOString(),
       }
     }
-    return parsed as ConsentState
+    const consent = parsed as ConsentState
+    // Re-consent after 12 months (RGPD best practice)
+    if (consent.date) {
+      const consentDate = new Date(consent.date).getTime()
+      const twelveMonths = 365 * 24 * 60 * 60 * 1000
+      if (Date.now() - consentDate > twelveMonths) {
+        localStorage.removeItem(COOKIE_KEY)
+        return null
+      }
+    }
+    return consent
   } catch {
     return null
   }

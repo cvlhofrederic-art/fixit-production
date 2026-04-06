@@ -41,6 +41,22 @@ Sentry.init({
       }
     }
 
+    // Redact PII from error messages (RGPD compliance)
+    const emailRx = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const phoneRx = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}/g;
+    const ipRx = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g;
+
+    function redact(str: string): string {
+      return str.replace(emailRx, "[EMAIL]").replace(phoneRx, "[PHONE]").replace(ipRx, "[IP]");
+    }
+
+    if (event.message) event.message = redact(event.message);
+    if (event.exception?.values) {
+      for (const ex of event.exception.values) {
+        if (ex.value) ex.value = redact(ex.value);
+      }
+    }
+
     return event;
   },
 });
