@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 type ModuleConfig = { id: string; enabled: boolean; order: number }
 type ModuleDef = { id: string; icon: string; label: string; description: string; category: string; locked?: boolean }
 
-export function useModulesConfig(artisanId: string | undefined, t: (key: string) => string) {
+export function useModulesConfig(artisanId: string | undefined, t: (key: string, fallback?: string) => string) {
   const ALL_MODULES: ModuleDef[] = useMemo(() => [
     { id: 'home', icon: '🏠', label: t('proDash.modules.home'), description: t('proDash.modules.homeDesc'), category: t('proDash.categories.activity'), locked: true },
     { id: 'calendar', icon: '📅', label: t('proDash.modules.calendar'), description: t('proDash.modules.calendarDesc'), category: t('proDash.categories.activity') },
