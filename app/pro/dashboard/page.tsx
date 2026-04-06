@@ -507,6 +507,9 @@ function DashboardPage() {
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.main')}</div>
             <V22SidebarItem label={t('proDash.modules.home')} active={activePage === 'home'} onClick={() => navigateTo('home')} />
+            {orgRole === 'pro_societe' && isProGerant && (
+              <V22SidebarItem label={isPt ? '👥 Gestão de contas' : '👥 Gestion comptes'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} />
+            )}
             {orgRole === 'artisan' && <>
               <V22SidebarItem label={t('proDash.modules.calendar')} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />
               <V22SidebarItem label="Chantiers" active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} />
@@ -608,9 +611,6 @@ function DashboardPage() {
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
-          {orgRole === 'pro_societe' && isProGerant && (
-            <V22SidebarItem label={isPt ? '👥 Gestão de contas' : '👥 Gestion comptes'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} />
-          )}
           <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
           <V22SidebarItem label="Modules" active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
