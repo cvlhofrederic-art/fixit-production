@@ -1102,7 +1102,7 @@
         </div>
 
         <div class="services-toggle reveal">
-            <button id="toggle-services-btn" onclick="toggleServices()">Voir les 16 services →</button>
+            <button id="toggle-services-btn" onclick="toggleServices()">Voir les 30 services →</button>
         </div>
     </section>
 
@@ -1431,7 +1431,7 @@
             const btn = document.getElementById('toggle-services-btn');
             const open = extra.style.display === 'block';
             extra.style.display = open ? 'none' : 'block';
-            btn.textContent = open ? 'Voir les 16 services →' : 'Voir moins ↑';
+            btn.textContent = open ? 'Voir les 30 services →' : 'Voir moins ↑';
             if (open) document.getElementById('services').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     </script>

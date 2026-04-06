@@ -286,7 +286,7 @@ export default function HomePage() {
           <button onClick={() => setShowAllServices(p => !p)}>
             {showAllServices
               ? (isPt ? 'Ver menos ↑' : 'Voir moins ↑')
-              : (isPt ? 'Ver os 16 serviços →' : 'Voir les 16 services →')
+              : (isPt ? 'Ver os 30 serviços →' : 'Voir les 30 services →')
             }
           </button>
         </div>
