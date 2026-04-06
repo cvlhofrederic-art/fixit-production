@@ -78,7 +78,9 @@ export default function DevisFactureForm({
 
   // ─── State ───
   const [docType, setDocType] = useState<'devis' | 'facture'>(initialData?.docType || initialDocType)
-  const [companyStatus, setCompanyStatus] = useState(initialData?.companyStatus || tpl('companyStatus') || 'ei')
+  const [companyStatus, setCompanyStatus] = useState(
+    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? mapLegalFormToCode(artisan.legal_form) : 'ei')
+  )
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   const [companyAddress, setCompanyAddress] = useState(initialData?.companyAddress || artisan?.company_address || artisan?.address || '')
@@ -129,10 +131,10 @@ export default function DevisFactureForm({
       // Fetch auth clients from API
       const res = await fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
       const data = await res.json()
-      const authClients = (data.clients || []).map((c: any) => ({ ...c, source: 'auth' }))
+      const authClients = (data.clients || []).map((c: Record<string, unknown>) => ({ ...c, source: 'auth' }))
       // Fetch manual clients from localStorage
       const manualRaw = localStorage.getItem(`fixit_manual_clients_${artisan.id}`)
-      const manualClients = manualRaw ? JSON.parse(manualRaw).map((c: any) => ({ ...c, source: 'manual' })) : []
+      const manualClients = manualRaw ? JSON.parse(manualRaw).map((c: Record<string, unknown>) => ({ ...c, source: 'manual' })) : []
       setClientDbList([...authClients, ...manualClients])
     } catch { setClientDbList([]) }
     setClientDbLoading(false)
@@ -778,8 +780,8 @@ export default function DevisFactureForm({
       const { calculateEmployeeCost } = await import('@/lib/payroll/engine')
       const { resolveCompanyType } = await import('@/lib/config/companyTypes')
 
-      const actifs = (membresData.membres || []).filter((m: any) => m.actif !== false)
-      const mapped = actifs.map((m: any) => {
+      const actifs = (membresData.membres || []).filter((m: { actif?: boolean; [key: string]: unknown }) => m.actif !== false)
+      const mapped = actifs.map((m: { salaire_net_mensuel?: number; salaire_net?: number; heures_hebdo?: number; panier_repas_jour?: number; indemnite_trajet_jour?: number; prime_mensuelle?: number; charges_salariales_pct?: number; charges_patronales_pct?: number; nom?: string; prenom?: string; poste?: string; [key: string]: unknown }) => {
         const companyType = settingsData.settings?.company_type || settingsData.settings?.statut_juridique || (country === 'FR' ? 'sarl' : 'lda')
         const netSalary = m.salaire_net_mensuel || m.salaire_net || 0
         let dailyCost = 0, costH = 0, empCharges = 0, btpExtras = 0
