@@ -5,49 +5,18 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { FEATURED_CATEGORIES, EXTRA_CATEGORIES, CATEGORIES } from '@/lib/categories'
 import s from './landing-v2.module.css'
 
-const SERVICE_KEYS = [
-  { icon: '🔧', key: 'plumbing', slug: 'plomberie' },
-  { icon: '⚡', key: 'electricity', slug: 'electricite' },
-  { icon: '🔑', key: 'locksmith', slug: 'serrurerie' },
-  { icon: '🔥', key: 'heating', slug: 'chauffage' },
-  { icon: '🎨', key: 'painting', slug: 'peinture' },
-  { icon: '🧱', key: 'masonry', slug: 'maconnerie' },
-  { icon: '🪚', key: 'carpentry', slug: 'menuiserie' },
-  { icon: '🏚️', key: 'roofing', slug: 'toiture' },
-]
-
-const SERVICE_KEYS_EXTRA = [
-  { icon: '❄️', key: 'airConditioning', slug: 'climatisation' },
-  { icon: '🚚', key: 'moving', slug: 'demenagement' },
-  { icon: '🏡', key: 'renovation', slug: 'renovation' },
-  { icon: '🪟', key: 'glazing', slug: 'vitrerie' },
-  { icon: '🛠️', key: 'smallJobs', slug: 'petits-travaux' },
-  { icon: '🌳', key: 'greenSpaces', slug: 'espaces-verts' },
-  { icon: '🧹', key: 'cleaning', slug: 'nettoyage' },
-  { icon: '🐛', key: 'pestControl', slug: 'traitement-nuisibles' },
-  // DB-only categories — need translation keys
-  { icon: '🏡', key: 'exteriorDesign', slug: 'amenagement-exterieur' },
-  { icon: '🧱', key: 'tiling', slug: 'carrelage' },
-  { icon: '🔍', key: 'diagnostic', slug: 'diagnostic' },
-  { icon: '🧹', key: 'postWorkCleaning', slug: 'nettoyage-travaux' },
-  { icon: '🏢', key: 'condoCleaning', slug: 'nettoyage-copro' },
-  { icon: '🏭', key: 'industrialCleaning', slug: 'nettoyage-industriel' },
-  { icon: '🔳', key: 'drywall', slug: 'plaquiste' },
-  { icon: '🏊', key: 'pool', slug: 'piscine' },
-  { icon: '🔥', key: 'chimneySweep', slug: 'ramonage' },
-  { icon: '☀️', key: 'awning', slug: 'store-banne' },
-  { icon: '🚿', key: 'drainCleaning', slug: 'debouchage' },
-  { icon: '⚙️', key: 'metallerie', slug: 'metallerie' },
-]
+// Derive SERVICE_KEYS from the single source of truth
+const SERVICE_KEYS = FEATURED_CATEGORIES.map(c => ({ icon: c.icon, key: c.i18nKey, slug: c.slug }))
+const SERVICE_KEYS_EXTRA = EXTRA_CATEGORIES.map(c => ({ icon: c.icon, key: c.i18nKey, slug: c.slug }))
 
 export default function HomePage() {
   const router = useRouter()
   const { t } = useTranslation()
   const locale = useLocale()
 
-  const [categories, setCategories] = useState<any[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
   const [location, setLocation] = useState('')
   const [user, setUser] = useState<any>(null)
@@ -60,8 +29,6 @@ export default function HomePage() {
   const consumerPricingPath = '/pro/tarifs'
 
   useEffect(() => {
-    supabase.from('categories').select('*').eq('active', true).order('name')
-      .then(({ data }) => setCategories(data || []))
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user || null))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user || null))
     return () => subscription.unsubscribe()
@@ -121,16 +88,13 @@ export default function HomePage() {
     router.push(`${searchPath}?${params.toString()}`)
   }
 
-  // Map DB categories to localized names
-  const serviceOverrides = Object.fromEntries(
-    [...SERVICE_KEYS, ...SERVICE_KEYS_EXTRA].map(s => [
-      s.slug, { icon: s.icon, name: t(`services.${s.key}.title`) }
-    ])
-  )
-  const allCategories = categories.map(cat => {
-    const ov = serviceOverrides[cat.slug]
-    return ov ? { ...cat, icon: ov.icon, name: ov.name } : cat
-  })
+  // Build dropdown categories from single source of truth (lib/categories.ts)
+  const allCategories = CATEGORIES.map(cat => ({
+    id: cat.slug,
+    slug: cat.slug,
+    icon: cat.icon,
+    name: t(`services.${cat.i18nKey}.title`),
+  })).sort((a, b) => a.name.localeCompare(b.name))
 
   const isPt = locale === 'pt'
 
@@ -284,7 +248,7 @@ export default function HomePage() {
           <button onClick={() => setShowAllServices(p => !p)}>
             {showAllServices
               ? (isPt ? 'Ver menos ↑' : 'Voir moins ↑')
-              : (isPt ? 'Ver os 28 serviços →' : 'Voir les 28 services →')
+              : (isPt ? `Ver os ${CATEGORIES.length} serviços →` : `Voir les ${CATEGORIES.length} services →`)
             }
           </button>
         </div>
