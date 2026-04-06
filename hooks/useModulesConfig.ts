@@ -25,7 +25,8 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string)
     { id: 'chantiers_v22', icon: '🏗️', label: 'Chantiers', description: 'Gestion des chantiers en cours', category: t('proDash.categories.activity') },
     { id: 'pipeline', icon: '📊', label: 'Pipeline', description: 'Suivi commercial des devis', category: t('proDash.categories.billing') },
     { id: 'bibliotheque', icon: '📚', label: 'Bibliothèque', description: 'Ouvrages, matériaux et main-d\'œuvre', category: t('proDash.categories.billing') },
-    { id: 'parrainage', icon: '🎁', label: 'Parrainage', description: 'Parrainez des artisans, gagnez des mois gratuits', category: t('proDash.categories.proProfil') },
+    { id: 'parrainage', icon: '🎁', label: t('proDash.modules.parrainage') || 'Parrainage', description: t('proDash.modules.parrainageDesc') || 'Parrainez des artisans, gagnez des mois gratuits', category: t('proDash.categories.proProfil') },
+    { id: 'marketplace_btp', icon: '🏗️', label: 'Marketplace BTP', description: 'Achats, ventes et échanges entre professionnels', category: t('proDash.categories.activity') },
     { id: 'settings', icon: '⚙️', label: t('proDash.modules.settings'), description: t('proDash.modules.settingsDesc'), category: t('proDash.categories.account'), locked: true },
   ], [t])
 
@@ -39,7 +40,7 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string)
       const saved = JSON.parse(localStorage.getItem(MODULES_STORAGE_KEY) || '[]')
       if (saved.length > 0) {
         const merged = ALL_MODULES.map(m => {
-          const s = saved.find((x: any) => x.id === m.id)
+          const s = saved.find((x: ModuleConfig) => x.id === m.id)
           return s ? { id: m.id, enabled: m.locked ? true : s.enabled, order: s.order } : { id: m.id, enabled: true, order: 999 }
         }).sort((a, b) => a.order - b.order)
         setModulesConfig(merged)

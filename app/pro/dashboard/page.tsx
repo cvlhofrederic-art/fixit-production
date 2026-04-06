@@ -576,7 +576,7 @@ function DashboardPage() {
             {isModuleEnabled('marches') && (
               <V22SidebarItem label={t('proDash.modules.marches') || 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
             )}
-            <V22SidebarItem label={isPt ? '🏗️ Marketplace BTP' : '🏗️ Marketplace BTP'} active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />
+            {isModuleEnabled('marketplace_btp') && <V22SidebarItem label="🏗️ Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />}
           </div>
           {/* Profil Pro */}
           {(orgRole === 'artisan' || orgRole === 'pro_societe') && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
