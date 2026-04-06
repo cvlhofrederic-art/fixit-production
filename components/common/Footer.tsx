@@ -78,7 +78,7 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/pro/login" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href="/auth/login" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.login')}
                 </LocaleLink>
               </li>

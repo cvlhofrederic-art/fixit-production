@@ -11,7 +11,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   // Strip locale prefix (/fr/ or /pt/) for route matching
   // Fix: replace /fr/ or /pt/ prefix with just / (not /$2 which produced // )
   const pathname = rawPathname?.replace(/^\/(fr|pt|en|nl|es)(\/|$)/, '/') || rawPathname
-  const isDashboard = pathname?.startsWith('/pro/dashboard') || pathname?.startsWith('/pro/login') || pathname?.startsWith('/pro/register') || pathname?.startsWith('/pro/mobile') || pathname?.startsWith('/pro/tarifs') || pathname?.startsWith('/client/dashboard') || pathname?.startsWith('/syndic/dashboard') || pathname?.startsWith('/syndic/login') || pathname?.startsWith('/syndic/register') || pathname?.startsWith('/coproprietaire/') || pathname?.startsWith('/admin/')
+  const isDashboard = pathname?.startsWith('/pro/dashboard') || pathname?.startsWith('/pro/register') || pathname?.startsWith('/pro/mobile') || pathname?.startsWith('/pro/tarifs') || pathname?.startsWith('/client/dashboard') || pathname?.startsWith('/syndic/dashboard') || pathname?.startsWith('/syndic/login') || pathname?.startsWith('/syndic/register') || pathname?.startsWith('/coproprietaire/') || pathname?.startsWith('/admin/')
   const isHomepage = pathname === '/'
   // Pages auth et booking : ont leur propre header, pas besoin du global
   const isAuthOrBooking = pathname?.startsWith('/auth/') || pathname?.startsWith('/artisan/') || pathname?.startsWith('/reserver') || pathname?.startsWith('/confirmation') || pathname?.startsWith('/en/emergency-home-repair-porto')

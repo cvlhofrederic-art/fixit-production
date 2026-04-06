@@ -124,7 +124,7 @@ export default function SyndicLoginPage() {
             </p>
             <p className="text-text-muted text-xs">
               Vous êtes artisan ?{' '}
-              <Link href="/pro/login" className="text-amber-500 hover:underline">Espace artisan</Link>
+              <Link href="/auth/login" className="text-amber-500 hover:underline">Espace artisan</Link>
               {' '}· Particulier ?{' '}
               <Link href="/auth/login" className="text-blue-500 hover:underline">Espace client</Link>
             </p>

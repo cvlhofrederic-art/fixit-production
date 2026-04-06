@@ -162,7 +162,7 @@ async function createProfile(userId: string, category: any) {
   console.log(`🔐 Mot de passe: ChangeMe123!`)
   console.log(`🆔 ID Artisan  : ${artisan.id}`)
   console.log(`🔗 Profil      : https://vitfix.io/artisan/${artisan.id}`)
-  console.log(`🔗 Login       : https://vitfix.io/pro/login`)
+  console.log(`🔗 Login       : https://vitfix.io/auth/login`)
 }
 
 seed().catch(console.error)

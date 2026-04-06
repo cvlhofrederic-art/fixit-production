@@ -202,13 +202,13 @@ function DashboardPage() {
       if (session?.user) { didLoad = true; loadDashboardData(session.user); return }
       const { data: { user: currentUser } } = await supabase.auth.getUser()
       if (currentUser) { didLoad = true; loadDashboardData(currentUser) }
-      else { window.location.href = '/pro/login' }
+      else { window.location.href = '/auth/login' }
     }
 
     initAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') window.location.href = '/pro/login'
+      if (event === 'SIGNED_OUT') window.location.href = '/auth/login'
       if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
         didLoad = true; loadDashboardData(session.user)
       }
@@ -219,7 +219,7 @@ function DashboardPage() {
 
   /** Central data loader — initializes state across all hooks */
   const loadDashboardData = async (user: User) => {
-    if (!user) { router.push('/pro/login'); return }
+    if (!user) { router.push('/auth/login'); return }
 
     const role = user.user_metadata?.role || 'artisan'
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) setOrgRole(role as OrgRole)
@@ -227,7 +227,7 @@ function DashboardPage() {
     const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
     if (user.user_metadata?._admin_override) setShowAdminBtn(true)
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
-    if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push('/pro/login'); return }
+    if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push('/auth/login'); return }
     if (!artisanData) {
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id })
       setLoading(false); return

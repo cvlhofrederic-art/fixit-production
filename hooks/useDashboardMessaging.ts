@@ -32,7 +32,7 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.access_token) return session.access_token
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { window.location.href = '/pro/login'; return '' }
+    if (!user) { window.location.href = '/auth/login'; return '' }
     const { data: { session: s2 } } = await supabase.auth.getSession()
     return s2?.access_token || ''
   }, [])

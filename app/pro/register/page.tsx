@@ -435,7 +435,7 @@ function FormulaireArtisan() {
         <p className="text-sm text-amber-600 mt-1">{t('register.docsVerifDesc')}</p>
       </div>
       <p className="text-text-muted mb-6">{t('register.checkEmailLogin')}</p>
-      <LocaleLink href="/pro/login" className="inline-block bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-semibold transition hover:-translate-y-px">{t('register.login')}</LocaleLink>
+      <LocaleLink href="/auth/login" className="inline-block bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-semibold transition hover:-translate-y-px">{t('register.login')}</LocaleLink>
     </div>
   )
 
@@ -837,7 +837,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       // Detect "email already exists" silent failure: Supabase returns user with empty identities array
       if (authData.user && authData.user.identities?.length === 0) {
         // Redirect to login page — the email is already registered
-        window.location.href = `/pro/login?email_exists=1`
+        window.location.href = `/auth/login?email_exists=1`
         return
       }
 
@@ -926,7 +926,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       <h2 className="text-2xl font-display font-black tracking-[-0.03em] mb-2">{t('register.accountCreated')}</h2>
       <p className="text-text-muted mb-2">{t('register.checkEmailConfirm')}</p>
       <p className={`font-semibold mb-6 ${org.color === 'blue' ? 'text-blue-600' : org.color === 'purple' ? 'text-purple-600' : 'text-green-600'}`}>{t('register.trialIncluded')} ✅</p>
-      <LocaleLink href="/pro/login" className={`inline-block text-white px-8 py-3 rounded-xl font-bold transition ${org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{t('register.login')}</LocaleLink>
+      <LocaleLink href="/auth/login" className={`inline-block text-white px-8 py-3 rounded-xl font-bold transition ${org.color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : org.color === 'purple' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{t('register.login')}</LocaleLink>
     </div>
   )
 
@@ -1219,7 +1219,7 @@ export default function ProRegisterPage() {
 
         <p className="text-center text-text-muted text-sm mt-6">
           {t('register.alreadyAccount')}{' '}
-          <LocaleLink href="/pro/login" className="text-yellow hover:underline font-semibold">{t('register.login')}</LocaleLink>
+          <LocaleLink href="/auth/login" className="text-yellow hover:underline font-semibold">{t('register.login')}</LocaleLink>
         </p>
       </div>
     </div>

@@ -22,9 +22,9 @@ test.describe('Artisan pages', () => {
 
     const response = await page.goto('/pro/dashboard', { waitUntil: 'domcontentloaded' })
 
-    // The middleware redirects unauthenticated users to /pro/login
-    await page.waitForURL('**/pro/login**', { timeout: 10000 })
-    expect(page.url()).toContain('/pro/login')
+    // The middleware redirects unauthenticated users to /auth/login
+    await page.waitForURL('**/auth/login**', { timeout: 10000 })
+    expect(page.url()).toContain('/auth/login')
   })
 
   test('/client/dashboard redirects to login when not authenticated', async ({ page }) => {

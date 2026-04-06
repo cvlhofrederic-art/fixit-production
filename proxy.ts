@@ -186,7 +186,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Authenticated user on landing/login pages → redirect to their dashboard
-  const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' || strippedPathname === '/pro/login'
+  const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login'
   if (user && isLandingOrLogin) {
     if (role === 'artisan') return localeRedirect('/pro/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
@@ -205,7 +205,7 @@ export async function proxy(request: NextRequest) {
     strippedPathname.startsWith('/coproprietaire/dashboard')
   )) {
     if (strippedPathname.startsWith('/pro/')) {
-      return localeRedirect('/pro/login')
+      return localeRedirect('/auth/login')
     } else if (strippedPathname.startsWith('/syndic/')) {
       return localeRedirect('/syndic/login')
     } else if (strippedPathname.startsWith('/admin/')) {
