@@ -584,7 +584,7 @@ function DashboardPage() {
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
               {isModuleEnabled('wallet') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Conformité' : t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
               {isModuleEnabled('portfolio') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Références chantiers' : t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
-              {isModuleEnabled('parrainage') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Parrainage entreprises' : 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
+              {isModuleEnabled('parrainage') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Parrainage entreprises' : t('proDash.modules.parrainage', 'Parrainage')} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
             </div>
           )}
         </div>
@@ -608,7 +608,7 @@ function DashboardPage() {
           {/* ────── HOME ────── */}
           {activePage === 'home' && (
             <HomeSection
-              artisan={artisan} orgRole={orgRole} bookings={bookings} services={services}
+              artisan={artisan!} orgRole={orgRole} bookings={bookings} services={services}
               pendingBookings={pendingBookings} completedBookings={completedBookings}
               totalRevenue={totalRevenue} firstName={firstName}
               navigateTo={navigateTo} setShowNewRdv={setShowNewRdv}

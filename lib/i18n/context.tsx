@@ -12,6 +12,20 @@ import en from '@/locales/en.json'
 // NL and ES don't have full translations — they fall back to EN for UI
 const dictionaries: Record<Locale, Record<string, unknown>> = { fr, pt, en, nl: en, es: en }
 
+// ─── Key resolver (shared between default context and provider) ───
+function resolveKey(dict: Record<string, unknown>, key: string, fallback?: string): string {
+  const keys = key.split('.')
+  let value: unknown = dict
+  for (const k of keys) {
+    if (value && typeof value === 'object' && k in value) {
+      value = (value as Record<string, unknown>)[k]
+    } else {
+      return fallback || key
+    }
+  }
+  return typeof value === 'string' ? value : (fallback || key)
+}
+
 // ─── Context ───
 interface I18nContextValue {
   locale: Locale
@@ -22,7 +36,7 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue>({
   locale: DEFAULT_LOCALE,
   setLocale: () => {},
-  t: (key: string, fallback?: string) => fallback || key,
+  t: (key: string, fallback?: string) => resolveKey(dictionaries[DEFAULT_LOCALE], key, fallback),
 })
 
 // ─── Provider ───
@@ -62,16 +76,7 @@ export function LanguageProvider({
   }, [router])
 
   const t = useCallback((key: string, fallback?: string): string => {
-    const keys = key.split('.')
-    let value: unknown = dictionaries[locale]
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = (value as Record<string, unknown>)[k]
-      } else {
-        return fallback || key
-      }
-    }
-    return typeof value === 'string' ? value : (fallback || key)
+    return resolveKey(dictionaries[locale], key, fallback)
   }, [locale])
 
   const contextValue = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t])
