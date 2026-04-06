@@ -621,7 +621,7 @@ function DashboardPage() {
           {/* ────── AGENDA ────── */}
           {activePage === 'calendar' && (
             <CalendarSection
-              artisan={artisan} bookings={bookings} services={services}
+              artisan={artisan!} bookings={bookings} services={services}
               pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue}
               calendarView={calendarView} setCalendarView={setCalendarView}
               selectedDay={selectedDay} setSelectedDay={setSelectedDay}
@@ -646,7 +646,7 @@ function DashboardPage() {
           {/* ────── HORAIRES D'OUVERTURE ────── */}
           {activePage === 'horaires' && (
             <HorairesSection
-              artisan={artisan} services={services} availability={availability}
+              artisan={artisan!} services={services} availability={availability}
               dayServices={dayServices} autoAccept={autoAccept} savingAvail={savingAvail}
               toggleAutoAccept={toggleAutoAccept} toggleDayAvailability={toggleDayAvailability}
               updateAvailabilityTime={updateAvailabilityTime} toggleDayService={toggleDayService}
@@ -676,7 +676,7 @@ function DashboardPage() {
               </div>
               <div style={{ flex: 1, minHeight: 0, padding: '12px' }}>
             <MessagerieArtisan
-              artisan={artisan}
+              artisan={artisan!}
               onConversationRead={refreshUnreadMsgCount}
               onProposerDevis={(missionData) => {
                 // ── Matching intelligent : motif mission → service catalogue (prix) ──
@@ -875,7 +875,7 @@ function DashboardPage() {
           {/* ────── DEVIS ────── */}
           {activePage === 'devis' && (
             <DevisSection
-              artisan={artisan} services={services} bookings={bookings}
+              artisan={artisan!} services={services} bookings={bookings}
               /* eslint-disable @typescript-eslint/no-explicit-any */
               savedDocuments={savedDocuments as any} setSavedDocuments={setSavedDocuments as any}
               showDevisForm={showDevisForm} setShowDevisForm={setShowDevisForm}
@@ -899,12 +899,12 @@ function DashboardPage() {
 
           {/* ────── STATISTIQUES ────── */}
           {activePage === 'stats' && (
-            <StatsRevenusSection artisan={artisan} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" />
           )}
 
           {/* ────── REVENUS ────── */}
           {activePage === 'revenus' && (
-            <StatsRevenusSection artisan={artisan} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" />
           )}
 
           {/* ────── PARAMETRES ────── */}
@@ -941,7 +941,7 @@ function DashboardPage() {
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na contabilidade' : 'Erreur dans la comptabilité'}>
               <ComptabiliteSection
                 bookings={bookings}
-                artisan={artisan}
+                artisan={artisan!}
                 services={services}
               />
             </SectionErrorBoundary>
@@ -951,7 +951,7 @@ function DashboardPage() {
           {activePage === 'materiaux' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos materiais' : 'Erreur dans les matériaux'}>
               <MateriauxSection
-                artisan={artisan}
+                artisan={artisan!}
                 orgRole={orgRole}
                 onExportDevis={(lines: DevisLine[]) => {
                   setConvertingDevis({ docType: 'devis', lines })
@@ -967,35 +967,35 @@ function DashboardPage() {
           {/* ────── BOURSE AUX MARCHÉS ────── */}
           {activePage === 'marches' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na bolsa de mercados' : 'Erreur dans la bourse aux marchés'}>
-              <BourseAuxMarchesSection artisan={artisan} orgRole={orgRole} navigateTo={navigateTo} />
+              <BourseAuxMarchesSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── MARKETPLACE PRO BTP ────── */}
           {activePage === 'marketplace_btp' && artisan && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no Marketplace BTP' : 'Erreur dans le Marketplace BTP'}>
-              <MarketplaceProBTPSection artisan={artisan} orgRole={orgRole} />
+              <MarketplaceProBTPSection artisan={artisan!} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── DEVIS PRO BTP ────── */}
           {activePage === 'rfq_btp' && orgRole === 'pro_societe' && artisan && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis pro'}>
-              <RFQSection artisan={artisan} />
+              <RFQSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── WALLET CONFORMITÉ ────── */}
           {activePage === 'wallet' && (
             <div className="animate-fadeIn">
-              <WalletConformiteSection artisan={artisan} orgRole={orgRole} />
+              <WalletConformiteSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── CARNET DE VISITE / PORTFOLIO ────── */}
           {activePage === 'portfolio' && (
             <div className="animate-fadeIn">
-              <CarnetDeVisiteSection artisan={artisan} orgRole={orgRole} />
+              <CarnetDeVisiteSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
@@ -1003,7 +1003,7 @@ function DashboardPage() {
           {activePage === 'clients' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na secção de clientes' : 'Erreur dans la section clients'}>
               <ClientsSection
-                artisan={artisan}
+                artisan={artisan!}
                 bookings={bookings}
                 services={services}
                 onNewRdv={(clientName: string) => {
@@ -1022,12 +1022,12 @@ function DashboardPage() {
 
           {/* ────── ÉQUIPES (Société BTP) ────── */}
           {activePage === 'equipes' && (
-            <EquipesBTPV2 artisan={artisan} />
+            <EquipesBTPV2 artisan={artisan!} />
           )}
 
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
-            <ChantiersBTPV2 artisan={artisan} />
+            <ChantiersBTPV2 artisan={artisan!} />
           )}
 
           {/* ────── GANTT (Société BTP) ────── */}
@@ -1068,21 +1068,21 @@ function DashboardPage() {
           {/* ────── RENTABILITÉ CHANTIER (Société BTP) ────── */}
           {activePage === 'rentabilite' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <RentabiliteChantierSection artisan={artisan} />
+              <RentabiliteChantierSection artisan={artisan!} />
             </div>
           )}
 
           {/* ────── COMPTA INTELLIGENTE BTP ────── */}
           {activePage === 'compta_btp' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <ComptaBTPSection artisan={artisan} />
+              <ComptaBTPSection artisan={artisan!} />
             </div>
           )}
 
           {/* ────── RECRUTEMENT SOUS-TRAITANTS (Société BTP) ────── */}
           {activePage === 'sous_traitance_offres' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <SousTraitanceOffresSection artisan={artisan} />
+              <SousTraitanceOffresSection artisan={artisan!} />
             </div>
           )}
 
@@ -1095,12 +1095,12 @@ function DashboardPage() {
 
           {/* ────── PROPRIÉTÉS (Conciergerie) ────── */}
           {activePage === 'proprietes' && (
-            <ProprietesConciergerieSection artisan={artisan} />
+            <ProprietesConciergerieSection artisan={artisan!} />
           )}
 
           {/* ────── ACCÈS & CLÉS (Conciergerie) ────── */}
           {activePage === 'acces' && (
-            <AccesConciergerieSection artisan={artisan} />
+            <AccesConciergerieSection artisan={artisan!} />
           )}
 
           {/* ────── CHANNEL MANAGER (Conciergerie) ────── */}
@@ -1147,49 +1147,49 @@ function DashboardPage() {
 
           {/* ────── IMMEUBLES (Gestionnaire) ────── */}
           {activePage === 'immeubles' && (
-            <ImmeublesGestionnaireSection artisan={artisan} />
+            <ImmeublesGestionnaireSection artisan={artisan!} />
           )}
 
           {/* ────── ORDRES DE MISSION (Gestionnaire) ────── */}
           {activePage === 'missions' && (
-            <MissionsGestionnaireSection artisan={artisan} bookings={bookings} />
+            <MissionsGestionnaireSection artisan={artisan!} bookings={bookings} />
           )}
 
           {/* ────── CONTRATS ────── */}
           {activePage === 'contrats' && (
-            <ContratsSection artisan={artisan} />
+            <ContratsSection artisan={artisan!} />
           )}
 
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
-              <RapportsSection artisan={artisan} bookings={bookings} services={services} onNavigate={navigateTo} />
+              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PHOTOS CHANTIER ────── */}
           {activePage === 'photos_chantier' && (
-            <PhotosChantierSection artisan={artisan} bookings={bookings} />
+            <PhotosChantierSection artisan={artisan!} bookings={bookings} />
           )}
 
           {/* ────── CHANTIERS V22 (Artisan) ────── */}
           {activePage === 'chantiers_v22' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les chantiers">
-              <ChantiersV22Section artisan={artisan} navigateTo={navigateTo} />
+              <ChantiersV22Section artisan={artisan!} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PIPELINE KANBAN ────── */}
           {activePage === 'pipeline' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans le pipeline">
-              <PipelineSection artisan={artisan} orgRole={orgRole} navigateTo={navigateTo} />
+              <PipelineSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── BIBLIOTHÈQUE D'OUVRAGES ────── */}
           {activePage === 'bibliotheque' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans la bibliothèque">
-              <BibliothequeSection artisan={artisan} orgRole={orgRole} navigateTo={navigateTo} />
+              <BibliothequeSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
@@ -1202,7 +1202,7 @@ function DashboardPage() {
 
           {/* ────── CANAL PRO ────── */}
           {activePage === 'canal' && (
-            <CanalProSection artisan={artisan} orgRole={orgRole} />
+            <CanalProSection artisan={artisan!} orgRole={orgRole} />
           )}
 
           {/* ────── AIDE V22 ────── */}
@@ -1226,7 +1226,7 @@ function DashboardPage() {
       {/* AI ChatBot */}
       {artisan && (
         <AiChatBot
-          artisan={artisan}
+          artisan={artisan!}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           bookings={bookings as any}
           services={services}
