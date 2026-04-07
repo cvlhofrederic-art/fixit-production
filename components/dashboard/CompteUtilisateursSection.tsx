@@ -372,95 +372,43 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
       {/* ═══ INVITE MODAL ═══ */}
       {showInviteModal && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowInviteModal(false)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="v22-card w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-bold" style={{ color: 'var(--v22-text)' }}>
-                  {isPt ? '👷 Convidar membro' : '👷 Inviter un membre'}
-                </h3>
-                <button onClick={() => setShowInviteModal(false)} className="text-lg" style={{ color: 'var(--v22-text-muted)' }}>✕</button>
+          <div className="v22-modal-overlay" onClick={() => setShowInviteModal(false)}>
+            <div className="v22-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+              <div className="v22-modal-head">
+                <div className="v22-modal-title">{isPt ? '👷 Convidar membro' : '👷 Inviter un membre'}</div>
+                <button onClick={() => setShowInviteModal(false)} className="v22-modal-close">✕</button>
               </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--v22-text-muted)' }}>
-                    {isPt ? 'Nome completo' : 'Nom complet'} *
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.full_name}
-                    onChange={e => setInviteForm(f => ({ ...f, full_name: e.target.value }))}
-                    className="w-full px-3 py-2 rounded text-xs"
-                    style={{ border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', color: 'var(--v22-text)' }}
-                    placeholder="Jean Dupont"
-                  />
+              <div className="v22-modal-body">
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{isPt ? 'Nome completo' : 'Nom complet'} *</label>
+                  <input type="text" value={inviteForm.full_name} onChange={e => setInviteForm(f => ({ ...f, full_name: e.target.value }))} className="v22-form-input" placeholder="Jean Dupont" />
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--v22-text-muted)' }}>Email *</label>
-                  <input
-                    type="email"
-                    value={inviteForm.email}
-                    onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
-                    className="w-full px-3 py-2 rounded text-xs"
-                    style={{ border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', color: 'var(--v22-text)' }}
-                    placeholder="jean@entreprise.fr"
-                  />
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Email *</label>
+                  <input type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} className="v22-form-input" placeholder="jean@entreprise.fr" />
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--v22-text-muted)' }}>
-                    {isPt ? 'Telemóvel' : 'Téléphone'}
-                  </label>
-                  <input
-                    type="tel"
-                    value={inviteForm.phone}
-                    onChange={e => setInviteForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full px-3 py-2 rounded text-xs"
-                    style={{ border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', color: 'var(--v22-text)' }}
-                    placeholder="+33 6 12 34 56 78"
-                  />
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{isPt ? 'Telemóvel' : 'Téléphone'}</label>
+                  <input type="tel" value={inviteForm.phone} onChange={e => setInviteForm(f => ({ ...f, phone: e.target.value }))} className="v22-form-input" placeholder="+33 6 12 34 56 78" />
                 </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--v22-text-muted)' }}>
-                    {isPt ? 'Papel' : 'Rôle'} *
-                  </label>
-                  <select
-                    value={inviteForm.memberRole}
-                    onChange={e => setInviteForm(f => ({ ...f, memberRole: e.target.value as ProTeamRole }))}
-                    className="w-full px-3 py-2 rounded text-xs"
-                    style={{ border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', color: 'var(--v22-text)' }}
-                  >
+                <div className="v22-form-group">
+                  <label className="v22-form-label">{isPt ? 'Papel' : 'Rôle'} *</label>
+                  <select value={inviteForm.memberRole} onChange={e => setInviteForm(f => ({ ...f, memberRole: e.target.value as ProTeamRole }))} className="v22-form-input">
                     {PRO_TEAM_ROLES.map(r => (
                       <option key={r} value={r}>{getRoleLabel(r)}</option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[10px]" style={{ color: 'var(--v22-text-muted)' }}>
+                  <p style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
                     {isPt
                       ? 'As permissões padrão são aplicadas segundo o papel. Poderá personalizar depois.'
                       : 'Les permissions par défaut sont appliquées selon le rôle. Personnalisable après création.'}
                   </p>
                 </div>
               </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowInviteModal(false)}
-                  className="flex-1 px-4 py-2 rounded text-xs font-semibold"
-                  style={{ border: '1px solid var(--v22-border)', color: 'var(--v22-text-muted)' }}
-                >
-                  {isPt ? 'Cancelar' : 'Annuler'}
-                </button>
-                <button
-                  onClick={handleInvite}
-                  disabled={inviting}
-                  className="flex-1 v22-btn v22-btn-primary text-xs px-4 py-2"
-                >
-                  {inviting
-                    ? (isPt ? 'A enviar...' : 'Envoi...')
-                    : (isPt ? 'Enviar convite' : 'Envoyer l\'invitation')}
+              <div className="v22-modal-foot">
+                <button onClick={() => setShowInviteModal(false)} className="v22-btn">{isPt ? 'Cancelar' : 'Annuler'}</button>
+                <button onClick={handleInvite} disabled={inviting} className="v22-btn v22-btn-primary">
+                  {inviting ? (isPt ? 'A enviar...' : 'Envoi...') : (isPt ? 'Enviar convite' : 'Envoyer l\'invitation')}
                 </button>
               </div>
             </div>
@@ -470,40 +418,37 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
 
       {/* ═══ PERMISSIONS MODAL ═══ */}
       {showPermsModal && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowPermsModal(null)} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="v22-card w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-sm font-bold" style={{ color: 'var(--v22-text)' }}>
-                    🔐 {isPt ? 'Permissões' : 'Permissions'} — {showPermsModal.full_name}
-                  </h3>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--v22-text-muted)' }}>
-                    {isPt ? 'Papel' : 'Rôle'}: {getRoleLabel(showPermsModal.role)}
-                  </p>
-                </div>
-                <button onClick={() => setShowPermsModal(null)} className="text-lg" style={{ color: 'var(--v22-text-muted)' }}>✕</button>
+        <div className="v22-modal-overlay" onClick={() => setShowPermsModal(null)}>
+          <div className="v22-modal" style={{ maxWidth: 640, maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="v22-modal-head">
+              <div>
+                <h3 style={{ fontSize: 14, fontWeight: 700 }}>
+                  🔐 {isPt ? 'Permissões' : 'Permissions'} — {showPermsModal.full_name}
+                </h3>
+                <p style={{ fontSize: 10, marginTop: 4, color: 'var(--v22-text-muted)' }}>
+                  {isPt ? 'Papel' : 'Rôle'}: {getRoleLabel(showPermsModal.role)}
+                </p>
               </div>
-
-              <div className="mb-3 flex items-center gap-3">
+            </div>
+            <div className="v22-modal-body" style={{ overflowY: 'auto', flex: 1 }}>
+              <div style={{ marginBottom: 12 }}>
                 <button
                   onClick={() => setEditPerms(getDefaultPermissionsForRole(showPermsModal.role))}
-                  className="text-[10px] font-semibold px-3 py-1 rounded"
-                  style={{ border: '1px solid var(--v22-border)', color: 'var(--v22-text-muted)' }}
+                  className="v22-btn"
+                  style={{ fontSize: 10, padding: '4px 12px' }}
                 >
                   {isPt ? 'Restaurar padrão' : 'Restaurer les défauts'}
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+              <div style={{ overflowX: 'auto' }}>
+                <table className="v22-dt" style={{ width: '100%', fontSize: 12 }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid var(--v22-border)' }}>
-                      <th className="text-left px-3 py-2 font-semibold" style={{ color: 'var(--v22-text)' }}>Module</th>
-                      <th className="text-center px-3 py-2 font-semibold" style={{ color: '#16a34a', width: 90 }}>{isPt ? 'Completo' : 'Complet'}</th>
-                      <th className="text-center px-3 py-2 font-semibold" style={{ color: '#f59e0b', width: 90 }}>{isPt ? 'Leitura' : 'Lecture'}</th>
-                      <th className="text-center px-3 py-2 font-semibold" style={{ color: '#dc2626', width: 90 }}>{isPt ? 'Nenhum' : 'Aucun'}</th>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '8px 12px' }}>Module</th>
+                      <th style={{ textAlign: 'center', padding: '8px 12px', color: '#16a34a', width: 90 }}>{isPt ? 'Completo' : 'Complet'}</th>
+                      <th style={{ textAlign: 'center', padding: '8px 12px', color: '#f59e0b', width: 90 }}>{isPt ? 'Leitura' : 'Lecture'}</th>
+                      <th style={{ textAlign: 'center', padding: '8px 12px', color: '#dc2626', width: 90 }}>{isPt ? 'Nenhum' : 'Aucun'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -514,22 +459,20 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
 
                       return (
                         <tr key={moduleId} style={{
-                          borderBottom: '1px solid var(--v22-border)',
                           background: isOverridden ? 'rgba(250, 204, 21, 0.04)' : 'transparent',
                         }}>
-                          <td className="px-3 py-2" style={{ color: 'var(--v22-text)' }}>
+                          <td style={{ padding: '8px 12px' }}>
                             {getModuleLabel(moduleId)}
-                            {isOverridden && <span className="ml-1 text-[9px]" style={{ color: 'var(--v22-yellow)' }}>●</span>}
+                            {isOverridden && <span style={{ marginLeft: 4, fontSize: 9, color: 'var(--v22-yellow)' }}>●</span>}
                           </td>
                           {(['FULL', 'READ', 'NONE'] as AccessLevel[]).map(level => (
-                            <td key={level} className="text-center px-3 py-2">
+                            <td key={level} style={{ textAlign: 'center', padding: '8px 12px' }}>
                               <input
                                 type="radio"
                                 name={`perm_${moduleId}`}
                                 checked={currentLevel === level}
                                 onChange={() => setEditPerms(prev => ({ ...prev, [moduleId]: level }))}
-                                className="w-3.5 h-3.5 cursor-pointer"
-                                style={{ accentColor: level === 'FULL' ? '#16a34a' : level === 'READ' ? '#f59e0b' : '#dc2626' }}
+                                style={{ width: 14, height: 14, cursor: 'pointer', accentColor: level === 'FULL' ? '#16a34a' : level === 'READ' ? '#f59e0b' : '#dc2626' }}
                               />
                             </td>
                           ))}
@@ -539,28 +482,23 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
                   </tbody>
                 </table>
               </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowPermsModal(null)}
-                  className="flex-1 px-4 py-2 rounded text-xs font-semibold"
-                  style={{ border: '1px solid var(--v22-border)', color: 'var(--v22-text-muted)' }}
-                >
-                  {isPt ? 'Cancelar' : 'Annuler'}
-                </button>
-                <button
-                  onClick={handleSavePerms}
-                  disabled={saving}
-                  className="flex-1 v22-btn v22-btn-primary text-xs px-4 py-2"
-                >
-                  {saving
-                    ? (isPt ? 'A guardar...' : 'Enregistrement...')
-                    : (isPt ? 'Guardar permissões' : 'Enregistrer les permissions')}
-                </button>
-              </div>
+            </div>
+            <div className="v22-modal-foot">
+              <button onClick={() => setShowPermsModal(null)} className="v22-btn">
+                {isPt ? 'Cancelar' : 'Annuler'}
+              </button>
+              <button
+                onClick={handleSavePerms}
+                disabled={saving}
+                className="v22-btn v22-btn-primary"
+              >
+                {saving
+                  ? (isPt ? 'A guardar...' : 'Enregistrement...')
+                  : (isPt ? 'Guardar permissões' : 'Enregistrer les permissions')}
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

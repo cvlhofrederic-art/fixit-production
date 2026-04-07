@@ -279,49 +279,46 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
         {/* Modal */}
         {modal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => setModal(false)}>
-            <div
-              style={{ background: '#fff', width: '100%', maxWidth: 440, margin: '0 16px', padding: 20, borderRadius: 6, boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
-                {editId ? 'Modifier le poste' : 'Nouveau poste'}
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="v5-fg">
-                  <label className="v5-fl">D&eacute;signation</label>
-                  <input type="text" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} className="v5-fi" />
+          <div className="v22-modal-overlay" onClick={() => setModal(false)}>
+            <div className="v22-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+              <div className="v22-modal-head">
+                <h3 className="v22-modal-title">{editId ? 'Modifier le poste' : 'Nouveau poste'}</h3>
+              </div>
+              <div className="v22-modal-body">
+                <div className="v22-form-group">
+                  <label className="v22-form-label">D&eacute;signation</label>
+                  <input type="text" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} className="v22-form-input" />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">Corps de m&eacute;tier</label>
-                  <select value={form.corps || ''} onChange={e => setForm(f => ({ ...f, corps: e.target.value }))} className="v5-fi">
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Corps de m&eacute;tier</label>
+                  <select value={form.corps || ''} onChange={e => setForm(f => ({ ...f, corps: e.target.value }))} className="v22-form-input">
                     {CORPS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div className="v5-fr">
-                  <div className="v5-fg">
-                    <label className="v5-fl">Type</label>
-                    <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as BiblioItem['type'] }))} className="v5-fi">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">Type</label>
+                    <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as BiblioItem['type'] }))} className="v22-form-input">
                       <option value="ouvrage">Ouvrage</option>
                       <option value="materiau">Mat&eacute;riau</option>
                       <option value="mo">Main-d&apos;&oelig;uvre</option>
                     </select>
                   </div>
-                  <div className="v5-fg">
-                    <label className="v5-fl">Unit&eacute;</label>
-                    <select value={form.unite} onChange={e => setForm(f => ({ ...f, unite: e.target.value }))} className="v5-fi">
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">Unit&eacute;</label>
+                    <select value={form.unite} onChange={e => setForm(f => ({ ...f, unite: e.target.value }))} className="v22-form-input">
                       {UNITE_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </div>
                 </div>
-                <div className="v5-fr">
-                  <div className="v5-fg">
-                    <label className="v5-fl">Co&ucirc;t HT (&euro;)</label>
-                    <input type="number" step="0.01" min="0" value={form.rev || ''} onChange={e => setForm(f => ({ ...f, rev: parseFloat(e.target.value) || 0 }))} className="v5-fi" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">Co&ucirc;t HT (&euro;)</label>
+                    <input type="number" step="0.01" min="0" value={form.rev || ''} onChange={e => setForm(f => ({ ...f, rev: parseFloat(e.target.value) || 0 }))} className="v22-form-input" />
                   </div>
-                  <div className="v5-fg">
-                    <label className="v5-fl">Marge (%)</label>
-                    <input type="number" step="1" min="0" value={form.marge || ''} onChange={e => setForm(f => ({ ...f, marge: parseFloat(e.target.value) || 0 }))} className="v5-fi" />
+                  <div className="v22-form-group">
+                    <label className="v22-form-label">Marge (%)</label>
+                    <input type="number" step="1" min="0" value={form.marge || ''} onChange={e => setForm(f => ({ ...f, marge: parseFloat(e.target.value) || 0 }))} className="v22-form-input" />
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#FAFAFA', borderRadius: 4, border: '1px solid #E8E8E8' }}>
@@ -329,9 +326,9 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{fmt(prixClient(form.rev, form.marge))}</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-                <button onClick={() => setModal(false)} className="v5-btn">Annuler</button>
-                <button onClick={handleSave} className="v5-btn v5-btn-p">{editId ? 'Enregistrer' : 'Créer'}</button>
+              <div className="v22-modal-foot">
+                <button onClick={() => setModal(false)} className="v22-btn">Annuler</button>
+                <button onClick={handleSave} className="v22-btn v22-btn-primary">{editId ? 'Enregistrer' : 'Créer'}</button>
               </div>
             </div>
           </div>
@@ -476,72 +473,65 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setModal(false)}>
-          <div
-            className="bg-white w-full max-w-md mx-4 p-5 space-y-4 shadow-lg"
-            style={{ borderRadius: 4, color: 'var(--v22-text)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 className="text-base font-semibold">
-              {editId ? 'Modifier le poste' : isSociete ? 'Nouveau poste' : 'Nouvel ouvrage'}
-            </h3>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium mb-1">Désignation</label>
+        <div className="v22-modal-overlay" onClick={() => setModal(false)}>
+          <div className="v22-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div className="v22-modal-head">
+              <h3 className="v22-modal-title">
+                {editId ? 'Modifier le poste' : isSociete ? 'Nouveau poste' : 'Nouvel ouvrage'}
+              </h3>
+            </div>
+            <div className="v22-modal-body">
+              <div className="v22-form-group">
+                <label className="v22-form-label">Désignation</label>
                 <input
                   type="text"
                   value={form.nom}
                   onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
-                  className="w-full px-3 py-1.5 text-sm border rounded outline-none focus:ring-1"
-                  style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+                  className="v22-form-input"
                 />
               </div>
 
               {isSociete && (
-                <div>
-                  <label className="block text-xs font-medium mb-1">Corps de métier</label>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Corps de métier</label>
                   <select
                     value={form.corps || ''}
                     onChange={e => setForm(f => ({ ...f, corps: e.target.value }))}
-                    className="w-full px-3 py-1.5 text-sm border rounded outline-none"
-                    style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+                    className="v22-form-input"
                   >
                     {CORPS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Type</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Type</label>
                   <select
                     value={form.type}
                     onChange={e => setForm(f => ({ ...f, type: e.target.value as BiblioItem['type'] }))}
-                    className="w-full px-3 py-1.5 text-sm border rounded outline-none"
-                    style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+                    className="v22-form-input"
                   >
                     <option value="ouvrage">Ouvrage</option>
                     <option value="materiau">Matériau</option>
                     <option value="mo">Main-d&apos;œuvre</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Unité</label>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Unité</label>
                   <select
                     value={form.unite}
                     onChange={e => setForm(f => ({ ...f, unite: e.target.value }))}
-                    className="w-full px-3 py-1.5 text-sm border rounded outline-none"
-                    style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+                    className="v22-form-input"
                   >
                     {UNITE_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">
                     {isSociete ? 'Coût HT (€)' : 'Prix de revient HT (€)'}
                   </label>
                   <input
@@ -550,43 +540,32 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                     min="0"
                     value={form.rev || ''}
                     onChange={e => setForm(f => ({ ...f, rev: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-1.5 text-sm border rounded outline-none font-mono"
-                    style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+                    className="v22-form-input"
+                    style={{ fontFamily: 'monospace' }}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Marge (%)</label>
+                <div className="v22-form-group">
+                  <label className="v22-form-label">Marge (%)</label>
                   <input
                     type="number"
                     step="1"
                     min="0"
                     value={form.marge || ''}
                     onChange={e => setForm(f => ({ ...f, marge: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-1.5 text-sm border rounded outline-none font-mono"
-                    style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+                    className="v22-form-input"
+                    style={{ fontFamily: 'monospace' }}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between px-3 py-2 rounded" style={{ background: 'var(--v22-bg-secondary, #f9fafb)', borderRadius: 4 }}>
-                <span className="text-sm font-medium">{isSociete ? 'Prix de vente HT' : 'Prix client HT'}</span>
-                <span className="font-mono font-semibold">{fmt(prixClient(form.rev, form.marge))}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#FAFAFA', borderRadius: 4, border: '1px solid #E8E8E8' }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>{isSociete ? 'Prix de vente HT' : 'Prix client HT'}</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{fmt(prixClient(form.rev, form.marge))}</span>
               </div>
             </div>
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                onClick={() => setModal(false)}
-                className="px-3 py-1.5 text-sm border rounded"
-                style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-3 py-1.5 text-sm font-medium text-black rounded"
-                style={{ background: 'var(--v22-yellow, #facc15)', borderRadius: 4 }}
-              >
+            <div className="v22-modal-foot">
+              <button onClick={() => setModal(false)} className="v22-btn">Annuler</button>
+              <button onClick={handleSave} className="v22-btn v22-btn-primary">
                 {editId ? 'Enregistrer' : 'Créer'}
               </button>
             </div>
