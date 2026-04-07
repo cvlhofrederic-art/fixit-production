@@ -50,6 +50,7 @@ type Message = {
 
 type Props = {
   artisan: { id: string; user_id: string; company_name?: string }
+  orgRole?: string
   onConversationRead?: () => void
   onProposerDevis?: (missionData: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
 }
@@ -113,9 +114,10 @@ function getClientTypeBadge(contactType: string) {
 
 // ═══ COMPOSANT PRINCIPAL ═══
 
-export default function MessagerieArtisan({ artisan, onConversationRead, onProposerDevis }: Props) {
+export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis }: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
+  const isV5 = orgRole === 'pro_societe'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
   const URGENCE_CONFIG = getUrgenceConfig(isPt)
   const STATUT_CONFIG = getStatutConfig(isPt)
@@ -385,26 +387,41 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
 
   // ═══ RENDER ═══
   return (
-    <div className="v22-msg-wrap" style={{ height: '100%' }}>
+    <div className={isV5 ? 'v5-fade' : 'v22-msg-wrap'} style={{ height: '100%' }}>
+
+      {/* ═══ V5 Page Header ═══ */}
+      {isV5 && (
+        <div className="v5-pg-t">
+          <h1>Messagerie</h1>
+          <p>Conversations avec vos clients et donneurs d&apos;ordres</p>
+        </div>
+      )}
 
       {/* ═══ PANNEAU GAUCHE — Liste conversations ═══ */}
-      <div className={`v22-msg-left ${activeConv ? 'v22-msg-left-hidden' : 'v22-msg-left-full'}`}>
+      <div className={isV5 ? 'v5-msg-chat' : ''} style={isV5 ? {} : undefined}>
+      <div className={isV5
+        ? `v5-msg-list ${activeConv ? 'v22-msg-left-hidden' : ''}`
+        : `v22-msg-left ${activeConv ? 'v22-msg-left-hidden' : 'v22-msg-left-full'}`
+      }>
 
         {/* ── Header avec compteur non lus ── */}
+        {!isV5 && (
         <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>Messagerie</span>
           {(unreadClients + unreadPro) > 0 && (
             <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{unreadClients + unreadPro} non lu{(unreadClients + unreadPro) > 1 ? 's' : ''}</span>
           )}
         </div>
+        )}
 
         {/* ── Onglets filtre Tous / Particuliers / Pro ── */}
-        <div style={{ display: 'flex', gap: 4, padding: '0 16px 8px' }}>
+        <div className={isV5 ? 'v5-msg-tabs' : ''} style={isV5 ? {} : { display: 'flex', gap: 4, padding: '0 16px 8px' }}>
           {(['all', 'clients', 'donneurs'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t as typeof tab)}
-              style={{
+              className={isV5 ? `v5-msg-tab ${tab === t ? 'active' : ''}` : ''}
+              style={isV5 ? {} : {
                 flex: 1, padding: '5px 0', fontSize: 11, fontWeight: tab === t ? 700 : 500,
                 background: tab === t ? 'var(--v22-yellow)' : 'transparent',
                 color: tab === t ? '#1a1a2e' : 'var(--v22-text-muted)',
@@ -420,21 +437,21 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
         </div>
 
         {/* ── Recherche ── */}
-        <div style={{ padding: '0 16px 8px' }}>
+        <div className={isV5 ? 'v5-search' : ''} style={isV5 ? {} : { padding: '0 16px 8px' }}>
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Rechercher..."
-            className="v22-form-input"
-            style={{ width: '100%', fontSize: 12 }}
+            className={isV5 ? 'v5-search-in' : 'v22-form-input'}
+            style={isV5 ? {} : { width: '100%', fontSize: 12 }}
           />
         </div>
 
         {/* ── Liste des conversations ── */}
-        <div className="v22-msg-list">
+        <div className={isV5 ? '' : 'v22-msg-list'}>
           {filteredConversations.length === 0 ? (
-            <div className="v22-msg-empty">
+            <div className={isV5 ? 'v5-card' : 'v22-msg-empty'} style={{ textAlign: 'center', padding: 24 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>{'\uD83D\uDCAC'}</div>
               <div>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</div>
               <div style={{ marginTop: 4, color: 'var(--v22-text-muted)', fontSize: 11 }}>
@@ -452,26 +469,36 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                 <div
                   key={conv.id}
                   onClick={() => { setActiveConv(conv); loadMessages(conv.id) }}
-                  className={`v22-msg-item ${isSelected ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`}
+                  className={isV5
+                    ? `v5-msg-item ${isSelected ? 'active' : ''}`
+                    : `v22-msg-item ${isSelected ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`
+                  }
                 >
                   {/* Avatar */}
-                  <div className="v22-msg-avatar" style={{ background: avatarCol.bg, color: avatarCol.color, border: 'none', width: 36, height: 36, fontSize: 13 }}>
+                  <div className={isV5 ? 'v5-msg-av' : 'v22-msg-avatar'} style={{ background: avatarCol.bg, color: avatarCol.color, border: 'none', width: 36, height: 36, fontSize: 13 }}>
                     {initials}
                   </div>
                   {/* Body */}
-                  <div className="v22-msg-body">
-                    <div className="v22-msg-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className={isV5 ? '' : 'v22-msg-body'} style={isV5 ? { flex: 1, minWidth: 0 } : {}}>
+                    <div className={isV5 ? 'v5-msg-nm' : 'v22-msg-name'} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {conv.contact_name || 'Contact'}
-                      <span className={`v22-msg-type-badge type-${typeBadge.couleur}`}>{typeBadge.badge}</span>
+                      <span className={isV5
+                        ? `v5-badge v5-badge-${typeBadge.couleur === 'bleu' ? 'blue' : typeBadge.couleur === 'violet' ? 'purple' : typeBadge.couleur === 'orange' ? 'orange' : typeBadge.couleur === 'vert' ? 'green' : 'gray'}`
+                        : `v22-msg-type-badge type-${typeBadge.couleur}`
+                      }>{typeBadge.badge}</span>
                     </div>
-                    <div className="v22-msg-preview">
+                    <div className={isV5 ? 'v5-msg-prev' : 'v22-msg-preview'}>
                       {conv.last_message_preview || 'Nouvelle conversation'}
                     </div>
                   </div>
                   {/* Meta */}
-                  <div className="v22-msg-meta">
-                    <span className="v22-msg-time">{formatDate(conv.last_message_at)}</span>
-                    {conv.unread_count > 0 && <div className="v22-msg-unread-badge">{conv.unread_count > 99 ? '99+' : conv.unread_count}</div>}
+                  <div className={isV5 ? '' : 'v22-msg-meta'} style={isV5 ? { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 } : {}}>
+                    <span className={isV5 ? '' : 'v22-msg-time'} style={isV5 ? { fontSize: 11, color: 'var(--text-muted)' } : {}}>{formatDate(conv.last_message_at)}</span>
+                    {conv.unread_count > 0 && (
+                      isV5
+                        ? <span className="v5-msg-dot" />
+                        : <div className="v22-msg-unread-badge">{conv.unread_count > 99 ? '99+' : conv.unread_count}</div>
+                    )}
                   </div>
                 </div>
               )
@@ -481,44 +508,50 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
       </div>
 
       {/* ═══ PANNEAU DROITE — Thread conversation ═══ */}
-      <div className={`v22-msg-right ${activeConv ? 'v22-msg-right-full' : 'v22-msg-right-hidden'}`}>
+      <div className={isV5
+        ? `v5-msg-ch ${activeConv ? '' : 'v22-msg-right-hidden'}`
+        : `v22-msg-right ${activeConv ? 'v22-msg-right-full' : 'v22-msg-right-hidden'}`
+      }>
         {!activeConv ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>{'\uD83D\uDCAC'}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-text)' }}>Sélectionnez une conversation</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Sélectionnez une conversation</div>
               <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
             </div>
           </div>
         ) : (
           <>
             {/* ── Header conversation ── */}
-            <div className="v22-msg-header">
-              <button onClick={() => setActiveConv(null)} className="v22-msg-back">{'\u2190'}</button>
-              <div className="v22-msg-header-avatar" style={{ background: getAvatarColor(activeConv.contact_name || '').bg, color: getAvatarColor(activeConv.contact_name || '').color, border: 'none' }}>
+            <div className={isV5 ? 'v5-card' : 'v22-msg-header'} style={isV5 ? { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', marginBottom: 0, borderRadius: 0 } : {}}>
+              <button onClick={() => setActiveConv(null)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-msg-back'}>{'\u2190'}</button>
+              <div className={isV5 ? 'v5-msg-av' : 'v22-msg-header-avatar'} style={{ background: getAvatarColor(activeConv.contact_name || '').bg, color: getAvatarColor(activeConv.contact_name || '').color, border: 'none' }}>
                 {(activeConv.contact_name || '?').split(' ').map(w => w.charAt(0).toUpperCase()).slice(0, 2).join('')}
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span className="v22-msg-header-name">{activeConv.contact_name || 'Contact'}</span>
-                  <span className={`v22-msg-type-badge type-${getClientTypeBadge(activeConv.contact_type).couleur}`} style={{ fontSize: 10 }}>
+                  <span className={isV5 ? 'v5-msg-nm' : 'v22-msg-header-name'}>{activeConv.contact_name || 'Contact'}</span>
+                  <span className={isV5
+                    ? `v5-badge v5-badge-${getClientTypeBadge(activeConv.contact_type).couleur === 'bleu' ? 'blue' : getClientTypeBadge(activeConv.contact_type).couleur === 'violet' ? 'purple' : getClientTypeBadge(activeConv.contact_type).couleur === 'orange' ? 'orange' : getClientTypeBadge(activeConv.contact_type).couleur === 'vert' ? 'green' : 'gray'}`
+                    : `v22-msg-type-badge type-${getClientTypeBadge(activeConv.contact_type).couleur}`
+                  } style={{ fontSize: 10 }}>
                     {getClientTypeBadge(activeConv.contact_type).badge}
                   </span>
                 </div>
-                <div className="v22-msg-header-sub">
+                <div className={isV5 ? '' : 'v22-msg-header-sub'} style={isV5 ? { fontSize: 11, color: 'var(--text-muted)' } : {}}>
                   {activeConv.contact_type === 'pro' ? "Donneur d'ordres" : 'Client particulier'}
                 </div>
               </div>
             </div>
 
             {/* ── Messages ── */}
-            <div className="v22-msg-thread">
+            <div className={isV5 ? '' : 'v22-msg-thread'} style={isV5 ? { flex: 1, overflowY: 'auto', padding: 16 } : {}}>
               {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
                   <div style={{ width: 24, height: 24, border: '2px solid var(--v22-border)', borderTopColor: 'var(--v22-yellow)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="v22-msg-empty">
+                <div className={isV5 ? 'v5-card' : 'v22-msg-empty'} style={{ textAlign: 'center', padding: 24 }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>{activeConv.contact_type === 'pro' ? '\uD83C\uDFE2' : '\uD83C\uDFE0'}</div>
                   <div>Conversation ouverte</div>
                   <div style={{ marginTop: 4, fontSize: 11 }}>Aucun message pour le moment. Envoyez un message pour démarrer.</div>
@@ -534,6 +567,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                     artisanName={artisan.company_name || 'Moi'}
                     onOrdreMissionAction={handleOrdreMissionAction}
                     onProposerDevis={onProposerDevis}
+                    isV5={isV5}
                   />
                 ))
               )}
@@ -541,30 +575,31 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
             </div>
 
             {/* ── Zone saisie ── */}
-            <div className="v22-msg-input-area">
+            <div className={isV5 ? 'v5-msg-in' : 'v22-msg-input-area'}>
               {/* Quick templates */}
-              <div className="v22-msg-templates">
+              <div className={isV5 ? '' : 'v22-msg-templates'} style={isV5 ? { display: 'flex', gap: 4, padding: '8px 0', flexWrap: 'wrap' } : {}}>
                 {quickTemplates.map(txt => (
-                  <button key={txt} onClick={() => setInputValue(txt)} className="v22-msg-tpl">
+                  <button key={txt} onClick={() => setInputValue(txt)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-msg-tpl'}>
                     {txt}
                   </button>
                 ))}
               </div>
               {/* Textarea + Send */}
-              <div className="v22-msg-compose">
+              <div className={isV5 ? 'v5-msg-in-bar' : 'v22-msg-compose'}>
                 <textarea
                   ref={inputRef}
-                  className="v22-msg-textarea"
+                  className={isV5 ? 'v5-search-in' : 'v22-msg-textarea'}
                   placeholder={`Message \u00E0 ${activeConv.contact_name || 'votre contact'}…`}
                   value={inputValue}
                   rows={2}
                   onChange={e => setInputValue(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+                  style={isV5 ? { flex: 1, resize: 'none' } : {}}
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!inputValue.trim() || sending}
-                  className="v22-msg-send"
+                  className={isV5 ? 'v5-btn v5-btn-p' : 'v22-msg-send'}
                 >
                   {sending ? '…' : 'Envoyer'}
                 </button>
@@ -573,23 +608,25 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
           </>
         )}
       </div>
+      {/* Close v5-msg-chat wrapper */}
+      </div>
 
       {/* ── Popup choix heure d'arrivée ── */}
       {showTimePickerForMsg && (
         <div className="v22-modal-overlay">
-          <div className="v22-modal" style={{ maxWidth: 380 }}>
-            <div className="v22-modal-head">
-              <div className="v22-modal-title">{'\uD83D\uDD50'} Accepter la mission</div>
-              <button onClick={() => setShowTimePickerForMsg(null)} className="v22-modal-close">{'\u2715'}</button>
+          <div className={isV5 ? 'v5-card' : 'v22-modal'} style={{ maxWidth: 380, ...(isV5 ? { padding: 0 } : {}) }}>
+            <div className={isV5 ? '' : 'v22-modal-head'} style={isV5 ? { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 16px 0' } : {}}>
+              <div className={isV5 ? '' : 'v22-modal-title'}>{'\uD83D\uDD50'} Accepter la mission</div>
+              <button onClick={() => setShowTimePickerForMsg(null)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'}>{'\u2715'}</button>
             </div>
-            <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
               <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
                 Indiquez votre heure d&apos;arrivée et la durée estimée
               </div>
 
               {/* Heure d'arrivée */}
               <div>
-                <div className="v22-form-label" style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className={isV5 ? '' : 'v22-form-label'} style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11, fontWeight: 600 }}>
                   Heure d&apos;arrivée
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
@@ -597,7 +634,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                     type="time"
                     value={arrivalTime}
                     onChange={e => setArrivalTime(e.target.value)}
-                    className="v22-form-input"
+                    className={isV5 ? 'v5-search-in' : 'v22-form-input'}
                     style={{ fontSize: 22, fontWeight: 600, textAlign: 'center', padding: '8px 16px', width: 'auto' }}
                   />
                 </div>
@@ -606,7 +643,10 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                     <button
                       key={t}
                       onClick={() => setArrivalTime(t)}
-                      className={`v22-btn v22-btn-sm ${arrivalTime === t ? 'v22-btn-primary' : ''}`}
+                      className={isV5
+                        ? `v5-btn v5-btn-sm ${arrivalTime === t ? 'v5-btn-p' : ''}`
+                        : `v22-btn v22-btn-sm ${arrivalTime === t ? 'v22-btn-primary' : ''}`
+                      }
                     >
                       {t}
                     </button>
@@ -616,7 +656,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
 
               {/* Durée estimée */}
               <div>
-                <div className="v22-form-label" style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className={isV5 ? '' : 'v22-form-label'} style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11, fontWeight: 600 }}>
                   Durée estimée
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
@@ -634,7 +674,10 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                     <button
                       key={opt.label}
                       onClick={() => setDurationHours(opt.value)}
-                      className={`v22-btn v22-btn-sm ${durationHours === opt.value ? 'v22-btn-primary' : ''}`}
+                      className={isV5
+                        ? `v5-btn v5-btn-sm ${durationHours === opt.value ? 'v5-btn-p' : ''}`
+                        : `v22-btn v22-btn-sm ${durationHours === opt.value ? 'v22-btn-primary' : ''}`
+                      }
                     >
                       {opt.label}
                     </button>
@@ -660,11 +703,11 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                 </div>
               </div>
             </div>
-            <div className="v22-modal-foot" style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowTimePickerForMsg(null)} className="v22-btn" style={{ flex: 1 }}>
+            <div className={isV5 ? '' : 'v22-modal-foot'} style={{ display: 'flex', gap: 8, padding: 16 }}>
+              <button onClick={() => setShowTimePickerForMsg(null)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}>
                 Annuler
               </button>
-              <button onClick={confirmAcceptWithTime} className="v22-btn v22-btn-green" style={{ flex: 1 }}>
+              <button onClick={confirmAcceptWithTime} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-green'} style={{ flex: 1 }}>
                 {'\u2713'} Confirmer &amp; bloquer agenda
               </button>
             </div>
@@ -677,7 +720,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
 
 // ═══ COMPOSANTS INTERNES ═══
 
-function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOrdreMissionAction, onProposerDevis }: {
+function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOrdreMissionAction, onProposerDevis, isV5 = false }: {
   msg: Message
   isOwn: boolean
   contactName: string
@@ -685,6 +728,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   artisanName: string
   onOrdreMissionAction: (messageId: string, action: string, extraData?: Record<string, string>) => void
   onProposerDevis?: (data: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
+  isV5?: boolean
 }) {
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -693,8 +737,8 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   // Message système
   if (msg.type === 'system') {
     return (
-      <div className="v22-msg-system">
-        <span className="v22-msg-system-text">
+      <div className={isV5 ? '' : 'v22-msg-system'} style={isV5 ? { textAlign: 'center', padding: '8px 0' } : {}}>
+        <span className={isV5 ? 'v5-msg-tx' : 'v22-msg-system-text'} style={isV5 ? { fontSize: 11, color: 'var(--text-muted)' } : {}}>
           {msg.content}
           <br />
           <span style={{ fontSize: 9, color: 'var(--v22-text-muted)' }}>{time}</span>
@@ -705,12 +749,37 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
 
   // Ordre de mission
   if (msg.type === 'ordre_mission' && msg.ordre_mission) {
-    return <OrdreMissionCard msg={msg} isOwn={isOwn} onAction={onOrdreMissionAction} onProposerDevis={onProposerDevis} contactName={contactName} />
+    return <OrdreMissionCard msg={msg} isOwn={isOwn} onAction={onOrdreMissionAction} onProposerDevis={onProposerDevis} contactName={contactName} isV5={isV5} />
   }
 
   // Message texte / photo / voice
   const senderLabel = isOwn ? artisanName : contactName
   const avatarLetter = senderLabel.charAt(0).toUpperCase()
+
+  if (isV5) {
+    return (
+      <div className={`v5-msg-cb ${isOwn ? 'own' : ''}`}>
+        <div className="v5-msg-av" style={{ width: 28, height: 28, fontSize: 11 }}>
+          {avatarLetter}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span className="v5-msg-snd">
+            {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? "· Donneur d'ordres" : '· Client'}
+          </span>
+          <div className="v5-msg-tx">
+            {msg.type === 'photo' && msg.metadata?.url ? (
+              <Image src={String(msg.metadata.url)} alt="" width={400} height={300} style={{ borderRadius: 3, marginBottom: 6, maxWidth: '100%', height: 'auto' }} unoptimized />
+            ) : null}
+            {msg.content}
+          </div>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            {time}
+            {isOwn && msg.read && ' \u2713\u2713'}
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`v22-msg-bubble-row ${isOwn ? 'own' : ''}`}>
@@ -736,12 +805,13 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   )
 }
 
-function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }: {
+function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, isV5 = false }: {
   msg: Message
   isOwn: boolean
   onAction: (messageId: string, action: string, extraData?: Record<string, string>) => void
   onProposerDevis?: (data: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
   contactName?: string
+  isV5?: boolean
 }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -754,72 +824,72 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
 
   return (
     <div style={{ display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
-      <div className="v22-card v22-msg-mission">
+      <div className={isV5 ? 'v5-card' : 'v22-card v22-msg-mission'} style={isV5 ? { maxWidth: 400, width: '100%' } : {}}>
         {/* Header */}
-        <div className="v22-msg-mission-head">
+        <div className={isV5 ? '' : 'v22-msg-mission-head'} style={isV5 ? { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px 0' } : {}}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>{'\uD83D\uDCCB'}</span>
-            <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--v22-text)' }}>Ordre de mission</span>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>Ordre de mission</span>
           </div>
-          <span className={urgence.tagClass}>{urgence.label}</span>
+          <span className={isV5 ? `v5-badge v5-badge-${om.urgence === 'urgente' ? 'red' : om.urgence === 'haute' ? 'orange' : om.urgence === 'basse' ? 'gray' : 'blue'}` : urgence.tagClass}>{urgence.label}</span>
         </div>
 
         {/* Body */}
-        <div className="v22-msg-mission-body">
-          <div className="v22-msg-mission-title">{om.titre || 'Mission'}</div>
+        <div className={isV5 ? '' : 'v22-msg-mission-body'} style={isV5 ? { padding: '8px 14px 12px' } : {}}>
+          <div className={isV5 ? '' : 'v22-msg-mission-title'} style={isV5 ? { fontWeight: 600, fontSize: 13, marginBottom: 6 } : {}}>{om.titre || 'Mission'}</div>
 
           {om.adresse && (
-            <div className="v22-msg-mission-row">
+            <div className={isV5 ? '' : 'v22-msg-mission-row'} style={isV5 ? { display: 'flex', gap: 6, fontSize: 12, marginBottom: 4 } : {}}>
               <span>{'📍'}</span>
               <span>{om.adresse}</span>
             </div>
           )}
 
           {om.date_souhaitee && (
-            <div className="v22-msg-mission-row">
+            <div className={isV5 ? '' : 'v22-msg-mission-row'} style={isV5 ? { display: 'flex', gap: 6, fontSize: 12, marginBottom: 4 } : {}}>
               <span>{'📅'}</span>
               <span>{new Date(om.date_souhaitee + 'T12:00:00').toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
             </div>
           )}
 
           {om.arrival_time && (om.statut === 'accepte' || om.statut === 'en_cours' || om.statut === 'termine') && (
-            <div className="v22-msg-arrival-info">
+            <div className={isV5 ? '' : 'v22-msg-arrival-info'} style={isV5 ? { display: 'flex', gap: 6, fontSize: 12, marginBottom: 4, color: 'var(--text-muted)' } : {}}>
               <span>{'\uD83D\uDD50'}</span>
               <span>Arrivée prévue \u00E0 {om.arrival_time}</span>
             </div>
           )}
 
           {om.description && (
-            <div className="v22-msg-mission-desc">{om.description}</div>
+            <div className={isV5 ? 'v5-msg-tx' : 'v22-msg-mission-desc'} style={isV5 ? { fontSize: 12, marginBottom: 6 } : {}}>{om.description}</div>
           )}
 
           {/* Statut */}
-          <span className={statut.tagClass}>{statut.label}</span>
+          <span className={isV5 ? `v5-badge v5-badge-${om.statut === 'refuse' ? 'red' : om.statut === 'en_attente' ? 'orange' : 'green'}` : statut.tagClass}>{statut.label}</span>
         </div>
 
         {/* Actions (seulement si en_attente et c'est l'artisan qui voit) */}
         {om.statut === 'en_attente' && !isOwn && (
-          <div className="v22-msg-mission-foot">
-            <button onClick={() => onAction(msg.id, 'accepte')} className="v22-btn v22-btn-green">
+          <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
+            <button onClick={() => onAction(msg.id, 'accepte')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-green'}>
               {'\u2713'} Accepter
             </button>
-            <button onClick={() => onAction(msg.id, 'refuse')} className="v22-btn v22-btn-red-outline">
+            <button onClick={() => onAction(msg.id, 'refuse')} className={isV5 ? 'v5-btn' : 'v22-btn v22-btn-red-outline'}>
               {'\u2715'} Refuser
             </button>
           </div>
         )}
 
         {om.statut === 'accepte' && !isOwn && (
-          <div className="v22-msg-mission-foot">
-            <button onClick={() => onAction(msg.id, 'en_cours')} className="v22-btn v22-btn-blue" style={{ flex: 1 }}>
+          <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
+            <button onClick={() => onAction(msg.id, 'en_cours')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-blue'} style={{ flex: 1 }}>
               {'🔧'} Démarrer l&apos;intervention
             </button>
           </div>
         )}
 
         {om.statut === 'en_cours' && !isOwn && (
-          <div className="v22-msg-mission-foot">
-            <button onClick={() => onAction(msg.id, 'termine')} className="v22-btn v22-btn-green" style={{ flex: 1 }}>
+          <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
+            <button onClick={() => onAction(msg.id, 'termine')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-green'} style={{ flex: 1 }}>
               {'✅'} Marquer comme terminé
             </button>
           </div>
@@ -827,7 +897,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
 
         {/* Bouton Proposer un devis */}
         {(om.statut === 'accepte' || om.statut === 'en_cours' || om.statut === 'termine') && !isOwn && onProposerDevis && (
-          <div className="v22-msg-mission-foot">
+          <div className={isV5 ? '' : 'v22-msg-mission-foot'} style={isV5 ? { display: 'flex', gap: 8, padding: '0 14px 12px' } : {}}>
             <button
               onClick={() => onProposerDevis({
                 titre: om.titre || '',
@@ -836,7 +906,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
                 date_souhaitee: om.date_souhaitee || '',
                 contactName: contactName || '',
               })}
-              className="v22-btn v22-btn-primary"
+              className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
               style={{ flex: 1 }}
             >
               {'📄'} Proposer un devis
@@ -846,7 +916,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
 
         {/* Timestamp */}
         <div style={{ padding: '0 14px 8px', textAlign: 'right' }}>
-          <span className="v22-mono" style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>
+          <span style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>
             {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>

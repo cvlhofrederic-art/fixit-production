@@ -58,12 +58,20 @@ const TYPE_LABELS: Record<TypeCompte, string> = {
   gerant: 'Gérant / Patron',
 }
 
-const TYPE_COLORS: Record<TypeCompte, string> = {
+const TYPE_COLORS_V5: Record<TypeCompte, string> = {
   ouvrier: 'v5-badge v5-badge-gray',
   chef_chantier: 'v5-badge v5-badge-orange',
   conducteur_travaux: 'v5-badge v5-badge-yellow',
   secretaire: 'v5-badge v5-badge-green',
   gerant: 'v5-badge v5-badge-red',
+}
+
+const TYPE_COLORS_V22: Record<TypeCompte, string> = {
+  ouvrier: 'v22-tag v22-tag-gray',
+  chef_chantier: 'v22-tag v22-tag-orange',
+  conducteur_travaux: 'v22-tag v22-tag-yellow',
+  secretaire: 'v22-tag v22-tag-green',
+  gerant: 'v22-tag v22-tag-red',
 }
 
 const CONTRAT_LABELS: Record<TypeContrat, string> = {
@@ -238,9 +246,11 @@ const EMPTY_MFORM = {
   _lastEdited: '' as '' | 'brut' | 'net' | 'horaire', // tracks which field the user changed last
 }
 
-export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types').Artisan }) {
+export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
+  const isV5 = orgRole === 'pro_societe'
+  const TYPE_COLORS = isV5 ? TYPE_COLORS_V5 : TYPE_COLORS_V22
   const userId = artisan?.user_id || ''
 
   const { settings } = useBTPSettings()
@@ -412,21 +422,21 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
   }
 
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : ''}>
       {/* Header */}
-      <div className="v5-pg-t" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>{isPt ? 'Équipes & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p>{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && (
-            <button className="v5-btn v5-btn-p" onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
               + {isPt ? 'Membro' : 'Membre'}
             </button>
           )}
           {tab === 'equipes' && (
-            <button className="v5-btn v5-btn-p" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}>
               + {isPt ? 'Equipa' : 'Équipe'}
             </button>
           )}
@@ -434,26 +444,26 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
       </div>
 
       {/* Stats row */}
-      <div className="v5-sc3" style={{ marginBottom: '1.25rem' }}>
-        <div className="v5-kpi" style={{ textAlign: 'center' }}>
-          <div className="v5-kpi-l">{isPt ? 'Ativos' : 'Actifs'}</div>
-          <div className="v5-kpi-v">{totalActifs}</div>
+      <div className={isV5 ? 'v5-sc3' : 'v22-stats'} style={{ marginBottom: '1.25rem' }}>
+        <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={{ textAlign: 'center' }}>
+          <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Ativos' : 'Actifs'}</div>
+          <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{totalActifs}</div>
         </div>
-        <div className="v5-kpi" style={{ textAlign: 'center' }}>
-          <div className="v5-kpi-l">{isPt ? 'Equipas' : 'Équipes'}</div>
-          <div className="v5-kpi-v">{nbEquipes}</div>
+        <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={{ textAlign: 'center' }}>
+          <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Equipas' : 'Équipes'}</div>
+          <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{nbEquipes}</div>
         </div>
-        <div className="v5-kpi hl" style={{ textAlign: 'center' }}>
-          <div className="v5-kpi-l">{isPt ? 'Custo médio real' : 'Coût moyen réel'}</div>
-          <div className="v5-kpi-v">{coutMoyenH}€/h</div>
+        <div className={isV5 ? 'v5-kpi hl' : 'v22-stat v22-stat-yellow'} style={{ textAlign: 'center' }}>
+          <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Custo médio real' : 'Coût moyen réel'}</div>
+          <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{coutMoyenH}€/h</div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="v5-tabs">
+      <div className={isV5 ? 'v5-tabs' : 'v22-tabs'}>
         {(['membres', 'equipes'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`v5-tab-b${tab === t ? ' active' : ''}`}>
+            className={isV5 ? `v5-tab-b${tab === t ? ' active' : ''}` : `v22-tab${tab === t ? ' active' : ''}`}>
             {t === 'membres' ? (isPt ? 'Membros' : 'Membres') : (isPt ? 'Equipas' : 'Équipes')}
           </button>
         ))}
@@ -465,21 +475,21 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
         {tab === 'membres' && (
           <>
             {activeMembres.length === 0 && inactiveMembres.length === 0 ? (
-              <div className="v5-card" style={{ padding: 40, textAlign: 'center' }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
                 <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Users size={40} color="#BBB" /></div>
                 <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
                 <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Adicione os membros da sua empresa com os seus custos' : 'Ajoutez les membres de votre entreprise avec leurs coûts'}</p>
-                <button className="v5-btn v5-btn-p" onClick={() => setShowMembreModal(true)}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
+                <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => setShowMembreModal(true)}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
               </div>
             ) : (
               <>
                 {/* Active members table */}
-                <div className="v5-card" style={{ marginBottom: inactiveMembres.length > 0 ? 20 : 0, padding: 0 }}>
+                <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: inactiveMembres.length > 0 ? 20 : 0, padding: 0 }}>
                   <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8' }}>
-                    <div className="v5-st" style={{ marginBottom: 0 }}>{isPt ? 'Colaboradores ativos' : 'Collaborateurs actifs'} ({activeMembres.length})</div>
+                    <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ marginBottom: 0 }}>{isPt ? 'Colaboradores ativos' : 'Collaborateurs actifs'} ({activeMembres.length})</div>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
-                    <table className="v5-dt">
+                    <table className={isV5 ? 'v5-dt' : ''} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr>
                           <th>{isPt ? 'Nome' : 'Nom'}</th>
@@ -525,10 +535,10 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                               </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button className="v5-btn v5-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label="Modifier"><Pencil size={12} /></button>
-                                  <button className="v5-btn v5-btn-sm" onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
+                                  <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label="Modifier"><Pencil size={12} /></button>
+                                  <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
                                     style={{ background: '#FFF3E0', color: '#EF6C00' }} aria-label="Désactiver"><Minus size={12} /></button>
-                                  <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
+                                  <button className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm v22-btn-danger'} onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
                                     aria-label="Supprimer"><Trash2 size={12} /></button>
                                 </div>
                               </td>
@@ -542,15 +552,15 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
                 {/* Inactive members */}
                 {inactiveMembres.length > 0 && (
-                  <div className="v5-card" style={{ opacity: 0.7 }}>
+                  <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ opacity: 0.7 }}>
                     <div style={{ marginBottom: '.5rem' }}>
-                      <div className="v5-st" style={{ color: '#999' }}>{isPt ? 'Inativos' : 'Inactifs'} ({inactiveMembres.length})</div>
+                      <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ color: '#999' }}>{isPt ? 'Inativos' : 'Inactifs'} ({inactiveMembres.length})</div>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {inactiveMembres.map(m => (
                         <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: '#F5F5F5', borderRadius: 10, fontSize: 12 }}>
                           <span>{m.prenom} {m.nom}</span>
-                          <button className="v5-btn v5-btn-sm" onClick={() => toggleActif(m)}
+                          <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => toggleActif(m)}
                             title={isPt ? 'Reativar' : 'Réactiver'}><Check size={12} /></button>
                         </div>
                       ))}
@@ -565,14 +575,14 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
         {/* ── TAB ÉQUIPES ── */}
         {tab === 'equipes' && (
           equipes.length === 0 ? (
-            <div className="v5-card" style={{ padding: 40, textAlign: 'center' }}>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
               <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><HardHat size={40} color="#BBB" /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
               <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
-              <button className="v5-btn v5-btn-p" onClick={() => setShowEquipeModal(true)}>+ {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => setShowEquipeModal(true)}>+ {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
-            <div className="v5-sg2">
+            <div className={isV5 ? 'v5-sg2' : ''} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {equipes.map((eq, idx) => {
                 const eqMembres = membres.filter(m => eq.membreIds?.includes(m.id))
                 const eqCost = eqMembres.reduce((s, m) => {
@@ -583,9 +593,9 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                 const initials = eq.nom.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('')
                 const chef = eqMembres.find(m => m.typeCompte === 'chef_chantier') || eqMembres[0]
                 return (
-                  <div key={eq.id} className="v5-card" style={{ cursor: 'pointer' }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds || [] }); setShowEquipeModal(true) }}>
+                  <div key={eq.id} className={isV5 ? 'v5-card' : 'v22-card'} style={{ cursor: 'pointer' }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds || [] }); setShowEquipeModal(true) }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '.6rem' }}>
-                      <div className="v5-hdr-avatar" style={{ background: avatarColors[idx % avatarColors.length], width: 36, height: 36, fontSize: 12, flexShrink: 0 }}>{initials}</div>
+                      <div className={isV5 ? 'v5-hdr-avatar' : ''} style={{ background: avatarColors[idx % avatarColors.length], width: 36, height: 36, fontSize: 12, flexShrink: 0, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700 }}>{initials}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{eq.nom}</div>
                         <div style={{ fontSize: 10, color: '#999' }}>
@@ -596,8 +606,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                     {eq.metier && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{eq.metier}</div>}
                     {eqCost > 0 && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{isPt ? 'Custo/h' : 'Coût/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(eqCost * 100) / 100}€</strong></div>}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className={`v5-badge ${eqMembres.length > 0 ? 'v5-badge-green' : 'v5-badge-orange'}`}>{eqMembres.length > 0 ? (isPt ? 'Operacional' : 'Déployée') : (isPt ? 'Em repouso' : 'En repos')}</span>
-                      <button className="v5-btn v5-btn-sm v5-btn-d" onClick={(e) => { e.stopPropagation(); deleteEquipe(eq.id) }} aria-label="Supprimer"><Trash2 size={12} /></button>
+                      <span className={isV5 ? `v5-badge ${eqMembres.length > 0 ? 'v5-badge-green' : 'v5-badge-orange'}` : `v22-tag ${eqMembres.length > 0 ? 'v22-tag-green' : 'v22-tag-orange'}`}>{eqMembres.length > 0 ? (isPt ? 'Operacional' : 'Déployée') : (isPt ? 'Em repouso' : 'En repos')}</span>
+                      <button className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm v22-btn-danger'} onClick={(e) => { e.stopPropagation(); deleteEquipe(eq.id) }} aria-label="Supprimer"><Trash2 size={12} /></button>
                     </div>
                   </div>
                 )
@@ -610,29 +620,29 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
       {/* ── MODAL MEMBRE ── */}
       {showMembreModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v5-card" style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
             <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
-              <button className="v5-btn v5-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>✕</button>
+              <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>✕</button>
             </div>
             <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Identité */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v5-fl">{isPt ? 'Primeiro nome *' : 'Prénom *'}</label>
-                  <input className="v5-fi" value={mForm.prenom} onChange={e => setMForm({ ...mForm, prenom: e.target.value })} placeholder="Jean" />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Primeiro nome *' : 'Prénom *'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.prenom} onChange={e => setMForm({ ...mForm, prenom: e.target.value })} placeholder="Jean" />
                 </div>
                 <div>
-                  <label className="v5-fl">{isPt ? 'Apelido *' : 'Nom *'}</label>
-                  <input className="v5-fi" value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} placeholder="Dupont" />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Apelido *' : 'Nom *'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} placeholder="Dupont" />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v5-fl">{isPt ? 'Tipo de conta' : 'Type de compte'}</label>
-                  <select className="v5-fi" value={mForm.typeCompte} onChange={e => {
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Tipo de conta' : 'Type de compte'}</label>
+                  <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.typeCompte} onChange={e => {
                     const newRole = e.target.value as TypeCompte
                     const validContrats = getValidContrats(newRole)
                     const contratStillValid = validContrats.includes(mForm.type_contrat)
@@ -648,9 +658,9 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   </select>
                 </div>
                 <div>
-                  <label className="v5-fl">{isPt ? 'Contrato' : 'Type de contrat'}</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Contrato' : 'Type de contrat'}</label>
                   <select
-                    className="v5-fi"
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'}
                     value={mForm.type_contrat}
                     disabled={mForm.typeCompte === 'gerant'}
                     style={mForm.typeCompte === 'gerant' ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
@@ -685,13 +695,13 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                     {/* % capital — seulement pertinent en FR pour SARL/EURL */}
                     {country === 'FR' && ['sarl', 'eurl', 'snc', 'scs'].includes(companyType) && (
                       <div>
-                        <label className="v5-fl" style={{ color: statutColor.text }}>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ color: statutColor.text }}>
                           {isPt ? '% capital detido' : '% de capital détenu'}
                         </label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input
                             type="number"
-                            className="v5-fi"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
                             min={0} max={100} step={1}
                             style={{ width: 90 }}
                             value={mForm.detention_capital_percent ?? 100}
@@ -732,13 +742,13 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
               })()}
 
               <div>
-                <label className="v5-fl">{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'}</label>
-                <input className="v5-fi" value={mForm.rolePerso} onChange={e => setMForm({ ...mForm, rolePerso: e.target.value })} placeholder={isPt ? 'ex: Pedreiro, Canalizador...' : 'ex: Maçon, Carreleur...'} />
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'}</label>
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.rolePerso} onChange={e => setMForm({ ...mForm, rolePerso: e.target.value })} placeholder={isPt ? 'ex: Pedreiro, Canalizador...' : 'ex: Maçon, Carreleur...'} />
               </div>
 
               <div>
-                <label className="v5-fl">{isPt ? 'Equipa' : 'Équipe'}</label>
-                <select className="v5-fi" value={mForm.equipeId} onChange={e => setMForm({ ...mForm, equipeId: e.target.value })}>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Equipa' : 'Équipe'}</label>
+                <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.equipeId} onChange={e => setMForm({ ...mForm, equipeId: e.target.value })}>
                   <option value="">{isPt ? '— Sem equipa' : '— Sans équipe'}</option>
                   {equipes.map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
                 </select>
@@ -746,18 +756,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={14} /> {isPt ? 'Telefone' : 'Téléphone'}</label>
-                  <input className="v5-fi" value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={14} /> {isPt ? 'Telefone' : 'Téléphone'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
                 </div>
                 <div>
-                  <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
-                  <input className="v5-fi" value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
                 </div>
               </div>
 
               {/* Toggle finance section */}
               <button
-                className="v5-btn v5-btn-sm"
+                className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
                 style={{ alignSelf: 'flex-start', background: showFinance ? 'var(--v5-primary-yellow)' : '#fff', fontWeight: showFinance ? 700 : 400 }}
                 onClick={() => setShowFinance(!showFinance)}
               >
@@ -773,15 +783,15 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#999' }}>
                       <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Salário e custos' : 'Salaire et coûts'}
                     </div>
-                    <div className="v5-tabs" style={{ marginBottom: 0, border: 'none' }}>
+                    <div className={isV5 ? 'v5-tabs' : 'v22-tabs'} style={{ marginBottom: 0, border: 'none' }}>
                       <button
                         onClick={() => setCalcMode('auto')}
-                        className={`v5-tab-b${calcMode === 'auto' ? ' active' : ''}`}>
+                        className={isV5 ? `v5-tab-b${calcMode === 'auto' ? ' active' : ''}` : `v22-tab${calcMode === 'auto' ? ' active' : ''}`}>
                         Auto
                       </button>
                       <button
                         onClick={() => setCalcMode('manuel')}
-                        className={`v5-tab-b${calcMode === 'manuel' ? ' active' : ''}`}>
+                        className={isV5 ? `v5-tab-b${calcMode === 'manuel' ? ' active' : ''}` : `v22-tab${calcMode === 'manuel' ? ' active' : ''}`}>
                         Manuel
                       </button>
                     </div>
@@ -805,8 +815,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   {/* Heures + charges (paramètres de calcul) */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className="v5-fl">{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
-                      <input className="v5-fi" type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
                         onChange={e => {
                           const h = parseFloat(e.target.value) || 35
                           if (calcMode === 'auto') {
@@ -818,8 +828,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         }} />
                     </div>
                     <div>
-                      <label className="v5-fl">{isPt ? 'Encargos salariais (%)' : 'Charges salariales (%)'}</label>
-                      <input className="v5-fi" type="number" min="0" max="50" step="1" value={mForm.charges_salariales_pct}
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Encargos salariais (%)' : 'Charges salariales (%)'}</label>
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" max="50" step="1" value={mForm.charges_salariales_pct}
                         onChange={e => {
                           const cs = parseFloat(e.target.value) || 22
                           if (calcMode === 'auto') {
@@ -839,8 +849,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         }} />
                     </div>
                     <div>
-                      <label className="v5-fl">{isPt ? 'Encargos patronais (%)' : 'Charges patronales (%)'}</label>
-                      <input className="v5-fi" type="number" min="0" max="80" step="1" value={mForm.charges_patronales_pct}
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Encargos patronais (%)' : 'Charges patronales (%)'}</label>
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" max="80" step="1" value={mForm.charges_patronales_pct}
                         onChange={e => setMForm({ ...mForm, charges_patronales_pct: parseFloat(e.target.value) || 45 })} />
                     </div>
                   </div>
@@ -848,11 +858,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   {/* Salaire NET / BRUT / Horaire */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário líquido (€)' : 'Salaire NET (€)'}
                         {calcMode === 'auto' && mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
-                      <input className="v5-fi" type="number" min="0" step="50"
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="50"
                         value={mForm.salaire_net_mensuel}
                         style={{
                           borderColor: calcMode === 'auto' && mForm._lastEdited === 'net' ? 'var(--v5-primary-yellow)' : undefined,
@@ -876,11 +886,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         placeholder="ex: 1700" />
                     </div>
                     <div>
-                      <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário bruto (€)' : 'Salaire BRUT (€)'}
                         {calcMode === 'auto' && mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
-                      <input className="v5-fi" type="number" min="0" step="50"
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="50"
                         value={mForm.salaire_brut_mensuel}
                         style={{
                           borderColor: calcMode === 'auto' && mForm._lastEdited === 'brut' ? 'var(--v5-primary-yellow)' : undefined,
@@ -904,11 +914,11 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         placeholder="ex: 2180" />
                     </div>
                     <div>
-                      <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Custo horário (€)' : 'Coût horaire (€)'}
                         {calcMode === 'auto' && mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
-                      <input className="v5-fi" type="number" min="0" step="0.5"
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="0.5"
                         value={mForm.coutHoraire}
                         style={{
                           borderColor: calcMode === 'auto' && mForm._lastEdited === 'horaire' ? 'var(--v5-primary-yellow)' : undefined,
@@ -971,7 +981,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                     <div style={{ padding: 10, background: '#fff', borderRadius: 8, border: '1px solid #E8E8E8', fontSize: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <span style={{ fontWeight: 700 }}>{isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</span>
-                        <span className="v5-badge v5-badge-gray">{companyConfig.label_fr}</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{companyConfig.label_fr}</span>
                       </div>
                       {(() => {
                         const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
@@ -1045,18 +1055,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className="v5-fl">{isPt ? 'Refeição/dia (€)' : 'Panier repas/jour (€)'}</label>
-                      <input className="v5-fi" type="number" min="0" step="0.5" value={mForm.panier_repas_jour}
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Refeição/dia (€)' : 'Panier repas/jour (€)'}</label>
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="0.5" value={mForm.panier_repas_jour}
                         onChange={e => setMForm({ ...mForm, panier_repas_jour: parseFloat(e.target.value) || 0 })} />
                     </div>
                     <div>
-                      <label className="v5-fl">{isPt ? 'Deslocação/dia (€)' : 'Indemnité trajet/jour (€)'}</label>
-                      <input className="v5-fi" type="number" min="0" step="0.5" value={mForm.indemnite_trajet_jour}
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Deslocação/dia (€)' : 'Indemnité trajet/jour (€)'}</label>
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="0.5" value={mForm.indemnite_trajet_jour}
                         onChange={e => setMForm({ ...mForm, indemnite_trajet_jour: parseFloat(e.target.value) || 0 })} />
                     </div>
                     <div>
-                      <label className="v5-fl">{isPt ? 'Prémio mensal (€)' : 'Prime mensuelle (€)'}</label>
-                      <input className="v5-fi" type="number" min="0" step="10" value={mForm.prime_mensuelle}
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Prémio mensal (€)' : 'Prime mensuelle (€)'}</label>
+                      <input className={isV5 ? 'v5-fi' : 'v22-form-input'} type="number" min="0" step="10" value={mForm.prime_mensuelle}
                         onChange={e => setMForm({ ...mForm, prime_mensuelle: parseFloat(e.target.value) || 0 })} />
                     </div>
                   </div>
@@ -1116,9 +1126,9 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
             </div>
 
             <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8 }}>
-              <button className="v5-btn" style={{ flex: 1 }}
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}
                 onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v5-btn v5-btn-p" style={{ flex: 1 }}
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1 }}
                 onClick={submitMembre} disabled={!mForm.prenom.trim() || !mForm.nom.trim() || saving}>
                 {saving ? '...' : editingMembre ? (isPt ? 'Guardar' : 'Sauvegarder') : (isPt ? 'Adicionar' : 'Ajouter')}
               </button>
@@ -1130,25 +1140,25 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
       {/* ── MODAL ÉQUIPE ── */}
       {showEquipeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v5-card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
             <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
-              <button className="v5-btn v5-btn-sm" onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>✕</button>
+              <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>✕</button>
             </div>
             <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="v5-fl">{isPt ? 'Nome da equipa *' : "Nom de l'équipe *"}</label>
-                <input className="v5-fi" value={eForm.nom} onChange={e => setEForm({ ...eForm, nom: e.target.value })} placeholder={isPt ? 'ex: Equipa Alvenaria A' : 'ex: Équipe Maçonnerie A'} />
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome da equipa *' : "Nom de l'équipe *"}</label>
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={eForm.nom} onChange={e => setEForm({ ...eForm, nom: e.target.value })} placeholder={isPt ? 'ex: Equipa Alvenaria A' : 'ex: Équipe Maçonnerie A'} />
               </div>
               <div>
-                <label className="v5-fl">{isPt ? 'Especialidade' : 'Corps de métier'}</label>
-                <select className="v5-fi" value={eForm.metier} onChange={e => setEForm({ ...eForm, metier: e.target.value })}>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Especialidade' : 'Corps de métier'}</label>
+                <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={eForm.metier} onChange={e => setEForm({ ...eForm, metier: e.target.value })}>
                   <option value="">—</option>
                   {METIERS_FR.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="v5-fl">{isPt ? 'Membros da equipa' : "Membres de l'équipe"}</label>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Membros da equipa' : "Membres de l'équipe"}</label>
                 {membres.length === 0 ? (
                   <p style={{ fontSize: 11, color: '#999' }}>{isPt ? 'Adicione colaboradores primeiro' : "Ajoutez des collaborateurs d'abord"}</p>
                 ) : (
@@ -1181,9 +1191,9 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
               )}
             </div>
             <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8 }}>
-              <button className="v5-btn" style={{ flex: 1 }}
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}
                 onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v5-btn v5-btn-p" style={{ flex: 1 }}
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1 }}
                 onClick={submitEquipe} disabled={!eForm.nom.trim() || saving}>
                 {saving ? '...' : editingEquipe ? 'Sauvegarder' : (isPt ? 'Criar' : 'Créer')}
               </button>
@@ -1195,17 +1205,17 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
       {/* ── MODAL CONFIRMATION SUPPRESSION ── */}
       {confirmDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setConfirmDelete(null)}>
-          <div className="v5-card" style={{ maxWidth: 400, padding: 0 }} onClick={e => e.stopPropagation()}>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ maxWidth: 400, padding: 0 }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</span>
-              <button className="v5-btn v5-btn-sm" onClick={() => setConfirmDelete(null)}>✕</button>
+              <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => setConfirmDelete(null)}>✕</button>
             </div>
             <div style={{ padding: '1rem 1.25rem' }}>
               <p style={{ fontSize: 12 }}>{isPt ? 'Tem certeza que deseja eliminar?' : 'Êtes-vous sûr de vouloir supprimer ?'}</p>
             </div>
             <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="v5-btn" onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v5-btn v5-btn-d" onClick={() => {
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-d' : 'v22-btn v22-btn-danger'} onClick={() => {
                 if (confirmDelete.type === 'membre') doActualDeleteMembre(confirmDelete.id)
                 else if (confirmDelete.type === 'equipe') doActualDeleteEquipe(confirmDelete.id)
                 setConfirmDelete(null)

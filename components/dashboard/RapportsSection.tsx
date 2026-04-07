@@ -99,8 +99,9 @@ const RAPPORT_STATUS_MAP = {
   sous_garantie: { label: '🛡️ Sous garantie', tagClass: 'v22-tag v22-tag-gray' },
 }
 
-export default function RapportsSection({ artisan, bookings, services, onNavigate }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void }) {
+export default function RapportsSection({ artisan, bookings, services, onNavigate, orgRole }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void; orgRole?: string }) {
   const locale = useLocale()
+  const isV5 = orgRole === 'pro_societe'
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_rapports_${artisan?.id}`
   const pdfRef = useRef<HTMLDivElement>(null)
@@ -474,49 +475,49 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const fv = (v: string | undefined) => v || ''
 
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : ''}>
       {/* ── Header ── */}
-      <div className="v22-page-header">
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div>
-          <h1 className="v22-page-title">Rapports d&apos;Intervention</h1>
-          <p className="v22-page-sub">Compte-rendus BTP, lies a vos interventions</p>
+          <h1 className={isV5 ? '' : 'v22-page-title'}>Rapports d&apos;Intervention</h1>
+          <p className={isV5 ? '' : 'v22-page-sub'}>Compte-rendus BTP, lies a vos interventions</p>
         </div>
-        <button onClick={openNew} className="v22-btn v22-btn-primary">
+        <button onClick={openNew} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
           + Nouveau rapport
         </button>
       </div>
 
       {/* ── Form Modal ── */}
       {showForm && (
-      <div className="v22-modal-overlay open">
+      <div className={isV5 ? 'v5-modal-ov open' : 'v22-modal-overlay open'}>
         {showForm && (
-          <div className="v22-modal v22-modal--tall" style={{ maxWidth: '720px' }}>
-            <div className="v22-modal-head">
-              <span className="v22-modal-title">
+          <div className={isV5 ? 'v5-modal' : 'v22-modal v22-modal--tall'} style={{ maxWidth: '720px' }}>
+            <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
+              <span className={isV5 ? 'v5-modal-t' : 'v22-modal-title'}>
                 {editingId ? 'Modifier le rapport' : 'Nouveau rapport d\'intervention'}
               </span>
               <span className="v22-ref">{fv(form.rapportNumber)}</span>
               <button onClick={() => setShowForm(false)} className="v22-modal-close">✕</button>
             </div>
 
-            <div className="v22-modal-body">
+            <div className={isV5 ? '' : 'v22-modal-body'}>
               {/* Liaison intervention / mission */}
-              <div className="v22-card">
-                <div className="v22-card-head">
-                  <span className="v22-card-title">Import rapide : pre-remplir depuis</span>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'}>
+                  <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Import rapide : pre-remplir depuis</span>
                 </div>
-                <div className="v22-card-body" style={{ padding: '14px' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                     <button
                       onClick={() => setImportSource('intervention')}
-                      className={importSource === 'intervention' ? 'v22-btn v22-btn-primary' : 'v22-btn'}
+                      className={importSource === 'intervention' ? (isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary') : (isV5 ? 'v5-btn' : 'v22-btn')}
                       style={{ flex: 1 }}
                     >
                       Intervention client
                     </button>
                     <button
                       onClick={() => setImportSource('mission')}
-                      className={importSource === 'mission' ? 'v22-btn v22-btn-primary' : 'v22-btn'}
+                      className={importSource === 'mission' ? (isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary') : (isV5 ? 'v5-btn' : 'v22-btn')}
                       style={{ flex: 1 }}
                     >
                       Mission syndic / pro
@@ -527,7 +528,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     <select
                       onChange={e => linkBooking(e.target.value)}
                       defaultValue=""
-                      className="v22-form-input"
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'}
                       disabled={linkingBooking}
                     >
                       <option value="">{linkingBooking ? 'Chargement des donnees client...' : 'Selectionner une intervention pour pre-remplir...'}</option>
@@ -542,7 +543,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                       <select
                         onChange={e => linkMission(e.target.value)}
                         defaultValue=""
-                        className="v22-form-input"
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
                       >
                         <option value="">Selectionner une mission pour pre-remplir...</option>
                         {availableMissions.map(m => (
@@ -553,7 +554,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         ))}
                       </select>
                       {availableMissions.length === 0 && (
-                        <p className="v22-card-meta" style={{ marginTop: '8px', fontStyle: 'italic' }}>Aucune mission disponible. Les missions apparaissent ici depuis vos Ordres de Mission ou missions gestionnaire.</p>
+                        <p className={isV5 ? '' : 'v22-card-meta'} style={{ marginTop: '8px', fontStyle: 'italic' }}>Aucune mission disponible. Les missions apparaissent ici depuis vos Ordres de Mission ou missions gestionnaire.</p>
                       )}
                     </>
                   )}
@@ -562,12 +563,12 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
               {/* Ref. devis / facture + statut */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Lier a un Devis / Facture</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Lier a un Devis / Facture</label>
                   <select
                     value={fv(form.refDevisFact)}
                     onChange={e => setForm(p => ({ ...p, refDevisFact: e.target.value }))}
-                    className="v22-form-input"
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'}
                   >
                     <option value="">Aucun document lie</option>
                     {(() => {
@@ -587,12 +588,12 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                   </select>
                   <input type="text" value={fv(form.refDevisFact)} onChange={e => setForm(p => ({ ...p, refDevisFact: e.target.value }))}
                     placeholder="Ou saisir manuellement : DEV-2026-001"
-                    className="v22-form-input" style={{ marginTop: '6px' }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ marginTop: '6px' }} />
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Statut</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Statut</label>
                   <select value={fv(form.status)} onChange={e => setForm(p => ({ ...p, status: e.target.value as any }))}
-                    className="v22-form-input">
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'}>
                     <option value="termine">Termine</option>
                     <option value="en_cours">En cours</option>
                     <option value="a_reprendre">A reprendre</option>
@@ -602,17 +603,17 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               </div>
 
               {/* Section Client */}
-              <div className="v22-card">
-                <div className="v22-card-head">
-                  <span className="v22-card-title">Client</span>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'}>
+                  <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Client</span>
                 </div>
-                <div className="v22-card-body" style={{ padding: '14px' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div className="v22-form-group" style={{ position: 'relative' }}>
-                      <label className="v22-form-label">Nom / Raison sociale *</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom / Raison sociale *</label>
                       <input type="text" value={fv(form.clientName)} onChange={e => handleClientNameChange(e.target.value)}
                         onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
-                        placeholder="Jean Dupont" className="v22-form-input" autoComplete="off" />
+                        placeholder="Jean Dupont" className={isV5 ? 'v5-fi' : 'v22-form-input'} autoComplete="off" />
                       {showClientSuggestions && clientSuggestions.length > 0 && (
                         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 180, overflowY: 'auto' }}>
                           {clientSuggestions.map((c, i) => (
@@ -625,59 +626,59 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         </div>
                       )}
                     </div>
-                    <div className="v22-form-group">
-                      <label className="v22-form-label">Telephone</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Telephone</label>
                       <input type="tel" value={fv(form.clientPhone)} onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))}
-                        placeholder="06 00 00 00 00" className="v22-form-input" />
+                        placeholder="06 00 00 00 00" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div className="v22-form-group">
-                      <label className="v22-form-label">Email</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Email</label>
                       <input type="email" value={fv(form.clientEmail)} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))}
-                        placeholder="client@exemple.fr" className="v22-form-input" />
+                        placeholder="client@exemple.fr" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div className="v22-form-group">
-                      <label className="v22-form-label">Adresse client</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Adresse client</label>
                       <input type="text" value={fv(form.clientAddress)} onChange={e => setForm(p => ({ ...p, clientAddress: e.target.value }))}
-                        placeholder="12 rue de la Paix, 13600..." className="v22-form-input" />
+                        placeholder="12 rue de la Paix, 13600..." className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Section Intervention */}
-              <div className="v22-card">
-                <div className="v22-card-head">
-                  <span className="v22-card-title">Details de l&apos;intervention</span>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'}>
+                  <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Details de l&apos;intervention</span>
                 </div>
-                <div className="v22-card-body" style={{ padding: '14px' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                    <div className="v22-form-group">
-                      <label className="v22-form-label">Date *</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date *</label>
                       <input type="date" value={fv(form.interventionDate)} onChange={e => setForm(p => ({ ...p, interventionDate: e.target.value }))}
-                        className="v22-form-input" />
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div className="v22-form-group">
-                      <label className="v22-form-label">Heure debut</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Heure debut</label>
                       <input type="time" value={fv(form.startTime)} onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
-                        className="v22-form-input" />
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div className="v22-form-group">
-                      <label className="v22-form-label">Heure fin</label>
+                    <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Heure fin</label>
                       <input type="time" value={fv(form.endTime)} onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
-                        className="v22-form-input" />
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
                   </div>
-                  <div className="v22-form-group" style={{ marginBottom: '10px' }}>
-                    <label className="v22-form-label">Adresse du chantier (si differente du client)</label>
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ marginBottom: '10px' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Adresse du chantier (si differente du client)</label>
                     <input type="text" value={fv(form.siteAddress)} onChange={e => setForm(p => ({ ...p, siteAddress: e.target.value }))}
-                      placeholder="Adresse d'intervention..." className="v22-form-input" />
+                      placeholder="Adresse d'intervention..." className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
-                  <div className="v22-form-group" style={{ position: 'relative' }}>
-                    <label className="v22-form-label">Motif / Description du probleme *</label>
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Motif / Description du probleme *</label>
                     <textarea value={fv(form.motif)} onChange={e => handleMotifChange(e.target.value)}
                       onBlur={() => setTimeout(() => setShowMotifSuggestions(false), 200)}
                       rows={2} placeholder="Fuite sous evier cuisine, remplacement robinet defectueux..."
-                      className="v22-form-input" style={{ resize: 'none' }} />
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                     {showMotifSuggestions && motifSuggestions.length > 0 && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 160, overflowY: 'auto' }}>
                         {motifSuggestions.map((m, i) => (
@@ -693,24 +694,24 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               </div>
 
               {/* Travaux realises */}
-              <div className="v22-card">
-                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="v22-card-title">Travaux realises</span>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Travaux realises</span>
                   <button onClick={() => setForm(p => ({ ...p, travaux: [...(p.travaux || []), ''] }))}
-                    className="v22-btn v22-btn-sm">
+                    className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
                     + Ajouter
                   </button>
                 </div>
-                <div className="v22-card-body" style={{ padding: '14px' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
                   {(form.travaux || ['']).map((t, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
-                      <span className="v22-card-meta">✓</span>
+                      <span className={isV5 ? '' : 'v22-card-meta'}>✓</span>
                       <input type="text" value={t} onChange={e => setForm(p => ({ ...p, travaux: (p.travaux || []).map((x, j) => j === i ? e.target.value : x) }))}
                         placeholder="Depose et remplacement du robinet mitigeur..."
-                        className="v22-form-input" style={{ flex: 1 }} />
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1 }} />
                       {(form.travaux || []).length > 1 && (
                         <button onClick={() => setForm(p => ({ ...p, travaux: (p.travaux || []).filter((_, j) => j !== i) }))}
-                          className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>✕</button>
+                          className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: 'var(--v22-red)' }}>✕</button>
                       )}
                     </div>
                   ))}
@@ -718,24 +719,24 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               </div>
 
               {/* Materiaux */}
-              <div className="v22-card">
-                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="v22-card-title">Materiaux utilises</span>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Materiaux utilises</span>
                   <button onClick={() => setForm(p => ({ ...p, materiaux: [...(p.materiaux || []), ''] }))}
-                    className="v22-btn v22-btn-sm">
+                    className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
                     + Ajouter
                   </button>
                 </div>
-                <div className="v22-card-body" style={{ padding: '14px' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
                   {(form.materiaux || ['']).map((m, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
-                      <span className="v22-card-meta">—</span>
+                      <span className={isV5 ? '' : 'v22-card-meta'}>—</span>
                       <input type="text" value={m} onChange={e => setForm(p => ({ ...p, materiaux: (p.materiaux || []).map((x, j) => j === i ? e.target.value : x) }))}
                         placeholder="Robinet mitigeur Grohe (1u), Joint 3/4 (2u)..."
-                        className="v22-form-input" style={{ flex: 1 }} />
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1 }} />
                       {(form.materiaux || []).length > 1 && (
                         <button onClick={() => setForm(p => ({ ...p, materiaux: (p.materiaux || []).filter((_, j) => j !== i) }))}
-                          className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>✕</button>
+                          className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: 'var(--v22-red)' }}>✕</button>
                       )}
                     </div>
                   ))}
@@ -744,34 +745,34 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
               {/* Observations + Recommandations */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Observations</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Observations</label>
                   <textarea value={fv(form.observations)} onChange={e => setForm(p => ({ ...p, observations: e.target.value }))}
                     rows={3} placeholder="Constatations sur place, etat du materiel existant..."
-                    className="v22-form-input" style={{ resize: 'none' }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Recommandations</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Recommandations</label>
                   <textarea value={fv(form.recommendations)} onChange={e => setForm(p => ({ ...p, recommendations: e.target.value }))}
                     rows={3} placeholder="Travaux complementaires conseilles, delai de revision..."
-                    className="v22-form-input" style={{ resize: 'none' }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
               </div>
 
               {/* Photos Chantier liees */}
-              <div className="v22-card">
-                <div className="v22-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="v22-card-title">Photos Chantier</span>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Photos Chantier</span>
                   <button
                     type="button"
                     onClick={() => { setShowPhotoPicker(!showPhotoPicker); if (!showPhotoPicker && availablePhotos.length === 0) loadAvailablePhotos() }}
-                    className="v22-btn v22-btn-sm"
+                    className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
                     disabled={photosLoading}
                   >
                     {photosLoading ? 'Chargement...' : showPhotoPicker ? (locale === 'pt' ? '✕ Fechar' : '✕ Fermer') : (locale === 'pt' ? '+ Adicionar fotos' : '+ Ajouter des photos')}
                   </button>
                 </div>
-                <div className="v22-card-body" style={{ padding: '14px' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
                   {/* Photos deja liees */}
                   {linkedPhotos.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
@@ -801,23 +802,23 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                   )}
 
                   {linkedPhotos.length === 0 && !showPhotoPicker && (
-                    <p className="v22-card-meta" style={{ fontStyle: 'italic' }}>Aucune photo liee. Ajoutez des photos chantier pour les inclure dans le rapport.</p>
+                    <p className={isV5 ? '' : 'v22-card-meta'} style={{ fontStyle: 'italic' }}>Aucune photo liee. Ajoutez des photos chantier pour les inclure dans le rapport.</p>
                   )}
 
                   {/* Picker — grille de photos disponibles */}
                   {showPhotoPicker && (
                     <div style={{ background: 'var(--v22-bg)', borderRadius: '6px', padding: '10px', marginTop: '8px' }}>
                       {photosLoading ? (
-                        <div className="v22-card-meta" style={{ textAlign: 'center', padding: '16px' }}>Chargement des photos...</div>
+                        <div className={isV5 ? '' : 'v22-card-meta'} style={{ textAlign: 'center', padding: '16px' }}>Chargement des photos...</div>
                       ) : availablePhotos.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '16px' }}>
                           <div style={{ fontSize: '24px', marginBottom: '4px' }}>📸</div>
-                          <p className="v22-card-meta">Aucune photo chantier disponible</p>
-                          <p className="v22-card-meta" style={{ marginTop: '2px' }}>Prenez des photos depuis l&apos;app mobile</p>
+                          <p className={isV5 ? '' : 'v22-card-meta'}>Aucune photo chantier disponible</p>
+                          <p className={isV5 ? '' : 'v22-card-meta'} style={{ marginTop: '2px' }}>Prenez des photos depuis l&apos;app mobile</p>
                         </div>
                       ) : (
                         <>
-                          <p className="v22-card-meta" style={{ marginBottom: '8px' }}>Cliquez pour selectionner / deselectionner :</p>
+                          <p className={isV5 ? '' : 'v22-card-meta'} style={{ marginBottom: '8px' }}>Cliquez pour selectionner / deselectionner :</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', maxHeight: '192px', overflowY: 'auto' }}>
                             {availablePhotos.map(photo => {
                               const isLinked = linkedPhotos.includes(photo.id)
@@ -841,7 +842,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                               )
                             })}
                           </div>
-                          <p className="v22-card-meta" style={{ marginTop: '8px', textAlign: 'right' }}>{linkedPhotos.length} photo{linkedPhotos.length > 1 ? 's' : ''} selectionnee{linkedPhotos.length > 1 ? 's' : ''}</p>
+                          <p className={isV5 ? '' : 'v22-card-meta'} style={{ marginTop: '8px', textAlign: 'right' }}>{linkedPhotos.length} photo{linkedPhotos.length > 1 ? 's' : ''} selectionnee{linkedPhotos.length > 1 ? 's' : ''}</p>
                         </>
                       )}
                     </div>
@@ -850,12 +851,12 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               </div>
             </div>
 
-            <div className="v22-modal-foot">
-              <button onClick={() => setShowForm(false)} className="v22-btn" style={{ flex: 1 }}>
+            <div className={isV5 ? '' : 'v22-modal-foot'}>
+              <button onClick={() => setShowForm(false)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}>
                 Annuler
               </button>
               <button onClick={saveForm} disabled={!form.clientName || !form.interventionDate || !form.motif}
-                className="v22-btn v22-btn-primary" style={{ flex: 1, opacity: (!form.clientName || !form.interventionDate || !form.motif) ? 0.5 : 1 }}>
+                className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1, opacity: (!form.clientName || !form.interventionDate || !form.motif) ? 0.5 : 1 }}>
                 {editingId ? 'Mettre a jour' : 'Creer le rapport'}
               </button>
             </div>
@@ -867,18 +868,18 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       {/* ── Compteurs ── */}
       {rapports.length > 0 && (
         <div style={{ padding: '16px 14px 0' }}>
-          <div className="v22-stats">
-            <div className="v22-stat">
-              <div className="v22-stat-val">{rapports.length}</div>
-              <div className="v22-stat-label">Total rapports</div>
+          <div className={isV5 ? 'v5-card' : 'v22-stats'}>
+            <div className={isV5 ? '' : 'v22-stat'}>
+              <div className={isV5 ? '' : 'v22-stat-val'}>{rapports.length}</div>
+              <div className={isV5 ? '' : 'v22-stat-label'}>Total rapports</div>
             </div>
-            <div className="v22-stat">
-              <div className="v22-stat-val" style={{ color: 'var(--v22-green)' }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
-              <div className="v22-stat-label">Envoyes</div>
+            <div className={isV5 ? '' : 'v22-stat'}>
+              <div className={isV5 ? '' : 'v22-stat-val'} style={{ color: 'var(--v22-green)' }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
+              <div className={isV5 ? '' : 'v22-stat-label'}>Envoyes</div>
             </div>
-            <div className="v22-stat">
-              <div className="v22-stat-val" style={{ color: 'var(--v22-amber)' }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
-              <div className="v22-stat-label">Non envoyes</div>
+            <div className={isV5 ? '' : 'v22-stat'}>
+              <div className={isV5 ? '' : 'v22-stat-val'} style={{ color: 'var(--v22-amber)' }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
+              <div className={isV5 ? '' : 'v22-stat-label'}>Non envoyes</div>
             </div>
           </div>
         </div>
@@ -887,18 +888,18 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       {/* ── Rapport list ── */}
       <div style={{ padding: '14px' }}>
         {rapports.length === 0 ? (
-          <div className="v22-card" style={{ textAlign: 'center', padding: '48px 16px' }}>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
-            <div className="v22-card-title" style={{ marginBottom: '6px' }}>Aucun rapport</div>
-            <p className="v22-card-meta" style={{ marginBottom: '16px' }}>Creez votre premier rapport d&apos;intervention BTP</p>
-            <button onClick={openNew} className="v22-btn v22-btn-primary">
+            <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ marginBottom: '6px' }}>Aucun rapport</div>
+            <p className={isV5 ? '' : 'v22-card-meta'} style={{ marginBottom: '16px' }}>Creez votre premier rapport d&apos;intervention BTP</p>
+            <button onClick={openNew} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
               Creer un rapport
             </button>
           </div>
         ) : (
-          <div className="v22-card">
-            <div className="v22-card-head">
-              <span className="v22-card-title">Rapports ({rapports.length})</span>
+          <div className={isV5 ? 'v5-card' : 'v22-card'}>
+            <div className={isV5 ? '' : 'v22-card-head'}>
+              <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Rapports ({rapports.length})</span>
             </div>
             <table>
               <thead>

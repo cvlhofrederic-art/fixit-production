@@ -35,29 +35,39 @@ export default function HorairesSection({
 }: HorairesSectionProps) {
   const { t } = useTranslation()
   const isSociete = orgRole === 'pro_societe'
+  const isV5 = isSociete
 
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : undefined}>
       {/* Page header */}
-      <div className="v22-page-header">
-        <div>
-          <h1 className="v22-page-title">
-            {isSociete ? '⏱️ Horaires chantier & équipes' : `${'🕐'} ${t('proDash.horaires.title')}`}
-          </h1>
-          <p className="v22-page-sub">
-            {isSociete
-              ? "Définissez les plages d'intervention de votre entreprise — affichées sur votre profil et dans les appels d'offres"
-              : t('proDash.horaires.subtitle')}
-          </p>
-        </div>
-        <div />
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+        {isV5 ? (
+          <>
+            <h1>{'⏱️'} Horaires chantier &amp; équipes</h1>
+            <p>Définissez les plages d&apos;intervention de votre entreprise — affichées sur votre profil et dans les appels d&apos;offres</p>
+          </>
+        ) : (
+          <>
+            <div>
+              <h1 className="v22-page-title">
+                {isSociete ? '⏱️ Horaires chantier & équipes' : `${'🕐'} ${t('proDash.horaires.title')}`}
+              </h1>
+              <p className="v22-page-sub">
+                {isSociete
+                  ? "Définissez les plages d'intervention de votre entreprise — affichées sur votre profil et dans les appels d'offres"
+                  : t('proDash.horaires.subtitle')}
+              </p>
+            </div>
+            <div />
+          </>
+        )}
       </div>
 
       <div style={{ padding: '24px' }}>
 
         {/* Info box société */}
         {isSociete && (
-          <div className="v22-alert v22-alert-amber" style={{ marginBottom: 16, cursor: 'default' }}>
+          <div className={isV5 ? 'v5-al' : 'v22-alert v22-alert-amber'} style={{ marginBottom: 16, cursor: 'default' }}>
             <span style={{ fontSize: 12 }}>
               <strong>{'💡'} Conseil</strong> Ces horaires apparaissent sur votre profil entreprise et sont pris en compte lors des appels d&apos;offres. Activez les jours où vos équipes interviennent.
             </span>
@@ -65,10 +75,10 @@ export default function HorairesSection({
         )}
 
         {/* Mode validation */}
-        <div className="v22-card" style={{ marginBottom: 16, padding: 14 }}>
+        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <div className="v22-card-title">
+              <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
                 {isSociete ? 'Acceptation des demandes' : t('proDash.horaires.modeValidation')}
               </div>
               <div className="v22-card-meta">
@@ -79,7 +89,9 @@ export default function HorairesSection({
             </div>
             <button
               onClick={toggleAutoAccept}
-              className={autoAccept ? 'v22-btn v22-btn-sm v22-tag v22-tag-green' : 'v22-btn v22-btn-sm v22-tag v22-tag-amber'}
+              className={isV5
+                ? (autoAccept ? 'v5-btn v5-btn-p' : 'v5-btn')
+                : (autoAccept ? 'v22-btn v22-btn-sm v22-tag v22-tag-green' : 'v22-btn v22-btn-sm v22-tag v22-tag-amber')}
               style={{ cursor: 'pointer' }}
             >
               {autoAccept ? `🟢 ${t('proDash.horaires.automatique')}` : `🟡 ${t('proDash.horaires.manuel')}`}
@@ -88,9 +100,9 @@ export default function HorairesSection({
         </div>
 
         {/* Plages d'ouverture */}
-        <div className="v22-card">
+        <div className={isV5 ? 'v5-card' : 'v22-card'}>
           <div className="v22-card-head">
-            <span className="v22-card-title">
+            <span className={isV5 ? 'v5-st' : 'v22-card-title'}>
               {isSociete ? "⏱️ Plages d'intervention" : `${'🕐'} ${t('proDash.horaires.plagesOuverture')}`}
             </span>
           </div>
@@ -100,43 +112,51 @@ export default function HorairesSection({
               const dayServiceIds = dayServices[String(day)] || []
               const activeServices = services.filter(s => s.active)
               return (
-                <div key={day} style={{ padding: 10, borderRadius: 6, background: 'var(--v22-bg)' }}>
+                <div key={day} className={isV5 ? 'v5-horaire-row' : undefined} style={isV5 ? undefined : { padding: 10, borderRadius: 6, background: 'var(--v22-bg)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                     <span style={{ width: 90, fontWeight: 600, fontSize: 13 }}>{DAY_NAMES[day]}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
                       {/* Toggle switch */}
-                      <button
-                        onClick={() => toggleDayAvailability(day)}
-                        style={{
-                          width: 38,
-                          height: 20,
-                          borderRadius: 10,
-                          position: 'relative',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'background .2s',
-                          background: avail?.is_available ? 'var(--v22-green)' : 'var(--v22-border-dark)',
-                        }}
-                      >
-                        <div style={{
-                          position: 'absolute',
-                          top: 2,
-                          width: 16,
-                          height: 16,
-                          background: '#fff',
-                          borderRadius: '50%',
-                          boxShadow: '0 1px 2px rgba(0,0,0,.15)',
-                          transition: 'transform .2s',
-                          transform: avail?.is_available ? 'translateX(19px)' : 'translateX(2px)',
-                        }} />
-                      </button>
+                      {isV5 ? (
+                        <button
+                          onClick={() => toggleDayAvailability(day)}
+                          className="v5-tgl"
+                          data-active={avail?.is_available ? 'true' : 'false'}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => toggleDayAvailability(day)}
+                          style={{
+                            width: 38,
+                            height: 20,
+                            borderRadius: 10,
+                            position: 'relative',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'background .2s',
+                            background: avail?.is_available ? 'var(--v22-green)' : 'var(--v22-border-dark)',
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute',
+                            top: 2,
+                            width: 16,
+                            height: 16,
+                            background: '#fff',
+                            borderRadius: '50%',
+                            boxShadow: '0 1px 2px rgba(0,0,0,.15)',
+                            transition: 'transform .2s',
+                            transform: avail?.is_available ? 'translateX(19px)' : 'translateX(2px)',
+                          }} />
+                        </button>
+                      )}
                       {avail?.is_available ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input
                             type="time"
                             value={avail.start_time?.substring(0, 5) || '08:00'}
                             onChange={(e) => updateAvailabilityTime(day, 'start_time', e.target.value)}
-                            className="v22-form-input"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
                             style={{ width: 100, padding: '4px 8px' }}
                           />
                           <span className="v22-card-meta">{t('proDash.common.a')}</span>
@@ -144,7 +164,7 @@ export default function HorairesSection({
                             type="time"
                             value={avail.end_time?.substring(0, 5) || '17:00'}
                             onChange={(e) => updateAvailabilityTime(day, 'end_time', e.target.value)}
-                            className="v22-form-input"
+                            className={isV5 ? 'v5-fi' : 'v22-form-input'}
                             style={{ width: 100, padding: '4px 8px' }}
                           />
                           <span className="v22-card-meta" style={{ marginLeft: 4 }}>
@@ -167,7 +187,9 @@ export default function HorairesSection({
                           return (
                             <label
                               key={service.id}
-                              className={isAssigned ? 'v22-tag v22-tag-yellow' : 'v22-tag v22-tag-gray'}
+                              className={isV5
+                                ? 'v5-chip'
+                                : (isAssigned ? 'v22-tag v22-tag-yellow' : 'v22-tag v22-tag-gray')}
                               style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                             >
                               <input

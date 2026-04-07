@@ -39,7 +39,8 @@ const TVA_LABELS: Record<string, string> = {
   reel_normal: 'Réel normal', reel_simplifie: 'Réel simplifié', franchise: 'Franchise de TVA', mini_reel: 'Mini-réel',
 }
 
-export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
+export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
+  const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dl = isPt ? 'pt-PT' : 'fr-FR'
@@ -218,13 +219,13 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
-      <div className="v5-pg-t">
+      <div className={isV5 ? "v5-pg-t" : "v22-page-header"}>
         <h1>{isPt ? 'Contabilidade Inteligente BTP' : 'Compta Intelligente BTP'}</h1>
         <p>{isPt ? 'Vista contabilística especializada BTP' : 'Vue comptable spécialisée BTP'}</p>
       </div>
 
       {/* Navigation tabs */}
-      <div className="v5-tabs">
+      <div className={isV5 ? "v5-tabs" : "v22-tabs"}>
         {([
           { k: 'dashboard', icon: <BarChart3 size={12} />, label: isPt ? 'Painel' : 'Tableau de bord' },
           { k: 'profil', icon: <User size={12} />, label: isPt ? 'Perfil fiscal' : 'Profil patron' },
@@ -232,7 +233,7 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
           { k: 'frais', icon: <Building2 size={12} />, label: isPt ? 'Encargos fixos' : 'Frais fixes' },
         ] as { k: 'dashboard' | 'profil' | 'equipe' | 'frais'; icon: React.ReactNode; label: string }[]).map(t => (
           <button key={t.k} onClick={() => setTab(t.k)}
-            className={`v5-tab-b${tab === t.k ? ' active' : ''}`}>
+            className={isV5 ? `v5-tab-b${tab === t.k ? ' active' : ''}` : `v22-tab ${tab === t.k ? 'active' : ''}`}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -240,32 +241,32 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
 
       {/* ══════ TAB: PROFIL PATRON ══════ */}
       {tab === 'profil' && (
-        <div className="v5-card" style={{ padding: 20 }}>
-          <div className="v5-st"><User size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'O meu perfil fiscal' : 'Mon profil fiscal'}</div>
-          <div className="v5-fr" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Salário mensal' : 'Salaire mensuel'} (&euro;)</label>
-              <input type="number" className="v5-fi" value={settings.salaire_patron_mensuel || ''}
+        <div className={isV5 ? "v5-card" : "v22-card"} style={{ padding: 20 }}>
+          <div className={isV5 ? "v5-st" : "v22-section-title"}><User size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'O meu perfil fiscal' : 'Mon profil fiscal'}</div>
+          <div className={isV5 ? "v5-fr" : "v22-form-row"} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Salário mensal' : 'Salaire mensuel'} (&euro;)</label>
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={settings.salaire_patron_mensuel || ''}
                 onChange={e => saveSettings({ salaire_patron_mensuel: Number(e.target.value) })}
                 placeholder="3000" />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Tipo de salário' : 'Type de salaire'}</label>
-              <select className="v5-fi" value={settings.salaire_patron_type}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Tipo de salário' : 'Type de salaire'}</label>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={settings.salaire_patron_type}
                 onChange={e => saveSettings({ salaire_patron_type: e.target.value as 'net' | 'brut' })}>
                 <option value="net">Net</option>
                 <option value="brut">Brut</option>
               </select>
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Cotizações patronais' : 'Cotisations patronales'} (%)</label>
-              <input type="number" className="v5-fi" value={settings.taux_cotisations_patron || ''}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cotizações patronais' : 'Cotisations patronales'} (%)</label>
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={settings.taux_cotisations_patron || ''}
                 onChange={e => saveSettings({ taux_cotisations_patron: Number(e.target.value) })}
                 placeholder="45" />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'País' : 'Pays'}</label>
-              <select className="v5-fi" value={settings.country || 'FR'}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'País' : 'Pays'}</label>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={settings.country || 'FR'}
                 onChange={e => {
                   const c = e.target.value as 'FR' | 'PT'
                   const defType = c === 'FR' ? 'sarl' : 'lda'
@@ -282,9 +283,9 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
                 <option value="PT">Portugal</option>
               </select>
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Tipo de empresa' : 'Type de société'}</label>
-              <select className="v5-fi" value={settings.company_type || settings.statut_juridique || 'sarl'}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Tipo de empresa' : 'Type de société'}</label>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={settings.company_type || settings.statut_juridique || 'sarl'}
                 onChange={e => {
                   const ct = e.target.value
                   const config = resolveCompanyType(ct, (settings.country || 'FR') as 'FR' | 'PT')
@@ -301,36 +302,36 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
                 ))}
               </select>
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Regime de IVA' : 'Régime de TVA'}</label>
-              <select className="v5-fi" value={settings.regime_tva}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Regime de IVA' : 'Régime de TVA'}</label>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={settings.regime_tva}
                 onChange={e => saveSettings({ regime_tva: e.target.value })}>
                 {Object.entries(TVA_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Taxa IS' : 'Taux IS'} (%)</label>
-              <input type="number" className="v5-fi" value={settings.taux_is || ''}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Taxa IS' : 'Taux IS'} (%)</label>
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={settings.taux_is || ''}
                 onChange={e => saveSettings({ taux_is: Number(e.target.value) })}
                 placeholder="25" />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Amortizações mensais' : 'Amortissements mensuels'} (&euro;)</label>
-              <input type="number" className="v5-fi" value={settings.amortissements_mensuels || ''}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Amortizações mensais' : 'Amortissements mensuels'} (&euro;)</label>
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={settings.amortissements_mensuels || ''}
                 onChange={e => saveSettings({ amortissements_mensuels: Number(e.target.value) })}
                 placeholder="500" />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{isPt ? 'Objetivo de margem' : 'Objectif de marge'} (%)</label>
-              <input type="number" className="v5-fi" value={settings.objectif_marge_pct || ''}
+            <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Objetivo de margem' : 'Objectif de marge'} (%)</label>
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={settings.objectif_marge_pct || ''}
                 onChange={e => saveSettings({ objectif_marge_pct: Number(e.target.value) })}
                 placeholder="20" />
             </div>
           </div>
 
           {/* Récap coût patron */}
-          <div className="v5-kpi hl" style={{ marginTop: 20, padding: 16 }}>
-            <div className="v5-st"><Coins size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Custo real mensal do patrão' : 'Coût réel mensuel du patron'}</div>
+          <div className={isV5 ? "v5-kpi hl" : "v22-kpi v22-kpi-hl"} style={{ marginTop: 20, padding: 16 }}>
+            <div className={isV5 ? "v5-st" : "v22-section-title"}><Coins size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Custo real mensal do patrão' : 'Coût réel mensuel du patron'}</div>
             <Row label={isPt ? 'Salário declarado' : 'Salaire déclaré'} value={`${fmt(settings.salaire_patron_mensuel || 0, dl)} € ${settings.salaire_patron_type}`} />
             <Row label={isPt ? 'Custo chargé (c/ cotizações)' : 'Coût chargé (cotisations incluses)'} value={`${fmt(salairePatronCharge, dl)} €`} color="#C62828" bold />
             <Row label={isPt ? 'Amortizações' : 'Amortissements'} value={`${fmt(settings.amortissements_mensuels || 0, dl)} €`} />
@@ -345,10 +346,10 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
 
       {/* ══════ TAB: COÛTS ÉQUIPE ══════ */}
       {tab === 'equipe' && (
-        <div className="v5-card">
-          <div className="v5-st"><HardHat size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Custo real por funcionário' : 'Coût réel par employé'}</div>
+        <div className={isV5 ? "v5-card" : "v22-card"}>
+          <div className={isV5 ? "v5-st" : "v22-section-title"}><HardHat size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Custo real por funcionário' : 'Coût réel par employé'}</div>
           <div style={{ overflowX: 'auto' }}>
-            <table className="v5-dt">
+            <table className={isV5 ? "v5-dt" : "v22-table"}>
               <thead>
                 <tr>
                   <th>{isPt ? 'Funcionário' : 'Employé'}</th>
@@ -375,7 +376,7 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
                   return (
                     <tr key={m.id}>
                       <td style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</td>
-                      <td><span className="v5-badge v5-badge-gray">{m.typeCompte || m.type_compte}</span></td>
+                      <td><span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"}>{m.typeCompte || m.type_compte}</span></td>
                       <td>{m.type_contrat || 'CDI'}</td>
                       <td>{ch} &euro;</td>
                       <td>{cp}%</td>
@@ -388,7 +389,7 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
               </tbody>
             </table>
           </div>
-          <div className="v5-al info" style={{ marginTop: 12 }}>
+          <div className={isV5 ? "v5-al info" : "v22-alert v22-alert-blue"} style={{ marginTop: 12 }}>
             <Lightbulb size={12} />{isPt
               ? 'Edite o custo horário e encargos de cada membro em Equipas > Editar membro'
               : 'Modifiez le coût horaire et les charges de chaque membre dans Équipes > Modifier le membre'}
@@ -398,8 +399,8 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
 
       {/* ══════ TAB: FRAIS FIXES ══════ */}
       {tab === 'frais' && (
-        <div className="v5-card">
-          <div className="v5-st"><Building2 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Encargos fixos mensais' : 'Frais fixes mensuels'}</div>
+        <div className={isV5 ? "v5-card" : "v22-card"}>
+          <div className={isV5 ? "v5-st" : "v22-section-title"}><Building2 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Encargos fixos mensais' : 'Frais fixes mensuels'}</div>
           <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
             {isPt
               ? 'Tudo o que paga todos os meses independentemente dos chantiers: renda, seguro, contabilista, viaturas, etc.'
@@ -412,7 +413,7 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FAFAFA', borderRadius: 6, border: '1px solid #E8E8E8' }}>
                 <div>
                   <span style={{ fontWeight: 600, fontSize: 12 }}>{f.label}</span>
-                  <span className="v5-badge v5-badge-gray" style={{ marginLeft: 8 }}>{f.frequence}</span>
+                  <span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"} style={{ marginLeft: 8 }}>{f.frequence}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontWeight: 600, color: '#C62828', fontSize: 12 }}>{fmt(f.montant, dl)} &euro;{f.frequence === 'annuel' ? '/an' : '/mois'}</span>
@@ -430,26 +431,26 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
           {/* Formulaire ajout */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ flex: 2 }}>
-              <label className="v5-fl">{isPt ? 'Descrição' : 'Libellé'}</label>
-              <input className="v5-fi" value={newFrai.label} onChange={e => setNewFrai({ ...newFrai, label: e.target.value })}
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Descrição' : 'Libellé'}</label>
+              <input className={isV5 ? "v5-fi" : "v22-input"} value={newFrai.label} onChange={e => setNewFrai({ ...newFrai, label: e.target.value })}
                 placeholder={isPt ? 'ex: Renda do escritório' : 'ex: Loyer bureau'} />
             </div>
             <div style={{ flex: 1 }}>
-              <label className="v5-fl">{isPt ? 'Montante' : 'Montant'} (&euro;)</label>
-              <input type="number" className="v5-fi" value={newFrai.montant || ''} onChange={e => setNewFrai({ ...newFrai, montant: Number(e.target.value) })} />
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Montante' : 'Montant'} (&euro;)</label>
+              <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={newFrai.montant || ''} onChange={e => setNewFrai({ ...newFrai, montant: Number(e.target.value) })} />
             </div>
             <div style={{ flex: 1 }}>
-              <label className="v5-fl">{isPt ? 'Frequência' : 'Fréquence'}</label>
-              <select className="v5-fi" value={newFrai.frequence} onChange={e => setNewFrai({ ...newFrai, frequence: e.target.value as any })}>
+              <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Frequência' : 'Fréquence'}</label>
+              <select className={isV5 ? "v5-fi" : "v22-input"} value={newFrai.frequence} onChange={e => setNewFrai({ ...newFrai, frequence: e.target.value as any })}>
                 <option value="mensuel">{isPt ? 'Mensal' : 'Mensuel'}</option>
                 <option value="annuel">{isPt ? 'Anual' : 'Annuel'}</option>
               </select>
             </div>
-            <button className="v5-btn v5-btn-p" onClick={addFrai} disabled={!newFrai.label || !newFrai.montant}><PlusCircle size={14} /></button>
+            <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={addFrai} disabled={!newFrai.label || !newFrai.montant}><PlusCircle size={14} /></button>
           </div>
 
           {/* Total */}
-          <div className="v5-kpi" style={{ marginTop: 16, padding: 12 }}>
+          <div className={isV5 ? "v5-kpi" : "v22-kpi"} style={{ marginTop: 16, padding: 12 }}>
             <Row label={isPt ? 'Total encargos fixos mensais' : 'Total frais fixes mensuels'} value={`${fmt(fraisFixes, dl)} € / ${isPt ? 'mês' : 'mois'}`} color="#C62828" bold />
             <Row label={isPt ? 'Por dia ouvré' : 'Par jour ouvré'} value={`${fmt(fraisFixes / 22, dl)} € / ${isPt ? 'dia' : 'jour'}`} color="#EF6C00" />
           </div>
@@ -460,26 +461,26 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
       {tab === 'dashboard' && (
         <>
           {/* KPIs globaux */}
-          <div className="v5-kpi-g">
-            <div className="v5-kpi hl">
-              <div className="v5-kpi-l">CA HT {isPt ? 'acumulado' : 'cumulé'}</div>
-              <div className="v5-kpi-v">{fmt(totals.ca, dl)} &euro;</div>
-              <div className="v5-kpi-s">{totals.nbChantiers} {isPt ? 'obras' : 'chantiers'}</div>
+          <div className={isV5 ? "v5-kpi-g" : "v22-kpi-grid"}>
+            <div className={isV5 ? "v5-kpi hl" : "v22-kpi v22-kpi-hl"}>
+              <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>CA HT {isPt ? 'acumulado' : 'cumulé'}</div>
+              <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"}>{fmt(totals.ca, dl)} &euro;</div>
+              <div className={isV5 ? "v5-kpi-s" : "v22-kpi-sub"}>{totals.nbChantiers} {isPt ? 'obras' : 'chantiers'}</div>
             </div>
-            <div className="v5-kpi">
-              <div className="v5-kpi-l">{isPt ? 'Encargos subempreitada' : 'Charges sous-traitance'}</div>
-              <div className="v5-kpi-v">{fmt(totals.cout, dl)} &euro;</div>
-              <div className="v5-kpi-s">{totals.ca > 0 ? `${Math.round(totals.cout / totals.ca * 100)}% du CA` : '—'}</div>
+            <div className={isV5 ? "v5-kpi" : "v22-kpi"}>
+              <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>{isPt ? 'Encargos subempreitada' : 'Charges sous-traitance'}</div>
+              <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"}>{fmt(totals.cout, dl)} &euro;</div>
+              <div className={isV5 ? "v5-kpi-s" : "v22-kpi-sub"}>{totals.ca > 0 ? `${Math.round(totals.cout / totals.ca * 100)}% du CA` : '—'}</div>
             </div>
-            <div className="v5-kpi">
-              <div className="v5-kpi-l">{isPt ? 'Margem bruta' : 'Marge brute'}</div>
-              <div className="v5-kpi-v">{totals.marge.toFixed(1)}%</div>
-              <div className="v5-kpi-s">{isPt ? 'objetivo' : 'objectif'} {settings.objectif_marge_pct || 20}%</div>
+            <div className={isV5 ? "v5-kpi" : "v22-kpi"}>
+              <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>{isPt ? 'Margem bruta' : 'Marge brute'}</div>
+              <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"}>{totals.marge.toFixed(1)}%</div>
+              <div className={isV5 ? "v5-kpi-s" : "v22-kpi-sub"}>{isPt ? 'objetivo' : 'objectif'} {settings.objectif_marge_pct || 20}%</div>
             </div>
-            <div className="v5-kpi">
-              <div className="v5-kpi-l">{isPt ? 'Tesouraria' : 'Trésorerie'}</div>
-              <div className="v5-kpi-v">{fmt(totals.benefApresImpots, dl)} &euro;</div>
-              <div className="v5-kpi-s">{isPt ? 'líquido' : 'net après impôts'}</div>
+            <div className={isV5 ? "v5-kpi" : "v22-kpi"}>
+              <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>{isPt ? 'Tesouraria' : 'Trésorerie'}</div>
+              <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"}>{fmt(totals.benefApresImpots, dl)} &euro;</div>
+              <div className={isV5 ? "v5-kpi-s" : "v22-kpi-sub"}>{isPt ? 'líquido' : 'net après impôts'}</div>
             </div>
           </div>
 
@@ -517,7 +518,7 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {alerts.map((a, i) => (
-                  <div key={i} className={`v5-al ${a.type === 'error' ? 'err' : a.type === 'warning' ? 'warn' : 'info'}`}>
+                  <div key={i} className={isV5 ? `v5-al ${a.type === 'error' ? 'err' : a.type === 'warning' ? 'warn' : 'info'}` : `v22-alert ${a.type === 'error' ? 'v22-alert-red' : a.type === 'warning' ? 'v22-alert-amber' : 'v22-alert-blue'}`}>
                     {a.type === 'error' ? <CircleAlert size={14} /> : a.type === 'warning' ? <AlertTriangle size={14} /> : <Lightbulb size={14} />} {isPt ? a.message_pt : a.message_fr}
                   </div>
                 ))}
@@ -527,37 +528,37 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
 
           {/* Détail fiscal */}
           {totals.ca > 0 && (
-            <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
-              <div className="v5-kpi">
-                <div className="v5-kpi-l">{isPt ? 'Taux effectif' : 'Taux effectif'}</div>
-                <div className="v5-kpi-v" style={{ fontSize: 20 }}>{totals.tauxEffectif}%</div>
+            <div className={isV5 ? "v5-kpi-g" : "v22-kpi-grid"} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))' }}>
+              <div className={isV5 ? "v5-kpi" : "v22-kpi"}>
+                <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>{isPt ? 'Taux effectif' : 'Taux effectif'}</div>
+                <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"} style={{ fontSize: 20 }}>{totals.tauxEffectif}%</div>
               </div>
-              <div className="v5-kpi">
-                <div className="v5-kpi-l">{isPt ? 'Imposto' : 'Impôts'}</div>
-                <div className="v5-kpi-v" style={{ fontSize: 20, color: '#C62828' }}>{fmt(totals.impots, dl)} &euro;</div>
+              <div className={isV5 ? "v5-kpi" : "v22-kpi"}>
+                <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>{isPt ? 'Imposto' : 'Impôts'}</div>
+                <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"} style={{ fontSize: 20, color: '#C62828' }}>{fmt(totals.impots, dl)} &euro;</div>
               </div>
-              <div className="v5-kpi">
-                <div className="v5-kpi-l">TVA/IVA {isPt ? 'a pagar' : 'à payer'}</div>
-                <div className="v5-kpi-v" style={{ fontSize: 20, color: '#EF6C00' }}>{fmt(totals.tvaAPayer, dl)} &euro;</div>
+              <div className={isV5 ? "v5-kpi" : "v22-kpi"}>
+                <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>TVA/IVA {isPt ? 'a pagar' : 'à payer'}</div>
+                <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"} style={{ fontSize: 20, color: '#EF6C00' }}>{fmt(totals.tvaAPayer, dl)} &euro;</div>
               </div>
-              <div className="v5-kpi" style={{ background: totals.benefApresImpots >= 0 ? '#E8F5E9' : '#FFEBEE' }}>
-                <div className="v5-kpi-l">{isPt ? 'Líquido após impostos' : 'Net après impôts'}</div>
-                <div className="v5-kpi-v" style={{ fontSize: 20, color: totals.benefApresImpots >= 0 ? '#2E7D32' : '#C62828' }}>{fmt(totals.benefApresImpots, dl)} &euro;</div>
+              <div className={isV5 ? "v5-kpi" : "v22-kpi"} style={{ background: totals.benefApresImpots >= 0 ? '#E8F5E9' : '#FFEBEE' }}>
+                <div className={isV5 ? "v5-kpi-l" : "v22-kpi-label"}>{isPt ? 'Líquido após impostos' : 'Net après impôts'}</div>
+                <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"} style={{ fontSize: 20, color: totals.benefApresImpots >= 0 ? '#2E7D32' : '#C62828' }}>{fmt(totals.benefApresImpots, dl)} &euro;</div>
               </div>
             </div>
           )}
 
           {/* Tableau ventilation chantiers */}
           {data.length === 0 ? (
-            <div className="v5-card" style={{ padding: 40, textAlign: 'center' }}>
+            <div className={isV5 ? "v5-card" : "v22-card"} style={{ padding: 40, textAlign: 'center' }}>
               <Brain size={40} style={{ color: '#BBB', marginBottom: 12 }} />
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{isPt ? 'Sem dados' : 'Aucune donnée'}</div>
               <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras e registe pontuagens' : 'Créez des chantiers et enregistrez des pointages'}</p>
             </div>
           ) : (
-            <div className="v5-card" style={{ overflow: 'auto' }}>
-              <div className="v5-st">{isPt ? 'Ventilação por obra' : 'Ventilation par chantier'}</div>
-              <table className="v5-dt">
+            <div className={isV5 ? "v5-card" : "v22-card"} style={{ overflow: 'auto' }}>
+              <div className={isV5 ? "v5-st" : "v22-section-title"}>{isPt ? 'Ventilação por obra' : 'Ventilation par chantier'}</div>
+              <table className={isV5 ? "v5-dt" : "v22-table"}>
                 <thead>
                   <tr>
                     <th />
@@ -604,9 +605,9 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
 
           {/* Détail + Simulateur */}
           {selected && (
-            <div className="v5-sg2">
-              <div className="v5-card">
-                <div className="v5-st"><BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{selected.titre}</div>
+            <div className={isV5 ? "v5-sg2" : "v22-split-grid"}>
+              <div className={isV5 ? "v5-card" : "v22-card"}>
+                <div className={isV5 ? "v5-st" : "v22-section-title"}><BarChart3 size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{selected.titre}</div>
                 <Row label="CA" value={`${fmt(selected.ca_reel || 0, dl)} €`} />
                 <Row label={isPt ? 'M.O. bruta' : 'M.O. brute'} value={`${fmt(selected.cout_main_oeuvre_brut, dl)} €`} color="#C62828" />
                 <Row label={isPt ? 'Encargos patronais' : 'Charges patronales'} value={`${fmt(selected.cout_charges_patronales, dl)} €`} color="#EF6C00" />
@@ -617,44 +618,44 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
                   <Row label={isPt ? 'LUCRO LÍQUIDO' : 'BÉNÉFICE NET'} value={`${fmt(selected.benefice_net, dl)} €`}
                     color={selected.benefice_net >= 0 ? '#2E7D32' : '#C62828'} bold />
                 </div>
-                <div className="v5-kpi" style={{ marginTop: 12, textAlign: 'center', padding: 12 }}>
-                  <div className="v5-kpi-v" style={{ color: selected.benefice_par_homme_jour >= 0 ? '#2E7D32' : '#C62828' }}>
+                <div className={isV5 ? "v5-kpi" : "v22-kpi"} style={{ marginTop: 12, textAlign: 'center', padding: 12 }}>
+                  <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"} style={{ color: selected.benefice_par_homme_jour >= 0 ? '#2E7D32' : '#C62828' }}>
                     {fmtDec(selected.benefice_par_homme_jour, dl)} &euro;
                   </div>
-                  <div className="v5-kpi-s">/ {isPt ? 'homem' : 'homme'} / {isPt ? 'dia' : 'jour'}</div>
+                  <div className={isV5 ? "v5-kpi-s" : "v22-kpi-sub"}>/ {isPt ? 'homem' : 'homme'} / {isPt ? 'dia' : 'jour'}</div>
                 </div>
-                <div className="v5-al err" style={{ marginTop: 8 }}>
+                <div className={isV5 ? "v5-al err" : "v22-alert v22-alert-red"} style={{ marginTop: 8 }}>
                   <AlertTriangle size={14} />{isPt ? 'Perda por dia de atraso' : 'Perte par jour de retard'}: <strong>-{fmt(selected.perte_par_jour_retard, dl)} &euro;</strong>
                 </div>
               </div>
-              <div className="v5-card">
-                <div className="v5-st"><SlidersHorizontal size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Simulador' : 'Simulateur'}</div>
-                <div className="v5-fg">
-                  <label className="v5-fl"><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Dias de atraso' : 'Jours de retard'}: <strong>{simDays}</strong></label>
+              <div className={isV5 ? "v5-card" : "v22-card"}>
+                <div className={isV5 ? "v5-st" : "v22-section-title"}><SlidersHorizontal size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Simulador' : 'Simulateur'}</div>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Dias de atraso' : 'Jours de retard'}: <strong>{simDays}</strong></label>
                   <input type="range" min={0} max={60} value={simDays} onChange={e => setSimDays(Number(e.target.value))} style={{ width: '100%' }} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl"><HardHat size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Funcionários extra' : 'Ouvriers en plus'}: <strong>+{simWorkers}</strong></label>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}><HardHat size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Funcionários extra' : 'Ouvriers en plus'}: <strong>+{simWorkers}</strong></label>
                   <input type="range" min={0} max={10} value={simWorkers} onChange={e => setSimWorkers(Number(e.target.value))} style={{ width: '100%' }} />
                 </div>
                 {simResult && (simDays > 0 || simWorkers > 0) && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {simDays > 0 && (
-                      <div className="v5-al err">
+                      <div className={isV5 ? "v5-al err" : "v22-alert v22-alert-red"}>
                         {simDays}j retard = <strong>-{fmt(simResult.perteRetard, dl)} &euro;</strong>
                       </div>
                     )}
                     {simWorkers > 0 && (
-                      <div className="v5-al warn">
+                      <div className={isV5 ? "v5-al warn" : "v22-alert v22-alert-amber"}>
                         +{simWorkers} {isPt ? 'funcionários' : 'ouvriers'} = <strong>-{fmt(simResult.coutOuvrierSup, dl)} &euro;</strong>
                       </div>
                     )}
-                    <div className="v5-kpi" style={{ textAlign: 'center', background: simResult.nouveauBenef >= 0 ? '#E8F5E9' : '#FFEBEE', padding: 16 }}>
+                    <div className={isV5 ? "v5-kpi" : "v22-kpi"} style={{ textAlign: 'center', background: simResult.nouveauBenef >= 0 ? '#E8F5E9' : '#FFEBEE', padding: 16 }}>
                       <div style={{ fontSize: 12 }}>{isPt ? 'Novo lucro' : 'Nouveau bénéfice'}</div>
-                      <div className="v5-kpi-v" style={{ color: simResult.nouveauBenef >= 0 ? '#2E7D32' : '#C62828' }}>
+                      <div className={isV5 ? "v5-kpi-v" : "v22-kpi-value"} style={{ color: simResult.nouveauBenef >= 0 ? '#2E7D32' : '#C62828' }}>
                         {fmt(simResult.nouveauBenef, dl)} &euro;
                       </div>
-                      <div className="v5-kpi-s">Marge: {simResult.nouvelleMarge.toFixed(1)}%</div>
+                      <div className={isV5 ? "v5-kpi-s" : "v22-kpi-sub"}>Marge: {simResult.nouvelleMarge.toFixed(1)}%</div>
                     </div>
                   </div>
                 )}
@@ -664,7 +665,7 @@ export function ComptaBTPSection({ artisan }: { artisan: import('@/lib/types').A
 
           {/* AI Chat box */}
           {data.length > 0 && (
-            <div className="v5-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className={isV5 ? "v5-card" : "v22-card"} style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#FAFAFA', borderBottom: '1px solid #E8E8E8' }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--v5-primary-yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
                   <Brain size={14} />

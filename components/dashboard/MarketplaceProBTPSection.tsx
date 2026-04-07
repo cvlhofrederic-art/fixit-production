@@ -60,12 +60,12 @@ function EmptyState({ text, sub }: { text: string; sub?: string }) {
 }
 
 // ─── LISTING CARD ─────────────────────────────────────────────────────────────
-function ListingCard({ listing, isPt, onContact, isOwn }: {
-  listing: MarketplaceListing; isPt: boolean; onContact?: () => void; isOwn?: boolean
+function ListingCard({ listing, isPt, onContact, isOwn, isV5 }: {
+  listing: MarketplaceListing; isPt: boolean; onContact?: () => void; isOwn?: boolean; isV5?: boolean
 }) {
   const firstPhoto = listing.photos?.[0]
   return (
-    <div className="v22-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Photo */}
       <div style={{
         height: 130, background: firstPhoto ? `url(${firstPhoto}) center/cover` : 'var(--v22-bg)',
@@ -78,14 +78,14 @@ function ListingCard({ listing, isPt, onContact, isOwn }: {
         {/* Titre + état */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text)', lineHeight: 1.3 }}>{listing.title}</div>
-          <span style={{ fontSize: 9, fontWeight: 700, color: etatColor(listing.etat), border: `1px solid ${etatColor(listing.etat)}`, borderRadius: 3, padding: '2px 5px', flexShrink: 0 }}>
+          <span className={isV5 ? `v5-badge v5-badge-${listing.etat === 'neuf' ? 'green' : listing.etat === 'bon' ? 'blue' : listing.etat === 'correct' ? 'yellow' : 'red'}` : ''} style={isV5 ? { fontSize: 9 } : { fontSize: 9, fontWeight: 700, color: etatColor(listing.etat), border: `1px solid ${etatColor(listing.etat)}`, borderRadius: 3, padding: '2px 5px', flexShrink: 0 }}>
             {etatLabel(listing.etat, isPt).toUpperCase()}
           </span>
         </div>
         {/* Catégorie + type */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <span className="v22-tag" style={{ fontSize: 10 }}>{getCat(listing.categorie, isPt)}</span>
-          <span className="v22-tag v22-tag-yellow" style={{ fontSize: 10 }}>{typeLabel(listing.type_annonce, isPt)}</span>
+          <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag'} style={{ fontSize: 10 }}>{getCat(listing.categorie, isPt)}</span>
+          <span className={isV5 ? 'v5-badge v5-badge-yellow' : 'v22-tag v22-tag-yellow'} style={{ fontSize: 10 }}>{typeLabel(listing.type_annonce, isPt)}</span>
         </div>
         {/* Prix */}
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v22-yellow)' }}>
@@ -107,7 +107,7 @@ function ListingCard({ listing, isPt, onContact, isOwn }: {
         </div>
         {/* CTA */}
         {!isOwn && onContact && (
-          <button onClick={onContact} className="v22-btn v22-btn-primary" style={{ marginTop: 6, width: '100%', fontSize: 12, padding: '7px 0' }}>
+          <button onClick={onContact} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ marginTop: 6, width: '100%', fontSize: 12, padding: '7px 0' }}>
             <Send size={12} /> {isPt ? 'Contactar vendedor' : 'Contacter le vendeur'}
           </button>
         )}
@@ -117,8 +117,8 @@ function ListingCard({ listing, isPt, onContact, isOwn }: {
 }
 
 // ─── MODAL DEMANDE ─────────────────────────────────────────────────────────────
-function DemandeModal({ listing, isPt, onClose, onSubmit }: {
-  listing: MarketplaceListing; isPt: boolean; onClose: () => void; onSubmit: (d: Partial<MarketplaceDemande>) => void
+function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
+  listing: MarketplaceListing; isPt: boolean; onClose: () => void; onSubmit: (d: Partial<MarketplaceDemande>) => void; isV5?: boolean
 }) {
   const [type, setType] = useState<'achat' | 'location'>(listing.type_annonce === 'vente' ? 'achat' : 'location')
   const [dateDebut, setDateDebut] = useState('')
@@ -134,23 +134,23 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
   }
 
   return (
-    <div className="v22-modal-overlay">
-      <div className="v22-modal" style={{ maxWidth: 520 }}>
-        <div className="v22-modal-head">
-          <div className="v22-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Send size={16} /> {isPt ? 'Contactar vendedor' : 'Contacter le vendeur'}</div>
-          <button className="v22-modal-close" onClick={onClose}>✕</button>
+    <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'}>
+      <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ maxWidth: 520 }}>
+        <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
+          <div className={isV5 ? 'v5-modal-t' : 'v22-modal-title'} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Send size={16} /> {isPt ? 'Contactar vendedor' : 'Contacter le vendeur'}</div>
+          <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'} onClick={onClose}>✕</button>
         </div>
-        <div className="v22-modal-body">
+        <div className={isV5 ? '' : 'v22-modal-body'} style={isV5 ? { padding: '1rem' } : undefined}>
           <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 14 }}>
             <strong style={{ color: 'var(--v22-text)' }}>{listing.title}</strong>{listing.localisation ? ` — ${listing.localisation}` : ''}
           </p>
 
           {listing.type_annonce === 'vente_location' && (
-            <div style={{ marginBottom: 14 }}>
-              <label className="v22-label">{isPt ? 'Tipo de pedido' : 'Type de demande'}</label>
+            <div className={isV5 ? 'v5-fg' : ''} style={{ marginBottom: 14 }}>
+              <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Tipo de pedido' : 'Type de demande'}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['achat', 'location'] as const).map(t => (
-                  <button key={t} onClick={() => setType(t)} className="v22-btn" style={{ flex: 1, background: type === t ? 'var(--v22-yellow)' : 'var(--v22-surface)', color: type === t ? 'var(--v22-text)' : 'var(--v22-text-muted)', border: `1px solid ${type === t ? 'var(--v22-yellow)' : 'var(--v22-border)'}`, fontWeight: type === t ? 700 : 400 }}>
+                  <button key={t} onClick={() => setType(t)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: type === t ? 'var(--v22-yellow)' : 'var(--v22-surface)', color: type === t ? 'var(--v22-text)' : 'var(--v22-text-muted)', border: `1px solid ${type === t ? 'var(--v22-yellow)' : 'var(--v22-border)'}`, fontWeight: type === t ? 700 : 400 }}>
                     {t === 'achat' ? (isPt ? 'Compra' : 'Achat') : (isPt ? 'Aluguer' : 'Location')}
                   </button>
                 ))}
@@ -160,31 +160,31 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
 
           {(type === 'location') && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-              <div>
-                <label className="v22-label">{isPt ? 'Data início' : 'Date début'}</label>
-                <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)} className="v22-form-input" />
+              <div className={isV5 ? 'v5-fg' : ''}>
+                <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Data início' : 'Date début'}</label>
+                <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
               </div>
-              <div>
-                <label className="v22-label">{isPt ? 'Data fim' : 'Date fin'}</label>
-                <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)} className="v22-form-input" />
+              <div className={isV5 ? 'v5-fg' : ''}>
+                <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Data fim' : 'Date fin'}</label>
+                <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
               </div>
             </div>
           )}
 
-          <div style={{ marginBottom: 14 }}>
-            <label className="v22-label">{isPt ? 'Preço proposto (€)' : 'Prix proposé (€)'} <span style={{ fontWeight: 400, color: 'var(--v22-text-muted)' }}>{isPt ? '— opcional' : '— optionnel'}</span></label>
-            <input type="number" value={prixPropose} onChange={e => setPrixPropose(e.target.value)} className="v22-form-input" placeholder={isPt ? 'Deixar vazio = preço anunciado' : 'Laisser vide = prix affiché'} />
+          <div className={isV5 ? 'v5-fg' : ''} style={{ marginBottom: 14 }}>
+            <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Preço proposto (€)' : 'Prix proposé (€)'} <span style={{ fontWeight: 400, color: 'var(--v22-text-muted)' }}>{isPt ? '— opcional' : '— optionnel'}</span></label>
+            <input type="number" value={prixPropose} onChange={e => setPrixPropose(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={isPt ? 'Deixar vazio = preço anunciado' : 'Laisser vide = prix affiché'} />
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label className="v22-label">{isPt ? 'Mensagem' : 'Message'}</label>
-            <textarea value={message} onChange={e => setMessage(e.target.value)} className="v22-form-input" rows={3}
+          <div className={isV5 ? 'v5-fg' : ''} style={{ marginBottom: 14 }}>
+            <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Mensagem' : 'Message'}</label>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} rows={3}
               placeholder={isPt ? 'Apresente-se e explique as suas necessidades...' : 'Présentez-vous et expliquez vos besoins...'} style={{ resize: 'none' }} />
           </div>
         </div>
-        <div className="v22-modal-foot">
-          <button className="v22-btn" onClick={onClose}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-          <button className="v22-btn v22-btn-primary" onClick={handleSubmit} disabled={loading || !message.trim()}>
+        <div className={isV5 ? '' : 'v22-modal-foot'} style={isV5 ? { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 1rem 1rem' } : undefined}>
+          <button className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={onClose}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+          <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={handleSubmit} disabled={loading || !message.trim()}>
             {loading ? <Clock size={14} className="animate-spin" /> : <><Send size={12} /> {isPt ? 'Enviar pedido' : 'Envoyer la demande'}</>}
           </button>
         </div>
@@ -194,8 +194,8 @@ function DemandeModal({ listing, isPt, onClose, onSubmit }: {
 }
 
 // ─── FORMULAIRE ANNONCE ────────────────────────────────────────────────────────
-function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
-  isPt: boolean; artisan: import('@/lib/types').Artisan; initial?: MarketplaceListing; onSave: (data: CreateListingPayload) => void; onCancel: () => void
+function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
+  isPt: boolean; artisan: import('@/lib/types').Artisan; initial?: MarketplaceListing; onSave: (data: CreateListingPayload) => void; onCancel: () => void; isV5?: boolean
 }) {
   const [title, setTitle] = useState(initial?.title || '')
   const [desc, setDesc] = useState(initial?.description || '')
@@ -234,30 +234,38 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
     })
   }
 
-  return (
-    <div className="v22-card">
-      <div className="v22-card-head">
-        <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{initial ? <><Pencil size={14} /> {isPt ? 'Editar anúncio' : 'Modifier l\'annonce'}</> : <><PlusCircle size={14} /> {isPt ? 'Novo anúncio' : 'Nouvelle annonce'}</>}</div>
-      </div>
-      <div className="v22-card-body" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+  const labelCls = isV5 ? 'v5-fl' : 'v22-label'
+  const inputCls = isV5 ? 'v5-fi' : 'v22-form-input'
+  const fgCls = isV5 ? 'v5-fg' : ''
 
-        <div>
-          <label className="v22-label">{isPt ? 'Título *' : 'Titre *'}</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} className="v22-form-input" placeholder={isPt ? 'Ex: Pelleteuse 3T Caterpillar 308' : 'Ex: Pelleteuse 3T Caterpillar 308'} />
+  return (
+    <div className={isV5 ? 'v5-card' : 'v22-card'}>
+      {isV5 ? (
+        <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{initial ? <><Pencil size={14} /> {isPt ? 'Editar anúncio' : 'Modifier l\'annonce'}</> : <><PlusCircle size={14} /> {isPt ? 'Novo anúncio' : 'Nouvelle annonce'}</>}</div>
+      ) : (
+        <div className="v22-card-head">
+          <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{initial ? <><Pencil size={14} /> {isPt ? 'Editar anúncio' : 'Modifier l\'annonce'}</> : <><PlusCircle size={14} /> {isPt ? 'Novo anúncio' : 'Nouvelle annonce'}</>}</div>
+        </div>
+      )}
+      <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        <div className={fgCls}>
+          <label className={labelCls}>{isPt ? 'Título *' : 'Titre *'}</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} placeholder={isPt ? 'Ex: Pelleteuse 3T Caterpillar 308' : 'Ex: Pelleteuse 3T Caterpillar 308'} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <label className="v22-label">{isPt ? 'Categoria *' : 'Catégorie *'}</label>
-            <select value={cat} onChange={e => setCat(e.target.value as MarketplaceCategorieId)} className="v22-form-input">
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Categoria *' : 'Catégorie *'}</label>
+            <select value={cat} onChange={e => setCat(e.target.value as MarketplaceCategorieId)} className={inputCls}>
               {MARKETPLACE_CATEGORIES.map(c => (
                 <option key={c.id} value={c.id}>{c.emoji} {isPt ? c.labelPt : c.labelFr}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="v22-label">{isPt ? 'Tipo *' : 'Type *'}</label>
-            <select value={type} onChange={e => setType(e.target.value as TypeAnnonce)} className="v22-form-input">
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Tipo *' : 'Type *'}</label>
+            <select value={type} onChange={e => setType(e.target.value as TypeAnnonce)} className={inputCls}>
               <option value="location">{isPt ? 'Aluguer' : 'Location'}</option>
               <option value="vente">{isPt ? 'Venda' : 'Vente'}</option>
               <option value="vente_location">{isPt ? 'Venda ou aluguer' : 'Vente ou location'}</option>
@@ -268,90 +276,90 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel }: {
         {/* Prix */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
           {(type === 'vente' || type === 'vente_location') && (
-            <div>
-              <label className="v22-label">{isPt ? 'Preço venda (€)' : 'Prix vente (€)'}</label>
-              <input type="number" value={prixVente} onChange={e => setPrixVente(e.target.value)} className="v22-form-input" placeholder="0" />
+            <div className={fgCls}>
+              <label className={labelCls}>{isPt ? 'Preço venda (€)' : 'Prix vente (€)'}</label>
+              <input type="number" value={prixVente} onChange={e => setPrixVente(e.target.value)} className={inputCls} placeholder="0" />
             </div>
           )}
           {(type === 'location' || type === 'vente_location') && (
             <>
-              <div>
-                <label className="v22-label">{isPt ? '€/dia' : '€/jour'}</label>
-                <input type="number" value={prixJour} onChange={e => setPrixJour(e.target.value)} className="v22-form-input" placeholder="0" />
+              <div className={fgCls}>
+                <label className={labelCls}>{isPt ? '€/dia' : '€/jour'}</label>
+                <input type="number" value={prixJour} onChange={e => setPrixJour(e.target.value)} className={inputCls} placeholder="0" />
               </div>
-              <div>
-                <label className="v22-label">{isPt ? '€/semana' : '€/semaine'}</label>
-                <input type="number" value={prixSem} onChange={e => setPrixSem(e.target.value)} className="v22-form-input" placeholder="0" />
+              <div className={fgCls}>
+                <label className={labelCls}>{isPt ? '€/semana' : '€/semaine'}</label>
+                <input type="number" value={prixSem} onChange={e => setPrixSem(e.target.value)} className={inputCls} placeholder="0" />
               </div>
-              <div>
-                <label className="v22-label">{isPt ? '€/mês' : '€/mois'}</label>
-                <input type="number" value={prixMois} onChange={e => setPrixMois(e.target.value)} className="v22-form-input" placeholder="0" />
+              <div className={fgCls}>
+                <label className={labelCls}>{isPt ? '€/mês' : '€/mois'}</label>
+                <input type="number" value={prixMois} onChange={e => setPrixMois(e.target.value)} className={inputCls} placeholder="0" />
               </div>
             </>
           )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          <div>
-            <label className="v22-label">{isPt ? 'Marca' : 'Marque'}</label>
-            <input value={marque} onChange={e => setMarque(e.target.value)} className="v22-form-input" placeholder="Caterpillar" />
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Marca' : 'Marque'}</label>
+            <input value={marque} onChange={e => setMarque(e.target.value)} className={inputCls} placeholder="Caterpillar" />
           </div>
-          <div>
-            <label className="v22-label">{isPt ? 'Modelo' : 'Modèle'}</label>
-            <input value={modele} onChange={e => setModele(e.target.value)} className="v22-form-input" placeholder="308" />
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Modelo' : 'Modèle'}</label>
+            <input value={modele} onChange={e => setModele(e.target.value)} className={inputCls} placeholder="308" />
           </div>
-          <div>
-            <label className="v22-label">{isPt ? 'Ano' : 'Année'}</label>
-            <input type="number" value={annee} onChange={e => setAnnee(e.target.value)} className="v22-form-input" placeholder="2022" />
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Ano' : 'Année'}</label>
+            <input type="number" value={annee} onChange={e => setAnnee(e.target.value)} className={inputCls} placeholder="2022" />
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label className="v22-label">{isPt ? 'Estado *' : 'État *'}</label>
-            <select value={etat} onChange={e => setEtat(e.target.value as EtatMateriel)} className="v22-form-input">
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Estado *' : 'État *'}</label>
+            <select value={etat} onChange={e => setEtat(e.target.value as EtatMateriel)} className={inputCls}>
               {ETAT_OPTIONS.map(e => <option key={e} value={e}>{etatLabel(e, isPt)}</option>)}
             </select>
           </div>
-          <div>
-            <label className="v22-label">{isPt ? 'Localização' : 'Localisation'}</label>
-            <input value={localisation} onChange={e => setLocalisation(e.target.value)} className="v22-form-input" placeholder={isPt ? 'Ex: Porto' : 'Ex: Marseille'} />
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Localização' : 'Localisation'}</label>
+            <input value={localisation} onChange={e => setLocalisation(e.target.value)} className={inputCls} placeholder={isPt ? 'Ex: Porto' : 'Ex: Marseille'} />
           </div>
         </div>
 
         {(type === 'location' || type === 'vente_location') && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label className="v22-label">{isPt ? 'Disponível de' : 'Disponible du'}</label>
-              <input type="date" value={dispo_de} onChange={e => setDispoDe(e.target.value)} className="v22-form-input" />
+            <div className={fgCls}>
+              <label className={labelCls}>{isPt ? 'Disponível de' : 'Disponible du'}</label>
+              <input type="date" value={dispo_de} onChange={e => setDispoDe(e.target.value)} className={inputCls} />
             </div>
-            <div>
-              <label className="v22-label">{isPt ? 'Disponível até' : "Disponible jusqu'au"}</label>
-              <input type="date" value={dispo_jusqu} onChange={e => setDispoJusqu(e.target.value)} className="v22-form-input" />
+            <div className={fgCls}>
+              <label className={labelCls}>{isPt ? 'Disponível até' : "Disponible jusqu'au"}</label>
+              <input type="date" value={dispo_jusqu} onChange={e => setDispoJusqu(e.target.value)} className={inputCls} />
             </div>
           </div>
         )}
 
-        <div>
-          <label className="v22-label">{isPt ? 'Descrição' : 'Description'}</label>
-          <textarea value={desc} onChange={e => setDesc(e.target.value)} className="v22-form-input" rows={3} style={{ resize: 'none' }}
+        <div className={fgCls}>
+          <label className={labelCls}>{isPt ? 'Descrição' : 'Description'}</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)} className={inputCls} rows={3} style={{ resize: 'none' }}
             placeholder={isPt ? 'Detalhes, horas de uso, histórico de manutenção...' : 'Détails, heures d\'utilisation, historique maintenance...'} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label className="v22-label">{isPt ? 'Nome do vendedor' : 'Nom vendeur'}</label>
-            <input value={vendeurNom} onChange={e => setVendeurNom(e.target.value)} className="v22-form-input" />
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Nome do vendedor' : 'Nom vendeur'}</label>
+            <input value={vendeurNom} onChange={e => setVendeurNom(e.target.value)} className={inputCls} />
           </div>
-          <div>
-            <label className="v22-label">{isPt ? 'Telefone' : 'Téléphone'}</label>
-            <input value={vendeurPhone} onChange={e => setVendeurPhone(e.target.value)} className="v22-form-input" />
+          <div className={fgCls}>
+            <label className={labelCls}>{isPt ? 'Telefone' : 'Téléphone'}</label>
+            <input value={vendeurPhone} onChange={e => setVendeurPhone(e.target.value)} className={inputCls} />
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid var(--v22-border)' }}>
-          <button className="v22-btn" onClick={onCancel}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-          <button className="v22-btn v22-btn-primary" onClick={handleSave} disabled={!title.trim()}>
+          <button className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={onCancel}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+          <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={handleSave} disabled={!title.trim()}>
             <Check size={14} /> {isPt ? 'Publicar anúncio' : 'Publier l\'annonce'}
           </button>
         </div>
@@ -601,13 +609,13 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
         <div>
           {/* Filtres */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: isV5 ? '0.75rem' : 20 }}>
-            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
               <option value="">{isPt ? '— Todas as categorias —' : '— Toutes catégories —'}</option>
               {MARKETPLACE_CATEGORIES.filter(c => !aeOnly || c.accessibleAE).map(c => (
                 <option key={c.id} value={c.id}>{c.emoji} {isPt ? c.labelPt : c.labelFr}</option>
               ))}
             </select>
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
               <option value="">{isPt ? '— Venda & aluguer —' : '— Vente & location —'}</option>
               <option value="vente">{isPt ? 'Venda' : 'Vente'}</option>
               <option value="location">{isPt ? 'Aluguer' : 'Location'}</option>
@@ -628,7 +636,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           ) : (
             <div className={isV5 ? 'v5-sc3' : ''} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
               {listings.map(l => (
-                <ListingCard key={l.id} listing={l} isPt={isPt}
+                <ListingCard key={l.id} listing={l} isPt={isPt} isV5={isV5}
                   onContact={l.user_id !== artisan?.user_id ? () => { setSelectedListing(l); setShowDemandeModal(true) } : undefined}
                 />
               ))}
@@ -663,7 +671,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                       </div>
                     </div>
                     {/* Status badge */}
-                    <span style={{
+                    <span className={isV5 ? `v5-badge v5-badge-${l.status === 'active' ? 'green' : l.status === 'paused' ? 'yellow' : 'red'}` : ''} style={isV5 ? { fontSize: 10 } : {
                       fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
                       background: l.status === 'active' ? 'rgba(34,197,94,0.12)' : l.status === 'paused' ? 'rgba(234,179,8,0.12)' : 'rgba(239,68,68,0.12)',
                       color: l.status === 'active' ? '#22c55e' : l.status === 'paused' ? '#eab308' : '#ef4444',
@@ -693,6 +701,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           isPt={isPt} artisan={artisan} initial={editListing ?? undefined}
           onSave={handleSaveAnnonce}
           onCancel={() => { setEditListing(null); setTab('mes_annonces') }}
+          isV5={isV5}
         />
       )}
 
@@ -720,7 +729,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                         {d.prix_propose && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={11} /> {fmtEur(d.prix_propose, isPt ? 'pt' : 'fr')} {isPt ? 'proposto' : 'proposé'}</div>}
                         {d.message && <div style={{ fontSize: 12, color: 'var(--v22-text)', marginTop: 6, fontStyle: 'italic' }}>"{d.message}"</div>}
                       </div>
-                      <span style={{
+                      <span className={isV5 ? `v5-badge v5-badge-${d.status === 'pending' ? 'yellow' : d.status === 'accepted' ? 'green' : 'red'}` : ''} style={isV5 ? { fontSize: 10, flexShrink: 0 } : {
                         fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4, flexShrink: 0,
                         background: d.status === 'pending' ? 'rgba(234,179,8,0.12)' : d.status === 'accepted' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
                         color: d.status === 'pending' ? '#eab308' : d.status === 'accepted' ? '#22c55e' : '#ef4444',
@@ -821,7 +830,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {/* Modal demande */}
       {showDemandeModal && selectedListing && (
         <DemandeModal
-          listing={selectedListing} isPt={isPt}
+          listing={selectedListing} isPt={isPt} isV5={isV5}
           onClose={() => { setShowDemandeModal(false); setSelectedListing(null) }}
           onSubmit={handleSendDemande}
         />
@@ -829,18 +838,18 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
       {/* Modal confirmation suppression */}
       {confirmDeleteId && (
-        <div className="v22-modal-overlay">
-          <div className="v22-modal" style={{ maxWidth: 400 }}>
-            <div className="v22-modal-head">
-              <div className="v22-modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
-              <button className="v22-modal-close" onClick={() => setConfirmDeleteId(null)}>✕</button>
+        <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'}>
+          <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ maxWidth: 400 }}>
+            <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
+              <div className={isV5 ? 'v5-modal-t' : 'v22-modal-title'} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><AlertTriangle size={16} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
+              <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'} onClick={() => setConfirmDeleteId(null)}>✕</button>
             </div>
-            <div className="v22-modal-body">
+            <div className={isV5 ? '' : 'v22-modal-body'} style={isV5 ? { padding: '1rem' } : undefined}>
               <p style={{ fontSize: 13, color: 'var(--v22-text)' }}>
                 {isPt ? 'Tem a certeza que quer eliminar este anúncio? Esta ação é irreversível.' : 'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.'}
               </p>
             </div>
-            <div className="v22-modal-foot">
+            <div className={isV5 ? '' : 'v22-modal-foot'} style={isV5 ? { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 1rem 1rem' } : undefined}>
               <button className={btnCls} onClick={() => setConfirmDeleteId(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
               <button className={`${btnCls} ${isV5 ? 'v5-btn-d' : ''}`} style={{ background: isV5 ? '#FFEBEE' : 'var(--v22-red)', color: isV5 ? '#E53935' : '#fff', border: isV5 ? '1px solid #E53935' : 'none' }} onClick={() => handleDelete(confirmDeleteId)}>
                 <Trash2 size={12} /> {isPt ? 'Eliminar' : 'Supprimer'}

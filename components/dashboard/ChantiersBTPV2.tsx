@@ -63,7 +63,8 @@ function progressColor(pct: number, statut: string): string {
   return '#FFCA28'
 }
 
-export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
+export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole?: string }) {
+  const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dl = isPt ? 'pt-PT' : 'fr-FR'
@@ -381,21 +382,21 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
   return (
     <div>
       {/* ── Page header ── */}
-      <div className="v5-pg-t">
+      <div className={isV5 ? "v5-pg-t" : "v22-page-header"}>
         <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
         <p>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
       </div>
 
       {/* ── Search bar ── */}
-      <div className="v5-search">
+      <div className={isV5 ? "v5-search" : "v22-search"}>
         <input
-          className="v5-search-in"
+          className={isV5 ? "v5-search-in" : "v22-search-in"}
           placeholder={isPt ? 'Pesquisar uma obra…' : 'Rechercher un chantier…'}
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <select
-          className="v5-filter-sel"
+          className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
           value={filter}
           onChange={e => setFilter(e.target.value as typeof filter)}
         >
@@ -405,7 +406,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
           <option value="Terminés">{isPt ? 'Concluídas' : 'Terminés'} ({doneCount})</option>
         </select>
         <button
-          className="v5-btn v5-btn-p"
+          className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
           onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
         >
           + {isPt ? 'Nova obra' : 'Nouveau chantier'}
@@ -414,7 +415,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
 
       {/* ── Table ── */}
       {filtered.length === 0 ? (
-        <div className="v5-card" style={{ padding: '2.5rem', textAlign: 'center' }}>
+        <div className={isV5 ? "v5-card" : "v22-card"} style={{ padding: '2.5rem', textAlign: 'center' }}>
           <HardHat size={40} style={{ margin: '0 auto 10px', color: '#BBB' }} />
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
             {isPt ? 'Nenhuma obra' : 'Aucun chantier'}
@@ -423,15 +424,15 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
             {isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}
           </p>
           <button
-            className="v5-btn v5-btn-p"
+            className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
             onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
           >
             + {isPt ? 'Criar obra' : 'Créer un chantier'}
           </button>
         </div>
       ) : (
-        <div className="v5-card" style={{ overflowX: 'auto' }}>
-          <table className="v5-dt">
+        <div className={isV5 ? "v5-card" : "v22-card"} style={{ overflowX: 'auto' }}>
+          <table className={isV5 ? "v5-dt" : "v22-table"}>
             <thead>
               <tr>
                 <th>{isPt ? 'Réf' : 'Réf'}</th>
@@ -459,8 +460,8 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                         <span style={{ fontWeight: 600, color: isLate ? '#C62828' : undefined }}>
                           {c.titre}{isLate ? ' ⚠️' : ''}
                         </span>
-                        {c.latitude && <span className="v5-badge v5-badge-green" style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><MapPin size={9} /> GPS</span>}
-                        {c.devis_id && <span className="v5-badge v5-badge-blue" style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><FileText size={9} /> Devis</span>}
+                        {c.latitude && <span className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"} style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><MapPin size={9} /> GPS</span>}
+                        {c.devis_id && <span className={isV5 ? "v5-badge v5-badge-blue" : "v22-tag v22-tag-blue"} style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><FileText size={9} /> Devis</span>}
                       </div>
                       {c.adresse && (
                         <div style={{ fontSize: 10, color: '#999', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -476,7 +477,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                           {(c.membres_ids as string[]).slice(1).map((mid: string) => {
                             const m = membresList.find(mm => mm.id === mid)
                             return m ? (
-                              <span key={mid} className="v5-badge v5-badge-gray" style={{ fontSize: 9 }}>
+                              <span key={mid} className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"} style={{ fontSize: 9 }}>
                                 {m.prenom.charAt(0)}. {m.nom}
                               </span>
                             ) : null
@@ -487,19 +488,19 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                     <td>{fmtDate(c.dateDebut)}</td>
                     <td>{fmtDate(c.dateFin)}</td>
                     <td>
-                      <div className="v5-prog-row">
-                        <div className="v5-prog-bg">
+                      <div className={isV5 ? "v5-prog-row" : "v22-prog-row"}>
+                        <div className={isV5 ? "v5-prog-bg" : "v22-prog-bg"}>
                           <div
-                            className="v5-prog-fill"
+                            className={isV5 ? "v5-prog-fill" : "v22-prog-fill"}
                             style={{ width: `${pct}%`, background: isLate ? '#EF5350' : progressColor(pct, c.statut || '') }}
                           />
                         </div>
-                        <span className="v5-prog-pct">{pct}%</span>
+                        <span className={isV5 ? "v5-prog-pct" : "v22-prog-pct"}>{pct}%</span>
                       </div>
                     </td>
                     <td>
                       <select
-                        className="v5-filter-sel"
+                        className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
                         style={{ fontSize: 10, padding: '2px 6px', fontWeight: 600, minWidth: 90 }}
                         value={c.statut || 'En attente'}
                         onChange={e => changeStatut(c.id, e.target.value)}
@@ -517,10 +518,10 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        <button className="v5-btn v5-btn-sm" onClick={() => handleEdit(c)} aria-label="Modifier">
+                        <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => handleEdit(c)} aria-label="Modifier">
                           <Pencil size={12} />
                         </button>
-                        <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => setDeleteConfirm(c.id)} aria-label="Supprimer">
+                        <button className={isV5 ? "v5-btn v5-btn-sm v5-btn-d" : "v22-btn v22-btn-sm v22-btn-danger"} onClick={() => setDeleteConfirm(c.id)} aria-label="Supprimer">
                           <Trash2 size={12} />
                         </button>
                       </div>
@@ -572,7 +573,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
 
                     {renta.finDepassee && (
                       <button
-                        className="v5-btn v5-btn-sm v5-btn-d"
+                        className={isV5 ? "v5-btn v5-btn-sm v5-btn-d" : "v22-btn v22-btn-sm v22-btn-danger"}
                         onClick={() => { setProlongModal({ chantier: c }); setProlongDays(2) }}
                       >
                         <Clock size={12} /> {isPt ? 'Prolongar' : 'Prolonger'}
@@ -599,12 +600,12 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
         } : null
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div className="v5-card" style={{ width: '100%', maxWidth: 480 }}>
+            <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <Clock size={14} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}
                 </span>
-                <button className="v5-btn v5-btn-sm" onClick={() => setProlongModal(null)}>✕</button>
+                <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setProlongModal(null)}>✕</button>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', fontSize: 13 }}>
@@ -613,7 +614,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
 
                 {/* Option 1: Clôturer */}
                 <button
-                  className="v5-btn v5-btn-s"
+                  className={isV5 ? "v5-btn v5-btn-s" : "v22-btn v22-btn-secondary"}
                   style={{ width: '100%', padding: '10px 14px', justifyContent: 'center' }}
                   onClick={async () => { await changeStatut(c.id, 'Terminé'); setProlongModal(null) }}
                 >
@@ -629,7 +630,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                     <input
                       type="number" min={1} max={60} value={prolongDays}
                       onChange={e => setProlongDays(Math.max(1, Number(e.target.value)))}
-                      className="v5-fi"
+                      className={isV5 ? "v5-fi" : "v22-input"}
                       style={{ width: 80, textAlign: 'center', fontWeight: 700, fontSize: 15 }}
                     />
                     <span style={{ fontSize: 12, color: '#F57F17' }}>{isPt ? 'dias a mais' : 'jours de plus'}</span>
@@ -637,7 +638,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
 
                   {/* Nouveau calcul */}
                   {newRenta && renta && (
-                    <div className="v5-fr" style={{ marginTop: 10, padding: 10, background: '#fff', borderRadius: 6 }}>
+                    <div className={isV5 ? "v5-fr" : "v22-form-row"} style={{ marginTop: 10, padding: 10, background: '#fff', borderRadius: 6 }}>
                       <div>
                         <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Novo custo M.O.' : 'Nouveau coût M.O.'}</div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: '#C62828' }}>{fmt(newRenta.coutMOTotal, dl)} €</div>
@@ -656,7 +657,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                   )}
 
                   <button
-                    className="v5-btn v5-btn-p"
+                    className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
                     style={{ width: '100%', marginTop: 10, padding: '8px 14px', justifyContent: 'center' }}
                     onClick={handleProlong}
                   >
@@ -672,22 +673,22 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
       {/* ══════ MODAL CONFIRMATION SUPPRESSION ══════ */}
       {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v5-card" style={{ width: '100%', maxWidth: 400 }}>
+          <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 400 }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <Trash2 size={14} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}
               </span>
-              <button className="v5-btn v5-btn-sm" onClick={() => setDeleteConfirm(null)}>✕</button>
+              <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setDeleteConfirm(null)}>✕</button>
             </div>
             <div style={{ padding: '20px 16px', textAlign: 'center' }}>
               <p style={{ fontSize: 13, marginBottom: 16 }}>
                 {isPt ? 'Tem certeza que deseja remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="v5-btn" style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
+                <button className={isV5 ? "v5-btn" : "v22-btn"} style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
                   {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
-                <button className="v5-btn v5-btn-d" style={{ flex: 1, fontWeight: 600 }} onClick={() => handleDelete(deleteConfirm)}>
+                <button className={isV5 ? "v5-btn v5-btn-d" : "v22-btn v22-btn-danger"} style={{ flex: 1, fontWeight: 600 }} onClick={() => handleDelete(deleteConfirm)}>
                   {isPt ? 'Remover' : 'Supprimer'}
                 </button>
               </div>
@@ -699,12 +700,12 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
       {/* ══════ MODAL CRÉATION/ÉDITION ══════ */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v5-card" style={{ width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <HardHat size={14} /> {editId ? (isPt ? 'Editar obra' : 'Modifier le chantier') : (isPt ? 'Nova obra' : 'Nouveau chantier')}
               </span>
-              <button className="v5-btn v5-btn-sm" onClick={() => setShowModal(false)}>✕</button>
+              <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowModal(false)}>✕</button>
             </div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -722,7 +723,7 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                     <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Nenhum orçamento encontrado' : 'Aucun devis trouvé'}</div>
                   ) : (
                     <select
-                      className="v5-filter-sel"
+                      className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
                       style={{ width: '100%', fontSize: 11 }}
                       value=""
                       onChange={e => {
@@ -741,30 +742,30 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                 </div>
               )}
 
-              <div className="v5-fg">
-                <label className="v5-fl">{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
-                <input className="v5-fi" value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
+                <input className={isV5 ? "v5-fi" : "v22-input"} value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
                   placeholder={isPt ? 'ex: Immeuble R+3 — Gros oeuvre' : 'ex: Immeuble R+3 — Gros oeuvre'} />
               </div>
 
-              <div className="v5-fr">
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Cliente / Dono de obra' : 'Client / Maître d\'ouvrage'}</label>
-                  <input className="v5-fi" value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
+              <div className={isV5 ? "v5-fr" : "v22-form-row"}>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cliente / Dono de obra' : 'Client / Maître d\'ouvrage'}</label>
+                  <input className={isV5 ? "v5-fi" : "v22-input"} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">Budget HT (€)</label>
-                  <input type="number" className="v5-fi" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>Budget HT (€)</label>
+                  <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
                 </div>
               </div>
 
-              <div className="v5-fg">
-                <label className="v5-fl">{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <input className="v5-fi" style={{ flex: 1 }} value={form.adresse}
+                  <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.adresse}
                     onChange={e => setForm({ ...form, adresse: e.target.value })}
                     placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
-                  <button className="v5-btn v5-btn-sm" onClick={() => geocodeAdresse(form.adresse)}
+                  <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(form.adresse)}
                     disabled={geocoding || !form.adresse.trim()}>
                     {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
                     {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
@@ -777,8 +778,8 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                 )}
               </div>
 
-              <div className="v5-fg">
-                <label className="v5-fl">{isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
                     onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })}
@@ -787,20 +788,20 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                 </div>
               </div>
 
-              <div className="v5-fr">
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Data de início' : 'Date de début'}</label>
-                  <input type="date" className="v5-fi" value={form.dateDebut} onChange={e => setForm({ ...form, dateDebut: e.target.value })} />
+              <div className={isV5 ? "v5-fr" : "v22-form-row"}>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Data de início' : 'Date de début'}</label>
+                  <input type="date" className={isV5 ? "v5-fi" : "v22-input"} value={form.dateDebut} onChange={e => setForm({ ...form, dateDebut: e.target.value })} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Data de fim' : 'Date de fin'}</label>
-                  <input type="date" className="v5-fi" value={form.dateFin} onChange={e => setForm({ ...form, dateFin: e.target.value })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Data de fim' : 'Date de fin'}</label>
+                  <input type="date" className={isV5 ? "v5-fi" : "v22-input"} value={form.dateFin} onChange={e => setForm({ ...form, dateFin: e.target.value })} />
                 </div>
               </div>
 
               {/* ── Équipe / Employés assignés ── */}
-              <div className="v5-fg">
-                <label className="v5-fl">{isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
                 {membresList.length === 0 ? (
                   <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Aucun empregado. Ajoutez-en dans "Équipes".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
@@ -836,19 +837,19 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                 )}
               </div>
 
-              <div className="v5-fg">
-                <label className="v5-fl">{isPt ? 'Descrição' : 'Description'}</label>
-                <textarea className="v5-fi" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Descrição' : 'Description'}</label>
+                <textarea className={isV5 ? "v5-fi" : "v22-input"} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
                   rows={3} style={{ resize: 'none' }} />
               </div>
             </div>
 
             <div style={{ padding: '10px 16px', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8 }}>
-              <button className="v5-btn" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
+              <button className={isV5 ? "v5-btn" : "v22-btn"} style={{ flex: 1 }} onClick={() => setShowModal(false)}>
                 {isPt ? 'Cancelar' : 'Annuler'}
               </button>
               <button
-                className="v5-btn v5-btn-p"
+                className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
                 style={{ flex: 1, justifyContent: 'center' }}
                 onClick={handleSave}
                 disabled={!form.titre.trim() || saving}

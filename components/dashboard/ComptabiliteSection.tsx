@@ -732,8 +732,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
                       <button
                         onClick={() => setActiveComptaTab('declaration')}
-                        className="v22-btn"
-                        style={{ fontSize: 11, padding: '5px 10px', border: `1px solid ${tvaStatus.color}`, color: tvaStatus.color, background: 'transparent' }}
+                        className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn'}
+                        style={isV5 ? { color: tvaStatus.color } : { fontSize: 11, padding: '5px 10px', border: `1px solid ${tvaStatus.color}`, color: tvaStatus.color, background: 'transparent' }}
                       >
                         {isPt ? 'Ver detalhes →' : 'Voir détails →'}
                       </button>
@@ -744,23 +744,24 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             ) : null}
 
             {/* Revenue chart */}
-            <div className="v22-card" style={{ marginBottom: 20 }}>
-              <div className="v22-card-head"><div className="v22-card-title">{isPt ? `📈 Evolução da faturação mensal ${selectedYear}` : `📈 Évolution du CA mensuel ${selectedYear}`}</div></div>
-              <div className="v22-card-body" style={{ padding: 14 }}>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 20 }}>
+              <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? `📈 Evolução da faturação mensal ${selectedYear}` : `📈 Évolution du CA mensuel ${selectedYear}`}</div></div>
+              <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 140 }}>
                   {monthlyRevenue.map((m, i) => (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <div style={{ fontSize: 9, color: 'var(--v22-text-muted)', fontWeight: 600 }}>
+                    <div key={i} className={isV5 ? 'v5-ch-bar' : ''} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                      <div className={isV5 ? 'v5-ch-bar-v' : ''} style={isV5 ? {} : { fontSize: 9, color: 'var(--v22-text-muted)', fontWeight: 600 }}>
                         {m.ca > 0 ? formatEur(m.ca).replace('€', '') + '€' : ''}
                       </div>
                       <div
+                        className={isV5 ? 'v5-ch-bar-i' : ''}
                         style={{
                           width: '100%', borderRadius: '4px 4px 0 0', transition: 'all 0.2s',
                           height: `${Math.max(4, (m.ca / maxCA) * 100)}%`,
-                          background: (i === currentMonth && selectedYear === currentYear) ? 'var(--v22-yellow)' : '#dbeafe',
+                          background: (i === currentMonth && selectedYear === currentYear) ? (isV5 ? 'var(--v5-accent, #FFC107)' : 'var(--v22-yellow)') : '#dbeafe',
                         }}
                       />
-                      <div style={{ fontSize: 9, color: 'var(--v22-text-muted)' }}>{m.month}</div>
+                      <div className={isV5 ? 'v5-ch-bar-lb' : ''} style={isV5 ? {} : { fontSize: 9, color: 'var(--v22-text-muted)' }}>{m.month}</div>
                     </div>
                   ))}
                 </div>
@@ -808,9 +809,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         {/* ── REVENUS TAB ── */}
         {activeComptaTab === 'revenus' && (
           <div>
-            <div className="v22-card" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
-              <div className="v22-card-head">
-                <div className="v22-card-title">
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+              <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
                   {isPt ? '💰 Receitas — ' : '💰 Revenus — '}{selectedPeriod === 'mois' ? MONTH_FULL[selectedMonth] : selectedPeriod === 'trimestre' ? quarterLabels[getQuarter()] : selectedYear}
                 </div>
               </div>
@@ -822,7 +823,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               {completedFiltered.length === 0 ? (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--v22-text-muted)' }}>{isPt ? 'Nenhuma intervenção concluída neste período' : 'Aucune intervention terminée sur cette période'}</div>
               ) : (
-                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                <table className={isV5 ? 'v5-dt' : ''} style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--v22-bg)' }}>
                       <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: 'var(--v22-text-muted)', fontWeight: 600 }}>Data</th>
@@ -865,9 +866,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
             {/* Revenue by service */}
             {services.length > 0 && (
-              <div className="v22-card">
-                <div className="v22-card-head"><div className="v22-card-title">{isPt ? `🔧 Faturação por serviço (${selectedYear})` : `🔧 CA par motif (${selectedYear})`}</div></div>
-                <div className="v22-card-body" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'}>
+                <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? `🔧 Faturação por serviço (${selectedYear})` : `🔧 CA par motif (${selectedYear})`}</div></div>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {services.map(s => {
                     const sBookings = bookings.filter(b => b.service_id === s.id && b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear)
                     const sCA = sBookings.reduce((sum, b) => sum + (b.price_ttc || 0), 0)
@@ -895,7 +896,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{isPt ? '🧾 Despesas dedutíveis' : '🧾 Charges déductibles'}</div>
+                <div className={isV5 ? 'v5-st' : ''} style={isV5 ? {} : { fontWeight: 700, fontSize: 15 }}>{isPt ? '🧾 Despesas dedutíveis' : '🧾 Charges déductibles'}</div>
                 <div style={{ fontSize: 13, color: 'var(--v22-text-muted)' }}>{isPt ? 'Total' : 'Total'} : <span style={{ fontWeight: 700, color: 'var(--v22-red)' }}>{formatEur(totalExpenses)}</span></div>
               </div>
               <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
@@ -904,42 +905,42 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             </div>
 
             {showAddExpense && (
-              <div className="v22-card" style={{ borderColor: 'var(--v22-yellow)', borderWidth: 2, marginBottom: 16 }}>
-                <div className="v22-card-head"><div className="v22-card-title">{isPt ? 'Nova despesa dedutível' : 'Nouvelle charge déductible'}</div></div>
-                <div className="v22-card-body" style={{ padding: 14 }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 16 } : { borderColor: 'var(--v22-yellow)', borderWidth: 2, marginBottom: 16 }}>
+                <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Nova despesa dedutível' : 'Nouvelle charge déductible'}</div></div>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                    <div>
-                      <label className="v22-form-label">{isPt ? 'Descrição *' : 'Libellé *'}</label>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descrição *' : 'Libellé *'}</label>
                       <input value={expenseForm.label} onChange={e => setExpenseForm(p => ({ ...p, label: e.target.value }))}
-                        placeholder={isPt ? 'Ex: Compra de parafusos e buchas' : 'Ex: Achat vis et boulons'} className="v22-form-input" />
+                        placeholder={isPt ? 'Ex: Compra de parafusos e buchas' : 'Ex: Achat vis et boulons'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div>
-                      <label className="v22-form-label">{isPt ? 'Montante c/IVA (€) *' : 'Montant TTC (€) *'}</label>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Montante c/IVA (€) *' : 'Montant TTC (€) *'}</label>
                       <input type="number" value={expenseForm.amount} onChange={e => setExpenseForm(p => ({ ...p, amount: e.target.value }))}
-                        placeholder="0.00" className="v22-form-input" />
+                        placeholder="0.00" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div>
-                      <label className="v22-form-label">{isPt ? 'Categoria' : 'Catégorie'}</label>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Categoria' : 'Catégorie'}</label>
                       <select value={expenseForm.category} onChange={e => setExpenseForm(p => ({ ...p, category: e.target.value }))}
-                        className="v22-form-input">
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'}>
                         {EXPENSE_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="v22-form-label">Data</label>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Data</label>
                       <input type="date" value={expenseForm.date} onChange={e => setExpenseForm(p => ({ ...p, date: e.target.value }))}
-                        className="v22-form-input" />
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <label className="v22-form-label">{isPt ? 'Notas (opcional)' : 'Notes (optionnel)'}</label>
+                    <div className={isV5 ? 'v5-fg' : ''} style={{ gridColumn: 'span 2' }}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Notas (opcional)' : 'Notes (optionnel)'}</label>
                       <input value={expenseForm.notes} onChange={e => setExpenseForm(p => ({ ...p, notes: e.target.value }))}
-                        placeholder={isPt ? 'Número de fatura, fornecedor...' : 'Numéro de facture, fournisseur...'} className="v22-form-input" />
+                        placeholder={isPt ? 'Número de fatura, fornecedor...' : 'Numéro de facture, fournisseur...'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={() => setShowAddExpense(false)} className="v22-btn" style={{ flex: 1 }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+                    <button onClick={() => setShowAddExpense(false)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1 }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
                     <button onClick={saveExpense} disabled={!expenseForm.label || !expenseForm.amount}
-                      className="v22-btn v22-btn-primary" style={{ flex: 1, opacity: (!expenseForm.label || !expenseForm.amount) ? 0.5 : 1 }}>{isPt ? 'Guardar' : 'Enregistrer'}</button>
+                      className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1, opacity: (!expenseForm.label || !expenseForm.amount) ? 0.5 : 1 }}>{isPt ? 'Guardar' : 'Enregistrer'}</button>
                   </div>
                 </div>
               </div>
@@ -947,9 +948,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
             {/* Breakdown by category */}
             {expenseByCategory.length > 0 && (
-              <div className="v22-card" style={{ marginBottom: 16 }}>
-                <div className="v22-card-head"><div className="v22-card-title">{isPt ? 'Distribuição por categoria' : 'Répartition par catégorie'}</div></div>
-                <div className="v22-card-body" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
+                <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Distribuição por categoria' : 'Répartition par catégorie'}</div></div>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {expenseByCategory.map(c => (
                     <div key={c.key}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
@@ -966,9 +967,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             )}
 
             {/* Expenses list */}
-            <div className="v22-card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div className="v22-card-head">
-                <div className="v22-card-title">
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 0, overflow: 'hidden' }}>
+              <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
                   {isPt ? `Lista de despesas (${filteredExpenses.length})` : `Liste des charges (${filteredExpenses.length})`}
                 </div>
               </div>
@@ -976,7 +977,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--v22-text-muted)' }}>
                   <div style={{ fontSize: 32, marginBottom: 10 }}>🧾</div>
                   <div>{isPt ? 'Nenhuma despesa registada neste período' : 'Aucune charge enregistrée sur cette période'}</div>
-                  <button onClick={() => setShowAddExpense(true)} style={{ marginTop: 10, color: 'var(--v22-yellow)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>{isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}</button>
+                  <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? { marginTop: 10 } : { marginTop: 10, color: 'var(--v22-yellow)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>{isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}</button>
                 </div>
               ) : (
                 <div>
@@ -1020,7 +1021,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                   {isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}
                 </span>
               </div>
-              <div className="v22-card-body" style={{ padding: 16 }}>
+              <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 16 }}>
 
                 {/* Jauge */}
                 <div style={{ marginBottom: 16 }}>

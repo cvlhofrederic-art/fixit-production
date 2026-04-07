@@ -88,24 +88,25 @@ const MISSION_LABELS: Record<string, string> = {
   renfort_equipe: 'Renfort équipe',
 }
 
-const URGENCY_BADGE: Record<string, string> = {
-  emergency: 'v5-badge v5-badge-red',
-  urgent: 'v5-badge v5-badge-orange',
-  normal: 'v5-badge v5-badge-green',
+const URGENCY_BADGE_V5: Record<string, string> = {
+  emergency: 'v5-badge v5-badge-red', urgent: 'v5-badge v5-badge-orange', normal: 'v5-badge v5-badge-green',
+}
+const URGENCY_BADGE_V22: Record<string, string> = {
+  emergency: 'v22-tag v22-tag-red', urgent: 'v22-tag v22-tag-orange', normal: 'v22-tag v22-tag-green',
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  open: 'v5-badge v5-badge-green',
-  in_review: 'v5-badge v5-badge-orange',
-  awarded: 'v5-badge v5-badge-blue',
-  closed: 'v5-badge v5-badge-gray',
-  cancelled: 'v5-badge v5-badge-red',
+const STATUS_BADGE_V5: Record<string, string> = {
+  open: 'v5-badge v5-badge-green', in_review: 'v5-badge v5-badge-orange', awarded: 'v5-badge v5-badge-blue', closed: 'v5-badge v5-badge-gray', cancelled: 'v5-badge v5-badge-red',
+}
+const STATUS_BADGE_V22: Record<string, string> = {
+  open: 'v22-tag v22-tag-green', in_review: 'v22-tag v22-tag-orange', awarded: 'v22-tag v22-tag-blue', closed: 'v22-tag v22-tag-gray', cancelled: 'v22-tag v22-tag-red',
 }
 
-const CAND_STATUS_BADGE: Record<string, string> = {
-  pending: 'v5-badge v5-badge-blue',
-  accepted: 'v5-badge v5-badge-green',
-  rejected: 'v5-badge v5-badge-red',
+const CAND_STATUS_BADGE_V5: Record<string, string> = {
+  pending: 'v5-badge v5-badge-blue', accepted: 'v5-badge v5-badge-green', rejected: 'v5-badge v5-badge-red',
+}
+const CAND_STATUS_BADGE_V22: Record<string, string> = {
+  pending: 'v22-tag v22-tag-blue', accepted: 'v22-tag v22-tag-green', rejected: 'v22-tag v22-tag-red',
 }
 
 const EMPTY_FORM = {
@@ -132,7 +133,8 @@ const EMPTY_FORM = {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function SousTraitanceOffresSection({ artisan }: { artisan: import('@/lib/types').Artisan }) {
+export default function SousTraitanceOffresSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
+  const isV5 = orgRole === 'pro_societe'
   const isPt = typeof document !== 'undefined' && document.cookie.includes('locale=pt')
 
   const [tab, setTab] = useState<'annonces' | 'publier' | 'candidats'>('annonces')
@@ -332,17 +334,17 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div className="v5-pg-t" style={{ marginBottom: 0 }}>
+        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ marginBottom: 0 }}>
           <h1>{isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants'}</h1>
           <p>{isPt ? 'Publique missões e encontre subempreiteiros qualificados' : 'Publiez vos offres et recevez des candidatures'}</p>
         </div>
-        <button className="v5-btn v5-btn-p" onClick={() => setTab('publier')}>
+        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => setTab('publier')}>
           + {isPt ? 'Publicar uma oferta' : 'Publier une offre'}
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="v5-tabs">
+      <div className={isV5 ? 'v5-tabs' : 'v22-tabs'}>
         {[
           { key: 'annonces', label: isPt ? 'Minhas Ofertas' : 'Mes annonces', count: offers.length },
           { key: 'publier', label: isPt ? 'Publicar Oferta' : 'Publier une offre' },
@@ -352,12 +354,12 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
             key={t.key}
             onClick={() => !t.disabled && setTab(t.key as any)}
             disabled={t.disabled}
-            className={`v5-tab-b${tab === t.key ? ' active' : ''}`}
+            className={isV5 ? `v5-tab-b${tab === t.key ? ' active' : ''}` : `v22-tab ${tab === t.key ? 'active' : ''}`}
             style={{ opacity: t.disabled ? 0.5 : 1 }}
           >
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span className="v5-badge v5-badge-gray" style={{ marginLeft: 6 }}>{t.count}</span>
+              <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ marginLeft: 6 }}>{t.count}</span>
             )}
           </button>
         ))}
@@ -367,32 +369,32 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
       {tab === 'annonces' && (
         <div>
           {loading ? (
-            <div className="v5-card" style={{ textAlign: 'center', padding: 48, color: '#999', fontSize: 12 }}>Chargement...</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 48, color: '#999', fontSize: 12 }}>Chargement...</div>
           ) : offers.length === 0 ? (
-            <div className="v5-card" style={{ textAlign: 'center', padding: 48 }}>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 48 }}>
               <div style={{ fontSize: 32, marginBottom: 12, color: '#BBB' }}>📭</div>
               <p style={{ color: '#999', fontSize: 12 }}>
                 {isPt ? 'Nenhuma oferta publicada.' : 'Aucune annonce publiée.'}
               </p>
-              <button onClick={() => setTab('publier')} className="v5-btn v5-btn-p" style={{ marginTop: 12 }}>
+              <button onClick={() => setTab('publier')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ marginTop: 12 }}>
                 {isPt ? 'Publicar primeira oferta' : 'Publier ma première offre'}
               </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {offers.map(offer => (
-                <div key={offer.id} className="v5-card">
+                <div key={offer.id} className={isV5 ? 'v5-card' : 'v22-card'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                        <span className={STATUS_BADGE[offer.status] || 'v5-badge v5-badge-gray'}>
+                        <span className={(isV5 ? STATUS_BADGE_V5 : STATUS_BADGE_V22)[offer.status] || 'v5-badge v5-badge-gray'}>
                           {offer.status === 'open' ? 'Ouverte' : offer.status === 'awarded' ? 'Attribuée' : offer.status}
                         </span>
-                        <span className={URGENCY_BADGE[offer.urgency]}>
+                        <span className={(isV5 ? URGENCY_BADGE_V5 : URGENCY_BADGE_V22)[offer.urgency]}>
                           {offer.urgency === 'emergency' ? 'Urgence' : offer.urgency === 'urgent' ? 'Urgent' : 'Normal'}
                         </span>
-                        <span className="v5-badge v5-badge-blue">{MISSION_LABELS[offer.mission_type]}</span>
-                        <span className="v5-badge v5-badge-gray">{metierLabel(offer.category)}</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-blue' : 'v22-tag v22-tag-blue'}>{MISSION_LABELS[offer.mission_type]}</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{metierLabel(offer.category)}</span>
                       </div>
                       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{offer.title}</div>
                       <div style={{ color: '#999', fontSize: 11 }}>
@@ -405,20 +407,20 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
                         {offer.nb_intervenants_souhaite && ` · ${offer.nb_intervenants_souhaite} intervenant(s)`}
                       </div>
                       <div style={{ marginTop: 6 }}>
-                        <span className="v5-badge v5-badge-blue">{offer.candidatures_count} candidature(s)</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-blue' : 'v22-tag v22-tag-blue'}>{offer.candidatures_count} candidature(s)</span>
                         <span style={{ fontSize: 10, color: '#999', marginLeft: 8 }}>{daysLeft(offer.deadline)} jours restants</span>
                       </div>
                     </div>
-                    <button onClick={() => loadCandidatures(offer)} className="v5-btn v5-btn-p v5-btn-sm">
+                    <button onClick={() => loadCandidatures(offer)} className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn v22-btn-primary v22-btn-sm'}>
                       Voir candidats ({offer.candidatures_count})
                     </button>
                   </div>
 
                   {(offer.require_rc_pro || offer.require_decennale || offer.require_qualibat) && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                      {offer.require_rc_pro && <span className="v5-badge v5-badge-orange">RC Pro exigée</span>}
-                      {offer.require_decennale && <span className="v5-badge v5-badge-orange">Décennale exigée</span>}
-                      {offer.require_qualibat && <span className="v5-badge v5-badge-orange">Qualibat exigé</span>}
+                      {offer.require_rc_pro && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>RC Pro exigée</span>}
+                      {offer.require_decennale && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>Décennale exigée</span>}
+                      {offer.require_qualibat && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>Qualibat exigé</span>}
                     </div>
                   )}
                 </div>
@@ -430,108 +432,108 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
 
       {/* ── TAB: PUBLIER UNE OFFRE ────────────────────────────────────────── */}
       {tab === 'publier' && (
-        <div className="v5-card">
-          <div className="v5-st">
+        <div className={isV5 ? 'v5-card' : 'v22-card'}>
+          <div className={isV5 ? 'v5-st' : 'v22-section-title'}>
             {isPt ? 'Nova oferta de subempreitada' : 'Nouvelle offre de sous-traitance'}
           </div>
 
-          <div className="v5-fr">
+          <div className={isV5 ? 'v5-fr' : 'v22-form-row'}>
             {/* Titre */}
-            <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-              <label className="v5-fl">Titre de la mission *</label>
-              <input className="v5-fi" placeholder="ex : Pose carrelage 120m²" value={form.title}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Titre de la mission *</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="ex : Pose carrelage 120m²" value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </div>
 
             {/* Description */}
-            <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-              <label className="v5-fl">Description détaillée *</label>
-              <textarea className="v5-fi" style={{ minHeight: 80, resize: 'vertical' }}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Description détaillée *</label>
+              <textarea className={isV5 ? 'v5-fi' : 'v22-input'} style={{ minHeight: 80, resize: 'vertical' }}
                 placeholder="Décrivez les travaux, les conditions..."
                 value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
 
             {/* Métier */}
-            <div className="v5-fg">
-              <label className="v5-fl">Métier recherché *</label>
-              <select className="v5-fi" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Métier recherché *</label>
+              <select className={isV5 ? 'v5-fi' : 'v22-input'} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                 {METIERS.map(m => <option key={m.id} value={m.id}>{m.emoji} {m.label}</option>)}
               </select>
             </div>
 
             {/* Type de mission */}
-            <div className="v5-fg">
-              <label className="v5-fl">Type de mission *</label>
-              <select className="v5-fi" value={form.mission_type} onChange={e => setForm(f => ({ ...f, mission_type: e.target.value as any }))}>
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Type de mission *</label>
+              <select className={isV5 ? 'v5-fi' : 'v22-input'} value={form.mission_type} onChange={e => setForm(f => ({ ...f, mission_type: e.target.value as any }))}>
                 <option value="sous_traitance_complete">Sous-traitance complète</option>
                 <option value="renfort_equipe">Renfort équipe</option>
               </select>
             </div>
 
             {/* Ville */}
-            <div className="v5-fg">
-              <label className="v5-fl">Ville du chantier *</label>
-              <input className="v5-fi" placeholder="ex : Marseille" value={form.location_city}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Ville du chantier *</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="ex : Marseille" value={form.location_city}
                 onChange={e => setForm(f => ({ ...f, location_city: e.target.value }))} />
             </div>
 
             {/* Code postal */}
-            <div className="v5-fg">
-              <label className="v5-fl">Code postal</label>
-              <input className="v5-fi" placeholder="13001" value={form.location_postal}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Code postal</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="13001" value={form.location_postal}
                 onChange={e => setForm(f => ({ ...f, location_postal: e.target.value }))} />
             </div>
 
             {/* Adresse */}
-            <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-              <label className="v5-fl">Adresse du chantier</label>
-              <input className="v5-fi" placeholder="15 rue de la Paix, Bât. A" value={form.location_address}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Adresse du chantier</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="15 rue de la Paix, Bât. A" value={form.location_address}
                 onChange={e => setForm(f => ({ ...f, location_address: e.target.value }))} />
             </div>
 
             {/* Dates */}
-            <div className="v5-fg">
-              <label className="v5-fl">Date de début souhaitée</label>
-              <input type="date" className="v5-fi" value={form.start_date}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date de début souhaitée</label>
+              <input type="date" className={isV5 ? 'v5-fi' : 'v22-input'} value={form.start_date}
                 onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">Date limite de candidature *</label>
-              <input type="date" className="v5-fi" value={form.deadline}
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date limite de candidature *</label>
+              <input type="date" className={isV5 ? 'v5-fi' : 'v22-input'} value={form.deadline}
                 onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
             </div>
 
             {/* Durée */}
-            <div className="v5-fg">
-              <label className="v5-fl">Durée estimée</label>
-              <input className="v5-fi" placeholder="ex : 3 semaines, 1 mois..."
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Durée estimée</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="ex : 3 semaines, 1 mois..."
                 value={form.duration_text} onChange={e => setForm(f => ({ ...f, duration_text: e.target.value }))} />
             </div>
 
             {/* Nb intervenants */}
-            <div className="v5-fg">
-              <label className="v5-fl">Nombre d'intervenants</label>
-              <input type="number" min={1} className="v5-fi" placeholder="1"
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nombre d'intervenants</label>
+              <input type="number" min={1} className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="1"
                 value={form.nb_intervenants_souhaite}
                 onChange={e => setForm(f => ({ ...f, nb_intervenants_souhaite: e.target.value }))} />
             </div>
 
             {/* Budget */}
-            <div className="v5-fg">
-              <label className="v5-fl">Budget minimum (&euro;)</label>
-              <input type="number" min={0} className="v5-fi" placeholder="5000"
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Budget minimum (&euro;)</label>
+              <input type="number" min={0} className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="5000"
                 value={form.budget_min} onChange={e => setForm(f => ({ ...f, budget_min: e.target.value }))} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">Budget maximum (&euro;)</label>
-              <input type="number" min={0} className="v5-fi" placeholder="15000"
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Budget maximum (&euro;)</label>
+              <input type="number" min={0} className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="15000"
                 value={form.budget_max} onChange={e => setForm(f => ({ ...f, budget_max: e.target.value }))} />
             </div>
 
             {/* Urgence */}
-            <div className="v5-fg">
-              <label className="v5-fl">Urgence</label>
-              <select className="v5-fi" value={form.urgency} onChange={e => setForm(f => ({ ...f, urgency: e.target.value as any }))}>
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Urgence</label>
+              <select className={isV5 ? 'v5-fi' : 'v22-input'} value={form.urgency} onChange={e => setForm(f => ({ ...f, urgency: e.target.value as any }))}>
                 <option value="normal">Normal</option>
                 <option value="urgent">Urgent</option>
                 <option value="emergency">Urgence</option>
@@ -539,8 +541,8 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
             </div>
 
             {/* Exigences */}
-            <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-              <label className="v5-fl">Certifications exigées</label>
+            <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Certifications exigées</label>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 4 }}>
                 {[
                   { key: 'require_rc_pro', label: 'RC Professionnelle' },
@@ -558,12 +560,12 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
           </div>
 
           {publishError && (
-            <div className="v5-al err" style={{ marginTop: 12 }}>{publishError}</div>
+            <div className={isV5 ? 'v5-al err' : 'v22-alert v22-alert-red'} style={{ marginTop: 12 }}>{publishError}</div>
           )}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setTab('annonces')} className="v5-btn">Annuler</button>
-            <button onClick={handlePublish} disabled={publishing} className="v5-btn v5-btn-p">
+            <button onClick={() => setTab('annonces')} className={isV5 ? 'v5-btn' : 'v22-btn'}>Annuler</button>
+            <button onClick={handlePublish} disabled={publishing} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
               {publishing ? 'Publication...' : 'Publier l\'offre'}
             </button>
           </div>
@@ -574,7 +576,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
       {tab === 'candidats' && selectedOffer && (
         <div>
           {/* Offer recap */}
-          <div className="v5-al info" style={{ marginBottom: 16, flexDirection: 'column', alignItems: 'flex-start' }}>
+          <div className={isV5 ? 'v5-al info' : 'v22-alert v22-alert-blue'} style={{ marginBottom: 16, flexDirection: 'column', alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{selectedOffer.title}</div>
@@ -589,9 +591,9 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
           </div>
 
           {candLoading ? (
-            <div className="v5-card" style={{ textAlign: 'center', padding: 40, color: '#999', fontSize: 12 }}>Chargement des candidatures...</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 40, color: '#999', fontSize: 12 }}>Chargement des candidatures...</div>
           ) : candidatures.length === 0 ? (
-            <div className="v5-card" style={{ textAlign: 'center', padding: 40 }}>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 32, marginBottom: 10, color: '#BBB' }}>📭</div>
               <p style={{ color: '#999', fontSize: 12 }}>Aucune candidature pour le moment.</p>
               <p style={{ color: '#BBB', fontSize: 11 }}>
@@ -601,7 +603,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
           ) : (
             <div className="v5-sc3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
               {candidatures.map(cand => (
-                <div key={cand.id} className="v5-card" style={{ borderLeft: `3px solid ${cand.status === 'accepted' ? '#2E7D32' : cand.status === 'rejected' ? '#C62828' : '#E8E8E8'}` }}>
+                <div key={cand.id} className={isV5 ? 'v5-card' : 'v22-card'} style={{ borderLeft: `3px solid ${cand.status === 'accepted' ? '#2E7D32' : cand.status === 'rejected' ? '#C62828' : '#E8E8E8'}` }}>
                   {/* Artisan info */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <div style={{
@@ -649,7 +651,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
 
                   {/* Status + actions */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #E8E8E8' }}>
-                    <span className={CAND_STATUS_BADGE[cand.status]}>
+                    <span className={(isV5 ? CAND_STATUS_BADGE_V5 : CAND_STATUS_BADGE_V22)[cand.status]}>
                       {cand.status === 'accepted' ? 'Accepté' : cand.status === 'rejected' ? 'Refusé' : 'En attente'}
                     </span>
 
@@ -675,7 +677,7 @@ export default function SousTraitanceOffresSection({ artisan }: { artisan: impor
 
                   {cand.artisan_phone && (
                     <div style={{ marginTop: 8 }}>
-                      <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => window.open(`tel:${cand.artisan_phone}`)}>
+                      <button className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn v22-btn-primary v22-btn-sm'} onClick={() => window.open(`tel:${cand.artisan_phone}`)}>
                         Contacter
                       </button>
                     </div>

@@ -11,6 +11,7 @@ import type { Artisan } from '@/lib/types'
 interface SettingsSectionProps {
   artisan: Artisan
   initials: string
+  orgRole?: string
   settingsTab: 'profil' | 'modules' | 'parrainage'
   setSettingsTab: (v: 'profil' | 'modules' | 'parrainage') => void
   settingsForm: {
@@ -76,7 +77,7 @@ function isValidIban(iban: string): boolean {
   return /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(clean)
 }
 
-function PaymentInfoCard({ artisanId }: { artisanId: string }) {
+function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean }) {
   const [modes, setModes] = useState<PaymentMode[]>(DEFAULT_MODES)
   const [mentionDevis, setMentionDevis] = useState(true)
   const [mentionFacture, setMentionFacture] = useState(true)
@@ -119,14 +120,14 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
 
   const activeModes = modes.filter(m => m.actif)
 
-  if (loading) return <div className="v22-card"><div className="v22-card-body" style={{ textAlign: 'center', padding: 20, color: 'var(--v22-text-muted)' }}>Chargement...</div></div>
+  if (loading) return <div className={isV5 ? 'v5-card' : 'v22-card'}><div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: 20, color: 'var(--v22-text-muted)' }}>Chargement...</div></div>
 
   return (
-    <div className="v22-card">
-      <div className="v22-card-head">
-        <div className="v22-card-title">Informations de paiement</div>
+    <div className={isV5 ? 'v5-card' : 'v22-card'}>
+      <div className={isV5 ? '' : 'v22-card-head'}>
+        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>Informations de paiement</div>
       </div>
-      <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
           Ces informations apparaîtront sur vos devis et factures envoyés aux clients.
         </div>
@@ -142,18 +143,18 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>IBAN</label>
-                  <input className="v22-form-input" value={mode.iban || ''} onChange={(e) => updateMode(idx, { iban: e.target.value.toUpperCase() })} placeholder="FR76 XXXX XXXX XXXX" style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.iban || ''} onChange={(e) => updateMode(idx, { iban: e.target.value.toUpperCase() })} placeholder="FR76 XXXX XXXX XXXX" style={{ flex: 1, fontSize: 12 }} />
                   {mode.iban && mode.iban.replace(/\s/g, '').length > 4 && (
                     <span style={{ fontSize: 14 }}>{isValidIban(mode.iban) ? '✅' : '⚠️'}</span>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>BIC</label>
-                  <input className="v22-form-input" value={mode.bic || ''} onChange={(e) => updateMode(idx, { bic: e.target.value.toUpperCase() })} placeholder="BNPAFRPP" style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.bic || ''} onChange={(e) => updateMode(idx, { bic: e.target.value.toUpperCase() })} placeholder="BNPAFRPP" style={{ flex: 1, fontSize: 12 }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>Titulaire</label>
-                  <input className="v22-form-input" value={mode.titulaire || ''} onChange={(e) => updateMode(idx, { titulaire: e.target.value })} placeholder="Nom du titulaire" style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.titulaire || ''} onChange={(e) => updateMode(idx, { titulaire: e.target.value })} placeholder="Nom du titulaire" style={{ flex: 1, fontSize: 12 }} />
                 </div>
               </div>
             )}
@@ -162,7 +163,7 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
               <div style={{ marginTop: 8, paddingLeft: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>Lien</label>
-                  <input className="v22-form-input" value={mode.lien || ''} onChange={(e) => updateMode(idx, { lien: e.target.value })} placeholder="https://buy.stripe.com/..." style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.lien || ''} onChange={(e) => updateMode(idx, { lien: e.target.value })} placeholder="https://buy.stripe.com/..." style={{ flex: 1, fontSize: 12 }} />
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, paddingLeft: 66 }}>Le client paiera directement depuis ce lien</div>
               </div>
@@ -172,7 +173,7 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
               <div style={{ marginTop: 8, paddingLeft: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>À l{"'"}ordre de</label>
-                  <input className="v22-form-input" value={mode.ordre || ''} onChange={(e) => updateMode(idx, { ordre: e.target.value })} placeholder="Nom" style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.ordre || ''} onChange={(e) => updateMode(idx, { ordre: e.target.value })} placeholder="Nom" style={{ flex: 1, fontSize: 12 }} />
                 </div>
               </div>
             )}
@@ -183,7 +184,7 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
 
             {mode.actif && mode.type === 'autre' && (
               <div style={{ marginTop: 8, paddingLeft: 24 }}>
-                <input className="v22-form-input" value={mode.description || ''} onChange={(e) => updateMode(idx, { description: e.target.value })} placeholder="PayPal, Lydia, virement étranger..." style={{ fontSize: 12 }} />
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.description || ''} onChange={(e) => updateMode(idx, { description: e.target.value })} placeholder="PayPal, Lydia, virement étranger..." style={{ fontSize: 12 }} />
               </div>
             )}
           </div>
@@ -218,7 +219,7 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
           </div>
         )}
 
-        <button onClick={handleSave} disabled={saving} className="v22-btn v22-btn-primary" style={{ alignSelf: 'flex-start' }}>
+        <button onClick={handleSave} disabled={saving} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ alignSelf: 'flex-start' }}>
           {saving ? 'Enregistrement...' : saved ? '✅ Enregistré' : 'Enregistrer les infos paiement'}
         </button>
       </div>
@@ -228,7 +229,7 @@ function PaymentInfoCard({ artisanId }: { artisanId: string }) {
 
 // ── Parrainage Settings Tab ────────────────────────────────────────────────
 
-function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
+function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: boolean }) {
   const [referralCode, setReferralCode] = useState('')
   const [creditMois, setCreditMois] = useState(0)
   const [totalParrainages, setTotalParrainages] = useState(0)
@@ -301,18 +302,18 @@ function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
   return (
     <div style={{ padding: 16, maxWidth: 672, margin: '0 auto' }}>
       {/* Code de parrainage */}
-      <div className="v22-card" style={{ marginBottom: 16 }}>
-        <div className="v22-card-head">
-          <div className="v22-card-title">🔗 Votre code de parrainage</div>
+      <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
+        <div className={isV5 ? '' : 'v22-card-head'}>
+          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>🔗 Votre code de parrainage</div>
         </div>
-        <div className="v22-card-body">
+        <div className={isV5 ? '' : 'v22-card-body'}>
           {referralCode ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ flex: 1, padding: '10px 14px', background: 'var(--v22-bg)', borderRadius: 8, border: '1px solid var(--v22-border)', fontFamily: 'monospace', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--v22-text)' }}>
                   {referralCode}
                 </div>
-                <button onClick={copyLink} className="v22-btn v22-btn-primary" style={{ whiteSpace: 'nowrap' }}>
+                <button onClick={copyLink} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ whiteSpace: 'nowrap' }}>
                   {copied ? '✅ Copié' : '📋 Copier le lien'}
                 </button>
               </div>
@@ -325,7 +326,7 @@ function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
               <p style={{ fontSize: 14, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
                 Aucun code de parrainage. Générez-en un pour commencer à parrainer.
               </p>
-              <button onClick={generateCode} disabled={generating} className="v22-btn v22-btn-primary" style={{ opacity: generating ? 0.5 : 1 }}>
+              <button onClick={generateCode} disabled={generating} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ opacity: generating ? 0.5 : 1 }}>
                 {generating ? '⏳ Génération...' : '🎁 Générer mon code'}
               </button>
             </div>
@@ -334,11 +335,11 @@ function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
       </div>
 
       {/* Stats rapides */}
-      <div className="v22-card" style={{ marginBottom: 16 }}>
-        <div className="v22-card-head">
-          <div className="v22-card-title">📊 Vos stats parrainage</div>
+      <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
+        <div className={isV5 ? '' : 'v22-card-head'}>
+          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>📊 Vos stats parrainage</div>
         </div>
-        <div className="v22-card-body">
+        <div className={isV5 ? '' : 'v22-card-body'}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ padding: 16, background: 'var(--v22-bg)', borderRadius: 8, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--v22-text)' }}>{totalParrainages}</div>
@@ -353,11 +354,11 @@ function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
       </div>
 
       {/* Notifications */}
-      <div className="v22-card">
-        <div className="v22-card-head">
-          <div className="v22-card-title">🔔 Notifications parrainage</div>
+      <div className={isV5 ? 'v5-card' : 'v22-card'}>
+        <div className={isV5 ? '' : 'v22-card-head'}>
+          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>🔔 Notifications parrainage</div>
         </div>
-        <div className="v22-card-body">
+        <div className={isV5 ? '' : 'v22-card-body'}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--v22-bg)', borderRadius: 6 }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>Emails de parrainage</div>
@@ -390,7 +391,7 @@ function ParrainageSettingsTab({ artisanId }: { artisanId: string }) {
   )
 }
 
-function PasswordChangeCard() {
+function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   const { t } = useTranslation()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -425,38 +426,38 @@ function PasswordChangeCard() {
   }
 
   return (
-    <div className="v22-card" style={{ maxWidth: 672, marginTop: 16 }}>
-      <div className="v22-card-head">
-        <div className="v22-card-title">{'🔒'} {t('proDash.settings.securityTitle')}</div>
+    <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ maxWidth: 672, marginTop: 16 }}>
+      <div className={isV5 ? '' : 'v22-card-head'}>
+        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{'🔒'} {t('proDash.settings.securityTitle')}</div>
       </div>
-      <div className="v22-card-body">
+      <div className={isV5 ? '' : 'v22-card-body'}>
         {msg && (
-          <div className={`v22-alert ${msg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className={isV5 ? `v5-badge v5-badge-${msg.type === 'success' ? 'green' : 'red'}` : `v22-alert ${msg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             {msg.text}
             <button onClick={() => setMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-text-muted)', fontSize: 14 }}>{'✕'}</button>
           </div>
         )}
 
-        <div className="v22-form-group">
-          <label className="v22-form-label">{t('proDash.settings.newPassword')}</label>
+        <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.newPassword')}</label>
           <input
             type="password"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
-            className="v22-form-input"
+            className={isV5 ? 'v5-fi' : 'v22-form-input'}
           />
         </div>
-        <div className="v22-form-group">
-          <label className="v22-form-label">{t('proDash.settings.confirmPassword')}</label>
+        <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.confirmPassword')}</label>
           <input
             type="password"
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="new-password"
-            className="v22-form-input"
+            className={isV5 ? 'v5-fi' : 'v22-form-input'}
           />
           <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.pwdMinLength')}</span>
         </div>
@@ -464,7 +465,7 @@ function PasswordChangeCard() {
           <button
             onClick={handleChangePassword}
             disabled={saving || !newPassword || !confirmPassword}
-            className="v22-btn v22-btn-primary"
+            className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
             style={{ opacity: (saving || !newPassword || !confirmPassword) ? 0.5 : 1 }}
           >
             {saving ? `⏳ ${t('proDash.settings.pwdSaving')}` : `🔒 ${t('proDash.settings.pwdUpdate')}`}
@@ -476,7 +477,7 @@ function PasswordChangeCard() {
 }
 
 export default function SettingsSection({
-  artisan, initials, settingsTab, setSettingsTab, settingsForm, setSettingsForm,
+  artisan, initials, orgRole, settingsTab, setSettingsTab, settingsForm, setSettingsForm,
   savingSettings, saveSettings, autoAccept, toggleAutoAccept,
   profilePhotoPreview, setProfilePhotoPreview, profilePhotoFile, setProfilePhotoFile,
   profilePhotoUploading, uploadDocument, setProfilePhotoUploading,
@@ -484,6 +485,7 @@ export default function SettingsSection({
   ALL_MODULES, modulesConfig, saveModulesConfig, moveModule,
 }: SettingsSectionProps) {
   const { t } = useTranslation()
+  const isV5 = orgRole === 'pro_societe'
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
@@ -500,15 +502,24 @@ export default function SettingsSection({
   }
 
   return (
-    <div className="animate-fadeIn">
+    <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Page header */}
-      <div className="v22-page-header">
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div style={{ flex: 1 }}>
-          <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : settingsTab === 'parrainage' ? '🎁 Parrainage' : 'Mon profil'}</div>
-          <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : 'Gérez vos informations personnelles et professionnelles.'}</div>
+          {isV5 ? (
+            <>
+              <h1>{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : settingsTab === 'parrainage' ? '🎁 Parrainage' : 'Mon profil'}</h1>
+              <p>{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : 'Gérez vos informations personnelles et professionnelles.'}</p>
+            </>
+          ) : (
+            <>
+              <div className="v22-page-title">{settingsTab === 'modules' ? `🧩 ${t('proDash.settings.modulesTitle')}` : settingsTab === 'parrainage' ? '🎁 Parrainage' : 'Mon profil'}</div>
+              <div className="v22-page-sub">{settingsTab === 'modules' ? t('proDash.settings.modulesSubtitle') : settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : 'Gérez vos informations personnelles et professionnelles.'}</div>
+            </>
+          )}
         </div>
         {settingsTab === 'profil' && (
-          <button onClick={saveSettings} disabled={savingSettings} className="v22-btn v22-btn-primary" style={{ opacity: savingSettings ? 0.5 : 1 }}>
+          <button onClick={saveSettings} disabled={savingSettings} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ opacity: savingSettings ? 0.5 : 1 }}>
             {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrer')}`}
           </button>
         )}
@@ -523,14 +534,14 @@ export default function SettingsSection({
           {/* LEFT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Profile card */}
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{t('proDash.settings.profilProfessionnel')}</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'}>
+              <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{t('proDash.settings.profilProfessionnel')}</div>
               </div>
-              <div className="v22-card-body">
+              <div className={isV5 ? '' : 'v22-card-body'}>
                 {/* Upload message */}
                 {uploadMsg && (
-                  <div className={`v22-alert ${uploadMsg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className={isV5 ? `v5-badge v5-badge-${uploadMsg.type === 'success' ? 'green' : 'red'}` : `v22-alert ${uploadMsg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {uploadMsg.text}
                     <button onClick={() => setUploadMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-text-muted)', fontSize: 14 }}>{'✕'}</button>
                   </div>
@@ -548,7 +559,7 @@ export default function SettingsSection({
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: profilePhotoUploading ? 0.5 : 1 }} className="v22-btn v22-btn-sm">
+                    <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: profilePhotoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
                       {profilePhotoUploading ? '⏳ Enregistrement...' : `📷 ${t('proDash.settings.choisirPhoto')}`}
                       <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
                         const f = e.target.files?.[0]
@@ -594,7 +605,7 @@ export default function SettingsSection({
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className="v22-btn v22-btn-sm">
+                    <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: logoUploading ? 0.5 : 1 }} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
                       {logoUploading ? '⏳ Enregistrement...' : '🏢 Logo entreprise (visible sur devis)'}
                       <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
                         const f = e.target.files?.[0]
@@ -630,41 +641,41 @@ export default function SettingsSection({
                   </div>
                 </div>
 
-                <div className="v22-form-group">
-                  <label className="v22-form-label">{t('proDash.settings.nomCompletEntreprise')}</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.nomCompletEntreprise')}</label>
                   <input type="text" value={settingsForm.company_name} onChange={(e) => setSettingsForm({...settingsForm, company_name: e.target.value})}
-                    className="v22-form-input" />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">{t('proDash.settings.emailProfessionnel')}</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.emailProfessionnel')}</label>
                   <input type="email" value={settingsForm.email} onChange={(e) => setSettingsForm({...settingsForm, email: e.target.value})}
-                    className="v22-form-input" />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">{t('proDash.settings.telephoneLabel')}</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.telephoneLabel')}</label>
                   <input type="tel" value={settingsForm.phone} onChange={(e) => setSettingsForm({...settingsForm, phone: e.target.value})}
-                    className="v22-form-input" />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">{t('proDash.settings.descriptionBio')}</label>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.descriptionBio')}</label>
                   <textarea value={settingsForm.bio} onChange={(e) => setSettingsForm({...settingsForm, bio: e.target.value})}
                     rows={3} placeholder={t('proDash.settings.descriptionPlaceholder')}
-                    className="v22-form-input" style={{ resize: 'none' }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
               </div>
             </div>
 
             {/* Booking link card */}
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{t('proDash.settings.lienReservation')}</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'}>
+              <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{t('proDash.settings.lienReservation')}</div>
               </div>
-              <div className="v22-card-body">
+              <div className={isV5 ? '' : 'v22-card-body'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
-                    className="v22-form-input" style={{ flex: 1, background: 'var(--v22-bg)', color: 'var(--v22-text-muted)', fontSize: 12 }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1, background: 'var(--v22-bg)', color: 'var(--v22-text-muted)', fontSize: 12 }} />
                   <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); toast.success(t('proDash.settings.lienCopie')) }}
-                    className="v22-btn v22-btn-primary" style={{ whiteSpace: 'nowrap' }}>
+                    className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ whiteSpace: 'nowrap' }}>
                     {'📋'} {t('proDash.settings.copier')}
                   </button>
                 </div>
@@ -672,15 +683,15 @@ export default function SettingsSection({
             </div>
 
             {/* Informations de paiement */}
-            <PaymentInfoCard artisanId={artisan?.id as string} />
+            <PaymentInfoCard artisanId={artisan?.id as string} isV5={isV5} />
 
             {/* Parrainage — intégré dans Mon profil */}
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{'🎁'} Parrainage</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'}>
+              <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{'🎁'} Parrainage</div>
               </div>
-              <div className="v22-card-body">
-                <ParrainageSettingsTab artisanId={artisan?.id as string} />
+              <div className={isV5 ? '' : 'v22-card-body'}>
+                <ParrainageSettingsTab artisanId={artisan?.id as string} isV5={isV5} />
               </div>
             </div>
           </div>
@@ -688,11 +699,11 @@ export default function SettingsSection({
           {/* RIGHT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Auto-accept card */}
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{'📅'} {t('proDash.settings.parametresAgenda')}</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'}>
+              <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{'📅'} {t('proDash.settings.parametresAgenda')}</div>
               </div>
-              <div className="v22-card-body">
+              <div className={isV5 ? '' : 'v22-card-body'}>
                 {/* Toggle auto-accept */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--v22-bg)', borderRadius: 6, marginBottom: 12 }}>
                   <div>
@@ -701,19 +712,23 @@ export default function SettingsSection({
                       {autoAccept ? t('proDash.settings.autoAcceptOn') : t('proDash.settings.autoAcceptOff')}
                     </div>
                   </div>
-                  <button onClick={toggleAutoAccept} style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: autoAccept ? 'var(--v22-green)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-                    <div style={{ position: 'absolute', top: 2, width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', transition: 'left .2s', left: autoAccept ? 22 : 2 }} />
-                  </button>
+                  {isV5 ? (
+                    <button onClick={toggleAutoAccept} className={`v5-tgl${autoAccept ? ' active' : ''}`} />
+                  ) : (
+                    <button onClick={toggleAutoAccept} style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: autoAccept ? 'var(--v22-green)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', top: 2, width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', transition: 'left .2s', left: autoAccept ? 22 : 2 }} />
+                    </button>
+                  )}
                 </div>
 
                 {autoAccept && (
                   <div style={{ padding: 12, background: 'var(--v22-green-light)', borderRadius: 6, border: '1px solid var(--v22-green)', marginBottom: 12 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 8 }}>{'⚙️'} {t('proDash.settings.optionsAutoAccept')}</div>
-                    <label className="v22-form-label">{t('proDash.settings.dureeBlocage')}</label>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.dureeBlocage')}</label>
                     <select
                       value={settingsForm.auto_block_duration_minutes}
                       onChange={e => setSettingsForm({...settingsForm, auto_block_duration_minutes: parseInt(e.target.value)})}
-                      className="v22-form-input"
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'}
                     >
                       <option value={60}>{t('proDash.settings.heures1')}</option>
                       <option value={120}>{t('proDash.settings.heures2')}</option>
@@ -735,7 +750,7 @@ export default function SettingsSection({
                     onChange={e => setSettingsForm({...settingsForm, auto_reply_message: e.target.value})}
                     rows={3}
                     placeholder={t('proDash.settings.reponseAutoPlaceholder')}
-                    className="v22-form-input"
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'}
                     style={{ resize: 'none' }}
                   />
                 </div>
@@ -760,7 +775,7 @@ export default function SettingsSection({
 
                 <div style={{ display: 'flex', gap: 8, paddingTop: 12 }}>
                   <button onClick={saveSettings} disabled={savingSettings}
-                    className="v22-btn v22-btn-primary"
+                    className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
                     style={{ opacity: savingSettings ? 0.5 : 1 }}>
                     {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrerParametres')}`}
                   </button>
@@ -769,7 +784,7 @@ export default function SettingsSection({
             </div>
 
             {/* Password change */}
-            <PasswordChangeCard />
+            <PasswordChangeCard isV5={isV5} />
           </div>
         </div>
       </div>
@@ -777,7 +792,7 @@ export default function SettingsSection({
 
       {/* Parrainage */}
       {settingsTab === 'parrainage' && (
-        <ParrainageSettingsTab artisanId={artisan.id} />
+        <ParrainageSettingsTab artisanId={artisan.id} isV5={isV5} />
       )}
 
       {/* Modules */}
@@ -790,7 +805,7 @@ export default function SettingsSection({
                 <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--v22-text)' }}>🧩 {t('proDash.settings.mesModules')}</div>
                 <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.modulesDesc')}</div>
               </div>
-              <span className="v22-tag v22-tag-yellow">
+              <span className={isV5 ? 'v5-badge v5-badge-yellow' : 'v22-tag v22-tag-yellow'}>
                 {ALL_MODULES.filter(m => !m.locked && isModuleEnabled(m.id)).length}/{ALL_MODULES.filter(m => !m.locked).length} {t('proDash.settings.actifs')}
               </span>
             </div>
@@ -813,7 +828,7 @@ export default function SettingsSection({
                       {groupMods.map(mod => {
                         const enabled = isModuleEnabled(mod.id)
                         return (
-                          <div key={mod.id} className="v22-card" style={{ opacity: enabled ? 1 : 0.6, borderColor: enabled ? 'var(--v22-yellow-border)' : 'var(--v22-border)' }}>
+                          <div key={mod.id} className={isV5 ? 'v5-card' : 'v22-card'} style={{ opacity: enabled ? 1 : 0.6, borderColor: enabled ? 'var(--v22-yellow-border)' : 'var(--v22-border)' }}>
                             <div style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
                               <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: enabled ? 'var(--v22-yellow-light)' : 'var(--v22-bg)' }}>
                                 {mod.icon}
@@ -822,12 +837,16 @@ export default function SettingsSection({
                                 <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{mod.label}</div>
                                 <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{mod.description}</div>
                               </div>
-                              <button
-                                onClick={() => toggleModule(mod.id)}
-                                style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: enabled ? 'var(--v22-yellow)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-                              >
-                                <div style={{ width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', position: 'absolute', top: 2, transition: 'left .2s', left: enabled ? 22 : 2 }} />
-                              </button>
+                              {isV5 ? (
+                                <button onClick={() => toggleModule(mod.id)} className={`v5-tgl${enabled ? ' active' : ''}`} />
+                              ) : (
+                                <button
+                                  onClick={() => toggleModule(mod.id)}
+                                  style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: enabled ? 'var(--v22-yellow)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                                >
+                                  <div style={{ width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', position: 'absolute', top: 2, transition: 'left .2s', left: enabled ? 22 : 2 }} />
+                                </button>
+                              )}
                             </div>
                           </div>
                         )
@@ -839,20 +858,20 @@ export default function SettingsSection({
             </div>
 
             {/* Menu order */}
-            <div className="v22-card" style={{ marginTop: 16 }}>
-              <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginTop: 16 }}>
+              <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div className="v22-card-title">↕️ {t('proDash.settings.ordreMenu')}</div>
+                  <div className={isV5 ? 'v5-st' : 'v22-card-title'}>↕️ {t('proDash.settings.ordreMenu')}</div>
                   <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.ordreMenuDesc')}</div>
                 </div>
                 <button
                   onClick={() => saveModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))}
-                  className="v22-btn v22-btn-sm"
+                  className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
                 >
                   ↺ {t('proDash.settings.reinitialiser')}
                 </button>
               </div>
-              <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {(() => {
                   const enabledMods = modulesConfig
                     .filter(c => c.enabled)
@@ -865,7 +884,7 @@ export default function SettingsSection({
                         <span style={{ color: 'var(--v22-text-muted)', userSelect: 'none', fontSize: 16, lineHeight: 1, fontFamily: 'monospace' }}>⠿</span>
                         <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{mod.icon}</span>
                         <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{mod.label}</span>
-                        <span className="v22-ref" style={{ width: 20, textAlign: 'center' }}>{idx + 1}</span>
+                        <span className={isV5 ? 'v5-badge' : 'v22-ref'} style={{ width: 20, textAlign: 'center' }}>{idx + 1}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <button
                             onClick={() => moveModule(mod.id, 'up')}
@@ -886,7 +905,7 @@ export default function SettingsSection({
             </div>
 
             {/* Tip box */}
-            <div className="v22-alert v22-alert-amber" style={{ marginTop: 16 }}>
+            <div className={isV5 ? 'v5-badge v5-badge-amber' : 'v22-alert v22-alert-amber'} style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <span style={{ fontSize: 18 }}>💡</span>
                 <div>

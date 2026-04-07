@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 
-export function GanttSection({ userId }: { userId: string }) {
+export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isV5 = orgRole === 'pro_societe'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `gantt_${userId}`
   interface Tache {
@@ -106,67 +107,76 @@ export function GanttSection({ userId }: { userId: string }) {
 
   return (
     <div>
-      <div className="v5-pg-t">
-        <h1>Planification Gantt</h1>
-        <p>Vue d&apos;ensemble des chantiers</p>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+        {isV5 ? (
+          <>
+            <h1>Planification Gantt</h1>
+            <p>Vue d&apos;ensemble des chantiers</p>
+          </>
+        ) : (
+          <div>
+            <h1 className="v22-page-title">Planification Gantt</h1>
+            <p className="v22-page-sub">Vue d&apos;ensemble des chantiers</p>
+          </div>
+        )}
       </div>
 
       {/* Add task button */}
       <div style={{ marginBottom: '.75rem', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>+ {t('proDash.btp.gantt.ajouterTache')}</button>
+        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(true)}>+ {t('proDash.btp.gantt.ajouterTache')}</button>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
-          <div className="v5-st">{t('proDash.btp.gantt.nouvelleTache')}</div>
-          <div className="v5-fr" style={{ marginBottom: '.75rem' }}>
-            <div className="v5-fg">
-              <label className="v5-fl">{t('proDash.btp.gantt.nom')}</label>
-              <input className="v5-fi" value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={t('proDash.btp.gantt.nomPlaceholder')} />
+        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
+          <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{t('proDash.btp.gantt.nouvelleTache')}</div>
+          <div className={isV5 ? 'v5-fr' : undefined} style={{ marginBottom: '.75rem', ...(isV5 ? {} : { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }) }}>
+            <div className={isV5 ? 'v5-fg' : undefined}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.gantt.nom')}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={t('proDash.btp.gantt.nomPlaceholder')} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{t('proDash.btp.gantt.chantier')}</label>
-              <input className="v5-fi" value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} placeholder={t('proDash.btp.gantt.chantierPlaceholder')} />
+            <div className={isV5 ? 'v5-fg' : undefined}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.gantt.chantier')}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} placeholder={t('proDash.btp.gantt.chantierPlaceholder')} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{t('proDash.btp.gantt.responsable')}</label>
-              <input className="v5-fi" value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} />
+            <div className={isV5 ? 'v5-fg' : undefined}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.gantt.responsable')}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{t('proDash.btp.gantt.couleur')}</label>
-              <input type="color" className="v5-fi" style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
+            <div className={isV5 ? 'v5-fg' : undefined}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.gantt.couleur')}</label>
+              <input type="color" className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{t('proDash.btp.gantt.debut')}</label>
-              <input type="date" className="v5-fi" value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} />
+            <div className={isV5 ? 'v5-fg' : undefined}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.gantt.debut')}</label>
+              <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} />
             </div>
-            <div className="v5-fg">
-              <label className="v5-fl">{t('proDash.btp.gantt.fin')}</label>
-              <input type="date" className="v5-fi" value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
+            <div className={isV5 ? 'v5-fg' : undefined}>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.gantt.fin')}</label>
+              <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="v5-btn v5-btn-p" onClick={addTache} disabled={!form.nom || !form.debut || !form.fin}>{t('proDash.btp.gantt.ajouter')}</button>
-            <button className="v5-btn" onClick={() => setShowForm(false)}>{t('proDash.btp.gantt.annuler')}</button>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addTache} disabled={!form.nom || !form.debut || !form.fin}>{t('proDash.btp.gantt.ajouter')}</button>
+            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.gantt.annuler')}</button>
           </div>
         </div>
       )}
 
       {/* Gantt Chart */}
       {taches.length === 0 ? (
-        <div className="v5-card" style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 8, color: '#BBB' }}>📊</div>
+        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 8, color: '#BBB' }}>&#x1F4CA;</div>
           <p style={{ fontSize: 12, color: '#999' }}>{t('proDash.btp.gantt.aucuneTache')}</p>
         </div>
       ) : (
         <>
-          <div className="v5-gantt">
-            <div className="v5-gantt-grid" style={{ gridTemplateColumns: gridCols }}>
+          <div className={isV5 ? 'v5-gantt' : 'v22-card'} style={isV5 ? undefined : { overflow: 'auto' }}>
+            <div className={isV5 ? 'v5-gantt-grid' : undefined} style={{ gridTemplateColumns: gridCols, ...(isV5 ? {} : { display: 'grid', gridTemplateColumns: gridCols }) }}>
               {/* Header row */}
-              <div className="v5-gantt-hdr">
-                <div>{t('proDash.btp.gantt.colChantier')}</div>
-                {months.map((m, i) => <div key={i}>{m.label}</div>)}
+              <div className={isV5 ? 'v5-gantt-hdr' : undefined} style={isV5 ? undefined : { display: 'contents' }}>
+                <div style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: 'var(--v22-text-mid)', borderBottom: '1px solid var(--v22-border)' }}>{t('proDash.btp.gantt.colChantier')}</div>
+                {months.map((m, i) => <div key={i} style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: 'var(--v22-text-mid)', borderBottom: '1px solid var(--v22-border)', textAlign: 'center' }}>{m.label}</div>)}
               </div>
 
               {/* Task rows */}
@@ -178,9 +188,10 @@ export function GanttSection({ userId }: { userId: string }) {
                 const isPlanifie = tc.statut === 'planifié'
 
                 return (
-                  <div className="v5-gantt-row" key={tc.id}>
+                  <div className={isV5 ? 'v5-gantt-row' : undefined} key={tc.id} style={isV5 ? undefined : { display: 'contents' }}>
                     {/* Task name cell */}
                     <div style={{
+                      ...(isV5 ? {} : { padding: '8px 12px', fontSize: 12, borderBottom: '1px solid var(--v22-border)' }),
                       ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
                       ...(isRetard ? { color: '#C62828' } : {}),
                       ...(isPlanifie ? { color: '#999' } : {}),
@@ -204,24 +215,30 @@ export function GanttSection({ userId }: { userId: string }) {
                       const showLabel = bar && bars.indexOf(bar) === middleBarIdx
 
                       return (
-                        <div key={mi} style={{ position: 'relative' }}>
+                        <div key={mi} style={{ position: 'relative', ...(isV5 ? {} : { padding: '4px 0', borderBottom: '1px solid var(--v22-border)' }) }}>
                           {bar && (
                             <div
-                              className={`v5-gantt-bar ${colorCls}`}
+                              className={isV5 ? `v5-gantt-bar ${colorCls}` : undefined}
                               style={{
                                 left: bar.left,
                                 right: bar.right,
                                 ...(isPlanifie ? { opacity: 0.5 } : {}),
+                                ...(isV5 ? {} : {
+                                  position: 'absolute', top: '20%', bottom: '20%',
+                                  left: bar.left, right: bar.right,
+                                  borderRadius: 4,
+                                  background: colorCls === 'blue' ? '#3B82F6' : colorCls === 'red' ? '#EF5350' : colorCls === 'gray' ? '#9E9E9E' : '#AB47BC',
+                                }),
                               }}
                             >
                               {showLabel && (
-                                <span className="v5-gantt-bar-label" style={colorCls === 'yellow' ? { color: '#333' } : undefined}>
+                                <span className={isV5 ? 'v5-gantt-bar-label' : undefined} style={isV5 ? (colorCls === 'yellow' ? { color: '#333' } : undefined) : { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 9, fontWeight: 600, color: '#fff' }}>
                                   {tc.avancement}%
                                 </span>
                               )}
                             </div>
                           )}
-                          {todayPos && <div className="v5-gantt-today" style={{ left: todayPos }} />}
+                          {todayPos && <div className={isV5 ? 'v5-gantt-today' : undefined} style={{ left: todayPos, ...(isV5 ? {} : { position: 'absolute', top: 0, bottom: 0, width: 2, background: '#EF5350', zIndex: 1 }) }} />}
                         </div>
                       )
                     })}
@@ -232,56 +249,75 @@ export function GanttSection({ userId }: { userId: string }) {
           </div>
 
           {/* Legend */}
-          <div className="v5-gantt-legend">
-            🔴 Ligne rouge = aujourd&apos;hui &nbsp;&bull;&nbsp; 🔶 Losange = jalon cl&eacute;
+          <div className={isV5 ? 'v5-gantt-legend' : undefined} style={isV5 ? undefined : { fontSize: 11, color: '#999', marginTop: 8, textAlign: 'center' }}>
+            &#x1F534; Ligne rouge = aujourd&apos;hui &nbsp;&bull;&nbsp; &#x1F536; Losange = jalon cl&eacute;
           </div>
 
           {/* Advancement sliders */}
-          <div className="v5-card" style={{ marginTop: '.75rem' }}>
-            <div className="v5-st">{t('proDash.btp.gantt.colAvancement')}</div>
-            <table className="v5-dt">
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginTop: '.75rem' }}>
+            <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{t('proDash.btp.gantt.colAvancement')}</div>
+            <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr>
-                  <th>{t('proDash.btp.gantt.colTache')}</th>
-                  <th>{t('proDash.btp.gantt.colChantier')}</th>
-                  <th>{t('proDash.btp.gantt.colStatut')}</th>
-                  <th>{t('proDash.btp.gantt.colAvancement')}</th>
+                <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.gantt.colTache')}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.gantt.colChantier')}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.gantt.colStatut')}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.gantt.colAvancement')}</th>
                 </tr>
               </thead>
               <tbody>
                 {taches.map(tc => (
-                  <tr key={tc.id}>
-                    <td style={{ fontWeight: 600 }}>
+                  <tr key={tc.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                    <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
                       {tc.nom}
                       <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{tc.responsable}</div>
                     </td>
-                    <td>{tc.chantier}</td>
-                    <td>
-                      <span className={`v5-badge ${
+                    <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tc.chantier}</td>
+                    <td style={isV5 ? undefined : { padding: '8px 12px' }}>
+                      <span className={isV5 ? `v5-badge ${
                         tc.statut === 'en_cours' ? 'v5-badge-blue' :
                         tc.statut === 'terminé' ? 'v5-badge-green' :
                         tc.statut === 'en_retard' ? 'v5-badge-red' :
                         'v5-badge-gray'
+                      }` : `v22-tag ${
+                        tc.statut === 'en_cours' ? 'v22-tag-green' :
+                        tc.statut === 'terminé' ? 'v22-tag-gray' :
+                        tc.statut === 'en_retard' ? 'v22-tag-red' :
+                        'v22-tag-amber'
                       }`}>
                         {statLabels[tc.statut] || tc.statut}
                       </span>
                     </td>
-                    <td style={{ minWidth: 180 }}>
-                      <div className="v5-prog-row">
-                        <div className="v5-prog-bg">
-                          <div className="v5-prog-fill" style={{
-                            width: `${tc.avancement}%`,
-                            background: tc.statut === 'en_retard' ? '#EF5350' :
-                                        tc.statut === 'terminé' ? '#66BB6A' :
-                                        tc.statut === 'en_cours' ? '#42A5F5' : '#AB47BC',
-                          }} />
+                    <td style={{ minWidth: 180, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
+                      {isV5 ? (
+                        <div className="v5-prog-row">
+                          <div className="v5-prog-bg">
+                            <div className="v5-prog-fill" style={{
+                              width: `${tc.avancement}%`,
+                              background: tc.statut === 'en_retard' ? '#EF5350' :
+                                          tc.statut === 'terminé' ? '#66BB6A' :
+                                          tc.statut === 'en_cours' ? '#42A5F5' : '#AB47BC',
+                            }} />
+                          </div>
+                          <span className="v5-prog-pct">{tc.avancement}%</span>
                         </div>
-                        <span className="v5-prog-pct">{tc.avancement}%</span>
-                      </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#E8E8E8' }}>
+                            <div style={{
+                              width: `${tc.avancement}%`, height: '100%', borderRadius: 3,
+                              background: tc.statut === 'en_retard' ? '#EF5350' :
+                                          tc.statut === 'terminé' ? '#66BB6A' :
+                                          tc.statut === 'en_cours' ? '#42A5F5' : '#AB47BC',
+                            }} />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, minWidth: 32 }}>{tc.avancement}%</span>
+                        </div>
+                      )}
                       <input
                         type="range" min="0" max="100" value={tc.avancement}
                         onChange={e => updateAvancement(tc.id, Number(e.target.value))}
-                        style={{ width: '100%', accentColor: 'var(--v5-primary-yellow)', height: 4, marginTop: 4 }}
+                        style={{ width: '100%', accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', height: 4, marginTop: 4 }}
                       />
                     </td>
                   </tr>
@@ -291,14 +327,25 @@ export function GanttSection({ userId }: { userId: string }) {
           </div>
 
           {/* Stats grid */}
-          <div className="v5-kpi-g" style={{ marginTop: '.75rem' }}>
-            {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
-              <div key={s} className={`v5-kpi${s === 'en_retard' ? '' : ''}`}>
-                <div className="v5-kpi-l">{statLabels[s]}</div>
-                <div className="v5-kpi-v">{taches.filter(tc => tc.statut === s).length}</div>
-              </div>
-            ))}
-          </div>
+          {isV5 ? (
+            <div className="v5-kpi-g" style={{ marginTop: '.75rem' }}>
+              {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
+                <div key={s} className="v5-kpi">
+                  <div className="v5-kpi-l">{statLabels[s]}</div>
+                  <div className="v5-kpi-v">{taches.filter(tc => tc.statut === s).length}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: '.75rem' }}>
+              {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
+                <div key={s} className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{statLabels[s]}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{taches.filter(tc => tc.statut === s).length}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>

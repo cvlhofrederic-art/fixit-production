@@ -48,7 +48,8 @@ interface NearestChantier extends Chantier {
   isDepot?: boolean
 }
 
-export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
+export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; orgRole?: string }) {
+  const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
   const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
@@ -203,23 +204,23 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
   return (
     <div>
       {/* Page header */}
-      <div className="v5-pg-t">
+      <div className={isV5 ? "v5-pg-t" : "v22-page-header"}>
         <h1>{isPt ? 'Pointagem equipas' : 'Pointage équipes'}</h1>
         <p>{isPt ? 'Manual ou automático por GPS' : 'Suivi des heures'}</p>
       </div>
 
       {/* Tabs + manual pointer button */}
       <div style={{ display: 'flex', gap: 8, marginBottom: '.75rem', alignItems: 'center' }}>
-        <div className="v5-tabs" style={{ marginBottom: 0, borderBottom: 'none' }}>
-          <button className={`v5-tab-b${tab === 'pointages' ? ' active' : ''}`} onClick={() => setTab('pointages')}>
+        <div className={isV5 ? "v5-tabs" : "v22-tabs"} style={{ marginBottom: 0, borderBottom: 'none' }}>
+          <button className={isV5 ? `v5-tab-b${tab === 'pointages' ? ' active' : ''}` : `v22-tab ${tab === 'pointages' ? 'active' : ''}`} onClick={() => setTab('pointages')}>
             {isPt ? 'Pontagens' : 'Pointages'}
           </button>
-          <button className={`v5-tab-b${tab === 'geo' ? ' active' : ''}`} onClick={() => setTab('geo')}>
+          <button className={isV5 ? `v5-tab-b${tab === 'geo' ? ' active' : ''}` : `v22-tab ${tab === 'geo' ? 'active' : ''}`} onClick={() => setTab('geo')}>
             GPS
           </button>
         </div>
         {tab === 'pointages' && (
-          <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>
+          <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={() => setShowForm(true)}>
             {isPt ? '⏱️ Pontar manualmente' : '⏱️ Pointer manuellement'}
           </button>
         )}
@@ -230,7 +231,7 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
 
           {/* GPS status card */}
-          <div className="v5-card">
+          <div className={isV5 ? "v5-card" : "v22-card"}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div style={{
                 width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
@@ -253,7 +254,7 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
             </div>
 
             {!settings.geo_pointage_enabled && (
-              <div className="v5-al warn" style={{ marginBottom: 12 }}>
+              <div className={isV5 ? "v5-al warn" : "v22-alert v22-alert-amber"} style={{ marginBottom: 12 }}>
                 ⚠️ {isPt
                   ? 'A pointagem GPS está desativada. Ative nas Configurações BTP.'
                   : 'Le pointage GPS est désactivé. Activez-le dans les Paramètres BTP.'}
@@ -262,16 +263,16 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
 
             <div style={{ display: 'flex', gap: 8 }}>
               {!geo.watching ? (
-                <button className="v5-btn v5-btn-s" onClick={() => { geo.start(); setGeoStatus('watching') }}>
+                <button className={isV5 ? "v5-btn v5-btn-s" : "v22-btn v22-btn-secondary"} onClick={() => { geo.start(); setGeoStatus('watching') }}>
                   📡 {isPt ? 'Ativar GPS' : 'Activer GPS'}
                 </button>
               ) : (
-                <button className="v5-btn v5-btn-d" onClick={() => { geo.stop(); setGeoStatus('idle') }}>
+                <button className={isV5 ? "v5-btn v5-btn-d" : "v22-btn v22-btn-danger"} onClick={() => { geo.stop(); setGeoStatus('idle') }}>
                   ⏹ {isPt ? 'Parar GPS' : 'Arrêter GPS'}
                 </button>
               )}
               {geoStatus === 'in_zone' && nearestChantier && (
-                <button className="v5-btn v5-btn-p" onClick={() => pointGeo(nearestChantier)}>
+                <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={() => pointGeo(nearestChantier)}>
                   ✅ {isPt ? `Pontar em ${nearestChantier.titre}` : `Pointer sur ${nearestChantier.titre}`}
                 </button>
               )}
@@ -279,8 +280,8 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
           </div>
 
           {/* Chantiers with GPS */}
-          <div className="v5-card">
-            <div className="v5-st">📍 {isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
+          <div className={isV5 ? "v5-card" : "v22-card"}>
+            <div className={isV5 ? "v5-st" : "v22-section-title"}>📍 {isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
             {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').length === 0 ? (
               <p style={{ textAlign: 'center', padding: 16, fontSize: 12, color: '#999' }}>
                 {isPt
@@ -328,16 +329,16 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
         <>
           {/* Form pointage manuel */}
           {showForm && (
-            <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+            <div className={isV5 ? "v5-card" : "v22-card"} style={{ marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
-                <div className="v5-st" style={{ marginBottom: 0 }}>{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
-                <button className="v5-btn v5-btn-sm" onClick={() => setShowForm(false)}>✕</button>
+                <div className={isV5 ? "v5-st" : "v22-section-title"} style={{ marginBottom: 0 }}>{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
+                <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowForm(false)}>✕</button>
               </div>
-              <div className="v5-fr" style={{ marginBottom: '.75rem' }}>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Funcionário *' : 'Employé *'}</label>
+              <div className={isV5 ? "v5-fr" : "v22-form-row"} style={{ marginBottom: '.75rem' }}>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Funcionário *' : 'Employé *'}</label>
                   {membres.length > 0 ? (
-                    <select className="v5-fi" value={form.employe} onChange={e => {
+                    <select className={isV5 ? "v5-fi" : "v22-input"} value={form.employe} onChange={e => {
                       const m = (membres as Membre[]).find(m => `${m.prenom} ${m.nom}` === e.target.value)
                       setForm({ ...form, employe: e.target.value, poste: m?.typeCompte || form.poste })
                     }}>
@@ -345,21 +346,21 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
                       {(membres as Membre[]).map(m => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
                     </select>
                   ) : (
-                    <input className="v5-fi" value={form.employe} onChange={e => setForm({ ...form, employe: e.target.value })}
+                    <input className={isV5 ? "v5-fi" : "v22-input"} value={form.employe} onChange={e => setForm({ ...form, employe: e.target.value })}
                       placeholder={isPt ? 'Nome do funcionário' : 'Nom de l\'employé'} />
                   )}
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Função' : 'Poste'}</label>
-                  <select className="v5-fi" value={form.poste} onChange={e => setForm({ ...form, poste: e.target.value })}>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Função' : 'Poste'}</label>
+                  <select className={isV5 ? "v5-fi" : "v22-input"} value={form.poste} onChange={e => setForm({ ...form, poste: e.target.value })}>
                     <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
                     {POSTES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Obra' : 'Chantier'}</label>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Obra' : 'Chantier'}</label>
                   {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').length > 0 ? (
-                    <select className="v5-fi" value={form.chantier} onChange={e => {
+                    <select className={isV5 ? "v5-fi" : "v22-input"} value={form.chantier} onChange={e => {
                       const c = (chantiers as Chantier[]).find(c => c.titre === e.target.value)
                       setForm({ ...form, chantier: e.target.value, chantierId: c?.id || '' })
                     }}>
@@ -369,38 +370,38 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
                       ))}
                     </select>
                   ) : (
-                    <input className="v5-fi" value={form.chantier} onChange={e => setForm({ ...form, chantier: e.target.value })} />
+                    <input className={isV5 ? "v5-fi" : "v22-input"} value={form.chantier} onChange={e => setForm({ ...form, chantier: e.target.value })} />
                   )}
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">Date</label>
-                  <input type="date" className="v5-fi" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>Date</label>
+                  <input type="date" className={isV5 ? "v5-fi" : "v22-input"} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Chegada' : 'Arrivée'}</label>
-                  <input type="time" className="v5-fi" value={form.heureArrivee} onChange={e => setForm({ ...form, heureArrivee: e.target.value })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Chegada' : 'Arrivée'}</label>
+                  <input type="time" className={isV5 ? "v5-fi" : "v22-input"} value={form.heureArrivee} onChange={e => setForm({ ...form, heureArrivee: e.target.value })} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Saída' : 'Départ'}</label>
-                  <input type="time" className="v5-fi" value={form.heureDepart} onChange={e => setForm({ ...form, heureDepart: e.target.value })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Saída' : 'Départ'}</label>
+                  <input type="time" className={isV5 ? "v5-fi" : "v22-input"} value={form.heureDepart} onChange={e => setForm({ ...form, heureDepart: e.target.value })} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isPt ? 'Pausa (min)' : 'Pause (min)'}</label>
-                  <input type="number" className="v5-fi" value={form.pauseMinutes} onChange={e => setForm({ ...form, pauseMinutes: Number(e.target.value) })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Pausa (min)' : 'Pause (min)'}</label>
+                  <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={form.pauseMinutes} onChange={e => setForm({ ...form, pauseMinutes: Number(e.target.value) })} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">Notes</label>
-                  <input className="v5-fi" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>Notes</label>
+                  <input className={isV5 ? "v5-fi" : "v22-input"} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
                 </div>
               </div>
-              <div className="v5-al info" style={{ marginBottom: 12 }}>
+              <div className={isV5 ? "v5-al info" : "v22-alert v22-alert-blue"} style={{ marginBottom: 12 }}>
                 ⏱️ {isPt ? 'Horas' : 'Heures'}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="v5-btn v5-btn-p" onClick={addPointage} disabled={!form.employe}>
+                <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"} onClick={addPointage} disabled={!form.employe}>
                   ✅ {isPt ? 'Registar' : 'Enregistrer'}
                 </button>
-                <button className="v5-btn" onClick={() => setShowForm(false)}>
+                <button className={isV5 ? "v5-btn" : "v22-btn"} onClick={() => setShowForm(false)}>
                   {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
               </div>
@@ -408,21 +409,21 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
           )}
 
           {/* Daily tracking table */}
-          <div className="v5-card" style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
+          <div className={isV5 ? "v5-card" : "v22-card"} style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.65rem' }}>
-              <div className="v5-st" style={{ marginBottom: 0 }}>
+              <div className={isV5 ? "v5-st" : "v22-section-title"} style={{ marginBottom: 0 }}>
                 {isPt ? 'Pontagem do dia' : 'Pointage du jour'} — {filterDate ? new Date(filterDate + 'T00:00').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' }) : (isPt ? 'Todos' : 'Tous')}
               </div>
-              <div className="v5-search" style={{ marginBottom: 0 }}>
-                <input type="date" className="v5-search-in" style={{ minWidth: 140, flex: 'none' }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-                <select className="v5-filter-sel" value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
+              <div className={isV5 ? "v5-search" : "v22-search"} style={{ marginBottom: 0 }}>
+                <input type="date" className={isV5 ? "v5-search-in" : "v22-search-in"} style={{ minWidth: 140, flex: 'none' }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+                <select className={isV5 ? "v5-filter-sel" : "v22-filter-sel"} value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
                   <option value="">{isPt ? 'Todos' : 'Tous'}</option>
                   {employes.map(e => <option key={e}>{e}</option>)}
                 </select>
-                <button className="v5-btn v5-btn-sm" onClick={() => setFilterDate('')}>{isPt ? 'Ver tudo' : 'Voir tout'}</button>
+                <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setFilterDate('')}>{isPt ? 'Ver tudo' : 'Voir tout'}</button>
               </div>
             </div>
-            <table className="v5-dt">
+            <table className={isV5 ? "v5-dt" : "v22-table"}>
               <thead>
                 <tr>
                   <th>{isPt ? 'Funcionário' : 'Employé'}</th>
@@ -447,13 +448,13 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
                     <td>{p.heureDepart || '—'}</td>
                     <td style={{ fontWeight: 600 }}>{p.heuresTravaillees ? `${p.heuresTravaillees}h` : '—'}</td>
                     <td>
-                      {p.mode === 'geo_confirme' && <span className="v5-badge v5-badge-green">✓ Sur site</span>}
-                      {p.mode === 'geo_auto' && <span className="v5-badge v5-badge-blue">✓ Auto</span>}
-                      {p.mode === 'manuel' && <span className="v5-badge v5-badge-gray">Manuel</span>}
-                      {!p.mode && <span className="v5-badge v5-badge-gray">—</span>}
+                      {p.mode === 'geo_confirme' && <span className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"}>✓ Sur site</span>}
+                      {p.mode === 'geo_auto' && <span className={isV5 ? "v5-badge v5-badge-blue" : "v22-tag v22-tag-blue"}>✓ Auto</span>}
+                      {p.mode === 'manuel' && <span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"}>Manuel</span>}
+                      {!p.mode && <span className={isV5 ? "v5-badge v5-badge-gray" : "v22-tag v22-tag-gray"}>—</span>}
                     </td>
                     <td>
-                      <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => remove(p.id)}>✕</button>
+                      <button className={isV5 ? "v5-btn v5-btn-sm v5-btn-d" : "v22-btn v22-btn-sm v22-btn-danger"} onClick={() => remove(p.id)}>✕</button>
                     </td>
                   </tr>
                 ))}
@@ -465,12 +466,12 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
           </div>
 
           {/* Weekly summary table */}
-          <div className="v5-card">
-            <div className="v5-st">{isPt ? 'Resumo horas semanais' : 'Résumé heures hebdomadaires'}</div>
+          <div className={isV5 ? "v5-card" : "v22-card"}>
+            <div className={isV5 ? "v5-st" : "v22-section-title"}>{isPt ? 'Resumo horas semanais' : 'Résumé heures hebdomadaires'}</div>
             {(() => {
               const { weekDays, summary } = getWeeklySummary()
               return (
-                <table className="v5-dt">
+                <table className={isV5 ? "v5-dt" : "v22-table"}>
                   <thead>
                     <tr>
                       <th>{isPt ? 'Funcionário' : 'Employé'}</th>

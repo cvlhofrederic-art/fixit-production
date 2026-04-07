@@ -163,12 +163,12 @@ export default function CalendarSection(props: CalendarSectionProps) {
         </div>
 
         {/* Calendar card */}
-        <div className="v22-card" style={{ marginBottom: 16 }}>
-          <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
+          <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...(isV5 ? { padding: '16px 20px', borderBottom: '1px solid #E5E7EB' } : {}) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => navigateCalendar(-1)} className="v22-btn v22-btn-sm">{'◀'}</button>
-              <span className="v22-card-title" style={{ textTransform: 'capitalize' }}>{getCalendarTitle()}</span>
-              <button onClick={() => navigateCalendar(1)} className="v22-btn v22-btn-sm">{'▶'}</button>
+              <button onClick={() => navigateCalendar(-1)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>{'◀'}</button>
+              <span className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ textTransform: 'capitalize' }}>{getCalendarTitle()}</span>
+              <button onClick={() => navigateCalendar(1)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>{'▶'}</button>
             </div>
           </div>
 
@@ -203,7 +203,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                       </div>
                       {absenceInfo.source === 'devis' && <div style={{ fontSize: 11, color: 'var(--v22-red)' }}>{absenceInfo.reason}</div>}
                     </div>
-                    <button onClick={() => deleteAbsence(absenceInfo.id)} className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)', fontSize: 11 }}>Supprimer</button>
+                    <button onClick={() => deleteAbsence(absenceInfo.id)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: 'var(--v22-red)', fontSize: 11 }}>Supprimer</button>
                   </div>
                 )}
                 {getCalendarHours().map((hour) => {
@@ -299,7 +299,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                           return (
                             <div key={i} style={{ minHeight: 60, borderRight: i < colCount - 1 ? '1px solid var(--v22-border)' : 'none', padding: 4, background: absInfo.source === 'devis' ? '#FADBD8' : '#FBE4E4' }}>
                               {hour === getCalendarHours()[0] && (
-                                <div className="v22-tag v22-tag-red" style={{ fontSize: 9 }}>
+                                <div className={isV5 ? 'v5-badge v5-badge-red' : 'v22-tag v22-tag-red'} style={{ fontSize: 9 }}>
                                   {absInfo.source === 'devis' ? absInfo.label : absInfo.reason}
                                 </div>
                               )}
@@ -381,7 +381,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                             ) : null}
                           </div>
                           {absInfo.absent && isCurrentMonth && (
-                            <div className="v22-tag v22-tag-red" style={{ fontSize: 9, marginBottom: 2 }}>
+                            <div className={isV5 ? 'v5-badge v5-badge-red' : 'v22-tag v22-tag-red'} style={{ fontSize: 9, marginBottom: 2 }}>
                               {absInfo.source === 'devis' ? absInfo.label : absInfo.reason || 'Absent'}
                             </div>
                           )}
@@ -414,11 +414,11 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Pending bookings */}
         {pendingBookings.length > 0 && (
-          <div className="v22-card">
-            <div className="v22-card-head">
-              <span className="v22-card-title">RDV en attente de validation ({pendingBookings.length})</span>
+          <div className={isV5 ? 'v5-card' : 'v22-card'}>
+            <div className={isV5 ? '' : 'v22-card-head'} style={isV5 ? { padding: '16px 20px', borderBottom: '1px solid #E5E7EB' } : undefined}>
+              <span className={isV5 ? 'v5-st' : 'v22-card-title'}>RDV en attente de validation ({pendingBookings.length})</span>
             </div>
-            <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 10, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
               {pendingBookings.map((b) => (
                 <div key={b.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: 12, background: 'var(--v22-amber-light)', border: '1px solid var(--v22-yellow-border)', borderRadius: 4 }}>
                   <div>
@@ -427,10 +427,10 @@ export default function CalendarSection(props: CalendarSectionProps) {
                     <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{b.address}</div>
                     {b.notes && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{b.notes}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => openDashMessages(b)} className="v22-btn v22-btn-sm">Messages</button>
-                    <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-green)', color: '#fff' }}>Accepter</button>
-                    <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-light)', color: 'var(--v22-red)' }}>Refuser</button>
+                  <div className={isV5 ? 'v5-btn-g' : ''} style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => openDashMessages(b)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>Messages</button>
+                    <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className={isV5 ? 'v5-btn v5-btn-sm v5-btn-p' : 'v22-btn v22-btn-sm'} style={!isV5 ? { background: 'var(--v22-green)', color: '#fff' } : undefined}>Accepter</button>
+                    <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={!isV5 ? { background: 'var(--v22-red-light)', color: 'var(--v22-red)' } : { color: '#DC2626' }}>Refuser</button>
                   </div>
                 </div>
               ))}
@@ -440,36 +440,36 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Modal: New RDV */}
         {showNewRdv && (
-          <div className="v22-modal-overlay" onClick={() => setShowNewRdv(false)}>
-            <div className="v22-modal" style={{ width: 520, maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-              <div className="v22-modal-head">
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Nouveau rendez-vous</span>
-                <button onClick={() => setShowNewRdv(false)} className="v22-btn v22-btn-sm">&times;</button>
+          <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => setShowNewRdv(false)}>
+            <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520, maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+              <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
+                <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Nouveau rendez-vous</span>
+                <button onClick={() => setShowNewRdv(false)} className={isV5 ? 'v5-modal-x' : 'v22-btn v22-btn-sm'}>&times;</button>
               </div>
-              <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Client</label>
-                  <input type="text" value={newRdv.client_name} onChange={(e) => setNewRdv({...newRdv, client_name: e.target.value})} placeholder="Nom du client" className="v22-form-input" />
+              <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 12, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Client</label>
+                  <input type="text" value={newRdv.client_name} onChange={(e) => setNewRdv({...newRdv, client_name: e.target.value})} placeholder="Nom du client" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Prestation *</label>
-                  <select value={newRdv.service_id} onChange={(e) => setNewRdv({...newRdv, service_id: e.target.value})} className="v22-form-input">
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Prestation *</label>
+                  <select value={newRdv.service_id} onChange={(e) => setNewRdv({...newRdv, service_id: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'}>
                     <option value="">Choisir une prestation...</option>
                     {services.filter(s => s.active).map((s) => <option key={s.id} value={s.id}>{s.name} \u2014 {formatPrice(s.price_ttc ?? 0)}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Date *</label>
-                    <input type="date" value={newRdv.date} onChange={(e) => setNewRdv({...newRdv, date: e.target.value})} min={new Date().toISOString().split('T')[0]} className="v22-form-input" />
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date *</label>
+                    <input type="date" value={newRdv.date} onChange={(e) => setNewRdv({...newRdv, date: e.target.value})} min={new Date().toISOString().split('T')[0]} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Heure *</label>
-                    <input type="time" value={newRdv.time} onChange={(e) => setNewRdv({...newRdv, time: e.target.value})} className="v22-form-input" />
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Heure *</label>
+                    <input type="time" value={newRdv.time} onChange={(e) => setNewRdv({...newRdv, time: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Duree</label>
-                    <select value={newRdv.duration} onChange={(e) => setNewRdv({...newRdv, duration: e.target.value})} className="v22-form-input">
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Duree</label>
+                    <select value={newRdv.duration} onChange={(e) => setNewRdv({...newRdv, duration: e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'}>
                       <option value="">Auto</option>
                       <option value="30">30 min</option>
                       <option value="45">45 min</option>
@@ -483,26 +483,26 @@ export default function CalendarSection(props: CalendarSectionProps) {
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Telephone</label>
-                    <input type="tel" value={newRdv.phone} onChange={(e) => setNewRdv({...newRdv, phone: e.target.value})} placeholder="06 12 34 56 78" className="v22-form-input" />
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Telephone</label>
+                    <input type="tel" value={newRdv.phone} onChange={(e) => setNewRdv({...newRdv, phone: e.target.value})} placeholder="06 12 34 56 78" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Adresse</label>
-                    <input type="text" value={newRdv.address} onChange={(e) => setNewRdv({...newRdv, address: e.target.value})} placeholder="Adresse intervention" className="v22-form-input" />
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Adresse</label>
+                    <input type="text" value={newRdv.address} onChange={(e) => setNewRdv({...newRdv, address: e.target.value})} placeholder="Adresse intervention" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                 </div>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Notes</label>
-                  <textarea value={newRdv.notes} onChange={(e) => setNewRdv({...newRdv, notes: e.target.value})} rows={2} placeholder="Details, acces, infos utiles..." className="v22-form-input" style={{ resize: 'none' }} />
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Notes</label>
+                  <textarea value={newRdv.notes} onChange={(e) => setNewRdv({...newRdv, notes: e.target.value})} rows={2} placeholder="Details, acces, infos utiles..." className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
               </div>
-              <div className="v22-modal-foot">
+              <div className={isV5 ? 'v5-btn-g' : 'v22-modal-foot'} style={isV5 ? { padding: '16px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 } : undefined}>
                 <button onClick={createRdvManual} disabled={!newRdv.service_id || !newRdv.date || !newRdv.time}
-                  className="v22-btn v22-btn-primary" style={{ flex: 1, opacity: (!newRdv.service_id || !newRdv.date || !newRdv.time) ? 0.4 : 1, cursor: (!newRdv.service_id || !newRdv.date || !newRdv.time) ? 'not-allowed' : 'pointer' }}>
+                  className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ flex: 1, opacity: (!newRdv.service_id || !newRdv.date || !newRdv.time) ? 0.4 : 1, cursor: (!newRdv.service_id || !newRdv.date || !newRdv.time) ? 'not-allowed' : 'pointer' }}>
                   Creer le rendez-vous
                 </button>
-                <button onClick={() => setShowNewRdv(false)} className="v22-btn">
+                <button onClick={() => setShowNewRdv(false)} className={isV5 ? 'v5-btn' : 'v22-btn'}>
                   Annuler
                 </button>
               </div>
@@ -512,19 +512,19 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Modal: Absence */}
         {showAbsenceModal && (
-          <div className="v22-modal-overlay" onClick={() => setShowAbsenceModal(false)}>
-            <div className="v22-modal" style={{ width: 440 }} onClick={(e) => e.stopPropagation()}>
-              <div className="v22-modal-head">
-                <span style={{ fontWeight: 600, fontSize: 14 }}>Ajouter une absence</span>
-                <button onClick={() => setShowAbsenceModal(false)} className="v22-btn v22-btn-sm">&times;</button>
+          <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => setShowAbsenceModal(false)}>
+            <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 440 }} onClick={(e) => e.stopPropagation()}>
+              <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
+                <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Ajouter une absence</span>
+                <button onClick={() => setShowAbsenceModal(false)} className={isV5 ? 'v5-modal-x' : 'v22-btn v22-btn-sm'}>&times;</button>
               </div>
-              <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Motif</label>
+              <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 12, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Motif</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                     {['Conge', 'Maladie', 'Formation', 'Personnel', 'Ferie', 'Autre'].map(reason => (
                       <button key={reason} onClick={() => setNewAbsence({...newAbsence, reason})}
-                        className="v22-btn v22-btn-sm"
+                        className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
                         style={newAbsence.reason === reason ? { border: '2px solid var(--v22-red)', background: 'var(--v22-red-light)', color: 'var(--v22-red)', fontWeight: 600 } : {}}>
                         {reason === 'Conge' ? 'Conge' : reason === 'Maladie' ? 'Maladie' : reason === 'Formation' ? 'Formation' : reason === 'Personnel' ? 'Personnel' : reason === 'Ferie' ? 'Ferie' : 'Autre'}
                       </button>
@@ -532,13 +532,13 @@ export default function CalendarSection(props: CalendarSectionProps) {
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Du *</label>
-                    <input type="date" value={newAbsence.start_date} onChange={(e) => setNewAbsence({...newAbsence, start_date: e.target.value, end_date: newAbsence.end_date || e.target.value})} className="v22-form-input" />
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Du *</label>
+                    <input type="date" value={newAbsence.start_date} onChange={(e) => setNewAbsence({...newAbsence, start_date: e.target.value, end_date: newAbsence.end_date || e.target.value})} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
-                  <div className="v22-form-group">
-                    <label className="v22-form-label">Au *</label>
-                    <input type="date" value={newAbsence.end_date} onChange={(e) => setNewAbsence({...newAbsence, end_date: e.target.value})} min={newAbsence.start_date} className="v22-form-input" />
+                  <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Au *</label>
+                    <input type="date" value={newAbsence.end_date} onChange={(e) => setNewAbsence({...newAbsence, end_date: e.target.value})} min={newAbsence.start_date} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                   </div>
                 </div>
                 {newAbsence.start_date && newAbsence.end_date && (
@@ -551,17 +551,17 @@ export default function CalendarSection(props: CalendarSectionProps) {
                     })()}
                   </div>
                 )}
-                <div className="v22-form-group">
-                  <label className="v22-form-label">Libelle <span style={{ color: 'var(--v22-text-muted)' }}>(optionnel)</span></label>
-                  <input type="text" value={newAbsence.label} onChange={(e) => setNewAbsence({...newAbsence, label: e.target.value})} placeholder="Ex: Vacances d'ete, RDV medical..." className="v22-form-input" />
+                <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Libelle <span style={{ color: 'var(--v22-text-muted)' }}>(optionnel)</span></label>
+                  <input type="text" value={newAbsence.label} onChange={(e) => setNewAbsence({...newAbsence, label: e.target.value})} placeholder="Ex: Vacances d'ete, RDV medical..." className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
               </div>
-              <div className="v22-modal-foot">
+              <div className={isV5 ? 'v5-btn-g' : 'v22-modal-foot'} style={isV5 ? { padding: '16px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 } : undefined}>
                 <button onClick={createAbsence} disabled={!newAbsence.start_date || !newAbsence.end_date}
-                  className="v22-btn" style={{ flex: 1, background: 'var(--v22-red)', color: '#fff', opacity: (!newAbsence.start_date || !newAbsence.end_date) ? 0.4 : 1, cursor: (!newAbsence.start_date || !newAbsence.end_date) ? 'not-allowed' : 'pointer' }}>
+                  className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-red)', color: '#fff' }), opacity: (!newAbsence.start_date || !newAbsence.end_date) ? 0.4 : 1, cursor: (!newAbsence.start_date || !newAbsence.end_date) ? 'not-allowed' : 'pointer' }}>
                   Bloquer ces dates
                 </button>
-                <button onClick={() => setShowAbsenceModal(false)} className="v22-btn">
+                <button onClick={() => setShowAbsenceModal(false)} className={isV5 ? 'v5-btn' : 'v22-btn'}>
                   Annuler
                 </button>
               </div>
@@ -571,13 +571,18 @@ export default function CalendarSection(props: CalendarSectionProps) {
 
         {/* Modal: Booking Detail */}
         {showBookingDetail && selectedBooking && (
-          <div className="v22-modal-overlay" onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }}>
-            <div className="v22-modal" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
-              <div className="v22-modal-head">
+          <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }}>
+            <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
+              <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
                 <div>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>Detail du rendez-vous</span>
+                  <span className={isV5 ? 'v5-modal-t' : ''} style={!isV5 ? { fontWeight: 600, fontSize: 14 } : undefined}>Detail du rendez-vous</span>
                   <div style={{ marginTop: 6 }}>
-                    <span className={`v22-tag ${
+                    <span className={isV5 ? `v5-badge ${
+                      selectedBooking.status === 'confirmed' ? 'v5-badge-green' :
+                      selectedBooking.status === 'pending' ? 'v5-badge-yellow' :
+                      selectedBooking.status === 'completed' ? 'v5-badge-green' :
+                      'v5-badge-red'
+                    }` : `v22-tag ${
                       selectedBooking.status === 'confirmed' ? 'v22-tag-green' :
                       selectedBooking.status === 'pending' ? 'v22-tag-amber' :
                       selectedBooking.status === 'completed' ? 'v22-tag-green' :
@@ -589,10 +594,10 @@ export default function CalendarSection(props: CalendarSectionProps) {
                     </span>
                   </div>
                 </div>
-                <button onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }} className="v22-btn v22-btn-sm">&times;</button>
+                <button onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }} className={isV5 ? 'v5-modal-x' : 'v22-btn v22-btn-sm'}>&times;</button>
               </div>
 
-              <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 10, ...(isV5 ? { padding: '16px 20px' } : {}) }}>
                 {/* Badge auto-accept vs validation requise */}
                 {(() => {
                   const isAutoConfirmed = selectedBooking.status === 'confirmed' && selectedBooking.confirmed_at && selectedBooking.created_at &&
@@ -655,7 +660,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
                       {/* Notes additionnelles */}
                       {cleanNotes && (
                         <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 6, fontSize: 12, color: 'var(--v22-text-mid)' }}>
-                          <div className="v22-form-label" style={{ marginBottom: 4 }}>Notes</div>
+                          <div className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 4 }}>Notes</div>
                           {cleanNotes}
                         </div>
                       )}
@@ -664,19 +669,19 @@ export default function CalendarSection(props: CalendarSectionProps) {
                 })()}
               </div>
 
-              <div className="v22-modal-foot" style={{ flexWrap: 'wrap' }}>
+              <div className={isV5 ? 'v5-btn-g' : 'v22-modal-foot'} style={{ flexWrap: 'wrap', ...(isV5 ? { padding: '16px 20px', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 8 } : {}) }}>
                 {selectedBooking.status === 'pending' && (
                   <>
                     <button onClick={() => { setShowBookingDetail(false); transformBookingToDevis(selectedBooking) }}
-                      className="v22-btn" style={{ width: '100%', background: '#2563EB', color: '#fff', marginBottom: 6 }}>
+                      className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ width: '100%', ...(isV5 ? {} : { background: '#2563EB', color: '#fff' }), marginBottom: 6 }}>
                       Transformer en devis
                     </button>
                     <button onClick={() => updateBookingStatus(selectedBooking.id, 'confirmed')}
-                      className="v22-btn" style={{ flex: 1, background: 'var(--v22-green)', color: '#fff' }}>
+                      className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-green)', color: '#fff' }) }}>
                       Confirmer
                     </button>
                     <button onClick={() => updateBookingStatus(selectedBooking.id, 'cancelled')}
-                      className="v22-btn" style={{ flex: 1, background: 'var(--v22-red-light)', color: 'var(--v22-red)', border: '1px solid var(--v22-red)' }}>
+                      className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? { color: '#DC2626' } : { background: 'var(--v22-red-light)', color: 'var(--v22-red)', border: '1px solid var(--v22-red)' }) }}>
                       Refuser
                     </button>
                   </>
@@ -684,15 +689,15 @@ export default function CalendarSection(props: CalendarSectionProps) {
                 {selectedBooking.status === 'confirmed' && (
                   <>
                     <button onClick={() => { setShowBookingDetail(false); transformBookingToDevis(selectedBooking) }}
-                      className="v22-btn" style={{ width: '100%', background: '#2563EB', color: '#fff', marginBottom: 6 }}>
+                      className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ width: '100%', ...(isV5 ? {} : { background: '#2563EB', color: '#fff' }), marginBottom: 6 }}>
                       Transformer en devis
                     </button>
                     <button onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
-                      className="v22-btn" style={{ flex: 1, background: '#2563EB', color: '#fff' }}>
+                      className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: '#2563EB', color: '#fff' }) }}>
                       Marquer termine
                     </button>
                     <button onClick={() => { if (confirm('Annuler ce rendez-vous ?')) updateBookingStatus(selectedBooking.id, 'cancelled') }}
-                      className="v22-btn" style={{ flex: 1, background: 'var(--v22-red-light)', color: 'var(--v22-red)', border: '1px solid var(--v22-red)' }}>
+                      className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? { color: '#DC2626' } : { background: 'var(--v22-red-light)', color: 'var(--v22-red)', border: '1px solid var(--v22-red)' }) }}>
                       Annuler le RDV
                     </button>
                   </>
@@ -702,12 +707,12 @@ export default function CalendarSection(props: CalendarSectionProps) {
                 )}
                 {selectedBooking.status === 'cancelled' && (
                   <button onClick={() => updateBookingStatus(selectedBooking.id, 'pending')}
-                    className="v22-btn" style={{ flex: 1, background: 'var(--v22-amber-light)', color: 'var(--v22-amber)', border: '1px solid var(--v22-amber)' }}>
+                    className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? { color: '#F59E0B' } : { background: 'var(--v22-amber-light)', color: 'var(--v22-amber)', border: '1px solid var(--v22-amber)' }) }}>
                     Remettre en attente
                   </button>
                 )}
                 <button onClick={() => { setShowBookingDetail(false); setSelectedBooking(null) }}
-                  className="v22-btn" style={{ width: '100%' }}>
+                  className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ width: '100%' }}>
                   Fermer
                 </button>
               </div>

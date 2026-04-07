@@ -10,9 +10,10 @@ interface ChantierItem {
   dateFin: string; budget: string; statut: string; description: string; equipe: string; createdAt: string
 }
 
-export function ChantiersBTPSection({ artisan, bookings }: { artisan: Artisan; bookings: Booking[] }) {
+export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: Artisan; bookings: Booking[]; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isV5 = orgRole === 'pro_societe'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_chantiers_${artisan?.id}`
   const [chantiers, setChantiers] = useState<ChantierItem[]>(() => {
@@ -48,18 +49,40 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: Artisan; b
     'Annulé':   'v22-tag v22-tag-red',
   }
 
+  const STATUS_V5: Record<string, string> = {
+    'En cours': 'v5-badge v5-badge-green',
+    'Terminé':  'v5-badge v5-badge-gray',
+    'En attente': 'v5-badge v5-badge-orange',
+    'Annulé':   'v5-badge v5-badge-red',
+  }
+
   return (
     <div>
       {/* Header */}
-      <div className="v22-page-header">
-        <div>
-          <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
-          <p className="v22-page-sub">{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
-        </div>
-        <button className="v22-btn" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+        {isV5 ? (
+          <>
+            <h1><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+            <p>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
+          </>
+        ) : (
+          <>
+            <div>
+              <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+              <p className="v22-page-sub">{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
+            </div>
+            <button className="v22-btn" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
+          </>
+        )}
       </div>
 
-      <div style={{ padding: '20px 24px' }}>
+      {isV5 && (
+        <div style={{ marginBottom: '.75rem' }}>
+          <button className="v5-btn v5-btn-p" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
+        </div>
+      )}
+
+      <div style={{ padding: isV5 ? undefined : '20px 24px' }}>
         {/* Filtres */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
           {(['Tous', 'En cours', 'En attente', 'Terminés'] as const).map(f => {
@@ -72,7 +95,10 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: Artisan; b
             const count = f === 'Tous' ? chantiers.length : chantiers.filter(c => c.statut === (f === 'Terminés' ? 'Terminé' : f)).length
             return (
               <button key={f} onClick={() => setFilter(f)}
-                className={`v22-tag ${filter === f ? 'v22-tag-yellow' : 'v22-tag-gray'}`}
+                className={isV5
+                  ? `v5-badge ${filter === f ? 'v5-badge-yellow' : 'v5-badge-gray'}`
+                  : `v22-tag ${filter === f ? 'v22-tag-yellow' : 'v22-tag-gray'}`
+                }
                 style={{ cursor: 'pointer', fontWeight: filter === f ? 700 : 400 }}>
                 {labels[f]} ({count})
               </button>
@@ -82,34 +108,34 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: Artisan; b
 
         {/* Empty state */}
         {filtered.length === 0 ? (
-          <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-            <div style={{ marginBottom: 12 }}><HardHat size={40} style={{ color: 'var(--v22-text-mid)' }} /></div>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
+            <div style={{ marginBottom: 12 }}><HardHat size={40} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} /></div>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma obra' : 'Aucun chantier'}</div>
-            <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
-            <button className="v22-btn" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar obra' : 'Créer un chantier'}</button>
+            <p className={isV5 ? undefined : 'v22-card-meta'} style={{ marginBottom: 16, ...(isV5 ? { color: 'var(--v5-text-muted)', fontSize: 12 } : {}) }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar obra' : 'Créer un chantier'}</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filtered.map(c => (
-              <div key={c.id} className="v22-card" style={{ padding: 16 }}>
+              <div key={c.id} className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, fontSize: 15 }}>{c.titre}</span>
-                      <span className={STATUS_V22[c.statut] || 'v22-tag v22-tag-gray'} style={{ fontSize: 11 }}>{c.statut}</span>
+                      <span className={(isV5 ? STATUS_V5 : STATUS_V22)[c.statut] || (isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray')} style={{ fontSize: 11 }}>{c.statut}</span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                      {c.client && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {c.client}</span>}
-                      {c.adresse && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={12} /> {c.adresse}</span>}
-                      {(c.dateDebut || c.dateFin) && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {c.dateDebut || '?'} → {c.dateFin || '?'}</span>}
-                      {c.budget && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><DollarSign size={12} /> {Number(c.budget).toLocaleString('fr-FR')} €</span>}
+                      {c.client && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><Users size={12} /> {c.client}</span>}
+                      {c.adresse && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><MapPin size={12} /> {c.adresse}</span>}
+                      {(c.dateDebut || c.dateFin) && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><Calendar size={12} /> {c.dateDebut || '?'} &rarr; {c.dateFin || '?'}</span>}
+                      {c.budget && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><DollarSign size={12} /> {Number(c.budget).toLocaleString('fr-FR')} &euro;</span>}
                     </div>
-                    {c.description && <p className="v22-card-meta" style={{ fontSize: 12, marginTop: 6 }}>{c.description}</p>}
+                    {c.description && <p className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, marginTop: 6, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}>{c.description}</p>}
                   </div>
                   <select
                     value={c.statut}
                     onChange={e => changeStatut(c.id, e.target.value)}
-                    className="v22-form-input"
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'}
                     style={{ minWidth: 130, fontSize: 13, padding: '6px 10px' }}>
                     {['En attente', 'En cours', 'Terminé', 'Annulé'].map(s => {
                       const sl: Record<string, string> = isPt
@@ -127,49 +153,56 @@ export function ChantiersBTPSection({ artisan, bookings }: { artisan: Artisan; b
 
       {/* Modal nouveau chantier */}
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v22-card" style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="v22-card-head">
-              <span className="v22-card-title"><HardHat size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</span>
-              <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>✕</button>
-            </div>
-            <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label className="v22-form-label">{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
-                <input className="v22-form-input" value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={isPt ? 'ex: Immeuble R+3 — Gros œuvre' : 'ex: Immeuble R+3 — Gros œuvre'} />
+        <div className={isV5 ? 'v5-modal-ov' : undefined} style={isV5 ? undefined : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className={isV5 ? 'v5-modal' : 'v22-card'} style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+            {isV5 ? (
+              <div className="v5-modal-h">
+                <span><HardHat size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</span>
+                <button className="v5-btn v5-btn-sm" onClick={() => setShowModal(false)}>&times;</button>
+              </div>
+            ) : (
+              <div className="v22-card-head">
+                <span className="v22-card-title"><HardHat size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</span>
+                <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>&times;</button>
+              </div>
+            )}
+            <div className={isV5 ? undefined : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14, ...(isV5 ? { padding: '1rem 1.25rem' } : {}) }}>
+              <div className={isV5 ? 'v5-fg' : undefined}>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={isPt ? 'ex: Immeuble R+3 \u2014 Gros \u0153uvre' : 'ex: Immeuble R+3 \u2014 Gros \u0153uvre'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Cliente / Dono de obra' : 'Client / Maître d\'ouvrage'}</label>
-                  <input className="v22-form-input" value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={isPt ? 'Nome do cliente' : 'Nom du client'} />
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cliente / Dono de obra' : 'Client / Ma\u00EEtre d\'ouvrage'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={isPt ? 'Nome do cliente' : 'Nom du client'} />
                 </div>
-                <div>
-                  <label className="v22-form-label">Budget HT (€)</label>
-                  <input type="number" className="v22-form-input" value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} placeholder="0" />
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Budget HT (&euro;)</label>
+                  <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} placeholder="0" />
                 </div>
               </div>
-              <div>
-                <label className="v22-form-label">{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
-                <input className="v22-form-input" value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
+              <div className={isV5 ? 'v5-fg' : undefined}>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Data de início' : 'Date de début'}</label>
-                  <input type="date" className="v22-form-input" value={form.dateDebut} onChange={e => setForm({...form, dateDebut: e.target.value})} />
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data de in\u00EDcio' : 'Date de d\u00E9but'}</label>
+                  <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.dateDebut} onChange={e => setForm({...form, dateDebut: e.target.value})} />
                 </div>
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Data de fim' : 'Date de fin'}</label>
-                  <input type="date" className="v22-form-input" value={form.dateFin} onChange={e => setForm({...form, dateFin: e.target.value})} />
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data de fim' : 'Date de fin'}</label>
+                  <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.dateFin} onChange={e => setForm({...form, dateFin: e.target.value})} />
                 </div>
               </div>
-              <div>
-                <label className="v22-form-label">{isPt ? 'Descrição' : 'Description'}</label>
-                <textarea className="v22-form-input" value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={isPt ? 'Detalhes da obra...' : 'Détails du chantier...'} style={{ resize: 'none' }} />
+              <div className={isV5 ? 'v5-fg' : undefined}>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descri\u00E7\u00E3o' : 'Description'}</label>
+                <textarea className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={isPt ? 'Detalhes da obra...' : 'D\u00E9tails du chantier...'} style={{ resize: 'none' }} />
               </div>
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }} onClick={handleSave} disabled={!form.titre.trim()}><Check size={14} /> {isPt ? 'Criar obra' : 'Créer le chantier'}</button>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : '1px solid var(--v22-border)' }} onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-yellow)', fontWeight: 700 }) }} onClick={handleSave} disabled={!form.titre.trim()}><Check size={14} /> {isPt ? 'Criar obra' : 'Cr\u00E9er le chantier'}</button>
             </div>
           </div>
         </div>

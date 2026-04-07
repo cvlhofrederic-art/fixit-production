@@ -41,32 +41,33 @@ export default function MotifsSection({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [savingWithEtapes, setSavingWithEtapes] = useState(false)
   const isSociete = orgRole === 'pro_societe'
+  const isV5 = isSociete
 
   // Reset local étapes when modal opens/closes
   const origOpenNewMotif = openNewMotif
   const wrappedOpenNewMotif = () => { setLocalEtapes([]); origOpenNewMotif() }
 
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : ''}>
       {/* Page header */}
-      <div className="v22-page-header" style={{ justifyContent: 'space-between' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ justifyContent: 'space-between' }}>
         <div>
-          <div className="v22-page-title">
+          <h1 className={isV5 ? '' : 'v22-page-title'}>
             {isSociete ? '🏗️ Lots & Prestations BTP' : `${'🔧'} ${t('proDash.motifs.title')}`}
-          </div>
-          <div className="v22-page-sub">
+          </h1>
+          <p className={isV5 ? '' : 'v22-page-sub'}>
             {isSociete
               ? 'Définissez vos lots de travaux, postes de devis et prix unitaires'
               : t('proDash.motifs.subtitle')}
-          </div>
+          </p>
         </div>
-        <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className="v22-btn v22-btn-primary">
+        <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
           {isSociete ? '+ Nouveau lot' : t('proDash.motifs.nouveauMotif')}
         </button>
       </div>
 
       {/* Info box - amber alert */}
-      <div className="v22-alert v22-alert-amber" style={{ marginBottom: 16, cursor: 'default' }}>
+      <div className={isV5 ? 'v5-al v5-al-amber' : 'v22-alert v22-alert-amber'} style={{ marginBottom: 16, cursor: 'default' }}>
         <span style={{ fontSize: 12 }}>
           {isSociete ? (
             <><strong>{'💡'} Conseil BTP</strong> Créez un lot par type de prestation (Maçonnerie, Charpente, Électricité…) avec prix unitaire ou forfait. Ces lots alimenteront vos devis et situations de travaux.</>
@@ -77,8 +78,8 @@ export default function MotifsSection({
       </div>
 
       {/* Table */}
-      <div className="v22-card">
-        <table>
+      <div className={isV5 ? 'v5-card' : 'v22-card'}>
+        <table className={isV5 ? 'v5-dt' : ''}>
           <thead>
             <tr>
               <th>{t('proDash.motifs.colMotif')}</th>
@@ -106,10 +107,12 @@ export default function MotifsSection({
                 </td>
                 <td className="v22-amount" style={{ color: 'var(--v22-amber)', textAlign: 'left' }}>{getPriceRangeLabel(service)}</td>
                 <td>
-                  <span className="v22-tag v22-tag-gray">{getPricingUnit(service)}</span>
+                  <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{getPricingUnit(service)}</span>
                 </td>
                 <td>
-                  <span className={`v22-tag ${service.validation_auto ? 'v22-tag-green' : 'v22-tag-gray'}`}>
+                  <span className={isV5
+                    ? `v5-badge ${service.validation_auto ? 'v5-badge-green' : 'v5-badge-gray'}`
+                    : `v22-tag ${service.validation_auto ? 'v22-tag-green' : 'v22-tag-gray'}`}>
                     {service.validation_auto ? `⚡ ${t('proDash.motifs.auto')}` : `👤 ${t('proDash.motifs.manuel')}`}
                   </span>
                 </td>
@@ -119,14 +122,16 @@ export default function MotifsSection({
                     try { await toggleMotifActive(service.id, service.active ?? false) } finally { setTogglingId(null) }
                   }}
                     disabled={togglingId === service.id}
-                    className={`v22-tag ${service.active ? 'v22-tag-green' : 'v22-tag-gray'}`}
+                    className={isV5
+                      ? `v5-badge ${service.active ? 'v5-badge-green' : 'v5-badge-gray'}`
+                      : `v22-tag ${service.active ? 'v22-tag-green' : 'v22-tag-gray'}`}
                     style={{ cursor: togglingId === service.id ? 'not-allowed' : 'pointer', opacity: togglingId === service.id ? 0.5 : 1 }}>
                     {togglingId === service.id ? 'Chargement...' : service.active ? `✅ ${t('proDash.motifs.actif')}` : `⏸ ${t('proDash.motifs.inactif')}`}
                   </button>
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => openEditMotif(service)} className="v22-btn v22-btn-sm">
+                    <button onClick={() => openEditMotif(service)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>
                       {'✏️'} {t('proDash.motifs.modifier')}
                     </button>
                     <button onClick={async () => {
@@ -134,8 +139,8 @@ export default function MotifsSection({
                       try { await deleteMotif(service.id) } finally { setDeletingId(null) }
                     }}
                       disabled={deletingId === service.id}
-                      className="v22-btn v22-btn-sm"
-                      style={{ color: 'var(--v22-red)', opacity: deletingId === service.id ? 0.5 : 1, cursor: deletingId === service.id ? 'not-allowed' : 'pointer' }}>
+                      className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'}
+                      style={{ color: isV5 ? undefined : 'var(--v22-red)', opacity: deletingId === service.id ? 0.5 : 1, cursor: deletingId === service.id ? 'not-allowed' : 'pointer' }}>
                       {deletingId === service.id ? '...' : '🗑️'}
                     </button>
                   </div>
@@ -154,7 +159,7 @@ export default function MotifsSection({
                       ? 'Créez vos premiers lots de travaux pour les intégrer dans vos devis BTP'
                       : t('proDash.motifs.aucunMotifDesc')}
                   </div>
-                  <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className="v22-btn v22-btn-primary">
+                  <button onClick={() => { setLocalEtapes([]); openNewMotif() }} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
                     {isSociete ? '+ Créer un lot' : t('proDash.motifs.creerMotif')}
                   </button>
                 </td>
@@ -166,32 +171,32 @@ export default function MotifsSection({
 
       {/* Modal Motif */}
       {showMotifModal && (
-        <div className="v22-modal-overlay" onClick={() => setShowMotifModal(false)}>
-          <div className="v22-modal" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
-            <div className="v22-modal-head">
-              <span style={{ fontWeight: 600, fontSize: 14 }}>
+        <div className={isV5 ? 'v5-modal-ov' : 'v22-modal-overlay'} onClick={() => setShowMotifModal(false)}>
+          <div className={isV5 ? 'v5-modal' : 'v22-modal'} style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
+              <span className={isV5 ? 'v5-modal-t' : ''} style={{ fontWeight: 600, fontSize: 14 }}>
                 {editingMotif
                   ? `✏️ ${isSociete ? 'Modifier le lot' : t('proDash.motifs.modifierMotif')}`
                   : isSociete ? '🏗️ Nouveau lot BTP' : `🔧 ${t('proDash.motifs.nouveauMotifTitle')}`}
               </span>
-              <button onClick={() => setShowMotifModal(false)} className="v22-btn v22-btn-sm">✕</button>
+              <button onClick={() => setShowMotifModal(false)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}>✕</button>
             </div>
             <div className="v22-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* Name */}
-                <div>
-                  <label className="v22-form-label">{t('proDash.motifs.nomMotif')} *</label>
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.nomMotif')} *</label>
                   <input type="text" value={motifForm.name} onChange={(e) => setMotifForm({...motifForm, name: e.target.value})}
                     placeholder={isSociete ? 'Ex: Maçonnerie, Charpente bois, Électricité CFO…' : t('proDash.motifs.nomMotifPlaceholder')}
-                    className="v22-form-input" />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
 
                 {/* Description */}
-                <div>
-                  <label className="v22-form-label">{t('proDash.motifs.description')}</label>
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.description')}</label>
                   <textarea value={motifForm.description} onChange={(e) => setMotifForm({...motifForm, description: e.target.value})}
                     rows={2} placeholder={t('proDash.motifs.descriptionPlaceholder')}
-                    className="v22-form-input" style={{ resize: 'none' }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                 </div>
 
                 {/* Étapes — sous la description, même style que dans le devis */}
@@ -230,8 +235,8 @@ export default function MotifsSection({
                 </div>
 
                 {/* Duration */}
-                <div>
-                  <label className="v22-form-label">
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
                     {t('proDash.motifs.dureeEstimee')} <span style={{ fontWeight: 400 }}>({t('proDash.motifs.dureeOptional')})</span>
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -241,7 +246,7 @@ export default function MotifsSection({
                       onChange={(e) => setMotifForm({...motifForm, duration_minutes: e.target.value === '' ? '' : parseInt(e.target.value)})}
                       min={5} step={5}
                       placeholder="Ex: 60"
-                      className="v22-form-input" style={{ width: 100 }}
+                      className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 100 }}
                     />
                     {motifForm.duration_minutes !== '' && Number(motifForm.duration_minutes) > 0 && (
                       <span className="v22-ref">
@@ -252,8 +257,8 @@ export default function MotifsSection({
                 </div>
 
                 {/* Pricing unit */}
-                <div>
-                  <label className="v22-form-label" style={{ marginBottom: 8 }}>{t('proDash.motifs.uniteTarification')} *</label>
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.uniteTarification')} *</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     {[
                       { value: 'forfait', label: `💰 ${t('proDash.motifs.forfait')}`, desc: t('proDash.motifs.forfaitDesc') },
@@ -272,12 +277,12 @@ export default function MotifsSection({
                     ].map((opt) => (
                       <button key={opt.value}
                         onClick={() => setMotifForm({...motifForm, pricing_unit: opt.value})}
-                        className="v22-btn"
+                        className={isV5 ? 'v5-btn' : 'v22-btn'}
                         style={{
                           textAlign: 'left',
                           padding: '8px 10px',
-                          borderColor: motifForm.pricing_unit === opt.value ? 'var(--v22-yellow)' : undefined,
-                          background: motifForm.pricing_unit === opt.value ? 'var(--v22-yellow-light)' : undefined,
+                          borderColor: motifForm.pricing_unit === opt.value ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
+                          background: motifForm.pricing_unit === opt.value ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
                         }}>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>{opt.label}</div>
                         <div className="v22-ref">{opt.desc}</div>
@@ -287,29 +292,29 @@ export default function MotifsSection({
                 </div>
 
                 {/* Price range */}
-                <div>
-                  <label className="v22-form-label">
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
                     {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
                   </label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <label className="v22-form-label">{t('proDash.motifs.prixMinimum')}</label>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMinimum')}</label>
                       <input
                         type="number"
                         value={motifForm.price_min}
                         onChange={(e) => setMotifForm({...motifForm, price_min: e.target.value === '' ? '' : parseFloat(e.target.value)})}
                         step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
-                        className="v22-form-input"
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
                       />
                     </div>
-                    <div>
-                      <label className="v22-form-label">{t('proDash.motifs.prixMaximum')}</label>
+                    <div className={isV5 ? 'v5-fg' : ''}>
+                      <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.motifs.prixMaximum')}</label>
                       <input
                         type="number"
                         value={motifForm.price_max}
                         onChange={(e) => setMotifForm({...motifForm, price_max: e.target.value === '' ? '' : parseFloat(e.target.value)})}
                         step="0.01" min="0" placeholder={t('proDash.motifs.surDevisPlaceholder')}
-                        className="v22-form-input"
+                        className={isV5 ? 'v5-fi' : 'v22-form-input'}
                       />
                     </div>
                   </div>
@@ -317,27 +322,27 @@ export default function MotifsSection({
                 </div>
 
                 {/* Validation auto */}
-                <div>
-                  <label className="v22-form-label" style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.validationAuto')}</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     <button
                       onClick={() => setMotifForm({...motifForm, validation_auto: false})}
-                      className="v22-btn"
+                      className={isV5 ? 'v5-btn' : 'v22-btn'}
                       style={{
                         textAlign: 'left', padding: '8px 10px',
-                        borderColor: !motifForm.validation_auto ? 'var(--v22-yellow)' : undefined,
-                        background: !motifForm.validation_auto ? 'var(--v22-yellow-light)' : undefined,
+                        borderColor: !motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
+                        background: !motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
                       }}>
                       <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
                       <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
                     </button>
                     <button
                       onClick={() => setMotifForm({...motifForm, validation_auto: true})}
-                      className="v22-btn"
+                      className={isV5 ? 'v5-btn' : 'v22-btn'}
                       style={{
                         textAlign: 'left', padding: '8px 10px',
-                        borderColor: motifForm.validation_auto ? 'var(--v22-yellow)' : undefined,
-                        background: motifForm.validation_auto ? 'var(--v22-yellow-light)' : undefined,
+                        borderColor: motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
+                        background: motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
                       }}>
                       <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
                       <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
@@ -346,17 +351,17 @@ export default function MotifsSection({
                 </div>
 
                 {/* Délai minimum */}
-                <div>
-                  <label className="v22-form-label" style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
+                <div className={isV5 ? 'v5-fg' : ''}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ marginBottom: 8 }}>{t('proDash.motifs.delaiMinimum')}</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                     {[0, 2, 4, 8, 12, 24, 48, 72].map((h) => (
                       <button key={h}
                         onClick={() => setMotifForm({...motifForm, delai_minimum_heures: h})}
-                        className="v22-btn"
+                        className={isV5 ? 'v5-btn' : 'v22-btn'}
                         style={{
                           textAlign: 'center', padding: '8px 6px',
-                          borderColor: motifForm.delai_minimum_heures === h ? 'var(--v22-yellow)' : undefined,
-                          background: motifForm.delai_minimum_heures === h ? 'var(--v22-yellow-light)' : undefined,
+                          borderColor: motifForm.delai_minimum_heures === h ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
+                          background: motifForm.delai_minimum_heures === h ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
                         }}>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>
                           {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
@@ -370,8 +375,8 @@ export default function MotifsSection({
                 {/* Étapes moved above, under Description */}
               </div>
             </div>
-            <div className="v22-modal-foot">
-              <button onClick={() => setShowMotifModal(false)} className="v22-btn">
+            <div className={isV5 ? 'v5-modal-f' : 'v22-modal-foot'}>
+              <button onClick={() => setShowMotifModal(false)} className={isV5 ? 'v5-btn' : 'v22-btn'}>
                 {t('proDash.motifs.annuler')}
               </button>
               <button onClick={async () => {
@@ -397,7 +402,7 @@ export default function MotifsSection({
                   setSavingWithEtapes(false)
                 }
               }} disabled={!motifForm.name || savingMotif || savingWithEtapes}
-                className="v22-btn v22-btn-primary"
+                className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
                 style={{ opacity: (!motifForm.name || savingMotif || savingWithEtapes) ? 0.4 : 1, cursor: (!motifForm.name || savingMotif || savingWithEtapes) ? 'not-allowed' : 'pointer' }}>
                 {(savingMotif || savingWithEtapes) ? t('proDash.motifs.sauvegarde') : editingMotif ? `💾 ${t('proDash.motifs.modifier')}` : t('proDash.motifs.creerLeMotif')}
               </button>

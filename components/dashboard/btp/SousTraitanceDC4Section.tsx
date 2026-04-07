@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { HardHat, FileText, BarChart3, Check, Minus, Search, FileEdit, Handshake, Loader, Brain, Lightbulb, CheckSquare } from 'lucide-react'
 
-export function SousTraitanceDC4Section({ userId }: { userId: string }) {
+export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isFR = locale !== 'pt'
+  const isV5 = orgRole === 'pro_societe'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `dc4_${userId}`
   const DCE_KEY = `dce_analyses_${userId}`
@@ -149,28 +150,39 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
   const toggleCheck = (key: string) => setCheckStates(prev => ({ ...prev, [key]: !prev[key] }))
 
   // ── Badge maps ──
-  const stBadge: Record<string, string> = { en_attente: 'v5-badge v5-badge-yellow', agréé: 'v5-badge v5-badge-green', refusé: 'v5-badge v5-badge-red' }
+  const stBadgeV5: Record<string, string> = { en_attente: 'v5-badge v5-badge-yellow', agréé: 'v5-badge v5-badge-green', refusé: 'v5-badge v5-badge-red' }
+  const stBadgeV22: Record<string, string> = { en_attente: 'v22-tag v22-tag-amber', agréé: 'v22-tag v22-tag-green', refusé: 'v22-tag v22-tag-red' }
+  const stBadge = isV5 ? stBadgeV5 : stBadgeV22
 
   return (
     <div>
       {/* Header */}
-      <div className="v5-pg-t">
-        <h1>{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>
-        <p>{isFR ? 'G\u00E9rez vos sous-traitants, analysez les DCE et pr\u00E9parez vos r\u00E9ponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}</p>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+        {isV5 ? (
+          <>
+            <h1>{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>
+            <p>{isFR ? 'G\u00E9rez vos sous-traitants, analysez les DCE et pr\u00E9parez vos r\u00E9ponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}</p>
+          </>
+        ) : (
+          <div>
+            <h1 className="v22-page-title">{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>
+            <p className="v22-page-sub">{isFR ? 'G\u00E9rez vos sous-traitants, analysez les DCE et pr\u00E9parez vos r\u00E9ponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}</p>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
-      <div className="v5-tabs">
-        <button onClick={() => setTab('sous_traitants')} className={`v5-tab-b${tab === 'sous_traitants' ? ' active' : ''}`}>
+      <div className={isV5 ? 'v5-tabs' : undefined} style={isV5 ? undefined : { display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--v22-border)', paddingBottom: 8 }}>
+        <button onClick={() => setTab('sous_traitants')} className={isV5 ? `v5-tab-b${tab === 'sous_traitants' ? ' active' : ''}` : `v22-tab${tab === 'sous_traitants' ? ' active' : ''}`}>
           <HardHat size={12} /> {isFR ? 'Sous-traitants' : 'Subempreiteiros'} ({soustraitants.length})
         </button>
-        <button onClick={() => setTab('analyse_dce')} className={`v5-tab-b${tab === 'analyse_dce' ? ' active' : ''}`}>
+        <button onClick={() => setTab('analyse_dce')} className={isV5 ? `v5-tab-b${tab === 'analyse_dce' ? ' active' : ''}` : `v22-tab${tab === 'analyse_dce' ? ' active' : ''}`}>
           <Search size={12} /> {isFR ? 'Analyse DCE / IA' : 'An\u00E1lise DCE / IA'}
         </button>
-        <button onClick={() => setTab('memoire')} className={`v5-tab-b${tab === 'memoire' ? ' active' : ''}`}>
+        <button onClick={() => setTab('memoire')} className={isV5 ? `v5-tab-b${tab === 'memoire' ? ' active' : ''}` : `v22-tab${tab === 'memoire' ? ' active' : ''}`}>
           <FileEdit size={12} /> {isFR ? 'M\u00E9moire technique' : 'Mem\u00F3ria t\u00E9cnica'}
         </button>
-        <button onClick={() => setTab('checklist')} className={`v5-tab-b${tab === 'checklist' ? ' active' : ''}`}>
+        <button onClick={() => setTab('checklist')} className={isV5 ? `v5-tab-b${tab === 'checklist' ? ' active' : ''}` : `v22-tab${tab === 'checklist' ? ' active' : ''}`}>
           <CheckSquare size={12} /> {isFR ? 'Checklist d\u00E9p\u00F4t' : 'Checklist submiss\u00E3o'}
         </button>
       </div>
@@ -179,31 +191,47 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
       {tab === 'sous_traitants' && (
         <div>
           {/* KPIs */}
-          <div className="v5-kpi-g">
-            {[
-              { label: isFR ? 'En attente' : 'Pendentes', val: soustraitants.filter(s => s.statut === 'en_attente').length, hl: false },
-              { label: isFR ? 'Agr\u00E9\u00E9s' : 'Aprovados', val: soustraitants.filter(s => s.statut === 'agréé').length, hl: false },
-              { label: isFR ? 'DC4 g\u00E9n\u00E9r\u00E9s' : 'DC4 gerados', val: soustraitants.filter(s => s.dc4Genere).length, hl: false },
-              { label: isFR ? 'Montant total' : 'Montante total', val: `${soustraitants.filter(s => s.statut !== 'refusé').reduce((s, st) => s + st.montantMarche, 0).toLocaleString(dateLocale)} \u20AC`, hl: true },
-            ].map((k, i) => (
-              <div key={i} className={`v5-kpi${k.hl ? ' hl' : ''}`}>
-                <div className="v5-kpi-l">{k.label}</div>
-                <div className="v5-kpi-v">{k.val}</div>
-              </div>
-            ))}
-          </div>
+          {isV5 ? (
+            <div className="v5-kpi-g">
+              {[
+                { label: isFR ? 'En attente' : 'Pendentes', val: soustraitants.filter(s => s.statut === 'en_attente').length, hl: false },
+                { label: isFR ? 'Agr\u00E9\u00E9s' : 'Aprovados', val: soustraitants.filter(s => s.statut === 'agréé').length, hl: false },
+                { label: isFR ? 'DC4 g\u00E9n\u00E9r\u00E9s' : 'DC4 gerados', val: soustraitants.filter(s => s.dc4Genere).length, hl: false },
+                { label: isFR ? 'Montant total' : 'Montante total', val: `${soustraitants.filter(s => s.statut !== 'refusé').reduce((s, st) => s + st.montantMarche, 0).toLocaleString(dateLocale)} \u20AC`, hl: true },
+              ].map((k, i) => (
+                <div key={i} className={`v5-kpi${k.hl ? ' hl' : ''}`}>
+                  <div className="v5-kpi-l">{k.label}</div>
+                  <div className="v5-kpi-v">{k.val}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+              {[
+                { label: isFR ? 'En attente' : 'Pendentes', val: soustraitants.filter(s => s.statut === 'en_attente').length },
+                { label: isFR ? 'Agr\u00E9\u00E9s' : 'Aprovados', val: soustraitants.filter(s => s.statut === 'agréé').length },
+                { label: isFR ? 'DC4 g\u00E9n\u00E9r\u00E9s' : 'DC4 gerados', val: soustraitants.filter(s => s.dc4Genere).length },
+                { label: isFR ? 'Montant total' : 'Montante total', val: `${soustraitants.filter(s => s.statut !== 'refusé').reduce((s, st) => s + st.montantMarche, 0).toLocaleString(dateLocale)} \u20AC` },
+              ].map((k, i) => (
+                <div key={i} className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{k.label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{k.val}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Add button */}
           <div style={{ marginBottom: '.75rem' }}>
-            <button className="v5-btn v5-btn-p" onClick={() => setShowForm(!showForm)}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(!showForm)}>
               {showForm ? '\u2715 Fermer' : `+ ${isFR ? 'Nouveau DC4' : 'Novo DC4'}`}
             </button>
           </div>
 
           {/* Form */}
           {showForm && (
-            <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
-              <div className="v5-fr">
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
+              <div className={isV5 ? 'v5-fr' : undefined} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
                 {[
                   [isFR ? 'Entreprise' : 'Empresa', 'entreprise', 'text'],
                   ['SIRET / NIF', 'siret', 'text'],
@@ -214,70 +242,70 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
                   [isFR ? 'Chantier' : 'Obra', 'chantier', 'text'],
                   ['Lot', 'lot', 'text'],
                 ].map(([label, key, type]) => (
-                  <div key={key as string} className="v5-fg">
-                    <label className="v5-fl">{label}</label>
-                    <input type={type as string} className="v5-fi" value={(form as any)[key as string]} onChange={e => setForm({...form, [key as string]: e.target.value})} />
+                  <div key={key as string} className={isV5 ? 'v5-fg' : undefined}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{label}</label>
+                    <input type={type as string} className={isV5 ? 'v5-fi' : 'v22-form-input'} value={(form as any)[key as string]} onChange={e => setForm({...form, [key as string]: e.target.value})} />
                   </div>
                 ))}
-                <div className="v5-fg">
-                  <label className="v5-fl">{isFR ? 'Montant HT (\u20AC)' : 'Montante s/IVA (\u20AC)'}</label>
-                  <input type="number" className="v5-fi" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} />
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Montant HT (\u20AC)' : 'Montante s/IVA (\u20AC)'}</label>
+                  <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} />
                 </div>
-                <div className="v5-fg">
-                  <label className="v5-fl">{isFR ? 'TVA' : 'IVA'}</label>
-                  <select className="v5-filter-sel" style={{ width: '100%' }} value={form.tauxTVA} onChange={e => setForm({...form, tauxTVA: Number(e.target.value)})}>
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'TVA' : 'IVA'}</label>
+                  <select className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: '100%' }} value={form.tauxTVA} onChange={e => setForm({...form, tauxTVA: Number(e.target.value)})}>
                     {[20, 10, 5.5, 0].map(tv => <option key={tv} value={tv}>{tv}%</option>)}
                   </select>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
-                <button className="v5-btn v5-btn-p" onClick={addST} disabled={!form.entreprise}>{isFR ? 'Ajouter' : 'Adicionar'}</button>
-                <button className="v5-btn" onClick={() => setShowForm(false)}>{isFR ? 'Annuler' : 'Cancelar'}</button>
+                <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addST} disabled={!form.entreprise}>{isFR ? 'Ajouter' : 'Adicionar'}</button>
+                <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{isFR ? 'Annuler' : 'Cancelar'}</button>
               </div>
             </div>
           )}
 
           {/* Table */}
-          <div className="v5-card" style={{ overflowX: 'auto', padding: 0 }}>
-            <table className="v5-dt">
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ overflowX: 'auto', padding: 0 }}>
+            <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr>
-                  <th>{isFR ? 'Sous-traitant' : 'Subempreiteiro'}</th>
-                  <th>{isFR ? 'Chantier' : 'Obra'}</th>
-                  <th>{isFR ? 'Montant' : 'Montante'}</th>
-                  <th>% {isFR ? 'March\u00E9' : 'Contrato'}</th>
-                  <th>{isFR ? 'Statut' : 'Estado'}</th>
-                  <th>DC4</th>
-                  <th>Actions</th>
+                <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Sous-traitant' : 'Subempreiteiro'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Chantier' : 'Obra'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Montant' : 'Montante'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>% {isFR ? 'March\u00E9' : 'Contrato'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Statut' : 'Estado'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>DC4</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {soustraitants.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--v5-text-muted)', fontSize: 12 }}>{isFR ? 'Aucun sous-traitant enregistr\u00E9' : 'Nenhum subempreiteiro registado'}</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)', fontSize: 12 }}>{isFR ? 'Aucun sous-traitant enregistr\u00E9' : 'Nenhum subempreiteiro registado'}</td></tr>
                 ) : soustraitants.map(s => (
-                  <tr key={s.id}>
-                    <td style={{ fontWeight: 600 }}>
+                  <tr key={s.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                    <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
                       {s.entreprise}
-                      <div style={{ fontSize: 10, color: 'var(--v5-text-light)', fontWeight: 400 }}>{s.siret} \u00B7 {s.responsable}</div>
+                      <div style={{ fontSize: 10, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)', fontWeight: 400 }}>{s.siret} \u00B7 {s.responsable}</div>
                     </td>
-                    <td>
+                    <td style={isV5 ? undefined : { padding: '8px 12px' }}>
                       {s.chantier}
-                      <div style={{ fontSize: 10, color: 'var(--v5-text-light)' }}>{s.lot}</div>
+                      <div style={{ fontSize: 10, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{s.lot}</div>
                     </td>
-                    <td style={{ fontWeight: 600 }}>{s.montantMarche.toLocaleString(dateLocale)} \u20AC</td>
-                    <td>\u2014</td>
-                    <td>
-                      <span className={stBadge[s.statut] || 'v5-badge'}>
+                    <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{s.montantMarche.toLocaleString(dateLocale)} \u20AC</td>
+                    <td style={isV5 ? undefined : { padding: '8px 12px' }}>\u2014</td>
+                    <td style={isV5 ? undefined : { padding: '8px 12px' }}>
+                      <span className={stBadge[s.statut] || (isV5 ? 'v5-badge' : 'v22-tag')}>
                         {s.statut === 'en_attente' ? (isFR ? 'Brouillon' : 'Pendente') : s.statut === 'agréé' ? (isFR ? 'Accept\u00E9' : 'Aprovado') : (isFR ? 'Refus\u00E9' : 'Recusado')}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {s.dc4Genere ? <Check size={14} style={{ color: '#2E7D32' }} /> : <Minus size={14} style={{ color: 'var(--v5-text-muted)' }} />}
+                    <td style={{ textAlign: 'center', ...(isV5 ? {} : { padding: '8px 12px' }) }}>
+                      {s.dc4Genere ? <Check size={14} style={{ color: '#2E7D32' }} /> : <Minus size={14} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} />}
                     </td>
-                    <td>
+                    <td style={isV5 ? undefined : { padding: '8px 12px' }}>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {s.statut === 'en_attente' && <button className="v5-btn v5-btn-s v5-btn-sm" onClick={() => agreer(s.id)}>{isFR ? 'Agr\u00E9er' : 'Aprovar'}</button>}
-                        {s.statut === 'agréé' && <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => genererDC4(s)}><FileText size={10} /> DC4</button>}
+                        {s.statut === 'en_attente' && <button className={isV5 ? 'v5-btn v5-btn-s v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => agreer(s.id)}>{isFR ? 'Agr\u00E9er' : 'Aprovar'}</button>}
+                        {s.statut === 'agréé' && <button className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={() => genererDC4(s)}><FileText size={10} /> DC4</button>}
                       </div>
                     </td>
                   </tr>
@@ -293,62 +321,65 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
         <div>
           {!selectedAnalysis ? (
             <>
-              <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
-                <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Search size={14} /> {isFR ? 'Nouvelle analyse DCE' : 'Nova an\u00E1lise DCE'}
                 </div>
-                <div className="v5-fr">
-                  <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-                    <label className="v5-fl">{isFR ? 'Titre du march\u00E9 *' : 'T\u00EDtulo do concurso *'}</label>
-                    <input className="v5-fi" value={dceForm.titre} onChange={e => setDceForm({...dceForm, titre: e.target.value})} placeholder={isFR ? 'ex: R\u00E9habilitation \u00E9cole Jean Moulin' : 'ex: Reabilita\u00E7\u00E3o escola prim\u00E1ria'} />
+                <div className={isV5 ? 'v5-fr' : undefined} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                  <div className={isV5 ? 'v5-fg' : undefined} style={{ gridColumn: '1 / -1' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Titre du march\u00E9 *' : 'T\u00EDtulo do concurso *'}</label>
+                    <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={dceForm.titre} onChange={e => setDceForm({...dceForm, titre: e.target.value})} placeholder={isFR ? 'ex: R\u00E9habilitation \u00E9cole Jean Moulin' : 'ex: Reabilita\u00E7\u00E3o escola prim\u00E1ria'} />
                   </div>
-                  <div className="v5-fg">
-                    <label className="v5-fl">{isFR ? 'Pays' : 'Pa\u00EDs'}</label>
-                    <select className="v5-filter-sel" style={{ width: '100%' }} value={dceForm.country} onChange={e => setDceForm({...dceForm, country: e.target.value as 'FR' | 'PT'})}>
+                  <div className={isV5 ? 'v5-fg' : undefined}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Pays' : 'Pa\u00EDs'}</label>
+                    <select className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: '100%' }} value={dceForm.country} onChange={e => setDceForm({...dceForm, country: e.target.value as 'FR' | 'PT'})}>
                       <option value="FR">France</option><option value="PT">Portugal</option>
                     </select>
                   </div>
-                  <div className="v5-fg">
-                    <label className="v5-fl">{isFR ? 'Type de projet' : 'Tipo de projeto'}</label>
-                    <select className="v5-filter-sel" style={{ width: '100%' }} value={dceForm.projectType} onChange={e => setDceForm({...dceForm, projectType: e.target.value})}>
+                  <div className={isV5 ? 'v5-fg' : undefined}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Type de projet' : 'Tipo de projeto'}</label>
+                    <select className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: '100%' }} value={dceForm.projectType} onChange={e => setDceForm({...dceForm, projectType: e.target.value})}>
                       <option value="">\u2014</option>
                       {['R\u00E9novation', 'Gros \u0153uvre', 'Second \u0153uvre', 'VRD', '\u00C9lectricit\u00E9', 'Plomberie/CVC', 'Peinture/Finitions', 'Couverture/\u00C9tanch\u00E9it\u00E9', 'D\u00E9molition', 'Construction neuve'].map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
-                  <div className="v5-fg">
-                    <label className="v5-fl">{isFR ? 'Budget estim\u00E9 (\u20AC)' : 'Or\u00E7amento estimado (\u20AC)'}</label>
-                    <input type="number" className="v5-fi" value={dceForm.budget} onChange={e => setDceForm({...dceForm, budget: e.target.value})} />
+                  <div className={isV5 ? 'v5-fg' : undefined}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Budget estim\u00E9 (\u20AC)' : 'Or\u00E7amento estimado (\u20AC)'}</label>
+                    <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={dceForm.budget} onChange={e => setDceForm({...dceForm, budget: e.target.value})} />
                   </div>
-                  <div className="v5-fg">
-                    <label className="v5-fl">{isFR ? 'Date limite de remise' : 'Prazo de entrega'}</label>
-                    <input type="date" className="v5-fi" value={dceForm.deadline} onChange={e => setDceForm({...dceForm, deadline: e.target.value})} />
+                  <div className={isV5 ? 'v5-fg' : undefined}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Date limite de remise' : 'Prazo de entrega'}</label>
+                    <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={dceForm.deadline} onChange={e => setDceForm({...dceForm, deadline: e.target.value})} />
                   </div>
-                  <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-                    <label className="v5-fl">{isFR ? 'Description du projet *' : 'Descri\u00E7\u00E3o do projeto *'}</label>
-                    <textarea className="v5-fi" style={{ minHeight: 100, resize: 'vertical' }} value={dceForm.description} onChange={e => setDceForm({...dceForm, description: e.target.value})} placeholder={isFR ? 'D\u00E9crivez le projet, ses contraintes, le contexte...' : 'Descreva o projeto, restri\u00E7\u00F5es, contexto...'} />
+                  <div className={isV5 ? 'v5-fg' : undefined} style={{ gridColumn: '1 / -1' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Description du projet *' : 'Descri\u00E7\u00E3o do projeto *'}</label>
+                    <textarea className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ minHeight: 100, resize: 'vertical' }} value={dceForm.description} onChange={e => setDceForm({...dceForm, description: e.target.value})} placeholder={isFR ? 'D\u00E9crivez le projet, ses contraintes, le contexte...' : 'Descreva o projeto, restri\u00E7\u00F5es, contexto...'} />
                   </div>
-                  <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
-                    <label className="v5-fl">{isFR ? 'Lots (1 par ligne)' : 'Lotes (1 por linha)'}</label>
-                    <textarea className="v5-fi" style={{ minHeight: 60, resize: 'vertical' }} value={dceForm.lots} onChange={e => setDceForm({...dceForm, lots: e.target.value})} placeholder={isFR ? 'Lot 1 - Gros \u0153uvre\nLot 2 - \u00C9lectricit\u00E9\nLot 3 - Plomberie' : 'Lote 1 - Constru\u00E7\u00E3o\nLote 2 - Eletricidade'} />
+                  <div className={isV5 ? 'v5-fg' : undefined} style={{ gridColumn: '1 / -1' }}>
+                    <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Lots (1 par ligne)' : 'Lotes (1 por linha)'}</label>
+                    <textarea className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ minHeight: 60, resize: 'vertical' }} value={dceForm.lots} onChange={e => setDceForm({...dceForm, lots: e.target.value})} placeholder={isFR ? 'Lot 1 - Gros \u0153uvre\nLot 2 - \u00C9lectricit\u00E9\nLot 3 - Plomberie' : 'Lote 1 - Constru\u00E7\u00E3o\nLote 2 - Eletricidade'} />
                   </div>
                 </div>
-                <button className="v5-btn v5-btn-p" style={{ marginTop: '.75rem' }} onClick={lancerAnalyse} disabled={dceLoading || !dceForm.titre.trim() || !dceForm.description.trim()}>
+                <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ marginTop: '.75rem' }} onClick={lancerAnalyse} disabled={dceLoading || !dceForm.titre.trim() || !dceForm.description.trim()}>
                   {dceLoading ? <><Loader size={12} /> Analyse en cours...</> : <><Brain size={12} /> {isFR ? 'Lancer l\'analyse IA' : 'Iniciar an\u00E1lise IA'}</>}
                 </button>
               </div>
 
               {analyses.length > 0 && (
                 <div>
-                  <div className="v5-st">{isFR ? 'Analyses pr\u00E9c\u00E9dentes' : 'An\u00E1lises anteriores'}</div>
+                  <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isFR ? 'Analyses pr\u00E9c\u00E9dentes' : 'An\u00E1lises anteriores'}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {analyses.map(a => (
-                      <div key={a.id} onClick={() => a.status === 'done' && setSelectedAnalysis(a)} className="v5-card"
+                      <div key={a.id} onClick={() => a.status === 'done' && setSelectedAnalysis(a)} className={isV5 ? 'v5-card' : 'v22-card'}
                         style={{ cursor: a.status === 'done' ? 'pointer' : 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 12 }}>{a.titre}</div>
-                          <div style={{ fontSize: 11, color: 'var(--v5-text-light)' }}>{a.country} {a.projectType} \u00B7 {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
+                          <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{a.country} {a.projectType} \u00B7 {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
                         </div>
-                        <span className={`v5-badge ${a.status === 'done' ? 'v5-badge-green' : a.status === 'error' ? 'v5-badge-red' : 'v5-badge-yellow'}`}>
+                        <span className={isV5
+                          ? `v5-badge ${a.status === 'done' ? 'v5-badge-green' : a.status === 'error' ? 'v5-badge-red' : 'v5-badge-yellow'}`
+                          : `v22-tag ${a.status === 'done' ? 'v22-tag-green' : a.status === 'error' ? 'v22-tag-red' : 'v22-tag-amber'}`
+                        }>
                           {a.status === 'done' ? 'Termin\u00E9e' : a.status === 'error' ? 'Erreur' : 'En cours'}
                         </span>
                       </div>
@@ -359,40 +390,57 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
             </>
           ) : (
             <div>
-              <button className="v5-btn" onClick={() => setSelectedAnalysis(null)} style={{ marginBottom: '.75rem' }}>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={() => setSelectedAnalysis(null)} style={{ marginBottom: '.75rem' }}>
                 \u2190 {isFR ? 'Retour' : 'Voltar'}
               </button>
-              <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+              <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
                 <BarChart3 size={16} /> {selectedAnalysis.titre}
               </div>
               {selectedAnalysis.result?.error ? (
-                <div className="v5-al err">{selectedAnalysis.result.error}</div>
+                <div className={isV5 ? 'v5-al err' : undefined} style={isV5 ? undefined : { background: '#FDEDED', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#C62828' }}>{selectedAnalysis.result.error}</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                   {selectedAnalysis.result?.scoring && (
-                    <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                      <div className="v5-kpi hl">
-                        <div className="v5-kpi-l">{isFR ? 'Score technique' : 'Score t\u00E9cnico'}</div>
-                        <div className="v5-kpi-v">{selectedAnalysis.result.scoring.technique || '\u2014'}/100</div>
+                    isV5 ? (
+                      <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                        <div className="v5-kpi hl">
+                          <div className="v5-kpi-l">{isFR ? 'Score technique' : 'Score t\u00E9cnico'}</div>
+                          <div className="v5-kpi-v">{selectedAnalysis.result.scoring.technique || '\u2014'}/100</div>
+                        </div>
+                        <div className="v5-kpi">
+                          <div className="v5-kpi-l">{isFR ? 'Comp\u00E9titivit\u00E9 prix' : 'Competitividade pre\u00E7o'}</div>
+                          <div className="v5-kpi-v">{selectedAnalysis.result.scoring.prix || '\u2014'}/100</div>
+                        </div>
+                        <div className="v5-kpi">
+                          <div className="v5-kpi-l">{isFR ? 'Probabilit\u00E9 de gain' : 'Probabilidade de ganho'}</div>
+                          <div className="v5-kpi-v">{selectedAnalysis.result.scoring.probabilite || '\u2014'}%</div>
+                        </div>
                       </div>
-                      <div className="v5-kpi">
-                        <div className="v5-kpi-l">{isFR ? 'Comp\u00E9titivit\u00E9 prix' : 'Competitividade pre\u00E7o'}</div>
-                        <div className="v5-kpi-v">{selectedAnalysis.result.scoring.prix || '\u2014'}/100</div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                        <div className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{isFR ? 'Score technique' : 'Score t\u00E9cnico'}</div>
+                          <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedAnalysis.result.scoring.technique || '\u2014'}/100</div>
+                        </div>
+                        <div className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{isFR ? 'Comp\u00E9titivit\u00E9 prix' : 'Competitividade pre\u00E7o'}</div>
+                          <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedAnalysis.result.scoring.prix || '\u2014'}/100</div>
+                        </div>
+                        <div className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{isFR ? 'Probabilit\u00E9 de gain' : 'Probabilidade de ganho'}</div>
+                          <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedAnalysis.result.scoring.probabilite || '\u2014'}%</div>
+                        </div>
                       </div>
-                      <div className="v5-kpi">
-                        <div className="v5-kpi-l">{isFR ? 'Probabilit\u00E9 de gain' : 'Probabilidade de ganho'}</div>
-                        <div className="v5-kpi-v">{selectedAnalysis.result.scoring.probabilite || '\u2014'}%</div>
-                      </div>
-                    </div>
+                    )
                   )}
                   {['analyse_marche', 'exigences', 'strategie', 'memoire_technique', 'analyse_financiere', 'sous_traitance', 'checklist_depot'].map(key => {
                     const section = selectedAnalysis.result ? (selectedAnalysis.result as Record<string, unknown>)[key] : undefined
                     if (!section) return null
                     const titles: Record<string, string> = { analyse_marche: 'Analyse du march\u00E9', exigences: 'Exigences', strategie: 'Strat\u00E9gie de r\u00E9ponse', memoire_technique: 'M\u00E9moire technique', analyse_financiere: 'Analyse financi\u00E8re', sous_traitance: 'Sous-traitance', checklist_depot: 'Checklist avant d\u00E9p\u00F4t' }
                     return (
-                      <div key={key} className="v5-card">
-                        <div className="v5-st">{titles[key] || key}</div>
-                        <div style={{ fontSize: 12, color: 'var(--v5-text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{typeof section === 'string' ? section : JSON.stringify(section, null, 2)}</div>
+                      <div key={key} className={isV5 ? 'v5-card' : 'v22-card'}>
+                        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{titles[key] || key}</div>
+                        <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{typeof section === 'string' ? section : JSON.stringify(section, null, 2)}</div>
                       </div>
                     )
                   })}
@@ -406,11 +454,11 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
       {/* ═══ TAB 3: MEMOIRE TECHNIQUE ═══ */}
       {tab === 'memoire' && (
         <div>
-          <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
-            <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
+            <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <FileEdit size={14} /> {isFR ? 'Structure type \u2014 M\u00E9moire technique BTP' : 'Estrutura tipo \u2014 Mem\u00F3ria t\u00E9cnica'}
             </div>
-            <p style={{ color: 'var(--v5-text-light)', fontSize: 11, marginBottom: '1rem' }}>
+            <p style={{ color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)', fontSize: 11, marginBottom: '1rem' }}>
               {isFR ? 'Structure recommand\u00E9e pour maximiser votre note technique.' : 'Estrutura recomendada para maximizar a nota t\u00E9cnica.'}
             </p>
             {[
@@ -424,15 +472,15 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
               { n: '8', title: isFR ? 'R\u00E9f\u00E9rences similaires' : 'Refer\u00EAncias similares', desc: isFR ? '3 \u00E0 5 chantiers comparables avec montants, ma\u00EEtres d\'ouvrage, photos, attestations de bonne ex\u00E9cution.' : '3 a 5 obras compar\u00E1veis com montantes, donos de obra, fotos, atestados.' },
             ].map(s => (
               <div key={s.n} style={{ display: 'flex', gap: 12, padding: '.65rem 0', borderBottom: '1px solid #F0F0F0' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--v5-primary-yellow)', color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{s.n}</div>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{s.n}</div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{s.title}</div>
-                  <div style={{ fontSize: 11, color: 'var(--v5-text-secondary)', lineHeight: 1.5 }}>{s.desc}</div>
+                  <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)', lineHeight: 1.5 }}>{s.desc}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="v5-al warn">
+          <div className={isV5 ? 'v5-al warn' : undefined} style={isV5 ? undefined : { background: '#FFF8E1', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#F57F17' }}>
             <Lightbulb size={12} /> <span style={{ fontWeight: 600 }}>{isFR ? 'Conseil expert' : 'Conselho de especialista'}:</span>&nbsp;
             {isFR
               ? 'Personnalisez chaque section au projet sp\u00E9cifique. Un m\u00E9moire g\u00E9n\u00E9rique se rep\u00E8re imm\u00E9diatement. Mentionnez des d\u00E9tails du CCTP et quantifiez vos engagements.'
@@ -444,27 +492,27 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
       {/* ═══ TAB 4: CHECKLIST DEPOT ═══ */}
       {tab === 'checklist' && (
         <div>
-          <div className="v5-tabs" style={{ marginBottom: '.75rem' }}>
-            <button onClick={() => setDceForm(f => ({...f, country: 'FR'}))} className={`v5-tab-b${dceForm.country === 'FR' ? ' active' : ''}`}>France</button>
-            <button onClick={() => setDceForm(f => ({...f, country: 'PT'}))} className={`v5-tab-b${dceForm.country === 'PT' ? ' active' : ''}`}>Portugal</button>
+          <div className={isV5 ? 'v5-tabs' : undefined} style={{ marginBottom: '.75rem', ...(isV5 ? {} : { display: 'flex', gap: 4 }) }}>
+            <button onClick={() => setDceForm(f => ({...f, country: 'FR'}))} className={isV5 ? `v5-tab-b${dceForm.country === 'FR' ? ' active' : ''}` : `v22-tab${dceForm.country === 'FR' ? ' active' : ''}`}>France</button>
+            <button onClick={() => setDceForm(f => ({...f, country: 'PT'}))} className={isV5 ? `v5-tab-b${dceForm.country === 'PT' ? ' active' : ''}` : `v22-tab${dceForm.country === 'PT' ? ' active' : ''}`}>Portugal</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
             {getChecklist(dceForm.country).map(cat => {
               const total = cat.items.length
               const checked = cat.items.filter((_, i) => checkStates[`${cat.cat}_${i}`]).length
               return (
-                <div key={cat.cat} className="v5-card">
+                <div key={cat.cat} className={isV5 ? 'v5-card' : 'v22-card'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.65rem' }}>
-                    <div className="v5-st" style={{ margin: 0 }}>{cat.cat}</div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: checked === total ? '#2E7D32' : 'var(--v5-text-light)' }}>{checked}/{total}</span>
+                    <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ margin: 0 }}>{cat.cat}</div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: checked === total ? '#2E7D32' : (isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)') }}>{checked}/{total}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {cat.items.map((item, i) => {
                       const key = `${cat.cat}_${i}`
                       const done = !!checkStates[key]
                       return (
-                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: done ? 'var(--v5-text-muted)' : 'var(--v5-text-primary)', textDecoration: done ? 'line-through' : 'none', padding: '3px 0' }}>
-                          <input type="checkbox" checked={done} onChange={() => toggleCheck(key)} style={{ accentColor: 'var(--v5-primary-yellow)', width: 14, height: 14 }} />
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: done ? (isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)') : (isV5 ? 'var(--v5-text-primary)' : 'inherit'), textDecoration: done ? 'line-through' : 'none', padding: '3px 0' }}>
+                          <input type="checkbox" checked={done} onChange={() => toggleCheck(key)} style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', width: 14, height: 14 }} />
                           {item}
                         </label>
                       )
@@ -483,16 +531,22 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
               }).length
               const pct = allItems.length > 0 ? Math.round(totalChecked / allItems.length * 100) : 0
               return (
-                <div className="v5-card">
+                <div className={isV5 ? 'v5-card' : 'v22-card'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 600 }}>{isFR ? 'Progression globale' : 'Progresso global'}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? '#2E7D32' : 'var(--v5-primary-yellow-dark)' }}>{pct}%</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? '#2E7D32' : (isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)') }}>{pct}%</span>
                   </div>
-                  <div className="v5-prog-row">
-                    <div className="v5-prog-bg">
-                      <div className="v5-prog-fill" style={{ width: `${pct}%`, background: pct === 100 ? '#2E7D32' : 'var(--v5-primary-yellow)' }} />
+                  {isV5 ? (
+                    <div className="v5-prog-row">
+                      <div className="v5-prog-bg">
+                        <div className="v5-prog-fill" style={{ width: `${pct}%`, background: pct === 100 ? '#2E7D32' : 'var(--v5-primary-yellow)' }} />
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div style={{ height: 6, borderRadius: 3, background: '#E8E8E8' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: pct === 100 ? '#2E7D32' : 'var(--v22-yellow)' }} />
+                    </div>
+                  )}
                 </div>
               )
             })()}

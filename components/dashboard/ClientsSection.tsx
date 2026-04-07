@@ -76,6 +76,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   orgRole?: OrgRole
 }) {
   const isSociete = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe'
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -241,15 +242,15 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       <div className="v5-fade">
         {/* Modal — reuse same modal for v5 */}
         {showModal && (
-          <div className="v22-modal-overlay">
-            <div className="v22-modal" style={{ maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
-              <div className="v22-modal-head">
-                <span className="v22-card-title">
+          <div className="v5-modal-ov">
+            <div className="v5-modal" style={{ maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+              <div className="v5-modal-h">
+                <span className="v5-modal-t">
                   {editingId ? t('proDash.clients.modifierClient') : t('proDash.clients.nouveauClient')}
                 </span>
                 <button className="v5-btn v5-btn-sm" onClick={() => setShowModal(false)}>✕</button>
               </div>
-              <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px' }}>
                 {/* Type */}
                 <div className="v5-fg">
                   <label className="v5-fl">{t('proDash.clients.typeDeClient')}</label>

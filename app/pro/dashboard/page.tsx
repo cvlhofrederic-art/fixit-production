@@ -752,6 +752,7 @@ function DashboardPage() {
               <div style={{ flex: 1, minHeight: 0, padding: '12px' }}>
             <MessagerieArtisan
               artisan={artisan!}
+              orgRole={orgRole}
               onConversationRead={refreshUnreadMsgCount}
               onProposerDevis={(missionData) => {
                 // ── Matching intelligent : motif mission → service catalogue (prix) ──
@@ -988,6 +989,7 @@ function DashboardPage() {
           {activePage === 'settings' && (
             <SettingsSection
               artisan={artisan!}
+              orgRole={orgRole}
               initials={initials}
               settingsTab={settingsTab}
               setSettingsTab={setSettingsTab}
@@ -1059,7 +1061,7 @@ function DashboardPage() {
           {/* ────── DEVIS PRO BTP ────── */}
           {activePage === 'rfq_btp' && orgRole === 'pro_societe' && artisan && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis pro'}>
-              <RFQSection artisan={artisan!} />
+              <RFQSection artisan={artisan!} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
@@ -1101,74 +1103,74 @@ function DashboardPage() {
 
           {/* ────── ÉQUIPES (Société BTP) ────── */}
           {activePage === 'equipes' && (
-            <EquipesBTPV2 artisan={artisan!} />
+            <EquipesBTPV2 artisan={artisan!} orgRole={orgRole} />
           )}
 
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
-            <ChantiersBTPV2 artisan={artisan!} />
+            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} />
           )}
 
           {/* ────── GANTT (Société BTP) ────── */}
           {activePage === 'gantt' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <GanttSection userId={artisan?.id || ''} />
+              <GanttSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── SITUATIONS DE TRAVAUX (Société BTP) ────── */}
           {activePage === 'situations' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <SituationsTravaux userId={artisan?.id || ''} />
+              <SituationsTravaux userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RETENUES DE GARANTIE (Société BTP) ────── */}
           {activePage === 'garanties' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <RetenuesGarantieSection userId={artisan?.id || ''} />
+              <RetenuesGarantieSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <PointageGeoSection artisan={artisan!} />
+              <PointageGeoSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── SOUS-TRAITANCE DC4 (Société BTP) ────── */}
           {activePage === 'sous_traitance' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <SousTraitanceDC4Section userId={artisan?.id || ''} />
+              <SousTraitanceDC4Section userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RENTABILITÉ CHANTIER (Société BTP) ────── */}
           {activePage === 'rentabilite' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <RentabiliteChantierSection artisan={artisan!} />
+              <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── COMPTA INTELLIGENTE BTP ────── */}
           {activePage === 'compta_btp' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <ComptaBTPSection artisan={artisan!} />
+              <ComptaBTPSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RECRUTEMENT SOUS-TRAITANTS (Société BTP) ────── */}
           {activePage === 'sous_traitance_offres' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <SousTraitanceOffresSection artisan={artisan!} />
+              <SousTraitanceOffresSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── DPGF APPELS D'OFFRES (Société BTP) ────── */}
           {activePage === 'dpgf' && (
             <div className="p-6 lg:p-8 animate-fadeIn">
-              <DPGFSection userId={artisan?.id || ''} />
+              <DPGFSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
@@ -1242,19 +1244,19 @@ function DashboardPage() {
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
-              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} />
+              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PHOTOS CHANTIER ────── */}
           {activePage === 'photos_chantier' && (
-            <PhotosChantierSection artisan={artisan!} bookings={bookings} />
+            <PhotosChantierSection artisan={artisan!} bookings={bookings} orgRole={orgRole} />
           )}
 
           {/* ────── CHANTIERS V22 (Artisan) ────── */}
           {activePage === 'chantiers_v22' && (
             <SectionErrorBoundary fallbackTitle="Erreur dans les chantiers">
-              <ChantiersV22Section artisan={artisan!} navigateTo={navigateTo} />
+              <ChantiersV22Section artisan={artisan!} navigateTo={navigateTo} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
