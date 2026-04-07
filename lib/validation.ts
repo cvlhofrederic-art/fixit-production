@@ -707,7 +707,7 @@ export const proTeamInviteSchema = z.object({
   email: strictEmail,
   full_name: z.string().min(1, 'Nom requis').max(200),
   phone: z.string().max(30).optional(),
-  memberRole: z.enum(['CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER']),
+  memberRole: z.enum(['GERANT', 'CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER']),
   assigned_chantiers: z.array(z.string().uuid()).max(50).optional(),
   permissionOverrides: z.array(z.object({
     module_id: z.string().max(50),

@@ -433,7 +433,7 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
                     className="w-full px-3 py-2 rounded text-xs"
                     style={{ border: '1px solid var(--v22-border)', background: 'var(--v22-bg)', color: 'var(--v22-text)' }}
                   >
-                    {PRO_TEAM_ROLES.filter(r => r !== 'GERANT').map(r => (
+                    {PRO_TEAM_ROLES.map(r => (
                       <option key={r} value={r}>{getRoleLabel(r)}</option>
                     ))}
                   </select>
