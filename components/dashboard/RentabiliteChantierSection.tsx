@@ -696,9 +696,9 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
 
             {simulated && (simJoursExtra > 0 || simOuvriersExtra > 0 || simCoutExtra > 0) && (
               <div className={isV5 ? 'v5-kpi-g' : 'v22-kpi-grid'} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-                <SimKpi label={t('Bénéfice', 'Lucro')} before={`${fmt(selected.beneficeNet)} €`} after={`${fmt(simulated.benefice)} €`} isGood={simulated.benefice >= selected.beneficeNet} />
-                <SimKpi label={t('Marge', 'Margem')} before={fmtPct(selected.margePercent)} after={fmtPct(simulated.marge)} isGood={simulated.marge >= selected.margePercent} />
-                <SimKpi label={t('Bénéf/jour', 'Lucro/dia')} before={`${fmt(selected.beneficeParJour)} €`} after={`${fmt(simulated.benefParJour)} €`} isGood={simulated.benefParJour >= selected.beneficeParJour} />
+                <SimKpi label={t('Bénéfice', 'Lucro')} before={`${fmt(selected.beneficeNet)} €`} after={`${fmt(simulated.benefice)} €`} isGood={simulated.benefice >= selected.beneficeNet} isV5={isV5} />
+                <SimKpi label={t('Marge', 'Margem')} before={fmtPct(selected.margePercent)} after={fmtPct(simulated.marge)} isGood={simulated.marge >= selected.margePercent} isV5={isV5} />
+                <SimKpi label={t('Bénéf/jour', 'Lucro/dia')} before={`${fmt(selected.beneficeParJour)} €`} after={`${fmt(simulated.benefParJour)} €`} isGood={simulated.benefParJour >= selected.beneficeParJour} isV5={isV5} />
                 <div className={isV5 ? 'v5-kpi' : 'v22-kpi'} style={{ textAlign: 'center' }}>
                   <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>Score</div>
                   <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'} style={{ color: simulated.badgeColor }}>{simulated.score}</div>
@@ -725,7 +725,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function SimKpi({ label, before, after, isGood }: { label: string; before: string; after: string; isGood: boolean }) {
+function SimKpi({ label, before, after, isGood, isV5 }: { label: string; before: string; after: string; isGood: boolean; isV5?: boolean }) {
   return (
     <div className={isV5 ? 'v5-kpi' : 'v22-kpi'} style={{ textAlign: 'center' }}>
       <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{label}</div>
