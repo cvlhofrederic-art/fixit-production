@@ -685,8 +685,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
             {/* ── TVA STATUS CARD ── */}
             {selectedPeriod === 'annee' || selectedYear === currentYear ? (
-              <div className="v22-card" style={{ marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}`, background: tvaStatus.bgColor }}>
-                <div className="v22-card-body" style={{ padding: '14px 16px' }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 20 } : { marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}`, background: tvaStatus.bgColor }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -768,27 +768,27 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             </div>
 
             {/* Health indicator */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              <div className="v22-card" style={{ background: 'var(--v22-green-light)', borderColor: 'var(--v22-green)', padding: 16 }}>
-                <div style={{ fontWeight: 600, color: 'var(--v22-green)', marginBottom: 6 }}>✅ {isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
-                <div style={{ fontSize: 13, color: 'var(--v22-green)' }}>
+            <div className={isV5 ? 'v5-kpi-g' : ''} style={isV5 ? {} : { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: 'var(--v22-green-light)', borderColor: 'var(--v22-green)', padding: 16 }}>
+                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: 'var(--v22-green)', marginBottom: 6 }}>✅ {isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: 'var(--v22-green)' }}>
                   {isPt
                     ? (isAutoEntrepreneur ? 'Regime Simplificado (Recibos Verdes)' : '⚠️ Ultrapassou o limite!')
                     : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--v22-green)', marginTop: 4 }}>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: 'var(--v22-green)', marginTop: 4 }}>
                   {isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
                   {' / '}{isPt ? '200 000 €' : '77 700 €'}
                 </div>
               </div>
-              <div className="v22-card" style={{ background: '#EFF6FF', borderColor: '#3b82f6', padding: 16 }}>
-                <div style={{ fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>{isPt ? '💳 Contrib. estimadas' : '💳 Cotisations estimées'}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{formatEur(cotisationsSociales)}</div>
-                <div style={{ fontSize: 11, color: '#2563eb', marginTop: 4 }}>{isPt ? '21,4% SS sobre rend. relevante (70%)' : '21,7% du CA HT annuel'}</div>
+              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: '#EFF6FF', borderColor: '#3b82f6', padding: 16 }}>
+                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>{isPt ? '💳 Contrib. estimadas' : '💳 Cotisations estimées'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? {} : { fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{formatEur(cotisationsSociales)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: '#2563eb', marginTop: 4 }}>{isPt ? '21,4% SS sobre rend. relevante (70%)' : '21,7% du CA HT annuel'}</div>
               </div>
-              <div className="v22-card" style={{ background: 'var(--v22-amber-light)', borderColor: 'var(--v22-amber)', padding: 16 }}>
-                <div style={{ fontWeight: 600, color: 'var(--v22-amber)', marginBottom: 6 }}>📋 {isPt ? 'Próxima declaração' : 'Prochaine déclaration'}</div>
-                <div style={{ fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: 'var(--v22-amber-light)', borderColor: 'var(--v22-amber)', padding: 16 }}>
+                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: 'var(--v22-amber)', marginBottom: 6 }}>📋 {isPt ? 'Próxima declaração' : 'Prochaine déclaration'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: '#92400e', fontWeight: 600 }}>
                   {isPt ? (() => {
                     const q = Math.floor(currentMonth / 3)
                     const dates = ['15 Mai (IVA T1)', '15 Ago (IVA T2)', '15 Nov (IVA T3)', '15 Fev (IVA T4)']
@@ -799,7 +799,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     return dates[q] || 'Voir calendrier'
                   })()}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--v22-amber)', marginTop: 4 }}>{isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle'}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: 'var(--v22-amber)', marginTop: 4 }}>{isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle'}</div>
               </div>
             </div>
           </div>
@@ -1007,9 +1007,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         {activeComptaTab === 'declaration' && (
           <div>
             {/* ── BLOC TVA / IVA ─────────────────────────────────────────────── */}
-            <div className="v22-card" style={{ marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}` }}>
-              <div className="v22-card-head">
-                <div className="v22-card-title">
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 20 } : { marginBottom: 20, borderLeft: `3px solid ${tvaStatus.color}` }}>
+              <div className={isV5 ? '' : 'v22-card-head'} style={isV5 ? { padding: '10px 14px', borderBottom: '1px solid #E8E8E8' } : undefined}>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>
                   {isPt ? '🧾 Situação de IVA' : '🧾 Statut TVA'}
                 </div>
                 <span style={{

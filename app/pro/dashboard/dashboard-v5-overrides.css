@@ -622,6 +622,40 @@
 /* ─── FORM GROUP (shared) ─── */
 #artisan-dashboard-v5 .v22-form-group { margin-bottom: .75rem; }
 
+/* ─── V5 INLINE STYLE NEUTRALIZERS ─── */
+/* Remove colored left-borders on cards (V5 cards have uniform #E8E8E8 borders) */
+#artisan-dashboard-v5 .v22-card[style*="borderLeft"],
+#artisan-dashboard-v5 .v22-card[style*="border-left"] {
+  border-left: 1px solid #E8E8E8 !important;
+}
+/* Normalize colored backgrounds on alert-style cards to V5 alert pattern */
+#artisan-dashboard-v5 .v22-card[style*="background: rgb(254"],
+#artisan-dashboard-v5 .v22-card[style*="background: rgb(255, 243"],
+#artisan-dashboard-v5 .v22-card[style*="background: rgb(232, 245"],
+#artisan-dashboard-v5 .v22-card[style*="background: rgb(227, 242"] {
+  background: #fff !important;
+}
+/* Force all inline border-radius to 6px (V5 standard) */
+#artisan-dashboard-v5 [style*="border-radius: 12px"],
+#artisan-dashboard-v5 [style*="borderRadius: 12"],
+#artisan-dashboard-v5 [style*="border-radius: 16px"],
+#artisan-dashboard-v5 [style*="borderRadius: 16"],
+#artisan-dashboard-v5 [style*="border-radius: 8px"],
+#artisan-dashboard-v5 [style*="borderRadius: 8"] {
+  border-radius: 6px !important;
+}
+/* Colored tab pills — normalize to V5 tab style */
+#artisan-dashboard-v5 button[style*="background: #E53935"],
+#artisan-dashboard-v5 button[style*="background: #4CAF50"],
+#artisan-dashboard-v5 button[style*="background: #2196F3"],
+#artisan-dashboard-v5 button[style*="background: #FF9800"],
+#artisan-dashboard-v5 button[style*="background: #9C27B0"] {
+  background: #fff !important;
+  color: #555 !important;
+  border: 1px solid #E0E0E0 !important;
+  border-radius: 4px !important;
+}
+
 /* ─── TAILWIND OVERRIDES ─── */
 #artisan-dashboard-v5 .space-y-6 > * + * { margin-top: .75rem; }
 #artisan-dashboard-v5 .rounded-xl { border-radius: 6px; }
