@@ -3,6 +3,9 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  experimental: {
+    optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js'],
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },

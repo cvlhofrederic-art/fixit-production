@@ -31,72 +31,7 @@ export async function GET(request: NextRequest) {
   const result: Record<string, unknown> = {}
 
   try {
-    if (table === 'all' || table === 'chantiers') {
-      const { data } = await supabaseAdmin
-        .from('chantiers_btp')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(200)
-      result.chantiers = data || []
-    }
-
-    if (table === 'all' || table === 'membres') {
-      const { data } = await supabaseAdmin
-        .from('membres_btp')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('nom', { ascending: true })
-        .limit(500)
-      result.membres = data || []
-    }
-
-    if (table === 'all' || table === 'equipes') {
-      const { data } = await supabaseAdmin
-        .from('equipes_btp')
-        .select('*, equipe_membres_btp(membre_id)')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false })
-      result.equipes = (data || []).map((e: { equipe_membres_btp?: { membre_id: string }[]; [key: string]: unknown }) => ({
-        ...e,
-        membreIds: (e.equipe_membres_btp || []).map((m) => m.membre_id),
-      }))
-    }
-
-    if (table === 'all' || table === 'pointages') {
-      let q = supabaseAdmin
-        .from('pointages_btp')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('date', { ascending: false })
-        .limit(500)
-      if (chantierId) q = q.eq('chantier_id', chantierId)
-      const { data } = await q
-      result.pointages = data || []
-    }
-
-    if (table === 'all' || table === 'depenses') {
-      let q = supabaseAdmin
-        .from('depenses_btp')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('date', { ascending: false })
-        .limit(500)
-      if (chantierId) q = q.eq('chantier_id', chantierId)
-      const { data } = await q
-      result.depenses = data || []
-    }
-
-    if (table === 'all' || table === 'settings') {
-      const { data } = await supabaseAdmin
-        .from('settings_btp')
-        .select('*')
-        .eq('owner_id', user.id)
-        .single()
-      result.settings = data || null
-    }
-
-    // Rentabilité view
+    // Single table request — no parallelism needed
     if (table === 'rentabilite') {
       const { data } = await supabaseAdmin
         .from('v_rentabilite_chantier')
@@ -104,7 +39,58 @@ export async function GET(request: NextRequest) {
         .eq('owner_id', user.id)
         .limit(100)
       result.rentabilite = data || []
+      return NextResponse.json(result)
     }
+
+    if (table !== 'all') {
+      // Single table fetch
+      if (table === 'chantiers') {
+        const { data } = await supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
+        result.chantiers = data || []
+      } else if (table === 'membres') {
+        const { data } = await supabaseAdmin.from('membres_btp').select('*').eq('owner_id', user.id).order('nom', { ascending: true }).limit(500)
+        result.membres = data || []
+      } else if (table === 'equipes') {
+        const { data } = await supabaseAdmin.from('equipes_btp').select('*, equipe_membres_btp(membre_id)').eq('owner_id', user.id).order('created_at', { ascending: false })
+        result.equipes = (data || []).map((e: { equipe_membres_btp?: { membre_id: string }[]; [key: string]: unknown }) => ({ ...e, membreIds: (e.equipe_membres_btp || []).map((m) => m.membre_id) }))
+      } else if (table === 'pointages') {
+        let q = supabaseAdmin.from('pointages_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
+        if (chantierId) q = q.eq('chantier_id', chantierId)
+        const { data } = await q
+        result.pointages = data || []
+      } else if (table === 'depenses') {
+        let q = supabaseAdmin.from('depenses_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
+        if (chantierId) q = q.eq('chantier_id', chantierId)
+        const { data } = await q
+        result.depenses = data || []
+      } else if (table === 'settings') {
+        const { data } = await supabaseAdmin.from('settings_btp').select('*').eq('owner_id', user.id).single()
+        result.settings = data || null
+      }
+      return NextResponse.json(result)
+    }
+
+    // table=all — run ALL 6 queries in parallel
+    let pointagesQ = supabaseAdmin.from('pointages_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
+    if (chantierId) pointagesQ = pointagesQ.eq('chantier_id', chantierId)
+    let depensesQ = supabaseAdmin.from('depenses_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
+    if (chantierId) depensesQ = depensesQ.eq('chantier_id', chantierId)
+
+    const [chantiersRes, membresRes, equipesRes, pointagesRes, depensesRes, settingsRes] = await Promise.all([
+      supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200),
+      supabaseAdmin.from('membres_btp').select('*').eq('owner_id', user.id).order('nom', { ascending: true }).limit(500),
+      supabaseAdmin.from('equipes_btp').select('*, equipe_membres_btp(membre_id)').eq('owner_id', user.id).order('created_at', { ascending: false }),
+      pointagesQ,
+      depensesQ,
+      supabaseAdmin.from('settings_btp').select('*').eq('owner_id', user.id).single(),
+    ])
+
+    result.chantiers = chantiersRes.data || []
+    result.membres = membresRes.data || []
+    result.equipes = (equipesRes.data || []).map((e: { equipe_membres_btp?: { membre_id: string }[]; [key: string]: unknown }) => ({ ...e, membreIds: (e.equipe_membres_btp || []).map((m) => m.membre_id) }))
+    result.pointages = pointagesRes.data || []
+    result.depenses = depensesRes.data || []
+    result.settings = settingsRes.data || null
 
     return NextResponse.json(result)
   } catch (err) {
