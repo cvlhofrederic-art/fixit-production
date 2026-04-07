@@ -50,7 +50,9 @@ export default function V5Sidebar({
         <div className="v5-sb-sec">
           <div className="v5-sb-sec-t">{isPt ? 'Pilotagem' : 'Pilotage'}</div>
           <V5SidebarItem icon="📊" label={isPt ? 'Painel' : 'Tableau de bord'} active={activePage === 'home'} onClick={() => navigateTo('home')} />
-          <V5SidebarItem icon="👥" label={isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} />
+          {(isProGerant || proCanAccess('gestion_comptes')) && (
+            <V5SidebarItem icon="👥" label={isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} />
+          )}
           {isModuleEnabled('stats') && (
             <V5SidebarItem icon="📈" label={isPt ? 'Estatísticas' : 'Statistiques'} active={activePage === 'stats'} onClick={() => navigateTo('stats')} />
           )}

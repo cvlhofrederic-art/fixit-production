@@ -255,8 +255,9 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
     return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ background: '#dcfce7', color: '#16a34a' }}>{isPt ? 'Ativo' : 'Actif'}</span>
   }
 
-  // Filter modules for permission grid — skip gestion_comptes (always GERANT-only)
-  const editableModules = ALL_PRO_MODULES.filter(m => m !== 'gestion_comptes' && m !== 'settings')
+  // Filter modules for permission grid — skip settings (always per-role)
+  // gestion_comptes is editable so gérant can grant READ access to other roles
+  const editableModules = ALL_PRO_MODULES.filter(m => m !== 'settings')
 
   // Role badge colors matching HTML v5 template
   const ROLE_BADGE: Record<string, { bg: string; color: string }> = {

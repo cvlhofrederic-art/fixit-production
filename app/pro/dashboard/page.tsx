@@ -1314,8 +1314,8 @@ function DashboardPage() {
             <CanalProSection artisan={artisan!} orgRole={orgRole} />
           )}
 
-          {/* ────── GESTION COMPTES (Société BTP — tous voient, seul gérant modifie) ────── */}
-          {activePage === 'gestion_comptes' && orgRole === 'pro_societe' && (
+          {/* ────── GESTION COMPTES (Société BTP — gérant ou permission accordée) ────── */}
+          {activePage === 'gestion_comptes' && orgRole === 'pro_societe' && (isProGerant || proCanAccess('gestion_comptes')) && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na gestão de contas' : 'Erreur dans la gestion des comptes'}>
               <CompteUtilisateursSection artisan={artisan!} isGerant={isProGerant} />
             </SectionErrorBoundary>
