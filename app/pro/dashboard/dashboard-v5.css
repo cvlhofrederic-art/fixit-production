@@ -21,8 +21,12 @@
 }
 
 /* ─── LAYOUT ─── */
-.v5-app { display: flex; height: 100vh; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; font-size: 13px; color: var(--v5-text-primary); -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
-.v5-app * { font-family: inherit; -webkit-font-smoothing: inherit; -moz-osx-font-smoothing: inherit; }
+.v5-app, .v5-app *, .v5-app *::before, .v5-app *::after {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif !important;
+  -webkit-font-smoothing: auto !important;
+  -moz-osx-font-smoothing: auto !important;
+}
+.v5-app { display: flex; height: 100vh; overflow: hidden; font-size: 13px; color: var(--v5-text-primary); }
 
 /* ─── SIDEBAR ─── */
 .v5-sb { width: 210px; background: var(--v5-sidebar-bg); border-right: 1px solid var(--v5-sidebar-border); overflow-y: hidden; flex-shrink: 0; display: flex; flex-direction: column; z-index: 2; }
