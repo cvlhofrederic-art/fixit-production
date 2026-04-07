@@ -28,6 +28,13 @@ import type { Artisan, Service, Booking, Notification, ChatMessage } from '@/lib
 import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
+// Section loading spinner — shown while JS chunks load
+const SectionLoader = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+    <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+  </div>
+)
+
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
 // ssr:false was causing React hydration error #419 that broke all button handlers
 const HomeSection = dynamic(() => import('@/components/dashboard/HomeSection'))
@@ -36,37 +43,37 @@ const HorairesSection = dynamic(() => import('@/components/dashboard/HorairesSec
 const MotifsSection = dynamic(() => import('@/components/dashboard/MotifsSection'))
 const DevisSection = dynamic(() => import('@/components/dashboard/DevisSection'))
 const FacturesSection = dynamic(() => import('@/components/dashboard/FacturesSection'))
-const StatsRevenusSection = dynamic(() => import('@/components/dashboard/StatsRevenusSection'))
-const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSection'))
+const StatsRevenusSection = dynamic(() => import('@/components/dashboard/StatsRevenusSection'), { loading: SectionLoader })
+const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSection'), { loading: SectionLoader })
 
-const WalletConformiteSection = dynamic(() => import('@/components/dashboard/WalletConformiteSection'))
-const CarnetDeVisiteSection = dynamic(() => import('@/components/dashboard/CarnetDeVisiteSection'))
-const PhotosChantierSection = dynamic(() => import('@/components/dashboard/PhotosChantierSection'))
-const BourseAuxMarchesSection = dynamic(() => import('@/components/marches/BourseAuxMarchesSection'))
-const MarketplaceProBTPSection = dynamic(() => import('@/components/dashboard/MarketplaceProBTPSection'))
+const WalletConformiteSection = dynamic(() => import('@/components/dashboard/WalletConformiteSection'), { loading: SectionLoader })
+const CarnetDeVisiteSection = dynamic(() => import('@/components/dashboard/CarnetDeVisiteSection'), { loading: SectionLoader })
+const PhotosChantierSection = dynamic(() => import('@/components/dashboard/PhotosChantierSection'), { loading: SectionLoader })
+const BourseAuxMarchesSection = dynamic(() => import('@/components/marches/BourseAuxMarchesSection'), { loading: SectionLoader })
+const MarketplaceProBTPSection = dynamic(() => import('@/components/dashboard/MarketplaceProBTPSection'), { loading: SectionLoader })
 
 // V22 new sections
-const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'))
-const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSection'))
-const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'))
-const ParrainageSection = dynamic(() => import('@/components/dashboard/ParrainageSection'))
-const AideSection = dynamic(() => import('@/components/dashboard/AideSection'))
+const ChantiersV22Section = dynamic(() => import('@/components/dashboard/ChantiersSection'), { loading: SectionLoader })
+const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSection'), { loading: SectionLoader })
+const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'), { loading: SectionLoader })
+const ParrainageSection = dynamic(() => import('@/components/dashboard/ParrainageSection'), { loading: SectionLoader })
+const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), { loading: SectionLoader })
 
 // BTP sections
-const EquipesBTPV2 = dynamic(() => import('@/components/dashboard/EquipesBTPV2'))
-const ChantiersBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.ChantiersBTPSection))
-const GanttSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.GanttSection))
-const SituationsTravaux = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SituationsTravaux))
-const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.RetenuesGarantieSection))
-const PointageEquipesSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.PointageEquipesSection))
-const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SousTraitanceDC4Section))
-const DPGFSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.DPGFSection))
-const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'))
-const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'))
-const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2))
-const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection))
-const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection))
-const CompteUtilisateursSection = dynamic(() => import('@/components/dashboard/CompteUtilisateursSection'))
+const EquipesBTPV2 = dynamic(() => import('@/components/dashboard/EquipesBTPV2'), { loading: SectionLoader })
+const ChantiersBTPSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.ChantiersBTPSection), { loading: SectionLoader })
+const GanttSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.GanttSection), { loading: SectionLoader })
+const SituationsTravaux = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SituationsTravaux), { loading: SectionLoader })
+const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.RetenuesGarantieSection), { loading: SectionLoader })
+const PointageEquipesSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.PointageEquipesSection), { loading: SectionLoader })
+const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.SousTraitanceDC4Section), { loading: SectionLoader })
+const DPGFSection = dynamic(() => import('@/components/dashboard/BTPSections').then(mod => mod.DPGFSection), { loading: SectionLoader })
+const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'), { loading: SectionLoader })
+const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'), { loading: SectionLoader })
+const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2), { loading: SectionLoader })
+const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection), { loading: SectionLoader })
+const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
+const CompteUtilisateursSection = dynamic(() => import('@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
 
 // V5 layout components (pro_societe only)
 const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'))
@@ -101,9 +108,20 @@ interface DevisLine {
 }
 
 function SuspenseFallback() {
-  const isV5 = typeof window !== 'undefined' && (() => {
-    try { return sessionStorage.getItem('fixit_org_role') === 'pro_societe' } catch { return false }
-  })()
+  const [isV5, setIsV5] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    try { setIsV5(sessionStorage.getItem('fixit_org_role') === 'pro_societe') } catch { setIsV5(false) }
+  }, [])
+
+  // SSR + first client render: neutral spinner (no V22 flash)
+  if (isV5 === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F2F2F0' }}>
+        <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    )
+  }
 
   if (isV5) {
     return (
@@ -372,6 +390,15 @@ function DashboardPage() {
   const isV5 = orgRole === 'pro_societe'
 
   if (loading) {
+    // During SSR, orgRole defaults to 'artisan' (no sessionStorage) — show neutral spinner
+    // to avoid V22 skeleton flash for pro_societe users on hard refresh
+    if (typeof window === 'undefined') {
+      return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: '#F2F2F0' }}>
+          <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      )
+    }
     if (isV5) {
       return (
         <div id="artisan-dashboard-v5" className="v5-app">
