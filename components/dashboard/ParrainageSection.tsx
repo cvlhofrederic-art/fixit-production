@@ -34,6 +34,7 @@ interface HistoryItem {
 
 export default function ParrainageSection({ artisan, orgRole }: ParrainageSectionProps) {
   const isSociete = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe'
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,13 +95,148 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
 
   if (loading) {
     return (
-      <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
+      <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🎁</div>
-        <p style={{ color: '#8A9BB0' }}>Chargement...</p>
+        <p style={{ color: isV5 ? '#999' : '#8A9BB0' }}>Chargement...</p>
       </div>
     )
   }
 
+  /* ═══════════════════════════════════════════
+     V5 layout — pro_societe only
+     ═══════════════════════════════════════════ */
+  if (isV5) {
+    return (
+      <div className="v5-fade" style={{ maxWidth: 800, margin: '0 auto' }}>
+        <div className="v5-pg-t">
+          <h1>Parrainage entreprises</h1>
+          <p>Programme B2B</p>
+        </div>
+
+        {/* Referral code box */}
+        <div className="v5-card" style={{ marginBottom: '0.75rem', textAlign: 'center', padding: '1.25rem' }}>
+          {stats?.referral_code ? (
+            <>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 8 }}>Votre code</div>
+              <div style={{
+                display: 'inline-block', padding: '10px 28px', borderRadius: 6,
+                border: '2px dashed var(--v5-primary-yellow)', background: 'var(--v5-highlight-yellow)',
+                fontSize: 18, fontWeight: 700, letterSpacing: 2, color: '#1a1a1a', marginBottom: 12,
+              }}>
+                {stats.referral_code}
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+                <button onClick={copyLink} className={`v5-btn${copied ? ' v5-btn-s' : ' v5-btn-p'}`}>
+                  {copied ? '\u2705 Copi\u00e9' : 'Copier le lien'}
+                </button>
+                <button onClick={shareWhatsApp} className="v5-btn v5-btn-s">
+                  WhatsApp
+                </button>
+                <button onClick={shareSMS} className="v5-btn">
+                  SMS
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 12 }}>
+              <p style={{ color: '#666', marginBottom: 12, fontSize: 12 }}>Vous n&apos;avez pas encore de code de parrainage.</p>
+              <button onClick={generateCode} disabled={generating} className="v5-btn v5-btn-p" style={{ opacity: generating ? 0.5 : 1 }}>
+                {generating ? 'G\u00e9n\u00e9ration...' : 'G\u00e9n\u00e9rer mon code'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* KPIs 2-col */}
+        <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '0.75rem' }}>
+          <div className="v5-kpi">
+            <div className="v5-kpi-l">Entreprises parrain&eacute;es</div>
+            <div className="v5-kpi-v">{stats?.stats.total || 0}</div>
+            <div className="v5-kpi-s">inscrites</div>
+          </div>
+          <div className="v5-kpi hl">
+            <div className="v5-kpi-l">Bonus cumul&eacute;</div>
+            <div className="v5-kpi-v">{stats?.credit_mois_gratuits || 0} mois</div>
+            <div className="v5-kpi-s">en cr&eacute;dits</div>
+          </div>
+        </div>
+
+        {/* Additional KPIs */}
+        <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '1rem' }}>
+          <div className="v5-kpi">
+            <div className="v5-kpi-l">Valid&eacute;s</div>
+            <div className="v5-kpi-v">{stats?.stats.valides || 0}</div>
+            <div className="v5-kpi-s">abonn&eacute;s confirm&eacute;s</div>
+          </div>
+          <div className="v5-kpi">
+            <div className="v5-kpi-l">En v&eacute;rification</div>
+            <div className="v5-kpi-v">{stats?.stats.enVerification || 0}</div>
+            <div className="v5-kpi-s">en attente</div>
+          </div>
+        </div>
+
+        {/* Comment ca marche */}
+        <div className="v5-card" style={{ marginBottom: '0.75rem' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px' }}>
+            Comment &ccedil;a marche ?
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              "Partagez votre lien \u00e0 une autre entreprise BTP",
+              "L\u2019entreprise s\u2019inscrit et s\u2019abonne \u00e0 VITFIX Pro",
+              "Vous recevez chacun 1 mois offert (confirm\u00e9 apr\u00e8s 7 jours)",
+            ].map((text, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%', background: 'var(--v5-primary-yellow)', color: '#333',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0,
+                }}>
+                  {i + 1}
+                </div>
+                <span style={{ fontSize: 12, color: '#666' }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* History table */}
+        {history.length > 0 && (
+          <div className="v5-card" style={{ overflowX: 'auto' }}>
+            <table className="v5-dt">
+              <thead>
+                <tr>
+                  <th>Entreprise</th>
+                  <th>Date</th>
+                  <th>Statut</th>
+                  <th>Bonus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(item => (
+                  <tr key={item.id}>
+                    <td style={{ fontWeight: 600 }}>{item.filleul_name}</td>
+                    <td>{item.date_inscription ? new Date(item.date_inscription).toLocaleDateString('fr-FR') : '\u2014'}</td>
+                    <td>
+                      <span className={`v5-badge ${item.statut.color === 'green' ? 'v5-badge-green' : item.statut.color === 'yellow' ? 'v5-badge-yellow' : item.statut.color === 'blue' ? 'v5-badge-blue' : 'v5-badge-gray'}`}>
+                        {item.statut.label}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 600, color: item.statut.color === 'green' ? '#2E7D32' : '#999' }}>
+                      {item.statut.color === 'green' ? `+${item.mois_offerts} mois` : '\u2014'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /* ═══════════════════════════════════════════
+     V22 layout — artisan and other roles
+     ═══════════════════════════════════════════ */
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {/* Header */}

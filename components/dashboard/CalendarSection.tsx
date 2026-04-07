@@ -22,6 +22,8 @@ interface AbsenceForm {
   label: string
 }
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
 interface CalendarSectionProps {
   artisan: Artisan | null
   bookings: Booking[]
@@ -62,6 +64,7 @@ interface CalendarSectionProps {
   openDashMessages: (booking: Booking) => void
   DAY_NAMES: string[]
   DAY_SHORT: string[]
+  orgRole?: OrgRole
 }
 
 export default function CalendarSection(props: CalendarSectionProps) {
@@ -75,8 +78,10 @@ export default function CalendarSection(props: CalendarSectionProps) {
     isDateAbsent, getWorkingWeekDates, getMonthDays,
     handleEmptyCellClick, handleBookingClick, createRdvManual, createAbsence,
     deleteAbsence, updateBookingStatus, transformBookingToDevis, openDashMessages,
-    DAY_NAMES, DAY_SHORT,
+    DAY_NAMES, DAY_SHORT, orgRole,
   } = props
+
+  const isV5 = orgRole === 'pro_societe'
 
   const { t } = useTranslation()
   const locale = useLocale()
@@ -97,27 +102,29 @@ export default function CalendarSection(props: CalendarSectionProps) {
     : 0
 
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : ''}>
       {/* Page header */}
-      <div className="v22-page-header">
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
         <div>
-          <div className="v22-page-title">{t('proDash.calendar.title')}</div>
-          <div className="v22-page-sub">{t('proDash.calendar.subtitle')}</div>
+          {isV5
+            ? <><h1>{t('proDash.calendar.title')}</h1><p>{t('proDash.calendar.subtitle')}</p></>
+            : <><div className="v22-page-title">{t('proDash.calendar.title')}</div><div className="v22-page-sub">{t('proDash.calendar.subtitle')}</div></>
+          }
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           {(['day', 'week', 'month'] as const).map((v) => (
             <button key={v} onClick={() => setCalendarView(v)}
-              className="v22-btn v22-btn-sm"
-              style={calendarView === v ? { background: 'var(--v22-yellow)', fontWeight: 600 } : undefined}>
+              className={isV5 ? `v5-btn v5-btn-sm${calendarView === v ? ' v5-btn-p' : ''}` : 'v22-btn v22-btn-sm'}
+              style={!isV5 && calendarView === v ? { background: 'var(--v22-yellow)', fontWeight: 600 } : undefined}>
               {v === 'day' ? t('proDash.calendar.jour') : v === 'week' ? t('proDash.calendar.semaine') : t('proDash.calendar.mois')}
             </button>
           ))}
           <button onClick={() => setShowAbsenceModal(true)}
-            className="v22-btn v22-btn-sm"
-            style={{ background: 'var(--v22-red-light)', color: 'var(--v22-red)', fontWeight: 600 }}>
+            className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'}
+            style={!isV5 ? { background: 'var(--v22-red-light)', color: 'var(--v22-red)', fontWeight: 600 } : undefined}>
             {t('proDash.calendar.absence')}
           </button>
-          <button onClick={() => setShowNewRdv(true)} className="v22-btn v22-btn-primary v22-btn-sm">
+          <button onClick={() => setShowNewRdv(true)} className={isV5 ? 'v5-btn v5-btn-sm v5-btn-p' : 'v22-btn v22-btn-primary v22-btn-sm'}>
             + {t('proDash.calendar.nouveauRendezVous')}
           </button>
         </div>
@@ -126,30 +133,30 @@ export default function CalendarSection(props: CalendarSectionProps) {
       <div style={{ padding: 16 }}>
 
         {/* Stats row */}
-        <div className="v22-stats" style={{ marginBottom: 16 }}>
-          <div className="v22-stat v22-stat-yellow">
-            <div className="v22-stat-label">{t('proDash.calendar.rdvAujourdhui')}</div>
-            <div className="v22-stat-val">{todayBookings.length}</div>
-            <div className="v22-stat-delta" style={{ color: 'var(--v22-green)' }}>
+        <div className={isV5 ? 'v5-kpi-g' : 'v22-stats'} style={{ marginBottom: 16 }}>
+          <div className={isV5 ? 'v5-kpi hl' : 'v22-stat v22-stat-yellow'}>
+            <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{t('proDash.calendar.rdvAujourdhui')}</div>
+            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{todayBookings.length}</div>
+            <div className={isV5 ? 'v5-kpi-s' : 'v22-stat-delta'} style={{ color: isV5 ? '#2E7D32' : 'var(--v22-green)' }}>
               {todayBookings.filter(b => b.status === 'confirmed').length} {t('proDash.calendar.confirmes')}
             </div>
           </div>
-          <div className="v22-stat">
-            <div className="v22-stat-label">{t('proDash.calendar.tauxRemplissage')}</div>
-            <div className="v22-stat-val">{fillRate}%</div>
-            <div className="v22-stat-delta">{t('proDash.calendar.cetteSemaine')}</div>
+          <div className={isV5 ? 'v5-kpi' : 'v22-stat'}>
+            <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{t('proDash.calendar.tauxRemplissage')}</div>
+            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{fillRate}%</div>
+            <div className={isV5 ? 'v5-kpi-s' : 'v22-stat-delta'}>{t('proDash.calendar.cetteSemaine')}</div>
           </div>
-          <div className="v22-stat">
-            <div className="v22-stat-label">{t('proDash.calendar.revenusMois')}</div>
-            <div className="v22-stat-val">{formatPrice(totalRevenue)}</div>
-            <div className="v22-stat-delta" style={{ color: 'var(--v22-green)' }}>
+          <div className={isV5 ? 'v5-kpi' : 'v22-stat'}>
+            <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{t('proDash.calendar.revenusMois')}</div>
+            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{formatPrice(totalRevenue)}</div>
+            <div className={isV5 ? 'v5-kpi-s' : 'v22-stat-delta'} style={{ color: isV5 ? '#2E7D32' : 'var(--v22-green)' }}>
               {completedBookings.length} {t('proDash.home.terminees')}
             </div>
           </div>
-          <div className="v22-stat">
-            <div className="v22-stat-label">{t('proDash.calendar.noteMoyenne')}</div>
-            <div className="v22-stat-val">{artisan?.rating_avg || '5.0'}/5</div>
-            <div className="v22-stat-delta" style={{ color: 'var(--v22-amber)' }}>
+          <div className={isV5 ? 'v5-kpi' : 'v22-stat'}>
+            <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{t('proDash.calendar.noteMoyenne')}</div>
+            <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'}>{artisan?.rating_avg || '5.0'}/5</div>
+            <div className={isV5 ? 'v5-kpi-s' : 'v22-stat-delta'} style={{ color: isV5 ? '#F57F17' : 'var(--v22-amber)' }}>
               {artisan?.rating_count || 0} {t('proDash.home.avis')}
             </div>
           </div>

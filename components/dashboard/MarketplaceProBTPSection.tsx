@@ -523,35 +523,57 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
   ].filter(t => !t.hidden)
 
 
+  // ── CSS class helpers for v5/v22 ──
+  const isV5 = isProSociete
+  const cardCls = isV5 ? 'v5-card' : 'v22-card'
+  const btnCls = isV5 ? 'v5-btn' : 'v22-btn'
+  const btnPrimaryCls = isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'
+  const btnSmCls = isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'
+
   return (
-    <div className="animate-fadeIn">
+    <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', top: 80, right: 24, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
+        <div style={{ position: 'fixed', top: 80, right: 24, zIndex: 9999, background: isV5 ? '#fff' : 'var(--v22-surface)', border: `1px solid ${isV5 ? '#E8E8E8' : 'var(--v22-border)'}`, borderRadius: isV5 ? 6 : 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
           {toast}
         </div>
       )}
 
       {/* Header */}
-      <div className="v22-page-header">
-        <div>
-          <h1 className="v22-page-title">Marketplace PRO BTP</h1>
-          <p className="v22-page-sub">
-            {isAE
-              ? (isPt ? 'Mini-máquinas e material leve disponíveis para aluguer' : 'Mini-engins et matériel léger disponibles à la location')
-              : (isPt ? 'Aluguer & venda de equipamento entre profissionais' : 'Location & vente de matériel entre professionnels')}
-          </p>
+      {isV5 ? (
+        <>
+          <div className="v5-pg-t">
+            <h1>Marketplace BTP</h1>
+            <p>Achat/vente de mat&eacute;riaux et &eacute;quipements entre pros</p>
+          </div>
+          <div className="v5-search">
+            <input className="v5-search-in" placeholder={isPt ? 'Pesquisar...' : 'Rechercher...'} style={{ maxWidth: 300 }} />
+            <button className="v5-btn v5-btn-p" onClick={() => { setEditListing(null); setTab('nouvelle_annonce') }}>
+              + {isPt ? 'D\u00e9poser annonce' : 'D\u00e9poser annonce'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="v22-page-header">
+          <div>
+            <h1 className="v22-page-title">Marketplace PRO BTP</h1>
+            <p className="v22-page-sub">
+              {isAE
+                ? (isPt ? 'Mini-máquinas e material leve disponíveis para aluguer' : 'Mini-engins et matériel léger disponibles à la location')
+                : (isPt ? 'Aluguer & venda de equipamento entre profissionais' : 'Location & vente de matériel entre professionnels')}
+            </p>
+          </div>
+          {isProSociete && (
+            <button className="v22-btn v22-btn-primary" onClick={() => { setEditListing(null); setTab('nouvelle_annonce') }}>
+              {isPt ? '+ Publicar anúncio' : '+ Publier une annonce'}
+            </button>
+          )}
         </div>
-        {isProSociete && (
-          <button className="v22-btn v22-btn-primary" onClick={() => { setEditListing(null); setTab('nouvelle_annonce') }}>
-            {isPt ? '+ Publicar anúncio' : '+ Publier une annonce'}
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Bandeau restriction AE */}
       {isAE && (
-        <div className="v22-card" style={{ marginBottom: 16, borderLeft: '3px solid #3b82f6', background: 'rgba(59,130,246,0.06)', padding: '10px 14px' }}>
+        <div className={cardCls} style={{ marginBottom: isV5 ? '0.75rem' : 16, borderLeft: '3px solid #3b82f6', background: 'rgba(59,130,246,0.06)', padding: '10px 14px' }}>
           <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
             <Lock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt
               ? 'Acesso restrito a mini-máquinas e material leve. As empresas PRO têm acesso à gama completa.'
@@ -561,12 +583,12 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--v22-border)', marginBottom: 20, overflowX: 'auto' }}>
+      <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: '0.75rem' } : { display: 'flex', gap: 0, borderBottom: '1px solid var(--v22-border)', marginBottom: 20, overflowX: 'auto' }}>
         {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`v22-tab${tab === t.key ? ' active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <button key={t.key} onClick={() => setTab(t.key)} className={isV5 ? `v5-tab-b${tab === t.key ? ' active' : ''}` : `v22-tab${tab === t.key ? ' active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             {t.icon} {t.label}
             {t.count != null && t.count > 0 && (
-              <span style={{ marginLeft: 6, background: 'var(--v22-yellow)', color: '#111', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+              <span style={{ marginLeft: 6, background: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', color: isV5 ? '#333' : '#111', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                 {t.count}
               </span>
             )}
@@ -578,19 +600,19 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {tab === 'parcourir' && (
         <div>
           {/* Filtres */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="v22-form-input" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
-              <option value="">{isPt ? '— Todas as categorias —' : '— Toutes catégories —'}</option>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: isV5 ? '0.75rem' : 20 }}>
+            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
+              <option value="">{isPt ? '— Todas as categorias —' : '— Toutes cat\u00e9gories —'}</option>
               {MARKETPLACE_CATEGORIES.filter(c => !aeOnly || c.accessibleAE).map(c => (
                 <option key={c.id} value={c.id}>{c.emoji} {isPt ? c.labelPt : c.labelFr}</option>
               ))}
             </select>
-            <select value={filterType} onChange={e => setFilterType(e.target.value)} className="v22-form-input" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
               <option value="">{isPt ? '— Venda & aluguer —' : '— Vente & location —'}</option>
               <option value="vente">{isPt ? 'Venda' : 'Vente'}</option>
               <option value="location">{isPt ? 'Aluguer' : 'Location'}</option>
             </select>
-            <button className="v22-btn" style={{ fontSize: 12, padding: '6px 14px' }} onClick={loadListings}>
+            <button className={btnCls} style={{ fontSize: 12, padding: '6px 14px' }} onClick={loadListings}>
               {loading ? <Clock size={12} className="animate-spin" /> : <><Search size={12} /> {isPt ? 'Filtrar' : 'Filtrer'}</>}
             </button>
           </div>
@@ -604,7 +626,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
               sub={isPt ? 'Seja o primeiro a publicar!' : 'Soyez le premier à publier !'}
             />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            <div className={isV5 ? 'v5-sc3' : ''} style={isV5 ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
               {listings.map(l => (
                 <ListingCard key={l.id} listing={l} isPt={isPt}
                   onContact={l.user_id !== artisan?.user_id ? () => { setSelectedListing(l); setShowDemandeModal(true) } : undefined}
@@ -626,7 +648,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {myListings.map(l => (
-                <div key={l.id} className="v22-card">
+                <div key={l.id} className={cardCls}>
                   <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                     <div style={{ width: 48, height: 48, borderRadius: 6, background: l.photos?.[0] ? `url(${l.photos[0]}) center/cover` : 'var(--v22-bg)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, border: '1px solid var(--v22-border)' }}>
                       {!l.photos?.[0] && (MARKETPLACE_CATEGORIES.find(c => c.id === l.categorie)?.emoji ?? <Package size={22} />)}
@@ -650,12 +672,12 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                     </span>
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }} aria-label="Modifier cette annonce"><Pencil size={14} /></button>
+                      <button className={btnSmCls} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }} aria-label="Modifier cette annonce"><Pencil size={14} /></button>
                       {l.status === 'active'
-                        ? <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'paused')}><Pause size={12} /> {isPt ? 'Pausar' : 'Pauser'}</button>
-                        : <button className="v22-btn v22-btn-primary" style={{ fontSize: 11, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'active')}><Play size={12} /> {isPt ? 'Ativar' : 'Activer'}</button>
+                        ? <button className={btnSmCls} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'paused')}><Pause size={12} /> {isPt ? 'Pausar' : 'Pauser'}</button>
+                        : <button className={`${btnSmCls} ${isV5 ? 'v5-btn-p' : 'v22-btn-primary'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'active')}><Play size={12} /> {isPt ? 'Ativar' : 'Activer'}</button>
                       }
-                      <button className="v22-btn" style={{ fontSize: 11, padding: '5px 10px', color: 'var(--v22-red)' }} onClick={() => setConfirmDeleteId(l.id)} aria-label="Supprimer cette annonce"><Trash2 size={14} /></button>
+                      <button className={`${btnSmCls} ${isV5 ? 'v5-btn-d' : ''}`} style={isV5 ? undefined : { color: 'var(--v22-red)' }} onClick={() => setConfirmDeleteId(l.id)} aria-label="Supprimer cette annonce"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -685,7 +707,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {demandes.map(d => (
-                <div key={d.id} className="v22-card">
+                <div key={d.id} className={cardCls}>
                   <div style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                       <div>
@@ -711,10 +733,10 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                     </div>
                     {d.status === 'pending' && (
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="v22-btn v22-btn-primary" style={{ fontSize: 11, padding: '5px 14px' }} onClick={() => handleRespond(d, 'accepted', isPt ? 'Pedido aceite. Entraremos em contacto.' : 'Demande acceptée. Nous vous contacterons.')}>
+                        <button className={btnPrimaryCls} style={{ fontSize: 11, padding: '5px 14px' }} onClick={() => handleRespond(d, 'accepted', isPt ? 'Pedido aceite. Entraremos em contacto.' : 'Demande acceptée. Nous vous contacterons.')}>
                           <Check size={12} /> {isPt ? 'Aceitar' : 'Accepter'}
                         </button>
-                        <button className="v22-btn" style={{ fontSize: 11, padding: '5px 14px', color: 'var(--v22-red)' }} onClick={() => handleRespond(d, 'rejected', isPt ? 'Lamentamos, não está disponível.' : 'Désolé, non disponible.')}>
+                        <button className={btnCls} style={{ fontSize: 11, padding: '5px 14px', color: isV5 ? '#E53935' : 'var(--v22-red)' }} onClick={() => handleRespond(d, 'rejected', isPt ? 'Lamentamos, não está disponível.' : 'Désolé, non disponible.')}>
                           <X size={12} /> {isPt ? 'Recusar' : 'Refuser'}
                         </button>
                       </div>
@@ -730,6 +752,26 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {/* ── STATISTIQUES ──────────────────────────────────────────────── */}
       {tab === 'stats' && (
         <div>
+          {isV5 ? (
+            <div className="v5-kpi-g" style={{ marginBottom: '0.75rem' }}>
+              <div className="v5-kpi hl">
+                <div className="v5-kpi-l">{isPt ? 'Total an\u00fancios' : 'Total annonces'}</div>
+                <div className="v5-kpi-v">{statsTotal}</div>
+              </div>
+              <div className="v5-kpi">
+                <div className="v5-kpi-l">{isPt ? 'An\u00fancios ativos' : 'Annonces actives'}</div>
+                <div className="v5-kpi-v" style={{ color: '#2E7D32' }}>{statsActive}</div>
+              </div>
+              <div className="v5-kpi">
+                <div className="v5-kpi-l">{isPt ? 'Total visualiza\u00e7\u00f5es' : 'Vues totales'}</div>
+                <div className="v5-kpi-v" style={{ color: '#1565C0' }}>{statsVues}</div>
+              </div>
+              <div className="v5-kpi">
+                <div className="v5-kpi-l">{isPt ? 'Pedidos pendentes' : 'Demandes en attente'}</div>
+                <div className="v5-kpi-v" style={{ color: '#EF6C00' }}>{statsDemandesPending}</div>
+              </div>
+            </div>
+          ) : (
           <div className="v22-stats" style={{ marginBottom: 20 }}>
             <div className="v22-stat" style={{ borderLeft: '3px solid var(--v22-yellow)' }}>
               <div className="v22-stat-label">{isPt ? 'Total anúncios' : 'Total annonces'}</div>
@@ -748,11 +790,13 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
               <div className="v22-stat-val" style={{ color: '#f97316' }}>{statsDemandesPending}</div>
             </div>
           </div>
+          )}
 
           {/* Répartition par catégorie */}
-          <div className="v22-card">
-            <div className="v22-card-head"><div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BarChart3 size={14} /> {isPt ? 'Anúncios por categoria' : 'Annonces par catégorie'}</div></div>
-            <div className="v22-card-body" style={{ padding: 16 }}>
+          <div className={cardCls}>
+            {!isV5 && <div className="v22-card-head"><div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BarChart3 size={14} /> {isPt ? 'Anúncios por categoria' : 'Annonces par catégorie'}</div></div>}
+            {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px', display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={12} /> {isPt ? 'An\u00fancios por categoria' : 'Annonces par cat\u00e9gorie'}</div>}
+            <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: isV5 ? 0 : 16 }}>
               {MARKETPLACE_CATEGORIES.filter(c => myListings.some(l => l.categorie === c.id)).map(c => {
                 const count = myListings.filter(l => l.categorie === c.id).length
                 const pct = statsTotal > 0 ? Math.round((count / statsTotal) * 100) : 0
@@ -797,8 +841,8 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
               </p>
             </div>
             <div className="v22-modal-foot">
-              <button className="v22-btn" onClick={() => setConfirmDeleteId(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ background: 'var(--v22-red)', color: '#fff', border: 'none' }} onClick={() => handleDelete(confirmDeleteId)}>
+              <button className={btnCls} onClick={() => setConfirmDeleteId(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={`${btnCls} ${isV5 ? 'v5-btn-d' : ''}`} style={{ background: isV5 ? '#FFEBEE' : 'var(--v22-red)', color: isV5 ? '#E53935' : '#fff', border: isV5 ? '1px solid #E53935' : 'none' }} onClick={() => handleDelete(confirmDeleteId)}>
                 <Trash2 size={12} /> {isPt ? 'Eliminar' : 'Supprimer'}
               </button>
             </div>

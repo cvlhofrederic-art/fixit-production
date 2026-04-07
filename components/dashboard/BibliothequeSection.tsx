@@ -80,6 +80,7 @@ const EMPTY_FORM = (isSociete: boolean): Omit<BiblioItem, 'id'> => ({
 
 export default function BibliothequeSection({ artisan, orgRole = 'artisan', navigateTo }: BibliothequeSectionProps) {
   const isSociete = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe'
   const storageKey = `fixit_bibliotheque_${artisan?.id || 'guest'}`
 
   const [items, setItems] = useState<BiblioItem[]>([])
@@ -171,6 +172,177 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
   const totalRevient = filtered.reduce((s, i) => s + i.rev, 0)
 
+  /* ═══════════════════════════════════════════
+     V5 layout — pro_societe only
+     ═══════════════════════════════════════════ */
+  if (isV5) {
+    return (
+      <div className="v5-fade">
+        <div className="v5-pg-t">
+          <h1>Biblioth&egrave;que d&apos;ouvrages</h1>
+          <p>Base de donn&eacute;es de prix unitaires &mdash; {items.length} poste{items.length > 1 ? 's' : ''}</p>
+        </div>
+
+        {/* Search + new */}
+        <div className="v5-search">
+          <input
+            className="v5-search-in"
+            placeholder="Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button className="v5-btn v5-btn-p" onClick={openCreate}>+ Nouveau poste</button>
+        </div>
+
+        {/* Tabs type */}
+        <div className="v5-tabs" style={{ marginBottom: '0.5rem' }}>
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`v5-tab-b${tab === t.key ? ' active' : ''}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtre corps de metier */}
+        {allCorps.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            {allCorps.map(c => (
+              <button
+                key={c}
+                onClick={() => setCorpsFilter(c)}
+                className={`v5-btn v5-btn-sm${corpsFilter === c ? ' v5-btn-p' : ''}`}
+              >
+                {c === 'all' ? 'Tous les corps' : c}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="v5-card" style={{ overflowX: 'auto' }}>
+          <table className="v5-dt">
+            <thead>
+              <tr>
+                <th>Ouvrage</th>
+                <th>Corps</th>
+                <th>Cat&eacute;gorie</th>
+                <th>Unit&eacute;</th>
+                <th style={{ textAlign: 'right' }}>Co&ucirc;t HT</th>
+                <th style={{ textAlign: 'right' }}>Marge %</th>
+                <th style={{ textAlign: 'right' }}>Prix vente HT</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem', color: '#999' }}>
+                    Aucun &eacute;l&eacute;ment trouv&eacute;.
+                  </td>
+                </tr>
+              )}
+              {filtered.map(item => (
+                <tr key={item.id}>
+                  <td style={{ fontWeight: 600 }}>{item.nom}</td>
+                  <td>
+                    {item.corps && (
+                      <span className="v5-badge v5-badge-blue">{item.corps}</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`v5-badge ${item.type === 'ouvrage' ? 'v5-badge-yellow' : item.type === 'materiau' ? 'v5-badge-gray' : 'v5-badge-green'}`}>
+                      {TYPE_LABELS[item.type]}
+                    </span>
+                  </td>
+                  <td>{item.unite}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11 }}>{fmt(item.rev)}</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11 }}>{item.marge}%</td>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>{fmt(prixClient(item.rev, item.marge))}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button onClick={() => openEdit(item)} className="v5-btn v5-btn-sm" style={{ marginRight: 4 }}>Editer</button>
+                    <button onClick={() => handleDelete(item.id)} className="v5-btn v5-btn-sm v5-btn-d">Suppr.</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+          {filtered.length} &eacute;l&eacute;ment{filtered.length !== 1 ? 's' : ''} affich&eacute;{filtered.length !== 1 ? 's' : ''}
+          {filtered.length > 0 && ` \u2014 co\u00fbt total : ${fmt(totalRevient)}`}
+        </div>
+
+        {/* Modal */}
+        {modal && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => setModal(false)}>
+            <div
+              style={{ background: '#fff', width: '100%', maxWidth: 440, margin: '0 16px', padding: 20, borderRadius: 6, boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
+                {editId ? 'Modifier le poste' : 'Nouveau poste'}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="v5-fg">
+                  <label className="v5-fl">D&eacute;signation</label>
+                  <input type="text" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} className="v5-fi" />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">Corps de m&eacute;tier</label>
+                  <select value={form.corps || ''} onChange={e => setForm(f => ({ ...f, corps: e.target.value }))} className="v5-fi">
+                    {CORPS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="v5-fr">
+                  <div className="v5-fg">
+                    <label className="v5-fl">Type</label>
+                    <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as BiblioItem['type'] }))} className="v5-fi">
+                      <option value="ouvrage">Ouvrage</option>
+                      <option value="materiau">Mat&eacute;riau</option>
+                      <option value="mo">Main-d&apos;&oelig;uvre</option>
+                    </select>
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">Unit&eacute;</label>
+                    <select value={form.unite} onChange={e => setForm(f => ({ ...f, unite: e.target.value }))} className="v5-fi">
+                      {UNITE_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="v5-fr">
+                  <div className="v5-fg">
+                    <label className="v5-fl">Co&ucirc;t HT (&euro;)</label>
+                    <input type="number" step="0.01" min="0" value={form.rev || ''} onChange={e => setForm(f => ({ ...f, rev: parseFloat(e.target.value) || 0 }))} className="v5-fi" />
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">Marge (%)</label>
+                    <input type="number" step="1" min="0" value={form.marge || ''} onChange={e => setForm(f => ({ ...f, marge: parseFloat(e.target.value) || 0 }))} className="v5-fi" />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#FAFAFA', borderRadius: 4, border: '1px solid #E8E8E8' }}>
+                  <span style={{ fontSize: 12, fontWeight: 500 }}>Prix de vente HT</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{fmt(prixClient(form.rev, form.marge))}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+                <button onClick={() => setModal(false)} className="v5-btn">Annuler</button>
+                <button onClick={handleSave} className="v5-btn v5-btn-p">{editId ? 'Enregistrer' : 'Cr\u00e9er'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /* ═══════════════════════════════════════════
+     V22 layout — artisan and other roles
+     ═══════════════════════════════════════════ */
   return (
     <div className="space-y-4">
       {/* Header */}

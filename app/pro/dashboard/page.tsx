@@ -664,6 +664,7 @@ function DashboardPage() {
               deleteAbsence={deleteAbsence} updateBookingStatus={updateBookingStatus}
               transformBookingToDevis={handleTransformBookingToDevis} openDashMessages={openDashMessages}
               DAY_NAMES={DAY_NAMES} DAY_SHORT={DAY_SHORT}
+              orgRole={orgRole}
             />
           )}
 
@@ -969,6 +970,7 @@ function DashboardPage() {
                 bookings={bookings}
                 artisan={artisan!}
                 services={services}
+                orgRole={orgRole}
               />
             </SectionErrorBoundary>
           )}

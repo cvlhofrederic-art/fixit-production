@@ -558,8 +558,10 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
     setTvaTogglingLoading(false)
   }, [])
 
+  const isV5 = orgRole === 'pro_societe'
+
   /* ── Tab style helpers (v22 compta-tab pattern) ── */
-  const tabStyle = (active: boolean): React.CSSProperties => ({
+  const tabStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({
     fontSize: 12, fontWeight: active ? 600 : 500, padding: '8px 16px',
     borderBottom: `2px solid ${active ? 'var(--v22-yellow)' : 'transparent'}`,
     background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
@@ -568,7 +570,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
     whiteSpace: 'nowrap', transition: 'all 0.15s',
   })
 
-  const pillStyle = (active: boolean): React.CSSProperties => ({
+  const pillStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({
     fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
     border: active ? 'none' : '1px solid var(--v22-border)',
     background: active ? 'var(--v22-yellow)' : 'var(--v22-surface)',
@@ -577,24 +579,28 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   })
 
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : ''}>
       {/* Page header */}
-      <div className="v22-page-header">
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
         <div>
-          <h1 className="v22-page-title">{isPt ? '🧮 Contabilidade & Fiscalidade' : '🧮 Comptabilité & Fiscalité'}</h1>
-          <p className="v22-page-sub">{isPt ? 'Gestão contabilística e agente IA Léa' : 'Gestion comptable et agent IA Léa'}</p>
+          {isV5
+            ? <><h1>{isPt ? 'Contabilidade & Fiscalidade' : 'Comptabilite & Fiscalite'}</h1><p>{isPt ? 'Gestao contabilistica e agente IA Lea' : 'Gestion comptable et agent IA Lea'}</p></>
+            : <><h1 className="v22-page-title">{isPt ? '🧮 Contabilidade & Fiscalidade' : '🧮 Comptabilité & Fiscalité'}</h1><p className="v22-page-sub">{isPt ? 'Gestão contabilística e agente IA Léa' : 'Gestion comptable et agent IA Léa'}</p></>
+          }
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
-            className="v22-form-input" style={{ width: 'auto', padding: '5px 10px', fontSize: 12, fontWeight: 600 }}>
+            className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '5px 10px', fontSize: 12, fontWeight: 600 }}>
             {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <div style={{ display: 'flex', background: 'var(--v22-bg)', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--v22-border)' }}>
+          <div style={isV5 ? { display: 'flex', gap: 4 } : { display: 'flex', background: 'var(--v22-bg)', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--v22-border)' }}>
             {(['mois', 'trimestre', 'annee'] as const).map(p => (
-              <button key={p} onClick={() => setSelectedPeriod(p)} style={pillStyle(selectedPeriod === p)}>
+              <button key={p} onClick={() => setSelectedPeriod(p)}
+                className={isV5 ? `v5-btn v5-btn-sm${selectedPeriod === p ? ' v5-btn-p' : ''}` : ''}
+                style={pillStyle(selectedPeriod === p)}>
                 {isPt
-                  ? (p === 'mois' ? 'Mês' : p === 'trimestre' ? 'Trimestre' : 'Ano')
-                  : (p === 'mois' ? 'Mois' : p === 'trimestre' ? 'Trimestre' : 'Année')}
+                  ? (p === 'mois' ? 'Mes' : p === 'trimestre' ? 'Trimestre' : 'Ano')
+                  : (p === 'mois' ? 'Mois' : p === 'trimestre' ? 'Trimestre' : 'Annee')}
               </button>
             ))}
           </div>
@@ -607,7 +613,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         {selectedPeriod === 'mois' && (
           <div style={{ display: 'flex', gap: 6, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
             {MONTH_NAMES.map((m, i) => (
-              <button key={i} onClick={() => setSelectedMonthC(i)} style={pillStyle(selectedMonth === i)}>
+              <button key={i} onClick={() => setSelectedMonthC(i)}
+                className={isV5 ? `v5-btn v5-btn-sm${selectedMonth === i ? ' v5-btn-p' : ''}` : ''}
+                style={pillStyle(selectedMonth === i)}>
                 {m}
               </button>
             ))}
@@ -616,7 +624,9 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         {selectedPeriod === 'trimestre' && (
           <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
             {[0, 1, 2, 3].map(q => (
-              <button key={q} onClick={() => setSelectedMonthC(q * 3)} style={{ ...pillStyle(getQuarter() === q), flex: 1 }}>
+              <button key={q} onClick={() => setSelectedMonthC(q * 3)}
+                className={isV5 ? `v5-btn v5-btn-sm${getQuarter() === q ? ' v5-btn-p' : ''}` : ''}
+                style={isV5 ? { flex: 1 } : { ...pillStyle(getQuarter() === q), flex: 1 }}>
                 {quarterLabels[q]}
               </button>
             ))}
@@ -624,21 +634,23 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         )}
 
         {/* Sub-tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--v22-border)' }}>
+        <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: 20 } : { display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--v22-border)' }}>
           {(isPt ? ([
-            { key: 'dashboard' as const, label: '📊 Painel' },
-            { key: 'revenus' as const, label: '💰 Receitas' },
-            { key: 'depenses' as const, label: '🧾 Despesas' },
-            { key: 'declaration' as const, label: '🏛️ Declarações' },
-            { key: 'assistant' as const, label: '🤖 Assistente IA' },
+            { key: 'dashboard' as const, label: 'Painel' },
+            { key: 'revenus' as const, label: 'Receitas' },
+            { key: 'depenses' as const, label: 'Despesas' },
+            { key: 'declaration' as const, label: 'Declaracoes' },
+            { key: 'assistant' as const, label: 'Assistente IA' },
           ]) : ([
-            { key: 'dashboard' as const, label: '📊 Tableau de bord' },
-            { key: 'revenus' as const, label: '💰 Revenus' },
-            { key: 'depenses' as const, label: '🧾 Dépenses' },
-            { key: 'declaration' as const, label: '🏛️ Déclaration' },
-            { key: 'assistant' as const, label: '🤖 Assistant IA' },
+            { key: 'dashboard' as const, label: 'Tableau de bord' },
+            { key: 'revenus' as const, label: 'Revenus' },
+            { key: 'depenses' as const, label: 'Depenses' },
+            { key: 'declaration' as const, label: 'Declaration' },
+            { key: 'assistant' as const, label: 'Assistant IA' },
           ])).map(t => (
-            <button key={t.key} onClick={() => setActiveComptaTab(t.key)} style={tabStyle(activeComptaTab === t.key)}>
+            <button key={t.key} onClick={() => setActiveComptaTab(t.key)}
+              className={isV5 ? `v5-tab-b${activeComptaTab === t.key ? ' active' : ''}` : ''}
+              style={tabStyle(activeComptaTab === t.key)}>
               {t.label}
             </button>
           ))}
@@ -648,26 +660,26 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         {activeComptaTab === 'dashboard' && (
           <div>
             {/* KPI Cards */}
-            <div className="v22-stats" style={{ marginBottom: 24 }}>
-              <div className="v22-stat" style={{ borderLeft: '3px solid var(--v22-green)' }}>
-                <div className="v22-stat-label">{isPt ? 'Faturação c/IVA' : 'Chiffre d\'affaires TTC'}</div>
-                <div className="v22-stat-val" style={{ color: 'var(--v22-green)', fontSize: 22 }}>{formatEur(chiffreAffaires)}</div>
-                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{completedFiltered.length} {isPt ? 'intervenção(ões)' : 'intervention(s)'}</div>
+            <div className={isV5 ? 'v5-kpi-g' : 'v22-stats'} style={{ marginBottom: 24 }}>
+              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid var(--v22-green)' }}>
+                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Faturacao c/IVA' : 'Chiffre d\'affaires TTC'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#2E7D32' : 'var(--v22-green)', fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffaires)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{completedFiltered.length} {isPt ? 'intervencao(oes)' : 'intervention(s)'}</div>
               </div>
-              <div className="v22-stat" style={{ borderLeft: '3px solid #3b82f6' }}>
-                <div className="v22-stat-label">{isPt ? 'Faturação s/IVA' : 'CA Hors Taxes'}</div>
-                <div className="v22-stat-val" style={{ color: '#3b82f6', fontSize: 22 }}>{formatEur(chiffreAffairesHT)}</div>
-                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
+              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid #3b82f6' }}>
+                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Faturacao s/IVA' : 'CA Hors Taxes'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: '#3b82f6', fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffairesHT)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
               </div>
-              <div className="v22-stat" style={{ borderLeft: '3px solid var(--v22-red)' }}>
-                <div className="v22-stat-label">{isPt ? 'Despesas dedutíveis' : 'Charges déductibles'}</div>
-                <div className="v22-stat-val" style={{ color: 'var(--v22-red)', fontSize: 22 }}>{formatEur(totalExpenses)}</div>
-                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{filteredExpenses.length} {isPt ? 'despesa(s)' : 'dépense(s)'}</div>
+              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid var(--v22-red)' }}>
+                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Despesas dedutiveis' : 'Charges deductibles'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#C62828' : 'var(--v22-red)', fontSize: isV5 ? undefined : 22 }}>{formatEur(totalExpenses)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{filteredExpenses.length} {isPt ? 'despesa(s)' : 'depense(s)'}</div>
               </div>
-              <div className={`v22-stat ${resultatNet >= 0 ? 'v22-stat-yellow' : ''}`} style={resultatNet < 0 ? { borderLeft: '3px solid var(--v22-red)' } : undefined}>
-                <div className="v22-stat-label">{isPt ? 'Resultado líquido' : 'Résultat net'}</div>
-                <div className="v22-stat-val" style={{ color: resultatNet >= 0 ? 'var(--v22-text)' : 'var(--v22-red)', fontSize: 22 }}>{formatEur(resultatNet)}</div>
-                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'antes de impostos' : 'avant impôts'}</div>
+              <div className={isV5 ? `v5-kpi${resultatNet >= 0 ? ' hl' : ''}` : `v22-stat ${resultatNet >= 0 ? 'v22-stat-yellow' : ''}`} style={!isV5 && resultatNet < 0 ? { borderLeft: '3px solid var(--v22-red)' } : undefined}>
+                <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Resultado liquido' : 'Resultat net'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: resultatNet >= 0 ? (isV5 ? '#1a1a1a' : 'var(--v22-text)') : (isV5 ? '#C62828' : 'var(--v22-red)'), fontSize: isV5 ? undefined : 22 }}>{formatEur(resultatNet)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'antes de impostos' : 'avant impots'}</div>
               </div>
             </div>
 
@@ -886,7 +898,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{isPt ? '🧾 Despesas dedutíveis' : '🧾 Charges déductibles'}</div>
                 <div style={{ fontSize: 13, color: 'var(--v22-text-muted)' }}>{isPt ? 'Total' : 'Total'} : <span style={{ fontWeight: 700, color: 'var(--v22-red)' }}>{formatEur(totalExpenses)}</span></div>
               </div>
-              <button onClick={() => setShowAddExpense(true)} className="v22-btn v22-btn-primary">
+              <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
                 {isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}
               </button>
             </div>
@@ -1162,6 +1174,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             currentMonth={currentMonth}
             currentYear={currentYear}
             formatEur={formatEur}
+            orgRole={orgRole}
           />
         )}
 

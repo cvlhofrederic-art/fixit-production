@@ -137,6 +137,7 @@ type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnair
 
 export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { artisan: import('@/lib/types').Artisan; onExportDevis: (lines: ExportLine[]) => void; orgRole?: OrgRole }) {
   const isSociete = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')
@@ -386,53 +387,85 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
     return '📦'
   }
 
+  // ── CSS class helpers for v5/v22 ──
+  const cardCls = isV5 ? 'v5-card' : 'v22-card'
+  const btnCls = isV5 ? 'v5-btn' : 'v22-btn'
+  const btnPrimaryCls = isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'
+  const btnSmCls = isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'
+  const tagCls = (color: string) => isV5 ? `v5-badge v5-badge-${color}` : `v22-tag v22-tag-${color}`
+  const alertCls = (color: string) => isV5 ? `v5-al ${color === 'red' ? 'err' : color === 'amber' ? 'warn' : 'info'}` : `v22-alert v22-alert-${color}`
+
   return (
-    <div>
+    <div className={isV5 ? 'v5-fade' : ''}>
       {/* Header */}
-      <div className="v22-page-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
-        <div style={{ flex: 1 }}>
-          <div className="v22-page-title">
-            {isSociete
-              ? (locale === 'pt' ? '🧱 Materiais & Aprovisionamento BTP' : '🧱 Matériaux & Approvisionnement BTP')
-              : `🛒 ${locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}`}
+      {isV5 ? (
+        <>
+          <div className="v5-pg-t">
+            <h1>Mat&eacute;riaux &amp; Appro</h1>
+            <p>Stock, commandes, comparatif fournisseurs</p>
           </div>
-          <div className="v22-page-sub">
-            {isSociete
-              ? (locale === 'pt' ? 'Compare preços de materiais para os seus estaleiros e situações de obra' : 'Comparez les prix matériaux pour vos chantiers et situations de travaux')
-              : (locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne')}
+          <div className="v5-search">
+            {userCity && (
+              <span className="v5-badge v5-badge-green" style={{ fontSize: 11, padding: '3px 8px' }}>
+                📍 {userCity}
+              </span>
+            )}
+            <button
+              onClick={handleGeolocation}
+              disabled={geoLoading}
+              className={`v5-btn${userCity ? '' : ' v5-btn-p'}`}
+              style={{ marginLeft: 'auto' }}
+            >
+              {geoLoading ? '\u23f3' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre \u00e0 jour') : (locale === 'pt' ? 'Localiza\u00e7\u00e3o GPS' : 'Localisation GPS')}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="v22-page-header" style={{ marginBottom: 0, paddingBottom: 0, borderBottom: 'none' }}>
+          <div style={{ flex: 1 }}>
+            <div className="v22-page-title">
+              {isSociete
+                ? (locale === 'pt' ? '🧱 Materiais & Aprovisionamento BTP' : '🧱 Matériaux & Approvisionnement BTP')
+                : `🛒 ${locale === 'pt' ? 'Materiais & Preços' : 'Matériaux & Prix'}`}
+            </div>
+            <div className="v22-page-sub">
+              {isSociete
+                ? (locale === 'pt' ? 'Compare preços de materiais para os seus estaleiros e situações de obra' : 'Comparez les prix matériaux pour vos chantiers et situations de travaux')
+                : (locale === 'pt' ? 'Pesquisa IA autónoma · Comparativo por loja' : 'Recherche IA autonome · Comparatif par enseigne')}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {userCity && (
+              <span className="v22-tag v22-tag-green" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                📍 {userCity}
+              </span>
+            )}
+            <button
+              onClick={handleGeolocation}
+              disabled={geoLoading}
+              className={`v22-btn ${userCity ? '' : 'v22-btn-primary'} v22-btn-sm`}
+            >
+              {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
+            </button>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {userCity && (
-            <span className="v22-tag v22-tag-green" style={{ fontSize: '11px', padding: '4px 10px' }}>
-              📍 {userCity}
-            </span>
-          )}
-          <button
-            onClick={handleGeolocation}
-            disabled={geoLoading}
-            className={`v22-btn ${userCity ? '' : 'v22-btn-primary'} v22-btn-sm`}
-          >
-            {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
-          </button>
-        </div>
-      </div>
+      )}
       {geoError && (
-        <div className="v22-alert v22-alert-red" style={{ marginBottom: '12px' }}>
+        <div className={alertCls('red')} style={{ marginBottom: '12px' }}>
           <span>⚠️ {geoError}</span>
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ padding: '14px 14px 0' }}>
-        <div className="v22-tabs" style={{ marginBottom: '14px' }}>
+      <div style={{ padding: isV5 ? '0' : '14px 14px 0' }}>
+        <div className={isV5 ? 'v5-tabs' : 'v22-tabs'} style={{ marginBottom: isV5 ? '0.75rem' : '14px' }}>
           {([
             { key: 'recherche', label: locale === 'pt' ? '🔍 Pesquisa' : '🔍 Recherche' },
             { key: 'historique', label: locale === 'pt' ? `📋 Histórico (${savedSearches.length})` : `📋 Historique (${savedSearches.length})` },
             { key: 'aide', label: locale === 'pt' ? '💡 Ajuda' : '💡 Aide' },
           ] as const).map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
-              className={`v22-tab ${activeTab === t.key ? 'active' : ''}`}>
+              className={isV5 ? `v5-tab-b${activeTab === t.key ? ' active' : ''}` : `v22-tab ${activeTab === t.key ? 'active' : ''}`}>
               {t.label}
             </button>
           ))}
@@ -444,15 +477,15 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
         <div style={{ padding: '14px' }}>
           {/* Mode toggle */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-            <div className="v22-tabs">
+            <div className={isV5 ? 'v5-tabs' : 'v22-tabs'}>
               <button
                 onClick={() => { setSearchMode('project'); setProductResults(null); setProductRecommendations('') }}
-                className={`v22-tab ${searchMode === 'project' ? 'active' : ''}`}>
+                className={isV5 ? `v5-tab-b${searchMode === 'project' ? ' active' : ''}` : `v22-tab ${searchMode === 'project' ? 'active' : ''}`}>
                 {locale === 'pt' ? '🏗️ Materiais obra' : '🏗️ Matériaux chantier'}
               </button>
               <button
                 onClick={() => { setSearchMode('product'); setCurrentResults(null); setCurrentEstimate(null) }}
-                className={`v22-tab ${searchMode === 'product' ? 'active' : ''}`}>
+                className={isV5 ? `v5-tab-b${searchMode === 'product' ? ' active' : ''}` : `v22-tab ${searchMode === 'product' ? 'active' : ''}`}>
                 {locale === 'pt' ? '🛍️ Pesquisa produto' : '🛍️ Recherche produit'}
               </button>
             </div>
@@ -461,8 +494,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
           {/* Welcome screen — project mode */}
           {!chatStarted && searchMode === 'project' && (
             <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-              <div className="v22-card" style={{ marginBottom: '16px', textAlign: 'center' }}>
-                <div className="v22-card-body" style={{ padding: '24px' }}>
+              <div className={cardCls} style={{ marginBottom: '16px', textAlign: 'center' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '24px' }}>
                   <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛒</div>
                   <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>
                     {isSociete ? 'Agent Approvisionnement BTP' : locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}
@@ -476,8 +509,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                     }
                   </p>
                   {!userCity && (
-                    <div className="v22-alert v22-alert-amber" style={{ marginTop: '12px', cursor: 'default' }}>
-                      <span>{locale === 'pt' ? '💡 Ative a localização GPS para resultados adaptados à sua região' : '💡 Activez la localisation GPS pour des résultats adaptés à votre région'}</span>
+                    <div className={alertCls('amber')} style={{ marginTop: '12px', cursor: 'default' }}>
+                      <span>{locale === 'pt' ? '💡 Ative a localização GPS para resultados adaptados à sua região' : '💡 Activez la localisation GPS pour des résultats adaptés à votre região'}</span>
                     </div>
                   )}
                 </div>
@@ -491,7 +524,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px' }}>
                   {(isSociete ? JOB_PRESETS_SOCIETE_FR : locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
-                      className="v22-btn" style={{ textAlign: 'left', padding: '10px 12px' }}>
+                      className={btnCls} style={{ textAlign: 'left', padding: '10px 12px' }}>
                       {p.label}
                     </button>
                   ))}
@@ -503,8 +536,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
           {/* Welcome screen — product mode */}
           {!chatStarted && searchMode === 'product' && (
             <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-              <div className="v22-card" style={{ marginBottom: '16px', textAlign: 'center' }}>
-                <div className="v22-card-body" style={{ padding: '24px' }}>
+              <div className={cardCls} style={{ marginBottom: '16px', textAlign: 'center' }}>
+                <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '24px' }}>
                   <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛍️</div>
                   <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{locale === 'pt' ? 'Pesquisa Produto' : 'Recherche Produit'}</div>
                   <p style={{ fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
@@ -523,7 +556,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px' }}>
                   {(locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
-                      className="v22-btn" style={{ textAlign: 'left', padding: '10px 12px' }}>
+                      className={btnCls} style={{ textAlign: 'left', padding: '10px 12px' }}>
                       {p.label}
                     </button>
                   ))}
@@ -569,7 +602,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 {currentResults && currentResults.length > 0 && !isLoading && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {isFallback && (
-                      <div className="v22-alert v22-alert-amber">
+                      <div className={alertCls('amber')}>
                         <span>⚠️</span>
                         <span>{locale === 'pt' ? 'Preços estimados (sem pesquisa web em tempo real). Ative Tavily para preços atualizados.' : 'Prix estimés (sans recherche web en temps réel). Activez Tavily pour des prix actualisés.'}</span>
                       </div>
@@ -577,7 +610,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
                     {/* Cards matériaux */}
                     {currentResults.map((m, i) => (
-                      <div key={i} className="v22-card">
+                      <div key={i} className={cardCls}>
                         {/* Header matériau */}
                         <div className="v22-card-head" style={{ gap: '10px' }}>
                           <span style={{ fontSize: '18px' }}>{getCategoryIcon(m.category)}</span>
@@ -692,10 +725,11 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                         const bestStoreTotal = Math.min(...storeTotals.filter(st => st.coverage === currentResults!.length && st.total > 0).map(st => st.total))
                         const worstStoreTotal = Math.max(...storeTotals.filter(st => st.total > 0).map(st => st.total))
                         return (
-                          <div className="v22-card">
-                            <div className="v22-card-head">
+                          <div className={cardCls}>
+                            {!isV5 && <div className="v22-card-head">
                               <div className="v22-card-title">{locale === 'pt' ? '📊 Comparativo por loja' : '📊 Comparatif par enseigne'}</div>
-                            </div>
+                            </div>}
+                            {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '📊 Comparativo por loja' : '📊 Comparatif par enseigne'}</div>}
                             <div style={{ overflowX: 'auto' }}>
                               <table>
                                 <thead>
@@ -784,7 +818,19 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
                     {/* Marge + Export devis */}
                     {totalBestPrice > 0 && (
-                      <div className="v22-card">
+                      <div className={cardCls}>
+                        {isV5 ? (
+                          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px' }}>
+                            {locale === 'pt' ? '💰 Integrar no or\u00e7amento' : '💰 Int\u00e9grer au devis'}
+                            <span className={`v5-badge ${isAssujetti ? 'v5-badge-gray' : 'v5-badge-yellow'}`} style={{ marginLeft: 8 }}>
+                              {isAssujetti
+                                ? `${(artisan as unknown as { legal_form?: string })?.legal_form || 'Soci\u00e9t\u00e9'} \u2014 TVA ${TVA_REVENTE}%`
+                                : `${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} \u2014 Franchise TVA`
+                              }
+                            </span>
+                          </div>
+                        ) : (
+                        <>
                         <div className="v22-card-head">
                           <div className="v22-card-title">{locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}</div>
                           <div className="v22-card-meta">
@@ -796,7 +842,9 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                             </span>
                           </div>
                         </div>
-                        <div className="v22-card-body">
+                        </>
+                        )}
+                        <div className={isV5 ? '' : 'v22-card-body'}>
                           {/* Marge slider */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                             <label className="v22-form-label" style={{ marginBottom: 0, flexShrink: 0 }}>{locale === 'pt' ? 'Margem de revenda' : 'Marge de revente'}</label>
@@ -815,7 +863,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
                           {/* Alerte si marge insuffisante */}
                           {!margeIsRentable && totalBestPrice > 0 && (
-                            <div className="v22-alert v22-alert-red" style={{ marginBottom: '12px', cursor: 'default' }}>
+                            <div className={alertCls('red')} style={{ marginBottom: '12px', cursor: 'default' }}>
                               <span>⚠️ <strong>{locale === 'pt' ? 'Margem insuficiente.' : 'Marge insuffisante.'}</strong> {locale === 'pt'
                                 ? <>Norma mínima: <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' para trabalhador independente (cobre IVA compra não recuperável + encargos)' : ' para empresa sujeita a IVA'}</>
                                 : <>Standard national CAPEB/FFB : min <strong>{margeMinRecommandee}%</strong>{isAutoEntrepreneur ? ' en franchise TVA (couvre TVA achat non récupérable + charges + bénéfice)' : ' en société assujettie TVA'}</>
@@ -932,7 +980,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                             </span>
                           </div>
 
-                          <button onClick={handleExportDevis} className="v22-btn v22-btn-primary" style={{ width: '100%', padding: '10px 16px', fontWeight: 700, fontSize: '13px' }}>
+                          <button onClick={handleExportDevis} className={btnPrimaryCls} style={{ width: '100%', padding: '10px 16px', fontWeight: 700, fontSize: '13px' }}>
                             {locale === 'pt'
                               ? `📄 Exportar para orçamento (${totalWithMarkup} € s/ IVA${isAssujetti ? ` + IVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € c/ IVA` : ' — IVA isento'})`
                               : `📄 Exporter vers un devis (${totalWithMarkup} € HT${isAssujetti ? ` + TVA ${TVA_REVENTE}% = ${Math.round(totalReventeTTC)} € TTC` : ' — TVA non applicable'})`
@@ -974,13 +1022,13 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {/* Onglets Neuf / Reconditionné */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div className="v22-tabs">
+                      <div className={isV5 ? 'v5-tabs' : 'v22-tabs'}>
                         <button onClick={() => setProductTab('new')}
-                          className={`v22-tab ${productTab === 'new' ? 'active' : ''}`}>
+                          className={isV5 ? `v5-tab-b${productTab === 'new' ? ' active' : ''}` : `v22-tab ${productTab === 'new' ? 'active' : ''}`}>
                           {locale === 'pt' ? '🆕 Novo' : '🆕 Neuf'} {newProducts.length > 0 && <span className="v22-ref" style={{ marginLeft: '4px' }}>{newProducts.length}</span>}
                         </button>
                         <button onClick={() => setProductTab('refurbished')}
-                          className={`v22-tab ${productTab === 'refurbished' ? 'active' : ''}`}>
+                          className={isV5 ? `v5-tab-b${productTab === 'refurbished' ? ' active' : ''}` : `v22-tab ${productTab === 'refurbished' ? 'active' : ''}`}>
                           {locale === 'pt' ? '♻️ Recondicionado' : '♻️ Reconditionné'} {refurbProducts.length > 0 && <span className="v22-ref" style={{ marginLeft: '4px' }}>{refurbProducts.length}</span>}
                         </button>
                       </div>
@@ -990,8 +1038,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                     </div>
 
                     {activeProducts.length === 0 ? (
-                      <div className="v22-card">
-                        <div className="v22-card-body" style={{ textAlign: 'center', padding: '24px' }}>
+                      <div className={cardCls}>
+                        <div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: '24px' }}>
                           <div style={{ fontSize: '24px', marginBottom: '8px' }}>{productTab === 'new' ? '📦' : '♻️'}</div>
                           <p style={{ fontSize: '12px', color: 'var(--v22-text-muted)', fontWeight: 500 }}>
                             {locale === 'pt'
@@ -1041,15 +1089,23 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                     )}
 
                     {/* Tableau comparatif des offres */}
-                    <div className="v22-card">
-                      <div className="v22-card-head">
-                        <div className="v22-card-title">
+                    <div className={cardCls}>
+                      {!isV5 ? (
+                        <div className="v22-card-head">
+                          <div className="v22-card-title">
+                            {locale === 'pt'
+                              ? `${productTab === 'new' ? '🛒' : '♻️'} Ofertas ${productTab === 'new' ? 'novas' : 'recondicionadas / outlet'}`
+                              : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconditionnées / déstockage'}`}
+                          </div>
+                          <div className="v22-card-meta">{locale === 'pt' ? 'do mais barato ao mais caro' : 'du moins cher au plus cher'}</div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>
                           {locale === 'pt'
                             ? `${productTab === 'new' ? '🛒' : '♻️'} Ofertas ${productTab === 'new' ? 'novas' : 'recondicionadas / outlet'}`
-                            : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconditionnées / déstockage'}`}
+                            : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconstitionn\u00e9es / d\u00e9stockage'}`}
                         </div>
-                        <div className="v22-card-meta">{locale === 'pt' ? 'do mais barato ao mais caro' : 'du moins cher au plus cher'}</div>
-                      </div>
+                      )}
                       <table>
                         <tbody>
                           {sorted.map((p, i) => {
@@ -1108,7 +1164,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                       </table>
                     </div>
 
-                    <div className="v22-alert v22-alert-amber" style={{ cursor: 'default' }}>
+                    <div className={alertCls('amber')} style={{ cursor: 'default' }}>
                       <span>
                         {locale === 'pt'
                           ? '⚠️ Preços verificados em tempo real — Os preços podem variar. Verifique o preço final no site do vendedor antes de comprar.'
@@ -1129,12 +1185,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
                   {(searchMode === 'product' ? (locale === 'pt' ? PRODUCT_PRESETS_PT : PRODUCT_PRESETS_FR) : (isSociete ? JOB_PRESETS_SOCIETE_FR : locale === 'pt' ? JOB_PRESETS_PT : JOB_PRESETS_FR)).slice(0, 3).map((p, i) => (
                     <button key={i} onClick={() => sendMessage(p.q)}
-                      className="v22-btn v22-btn-sm" style={{ whiteSpace: 'nowrap' }}>
+                      className={btnSmCls} style={{ whiteSpace: 'nowrap' }}>
                       {p.label}
                     </button>
                   ))}
                   <button onClick={() => { setMessages([]); setChatStarted(false); setCurrentResults(null); setCurrentEstimate(null); setProductResults(null); setProductRecommendations(''); setProductFetchedAt(null); setProductTab('new') }}
-                    className="v22-btn v22-btn-sm">
+                    className={btnSmCls}>
                     {locale === 'pt' ? '🔄 Nova pesquisa' : '🔄 Nouvelle recherche'}
                   </button>
                 </div>
@@ -1144,8 +1200,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
           {/* Input */}
           <div style={{ maxWidth: '720px', margin: '0 auto' }}>
-            <div className="v22-card" style={{ overflow: 'visible' }}>
-              <div className="v22-card-body" style={{ padding: 0 }}>
+            <div className={cardCls} style={{ overflow: 'visible' }}>
+              <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 0 }}>
                 <textarea
                   ref={inputRef}
                   value={inputValue}
@@ -1175,7 +1231,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                   <button
                     onClick={() => sendMessage(inputValue)}
                     disabled={!inputValue.trim() || isLoading}
-                    className="v22-btn v22-btn-primary"
+                    className={btnPrimaryCls}
                     style={{ opacity: !inputValue.trim() || isLoading ? 0.4 : 1 }}
                   >
                     {isLoading ? '⏳' : (locale === 'pt' ? '🔍 Pesquisar' : '🔍 Rechercher')}
@@ -1199,8 +1255,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
           ) : (
             <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {savedSearches.map(s => (
-                <div key={s.id} className="v22-card">
-                  <div className="v22-card-head" style={{ padding: '12px 14px' }}>
+                <div key={s.id} className={cardCls}>
+                  <div className={isV5 ? '' : 'v22-card-head'} style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, color: 'var(--v22-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.query}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
@@ -1230,7 +1286,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           setChatStarted(true)
                           setActiveTab('recherche')
                         }}
-                        className="v22-btn v22-btn-primary v22-btn-sm"
+                        className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn v22-btn-primary v22-btn-sm'}
                       >
                         {locale === 'pt' ? '📂 Carregar' : '📂 Recharger'}
                       </button>
@@ -1240,7 +1296,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           setSavedSearches(updated)
                           localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
                         }}
-                        className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}
+                        className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'} style={isV5 ? undefined : { color: 'var(--v22-red)' }}
                       >
                         🗑
                       </button>
@@ -1257,9 +1313,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
       {activeTab === 'aide' && (
         <div style={{ padding: '14px', maxWidth: '720px', margin: '0 auto' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div className="v22-card">
-              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</div></div>
-              <div className="v22-card-body">
+            <div className={cardCls}>
+              {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</div></div>}
+              {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</div>}
+              <div className={isV5 ? '' : 'v22-card-body'}>
                 <ol style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
                   {locale === 'pt' ? (
                     <>
@@ -1279,8 +1336,9 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 </ol>
               </div>
             </div>
-            <div className="v22-card">
-              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</div></div>
+            <div className={cardCls}>
+              {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</div></div>}
+              {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</div>}
               <div className="v22-card-body">
                 <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
                   {locale === 'pt' ? (
@@ -1301,9 +1359,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 </ul>
               </div>
             </div>
-            <div className="v22-card">
-              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🏪 Lojas cobertas' : '🏪 Enseignes couvertes'}</div></div>
-              <div className="v22-card-body">
+            <div className={cardCls}>
+              {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🏪 Lojas cobertas' : '🏪 Enseignes couvertes'}</div></div>}
+              {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '🏪 Lojas cobertas' : '🏪 Enseignes couvertes'}</div>}
+              <div className={isV5 ? '' : 'v22-card-body'}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {(locale === 'pt'
                     ? ['Leroy Merlin PT', 'AKI', 'Maxmat', 'Bricomarché', 'Wurth', 'Sanitop', 'Amazon', 'ManoMano']
@@ -1314,9 +1373,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 </div>
               </div>
             </div>
-            <div className="v22-card">
-              <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div></div>
-              <div className="v22-card-body">
+            <div className={cardCls}>
+              {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div></div>}
+              {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '💡 Dicas de utiliza\u00e7\u00e3o' : '💡 Conseils d\'utilisation'}</div>}
+              <div className={isV5 ? '' : 'v22-card-body'}>
                 <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
                   {locale === 'pt' ? (
                     <>
@@ -1338,7 +1398,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 </ul>
               </div>
             </div>
-            <div className="v22-alert v22-alert-amber" style={{ cursor: 'default', fontSize: '12px', lineHeight: 1.6 }}>
+            <div className={alertCls('amber')} style={{ cursor: 'default', fontSize: '12px', lineHeight: 1.6 }}>
               <span>
                 {locale === 'pt' ? (
                   <>
