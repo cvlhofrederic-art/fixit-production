@@ -161,7 +161,6 @@ export default function V5Sidebar({
             <V5SidebarItem icon="👥" label={isPt ? 'Clientes' : 'Base clients'} active={activePage === 'clients'} onClick={() => navigateTo('clients')} />
           )}
           <V5SidebarItem icon="🌐" label={isPt ? 'Portal cliente' : 'Portail client'} active={activePage === 'portail_client'} onClick={() => navigateTo('portail_client')} />
-          <V5SidebarItem icon="📡" label={isPt ? 'Canal Pro' : 'Canal Pro'} active={activePage === 'canal'} onClick={() => navigateTo('canal')} />
         </div>
 
         {/* ═══ ADMINISTRATION ═══ */}
@@ -185,7 +184,7 @@ export default function V5Sidebar({
             <V5SidebarItem icon="🖼️" label={isPt ? 'Referências de obra' : 'Références chantiers'} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />
           )}
           {isModuleEnabled('parrainage') && (
-            <V5SidebarItem icon="🎁" label={isPt ? 'Apadrinhamento' : 'Parrainage entreprises'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />
+            <V5SidebarItem icon="🎁" label={isPt ? 'Apadrinhamento' : 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />
           )}
         </div>
 
