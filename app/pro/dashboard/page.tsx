@@ -29,22 +29,23 @@ const SectionLoader = () => (
 
 // dynamic() WITHOUT ssr:false — code-splits without creating Suspense boundaries
 // ssr:false was causing React hydration error #419 that broke all button handlers
-const HomeSection = dynamic(() => import('@/components/dashboard/HomeSection'))
-const CalendarSection = dynamic(() => import('@/components/dashboard/CalendarSection'))
+// webpackPrefetch: true on high-priority sections — browser downloads them during idle time
+const HomeSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/HomeSection'))
+const CalendarSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CalendarSection'))
 const HorairesSection = dynamic(() => import('@/components/dashboard/HorairesSection'))
 const MotifsSection = dynamic(() => import('@/components/dashboard/MotifsSection'))
-const DevisSection = dynamic(() => import('@/components/dashboard/DevisSection'))
-const FacturesSection = dynamic(() => import('@/components/dashboard/FacturesSection'))
+const DevisSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/DevisSection'))
+const FacturesSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/FacturesSection'))
 const StatsRevenusSection = dynamic(() => import('@/components/dashboard/StatsRevenusSection'), { loading: SectionLoader })
 const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSection'), { loading: SectionLoader })
 
 const ComptabiliteSection = dynamic(() => import('@/components/dashboard/ComptabiliteSection'), { loading: SectionLoader })
 const MateriauxSection = dynamic(() => import('@/components/dashboard/MateriauxSection'), { loading: SectionLoader })
-const ClientsSection = dynamic(() => import('@/components/dashboard/ClientsSection'), { loading: SectionLoader })
+const ClientsSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/ClientsSection'), { loading: SectionLoader })
 const RapportsSection = dynamic(() => import('@/components/dashboard/RapportsSection'), { loading: SectionLoader })
 const RFQSection = dynamic(() => import('@/components/dashboard/RFQSection'), { loading: SectionLoader })
 const CanalProSection = dynamic(() => import('@/components/dashboard/CanalProSection'), { loading: SectionLoader })
-const MessagerieArtisan = dynamic(() => import('@/components/dashboard/MessagerieArtisan'), { loading: SectionLoader })
+const MessagerieArtisan = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/MessagerieArtisan'), { loading: SectionLoader })
 const AiChatBot = dynamic(() => import('@/components/chat/AiChatBot'))
 
 const WalletConformiteSection = dynamic(() => import('@/components/dashboard/WalletConformiteSection'), { loading: SectionLoader })
@@ -62,8 +63,8 @@ const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), 
 
 // BTP sections — direct imports (no barrel) for proper tree-shaking
 const EquipesBTPV2 = dynamic(() => import('@/components/dashboard/EquipesBTPV2'), { loading: SectionLoader })
-const ChantiersBTPSection = dynamic(() => import('@/components/dashboard/btp/ChantiersBTPSection').then(mod => mod.ChantiersBTPSection), { loading: SectionLoader })
-const GanttSection = dynamic(() => import('@/components/dashboard/btp/GanttSection').then(mod => mod.GanttSection), { loading: SectionLoader })
+const ChantiersBTPSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/ChantiersBTPSection').then(mod => mod.ChantiersBTPSection), { loading: SectionLoader })
+const GanttSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/GanttSection').then(mod => mod.GanttSection), { loading: SectionLoader })
 const SituationsTravaux = dynamic(() => import('@/components/dashboard/btp/SituationsTravaux').then(mod => mod.SituationsTravaux), { loading: SectionLoader })
 const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/btp/RetenuesGarantieSection').then(mod => mod.RetenuesGarantieSection), { loading: SectionLoader })
 const PointageEquipesSection = dynamic(() => import('@/components/dashboard/btp/PointageEquipesSection').then(mod => mod.PointageEquipesSection), { loading: SectionLoader })
@@ -74,7 +75,7 @@ const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/
 const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2), { loading: SectionLoader })
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection), { loading: SectionLoader })
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
-const CompteUtilisateursSection = dynamic(() => import('@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
+const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
 
 // V5 layout components (pro_societe only)
 const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'))
