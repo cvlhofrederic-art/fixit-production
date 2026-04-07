@@ -906,6 +906,7 @@ function DashboardPage() {
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
               convertDevisToFacture={handleConvertDevisToFacture as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
+              orgRole={orgRole}
             />
           )}
 
@@ -918,17 +919,18 @@ function DashboardPage() {
               showFactureForm={showFactureForm} setShowFactureForm={setShowFactureForm}
               convertingDevis={convertingDevis as any} setConvertingDevis={setConvertingDevis as any}
               /* eslint-enable @typescript-eslint/no-explicit-any */
+              orgRole={orgRole}
             />
           )}
 
           {/* ────── STATISTIQUES ────── */}
           {activePage === 'stats' && (
-            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} />
           )}
 
           {/* ────── REVENUS ────── */}
           {activePage === 'revenus' && (
-            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} />
           )}
 
           {/* ────── PARAMETRES ────── */}
@@ -1030,6 +1032,7 @@ function DashboardPage() {
                 artisan={artisan!}
                 bookings={bookings}
                 services={services}
+                orgRole={orgRole}
                 onNewRdv={(clientName: string) => {
                   setNewRdv({ client_name: clientName, service_id: '', date: '', time: '', address: '', notes: '', phone: '', duration: '' })
                   setShowNewRdv(true)
@@ -1300,7 +1303,7 @@ function DashboardPage() {
 
           {/* ────── AIDE ────── */}
           {activePage === 'help' && (
-            <AideSection navigateTo={navigateTo} />
+            <AideSection navigateTo={navigateTo} orgRole={orgRole} />
           )}
 
       </main>

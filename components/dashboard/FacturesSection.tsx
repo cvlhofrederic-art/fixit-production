@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import { Artisan, Service, Booking } from '@/lib/types'
@@ -19,6 +20,8 @@ interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 
   lines?: Array<{ totalHT?: number; [key: string]: unknown }>
 }
 
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
 interface FacturesSectionProps {
   artisan: Artisan
   services: Service[]
@@ -29,11 +32,13 @@ interface FacturesSectionProps {
   setShowFactureForm: (v: boolean) => void
   convertingDevis: PersistedDocument | null
   setConvertingDevis: (v: PersistedDocument | null) => void
+  orgRole?: OrgRole
 }
 
 export default function FacturesSection({
   artisan, services, bookings, savedDocuments, setSavedDocuments,
   showFactureForm, setShowFactureForm, convertingDevis, setConvertingDevis,
+  orgRole,
 }: FacturesSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -56,6 +61,7 @@ export default function FacturesSection({
   }
 
   const factureDocs = savedDocuments.filter(d => d.docType === 'facture')
+  const isV5 = orgRole === 'pro_societe'
 
   const getStatusTag = (doc: PersistedDocument, isOverdue: boolean) => {
     if (isOverdue && doc.status !== 'envoye') return { cls: 'v22-tag v22-tag-red', label: t('proDash.factures.echue') }
@@ -63,6 +69,25 @@ export default function FacturesSection({
     return { cls: 'v22-tag v22-tag-amber', label: t('proDash.factures.nonEnvoyee') }
   }
 
+  /* ═══════════════════════════════════════════
+     V5 layout — pro_societe only
+     ═══════════════════════════════════════════ */
+  if (isV5) {
+    return <FacturesSectionV5
+      factureDocs={factureDocs}
+      setShowFactureForm={setShowFactureForm}
+      setConvertingDevis={setConvertingDevis}
+      artisan={artisan}
+      setSavedDocuments={setSavedDocuments}
+      dateLocale={dateLocale}
+      locale={locale}
+      t={t}
+    />
+  }
+
+  /* ═══════════════════════════════════════════
+     V22 layout — artisan and other roles
+     ═══════════════════════════════════════════ */
   return (
     <div className="animate-fadeIn">
       {/* V22 Page header */}
@@ -195,6 +220,159 @@ export default function FacturesSection({
             </button>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   V5 sub-component — Factures for pro_societe
+   ═══════════════════════════════════════════════════════ */
+function FacturesSectionV5({
+  factureDocs, setShowFactureForm, setConvertingDevis,
+  artisan, setSavedDocuments, dateLocale, locale, t,
+}: {
+  factureDocs: PersistedDocument[]
+  setShowFactureForm: (v: boolean) => void
+  setConvertingDevis: (v: PersistedDocument | null) => void
+  artisan: Artisan
+  setSavedDocuments: (docs: PersistedDocument[]) => void
+  dateLocale: string
+  locale: string
+  t: (k: string) => string
+}) {
+  const [search, setSearch] = useState('')
+
+  const filtered = factureDocs
+    .filter(d => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return (
+        d.docNumber?.toLowerCase().includes(q) ||
+        d.clientName?.toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime())
+
+  const getV5Badge = (doc: PersistedDocument) => {
+    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: '\u00c9mise' }
+    if (doc.status === 'payee') return { cls: 'v5-badge v5-badge-green', label: 'Pay\u00e9e' }
+    return { cls: 'v5-badge v5-badge-yellow', label: 'Brouillon' }
+  }
+
+  // Guess facture type from docNumber or title
+  const guessType = (doc: PersistedDocument) => {
+    const num = doc.docNumber?.toLowerCase() || ''
+    const title = doc.docTitle?.toLowerCase() || ''
+    if (num.includes('sit') || title.includes('situation')) return 'Situation'
+    if (num.includes('aco') || title.includes('acompte')) return 'Acompte'
+    if (num.includes('sol') || title.includes('solde')) return 'Solde'
+    return 'Facture'
+  }
+
+  return (
+    <div className="v5-fade">
+      <div className="v5-pg-t"><h1>Factures</h1><p>Situations, acomptes, solde</p></div>
+
+      {/* Search + Create */}
+      <div className="v5-search">
+        <input
+          className="v5-search-in"
+          placeholder="Rechercher\u2026"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <button className="v5-btn v5-btn-p" onClick={() => setShowFactureForm(true)}>
+          + Nouvelle facture
+        </button>
+      </div>
+
+      {/* Table */}
+      <div className="v5-card" style={{ overflowX: 'auto' }}>
+        <table className="v5-dt">
+          <thead>
+            <tr>
+              <th>N\u00b0</th>
+              <th>Client</th>
+              <th>Type</th>
+              <th>Montant TTC</th>
+              <th>Statut</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length > 0 ? filtered.map((doc, i) => {
+              const totalHT = doc.lines?.reduce((s: number, l) => s + (l.totalHT || 0), 0) || 0
+              const totalTTC = totalHT * 1.2 // TVA 20%
+              const badge = getV5Badge(doc)
+              return (
+                <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
+                  <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
+                  <td>{doc.clientName || 'Non renseign\u00e9'}</td>
+                  <td>{guessType(doc)}</td>
+                  <td>{totalTTC.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} \u20ac</td>
+                  <td><span className={badge.cls}>{badge.label}</span></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      {doc.status !== 'envoye' && (
+                        <button className="v5-btn v5-btn-sm" onClick={e => {
+                          e.stopPropagation()
+                          const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                          const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                          const now = new Date().toISOString()
+                          const updDocs = (docs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDrafts = (drafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                          localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
+                          localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
+                          setSavedDocuments([...updDocs, ...updDrafts])
+                        }}>
+                          {t('proDash.factures.marquerEnvoyee')}
+                        </button>
+                      )}
+                      {doc.clientEmail && (
+                        <button className="v5-btn v5-btn-sm" onClick={e => {
+                          e.stopPropagation()
+                          const subject = encodeURIComponent(`Facture ${doc.docNumber} \u2014 ${artisan?.company_name || 'Fixit'}`)
+                          const body = encodeURIComponent(`Bonjour ${doc.clientName || ''},\n\nVeuillez trouver ci-joint votre facture N\u00b0${doc.docNumber} d'un montant de ${totalHT.toFixed(2)} \u20ac HT.\n\nCordialement,\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                          window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
+                          const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                          const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                          const now = new Date().toISOString()
+                          const uDocs = (allDocs as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => d.docNumber === doc.docNumber ? { ...d, status: 'envoye', sentAt: now } : d)
+                          localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
+                          localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
+                          setSavedDocuments([...uDocs, ...uDrafts])
+                        }}>
+                          {t('proDash.factures.envoyerEmail')}
+                        </button>
+                      )}
+                      <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => {
+                        e.stopPropagation()
+                        if (!confirm(`Supprimer la facture ${doc.docNumber} ?`)) return
+                        const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
+                        const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
+                        const uDocs = (allDocs as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
+                        const uDrafts = (allDrafts as PersistedDocument[]).filter(d => d.docNumber !== doc.docNumber)
+                        localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
+                        localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
+                        setSavedDocuments([...uDocs, ...uDrafts])
+                      }}>
+                        Suppr.
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            }) : (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
+                  {search ? 'Aucune facture trouv\u00e9e' : 'Aucune facture. Cr\u00e9ez votre premi\u00e8re facture.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   )

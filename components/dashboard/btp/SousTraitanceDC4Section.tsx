@@ -44,7 +44,6 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
   })
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
-  // DCE analysis form
   const [dceForm, setDceForm] = useState({ titre: '', country: 'FR' as 'FR' | 'PT', projectType: '', description: '', budget: '', deadline: '', lots: '' })
   const [dceLoading, setDceLoading] = useState(false)
   const [selectedAnalysis, setSelectedAnalysis] = useState<DCEAnalysis | null>(null)
@@ -134,175 +133,223 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
   // ── Checklist generator ──
   const getChecklist = (country: 'FR' | 'PT') => {
     if (country === 'FR') return [
-      { cat: 'Administratif', items: ['DC1 — Lettre de candidature', 'DC2 — Déclaration du candidat', 'DC4 — Acte spécial de sous-traitance', 'Attestation assurance RC Pro', 'Attestation assurance Décennale', 'Extrait Kbis < 3 mois', 'Attestation URSSAF à jour', 'Attestations fiscales', 'Certificat Qualibat / Qualifelec'] },
-      { cat: 'Technique', items: ['Mémoire technique complet', 'Planning prévisionnel (Gantt)', 'PPSPS ou Plan de prévention', 'Note méthodologique', 'Références chantiers similaires (3 min)', 'CV des intervenants clés', 'Fiches techniques matériaux'] },
-      { cat: 'Financier', items: ['DPGF / BPU complété', 'DQE si demandé', 'Sous-détail de prix', 'Décomposition du prix global', 'Justification des prix anormalement bas'] },
-      { cat: 'Avant dépôt', items: ['Signature du candidat sur tous les documents', 'Acte d\'engagement paraphé et signé', 'Respect de la date limite de remise', 'Copie numérique conforme', 'Vérification cohérence prix / mémoire', 'Enveloppe séparée candidature / offre'] },
+      { cat: 'Administratif', items: ['DC1 \u2014 Lettre de candidature', 'DC2 \u2014 D\u00E9claration du candidat', 'DC4 \u2014 Acte sp\u00E9cial de sous-traitance', 'Attestation assurance RC Pro', 'Attestation assurance D\u00E9cennale', 'Extrait Kbis < 3 mois', 'Attestation URSSAF \u00E0 jour', 'Attestations fiscales', 'Certificat Qualibat / Qualifelec'] },
+      { cat: 'Technique', items: ['M\u00E9moire technique complet', 'Planning pr\u00E9visionnel (Gantt)', 'PPSPS ou Plan de pr\u00E9vention', 'Note m\u00E9thodologique', 'R\u00E9f\u00E9rences chantiers similaires (3 min)', 'CV des intervenants cl\u00E9s', 'Fiches techniques mat\u00E9riaux'] },
+      { cat: 'Financier', items: ['DPGF / BPU compl\u00E9t\u00E9', 'DQE si demand\u00E9', 'Sous-d\u00E9tail de prix', 'D\u00E9composition du prix global', 'Justification des prix anormalement bas'] },
+      { cat: 'Avant d\u00E9p\u00F4t', items: ['Signature du candidat sur tous les documents', 'Acte d\'engagement paraph\u00E9 et sign\u00E9', 'Respect de la date limite de remise', 'Copie num\u00E9rique conforme', 'V\u00E9rification coh\u00E9rence prix / m\u00E9moire', 'Enveloppe s\u00E9par\u00E9e candidature / offre'] },
     ]
     return [
-      { cat: 'Habilitação', items: ['Alvará de construção válido', 'Declaração de não dívida (AT)', 'Declaração Segurança Social', 'Certidão permanente', 'Seguro de responsabilidade civil', 'Seguro de acidentes de trabalho'] },
-      { cat: 'Técnico', items: ['Memória descritiva técnica', 'Plano de trabalhos', 'Plano de segurança e saúde', 'Referências de obras similares', 'CV da equipa técnica', 'Fichas técnicas dos materiais'] },
-      { cat: 'Financeiro', items: ['Mapa de quantidades preenchido', 'Proposta de preço (BPU)', 'Cronograma financeiro', 'Caução provisória (se exigida)'] },
-      { cat: 'Antes da submissão', items: ['Assinaturas em todos os documentos', 'Respeito do prazo de entrega', 'Cópia digital conforme', 'Verificação coerência preços / memória'] },
+      { cat: 'Habilita\u00E7\u00E3o', items: ['Alvar\u00E1 de constru\u00E7\u00E3o v\u00E1lido', 'Declara\u00E7\u00E3o de n\u00E3o d\u00EDvida (AT)', 'Declara\u00E7\u00E3o Seguran\u00E7a Social', 'Certid\u00E3o permanente', 'Seguro de responsabilidade civil', 'Seguro de acidentes de trabalho'] },
+      { cat: 'T\u00E9cnico', items: ['Mem\u00F3ria descritiva t\u00E9cnica', 'Plano de trabalhos', 'Plano de seguran\u00E7a e sa\u00FAde', 'Refer\u00EAncias de obras similares', 'CV da equipa t\u00E9cnica', 'Fichas t\u00E9cnicas dos materiais'] },
+      { cat: 'Financeiro', items: ['Mapa de quantidades preenchido', 'Proposta de pre\u00E7o (BPU)', 'Cronograma financeiro', 'Cau\u00E7\u00E3o provis\u00F3ria (se exigida)'] },
+      { cat: 'Antes da submiss\u00E3o', items: ['Assinaturas em todos os documentos', 'Respeito do prazo de entrega', 'C\u00F3pia digital conforme', 'Verifica\u00E7\u00E3o coer\u00EAncia pre\u00E7os / mem\u00F3ria'] },
     ]
   }
   const [checkStates, setCheckStates] = useState<Record<string, boolean>>({})
   const toggleCheck = (key: string) => setCheckStates(prev => ({ ...prev, [key]: !prev[key] }))
 
-  // ── Styles ──
-  const stStatV22: Record<string, string> = { en_attente: 'v22-tag v22-tag-amber', agréé: 'v22-tag v22-tag-green', refusé: 'v22-tag v22-tag-red' }
-  const inputS: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }
-  const labelS: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }
+  // ── Badge maps ──
+  const stBadge: Record<string, string> = { en_attente: 'v5-badge v5-badge-yellow', agréé: 'v5-badge v5-badge-green', refusé: 'v5-badge v5-badge-red' }
 
   return (
-    <div style={{ width: '100%' }}>
+    <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><Handshake size={22} /> {isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h2>
-          <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>
-            {isFR ? 'Gérez vos sous-traitants, analysez les DCE et préparez vos réponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}
-          </p>
-        </div>
+      <div className="v5-pg-t">
+        <h1>{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>
+        <p>{isFR ? 'G\u00E9rez vos sous-traitants, analysez les DCE et pr\u00E9parez vos r\u00E9ponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}</p>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-        <button onClick={() => setTab('sous_traitants')} className={`v22-tab${tab === 'sous_traitants' ? ' active' : ''}`}><HardHat size={14} /> {isFR ? 'Sous-traitants' : 'Subempreiteiros'} ({soustraitants.length})</button>
-        <button onClick={() => setTab('analyse_dce')} className={`v22-tab${tab === 'analyse_dce' ? ' active' : ''}`}><Search size={14} /> {isFR ? 'Analyse DCE / IA' : 'Análise DCE / IA'}</button>
-        <button onClick={() => setTab('memoire')} className={`v22-tab${tab === 'memoire' ? ' active' : ''}`}><FileEdit size={14} /> {isFR ? 'Mémoire technique' : 'Memória técnica'}</button>
-        <button onClick={() => setTab('checklist')} className={`v22-tab${tab === 'checklist' ? ' active' : ''}`}><CheckSquare size={14} /> {isFR ? 'Checklist dépôt' : 'Checklist submissão'}</button>
+      <div className="v5-tabs">
+        <button onClick={() => setTab('sous_traitants')} className={`v5-tab-b${tab === 'sous_traitants' ? ' active' : ''}`}>
+          <HardHat size={12} /> {isFR ? 'Sous-traitants' : 'Subempreiteiros'} ({soustraitants.length})
+        </button>
+        <button onClick={() => setTab('analyse_dce')} className={`v5-tab-b${tab === 'analyse_dce' ? ' active' : ''}`}>
+          <Search size={12} /> {isFR ? 'Analyse DCE / IA' : 'An\u00E1lise DCE / IA'}
+        </button>
+        <button onClick={() => setTab('memoire')} className={`v5-tab-b${tab === 'memoire' ? ' active' : ''}`}>
+          <FileEdit size={12} /> {isFR ? 'M\u00E9moire technique' : 'Mem\u00F3ria t\u00E9cnica'}
+        </button>
+        <button onClick={() => setTab('checklist')} className={`v5-tab-b${tab === 'checklist' ? ' active' : ''}`}>
+          <CheckSquare size={12} /> {isFR ? 'Checklist d\u00E9p\u00F4t' : 'Checklist submiss\u00E3o'}
+        </button>
       </div>
 
-      {/* TAB 1: SOUS-TRAITANTS */}
+      {/* ═══ TAB 1: SOUS-TRAITANTS ═══ */}
       {tab === 'sous_traitants' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
           {/* KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div className="v5-kpi-g">
             {[
-              { label: isFR ? 'En attente' : 'Pendentes', val: soustraitants.filter(s => s.statut === 'en_attente').length, color: '#f59e0b' },
-              { label: isFR ? 'Agréés' : 'Aprovados', val: soustraitants.filter(s => s.statut === 'agréé').length, color: '#22c55e' },
-              { label: isFR ? 'DC4 générés' : 'DC4 gerados', val: soustraitants.filter(s => s.dc4Genere).length, color: '#374151' },
-              { label: isFR ? 'Montant total' : 'Montante total', val: `${soustraitants.filter(s => s.statut !== 'refusé').reduce((s, st) => s + st.montantMarche, 0).toLocaleString(dateLocale)} €`, color: '#FFC107', isText: true },
+              { label: isFR ? 'En attente' : 'Pendentes', val: soustraitants.filter(s => s.statut === 'en_attente').length, hl: false },
+              { label: isFR ? 'Agr\u00E9\u00E9s' : 'Aprovados', val: soustraitants.filter(s => s.statut === 'agréé').length, hl: false },
+              { label: isFR ? 'DC4 g\u00E9n\u00E9r\u00E9s' : 'DC4 gerados', val: soustraitants.filter(s => s.dc4Genere).length, hl: false },
+              { label: isFR ? 'Montant total' : 'Montante total', val: `${soustraitants.filter(s => s.statut !== 'refusé').reduce((s, st) => s + st.montantMarche, 0).toLocaleString(dateLocale)} \u20AC`, hl: true },
             ].map((k, i) => (
-              <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px' }}>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{k.label}</div>
-                <div style={{ fontSize: k.isText ? 18 : 26, fontWeight: 700, color: k.color }}>{k.val}</div>
+              <div key={i} className={`v5-kpi${k.hl ? ' hl' : ''}`}>
+                <div className="v5-kpi-l">{k.label}</div>
+                <div className="v5-kpi-v">{k.val}</div>
               </div>
             ))}
           </div>
 
-          {/* Bouton ajouter */}
-          <button onClick={() => setShowForm(!showForm)} style={{ alignSelf: 'flex-start', padding: '8px 18px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
-            {showForm ? '✕ Fermer' : `+ ${isFR ? 'Ajouter un sous-traitant' : 'Adicionar subempreiteiro'}`}
-          </button>
+          {/* Add button */}
+          <div style={{ marginBottom: '.75rem' }}>
+            <button className="v5-btn v5-btn-p" onClick={() => setShowForm(!showForm)}>
+              {showForm ? '\u2715 Fermer' : `+ ${isFR ? 'Nouveau DC4' : 'Novo DC4'}`}
+            </button>
+          </div>
 
-          {/* Formulaire */}
+          {/* Form */}
           {showForm && (
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+              <div className="v5-fr">
                 {[
                   [isFR ? 'Entreprise' : 'Empresa', 'entreprise', 'text'],
                   ['SIRET / NIF', 'siret', 'text'],
-                  [isFR ? 'Responsable' : 'Responsável', 'responsable', 'text'],
+                  [isFR ? 'Responsable' : 'Respons\u00E1vel', 'responsable', 'text'],
                   ['Email', 'email', 'email'],
-                  [isFR ? 'Téléphone' : 'Telefone', 'telephone', 'tel'],
+                  [isFR ? 'T\u00E9l\u00E9phone' : 'Telefone', 'telephone', 'tel'],
                   [isFR ? 'Adresse' : 'Morada', 'adresse', 'text'],
                   [isFR ? 'Chantier' : 'Obra', 'chantier', 'text'],
                   ['Lot', 'lot', 'text'],
                 ].map(([label, key, type]) => (
-                  <div key={key as string}><label style={labelS}>{label}</label><input type={type as string} style={inputS} value={(form as any)[key as string]} onChange={e => setForm({...form, [key as string]: e.target.value})} /></div>
+                  <div key={key as string} className="v5-fg">
+                    <label className="v5-fl">{label}</label>
+                    <input type={type as string} className="v5-fi" value={(form as any)[key as string]} onChange={e => setForm({...form, [key as string]: e.target.value})} />
+                  </div>
                 ))}
-                <div><label style={labelS}>{isFR ? 'Montant HT (€)' : 'Montante s/IVA (€)'}</label><input type="number" style={inputS} value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} /></div>
-                <div><label style={labelS}>{isFR ? 'TVA' : 'IVA'}</label><select style={{...inputS, background: '#fff'}} value={form.tauxTVA} onChange={e => setForm({...form, tauxTVA: Number(e.target.value)})}>{[20, 10, 5.5, 0].map(tv => <option key={tv} value={tv}>{tv}%</option>)}</select></div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isFR ? 'Montant HT (\u20AC)' : 'Montante s/IVA (\u20AC)'}</label>
+                  <input type="number" className="v5-fi" value={form.montantMarche} onChange={e => setForm({...form, montantMarche: Number(e.target.value)})} />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isFR ? 'TVA' : 'IVA'}</label>
+                  <select className="v5-filter-sel" style={{ width: '100%' }} value={form.tauxTVA} onChange={e => setForm({...form, tauxTVA: Number(e.target.value)})}>
+                    {[20, 10, 5.5, 0].map(tv => <option key={tv} value={tv}>{tv}%</option>)}
+                  </select>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                <button onClick={addST} disabled={!form.entreprise} style={{ padding: '8px 18px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14, opacity: form.entreprise ? 1 : .5 }}>{isFR ? 'Ajouter' : 'Adicionar'}</button>
-                <button onClick={() => setShowForm(false)} style={{ padding: '8px 18px', background: '#fff', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>{isFR ? 'Annuler' : 'Cancelar'}</button>
+              <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
+                <button className="v5-btn v5-btn-p" onClick={addST} disabled={!form.entreprise}>{isFR ? 'Ajouter' : 'Adicionar'}</button>
+                <button className="v5-btn" onClick={() => setShowForm(false)}>{isFR ? 'Annuler' : 'Cancelar'}</button>
               </div>
             </div>
           )}
 
-          {/* Tableau */}
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    {[isFR ? 'Entreprise' : 'Empresa', isFR ? 'Chantier / Lot' : 'Obra / Lote', isFR ? 'Montant HT' : 'Montante', isFR ? 'Statut' : 'Estado', 'DC4', 'Actions'].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '10px 14px', color: '#6b7280', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px' }}>{h}</th>
-                    ))}
+          {/* Table */}
+          <div className="v5-card" style={{ overflowX: 'auto', padding: 0 }}>
+            <table className="v5-dt">
+              <thead>
+                <tr>
+                  <th>{isFR ? 'Sous-traitant' : 'Subempreiteiro'}</th>
+                  <th>{isFR ? 'Chantier' : 'Obra'}</th>
+                  <th>{isFR ? 'Montant' : 'Montante'}</th>
+                  <th>% {isFR ? 'March\u00E9' : 'Contrato'}</th>
+                  <th>{isFR ? 'Statut' : 'Estado'}</th>
+                  <th>DC4</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soustraitants.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--v5-text-muted)', fontSize: 12 }}>{isFR ? 'Aucun sous-traitant enregistr\u00E9' : 'Nenhum subempreiteiro registado'}</td></tr>
+                ) : soustraitants.map(s => (
+                  <tr key={s.id}>
+                    <td style={{ fontWeight: 600 }}>
+                      {s.entreprise}
+                      <div style={{ fontSize: 10, color: 'var(--v5-text-light)', fontWeight: 400 }}>{s.siret} \u00B7 {s.responsable}</div>
+                    </td>
+                    <td>
+                      {s.chantier}
+                      <div style={{ fontSize: 10, color: 'var(--v5-text-light)' }}>{s.lot}</div>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{s.montantMarche.toLocaleString(dateLocale)} \u20AC</td>
+                    <td>\u2014</td>
+                    <td>
+                      <span className={stBadge[s.statut] || 'v5-badge'}>
+                        {s.statut === 'en_attente' ? (isFR ? 'Brouillon' : 'Pendente') : s.statut === 'agréé' ? (isFR ? 'Accept\u00E9' : 'Aprovado') : (isFR ? 'Refus\u00E9' : 'Recusado')}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {s.dc4Genere ? <Check size={14} style={{ color: '#2E7D32' }} /> : <Minus size={14} style={{ color: 'var(--v5-text-muted)' }} />}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {s.statut === 'en_attente' && <button className="v5-btn v5-btn-s v5-btn-sm" onClick={() => agreer(s.id)}>{isFR ? 'Agr\u00E9er' : 'Aprovar'}</button>}
+                        {s.statut === 'agréé' && <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => genererDC4(s)}><FileText size={10} /> DC4</button>}
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {soustraitants.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: '#6b7280', fontSize: 13 }}>{isFR ? 'Aucun sous-traitant enregistré' : 'Nenhum subempreiteiro registado'}</td></tr>
-                  ) : soustraitants.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontWeight: 600, color: '#1a1a1a', fontSize: 13 }}>{s.entreprise}</div>
-                        <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.siret} · {s.responsable}</div>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontSize: 13, color: '#374151' }}>{s.chantier}</div>
-                        <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.lot}</div>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#FFC107' }}>{s.montantMarche.toLocaleString(dateLocale)} €</td>
-                      <td style={{ padding: '10px 14px' }}><span className={stStatV22[s.statut] || 'v22-tag'}>{s.statut === 'en_attente' ? (isFR ? 'En attente' : 'Pendente') : s.statut === 'agréé' ? (isFR ? 'Agréé' : 'Aprovado') : (isFR ? 'Refusé' : 'Recusado')}</span></td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>{s.dc4Genere ? <Check size={14} className="v22-up" style={{ color: 'var(--v22-green)' }} /> : <Minus size={14} style={{ color: 'var(--v22-border)' }} />}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {s.statut === 'en_attente' && <button onClick={() => agreer(s.id)} style={{ padding: '4px 10px', background: '#d1fae5', color: '#065f46', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>{isFR ? 'Agréer' : 'Aprovar'}</button>}
-                          {s.statut === 'agréé' && <button onClick={() => genererDC4(s)} style={{ padding: '4px 10px', background: '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><FileText size={12} /> DC4</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* TAB 2: ANALYSE DCE / IA */}
+      {/* ═══ TAB 2: ANALYSE DCE / IA ═══ */}
       {tab === 'analyse_dce' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div>
           {!selectedAnalysis ? (
             <>
-              {/* Formulaire d'analyse */}
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 6 }}><Search size={16} /> {isFR ? 'Nouvelle analyse DCE' : 'Nova análise DCE'}</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div style={{ gridColumn: '1 / -1' }}><label style={labelS}>{isFR ? 'Titre du marché *' : 'Título do concurso *'}</label><input style={inputS} value={dceForm.titre} onChange={e => setDceForm({...dceForm, titre: e.target.value})} placeholder={isFR ? 'ex: Réhabilitation école Jean Moulin' : 'ex: Reabilitação escola primária'} /></div>
-                  <div><label style={labelS}>{isFR ? 'Pays' : 'País'}</label><select style={{...inputS, background: '#fff'}} value={dceForm.country} onChange={e => setDceForm({...dceForm, country: e.target.value as 'FR' | 'PT'})}><option value="FR">France</option><option value="PT">Portugal</option></select></div>
-                  <div><label style={labelS}>{isFR ? 'Type de projet' : 'Tipo de projeto'}</label><select style={{...inputS, background: '#fff'}} value={dceForm.projectType} onChange={e => setDceForm({...dceForm, projectType: e.target.value})}>
-                    <option value="">—</option>
-                    {['Rénovation', 'Gros œuvre', 'Second œuvre', 'VRD', 'Électricité', 'Plomberie/CVC', 'Peinture/Finitions', 'Couverture/Étanchéité', 'Démolition', 'Construction neuve'].map(t => <option key={t} value={t}>{t}</option>)}
-                  </select></div>
-                  <div><label style={labelS}>{isFR ? 'Budget estimé (€)' : 'Orçamento estimado (€)'}</label><input type="number" style={inputS} value={dceForm.budget} onChange={e => setDceForm({...dceForm, budget: e.target.value})} /></div>
-                  <div><label style={labelS}>{isFR ? 'Date limite de remise' : 'Prazo de entrega'}</label><input type="date" style={inputS} value={dceForm.deadline} onChange={e => setDceForm({...dceForm, deadline: e.target.value})} /></div>
-                  <div style={{ gridColumn: '1 / -1' }}><label style={labelS}>{isFR ? 'Description du projet *' : 'Descrição do projeto *'}</label><textarea style={{...inputS, minHeight: 100, resize: 'vertical'}} value={dceForm.description} onChange={e => setDceForm({...dceForm, description: e.target.value})} placeholder={isFR ? 'Décrivez le projet, ses contraintes, le contexte...' : 'Descreva o projeto, restrições, contexto...'} /></div>
-                  <div style={{ gridColumn: '1 / -1' }}><label style={labelS}>{isFR ? 'Lots (1 par ligne)' : 'Lotes (1 por linha)'}</label><textarea style={{...inputS, minHeight: 60, resize: 'vertical'}} value={dceForm.lots} onChange={e => setDceForm({...dceForm, lots: e.target.value})} placeholder={isFR ? 'Lot 1 - Gros œuvre\nLot 2 - Électricité\nLot 3 - Plomberie' : 'Lote 1 - Construção\nLote 2 - Eletricidade'} /></div>
+              <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+                <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Search size={14} /> {isFR ? 'Nouvelle analyse DCE' : 'Nova an\u00E1lise DCE'}
                 </div>
-                <button onClick={lancerAnalyse} disabled={dceLoading || !dceForm.titre.trim() || !dceForm.description.trim()} style={{ marginTop: 16, padding: '10px 24px', background: dceLoading ? '#e5e7eb' : '#FFC107', color: '#1a1a1a', border: 'none', borderRadius: 8, cursor: dceLoading ? 'wait' : 'pointer', fontWeight: 700, fontSize: 15 }}>
-                  {dceLoading ? <><Loader size={14} /> Analyse en cours...</> : <><Brain size={14} /> {isFR ? 'Lancer l\'analyse IA' : 'Iniciar análise IA'}</>}
+                <div className="v5-fr">
+                  <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
+                    <label className="v5-fl">{isFR ? 'Titre du march\u00E9 *' : 'T\u00EDtulo do concurso *'}</label>
+                    <input className="v5-fi" value={dceForm.titre} onChange={e => setDceForm({...dceForm, titre: e.target.value})} placeholder={isFR ? 'ex: R\u00E9habilitation \u00E9cole Jean Moulin' : 'ex: Reabilita\u00E7\u00E3o escola prim\u00E1ria'} />
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">{isFR ? 'Pays' : 'Pa\u00EDs'}</label>
+                    <select className="v5-filter-sel" style={{ width: '100%' }} value={dceForm.country} onChange={e => setDceForm({...dceForm, country: e.target.value as 'FR' | 'PT'})}>
+                      <option value="FR">France</option><option value="PT">Portugal</option>
+                    </select>
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">{isFR ? 'Type de projet' : 'Tipo de projeto'}</label>
+                    <select className="v5-filter-sel" style={{ width: '100%' }} value={dceForm.projectType} onChange={e => setDceForm({...dceForm, projectType: e.target.value})}>
+                      <option value="">\u2014</option>
+                      {['R\u00E9novation', 'Gros \u0153uvre', 'Second \u0153uvre', 'VRD', '\u00C9lectricit\u00E9', 'Plomberie/CVC', 'Peinture/Finitions', 'Couverture/\u00C9tanch\u00E9it\u00E9', 'D\u00E9molition', 'Construction neuve'].map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">{isFR ? 'Budget estim\u00E9 (\u20AC)' : 'Or\u00E7amento estimado (\u20AC)'}</label>
+                    <input type="number" className="v5-fi" value={dceForm.budget} onChange={e => setDceForm({...dceForm, budget: e.target.value})} />
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">{isFR ? 'Date limite de remise' : 'Prazo de entrega'}</label>
+                    <input type="date" className="v5-fi" value={dceForm.deadline} onChange={e => setDceForm({...dceForm, deadline: e.target.value})} />
+                  </div>
+                  <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
+                    <label className="v5-fl">{isFR ? 'Description du projet *' : 'Descri\u00E7\u00E3o do projeto *'}</label>
+                    <textarea className="v5-fi" style={{ minHeight: 100, resize: 'vertical' }} value={dceForm.description} onChange={e => setDceForm({...dceForm, description: e.target.value})} placeholder={isFR ? 'D\u00E9crivez le projet, ses contraintes, le contexte...' : 'Descreva o projeto, restri\u00E7\u00F5es, contexto...'} />
+                  </div>
+                  <div className="v5-fg" style={{ gridColumn: '1 / -1' }}>
+                    <label className="v5-fl">{isFR ? 'Lots (1 par ligne)' : 'Lotes (1 por linha)'}</label>
+                    <textarea className="v5-fi" style={{ minHeight: 60, resize: 'vertical' }} value={dceForm.lots} onChange={e => setDceForm({...dceForm, lots: e.target.value})} placeholder={isFR ? 'Lot 1 - Gros \u0153uvre\nLot 2 - \u00C9lectricit\u00E9\nLot 3 - Plomberie' : 'Lote 1 - Constru\u00E7\u00E3o\nLote 2 - Eletricidade'} />
+                  </div>
+                </div>
+                <button className="v5-btn v5-btn-p" style={{ marginTop: '.75rem' }} onClick={lancerAnalyse} disabled={dceLoading || !dceForm.titre.trim() || !dceForm.description.trim()}>
+                  {dceLoading ? <><Loader size={12} /> Analyse en cours...</> : <><Brain size={12} /> {isFR ? 'Lancer l\'analyse IA' : 'Iniciar an\u00E1lise IA'}</>}
                 </button>
               </div>
 
-              {/* Liste des analyses passées */}
               {analyses.length > 0 && (
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 10 }}>{isFR ? 'Analyses précédentes' : 'Análises anteriores'}</h3>
+                  <div className="v5-st">{isFR ? 'Analyses pr\u00E9c\u00E9dentes' : 'An\u00E1lises anteriores'}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {analyses.map(a => (
-                      <div key={a.id} onClick={() => a.status === 'done' && setSelectedAnalysis(a)} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 16px', cursor: a.status === 'done' ? 'pointer' : 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div key={a.id} onClick={() => a.status === 'done' && setSelectedAnalysis(a)} className="v5-card"
+                        style={{ cursor: a.status === 'done' ? 'pointer' : 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{a.titre}</div>
-                          <div style={{ fontSize: 12, color: '#9ca3af' }}>{a.country === 'FR' ? 'FR' : 'PT'} {a.projectType} · {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>{a.titre}</div>
+                          <div style={{ fontSize: 11, color: 'var(--v5-text-light)' }}>{a.country} {a.projectType} \u00B7 {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
                         </div>
-                        <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: a.status === 'done' ? '#d1fae5' : a.status === 'error' ? '#fee2e2' : '#fef3c7', color: a.status === 'done' ? '#065f46' : a.status === 'error' ? '#991b1b' : '#92400e' }}>
-                          {a.status === 'done' ? 'Terminée' : a.status === 'error' ? 'Erreur' : 'En cours'}
+                        <span className={`v5-badge ${a.status === 'done' ? 'v5-badge-green' : a.status === 'error' ? 'v5-badge-red' : 'v5-badge-yellow'}`}>
+                          {a.status === 'done' ? 'Termin\u00E9e' : a.status === 'error' ? 'Erreur' : 'En cours'}
                         </span>
                       </div>
                     ))}
@@ -311,40 +358,41 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
               )}
             </>
           ) : (
-            /* Résultat d'analyse */
             <div>
-              <button onClick={() => setSelectedAnalysis(null)} style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, marginBottom: 16 }}>← {isFR ? 'Retour' : 'Voltar'}</button>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={18} /> {selectedAnalysis.titre}</h3>
+              <button className="v5-btn" onClick={() => setSelectedAnalysis(null)} style={{ marginBottom: '.75rem' }}>
+                \u2190 {isFR ? 'Retour' : 'Voltar'}
+              </button>
+              <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+                <BarChart3 size={16} /> {selectedAnalysis.titre}
+              </div>
               {selectedAnalysis.result?.error ? (
-                <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 10, padding: 16, color: '#991b1b' }}>{selectedAnalysis.result.error}</div>
+                <div className="v5-al err">{selectedAnalysis.result.error}</div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* Score global */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                   {selectedAnalysis.result?.scoring && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{isFR ? 'Score technique' : 'Score técnico'}</div>
-                        <div style={{ fontSize: 28, fontWeight: 700, color: '#FFC107' }}>{selectedAnalysis.result.scoring.technique || '—'}/100</div>
+                    <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                      <div className="v5-kpi hl">
+                        <div className="v5-kpi-l">{isFR ? 'Score technique' : 'Score t\u00E9cnico'}</div>
+                        <div className="v5-kpi-v">{selectedAnalysis.result.scoring.technique || '\u2014'}/100</div>
                       </div>
-                      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{isFR ? 'Compétitivité prix' : 'Competitividade preço'}</div>
-                        <div style={{ fontSize: 28, fontWeight: 700, color: '#22c55e' }}>{selectedAnalysis.result.scoring.prix || '—'}/100</div>
+                      <div className="v5-kpi">
+                        <div className="v5-kpi-l">{isFR ? 'Comp\u00E9titivit\u00E9 prix' : 'Competitividade pre\u00E7o'}</div>
+                        <div className="v5-kpi-v">{selectedAnalysis.result.scoring.prix || '\u2014'}/100</div>
                       </div>
-                      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px', textAlign: 'center' }}>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{isFR ? 'Probabilité de gain' : 'Probabilidade de ganho'}</div>
-                        <div style={{ fontSize: 28, fontWeight: 700, color: '#1a1a1a' }}>{selectedAnalysis.result.scoring.probabilite || '—'}%</div>
+                      <div className="v5-kpi">
+                        <div className="v5-kpi-l">{isFR ? 'Probabilit\u00E9 de gain' : 'Probabilidade de ganho'}</div>
+                        <div className="v5-kpi-v">{selectedAnalysis.result.scoring.probabilite || '\u2014'}%</div>
                       </div>
                     </div>
                   )}
-                  {/* Sections de l'analyse */}
                   {['analyse_marche', 'exigences', 'strategie', 'memoire_technique', 'analyse_financiere', 'sous_traitance', 'checklist_depot'].map(key => {
                     const section = selectedAnalysis.result ? (selectedAnalysis.result as Record<string, unknown>)[key] : undefined
                     if (!section) return null
-                    const titles: Record<string, string> = { analyse_marche: 'Analyse du marché', exigences: 'Exigences', strategie: 'Stratégie de réponse', memoire_technique: 'Mémoire technique', analyse_financiere: 'Analyse financière', sous_traitance: 'Sous-traitance', checklist_depot: 'Checklist avant dépôt' }
+                    const titles: Record<string, string> = { analyse_marche: 'Analyse du march\u00E9', exigences: 'Exigences', strategie: 'Strat\u00E9gie de r\u00E9ponse', memoire_technique: 'M\u00E9moire technique', analyse_financiere: 'Analyse financi\u00E8re', sous_traitance: 'Sous-traitance', checklist_depot: 'Checklist avant d\u00E9p\u00F4t' }
                     return (
-                      <div key={key} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20 }}>
-                        <h4 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 10px', color: '#1a1a1a' }}>{titles[key] || key}</h4>
-                        <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{typeof section === 'string' ? section : JSON.stringify(section, null, 2)}</div>
+                      <div key={key} className="v5-card">
+                        <div className="v5-st">{titles[key] || key}</div>
+                        <div style={{ fontSize: 12, color: 'var(--v5-text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{typeof section === 'string' ? section : JSON.stringify(section, null, 2)}</div>
                       </div>
                     )
                   })}
@@ -355,94 +403,100 @@ export function SousTraitanceDC4Section({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* TAB 3: MEMOIRE TECHNIQUE */}
+      {/* ═══ TAB 3: MEMOIRE TECHNIQUE ═══ */}
       {tab === 'memoire' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}><FileEdit size={16} /> {isFR ? 'Structure type — Mémoire technique BTP' : 'Estrutura tipo — Memória técnica'}</h3>
-            <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 20px' }}>{isFR ? 'Structure recommandée pour maximiser votre note technique.' : 'Estrutura recomendada para maximizar a nota técnica.'}</p>
+        <div>
+          <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+            <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <FileEdit size={14} /> {isFR ? 'Structure type \u2014 M\u00E9moire technique BTP' : 'Estrutura tipo \u2014 Mem\u00F3ria t\u00E9cnica'}
+            </div>
+            <p style={{ color: 'var(--v5-text-light)', fontSize: 11, marginBottom: '1rem' }}>
+              {isFR ? 'Structure recommand\u00E9e pour maximiser votre note technique.' : 'Estrutura recomendada para maximizar a nota t\u00E9cnica.'}
+            </p>
             {[
-              { n: '1', title: isFR ? 'Présentation de l\'entreprise' : 'Apresentação da empresa', desc: isFR ? 'Historique, chiffres clés, organigramme, certifications (Qualibat, RGE…), assurances.' : 'Histórico, números-chave, organograma, certificações (alvará), seguros.' },
-              { n: '2', title: isFR ? 'Compréhension du projet' : 'Compreensão do projeto', desc: isFR ? 'Reformulation des enjeux, analyse du site, contraintes identifiées, points de vigilance.' : 'Reformulação dos desafios, análise do local, restrições, pontos de atenção.' },
-              { n: '3', title: isFR ? 'Méthodologie d\'exécution' : 'Metodologia de execução', desc: isFR ? 'Phasage des travaux, méthodes constructives, gestion des interfaces inter-lots, accès chantier.' : 'Faseamento das obras, métodos construtivos, gestão de interfaces, acessos.' },
-              { n: '4', title: isFR ? 'Moyens humains et matériels' : 'Meios humanos e materiais', desc: isFR ? 'Équipe dédiée (CV), matériel spécifique, sous-traitants prévus, planning des effectifs.' : 'Equipa dedicada (CV), equipamento específico, subempreiteiros, plano de efetivos.' },
-              { n: '5', title: isFR ? 'Planning détaillé' : 'Planeamento detalhado', desc: isFR ? 'Gantt prévisionnel, jalons clés, chemin critique, marge de sécurité.' : 'Gantt previsional, marcos-chave, caminho crítico, margem de segurança.' },
-              { n: '6', title: isFR ? 'Gestion des risques' : 'Gestão de riscos', desc: isFR ? 'Identification des risques, mesures préventives, plan de contingence, aléas climatiques.' : 'Identificação de riscos, medidas preventivas, plano de contingência.' },
-              { n: '7', title: isFR ? 'Qualité / Sécurité / Environnement' : 'Qualidade / Segurança / Ambiente', desc: isFR ? 'Plan QSE, gestion des déchets, nuisances sonores, PPSPS, bilan carbone.' : 'Plano QSA, gestão de resíduos, ruído, plano de segurança, pegada carbono.' },
-              { n: '8', title: isFR ? 'Références similaires' : 'Referências similares', desc: isFR ? '3 à 5 chantiers comparables avec montants, maîtres d\'ouvrage, photos, attestations de bonne exécution.' : '3 a 5 obras comparáveis com montantes, donos de obra, fotos, atestados.' },
+              { n: '1', title: isFR ? 'Pr\u00E9sentation de l\'entreprise' : 'Apresenta\u00E7\u00E3o da empresa', desc: isFR ? 'Historique, chiffres cl\u00E9s, organigramme, certifications (Qualibat, RGE\u2026), assurances.' : 'Hist\u00F3rico, n\u00FAmeros-chave, organograma, certifica\u00E7\u00F5es (alvar\u00E1), seguros.' },
+              { n: '2', title: isFR ? 'Compr\u00E9hension du projet' : 'Compreens\u00E3o do projeto', desc: isFR ? 'Reformulation des enjeux, analyse du site, contraintes identifi\u00E9es, points de vigilance.' : 'Reformula\u00E7\u00E3o dos desafios, an\u00E1lise do local, restri\u00E7\u00F5es, pontos de aten\u00E7\u00E3o.' },
+              { n: '3', title: isFR ? 'M\u00E9thodologie d\'ex\u00E9cution' : 'Metodologia de execu\u00E7\u00E3o', desc: isFR ? 'Phasage des travaux, m\u00E9thodes constructives, gestion des interfaces inter-lots, acc\u00E8s chantier.' : 'Faseamento das obras, m\u00E9todos construtivos, gest\u00E3o de interfaces, acessos.' },
+              { n: '4', title: isFR ? 'Moyens humains et mat\u00E9riels' : 'Meios humanos e materiais', desc: isFR ? '\u00C9quipe d\u00E9di\u00E9e (CV), mat\u00E9riel sp\u00E9cifique, sous-traitants pr\u00E9vus, planning des effectifs.' : 'Equipa dedicada (CV), equipamento espec\u00EDfico, subempreiteiros, plano de efetivos.' },
+              { n: '5', title: isFR ? 'Planning d\u00E9taill\u00E9' : 'Planeamento detalhado', desc: isFR ? 'Gantt pr\u00E9visionnel, jalons cl\u00E9s, chemin critique, marge de s\u00E9curit\u00E9.' : 'Gantt previsional, marcos-chave, caminho cr\u00EDtico, margem de seguran\u00E7a.' },
+              { n: '6', title: isFR ? 'Gestion des risques' : 'Gest\u00E3o de riscos', desc: isFR ? 'Identification des risques, mesures pr\u00E9ventives, plan de contingence, al\u00E9as climatiques.' : 'Identifica\u00E7\u00E3o de riscos, medidas preventivas, plano de conting\u00EAncia.' },
+              { n: '7', title: isFR ? 'Qualit\u00E9 / S\u00E9curit\u00E9 / Environnement' : 'Qualidade / Seguran\u00E7a / Ambiente', desc: isFR ? 'Plan QSE, gestion des d\u00E9chets, nuisances sonores, PPSPS, bilan carbone.' : 'Plano QSA, gest\u00E3o de res\u00EDduos, ru\u00EDdo, plano de seguran\u00E7a, pegada carbono.' },
+              { n: '8', title: isFR ? 'R\u00E9f\u00E9rences similaires' : 'Refer\u00EAncias similares', desc: isFR ? '3 \u00E0 5 chantiers comparables avec montants, ma\u00EEtres d\'ouvrage, photos, attestations de bonne ex\u00E9cution.' : '3 a 5 obras compar\u00E1veis com montantes, donos de obra, fotos, atestados.' },
             ].map(s => (
-              <div key={s.n} style={{ display: 'flex', gap: 14, padding: '14px 0', borderBottom: '1px solid #f3f4f6' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#FFC107', color: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{s.n}</div>
+              <div key={s.n} style={{ display: 'flex', gap: 12, padding: '.65rem 0', borderBottom: '1px solid #F0F0F0' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--v5-primary-yellow)', color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{s.n}</div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a', marginBottom: 2 }}>{s.title}</div>
-                  <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>{s.desc}</div>
+                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{s.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--v5-text-secondary)', lineHeight: 1.5 }}>{s.desc}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Lightbulb size={14} /> {isFR ? 'Conseil expert' : 'Conselho de especialista'}</div>
-            <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.5 }}>
-              {isFR
-                ? 'Pour maximiser votre note : personnalisez chaque section au projet spécifique. Un mémoire générique se repère immédiatement. Mentionnez des détails du CCTP, adaptez vos références au type de travaux, et quantifiez vos engagements (délais, effectifs, certifications).'
-                : 'Para maximizar a nota: personalize cada secção ao projeto específico. Uma memória genérica é imediatamente identificada. Mencione detalhes do caderno de encargos e quantifique os seus compromissos.'}
-            </div>
+          <div className="v5-al warn">
+            <Lightbulb size={12} /> <span style={{ fontWeight: 600 }}>{isFR ? 'Conseil expert' : 'Conselho de especialista'}:</span>&nbsp;
+            {isFR
+              ? 'Personnalisez chaque section au projet sp\u00E9cifique. Un m\u00E9moire g\u00E9n\u00E9rique se rep\u00E8re imm\u00E9diatement. Mentionnez des d\u00E9tails du CCTP et quantifiez vos engagements.'
+              : 'Personalize cada sec\u00E7\u00E3o ao projeto espec\u00EDfico. Uma mem\u00F3ria gen\u00E9rica \u00E9 imediatamente identificada. Mencione detalhes do caderno de encargos.'}
           </div>
         </div>
       )}
 
-      {/* TAB 4: CHECKLIST DEPOT */}
+      {/* ═══ TAB 4: CHECKLIST DEPOT ═══ */}
       {tab === 'checklist' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <button onClick={() => setDceForm(f => ({...f, country: 'FR'}))} className={`v22-tab${dceForm.country === 'FR' ? ' active' : ''}`}>France</button>
-            <button onClick={() => setDceForm(f => ({...f, country: 'PT'}))} className={`v22-tab${dceForm.country === 'PT' ? ' active' : ''}`}>Portugal</button>
+        <div>
+          <div className="v5-tabs" style={{ marginBottom: '.75rem' }}>
+            <button onClick={() => setDceForm(f => ({...f, country: 'FR'}))} className={`v5-tab-b${dceForm.country === 'FR' ? ' active' : ''}`}>France</button>
+            <button onClick={() => setDceForm(f => ({...f, country: 'PT'}))} className={`v5-tab-b${dceForm.country === 'PT' ? ' active' : ''}`}>Portugal</button>
           </div>
-          {getChecklist(dceForm.country).map(cat => {
-            const total = cat.items.length
-            const checked = cat.items.filter((_, i) => checkStates[`${cat.cat}_${i}`]).length
-            return (
-              <div key={cat.cat} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: '#1a1a1a' }}>{cat.cat}</h4>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: checked === total ? '#22c55e' : '#6b7280' }}>{checked}/{total}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+            {getChecklist(dceForm.country).map(cat => {
+              const total = cat.items.length
+              const checked = cat.items.filter((_, i) => checkStates[`${cat.cat}_${i}`]).length
+              return (
+                <div key={cat.cat} className="v5-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.65rem' }}>
+                    <div className="v5-st" style={{ margin: 0 }}>{cat.cat}</div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: checked === total ? '#2E7D32' : 'var(--v5-text-light)' }}>{checked}/{total}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {cat.items.map((item, i) => {
+                      const key = `${cat.cat}_${i}`
+                      const done = !!checkStates[key]
+                      return (
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: done ? 'var(--v5-text-muted)' : 'var(--v5-text-primary)', textDecoration: done ? 'line-through' : 'none', padding: '3px 0' }}>
+                          <input type="checkbox" checked={done} onChange={() => toggleCheck(key)} style={{ accentColor: 'var(--v5-primary-yellow)', width: 14, height: 14 }} />
+                          {item}
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {cat.items.map((item, i) => {
-                    const key = `${cat.cat}_${i}`
-                    const done = !!checkStates[key]
-                    return (
-                      <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', cursor: 'pointer', fontSize: 13, color: done ? '#9ca3af' : '#374151', textDecoration: done ? 'line-through' : 'none' }}>
-                        <input type="checkbox" checked={done} onChange={() => toggleCheck(key)} style={{ accentColor: '#FFC107', width: 16, height: 16 }} />
-                        {item}
-                      </label>
-                    )
-                  })}
+              )
+            })}
+            {/* Global progress */}
+            {(() => {
+              const allItems = getChecklist(dceForm.country).flatMap(c => c.items)
+              const totalChecked = allItems.filter((_, i) => {
+                const cat = getChecklist(dceForm.country).find(c => c.items.includes(allItems[i]))
+                const catIdx = cat ? cat.items.indexOf(allItems[i]) : i
+                return checkStates[`${cat?.cat}_${catIdx}`]
+              }).length
+              const pct = allItems.length > 0 ? Math.round(totalChecked / allItems.length * 100) : 0
+              return (
+                <div className="v5-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{isFR ? 'Progression globale' : 'Progresso global'}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? '#2E7D32' : 'var(--v5-primary-yellow-dark)' }}>{pct}%</span>
+                  </div>
+                  <div className="v5-prog-row">
+                    <div className="v5-prog-bg">
+                      <div className="v5-prog-fill" style={{ width: `${pct}%`, background: pct === 100 ? '#2E7D32' : 'var(--v5-primary-yellow)' }} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-          {/* Barre de progression globale */}
-          {(() => {
-            const allItems = getChecklist(dceForm.country).flatMap(c => c.items)
-            const totalChecked = allItems.filter((_, i) => {
-              const cat = getChecklist(dceForm.country).find(c => c.items.includes(allItems[i]))
-              const catIdx = cat ? cat.items.indexOf(allItems[i]) : i
-              return checkStates[`${cat?.cat}_${catIdx}`]
-            }).length
-            const pct = allItems.length > 0 ? Math.round(totalChecked / allItems.length * 100) : 0
-            return (
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{isFR ? 'Progression globale' : 'Progresso global'}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: pct === 100 ? '#22c55e' : '#FFC107' }}>{pct}%</span>
-                </div>
-                <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#22c55e' : '#FFC107', borderRadius: 4, transition: 'width .3s' }} />
-                </div>
-              </div>
-            )
-          })()}
+              )
+            })()}
+          </div>
         </div>
       )}
     </div>

@@ -45,6 +45,24 @@ interface MembreSummary {
 
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
+// ── Status badge mapping ──
+const STATUS_BADGE: Record<string, string> = {
+  'En cours': 'v5-badge v5-badge-blue',
+  'Terminé': 'v5-badge v5-badge-green',
+  'En attente': 'v5-badge v5-badge-yellow',
+  'Annulé': 'v5-badge v5-badge-red',
+}
+
+// ── Progress bar color by advancement ──
+function progressColor(pct: number, statut: string): string {
+  if (statut === 'Terminé') return '#4CAF50'
+  if (statut === 'Annulé') return '#9E9E9E'
+  if (pct >= 70) return '#66BB6A'
+  if (pct >= 40) return '#42A5F5'
+  if (pct >= 20) return '#FFA726'
+  return '#FFCA28'
+}
+
 export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -75,6 +93,9 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
 
   // Confirmation suppression
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // Search
+  const [search, setSearch] = useState('')
 
   // ── Fetch devis + membres quand le modal s'ouvre ──
   const loadDevisAndMembres = useCallback(async () => {
@@ -303,162 +324,267 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
   // ── Charger membres au mount ──
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
 
-  const filtered = filter === 'Tous'
-    ? chantiers
-    : chantiers.filter((c: ChantierForm & { id: string; statut?: string }) => filter === 'Terminés' ? c.statut === 'Terminé' : c.statut === filter)
+  // ── Filter + search ──
+  const filtered = useMemo(() => {
+    let list = filter === 'Tous'
+      ? chantiers
+      : chantiers.filter((c: ChantierForm & { id: string; statut?: string }) => filter === 'Terminés' ? c.statut === 'Terminé' : c.statut === filter)
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter((c: ChantierForm & { id: string }) =>
+        c.titre.toLowerCase().includes(q) || c.client.toLowerCase().includes(q) || c.adresse.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [chantiers, filter, search])
 
-  const STATUS_V22: Record<string, string> = {
-    'En cours': 'v22-tag v22-tag-green', 'Terminé': 'v22-tag v22-tag-gray',
-    'En attente': 'v22-tag v22-tag-amber', 'Annulé': 'v22-tag v22-tag-red',
+  // ── Compute advancement % ──
+  function getAdvancement(c: ChantierForm & { id: string; statut?: string }): number {
+    if (c.statut === 'Terminé') return 100
+    if (c.statut === 'En attente' || c.statut === 'Annulé') return 0
+    if (!c.dateDebut || !c.dateFin) return 0
+    const d0 = new Date(c.dateDebut).getTime()
+    const d1 = new Date(c.dateFin).getTime()
+    const now = Date.now()
+    if (d1 <= d0) return 0
+    const pct = Math.round(((now - d0) / (d1 - d0)) * 100)
+    return Math.max(0, Math.min(100, pct))
   }
+
+  // ── Format date short ──
+  function fmtDate(d: string): string {
+    if (!d) return '—'
+    const dt = new Date(d)
+    return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`
+  }
+
+  // ── Chef de chantier (first assigned member or —) ──
+  function getChef(c: ChantierForm & { id: string }): string {
+    const ids = c.membres_ids || []
+    if (ids.length === 0) return '—'
+    const m = membresList.find(mm => mm.id === ids[0])
+    return m ? `${m.prenom.charAt(0)}. ${m.nom}` : '—'
+  }
+
+  // ── Counts for filter and subtitle ──
+  const activeCount = chantiers.filter((c: ChantierForm & { statut?: string }) => c.statut === 'En cours').length
+  const pendingCount = chantiers.filter((c: ChantierForm & { statut?: string }) => c.statut === 'En attente').length
+  const doneCount = chantiers.filter((c: ChantierForm & { statut?: string }) => c.statut === 'Terminé').length
 
   if (loading) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ display: 'flex', justifyContent: 'center' }}><Loader2 size={24} className="animate-spin" /></div>
-      <p className="v22-card-meta">{isPt ? 'A carregar...' : 'Chargement...'}</p>
+      <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 8px' }} />
+      <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
   )
 
   return (
     <div>
-      {/* Header */}
-      <div className="v22-page-header">
-        <div>
-          <h1 className="v22-page-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><HardHat size={22} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
-          <p className="v22-page-sub">{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
-        </div>
-        <button className="v22-btn" onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}
+      {/* ── Page header ── */}
+      <div className="v5-pg-t">
+        <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
+        <p>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
+      </div>
+
+      {/* ── Search bar ── */}
+      <div className="v5-search">
+        <input
+          className="v5-search-in"
+          placeholder={isPt ? 'Pesquisar uma obra…' : 'Rechercher un chantier…'}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          className="v5-filter-sel"
+          value={filter}
+          onChange={e => setFilter(e.target.value as typeof filter)}
+        >
+          <option value="Tous">{isPt ? 'Todas' : 'Tous'} ({chantiers.length})</option>
+          <option value="En cours">{isPt ? 'Em curso' : 'En cours'} ({activeCount})</option>
+          <option value="En attente">{isPt ? 'Pendentes' : 'En attente'} ({pendingCount})</option>
+          <option value="Terminés">{isPt ? 'Concluídas' : 'Terminés'} ({doneCount})</option>
+        </select>
+        <button
+          className="v5-btn v5-btn-p"
+          onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+        >
+          + {isPt ? 'Nova obra' : 'Nouveau chantier'}
         </button>
       </div>
 
-      <div style={{ padding: '20px 24px' }}>
-        {/* Filtres */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-          {(['Tous', 'En cours', 'En attente', 'Terminés'] as const).map(f => {
-            const labels: Record<string, string> = {
-              'Tous': isPt ? 'Todas' : 'Toutes', 'En cours': isPt ? 'Em curso' : 'En cours',
-              'En attente': isPt ? 'Pendentes' : 'En attente', 'Terminés': isPt ? 'Concluídas' : 'Terminés',
-            }
-            const count = f === 'Tous' ? chantiers.length : chantiers.filter((c: ChantierForm & { statut?: string }) => c.statut === (f === 'Terminés' ? 'Terminé' : f)).length
-            return (
-              <button key={f} onClick={() => setFilter(f)}
-                className={`v22-tag ${filter === f ? 'v22-tag-yellow' : 'v22-tag-gray'}`}
-                style={{ cursor: 'pointer', fontWeight: filter === f ? 700 : 400 }}>
-                {labels[f]} ({count})
-              </button>
-            )
-          })}
+      {/* ── Table ── */}
+      {filtered.length === 0 ? (
+        <div className="v5-card" style={{ padding: '2.5rem', textAlign: 'center' }}>
+          <HardHat size={40} style={{ margin: '0 auto 10px', color: '#BBB' }} />
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
+            {isPt ? 'Nenhuma obra' : 'Aucun chantier'}
+          </div>
+          <p style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
+            {isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}
+          </p>
+          <button
+            className="v5-btn v5-btn-p"
+            onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+          >
+            + {isPt ? 'Criar obra' : 'Créer un chantier'}
+          </button>
         </div>
-
-        {/* Liste */}
-        {filtered.length === 0 ? (
-          <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><HardHat size={48} /></div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma obra' : 'Aucun chantier'}</div>
-            <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
-            <button className="v22-btn" onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <PlusCircle size={14} /> {isPt ? 'Criar obra' : 'Créer un chantier'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {filtered.map((c: ChantierForm & { id: string; statut?: string }) => {
-              const renta = getRenta(c)
-              return (
-                <div key={c.id} className="v22-card" style={{ padding: 0, overflow: 'hidden' }}>
-                  {/* Carte chantier */}
-                  <div style={{ padding: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: 15 }}>{c.titre}</span>
-                          <span className={STATUS_V22[c.statut] || 'v22-tag v22-tag-gray'} style={{ fontSize: 11 }}>{c.statut}</span>
-                          {c.latitude && <span className="v22-tag v22-tag-green" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={10} /> GPS</span>}
-                          {c.devis_id && <span className="v22-tag v22-tag-blue" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><FileText size={10} /> Devis</span>}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                          {c.client && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><User size={12} /> {c.client}</span>}
-                          {c.adresse && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={12} /> {c.adresse}</span>}
-                          {(c.dateDebut || c.dateFin) && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Calendar size={12} /> {c.dateDebut || '?'} → {c.dateFin || '?'}</span>}
-                          {c.budget && <span className="v22-card-meta" style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Euro size={12} /> {Number(c.budget).toLocaleString(dl)} €</span>}
-                        </div>
-                        {/* Employés assignés */}
-                        {(c.membres_ids?.length ?? 0) > 0 && (
-                          <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-                            {(c.membres_ids as string[]).map((mid: string) => {
-                              const m = membresList.find(mm => mm.id === mid)
-                              return m ? <span key={mid} className="v22-tag v22-tag-gray" style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Users size={10} /> {m.prenom} {m.nom}</span> : null
-                            })}
-                          </div>
-                        )}
+      ) : (
+        <div className="v5-card" style={{ overflowX: 'auto' }}>
+          <table className="v5-dt">
+            <thead>
+              <tr>
+                <th>{isPt ? 'Réf' : 'Réf'}</th>
+                <th>{isPt ? 'Obra' : 'Chantier'}</th>
+                <th>{isPt ? 'Cliente' : 'Client'}</th>
+                <th>{isPt ? 'Responsável' : 'Chef'}</th>
+                <th>{isPt ? 'Início' : 'Début'}</th>
+                <th>{isPt ? 'Fim' : 'Fin'}</th>
+                <th>{isPt ? 'Avanço' : 'Avanc.'}</th>
+                <th>{isPt ? 'Estado' : 'Statut'}</th>
+                <th>Budget</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c: ChantierForm & { id: string; statut?: string }, idx: number) => {
+                const renta = getRenta(c)
+                const pct = getAdvancement(c)
+                const isLate = renta?.enRetard
+                return (
+                  <tr key={c.id}>
+                    <td>CH-{String(idx + 1).padStart(3, '0')}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, color: isLate ? '#C62828' : undefined }}>
+                          {c.titre}{isLate ? ' ⚠️' : ''}
+                        </span>
+                        {c.latitude && <span className="v5-badge v5-badge-green" style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><MapPin size={9} /> GPS</span>}
+                        {c.devis_id && <span className="v5-badge v5-badge-blue" style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><FileText size={9} /> Devis</span>}
                       </div>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button className="v22-btn v22-btn-sm" onClick={() => handleEdit(c)} style={{ background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 12, display: 'inline-flex', alignItems: 'center' }} aria-label="Modifier"><Pencil size={14} /></button>
-                        <select value={c.statut} onChange={e => changeStatut(c.id, e.target.value)} className="v22-form-input" style={{ minWidth: 130, fontSize: 13, padding: '6px 10px' }}>
-                          {['En attente', 'En cours', 'Terminé', 'Annulé'].map(s => {
-                            const sl: Record<string, string> = isPt
-                              ? { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
-                              : { 'En attente': 'En attente', 'En cours': 'En cours', 'Terminé': 'Terminé', 'Annulé': 'Annulé' }
-                            return <option key={s} value={s}>{sl[s]}</option>
+                      {c.adresse && (
+                        <div style={{ fontSize: 10, color: '#999', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <MapPin size={9} /> {c.adresse}
+                        </div>
+                      )}
+                    </td>
+                    <td>{c.client || '—'}</td>
+                    <td>
+                      <div>{getChef(c)}</div>
+                      {(c.membres_ids?.length ?? 0) > 1 && (
+                        <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
+                          {(c.membres_ids as string[]).slice(1).map((mid: string) => {
+                            const m = membresList.find(mm => mm.id === mid)
+                            return m ? (
+                              <span key={mid} className="v5-badge v5-badge-gray" style={{ fontSize: 9 }}>
+                                {m.prenom.charAt(0)}. {m.nom}
+                              </span>
+                            ) : null
                           })}
-                        </select>
-                        <button onClick={() => setDeleteConfirm(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', display: 'inline-flex', alignItems: 'center' }} aria-label="Supprimer"><Trash2 size={16} /></button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ══════ BANDEAU RENTABILITÉ ══════ */}
-                  {renta && (
-                    <div style={{
-                      padding: '10px 16px',
-                      background: renta.status === 'profit' ? '#F0FDF4' : renta.status === 'warning' ? '#FEF3C7' : '#FEF2F2',
-                      borderTop: `2px solid ${renta.status === 'profit' ? '#22C55E' : renta.status === 'warning' ? '#F59E0B' : '#EF4444'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontSize: 13, fontWeight: 700,
-                          color: renta.beneficeActuel >= 0 ? '#166534' : '#991B1B',
-                        }}>
-                          {renta.status === 'profit' ? <CheckCircle2 size={14} style={{ display: 'inline' }} /> : renta.status === 'warning' ? <AlertTriangle size={14} style={{ display: 'inline' }} /> : <AlertCircle size={14} style={{ display: 'inline' }} />}{' '}
-                          {isPt ? 'Rentabilidade' : 'Rentabilité'}: {renta.beneficeActuel >= 0 ? '+' : ''}{fmt(renta.beneficeActuel, dl)} €
-                        </span>
-                        <span style={{ fontSize: 11, color: '#6B7280' }}>
-                          ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevu}%)
-                        </span>
-                        <span style={{ fontSize: 11, color: '#6B7280' }}>
-                          {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} × {renta.joursPrevu}{isPt ? 'j' : 'j'}
-                        </span>
-                      </div>
-
-                      {/* Retard */}
-                      {renta.enRetard && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#991B1B' }}>
-                            <Siren size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {renta.joursRetard}{isPt ? ' dias de atraso' : 'j de retard'} = -{fmt(renta.perteRetardTotal, dl)} €
-                          </span>
-                          <span style={{ fontSize: 11, color: '#EF4444' }}>
-                            (-{fmt(renta.perteParJourRetard, dl)} €/{isPt ? 'dia' : 'jour'})
-                          </span>
                         </div>
                       )}
-
-                      {/* Alerte fin dépassée */}
-                      {renta.finDepassee && (
-                        <button onClick={() => { setProlongModal({ chantier: c }); setProlongDays(2) }}
-                          className="v22-btn v22-btn-sm" style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', fontSize: 11 }}>
-                          <Clock size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Prolongar / Encerrar' : 'Prolonger / Clôturer'}
+                    </td>
+                    <td>{fmtDate(c.dateDebut)}</td>
+                    <td>{fmtDate(c.dateFin)}</td>
+                    <td>
+                      <div className="v5-prog-row">
+                        <div className="v5-prog-bg">
+                          <div
+                            className="v5-prog-fill"
+                            style={{ width: `${pct}%`, background: isLate ? '#EF5350' : progressColor(pct, c.statut || '') }}
+                          />
+                        </div>
+                        <span className="v5-prog-pct">{pct}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <select
+                        className="v5-filter-sel"
+                        style={{ fontSize: 10, padding: '2px 6px', fontWeight: 600, minWidth: 90 }}
+                        value={c.statut || 'En attente'}
+                        onChange={e => changeStatut(c.id, e.target.value)}
+                      >
+                        {['En attente', 'En cours', 'Terminé', 'Annulé'].map(s => {
+                          const sl: Record<string, string> = isPt
+                            ? { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
+                            : { 'En attente': 'En attente', 'En cours': 'En cours', 'Terminé': 'Terminé', 'Annulé': 'Annulé' }
+                          return <option key={s} value={s}>{sl[s]}</option>
+                        })}
+                      </select>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>
+                      {c.budget ? `${Number(c.budget).toLocaleString(dl)} €` : '—'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <button className="v5-btn v5-btn-sm" onClick={() => handleEdit(c)} aria-label="Modifier">
+                          <Pencil size={12} />
                         </button>
-                      )}
+                        <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => setDeleteConfirm(c.id)} aria-label="Supprimer">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+
+          {/* ── Rentabilité details below table ── */}
+          {filtered.some((c: ChantierForm & { id: string; statut?: string }) => getRenta(c) !== null) && (
+            <div style={{ marginTop: 12 }}>
+              {filtered.map((c: ChantierForm & { id: string; statut?: string }) => {
+                const renta = getRenta(c)
+                if (!renta) return null
+                const bgColor = renta.status === 'profit' ? '#E8F5E9' : renta.status === 'warning' ? '#FFF8E1' : '#FFEBEE'
+                const borderColor = renta.status === 'profit' ? '#4CAF50' : renta.status === 'warning' ? '#FFC107' : '#EF5350'
+                return (
+                  <div key={`renta-${c.id}`} style={{
+                    padding: '8px 12px', marginBottom: 6, borderRadius: 4,
+                    background: bgColor, borderLeft: `3px solid ${borderColor}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+                    fontSize: 11,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, color: renta.beneficeActuel >= 0 ? '#2E7D32' : '#C62828' }}>
+                        {renta.status === 'profit' ? <CheckCircle2 size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : renta.status === 'warning' ? <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : <AlertCircle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />}
+                        {' '}{c.titre}: {renta.beneficeActuel >= 0 ? '+' : ''}{fmt(renta.beneficeActuel, dl)} €
+                      </span>
+                      <span style={{ color: '#666' }}>
+                        ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevu}%)
+                      </span>
+                      <span style={{ color: '#666' }}>
+                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? 'j' : 'j'}
+                      </span>
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+
+                    {renta.enRetard && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#C62828' }}>
+                          <Siren size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {renta.joursRetard}{isPt ? ' dias de atraso' : 'j retard'} = -{fmt(renta.perteRetardTotal, dl)} €
+                        </span>
+                        <span style={{ color: '#E53935' }}>
+                          (-{fmt(renta.perteParJourRetard, dl)} €/{isPt ? 'dia' : 'jour'})
+                        </span>
+                      </div>
+                    )}
+
+                    {renta.finDepassee && (
+                      <button
+                        className="v5-btn v5-btn-sm v5-btn-d"
+                        onClick={() => { setProlongModal({ chantier: c }); setProlongDays(2) }}
+                      >
+                        <Clock size={12} /> {isPt ? 'Prolongar' : 'Prolonger'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ══════ MODAL PROLONGATION ══════ */}
       {prolongModal && (() => {
@@ -473,57 +599,68 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
         } : null
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div className="v22-card" style={{ width: '100%', maxWidth: 480 }}>
-              <div className="v22-card-head">
-                <span className="v22-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Clock size={16} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}</span>
-                <button className="v22-btn v22-btn-sm" onClick={() => setProlongModal(null)}>✕</button>
+            <div className="v5-card" style={{ width: '100%', maxWidth: 480 }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Clock size={14} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}
+                </span>
+                <button className="v5-btn v5-btn-sm" onClick={() => setProlongModal(null)}>✕</button>
               </div>
-              <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ textAlign: 'center', fontSize: 14 }}>
+              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ textAlign: 'center', fontSize: 13 }}>
                   <strong>{c.titre}</strong> — {isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
                 </div>
 
                 {/* Option 1: Clôturer */}
-                <button onClick={async () => { await changeStatut(c.id, 'Terminé'); setProlongModal(null) }}
-                  className="v22-btn" style={{ width: '100%', background: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0', padding: '12px 14px', fontWeight: 700 }}>
-                  <CheckCircle2 size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Sim, encerrar a obra' : 'Oui, clôturer le chantier'}
+                <button
+                  className="v5-btn v5-btn-s"
+                  style={{ width: '100%', padding: '10px 14px', justifyContent: 'center' }}
+                  onClick={async () => { await changeStatut(c.id, 'Terminé'); setProlongModal(null) }}
+                >
+                  <CheckCircle2 size={14} /> {isPt ? 'Sim, encerrar a obra' : 'Oui, clôturer le chantier'}
                 </button>
 
                 {/* Option 2: Prolonger */}
-                <div style={{ background: '#FEF3C7', borderRadius: 8, padding: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400E', marginBottom: 8 }}>
+                <div style={{ background: '#FFF8E1', borderRadius: 6, padding: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#F57F17', marginBottom: 8 }}>
                     {isPt ? 'Não, estimar dias suplementares:' : 'Non, estimer les jours supplémentaires :'}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <input type="number" min={1} max={60} value={prolongDays}
+                    <input
+                      type="number" min={1} max={60} value={prolongDays}
                       onChange={e => setProlongDays(Math.max(1, Number(e.target.value)))}
-                      className="v22-form-input" style={{ width: 80, textAlign: 'center', fontWeight: 700, fontSize: 16 }} />
-                    <span style={{ fontSize: 13, color: '#92400E' }}>{isPt ? 'dias a mais' : 'jours de plus'}</span>
+                      className="v5-fi"
+                      style={{ width: 80, textAlign: 'center', fontWeight: 700, fontSize: 15 }}
+                    />
+                    <span style={{ fontSize: 12, color: '#F57F17' }}>{isPt ? 'dias a mais' : 'jours de plus'}</span>
                   </div>
 
                   {/* Nouveau calcul */}
                   {newRenta && renta && (
-                    <div style={{ marginTop: 12, padding: 12, background: 'white', borderRadius: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div className="v5-fr" style={{ marginTop: 10, padding: 10, background: '#fff', borderRadius: 6 }}>
                       <div>
-                        <div style={{ fontSize: 10, color: '#6B7280' }}>{isPt ? 'Novo custo M.O.' : 'Nouveau coût M.O.'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#EF4444' }}>{fmt(newRenta.coutMOTotal, dl)} €</div>
-                        <div style={{ fontSize: 10, color: '#EF4444' }}>+{fmt(newRenta.coutMOTotal - renta.coutMOTotal, dl)} €</div>
+                        <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Novo custo M.O.' : 'Nouveau coût M.O.'}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#C62828' }}>{fmt(newRenta.coutMOTotal, dl)} €</div>
+                        <div style={{ fontSize: 10, color: '#C62828' }}>+{fmt(newRenta.coutMOTotal - renta.coutMOTotal, dl)} €</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: 10, color: '#6B7280' }}>{isPt ? 'Nova rentabilidade' : 'Nouvelle rentabilité'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: newRenta.beneficePrevu >= 0 ? '#22C55E' : '#EF4444' }}>
+                        <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Nova rentabilidade' : 'Nouvelle rentabilité'}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: newRenta.beneficePrevu >= 0 ? '#2E7D32' : '#C62828' }}>
                           {newRenta.beneficePrevu >= 0 ? '+' : ''}{fmt(newRenta.beneficePrevu, dl)} €
                         </div>
-                        <div style={{ fontSize: 10, color: newRenta.beneficePrevu < renta.beneficePrevu ? '#EF4444' : '#6B7280' }}>
+                        <div style={{ fontSize: 10, color: newRenta.beneficePrevu < renta.beneficePrevu ? '#C62828' : '#999' }}>
                           {fmt(newRenta.beneficePrevu - renta.beneficePrevu, dl)} €
                         </div>
                       </div>
                     </div>
                   )}
 
-                  <button onClick={handleProlong}
-                    className="v22-btn" style={{ width: '100%', marginTop: 12, background: '#F59E0B', color: 'white', fontWeight: 700, padding: '10px 14px' }}>
-                    <Calendar size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
+                  <button
+                    className="v5-btn v5-btn-p"
+                    style={{ width: '100%', marginTop: 10, padding: '8px 14px', justifyContent: 'center' }}
+                    onClick={handleProlong}
+                  >
+                    <Calendar size={14} /> {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
                   </button>
                 </div>
               </div>
@@ -535,18 +672,24 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
       {/* ══════ MODAL CONFIRMATION SUPPRESSION ══════ */}
       {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v22-card" style={{ width: '100%', maxWidth: 400 }}>
-            <div className="v22-card-head">
-              <span className="v22-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Trash2 size={16} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}</span>
-              <button className="v22-btn v22-btn-sm" onClick={() => setDeleteConfirm(null)}>✕</button>
+          <div className="v5-card" style={{ width: '100%', maxWidth: 400 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Trash2 size={14} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}
+              </span>
+              <button className="v5-btn v5-btn-sm" onClick={() => setDeleteConfirm(null)}>✕</button>
             </div>
-            <div className="v22-card-body" style={{ textAlign: 'center', padding: '20px 16px' }}>
-              <p style={{ fontSize: 14, marginBottom: 16 }}>{isPt ? 'Tem certeza que deseja remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}</p>
+            <div style={{ padding: '20px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, marginBottom: 16 }}>
+                {isPt ? 'Tem certeza que deseja remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
+              </p>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }}
-                  onClick={() => setDeleteConfirm(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-                <button className="v22-btn" style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', fontWeight: 700 }}
-                  onClick={() => handleDelete(deleteConfirm)}>{isPt ? 'Remover' : 'Supprimer'}</button>
+                <button className="v5-btn" style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
+                  {isPt ? 'Cancelar' : 'Annuler'}
+                </button>
+                <button className="v5-btn v5-btn-d" style={{ flex: 1, fontWeight: 600 }} onClick={() => handleDelete(deleteConfirm)}>
+                  {isPt ? 'Remover' : 'Supprimer'}
+                </button>
               </div>
             </div>
           </div>
@@ -556,29 +699,37 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
       {/* ══════ MODAL CRÉATION/ÉDITION ══════ */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v22-card" style={{ width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="v22-card-head">
-              <span className="v22-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><HardHat size={16} /> {editId ? (isPt ? 'Editar obra' : 'Modifier le chantier') : (isPt ? 'Nova obra' : 'Nouveau chantier')}</span>
-              <button className="v22-btn v22-btn-sm" onClick={() => setShowModal(false)}>✕</button>
+          <div className="v5-card" style={{ width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <HardHat size={14} /> {editId ? (isPt ? 'Editar obra' : 'Modifier le chantier') : (isPt ? 'Nova obra' : 'Nouveau chantier')}
+              </span>
+              <button className="v5-btn v5-btn-sm" onClick={() => setShowModal(false)}>✕</button>
             </div>
-            <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
               {/* ── Import devis ── */}
               {!editId && (
-                <div style={{ background: '#F0F9FF', borderRadius: 8, padding: 12, border: '1px solid #BAE6FD' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0369A1', marginBottom: 8 }}>
-                    <FileText size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Importar de um orçamento existente' : 'Importer depuis un devis existant'}
+                <div style={{ background: '#E3F2FD', borderRadius: 6, padding: 12, border: '1px solid #90CAF9' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#1565C0', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <FileText size={12} /> {isPt ? 'Importar de um orçamento existente' : 'Importer depuis un devis existant'}
                   </div>
                   {loadingDevis ? (
-                    <div style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}><Loader2 size={12} className="animate-spin" /> {isPt ? 'A carregar...' : 'Chargement...'}</div>
+                    <div style={{ fontSize: 11, color: '#666', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Loader2 size={12} className="animate-spin" /> {isPt ? 'A carregar...' : 'Chargement...'}
+                    </div>
                   ) : devisList.length === 0 ? (
-                    <div style={{ fontSize: 12, color: '#6B7280' }}>{isPt ? 'Nenhum orçamento encontrado' : 'Aucun devis trouvé'}</div>
+                    <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Nenhum orçamento encontrado' : 'Aucun devis trouvé'}</div>
                   ) : (
-                    <select className="v22-form-input" style={{ fontSize: 12 }}
-                      value="" onChange={e => {
+                    <select
+                      className="v5-filter-sel"
+                      style={{ width: '100%', fontSize: 11 }}
+                      value=""
+                      onChange={e => {
                         const devis = devisList.find(d => d.id === e.target.value)
                         if (devis) importDevis(devis)
-                      }}>
+                      }}
+                    >
                       <option value="">{isPt ? '— Selecionar um orçamento —' : '— Sélectionner un devis —'}</option>
                       {devisList.map(d => (
                         <option key={d.id} value={d.id}>
@@ -590,104 +741,120 @@ export function ChantiersBTPV2({ artisan }: { artisan: Artisan }) {
                 </div>
               )}
 
-              <div>
-                <label className="v22-form-label">{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
-                <input className="v22-form-input" value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
+              <div className="v5-fg">
+                <label className="v5-fl">{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
+                <input className="v5-fi" value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
                   placeholder={isPt ? 'ex: Immeuble R+3 — Gros oeuvre' : 'ex: Immeuble R+3 — Gros oeuvre'} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="v22-form-label">{isPt ? 'Cliente / Dono de obra' : 'Client / Maître d\'ouvrage'}</label>
-                  <input className="v22-form-input" value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
+
+              <div className="v5-fr">
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Cliente / Dono de obra' : 'Client / Maître d\'ouvrage'}</label>
+                  <input className="v5-fi" value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
                 </div>
-                <div>
-                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={14} /> Budget HT (€)</label>
-                  <input type="number" className="v22-form-input" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
+                <div className="v5-fg">
+                  <label className="v5-fl">Budget HT (€)</label>
+                  <input type="number" className="v5-fi" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
                 </div>
               </div>
-              <div>
-                <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={14} /> {isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input className="v22-form-input" style={{ flex: 1 }} value={form.adresse}
+
+              <div className="v5-fg">
+                <label className="v5-fl">{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="v5-fi" style={{ flex: 1 }} value={form.adresse}
                     onChange={e => setForm({ ...form, adresse: e.target.value })}
                     placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
-                  <button className="v22-btn v22-btn-sm" onClick={() => geocodeAdresse(form.adresse)}
-                    disabled={geocoding || !form.adresse.trim()} style={{ whiteSpace: 'nowrap' }}>
-                    {geocoding ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />} {form.latitude ? <CheckCircle2 size={14} /> : 'GPS'}
+                  <button className="v5-btn v5-btn-sm" onClick={() => geocodeAdresse(form.adresse)}
+                    disabled={geocoding || !form.adresse.trim()}>
+                    {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                    {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
                   </button>
                 </div>
-                {form.latitude && <div style={{ fontSize: 11, color: '#22C55E', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}</div>}
+                {form.latitude && (
+                  <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <CheckCircle2 size={10} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Satellite size={14} /> {isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="v5-fg">
+                <label className="v5-fl">{isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
-                    onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })} style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 700, fontSize: 14, minWidth: 50, textAlign: 'right' }}>{form.geoRayonM}m</span>
+                    onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })}
+                    style={{ flex: 1 }} />
+                  <span style={{ fontWeight: 600, fontSize: 13, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}m</span>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> {isPt ? 'Data de início' : 'Date de début'}</label>
-                  <input type="date" className="v22-form-input" value={form.dateDebut} onChange={e => setForm({ ...form, dateDebut: e.target.value })} />
+              <div className="v5-fr">
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Data de início' : 'Date de début'}</label>
+                  <input type="date" className="v5-fi" value={form.dateDebut} onChange={e => setForm({ ...form, dateDebut: e.target.value })} />
                 </div>
-                <div>
-                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> {isPt ? 'Data de fim' : 'Date de fin'}</label>
-                  <input type="date" className="v22-form-input" value={form.dateFin} onChange={e => setForm({ ...form, dateFin: e.target.value })} />
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Data de fim' : 'Date de fin'}</label>
+                  <input type="date" className="v5-fi" value={form.dateFin} onChange={e => setForm({ ...form, dateFin: e.target.value })} />
                 </div>
               </div>
 
               {/* ── Équipe / Employés assignés ── */}
-              <div>
-                <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={14} /> {isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
+              <div className="v5-fg">
+                <label className="v5-fl">{isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
                 {membresList.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#6B7280', padding: 8 }}>
+                  <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Aucun empregado. Ajoutez-en dans "Équipes".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto', padding: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 150, overflowY: 'auto', padding: 3 }}>
                     {membresList.map(m => {
                       const selected = (form.membres_ids || []).includes(m.id)
                       return (
                         <label key={m.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
-                          background: selected ? '#F0FDF4' : 'var(--v22-bg)', border: `1px solid ${selected ? '#86EFAC' : 'var(--v22-border)'}`,
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 4, cursor: 'pointer',
+                          background: selected ? '#E8F5E9' : '#fff', border: `1px solid ${selected ? '#81C784' : '#E0E0E0'}`,
+                          fontSize: 12,
                         }}>
                           <input type="checkbox" checked={selected}
                             onChange={() => {
                               const ids = form.membres_ids || []
                               setForm({ ...form, membres_ids: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] })
                             }} />
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{m.prenom} {m.nom}</span>
-                          <span style={{ fontSize: 11, color: '#6B7280' }}>{m.role}</span>
-                          <span style={{ fontSize: 11, color: '#EF4444', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
+                          <span style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</span>
+                          <span style={{ color: '#999' }}>{m.role}</span>
+                          <span style={{ color: '#C62828', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
                         </label>
                       )
                     })}
                   </div>
                 )}
                 {(form.membres_ids || []).length > 0 && (
-                  <div style={{ fontSize: 11, color: '#166534', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <CheckCircle2 size={12} /> {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
+                  <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
                     — {isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
                   </div>
                 )}
               </div>
 
-              <div>
-                <label className="v22-form-label">{isPt ? 'Descrição' : 'Description'}</label>
-                <textarea className="v22-form-input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+              <div className="v5-fg">
+                <label className="v5-fl">{isPt ? 'Descrição' : 'Description'}</label>
+                <textarea className="v5-fi" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
                   rows={3} style={{ resize: 'none' }} />
               </div>
             </div>
-            <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }}
-                onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }}
-                onClick={handleSave} disabled={!form.titre.trim() || saving}>
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {editId ? (isPt ? 'Guardar' : 'Enregistrer') : (isPt ? 'Criar obra' : 'Créer le chantier')}
+
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8 }}>
+              <button className="v5-btn" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
+                {isPt ? 'Cancelar' : 'Annuler'}
+              </button>
+              <button
+                className="v5-btn v5-btn-p"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={handleSave}
+                disabled={!form.titre.trim() || saving}
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                {' '}{editId ? (isPt ? 'Guardar' : 'Enregistrer') : (isPt ? 'Criar obra' : 'Créer le chantier')}
               </button>
             </div>
           </div>

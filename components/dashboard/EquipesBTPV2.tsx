@@ -5,7 +5,7 @@ import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { calculateEmployeeCost, grossFromNet, netFromGross, hourlyFromMonthly, monthlyFromHourly, validatePayroll, type PayrollBreakdown } from '@/lib/payroll/engine'
 import { resolveCompanyType, getCompanyTypesByCountry } from '@/lib/config/companyTypes'
-import { PlusCircle, Pencil, Trash2, Users, HardHat, Key, Clock, Calendar, FileText, BarChart3, UserCog, Wrench, DollarSign, Phone, Mail, Check, Minus, AlertTriangle, ChevronDown } from 'lucide-react'
+import { Pencil, Trash2, Users, HardHat, Clock, FileText, BarChart3, Wrench, DollarSign, Phone, Mail, Check, Minus, AlertTriangle } from 'lucide-react'
 
 /* ══════════════════════════════════════════════════════════
    ÉQUIPES BTP V2 — Supabase + Champs financiers
@@ -59,11 +59,11 @@ const TYPE_LABELS: Record<TypeCompte, string> = {
 }
 
 const TYPE_COLORS: Record<TypeCompte, string> = {
-  ouvrier: 'v22-tag v22-tag-gray',
-  chef_chantier: 'v22-tag v22-tag-amber',
-  conducteur_travaux: 'v22-tag v22-tag-yellow',
-  secretaire: 'v22-tag v22-tag-green',
-  gerant: 'v22-tag v22-tag-red',
+  ouvrier: 'v5-badge v5-badge-gray',
+  chef_chantier: 'v5-badge v5-badge-orange',
+  conducteur_travaux: 'v5-badge v5-badge-yellow',
+  secretaire: 'v5-badge v5-badge-green',
+  gerant: 'v5-badge v5-badge-red',
 }
 
 const CONTRAT_LABELS: Record<TypeContrat, string> = {
@@ -406,106 +406,106 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <div style={{ marginBottom: 12, animation: 'spin 1s linear infinite', display: 'flex', justifyContent: 'center' }}><Clock size={32} /></div>
-        <p style={{ color: 'var(--v22-text-mid)' }}>Chargement...</p>
+        <p style={{ color: '#999' }}>Chargement...</p>
       </div>
     )
   }
 
   return (
-    <div style={{ padding: 0 }}>
+    <div>
       {/* Header */}
-      <div className="v22-page-header">
+      <div className="v5-pg-t" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
-          <p className="v22-page-sub">{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
+          <h1>{isPt ? 'Équipes & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <p>{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && (
-            <button className="v22-btn" onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
-              <PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}
+            <button className="v5-btn v5-btn-p" onClick={() => { setEditingMembre(null); setMForm(EMPTY_MFORM); setShowFinance(false); setShowMembreModal(true) }}>
+              + {isPt ? 'Membro' : 'Membre'}
             </button>
           )}
           {tab === 'equipes' && (
-            <button className="v22-btn" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}>
-              <PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}
+            <button className="v5-btn v5-btn-p" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}>
+              + {isPt ? 'Equipa' : 'Équipe'}
             </button>
           )}
         </div>
       </div>
 
       {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, padding: '0 24px 16px' }}>
-        <div className="v22-card" style={{ padding: '14px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{totalActifs}</div>
-          <div className="v22-card-meta">{isPt ? 'Ativos' : 'Actifs'}</div>
+      <div className="v5-sc3" style={{ marginBottom: '1.25rem' }}>
+        <div className="v5-kpi" style={{ textAlign: 'center' }}>
+          <div className="v5-kpi-l">{isPt ? 'Ativos' : 'Actifs'}</div>
+          <div className="v5-kpi-v">{totalActifs}</div>
         </div>
-        <div className="v22-card" style={{ padding: '14px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{nbEquipes}</div>
-          <div className="v22-card-meta">{isPt ? 'Equipas' : 'Équipes'}</div>
+        <div className="v5-kpi" style={{ textAlign: 'center' }}>
+          <div className="v5-kpi-l">{isPt ? 'Equipas' : 'Équipes'}</div>
+          <div className="v5-kpi-v">{nbEquipes}</div>
         </div>
-        <div className="v22-card" style={{ padding: '14px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>{coutMoyenH}€/h</div>
-          <div className="v22-card-meta">{isPt ? 'Custo médio real' : 'Coût moyen réel'}</div>
+        <div className="v5-kpi hl" style={{ textAlign: 'center' }}>
+          <div className="v5-kpi-l">{isPt ? 'Custo médio real' : 'Coût moyen réel'}</div>
+          <div className="v5-kpi-v">{coutMoyenH}€/h</div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, padding: '0 24px 16px', borderBottom: '1px solid var(--v22-border)' }}>
+      <div className="v5-tabs">
         {(['membres', 'equipes'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`v22-tab${tab === t ? ' active' : ''}`}>
-            {t === 'membres' ? <><Users size={14} /> {isPt ? 'Membros' : 'Membres'}</> : <><HardHat size={14} /> {isPt ? 'Equipas' : 'Équipes'}</>}
+            className={`v5-tab-b${tab === t ? ' active' : ''}`}>
+            {t === 'membres' ? (isPt ? 'Membros' : 'Membres') : (isPt ? 'Equipas' : 'Équipes')}
           </button>
         ))}
       </div>
 
-      <div style={{ padding: '20px 24px' }}>
+      <div>
 
         {/* ── TAB MEMBRES ── */}
         {tab === 'membres' && (
           <>
             {activeMembres.length === 0 && inactiveMembres.length === 0 ? (
-              <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Users size={40} color="var(--v22-text-muted)" /></div>
+              <div className="v5-card" style={{ padding: 40, textAlign: 'center' }}>
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Users size={40} color="#BBB" /></div>
                 <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
-                <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Adicione os membros da sua empresa com os seus custos' : 'Ajoutez les membres de votre entreprise avec leurs coûts'}</p>
-                <button className="v22-btn" onClick={() => setShowMembreModal(true)}><PlusCircle size={14} /> {isPt ? 'Adicionar' : 'Ajouter'}</button>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Adicione os membros da sua empresa com os seus custos' : 'Ajoutez les membres de votre entreprise avec leurs coûts'}</p>
+                <button className="v5-btn v5-btn-p" onClick={() => setShowMembreModal(true)}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
               </div>
             ) : (
               <>
                 {/* Active members table */}
-                <div className="v22-card" style={{ marginBottom: inactiveMembres.length > 0 ? 20 : 0 }}>
-                  <div className="v22-card-head">
-                    <span className="v22-card-title">{isPt ? 'Colaboradores ativos' : 'Collaborateurs actifs'} ({activeMembres.length})</span>
+                <div className="v5-card" style={{ marginBottom: inactiveMembres.length > 0 ? 20 : 0, padding: 0 }}>
+                  <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8' }}>
+                    <div className="v5-st" style={{ marginBottom: 0 }}>{isPt ? 'Colaboradores ativos' : 'Collaborateurs actifs'} ({activeMembres.length})</div>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <table className="v5-dt">
                       <thead>
-                        <tr style={{ borderBottom: '2px solid var(--v22-border)' }}>
-                          <th style={thStyle}>{isPt ? 'Nome' : 'Nom'}</th>
-                          <th style={thStyle}>{isPt ? 'Tipo' : 'Type'}</th>
-                          <th style={thStyle}>{isPt ? 'Contrato' : 'Contrat'}</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>{isPt ? 'Custo/h' : 'Coût/h'}</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>{isPt ? 'Custo real/h' : 'Coût réel/h'}</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>{isPt ? 'Custo real/jour' : 'Coût réel/jour'}</th>
-                          <th style={{ ...thStyle, textAlign: 'right' }}>{isPt ? 'Indemnités' : 'Indemnités'}</th>
-                          <th style={thStyle}></th>
+                        <tr>
+                          <th>{isPt ? 'Nome' : 'Nom'}</th>
+                          <th>{isPt ? 'Tipo' : 'Type'}</th>
+                          <th>{isPt ? 'Contrato' : 'Contrat'}</th>
+                          <th style={{ textAlign: 'right' }}>{isPt ? 'Custo/h' : 'Coût/h'}</th>
+                          <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/h' : 'Coût réel/h'}</th>
+                          <th style={{ textAlign: 'right' }}>{isPt ? 'Custo real/jour' : 'Coût réel/jour'}</th>
+                          <th style={{ textAlign: 'right' }}>{isPt ? 'Indemnités' : 'Indemnités'}</th>
+                          <th></th>
                         </tr>
                       </thead>
                       <tbody>
                         {activeMembres.map(m => {
                           const equipe = equipes.find(e => e.membreIds?.includes(m.id))
                           return (
-                            <tr key={m.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
-                              <td style={tdStyle}>
+                            <tr key={m.id}>
+                              <td>
                                 <div style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</div>
-                                {m.rolePerso && <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{m.rolePerso}</div>}
-                                {equipe && <div style={{ fontSize: 11, color: 'var(--v22-yellow)', display: 'flex', alignItems: 'center', gap: 3 }}><HardHat size={11} /> {equipe.nom}</div>}
+                                {m.rolePerso && <div style={{ fontSize: 10, color: '#999' }}>{m.rolePerso}</div>}
+                                {equipe && <div style={{ fontSize: 10, color: 'var(--v5-primary-yellow-dark)', display: 'flex', alignItems: 'center', gap: 3 }}><HardHat size={10} /> {equipe.nom}</div>}
                               </td>
-                              <td style={tdStyle}>
-                                <span className={TYPE_COLORS[m.typeCompte]} style={{ fontSize: 11 }}>{TYPE_LABELS[m.typeCompte]}</span>
+                              <td>
+                                <span className={TYPE_COLORS[m.typeCompte]}>{TYPE_LABELS[m.typeCompte]}</span>
                               </td>
-                              <td style={tdStyle}>
+                              <td>
                                 <span style={{ fontSize: 12 }}>{
                                   (() => {
                                     const contrat = m.type_contrat && getValidContrats(m.typeCompte).includes(m.type_contrat) ? m.type_contrat : defaultContratForRole(m.typeCompte)
@@ -513,23 +513,23 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                                     return CONTRAT_LABELS[contrat]
                                   })()
                                 }</span>
-                                <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{m.heures_hebdo || 35}h/sem</div>
+                                <div style={{ fontSize: 10, color: '#999' }}>{m.heures_hebdo || 35}h/sem</div>
                               </td>
-                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{m.coutHoraire || 25}€</td>
-                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: 'var(--v22-yellow)' }}>{m.coutReelH}€</td>
-                              <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{m.coutReelJour}€</td>
-                              <td style={{ ...tdStyle, textAlign: 'right', fontSize: 12 }}>
-                                {(m.panier_repas_jour || 0) > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}><FileText size={12} /> {m.panier_repas_jour}€</div>}
-                                {(m.indemnite_trajet_jour || 0) > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Wrench size={12} /> {m.indemnite_trajet_jour}€</div>}
-                                {(m.panier_repas_jour || 0) === 0 && (m.indemnite_trajet_jour || 0) === 0 && <span style={{ color: 'var(--v22-text-mid)' }}>—</span>}
+                              <td style={{ textAlign: 'right', fontWeight: 600 }}>{m.coutHoraire || 25}€</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--v5-primary-yellow-dark)' }}>{m.coutReelH}€</td>
+                              <td style={{ textAlign: 'right', fontWeight: 700 }}>{m.coutReelJour}€</td>
+                              <td style={{ textAlign: 'right', fontSize: 11 }}>
+                                {(m.panier_repas_jour || 0) > 0 && <div>{m.panier_repas_jour}€ repas</div>}
+                                {(m.indemnite_trajet_jour || 0) > 0 && <div>{m.indemnite_trajet_jour}€ trajet</div>}
+                                {(m.panier_repas_jour || 0) === 0 && (m.indemnite_trajet_jour || 0) === 0 && <span style={{ color: '#BBB' }}>—</span>}
                               </td>
-                              <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
+                              <td style={{ whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4 }}>
-                                  <button className="v22-btn v22-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label="Modifier"><Pencil size={14} /></button>
-                                  <button className="v22-btn v22-btn-sm" onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
-                                    style={{ background: 'var(--v22-amber-bg, #FFF8E1)', color: '#B8860B' }} aria-label="Désactiver"><Minus size={14} /></button>
-                                  <button className="v22-btn v22-btn-sm" onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
-                                    style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red)' }} aria-label="Supprimer"><Trash2 size={14} /></button>
+                                  <button className="v5-btn v5-btn-sm" onClick={() => openEditMembre(m)} title={isPt ? 'Editar' : 'Modifier'} aria-label="Modifier"><Pencil size={12} /></button>
+                                  <button className="v5-btn v5-btn-sm" onClick={() => toggleActif(m)} title={isPt ? 'Desativar' : 'Désactiver'}
+                                    style={{ background: '#FFF3E0', color: '#EF6C00' }} aria-label="Désactiver"><Minus size={12} /></button>
+                                  <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => deleteMembre(m.id)} title={isPt ? 'Remover' : 'Supprimer'}
+                                    aria-label="Supprimer"><Trash2 size={12} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -542,20 +542,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
                 {/* Inactive members */}
                 {inactiveMembres.length > 0 && (
-                  <div className="v22-card" style={{ opacity: 0.7 }}>
-                    <div className="v22-card-head">
-                      <span className="v22-card-title" style={{ color: 'var(--v22-text-mid)' }}><Minus size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Inativos' : 'Inactifs'} ({inactiveMembres.length})</span>
+                  <div className="v5-card" style={{ opacity: 0.7 }}>
+                    <div style={{ marginBottom: '.5rem' }}>
+                      <div className="v5-st" style={{ color: '#999' }}>{isPt ? 'Inativos' : 'Inactifs'} ({inactiveMembres.length})</div>
                     </div>
-                    <div style={{ padding: '8px 16px 12px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {inactiveMembres.map(m => (
-                          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--v22-bg)', borderRadius: 8, fontSize: 13 }}>
-                            <span>{m.prenom} {m.nom}</span>
-                            <button className="v22-btn v22-btn-sm" onClick={() => toggleActif(m)} style={{ padding: '2px 6px', fontSize: 11 }}
-                              title={isPt ? 'Reativar' : 'Réactiver'}><Check size={14} /></button>
-                          </div>
-                        ))}
-                      </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {inactiveMembres.map(m => (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: '#F5F5F5', borderRadius: 10, fontSize: 12 }}>
+                          <span>{m.prenom} {m.nom}</span>
+                          <button className="v5-btn v5-btn-sm" onClick={() => toggleActif(m)}
+                            title={isPt ? 'Reativar' : 'Réactiver'}><Check size={12} /></button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -567,44 +565,39 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
         {/* ── TAB ÉQUIPES ── */}
         {tab === 'equipes' && (
           equipes.length === 0 ? (
-            <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><HardHat size={40} color="var(--v22-text-muted)" /></div>
+            <div className="v5-card" style={{ padding: 40, textAlign: 'center' }}>
+              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><HardHat size={40} color="#BBB" /></div>
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
-              <p className="v22-card-meta" style={{ marginBottom: 16 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
-              <button className="v22-btn" onClick={() => setShowEquipeModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
+              <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
+              <button className="v5-btn v5-btn-p" onClick={() => setShowEquipeModal(true)}>+ {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {equipes.map(eq => {
+            <div className="v5-sg2">
+              {equipes.map((eq, idx) => {
                 const eqMembres = membres.filter(m => eq.membreIds?.includes(m.id))
                 const eqCost = eqMembres.reduce((s, m) => {
                   const cH = (m.coutHoraire || 25) * (1 + (m.charges_patronales_pct || m.chargesPct || 45) / 100)
                   return s + cH
                 }, 0)
+                const avatarColors = ['#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EF5350', '#26C6DA']
+                const initials = eq.nom.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('')
+                const chef = eqMembres.find(m => m.typeCompte === 'chef_chantier') || eqMembres[0]
                 return (
-                  <div key={eq.id} className="v22-card" style={{ padding: 18 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15 }}>{eq.nom}</div>
-                        {eq.metier && <div style={{ fontSize: 12, color: 'var(--v22-yellow)', fontWeight: 600, marginTop: 2 }}>{eq.metier}</div>}
+                  <div key={eq.id} className="v5-card" style={{ cursor: 'pointer' }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds || [] }); setShowEquipeModal(true) }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '.6rem' }}>
+                      <div className="v5-hdr-avatar" style={{ background: avatarColors[idx % avatarColors.length], width: 36, height: 36, fontSize: 12, flexShrink: 0 }}>{initials}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{eq.nom}</div>
+                        <div style={{ fontSize: 10, color: '#999' }}>
+                          {chef ? `${chef.prenom} ${chef.nom}, chef` : ''}{eqMembres.length > 0 ? ` — ${eqMembres.length} ${isPt ? 'membros' : 'personnes'}` : ''}
+                        </div>
                       </div>
-                      <span className="v22-tag v22-tag-green" style={{ fontSize: 11 }}>{eqMembres.length} {isPt ? 'membros' : 'membres'}</span>
                     </div>
-                    {eqMembres.length > 0 && (
-                      <>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                          {eqMembres.map(m => (
-                            <span key={m.id} className="v22-tag v22-tag-gray" style={{ fontSize: 11 }}>{m.prenom} {m.nom[0]}.</span>
-                          ))}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', marginBottom: 10 }}>
-                          {isPt ? 'Custo/h equipa' : "Coût/h équipe"} : <strong style={{ color: 'var(--v22-yellow)' }}>{Math.round(eqCost * 100) / 100}€</strong>
-                        </div>
-                      </>
-                    )}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="v22-btn v22-btn-sm" style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds || [] }); setShowEquipeModal(true) }}><Pencil size={14} /></button>
-                      <button className="v22-btn v22-btn-sm" style={{ background: 'var(--v22-red-bg)', color: 'var(--v22-red)' }} onClick={() => deleteEquipe(eq.id)}><Trash2 size={14} /></button>
+                    {eq.metier && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{eq.metier}</div>}
+                    {eqCost > 0 && <div style={{ fontSize: 11, color: '#666', marginBottom: '.4rem' }}>{isPt ? 'Custo/h' : 'Coût/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(eqCost * 100) / 100}€</strong></div>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className={`v5-badge ${eqMembres.length > 0 ? 'v5-badge-green' : 'v5-badge-orange'}`}>{eqMembres.length > 0 ? (isPt ? 'Operacional' : 'Déployée') : (isPt ? 'Em repouso' : 'En repos')}</span>
+                      <button className="v5-btn v5-btn-sm v5-btn-d" onClick={(e) => { e.stopPropagation(); deleteEquipe(eq.id) }} aria-label="Supprimer"><Trash2 size={12} /></button>
                     </div>
                   </div>
                 )
@@ -617,29 +610,29 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
       {/* ── MODAL MEMBRE ── */}
       {showMembreModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v22-card" style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="v22-card-head">
-              <span className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={18} /> {editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
-              <button className="v22-btn v22-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>✕</button>
+          <div className="v5-card" style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
+            <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{editingMembre ? (isPt ? 'Editar membro' : 'Modifier le membre') : (isPt ? 'Novo colaborador' : 'Nouveau collaborateur')}</span>
+              <button className="v5-btn v5-btn-sm" onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>✕</button>
             </div>
-            <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Identité */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label">{isPt ? 'Primeiro nome *' : 'Prénom *'}</label>
-                  <input className="v22-form-input" value={mForm.prenom} onChange={e => setMForm({ ...mForm, prenom: e.target.value })} placeholder="Jean" />
+                  <label className="v5-fl">{isPt ? 'Primeiro nome *' : 'Prénom *'}</label>
+                  <input className="v5-fi" value={mForm.prenom} onChange={e => setMForm({ ...mForm, prenom: e.target.value })} placeholder="Jean" />
                 </div>
                 <div>
-                  <label className="v22-form-label">{isPt ? 'Apelido *' : 'Nom *'}</label>
-                  <input className="v22-form-input" value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} placeholder="Dupont" />
+                  <label className="v5-fl">{isPt ? 'Apelido *' : 'Nom *'}</label>
+                  <input className="v5-fi" value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} placeholder="Dupont" />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label">{isPt ? 'Tipo de conta' : 'Type de compte'}</label>
-                  <select className="v22-form-input" value={mForm.typeCompte} onChange={e => {
+                  <label className="v5-fl">{isPt ? 'Tipo de conta' : 'Type de compte'}</label>
+                  <select className="v5-fi" value={mForm.typeCompte} onChange={e => {
                     const newRole = e.target.value as TypeCompte
                     const validContrats = getValidContrats(newRole)
                     const contratStillValid = validContrats.includes(mForm.type_contrat)
@@ -655,9 +648,9 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   </select>
                 </div>
                 <div>
-                  <label className="v22-form-label">{isPt ? 'Contrato' : 'Type de contrat'}</label>
+                  <label className="v5-fl">{isPt ? 'Contrato' : 'Type de contrat'}</label>
                   <select
-                    className="v22-form-input"
+                    className="v5-fi"
                     value={mForm.type_contrat}
                     disabled={mForm.typeCompte === 'gerant'}
                     style={mForm.typeCompte === 'gerant' ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
@@ -692,20 +685,20 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                     {/* % capital — seulement pertinent en FR pour SARL/EURL */}
                     {country === 'FR' && ['sarl', 'eurl', 'snc', 'scs'].includes(companyType) && (
                       <div>
-                        <label className="v22-form-label" style={{ color: statutColor.text }}>
+                        <label className="v5-fl" style={{ color: statutColor.text }}>
                           {isPt ? '% capital detido' : '% de capital détenu'}
                         </label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input
                             type="number"
-                            className="v22-form-input"
+                            className="v5-fi"
                             min={0} max={100} step={1}
                             style={{ width: 90 }}
                             value={mForm.detention_capital_percent ?? 100}
                             onChange={e => setMForm({ ...mForm, detention_capital_percent: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
                           />
-                          <span style={{ fontSize: 13, color: 'var(--v22-text-mid)' }}>%</span>
-                          <span style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>
+                          <span style={{ fontSize: 13, color: '#999' }}>%</span>
+                          <span style={{ fontSize: 11, color: '#999' }}>
                             {isPt ? '(> 50% = maioritário = independente)' : '(> 50% = majoritaire = TNS)'}
                           </span>
                         </div>
@@ -739,13 +732,13 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
               })()}
 
               <div>
-                <label className="v22-form-label">{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'}</label>
-                <input className="v22-form-input" value={mForm.rolePerso} onChange={e => setMForm({ ...mForm, rolePerso: e.target.value })} placeholder={isPt ? 'ex: Pedreiro, Canalizador...' : 'ex: Maçon, Carreleur...'} />
+                <label className="v5-fl">{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'}</label>
+                <input className="v5-fi" value={mForm.rolePerso} onChange={e => setMForm({ ...mForm, rolePerso: e.target.value })} placeholder={isPt ? 'ex: Pedreiro, Canalizador...' : 'ex: Maçon, Carreleur...'} />
               </div>
 
               <div>
-                <label className="v22-form-label">{isPt ? 'Equipa' : 'Équipe'}</label>
-                <select className="v22-form-input" value={mForm.equipeId} onChange={e => setMForm({ ...mForm, equipeId: e.target.value })}>
+                <label className="v5-fl">{isPt ? 'Equipa' : 'Équipe'}</label>
+                <select className="v5-fi" value={mForm.equipeId} onChange={e => setMForm({ ...mForm, equipeId: e.target.value })}>
                   <option value="">{isPt ? '— Sem equipa' : '— Sans équipe'}</option>
                   {equipes.map(e => <option key={e.id} value={e.id}>{e.nom}</option>)}
                 </select>
@@ -753,56 +746,56 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={14} /> {isPt ? 'Telefone' : 'Téléphone'}</label>
-                  <input className="v22-form-input" value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
+                  <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={14} /> {isPt ? 'Telefone' : 'Téléphone'}</label>
+                  <input className="v5-fi" value={mForm.telephone} onChange={e => setMForm({ ...mForm, telephone: e.target.value })} placeholder="06 12 34 56 78" />
                 </div>
                 <div>
-                  <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
-                  <input className="v22-form-input" value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
+                  <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={14} /> Email</label>
+                  <input className="v5-fi" value={mForm.email} onChange={e => setMForm({ ...mForm, email: e.target.value })} placeholder="jean@example.com" />
                 </div>
               </div>
 
               {/* Toggle finance section */}
               <button
-                className="v22-btn v22-btn-sm"
-                style={{ alignSelf: 'flex-start', background: showFinance ? 'var(--v22-yellow)' : 'var(--v22-bg)', fontWeight: showFinance ? 700 : 400 }}
+                className="v5-btn v5-btn-sm"
+                style={{ alignSelf: 'flex-start', background: showFinance ? 'var(--v5-primary-yellow)' : '#fff', fontWeight: showFinance ? 700 : 400 }}
                 onClick={() => setShowFinance(!showFinance)}
               >
-                <DollarSign size={14} /> {isPt ? 'Dados financeiros' : 'Données financières'} <ChevronDown size={14} style={{ transform: showFinance ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                {isPt ? 'Dados financeiros' : 'Données financières'} {showFinance ? '▲' : '▼'}
               </button>
 
               {/* Financial fields — smart auto-calculation */}
               {showFinance && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, background: 'var(--v22-bg)', borderRadius: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, background: '#FAFAFA', borderRadius: 10 }}>
 
                   {/* Mode toggle: Auto / Manuel */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#999' }}>
                       <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> {isPt ? 'Salário e custos' : 'Salaire et coûts'}
                     </div>
-                    <div style={{ display: 'flex', gap: 0 }}>
+                    <div className="v5-tabs" style={{ marginBottom: 0, border: 'none' }}>
                       <button
                         onClick={() => setCalcMode('auto')}
-                        className={`v22-tab${calcMode === 'auto' ? ' active' : ''}`}>
+                        className={`v5-tab-b${calcMode === 'auto' ? ' active' : ''}`}>
                         Auto
                       </button>
                       <button
                         onClick={() => setCalcMode('manuel')}
-                        className={`v22-tab${calcMode === 'manuel' ? ' active' : ''}`}>
-                        <Pencil size={12} /> Manuel
+                        className={`v5-tab-b${calcMode === 'manuel' ? ' active' : ''}`}>
+                        Manuel
                       </button>
                     </div>
                   </div>
 
                   {calcMode === 'auto' && (
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, padding: '6px 10px', background: '#FFFDE7', borderRadius: 6, border: '1px solid #FFF9C4' }}>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: -8, padding: '6px 10px', background: '#FFFDE7', borderRadius: 6, border: '1px solid #FFF9C4' }}>
                       {isPt
                         ? 'Modo automático : preencha o NET ou o BRUTO, tudo o resto calcula-se sozinho.'
                         : 'Mode auto : remplissez le NET ou le BRUT, tout le reste se calcule tout seul.'}
                     </div>
                   )}
                   {calcMode === 'manuel' && (
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginTop: -8, padding: '6px 10px', background: 'var(--v22-card-bg, #fff)', borderRadius: 6, border: '1px solid var(--v22-border)' }}>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: -8, padding: '6px 10px', background: '#fff', borderRadius: 6, border: '1px solid #E8E8E8' }}>
                       {isPt
                         ? 'Modo manual : preencha cada campo livremente, sem cálculo automático.'
                         : 'Mode manuel : remplissez chaque champ librement, aucun calcul automatique.'}
@@ -812,8 +805,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   {/* Heures + charges (paramètres de calcul) */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className="v22-form-label">{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
-                      <input className="v22-form-input" type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
+                      <label className="v5-fl">{isPt ? 'Horas/semana' : 'Heures/semaine'}</label>
+                      <input className="v5-fi" type="number" min="1" max="60" step="0.5" value={mForm.heures_hebdo}
                         onChange={e => {
                           const h = parseFloat(e.target.value) || 35
                           if (calcMode === 'auto') {
@@ -825,8 +818,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         }} />
                     </div>
                     <div>
-                      <label className="v22-form-label">{isPt ? 'Encargos salariais (%)' : 'Charges salariales (%)'}</label>
-                      <input className="v22-form-input" type="number" min="0" max="50" step="1" value={mForm.charges_salariales_pct}
+                      <label className="v5-fl">{isPt ? 'Encargos salariais (%)' : 'Charges salariales (%)'}</label>
+                      <input className="v5-fi" type="number" min="0" max="50" step="1" value={mForm.charges_salariales_pct}
                         onChange={e => {
                           const cs = parseFloat(e.target.value) || 22
                           if (calcMode === 'auto') {
@@ -846,8 +839,8 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         }} />
                     </div>
                     <div>
-                      <label className="v22-form-label">{isPt ? 'Encargos patronais (%)' : 'Charges patronales (%)'}</label>
-                      <input className="v22-form-input" type="number" min="0" max="80" step="1" value={mForm.charges_patronales_pct}
+                      <label className="v5-fl">{isPt ? 'Encargos patronais (%)' : 'Charges patronales (%)'}</label>
+                      <input className="v5-fi" type="number" min="0" max="80" step="1" value={mForm.charges_patronales_pct}
                         onChange={e => setMForm({ ...mForm, charges_patronales_pct: parseFloat(e.target.value) || 45 })} />
                     </div>
                   </div>
@@ -855,14 +848,14 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   {/* Salaire NET / BRUT / Horaire */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário líquido (€)' : 'Salaire NET (€)'}
-                        {calcMode === 'auto' && mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'net' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
-                      <input className="v22-form-input" type="number" min="0" step="50"
+                      <input className="v5-fi" type="number" min="0" step="50"
                         value={mForm.salaire_net_mensuel}
                         style={{
-                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'net' ? 'var(--v22-yellow)' : undefined,
+                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'net' ? 'var(--v5-primary-yellow)' : undefined,
                           fontWeight: calcMode === 'auto' && mForm._lastEdited === 'net' ? 700 : 400,
                         }}
                         onChange={e => {
@@ -883,14 +876,14 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         placeholder="ex: 1700" />
                     </div>
                     <div>
-                      <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Salário bruto (€)' : 'Salaire BRUT (€)'}
-                        {calcMode === 'auto' && mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'brut' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
-                      <input className="v22-form-input" type="number" min="0" step="50"
+                      <input className="v5-fi" type="number" min="0" step="50"
                         value={mForm.salaire_brut_mensuel}
                         style={{
-                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'brut' ? 'var(--v22-yellow)' : undefined,
+                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'brut' ? 'var(--v5-primary-yellow)' : undefined,
                           fontWeight: calcMode === 'auto' && mForm._lastEdited === 'brut' ? 700 : 400,
                         }}
                         onChange={e => {
@@ -911,14 +904,14 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         placeholder="ex: 2180" />
                     </div>
                     <div>
-                      <label className="v22-form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isPt ? 'Custo horário (€)' : 'Coût horaire (€)'}
-                        {calcMode === 'auto' && mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v22-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
+                        {calcMode === 'auto' && mForm._lastEdited === 'horaire' && <span style={{ fontSize: 9, background: 'var(--v5-primary-yellow)', color: '#0D1B2E', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>source</span>}
                       </label>
-                      <input className="v22-form-input" type="number" min="0" step="0.5"
+                      <input className="v5-fi" type="number" min="0" step="0.5"
                         value={mForm.coutHoraire}
                         style={{
-                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'horaire' ? 'var(--v22-yellow)' : undefined,
+                          borderColor: calcMode === 'auto' && mForm._lastEdited === 'horaire' ? 'var(--v5-primary-yellow)' : undefined,
                           fontWeight: calcMode === 'auto' && mForm._lastEdited === 'horaire' ? 700 : 400,
                         }}
                         onChange={e => {
@@ -975,10 +968,10 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
                   {/* Arrow flow visualization — uses payroll engine */}
                   {(parseFloat(mForm.salaire_net_mensuel) || parseFloat(mForm.salaire_brut_mensuel) || 0) > 0 && (
-                    <div style={{ padding: 10, background: 'var(--v22-card-bg, #fff)', borderRadius: 8, border: '1px solid var(--v22-border)', fontSize: 12 }}>
+                    <div style={{ padding: 10, background: '#fff', borderRadius: 8, border: '1px solid #E8E8E8', fontSize: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                         <span style={{ fontWeight: 700 }}>{isPt ? 'Decomposição salarial' : 'Décomposition salariale'}</span>
-                        <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}>{companyConfig.label_fr}</span>
+                        <span className="v5-badge v5-badge-gray">{companyConfig.label_fr}</span>
                       </div>
                       {(() => {
                         const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
@@ -1000,19 +993,19 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ color: 'var(--v22-text-mid)' }}>{isPt ? 'Líquido (o que recebe)' : 'Net (ce qu\'il reçoit)'}</span>
-                              <span style={{ fontWeight: 700, color: 'var(--v22-green)' }}>{preview.net_salary}€</span>
+                              <span style={{ color: '#999' }}>{isPt ? 'Líquido (o que recebe)' : 'Net (ce qu\'il reçoit)'}</span>
+                              <span style={{ fontWeight: 700, color: '#2E7D32' }}>{preview.net_salary}€</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos salariais' : 'Charges salariales'} ({Math.round(preview.employee_charge_rate * 100)}%)</span>
+                              <span style={{ color: '#999' }}>+ {isPt ? 'Encargos salariais' : 'Charges salariales'} ({Math.round(preview.employee_charge_rate * 100)}%)</span>
                               <span style={{ color: '#C0392B' }}>+{preview.employee_charges}€</span>
                             </div>
-                            <div style={{ borderTop: '1px dashed var(--v22-border)', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                            <div style={{ borderTop: '1px dashed #E8E8E8', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 600 }}>{isPt ? '= Bruto' : '= Brut'}</span>
                               <span style={{ fontWeight: 700 }}>{preview.gross_salary}€</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Encargos patronais' : 'Charges patronales'} ({Math.round(preview.employer_charge_rate * 100)}%)</span>
+                              <span style={{ color: '#999' }}>+ {isPt ? 'Encargos patronais' : 'Charges patronales'} ({Math.round(preview.employer_charge_rate * 100)}%)</span>
                               <span style={{ color: '#C0392B' }}>+{preview.employer_charges}€</span>
                             </div>
                             {/* BTP-specific cost lines */}
@@ -1024,13 +1017,13 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                             ))}
                             {preview.prime_mensuelle > 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--v22-text-mid)' }}>+ {isPt ? 'Prémio mensal' : 'Prime mensuelle'}</span>
+                                <span style={{ color: '#999' }}>+ {isPt ? 'Prémio mensal' : 'Prime mensuelle'}</span>
                                 <span style={{ color: '#C0392B' }}>+{preview.prime_mensuelle}€</span>
                               </div>
                             )}
-                            <div style={{ borderTop: '2px solid var(--v22-yellow)', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                            <div style={{ borderTop: '2px solid var(--v5-primary-yellow)', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 700 }}>= {isPt ? 'Custo total empregador' : 'Coût total employeur'}</span>
-                              <span style={{ fontWeight: 700, color: 'var(--v22-yellow)', fontSize: 14 }}>{preview.total_employer_cost_mensuel}€{isPt ? '/mês' : '/mois'}</span>
+                              <span style={{ fontWeight: 700, color: 'var(--v5-primary-yellow)', fontSize: 14 }}>{preview.total_employer_cost_mensuel}€{isPt ? '/mês' : '/mois'}</span>
                             </div>
                             {/* Engine warnings */}
                             {warnings.length > 0 && (
@@ -1048,33 +1041,33 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                     </div>
                   )}
 
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text-mid)', marginTop: 4, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={14} /> {isPt ? 'Indemnizações diárias' : 'Indemnités journalières'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#999', marginTop: 4, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={14} /> {isPt ? 'Indemnizações diárias' : 'Indemnités journalières'}</div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <div>
-                      <label className="v22-form-label">{isPt ? 'Refeição/dia (€)' : 'Panier repas/jour (€)'}</label>
-                      <input className="v22-form-input" type="number" min="0" step="0.5" value={mForm.panier_repas_jour}
+                      <label className="v5-fl">{isPt ? 'Refeição/dia (€)' : 'Panier repas/jour (€)'}</label>
+                      <input className="v5-fi" type="number" min="0" step="0.5" value={mForm.panier_repas_jour}
                         onChange={e => setMForm({ ...mForm, panier_repas_jour: parseFloat(e.target.value) || 0 })} />
                     </div>
                     <div>
-                      <label className="v22-form-label">{isPt ? 'Deslocação/dia (€)' : 'Indemnité trajet/jour (€)'}</label>
-                      <input className="v22-form-input" type="number" min="0" step="0.5" value={mForm.indemnite_trajet_jour}
+                      <label className="v5-fl">{isPt ? 'Deslocação/dia (€)' : 'Indemnité trajet/jour (€)'}</label>
+                      <input className="v5-fi" type="number" min="0" step="0.5" value={mForm.indemnite_trajet_jour}
                         onChange={e => setMForm({ ...mForm, indemnite_trajet_jour: parseFloat(e.target.value) || 0 })} />
                     </div>
                     <div>
-                      <label className="v22-form-label">{isPt ? 'Prémio mensal (€)' : 'Prime mensuelle (€)'}</label>
-                      <input className="v22-form-input" type="number" min="0" step="10" value={mForm.prime_mensuelle}
+                      <label className="v5-fl">{isPt ? 'Prémio mensal (€)' : 'Prime mensuelle (€)'}</label>
+                      <input className="v5-fi" type="number" min="0" step="10" value={mForm.prime_mensuelle}
                         onChange={e => setMForm({ ...mForm, prime_mensuelle: parseFloat(e.target.value) || 0 })} />
                     </div>
                   </div>
 
                   {/* Live cost summary — payroll engine */}
-                  <div style={{ marginTop: 4, padding: 12, background: 'var(--v22-card-bg, #fff)', borderRadius: 8, border: '2px solid var(--v22-yellow)' }}>
+                  <div style={{ marginTop: 4, padding: 12, background: '#fff', borderRadius: 8, border: '2px solid var(--v5-primary-yellow)' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}><BarChart3 size={14} /> {isPt ? 'Custo real para a empresa' : 'Coût réel pour l\'entreprise'}</div>
                     {(() => {
                       const netVal = parseFloat(mForm.salaire_net_mensuel) || 0
                       if (netVal <= 0 && mForm.coutHoraire <= 0) {
-                        return <div style={{ fontSize: 12, color: 'var(--v22-text-mid)', fontStyle: 'italic' }}>{isPt ? 'Preencha o salário para ver os custos' : 'Renseignez un salaire pour voir les coûts'}</div>
+                        return <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic' }}>{isPt ? 'Preencha o salário para ver os custos' : 'Renseignez un salaire pour voir les coûts'}</div>
                       }
                       const p = calculateEmployeeCost({
                         country,
@@ -1092,19 +1085,19 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                       return (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
                           <div>{isPt ? 'Custo/hora (total)' : 'Coût/heure (total)'} :</div>
-                          <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v22-yellow)' }}>{p.cost_per_hour}€</div>
+                          <div style={{ fontWeight: 700, textAlign: 'right', color: 'var(--v5-primary-yellow)' }}>{p.cost_per_hour}€</div>
                           <div>{isPt ? 'Custo/jour' : 'Coût/jour'} :</div>
                           <div style={{ fontWeight: 700, textAlign: 'right' }}>{p.cost_per_day}€</div>
                           {p.indemnites_jour > 0 && <>
-                            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>  {isPt ? 'dont indemnités' : 'dont indemnités'} :</div>
-                            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', textAlign: 'right' }}>{p.indemnites_jour}€/jour</div>
+                            <div style={{ fontSize: 11, color: '#999' }}>  {isPt ? 'dont indemnités' : 'dont indemnités'} :</div>
+                            <div style={{ fontSize: 11, color: '#999', textAlign: 'right' }}>{p.indemnites_jour}€/jour</div>
                           </>}
                           {p.btp_total > 0 && <>
                             <div style={{ fontSize: 11, color: '#8B6914' }}>  {isPt ? 'dont BTP spécifique' : 'dont BTP spécifique'} :</div>
                             <div style={{ fontSize: 11, color: '#8B6914', textAlign: 'right' }}>{p.btp_total}€/mois</div>
                           </>}
-                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal' : 'Coût mensuel'} :</div>
-                          <div style={{ borderTop: '1px solid var(--v22-border)', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v22-yellow)' }}>{p.cost_per_month}€</div>
+                          <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 600 }}>{isPt ? 'Custo mensal' : 'Coût mensuel'} :</div>
+                          <div style={{ borderTop: '1px solid #E8E8E8', paddingTop: 4, fontWeight: 700, textAlign: 'right', fontSize: 14, color: 'var(--v5-primary-yellow)' }}>{p.cost_per_month}€</div>
                           <div>{isPt ? 'Custo anual' : 'Coût annuel'} :</div>
                           <div style={{ fontWeight: 600, textAlign: 'right' }}>{p.cost_per_year.toLocaleString('fr-FR')}€</div>
                         </div>
@@ -1115,17 +1108,17 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                   {/* Actif toggle */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, marginTop: 4 }}>
                     <input type="checkbox" checked={mForm.actif} onChange={e => setMForm({ ...mForm, actif: e.target.checked })}
-                      style={{ accentColor: 'var(--v22-green)', width: 16, height: 16 }} />
+                      style={{ accentColor: '#2E7D32', width: 16, height: 16 }} />
                     <span>{isPt ? 'Membro ativo' : 'Membre actif'}</span>
                   </label>
                 </div>
               )}
             </div>
 
-            <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }}
+            <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8 }}>
+              <button className="v5-btn" style={{ flex: 1 }}
                 onClick={() => { setShowMembreModal(false); setEditingMembre(null); setShowFinance(false) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }}
+              <button className="v5-btn v5-btn-p" style={{ flex: 1 }}
                 onClick={submitMembre} disabled={!mForm.prenom.trim() || !mForm.nom.trim() || saving}>
                 {saving ? '...' : editingMembre ? (isPt ? 'Guardar' : 'Sauvegarder') : (isPt ? 'Adicionar' : 'Ajouter')}
               </button>
@@ -1137,27 +1130,27 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
       {/* ── MODAL ÉQUIPE ── */}
       {showEquipeModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="v22-card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="v22-card-head">
-              <span className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><HardHat size={18} /> {editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
-              <button className="v22-btn v22-btn-sm" onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>✕</button>
+          <div className="v5-card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
+            <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{editingEquipe ? (isPt ? 'Editar equipa' : "Modifier l'équipe") : (isPt ? 'Nova equipa' : 'Nouvelle équipe')}</span>
+              <button className="v5-btn v5-btn-sm" onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>✕</button>
             </div>
-            <div className="v22-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="v22-form-label">{isPt ? 'Nome da equipa *' : "Nom de l'équipe *"}</label>
-                <input className="v22-form-input" value={eForm.nom} onChange={e => setEForm({ ...eForm, nom: e.target.value })} placeholder={isPt ? 'ex: Equipa Alvenaria A' : 'ex: Équipe Maçonnerie A'} />
+                <label className="v5-fl">{isPt ? 'Nome da equipa *' : "Nom de l'équipe *"}</label>
+                <input className="v5-fi" value={eForm.nom} onChange={e => setEForm({ ...eForm, nom: e.target.value })} placeholder={isPt ? 'ex: Equipa Alvenaria A' : 'ex: Équipe Maçonnerie A'} />
               </div>
               <div>
-                <label className="v22-form-label">{isPt ? 'Especialidade' : 'Corps de métier'}</label>
-                <select className="v22-form-input" value={eForm.metier} onChange={e => setEForm({ ...eForm, metier: e.target.value })}>
+                <label className="v5-fl">{isPt ? 'Especialidade' : 'Corps de métier'}</label>
+                <select className="v5-fi" value={eForm.metier} onChange={e => setEForm({ ...eForm, metier: e.target.value })}>
                   <option value="">—</option>
                   {METIERS_FR.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
-                <label className="v22-form-label">{isPt ? 'Membros da equipa' : "Membres de l'équipe"}</label>
+                <label className="v5-fl">{isPt ? 'Membros da equipa' : "Membres de l'équipe"}</label>
                 {membres.length === 0 ? (
-                  <p className="v22-card-meta" style={{ fontSize: 12 }}>{isPt ? 'Adicione colaboradores primeiro' : "Ajoutez des collaborateurs d'abord"}</p>
+                  <p style={{ fontSize: 11, color: '#999' }}>{isPt ? 'Adicione colaboradores primeiro' : "Ajoutez des collaborateurs d'abord"}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', padding: '4px 0' }}>
                     {membres.filter(m => m.actif !== false).map(m => (
@@ -1165,7 +1158,7 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
                         <input type="checkbox"
                           checked={eForm.membreIds.includes(m.id)}
                           onChange={e => setEForm({ ...eForm, membreIds: e.target.checked ? [...eForm.membreIds, m.id] : eForm.membreIds.filter(id => id !== m.id) })}
-                          style={{ accentColor: 'var(--v22-yellow)', width: 14, height: 14 }}
+                          style={{ accentColor: '#FFC107', width: 14, height: 14 }}
                         />
                         <span>{m.prenom} {m.nom}</span>
                         <span className={TYPE_COLORS[m.typeCompte]} style={{ fontSize: 10 }}>{TYPE_LABELS[m.typeCompte]}</span>
@@ -1177,20 +1170,20 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
               {/* Cost preview */}
               {eForm.membreIds.length > 0 && (
-                <div style={{ padding: 10, background: 'var(--v22-bg)', borderRadius: 8, fontSize: 12 }}>
+                <div style={{ padding: 10, background: '#FAFAFA', borderRadius: 8, fontSize: 12 }}>
                   <div style={{ fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><BarChart3 size={14} /> {isPt ? 'Custo da equipa' : "Coût de l'équipe"}</div>
                   {(() => {
                     const sel = membres.filter(m => eForm.membreIds.includes(m.id))
                     const totalH = sel.reduce((s, m) => s + (m.coutHoraire || 25) * (1 + (m.charges_patronales_pct || m.chargesPct || 45) / 100), 0)
-                    return <div>{isPt ? 'Total coût réel/h' : 'Total coût réel/h'} : <strong style={{ color: 'var(--v22-yellow)' }}>{Math.round(totalH * 100) / 100}€</strong></div>
+                    return <div>{isPt ? 'Total coût réel/h' : 'Total coût réel/h'} : <strong style={{ color: 'var(--v5-primary-yellow-dark)' }}>{Math.round(totalH * 100) / 100}€</strong></div>
                   })()}
                 </div>
               )}
             </div>
-            <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className="v22-btn" style={{ flex: 1, background: 'none', border: '1px solid var(--v22-border)' }}
+            <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8 }}>
+              <button className="v5-btn" style={{ flex: 1 }}
                 onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn" style={{ flex: 1, background: 'var(--v22-yellow)', fontWeight: 700 }}
+              <button className="v5-btn v5-btn-p" style={{ flex: 1 }}
                 onClick={submitEquipe} disabled={!eForm.nom.trim() || saving}>
                 {saving ? '...' : editingEquipe ? 'Sauvegarder' : (isPt ? 'Criar' : 'Créer')}
               </button>
@@ -1201,18 +1194,18 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
 
       {/* ── MODAL CONFIRMATION SUPPRESSION ── */}
       {confirmDelete && (
-        <div className="v22-modal-overlay" onClick={() => setConfirmDelete(null)}>
-          <div className="v22-modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-            <div className="v22-modal-head">
-              <div className="v22-modal-title">{isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</div>
-              <button className="v22-modal-close" onClick={() => setConfirmDelete(null)}>✕</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setConfirmDelete(null)}>
+          <div className="v5-card" style={{ maxWidth: 400, padding: 0 }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '.75rem 1.25rem', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}</span>
+              <button className="v5-btn v5-btn-sm" onClick={() => setConfirmDelete(null)}>✕</button>
             </div>
-            <div className="v22-modal-body">
-              <p style={{ fontSize: 13 }}>{isPt ? 'Tem certeza que deseja eliminar?' : 'Êtes-vous sûr de vouloir supprimer ?'}</p>
+            <div style={{ padding: '1rem 1.25rem' }}>
+              <p style={{ fontSize: 12 }}>{isPt ? 'Tem certeza que deseja eliminar?' : 'Êtes-vous sûr de vouloir supprimer ?'}</p>
             </div>
-            <div className="v22-modal-foot">
-              <button className="v22-btn" onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className="v22-btn v22-btn-danger" onClick={() => {
+            <div style={{ padding: '.75rem 1.25rem', borderTop: '1px solid #E8E8E8', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="v5-btn" onClick={() => setConfirmDelete(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className="v5-btn v5-btn-d" onClick={() => {
                 if (confirmDelete.type === 'membre') doActualDeleteMembre(confirmDelete.id)
                 else if (confirmDelete.type === 'equipe') doActualDeleteEquipe(confirmDelete.id)
                 setConfirmDelete(null)
@@ -1225,16 +1218,4 @@ export default function EquipesBTPV2({ artisan }: { artisan: import('@/lib/types
   )
 }
 
-// ── Style helpers ──
-const thStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  textAlign: 'left',
-  color: 'var(--v22-text-mid)',
-  fontWeight: 600,
-  fontSize: 12,
-  whiteSpace: 'nowrap',
-}
-const tdStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  verticalAlign: 'top',
-}
+// Style helpers removed — using v5-dt table classes from dashboard-v5.css

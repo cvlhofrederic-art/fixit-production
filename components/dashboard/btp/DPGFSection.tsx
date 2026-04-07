@@ -36,18 +36,19 @@ export function DPGFSection({ userId }: { userId: string }) {
     save(upd); if (selected?.id === id) setSelected(prev => prev ? { ...prev, statut } : null)
   }
   const exportDPGF = (a: AppelOffre) => {
-    const rows = a.lots.map(l => `LOT ${l.numero} — ${l.designation.padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} € HT`).join('\n')
-    const content = `DPGF — ${a.titre}\nClient : ${a.client}\nDate remise : ${a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : ''}\n\n${rows}\n\nTOTAL HT : ${getTotal(a).toLocaleString(dateLocale)} €\nTVA 20% : ${(getTotal(a) * 0.2).toLocaleString(dateLocale)} €\nTOTAL TTC : ${(getTotal(a) * 1.2).toLocaleString(dateLocale)} €`
+    const rows = a.lots.map(l => `LOT ${l.numero} \u2014 ${l.designation.padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} \u20AC HT`).join('\n')
+    const content = `DPGF \u2014 ${a.titre}\nClient : ${a.client}\nDate remise : ${a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : ''}\n\n${rows}\n\nTOTAL HT : ${getTotal(a).toLocaleString(dateLocale)} \u20AC\nTVA 20% : ${(getTotal(a) * 0.2).toLocaleString(dateLocale)} \u20AC\nTOTAL TTC : ${(getTotal(a) * 1.2).toLocaleString(dateLocale)} \u20AC`
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a'); link.href = url; link.download = `DPGF_${a.titre.replace(/\s+/g, '_')}.txt`; link.click()
     URL.revokeObjectURL(url)
   }
-  const dpgfStatV22: Record<string, string> = {
-    en_cours: 'v22-tag v22-tag-blue',
-    soumis: 'v22-tag v22-tag-amber',
-    gagné: 'v22-tag v22-tag-green',
-    perdu: 'v22-tag v22-tag-red',
+
+  const dpgfBadge: Record<string, string> = {
+    en_cours: 'v5-badge v5-badge-orange',
+    soumis: 'v5-badge v5-badge-blue',
+    gagné: 'v5-badge v5-badge-green',
+    perdu: 'v5-badge v5-badge-red',
   }
   const dpgfStatLabels: Record<string, string> = {
     en_cours: t('proDash.btp.dpgf.enCours'),
@@ -56,131 +57,151 @@ export function DPGFSection({ userId }: { userId: string }) {
     perdu: t('proDash.btp.dpgf.perdu'),
   }
 
+  // Determine if a deadline is close (within 14 days)
+  const isDeadlineWarning = (dateStr: string) => {
+    if (!dateStr) return false
+    const diff = (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    return diff > 0 && diff <= 14
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div className="v22-page-header">
-        <div>
-          <h2 className="v22-page-title"><FolderOpen size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.dpgf.title')}</h2>
-          <p className="v22-page-sub">{t('proDash.btp.dpgf.subtitle')}</p>
-        </div>
-        <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.dpgf.nouvelAppel')}</button>
+    <div>
+      <div className="v5-pg-t">
+        <h1>{t('proDash.btp.dpgf.title')}</h1>
+        <p>{t('proDash.btp.dpgf.subtitle')}</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
-          <div key={s} className="v22-card" style={{ padding: 16 }}>
-            <div className="v22-card-meta">{dpgfStatLabels[s]}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#0D1B2E', marginTop: 4 }}>{appels.filter(a => a.statut === s).length}</div>
-          </div>
-        ))}
+      {/* New appel button */}
+      <div style={{ marginBottom: '.75rem' }}>
+        <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>
+          + {t('proDash.btp.dpgf.nouvelAppel')}
+        </button>
       </div>
 
+      {/* Form */}
       {showForm && (
-        <div className="v22-card">
-          <div className="v22-card-head"><div className="v22-card-title">Nouvel appel d&apos;offres</div></div>
-          <div className="v22-card-body">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div><label className="v22-form-label">{t('proDash.btp.dpgf.titre')}</label><input className="v22-form-input" value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} /></div>
-              <div><label className="v22-form-label">{t('proDash.btp.dpgf.clientMaitreOuvrage')}</label><input className="v22-form-input" value={form.client} onChange={e => setForm({...form, client: e.target.value})} /></div>
-              <div><label className="v22-form-label">{t('proDash.btp.dpgf.dateRemise')}</label><input type="date" className="v22-form-input" value={form.dateRemise} onChange={e => setForm({...form, dateRemise: e.target.value})} /></div>
-              <div><label className="v22-form-label">{t('proDash.btp.dpgf.montantEstime')}</label><input type="number" className="v22-form-input" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: Number(e.target.value)})} /></div>
+        <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+          <div className="v5-st">Nouvel appel d&apos;offres</div>
+          <div className="v5-fr">
+            <div className="v5-fg">
+              <label className="v5-fl">{t('proDash.btp.dpgf.titre')}</label>
+              <input className="v5-fi" value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} />
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button className="v22-btn" onClick={createAppel} disabled={!form.titre}>{t('proDash.btp.dpgf.creer')}</button>
-              <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.dpgf.annuler')}</button>
+            <div className="v5-fg">
+              <label className="v5-fl">{t('proDash.btp.dpgf.clientMaitreOuvrage')}</label>
+              <input className="v5-fi" value={form.client} onChange={e => setForm({...form, client: e.target.value})} />
             </div>
+            <div className="v5-fg">
+              <label className="v5-fl">{t('proDash.btp.dpgf.dateRemise')}</label>
+              <input type="date" className="v5-fi" value={form.dateRemise} onChange={e => setForm({...form, dateRemise: e.target.value})} />
+            </div>
+            <div className="v5-fg">
+              <label className="v5-fl">{t('proDash.btp.dpgf.montantEstime')}</label>
+              <input type="number" className="v5-fi" value={form.montantEstime} onChange={e => setForm({...form, montantEstime: Number(e.target.value)})} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
+            <button className="v5-btn v5-btn-p" onClick={createAppel} disabled={!form.titre}>{t('proDash.btp.dpgf.creer')}</button>
+            <button className="v5-btn" onClick={() => setShowForm(false)}>{t('proDash.btp.dpgf.annuler')}</button>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
-        {/* Liste des appels d'offres */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {appels.length === 0 ? (
-            <div className="v22-card" style={{ padding: 32, textAlign: 'center' }}>
-              <div style={{ marginBottom: 8 }}><FolderOpen size={32} style={{ color: 'var(--v22-text-mid)' }} /></div>
-              <p className="v22-card-meta">{t('proDash.btp.dpgf.aucunAppel')}</p>
-            </div>
-          ) : appels.map(a => (
-            <div
-              key={a.id}
-              onClick={() => setSelected(a)}
-              className="v22-card"
-              style={{ padding: 14, cursor: 'pointer', border: selected?.id === a.id ? '2px solid var(--v22-yellow)' : undefined }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontWeight: 600, fontSize: 13, color: '#0D1B2E', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.titre}</span>
-                <span className={dpgfStatV22[a.statut] || 'v22-tag'} style={{ flexShrink: 0 }}>{a.statut}</span>
-              </div>
-              <div className="v22-card-meta" style={{ fontSize: 11 }}>{a.client}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-yellow)', marginTop: 4 }}>{getTotal(a).toLocaleString(dateLocale)} € {t('proDash.common.ht')}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Détail DPGF */}
-        {selected ? (
-          <div className="v22-card">
-            <div className="v22-card-head">
-              <div className="v22-card-title">{selected.titre}</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button className="v22-btn v22-btn-sm" onClick={() => exportDPGF(selected)}><Download size={14} /> {t('proDash.btp.dpgf.export')}</button>
-                {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
-                  <button
-                    key={s}
-                    className="v22-btn v22-btn-sm"
-                    style={selected.statut === s ? { background: 'var(--v22-yellow)', color: '#0D1B2E' } : { background: 'var(--v22-bg)', color: 'var(--v22-text-mid)', border: '1px solid var(--v22-border)' }}
-                    onClick={() => changeStatut(selected.id, s)}
-                  >{dpgfStatLabels[s]}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
-                    {[t('proDash.btp.dpgf.colNumeroLot'), t('proDash.btp.dpgf.colDesignation'), t('proDash.btp.dpgf.colMontantHT')].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '8px 14px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {selected.lots.map((l, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid var(--v22-border)' }}>
-                      <td style={{ padding: '8px 14px', fontWeight: 600, color: '#0D1B2E' }}>{l.numero}</td>
-                      <td style={{ padding: '8px 14px', color: '#4A5E78' }}>{l.designation}</td>
-                      <td style={{ padding: '8px 14px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{l.montantHT.toLocaleString(dateLocale)} €</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: 'var(--v22-bg)', borderTop: '1px solid var(--v22-border)', fontWeight: 700 }}>
-                    <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', color: '#4A5E78' }}>{t('proDash.btp.dpgf.totalHT')}</td>
-                    <td style={{ padding: '8px 14px', color: 'var(--v22-yellow)' }}>{getTotal(selected).toLocaleString(dateLocale)} €</td>
-                  </tr>
-                  <tr style={{ background: 'var(--v22-bg)', fontWeight: 700 }}>
-                    <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', color: '#4A5E78' }}>{t('proDash.btp.dpgf.totalTTC')}</td>
-                    <td style={{ padding: '8px 14px', color: '#0D1B2E' }}>{(getTotal(selected) * 1.2).toLocaleString(dateLocale)} €</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <div className="v22-card-body" style={{ background: 'var(--v22-bg)', borderTop: '1px solid var(--v22-border)' }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="v22-form-input" style={{ width: 64, fontSize: 12 }} placeholder={t('proDash.btp.dpgf.numLotPlaceholder')} value={newLot.numero} onChange={e => setNewLot({...newLot, numero: e.target.value})} />
-                <input className="v22-form-input" style={{ flex: 1, fontSize: 12 }} placeholder={t('proDash.btp.dpgf.designationPlaceholder')} value={newLot.designation} onChange={e => setNewLot({...newLot, designation: e.target.value})} />
-                <input type="number" className="v22-form-input" style={{ width: 110, fontSize: 12 }} placeholder={t('proDash.btp.dpgf.montantPlaceholder')} value={newLot.montantHT || ''} onChange={e => setNewLot({...newLot, montantHT: Number(e.target.value)})} />
-                <button className="v22-btn v22-btn-sm" onClick={addLot} disabled={!newLot.designation}>+</button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="v22-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240, flexDirection: 'column', gap: 8 }}>
-            <FolderOpen size={40} style={{ color: 'var(--v22-text-mid)' }} />
-            <p className="v22-card-meta">{t('proDash.btp.dpgf.selectionnerAppel')}</p>
-          </div>
-        )}
+      {/* Top table: Appels d'offres */}
+      <div className="v5-card" style={{ overflowX: 'auto', padding: 0, marginBottom: '1.25rem' }}>
+        <table className="v5-dt">
+          <thead>
+            <tr>
+              <th>R\u00E9f</th>
+              <th>{t('proDash.btp.dpgf.titre') || 'Intitul\u00E9'}</th>
+              <th>{t('proDash.btp.dpgf.clientMaitreOuvrage') || 'Ma\u00EEtre d\'ouvrage'}</th>
+              <th>Deadline</th>
+              <th>Budget estim\u00E9</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {appels.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--v5-text-muted)', fontSize: 12 }}>{t('proDash.btp.dpgf.aucunAppel')}</td></tr>
+            ) : appels.map(a => (
+              <tr key={a.id} onClick={() => setSelected(a)} style={{ cursor: 'pointer' }}>
+                <td style={{ fontWeight: 600 }}>AO-{a.id.slice(-6)}</td>
+                <td>{a.titre}</td>
+                <td>{a.client}</td>
+                <td style={isDeadlineWarning(a.dateRemise) ? { color: '#C62828', fontWeight: 600 } : undefined}>
+                  {a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : '\u2014'}
+                  {isDeadlineWarning(a.dateRemise) && ' \u26A0\uFE0F'}
+                </td>
+                <td>{a.montantEstime > 0 ? `${a.montantEstime.toLocaleString(dateLocale)} \u20AC` : '\u2014'}</td>
+                <td><span className={dpgfBadge[a.statut] || 'v5-badge'}>{dpgfStatLabels[a.statut] || a.statut}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* DPGF detail */}
+      {selected ? (
+        <div className="v5-card" style={{ padding: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderBottom: '1px solid #E8E8E8' }}>
+            <div className="v5-st" style={{ margin: 0 }}>DPGF \u2014 {selected.titre}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button className="v5-btn v5-btn-sm" onClick={() => exportDPGF(selected)}><Download size={10} /> {t('proDash.btp.dpgf.export')}</button>
+              {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (
+                <button
+                  key={s}
+                  className={`v5-btn v5-btn-sm${selected.statut === s ? ' v5-btn-p' : ''}`}
+                  onClick={() => changeStatut(selected.id, s)}
+                >{dpgfStatLabels[s]}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v5-dt">
+              <thead>
+                <tr>
+                  <th>{t('proDash.btp.dpgf.colNumeroLot')}</th>
+                  <th>{t('proDash.btp.dpgf.colDesignation')}</th>
+                  <th>{t('proDash.btp.dpgf.colMontantHT')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selected.lots.map((l, i) => (
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600 }}>{l.numero}</td>
+                    <td>{l.designation}</td>
+                    <td style={{ fontWeight: 600 }}>{l.montantHT.toLocaleString(dateLocale)} \u20AC</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2} style={{ textAlign: 'right', fontWeight: 600 }}>{t('proDash.btp.dpgf.totalHT')}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--v5-primary-yellow-dark)' }}>{getTotal(selected).toLocaleString(dateLocale)} \u20AC</td>
+                </tr>
+                <tr>
+                  <td colSpan={2} style={{ textAlign: 'right', fontWeight: 600 }}>{t('proDash.btp.dpgf.totalTTC')}</td>
+                  <td style={{ fontWeight: 600 }}>{(getTotal(selected) * 1.2).toLocaleString(dateLocale)} \u20AC</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          {/* Add lot form */}
+          <div style={{ padding: '1rem 1.25rem', background: 'var(--v5-content-bg)', borderTop: '1px solid #E8E8E8' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input className="v5-fi" style={{ width: 64 }} placeholder={t('proDash.btp.dpgf.numLotPlaceholder')} value={newLot.numero} onChange={e => setNewLot({...newLot, numero: e.target.value})} />
+              <input className="v5-fi" style={{ flex: 1 }} placeholder={t('proDash.btp.dpgf.designationPlaceholder')} value={newLot.designation} onChange={e => setNewLot({...newLot, designation: e.target.value})} />
+              <input type="number" className="v5-fi" style={{ width: 110 }} placeholder={t('proDash.btp.dpgf.montantPlaceholder')} value={newLot.montantHT || ''} onChange={e => setNewLot({...newLot, montantHT: Number(e.target.value)})} />
+              <button className="v5-btn v5-btn-p v5-btn-sm" onClick={addLot} disabled={!newLot.designation}>+</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="v5-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, flexDirection: 'column', gap: 8 }}>
+          <FolderOpen size={32} style={{ color: 'var(--v5-text-muted)' }} />
+          <p style={{ fontSize: 12, color: 'var(--v5-text-light)' }}>{t('proDash.btp.dpgf.selectionnerAppel')}</p>
+        </div>
+      )}
     </div>
   )
 }

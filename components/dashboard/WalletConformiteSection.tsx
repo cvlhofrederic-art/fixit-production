@@ -504,6 +504,199 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
     window.open(`mailto:${encodeURIComponent(sendEmail || '')}?subject=${subject}&body=${body}`)
   }
 
+  // ═══════════════════════════════════════════════════════
+  // V5 RENDER — pro_societe uses the v5 design system
+  // ═══════════════════════════════════════════════════════
+  if (isSociete) {
+    return (
+      <div className="v5-fade">
+        <div className="v5-pg-t">
+          <h1>Conformit&eacute; r&eacute;glementaire</h1>
+          <p>Documents entreprise</p>
+        </div>
+
+        {/* Score card with progress bar */}
+        <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
+            <div className="v5-st" style={{ margin: 0 }}>Score de conformit&eacute;</div>
+            <div className="v5-w-pct">{pct}%</div>
+          </div>
+          <div className="v5-w-prog">
+            <div className="v5-w-bar-bg">
+              <div className="v5-w-bar-f" style={{ width: `${pct}%`, background: validCount === WALLET_DOCS.length ? '#4CAF50' : undefined }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
+            <span><span className="v5-badge v5-badge-green">{validCount}</span> {t('proDash.wallet.valide')}</span>
+            <span><span className="v5-badge v5-badge-orange">{expiringCount}</span> {t('proDash.wallet.expireBientot')}</span>
+            <span><span className="v5-badge v5-badge-red">{expiredCount}</span> {t('proDash.wallet.expire')}</span>
+            <span><span className="v5-badge v5-badge-gray">{missingCount}</span> {t('proDash.wallet.manquant')}</span>
+          </div>
+          {obligatoryMissing > 0 && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#C62828' }}>
+              {obligatoryMissing} obligatoire{obligatoryMissing > 1 ? 's' : ''} manquant{obligatoryMissing > 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+
+        {/* Fallback message */}
+        {fallback && (
+          <div className="v5-al warn" style={{ marginBottom: 12 }}>
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Compl&eacute;tez votre profil pour voir les documents requis pour votre m&eacute;tier.</span>
+          </div>
+        )}
+
+        {/* Document list */}
+        <div className="v5-w-docs">
+          {WALLET_DOCS.map((docDef) => {
+            const doc = docs[docDef.id]
+            const status = getStatus(doc)
+            const badgeClass = {
+              missing: 'v5-badge v5-badge-gray',
+              valid: 'v5-badge v5-badge-green',
+              expiring: 'v5-badge v5-badge-orange',
+              expired: 'v5-badge v5-badge-red',
+            }[status]
+            const badgeLabel = {
+              missing: t('proDash.wallet.manquant'),
+              valid: t('proDash.wallet.valide'),
+              expiring: t('proDash.wallet.expireBientot'),
+              expired: t('proDash.wallet.expire'),
+            }[status]
+            return (
+              <div key={docDef.id} className="v5-w-doc">
+                <span className="v5-w-doc-i">{docDef.icon || '\uD83D\uDCC4'}</span>
+                <div className="v5-w-doc-inf">
+                  <div className="v5-w-doc-nm">
+                    {docDef.nom}
+                    {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#C62828' }}>OBLIGATOIRE</span>}
+                  </div>
+                  <div className="v5-w-doc-exp">
+                    {doc?.expiryDate
+                      ? `${t('proDash.wallet.expireLe')} ${new Date(doc.expiryDate).toLocaleDateString(dateLocale)}`
+                      : docDef.validite ? `Validit\u00E9 : ${docDef.validite}` : docDef.description
+                    }
+                  </div>
+                  {/* Scan result inline */}
+                  {scanning[docDef.id] && (
+                    <div style={{ fontSize: 11, color: '#1565C0', marginTop: 4 }}>
+                      \uD83D\uDD0D V\u00E9rification en cours...
+                    </div>
+                  )}
+                  {scanResults[docDef.id] && !scanning[docDef.id] && (
+                    <div style={{ fontSize: 10, marginTop: 4, color: scanResults[docDef.id]?.antiFraud?.suspicious ? '#C62828' : '#2E7D32' }}>
+                      {scanResults[docDef.id]?.antiFraud?.suspicious ? '\u26A0\uFE0F Document suspect' : '\u2705 Document v\u00E9rifi\u00E9'}
+                    </div>
+                  )}
+                </div>
+                <span className={badgeClass}>{badgeLabel}</span>
+                <div className="v5-w-doc-acts">
+                  {doc?.url && (
+                    <>
+                      <button onClick={() => window.open(doc.url, '_blank')} className="v5-btn v5-btn-sm" title="Voir">\uD83D\uDC41\uFE0F</button>
+                      <button onClick={() => removeDoc(docDef.id)} disabled={!!removing[docDef.id]} className="v5-btn v5-btn-sm" title="Supprimer" style={{ opacity: removing[docDef.id] ? 0.5 : 1 }}>
+                        {removing[docDef.id] ? '\u23F3' : '\uD83D\uDDD1\uFE0F'}
+                      </button>
+                    </>
+                  )}
+                  <input
+                    type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" style={{ display: 'none' }}
+                    ref={el => { fileInputRefs.current[docDef.id] = el }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(docDef.id, f); e.target.value = '' }}
+                  />
+                  <button
+                    onClick={() => fileInputRefs.current[docDef.id]?.click()}
+                    disabled={!!uploading[docDef.id]}
+                    className="v5-btn v5-btn-p v5-btn-sm"
+                    style={{ opacity: uploading[docDef.id] ? 0.5 : 1 }}
+                  >
+                    {uploading[docDef.id] ? '\u23F3' : doc?.url ? '\uD83D\uDD04' : '\uD83D\uDCCE'}
+                  </button>
+                  {/* Expiry date */}
+                  {editExpiry === docDef.id ? (
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input
+                        type="date" className="v5-fi" style={{ padding: '3px 6px', fontSize: 11, width: 130 }}
+                        defaultValue={doc?.expiryDate || ''} disabled={!!savingExpiry[docDef.id]}
+                        onBlur={e => setExpiry(docDef.id, e.target.value)} autoFocus
+                      />
+                      <button onClick={() => setEditExpiry(null)} disabled={!!savingExpiry[docDef.id]} className="v5-btn v5-btn-sm">\u2715</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setEditExpiry(docDef.id)} disabled={!!savingExpiry[docDef.id]} className="v5-btn v5-btn-sm" title={doc?.expiryDate ? t('proDash.wallet.echeance') : t('proDash.wallet.ajouterEcheance')} style={{ opacity: savingExpiry[docDef.id] ? 0.5 : 1 }}>
+                      {savingExpiry[docDef.id] ? '\u23F3' : '\uD83D\uDCC5'}
+                    </button>
+                  )}
+                  <ObtainButton doc={docDef} legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Send dossier */}
+        <div className="v5-card" style={{ marginTop: '1.25rem' }}>
+          <div className="v5-st">\uD83D\uDCE4 {t('proDash.wallet.envoyerDossier')}</div>
+          <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>{t('proDash.wallet.envoyerDossierDesc')}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="email" placeholder={t('proDash.wallet.emailDestinataire')}
+              value={sendEmail} onChange={e => setSendEmail(e.target.value)}
+              className="v5-search-in" style={{ flex: 1 }}
+            />
+            <button
+              onClick={handleSendDossier}
+              disabled={WALLET_DOCS.filter(d => docs[d.id]?.url).length === 0}
+              className="v5-btn v5-btn-p"
+              style={{ opacity: WALLET_DOCS.filter(d => docs[d.id]?.url).length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}
+            >
+              \uD83D\uDCE7 {t('proDash.wallet.envoyerLeDossier')}
+            </button>
+          </div>
+        </div>
+
+        {/* Upload picker modal */}
+        {showUploadModal === '_pick' && (
+          <div className="v22-modal-overlay" onClick={() => setShowUploadModal(null)}>
+            <div className="v22-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+              <div className="v22-modal-head">
+                <span style={{ fontWeight: 600, fontSize: 13 }}>+ {t('proDash.wallet.ajouter')}</span>
+                <button className="v5-btn v5-btn-sm" onClick={() => setShowUploadModal(null)}>\u2715</button>
+              </div>
+              <div style={{ padding: 0 }}>
+                {WALLET_DOCS.map((docDef, i) => {
+                  const status = getStatus(docs[docDef.id])
+                  const badgeClass = { missing: 'v5-badge v5-badge-gray', valid: 'v5-badge v5-badge-green', expiring: 'v5-badge v5-badge-orange', expired: 'v5-badge v5-badge-red' }[status]
+                  const badgeLabel = { missing: t('proDash.wallet.manquant'), valid: t('proDash.wallet.valide'), expiring: t('proDash.wallet.expireBientot'), expired: t('proDash.wallet.expire') }[status]
+                  return (
+                    <button
+                      key={docDef.id}
+                      onClick={() => { setShowUploadModal(null); fileInputRefs.current[docDef.id]?.click() }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', borderBottom: i < WALLET_DOCS.length - 1 ? '1px solid #E8E8E8' : 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', fontSize: 13, fontFamily: 'inherit' }}
+                    >
+                      <span style={{ fontSize: 18 }}>{docDef.icon || '\uD83D\uDCC4'}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 500, color: '#1a1a1a' }}>{docDef.nom}</span>
+                        {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#C62828', fontWeight: 700 }}>OBLIGATOIRE</span>}
+                      </span>
+                      <span className={badgeClass}>{badgeLabel}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ padding: '10px 16px', borderTop: '1px solid #E8E8E8', textAlign: 'right' }}>
+                <button className="v5-btn" onClick={() => setShowUploadModal(null)}>
+                  {locale === 'pt' ? 'Cancelar' : 'Annuler'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '16px', maxWidth: '960px', margin: '0 auto' }}>
       {/* Header */}

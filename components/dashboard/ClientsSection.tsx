@@ -65,13 +65,17 @@ const EMPTY_CLIENT_FORM = {
   notes: '',
 }
 
-export default function ClientsSection({ artisan, bookings, services, onNewRdv, onNewDevis }: {
+type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
+
+export default function ClientsSection({ artisan, bookings, services, onNewRdv, onNewDevis, orgRole = 'artisan' }: {
   artisan: Artisan | null
   bookings: Booking[]
   services: Service[]
   onNewRdv: (clientName: string) => void
   onNewDevis: (clientName: string) => void
+  orgRole?: OrgRole
 }) {
+  const isSociete = orgRole === 'pro_societe'
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -211,6 +215,334 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const deleteManualClient = (id: string) => {
     if (!confirm(t('proDash.clients.supprimerClient'))) return
     saveManualClients(manualClients.filter(c => c.id !== id))
+  }
+
+  // Helper: badge class by client type
+  const typeBadgeClass = (c: ClientRecord) => {
+    const t = (c.type || '').toLowerCase()
+    if (t.includes('syndic')) return 'v5-badge v5-badge-blue'
+    if (t.includes('promoteur')) return 'v5-badge v5-badge-purple'
+    if (t.includes('collectivite') || t.includes('mairie')) return 'v5-badge v5-badge-green'
+    if (isEntreprise(c)) return 'v5-badge v5-badge-yellow'
+    return 'v5-badge v5-badge-gray'
+  }
+
+  const typeLabel = (c: ClientRecord) => {
+    const ct = CLIENT_TYPES.find(ct => ct.value === c.type)
+    if (ct) return ct.label
+    return isEntreprise(c) ? 'B2B' : 'Particulier'
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // V5 RENDER — pro_societe uses the v5 design system
+  // ═══════════════════════════════════════════════════════
+  if (isSociete) {
+    return (
+      <div className="v5-fade">
+        {/* Modal — reuse same modal for v5 */}
+        {showModal && (
+          <div className="v22-modal-overlay">
+            <div className="v22-modal" style={{ maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+              <div className="v22-modal-head">
+                <span className="v22-card-title">
+                  {editingId ? t('proDash.clients.modifierClient') : t('proDash.clients.nouveauClient')}
+                </span>
+                <button className="v5-btn v5-btn-sm" onClick={() => setShowModal(false)}>✕</button>
+              </div>
+              <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Type */}
+                <div className="v5-fg">
+                  <label className="v5-fl">{t('proDash.clients.typeDeClient')}</label>
+                  <select
+                    value={clientForm.type}
+                    onChange={e => {
+                      const ct = e.target.value
+                      const isB2B = CLIENT_TYPES.find(t => t.value === ct)?.group === 'b2b'
+                      setClientForm(prev => ({
+                        ...prev, type: ct,
+                        mainAddressLabel: isB2B ? t('proDash.clients.siegeSocial') : t('proDash.clients.domicile'),
+                      }))
+                    }}
+                    className="v5-fi"
+                  >
+                    <optgroup label="Particuliers (B2C)">
+                      {CLIENT_TYPES.filter(ct => ct.group === 'b2c').map(ct => (
+                        <option key={ct.value} value={ct.value}>{ct.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Professionnels (B2B)">
+                      {CLIENT_TYPES.filter(ct => ct.group === 'b2b').map(ct => (
+                        <option key={ct.value} value={ct.value}>{ct.label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                {/* Name */}
+                <div className="v5-fg">
+                  <label className="v5-fl">
+                    {clientForm.type === 'professionnel' ? `${t('proDash.clients.raisonSociale')} *` : `${t('proDash.clients.nomComplet')} *`}
+                  </label>
+                  <input
+                    type="text" value={clientForm.name}
+                    onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder={clientForm.type === 'professionnel' ? 'AJA Associés, Groupe Martin...' : 'Jean Dupont'}
+                    className="v5-fi"
+                  />
+                </div>
+                {/* Phone + Email */}
+                <div className="v5-fr">
+                  <div className="v5-fg">
+                    <label className="v5-fl">{t('proDash.clients.telephone')}</label>
+                    <input type="tel" value={clientForm.phone} onChange={e => setClientForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="06 00 00 00 00" className="v5-fi" />
+                  </div>
+                  <div className="v5-fg">
+                    <label className="v5-fl">{t('proDash.clients.email')}</label>
+                    <input type="email" value={clientForm.email} onChange={e => setClientForm(prev => ({ ...prev, email: e.target.value }))} placeholder="contact@exemple.fr" className="v5-fi" />
+                  </div>
+                </div>
+                {/* SIRET for pro */}
+                {clientForm.type === 'professionnel' && (
+                  <div className="v5-fg">
+                    <label className="v5-fl">{t('proDash.clients.siret')}</label>
+                    <input type="text" value={clientForm.siret} onChange={e => setClientForm(prev => ({ ...prev, siret: e.target.value }))} placeholder="123 456 789 00012" className="v5-fi" />
+                  </div>
+                )}
+                {/* Main address */}
+                <div className="v5-fg">
+                  <label className="v5-fl">{clientForm.mainAddressLabel} ({t('proDash.clients.adressePrincipale')})</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <select value={clientForm.mainAddressLabel} onChange={e => setClientForm(prev => ({ ...prev, mainAddressLabel: e.target.value }))} className="v5-fi" style={{ flexShrink: 0, width: 'auto' }}>
+                      {clientForm.type === 'particulier'
+                        ? [t('proDash.clients.domicile'), t('proDash.clients.residencePrincipale'), t('proDash.clients.appartement'), t('proDash.clients.maison'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)
+                        : [t('proDash.clients.siegeSocial'), t('proDash.clients.bureauPrincipal'), t('proDash.clients.autre')].map(l => <option key={l}>{l}</option>)}
+                    </select>
+                    <input type="text" value={clientForm.mainAddress} onChange={e => setClientForm(prev => ({ ...prev, mainAddress: e.target.value }))} placeholder="12 rue de la Paix, 75001 Paris" className="v5-fi" style={{ flex: 1 }} />
+                  </div>
+                </div>
+                {/* Intervention addresses */}
+                <div className="v5-fg">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label className="v5-fl" style={{ margin: 0 }}>
+                      {t('proDash.clients.lieuxIntervention')}
+                      <span style={{ fontWeight: 400, marginLeft: 4 }}>
+                        ({clientForm.type === 'professionnel' ? t('proDash.clients.lotsResidencesSites') : t('proDash.clients.autresAdresses')})
+                      </span>
+                    </label>
+                    <button onClick={addInterventionAddress} className="v5-btn v5-btn-sm">
+                      {t('proDash.clients.ajouterLieu')}
+                    </button>
+                  </div>
+                  {clientForm.interventionAddresses.length === 0 ? (
+                    <p style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>
+                      {clientForm.type === 'professionnel' ? t('proDash.clients.exempleProLieux') : t('proDash.clients.exemplePartLieux')}
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {clientForm.interventionAddresses.map((addr) => (
+                        <div key={addr.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          <input type="text" value={addr.label} onChange={e => updateInterventionAddress(addr.id, 'label', e.target.value)} placeholder={clientForm.type === 'professionnel' ? t('proDash.clients.exempleProLabel') : t('proDash.clients.exemplePartLabel')} className="v5-fi" style={{ width: 140, flexShrink: 0 }} />
+                          <input type="text" value={addr.address} onChange={e => updateInterventionAddress(addr.id, 'address', e.target.value)} placeholder={t('proDash.clients.adresseComplete')} className="v5-fi" style={{ flex: 1 }} />
+                          <button onClick={() => removeInterventionAddress(addr.id)} className="v5-btn v5-btn-sm v5-btn-d">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Notes */}
+                <div className="v5-fg">
+                  <label className="v5-fl">{t('proDash.clients.notesInternes')}</label>
+                  <textarea value={clientForm.notes} onChange={e => setClientForm(prev => ({ ...prev, notes: e.target.value }))} rows={2} placeholder={t('proDash.clients.notesPlaceholder')} className="v5-fi" style={{ resize: 'none' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid #E8E8E8' }}>
+                <button onClick={() => setShowModal(false)} className="v5-btn">{t('proDash.clients.annuler')}</button>
+                <button onClick={saveClient} disabled={!clientForm.name.trim() || saving} className="v5-btn v5-btn-p" style={{ opacity: (!clientForm.name.trim() || saving) ? 0.5 : 1 }}>
+                  {saving ? t('proDash.clients.sauvegardeEncours') : editingId ? t('proDash.motifs.modifier') : t('proDash.clients.creerClient')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Page title */}
+        <div className="v5-pg-t">
+          <h1>Base clients</h1>
+          <p>Ma&icirc;tres d&apos;ouvrage, syndics, architectes</p>
+        </div>
+
+        {/* Search + new */}
+        <div className="v5-search">
+          <input
+            className="v5-search-in"
+            placeholder="Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select className="v5-filter-sel" value={activeTab} onChange={e => setActiveTab(e.target.value as typeof activeTab)}>
+            <option value="tous">Tous ({allClients.length})</option>
+            <option value="particuliers">B2C ({particuliersCount})</option>
+            <option value="entreprises">B2B ({entreprisesCount})</option>
+          </select>
+          <button className="v5-btn v5-btn-p" onClick={openNew}>+ Nouveau client</button>
+        </div>
+
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#999', fontSize: 13 }}>
+            <p>{t('proDash.clients.chargement')}</p>
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && filtered.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>
+              {search ? t('proDash.clients.aucunResultat') : t('proDash.clients.pasEncoreClients')}
+            </div>
+            {!search && (
+              <button onClick={openNew} className="v5-btn v5-btn-p">+ {t('proDash.clients.creerPremierClient')}</button>
+            )}
+          </div>
+        )}
+
+        {/* Clients table */}
+        {!loading && filtered.length > 0 && (
+          <div className="v5-card" style={{ overflowX: 'auto' }}>
+            <table className="v5-dt">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Type</th>
+                  <th>Contact</th>
+                  <th>Chantiers</th>
+                  <th>CA cumul&eacute;</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(c => {
+                  const ca = totalCA(c)
+                  const bks = c.bookings || []
+                  const isManual = c.source === 'manual'
+                  return (
+                    <tr key={c.id} onClick={() => setExpandedId(expandedId === c.id ? null : c.id)} style={{ cursor: 'pointer' }}>
+                      <td style={{ fontWeight: 600 }}>{c.name}</td>
+                      <td><span className={typeBadgeClass(c)}>{typeLabel(c)}</span></td>
+                      <td style={{ fontSize: 11, color: '#444' }}>{c.phone || c.email || '\u2014'}</td>
+                      <td>{bks.length}</td>
+                      <td>{ca > 0 ? `${ca.toLocaleString('fr-FR')} \u20AC` : '\u2014'}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="v5-btn v5-btn-sm" onClick={e => { e.stopPropagation(); onNewDevis(c.name) }}>Devis</button>
+                          {isManual && (
+                            <>
+                              <button className="v5-btn v5-btn-sm" onClick={e => { e.stopPropagation(); openEdit(c) }}>Modifier</button>
+                              <button className="v5-btn v5-btn-sm v5-btn-d" onClick={e => { e.stopPropagation(); deleteManualClient(c.id) }}>Suppr.</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Expanded detail panel */}
+        {expandedId && (() => {
+          const c = filtered.find(cl => cl.id === expandedId)
+          if (!c) return null
+          const isExp = isEntreprise(c)
+          const ca = totalCA(c)
+          const bks = c.bookings || []
+          const isManual = c.source === 'manual'
+
+          return (
+            <div className="v5-card" style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid #E8E8E8' }}>
+                <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{c.name}</span>
+                <span className={typeBadgeClass(c)}>{typeLabel(c)}</span>
+                {c.source === 'auth' && <span className="v5-badge v5-badge-green">{t('proDash.clients.compteFix')}</span>}
+                {isManual && <span className="v5-badge v5-badge-gray">{t('proDash.clients.ajouteManuellement')}</span>}
+                <button onClick={() => setExpandedId(null)} className="v5-btn v5-btn-sm">✕</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, padding: '16px' }}>
+                {/* Contact info */}
+                <div>
+                  <div className="v5-st">{t('proDash.clients.coordonnees')}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                    {c.phone && <div style={{ display: 'flex', gap: 8 }}><span style={{ color: '#999', width: 70, flexShrink: 0 }}>{t('proDash.clients.telephone')}</span><a href={`tel:${c.phone}`} style={{ color: '#1a1a1a' }}>{c.phone}</a></div>}
+                    {c.email && <div style={{ display: 'flex', gap: 8 }}><span style={{ color: '#999', width: 70, flexShrink: 0 }}>{t('proDash.clients.email')}</span><a href={`mailto:${c.email}`} style={{ color: '#1a1a1a' }}>{c.email}</a></div>}
+                    {(c.mainAddress || c.address) && <div style={{ display: 'flex', gap: 8 }}><span style={{ color: '#999', width: 70, flexShrink: 0 }}>{c.mainAddressLabel || t('proDash.clients.adresse')}</span><span>{c.mainAddress || c.address}</span></div>}
+                    {c.siret && <div style={{ display: 'flex', gap: 8 }}><span style={{ color: '#999', width: 70, flexShrink: 0 }}>{t('proDash.clients.siret')}</span><span>{c.siret}</span></div>}
+                    {c.notes && <div style={{ display: 'flex', gap: 8 }}><span style={{ color: '#999', width: 70, flexShrink: 0 }}>{t('proDash.clients.notes')}</span><span style={{ color: '#666', fontStyle: 'italic', fontSize: 11 }}>{c.notes}</span></div>}
+                  </div>
+                  {/* Intervention addresses */}
+                  {c.interventionAddresses && c.interventionAddresses.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="v5-st">{t('proDash.clients.lieuxIntervention')}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {c.interventionAddresses.map((addr: InterventionAddress) => (
+                          <div key={addr.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 8px', background: '#FAFAFA', borderRadius: 4, border: '1px solid #E8E8E8' }}>
+                            <span style={{ fontWeight: 500, color: '#F57C00', flexShrink: 0, minWidth: 70 }}>{addr.label || t('proDash.clients.lieu')}</span>
+                            <span style={{ color: '#666' }}>{addr.address}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+                    <button onClick={() => onNewRdv(c.name)} className="v5-btn v5-btn-p">{t('proDash.clients.rdv')}</button>
+                    <button onClick={() => onNewDevis(c.name)} className="v5-btn">Devis</button>
+                    {isManual && (
+                      <>
+                        <button onClick={() => openEdit(c)} className="v5-btn v5-btn-sm">{t('proDash.motifs.modifier') || 'Modifier'}</button>
+                        <button onClick={() => deleteManualClient(c.id)} className="v5-btn v5-btn-sm v5-btn-d">{t('proDash.clients.supprimerClient') || 'Supprimer'}</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {/* Booking history */}
+                <div>
+                  <div className="v5-st">{t('proDash.clients.historique')} ({bks.length})</div>
+                  {bks.length === 0 ? (
+                    <p style={{ fontSize: 12, color: '#999', fontStyle: 'italic' }}>{t('proDash.clients.aucuneIntervention')}</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                      {[...bks].sort((a: ClientBooking, b: ClientBooking) => b.date.localeCompare(a.date)).map((bk: ClientBooking) => (
+                        <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '6px 8px', background: '#FAFAFA', border: '1px solid #E8E8E8', borderRadius: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: bk.status === 'completed' ? '#4CAF50' : bk.status === 'confirmed' ? '#42A5F5' : bk.status === 'cancelled' ? '#E53935' : '#FFA726' }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.service || 'Intervention'}</div>
+                            <div style={{ fontSize: 10, color: '#999' }}>{new Date(bk.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                          </div>
+                          <span className={`v5-badge ${bk.status === 'completed' ? 'v5-badge-green' : bk.status === 'confirmed' ? 'v5-badge-blue' : bk.status === 'cancelled' ? 'v5-badge-red' : 'v5-badge-orange'}`}>
+                            {bk.status === 'completed' ? t('proDash.clients.termine') : bk.status === 'confirmed' ? t('proDash.clients.confirme') : bk.status === 'cancelled' ? t('proDash.clients.annuleStat') : t('proDash.clients.enAttente')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #E8E8E8', display: 'flex', gap: 24, fontSize: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 16 }}>{ca > 0 ? `${ca.toLocaleString('fr-FR')} \u20AC` : '\u2014'}</div>
+                      <div style={{ color: '#999', fontSize: 11 }}>{t('proDash.clients.caTotal')}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 16 }}>{bks.length}</div>
+                      <div style={{ color: '#999', fontSize: 11 }}>{bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+    )
   }
 
   return (

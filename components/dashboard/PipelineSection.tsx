@@ -115,23 +115,20 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
   const totalPipeline = items.reduce((s, i) => s + i.montant, 0)
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="v5-pg-t" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--v22-text)' }}>
-            Pipeline commercial
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--v22-text-muted)' }}>
+          <h1>Pipeline commercial</h1>
+          <p>
             {orgRole === 'pro_societe'
               ? `${items.length} affaire${items.length > 1 ? 's' : ''} — ${formatEur(totalPipeline)} HT`
-              : `Suivi commercial de vos devis — ${formatEur(totalPipeline)} HT`}
+              : `Suivi des opportunités — ${formatEur(totalPipeline)} HT`}
           </p>
         </div>
         <button
+          className="v5-btn v5-btn-p"
           onClick={() => navigateTo('devis')}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-black transition-colors hover:opacity-90"
-          style={{ backgroundColor: 'var(--v22-yellow)' }}
         >
           {orgRole === 'pro_societe' ? '+ Nouvelle affaire' : '+ Nouveau devis'}
         </button>
@@ -139,25 +136,24 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
 
       {/* Loading */}
       {loading && (
-        <div className="text-center py-12" style={{ color: 'var(--v22-text-muted)' }}>
-          Chargement du pipeline…
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: '#999', fontSize: 12 }}>
+          Chargement du pipeline...
         </div>
       )}
 
       {/* Empty state */}
       {!loading && items.length === 0 && (
-        <div className="text-center py-16 v22-card">
-          <div className="text-4xl mb-3">📋</div>
-          <p className="font-medium" style={{ color: 'var(--v22-text)' }}>
+        <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
             {orgRole === 'pro_societe' ? 'Aucune affaire dans le pipeline' : 'Aucun devis dans le pipeline'}
-          </p>
-          <p className="text-sm mt-1" style={{ color: 'var(--v22-text-muted)' }}>
+          </div>
+          <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
             Créez votre premier devis pour l&apos;afficher ici
           </p>
           <button
+            className="v5-btn v5-btn-p"
             onClick={() => navigateTo('devis')}
-            className="mt-4 px-4 py-2 rounded-lg text-sm font-medium text-black"
-            style={{ backgroundColor: 'var(--v22-yellow)' }}
           >
             {orgRole === 'pro_societe' ? 'Créer une affaire' : 'Créer un devis'}
           </button>
@@ -166,9 +162,9 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
 
       {/* Kanban board */}
       {!loading && items.length > 0 && (
-        <div className="overflow-x-auto pb-2">
+        <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
           <div
-            className="grid gap-2.5"
+            className="v5-kanban"
             style={{ minWidth: '980px', gridTemplateColumns: `repeat(${stages.length}, 1fr)` }}
           >
             {stages.map((stage) => {
@@ -178,86 +174,37 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
               return (
                 <div
                   key={stage.id}
-                  className="rounded-lg flex flex-col"
-                  style={{
-                    backgroundColor: 'var(--v22-surface)',
-                    border: '1px solid var(--v22-border)',
-                    minHeight: '320px',
-                  }}
+                  className="v5-kb-col"
                 >
                   {/* Column header */}
-                  <div
-                    className="rounded-t-lg px-3 py-2.5"
-                    style={{ borderTop: `3px solid ${stage.color}` }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="text-xs font-semibold uppercase tracking-wide"
-                        style={{ color: stage.color }}
-                      >
-                        {stage.label}
-                      </span>
-                      <span
-                        className="text-xs font-medium rounded-full px-1.5 py-0.5"
-                        style={{
-                          backgroundColor: 'var(--v22-bg)',
-                          color: 'var(--v22-text-muted)',
-                        }}
-                      >
-                        {stageItems.length}
-                      </span>
-                    </div>
-                    {total > 0 && (
-                      <p className="text-xs mt-1 font-medium" style={{ color: 'var(--v22-text-muted)' }}>
-                        {formatEur(total)}
-                      </p>
-                    )}
+                  <div className="v5-kb-col-t">
+                    <span>{stage.label}</span>
+                    <span className="v5-kb-tot">{stageItems.length}</span>
                   </div>
+                  {total > 0 && (
+                    <div style={{ fontSize: 10, color: '#BBB', marginTop: -6, marginBottom: 8 }}>
+                      {formatEur(total)}
+                    </div>
+                  )}
 
                   {/* Cards */}
-                  <div className="flex-1 px-2 pb-2 space-y-2 overflow-y-auto">
-                    {stageItems.length === 0 && (
-                      <p className="text-xs text-center mt-6" style={{ color: 'var(--v22-text-muted)' }}>—</p>
-                    )}
-                    {stageItems.map((item, idx) => (
-                      <button
-                        key={`${item.ref}-${idx}`}
-                        onClick={() => navigateTo('devis')}
-                        className="w-full text-left rounded-md p-2.5 transition-shadow hover:shadow-md cursor-pointer"
-                        style={{
-                          backgroundColor: 'var(--v22-bg)',
-                          border: '1px solid var(--v22-border)',
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span
-                            className="text-[11px] font-mono font-medium"
-                            style={{ color: 'var(--v22-text-muted)' }}
-                          >
-                            {item.ref}
-                          </span>
-                          <span
-                            className="text-xs font-semibold"
-                            style={{ color: 'var(--v22-text)' }}
-                          >
-                            {formatEur(item.montant)}
-                          </span>
-                        </div>
-                        <p
-                          className="text-sm font-medium truncate"
-                          style={{ color: 'var(--v22-text)' }}
-                        >
-                          {item.client}
-                        </p>
-                        <p
-                          className="text-xs truncate mt-0.5"
-                          style={{ color: 'var(--v22-text-muted)' }}
-                        >
-                          {item.service}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
+                  {stageItems.length === 0 && (
+                    <div style={{ textAlign: 'center', color: '#BBB', fontSize: 11, paddingTop: 24 }}>—</div>
+                  )}
+                  {stageItems.map((item, idx) => (
+                    <div
+                      key={`${item.ref}-${idx}`}
+                      className="v5-kb-card"
+                      onClick={() => navigateTo('devis')}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => e.key === 'Enter' && navigateTo('devis')}
+                    >
+                      <div className="v5-kb-nm">{item.client}</div>
+                      <div className="v5-kb-info">{item.service}</div>
+                      <div className="v5-kb-amt">{formatEur(item.montant)}</div>
+                    </div>
+                  ))}
                 </div>
               )
             })}

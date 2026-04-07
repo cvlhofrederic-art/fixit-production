@@ -54,37 +54,30 @@ interface SavedDoc {
 
 interface ChantierFinancials {
   chantier: Chantier
-  // Revenus
-  caFacture: number        // Total facturé (situations validées/payées)
-  caDevis: number          // Total devis validés
-  caTotal: number          // max(caFacture, caDevis) = CA réel
-  // Coûts
-  coutMainOeuvre: number   // heures × coût horaire
-  coutMateriaux: number    // dépenses catégorie matériel
-  coutAutres: number       // transport, outillage, assurance, etc.
+  caFacture: number
+  caDevis: number
+  caTotal: number
+  coutMainOeuvre: number
+  coutMateriaux: number
+  coutAutres: number
   coutTotal: number
-  // Résultat
   beneficeNet: number
   margePercent: number
-  // Durée
   joursPrevu: number
   joursReel: number
-  // KPIs
   beneficeParJour: number
   projectionMensuelle: number
   seuilRentabiliteJours: number
-  // Score
-  score: number            // /10
+  score: number
   badge: 'rentable' | 'moyen' | 'a_risque'
   badgeColor: string
-  // Détails
   heuresTotal: number
   nbOuvriers: number
 }
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
-const DEFAULT_COUT_HORAIRE = 25 // €/h par défaut si non configuré
+const DEFAULT_COUT_HORAIRE = 25
 const MOIS_JOURS_OUVRES = 22
 
 const EXPENSE_CATEGORIES_MATERIAUX = ['materiel', 'materiaux']
@@ -111,25 +104,22 @@ function fmtPct(n: number): string {
 }
 
 function calcScore(marge: number, joursPrevu: number, joursReel: number, benefice: number): number {
-  if (benefice <= 0) return Math.max(0, 2 + marge / 10) // 0-2 si perte
-  let s = 5 // base
-  // Marge bonus: +1 par 5% de marge (max +3)
+  if (benefice <= 0) return Math.max(0, 2 + marge / 10)
+  let s = 5
   s += Math.min(3, Math.floor(marge / 5))
-  // Délai bonus: +1 si dans les temps, -1 si dépassement >20%
   if (joursPrevu > 0) {
     const ratio = joursReel / joursPrevu
     if (ratio <= 1) s += 1
     else if (ratio > 1.2) s -= 1
   }
-  // Bénéfice bonus: +1 si > 5000€
   if (benefice > 5000) s += 1
   return Math.max(0, Math.min(10, Math.round(s * 10) / 10))
 }
 
 function scoreBadge(score: number): { badge: 'rentable' | 'moyen' | 'a_risque'; color: string } {
-  if (score >= 7) return { badge: 'rentable', color: '#22c55e' }
-  if (score >= 4) return { badge: 'moyen', color: '#f59e0b' }
-  return { badge: 'a_risque', color: '#ef4444' }
+  if (score >= 7) return { badge: 'rentable', color: '#2E7D32' }
+  if (score >= 4) return { badge: 'moyen', color: '#EF6C00' }
+  return { badge: 'a_risque', color: '#C62828' }
 }
 
 const BADGE_LABELS: Record<string, { fr: string; pt: string; icon: 'check' | 'warn' | 'risk' }> = {
@@ -180,7 +170,6 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
     const load = (key: string) => {
       try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
     }
-    // Fetch from Supabase API first, fallback to localStorage
     async function fetchData() {
       try {
         const { supabase } = await import('@/lib/supabase')
@@ -222,13 +211,11 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
         })))
         else setPointages(load(`pointage_${artisan.id}`))
       } catch {
-        // Fallback total localStorage
         setChantiers(load(`fixit_chantiers_${artisan.id}`))
         setPointages(load(`pointage_${artisan.id}`))
         setMembres(load(`fixit_membres_${artisan.id}`))
         setExpenses(load(`fixit_expenses_${artisan.id}`))
       }
-      // Situations et documents restent en localStorage (pas de table Supabase dédiée)
       setSituations(load(`situations_${artisan.id}`))
       setDocuments(load(`fixit_documents_${artisan.id}`))
     }
@@ -250,37 +237,28 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
       .filter(ch => ch.statut !== 'Annulé')
       .map(ch => {
         const titre = ch.titre.toLowerCase().trim()
-
-        // Revenue: situations de travaux
         const sitsCh = situations.filter(s => s.chantier.toLowerCase().trim() === titre)
         const caFacture = sitsCh
           .filter(s => s.statut === 'validée' || s.statut === 'payée')
           .reduce((sum, s) => sum + s.travaux.reduce((t, p) => t + (p.quantite * p.prixUnit * p.avancement / 100), 0), 0)
 
-        // Revenue: devis/factures liés au client
         const clientLower = ch.client.toLowerCase().trim()
         const docsClient = documents.filter(d =>
           d.clientName?.toLowerCase().trim() === clientLower && (d.type === 'facture' || d.status === 'signé')
         )
         const caDevis = docsClient.reduce((sum, d) => sum + (d.totalHT || d.totalTTC || 0), 0)
-
         const caTotal = Math.max(caFacture, caDevis, parseFloat(ch.budget) || 0)
 
-        // Coût main d'œuvre : pointage × coût horaire
         const pointCh = pointages.filter(p => p.chantier.toLowerCase().trim() === titre)
         const heuresTotal = pointCh.reduce((sum, p) => sum + (p.heuresTravaillees || 0), 0)
-
-        // Map employé → type de poste → coût horaire
         const membreMap = new Map(membres.map(m => [`${m.prenom} ${m.nom}`.toLowerCase(), m.typeCompte]))
         const coutMainOeuvre = pointCh.reduce((sum, p) => {
           const type = membreMap.get(p.employe.toLowerCase()) || 'ouvrier'
           const tarif = coutsHoraires[type] || DEFAULT_COUT_HORAIRE
           return sum + (p.heuresTravaillees || 0) * tarif
         }, 0)
-
         const ouvriersUniques = new Set(pointCh.map(p => p.employe)).size
 
-        // Dépenses matériaux
         const expCh = expenses.filter(e =>
           e.chantierId === ch.id ||
           e.chantier?.toLowerCase().trim() === titre ||
@@ -289,32 +267,26 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
         const coutMateriaux = expCh
           .filter(e => EXPENSE_CATEGORIES_MATERIAUX.includes(e.category))
           .reduce((sum, e) => sum + (typeof e.amount === 'string' ? parseFloat(e.amount) || 0 : e.amount), 0)
-
         const coutAutres = expCh
           .filter(e => EXPENSE_CATEGORIES_AUTRES.includes(e.category) || e.category === 'mainoeuvre')
           .reduce((sum, e) => sum + (typeof e.amount === 'string' ? parseFloat(e.amount) || 0 : e.amount), 0)
-
         const coutTotal = coutMainOeuvre + coutMateriaux + coutAutres
 
-        // Durée
         const joursPrevu = daysBetween(ch.dateDebut, ch.dateFin)
         const endDate = ch.statut === 'Terminé' ? ch.dateFin : today()
         const joursReel = daysBetween(ch.dateDebut, endDate)
 
-        // Résultat
         const beneficeNet = caTotal - coutTotal
         const margePercent = caTotal > 0 ? (beneficeNet / caTotal) * 100 : 0
         const beneficeParJour = joursReel > 0 ? beneficeNet / joursReel : 0
         const projectionMensuelle = beneficeParJour * MOIS_JOURS_OUVRES
 
-        // Seuil de rentabilité: combien de jours pour couvrir les coûts fixes
         const coutParJour = joursReel > 0 ? coutTotal / joursReel : 0
         const revenuParJour = joursReel > 0 ? caTotal / joursReel : 0
         const seuilRentabiliteJours = revenuParJour > coutParJour
           ? Math.ceil(coutTotal / (revenuParJour - coutParJour))
           : Infinity
 
-        // Score
         const score = calcScore(margePercent, joursPrevu, joursReel, beneficeNet)
         const { badge, color: badgeColor } = scoreBadge(score)
 
@@ -331,7 +303,6 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
 
   const selected = financials.find(f => f.chantier.id === selectedId) || null
 
-  // Simulateur : applique les ajustements
   const simulated = useMemo(() => {
     if (!selected) return null
     const extraCoutJours = simJoursExtra * (selected.joursReel > 0 ? selected.coutTotal / selected.joursReel : 0)
@@ -346,7 +317,6 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
     return { coutTotal: newCoutTotal, benefice: newBenefice, marge: newMarge, jours: newJours, benefParJour: newBenefParJour, score: newScore, badge: newBadge, badgeColor: newBadgeColor }
   }, [selected, simJoursExtra, simOuvriersExtra, simCoutExtra, coutsHoraires])
 
-  // ── Totaux globaux ─────────────────────────────────────────────────────────
   const totals = useMemo(() => {
     const ca = financials.reduce((s, f) => s + f.caTotal, 0)
     const cout = financials.reduce((s, f) => s + f.coutTotal, 0)
@@ -362,44 +332,38 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
   // ═════════════════════════════════════════════════════════════════════════════
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div>
       {/* Header + bouton config */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-            <DollarSign size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{t('Rentabilité Chantier', 'Rentabilidade da Obra')}
-          </h2>
-          <p style={{ color: '#6b7280', marginTop: 6, marginBottom: 0, fontSize: 14 }}>
-            {t(
-              'Comprenez en 5 secondes si vos chantiers vous rapportent de l\'argent',
-              'Perceba em 5 segundos se as suas obras lhe dão lucro'
-            )}
-          </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div className="v5-pg-t">
+          <h1>{t('Rentabilité Chantier', 'Rentabilidade da Obra')}</h1>
+          <p>{t('Budget prévu vs réalisé', 'Orçamento previsto vs realizado')}</p>
         </div>
         <button
           onClick={() => setShowConfig(!showConfig)}
-          style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}
+          className="v5-btn"
         >
-          <Settings size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Coûts horaires', 'Custos por hora')}
+          <Settings size={14} />{t('Coûts horaires', 'Custos por hora')}
         </button>
       </div>
 
       {showConfig && (
-        <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>
+        <div className="v5-card" style={{ marginBottom: 16 }}>
+          <div className="v5-st">
             {t('Coût horaire par type de poste (€/h)', 'Custo por hora por tipo de posto (€/h)')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
             {Object.entries({ ouvrier: t('Ouvrier', 'Operário'), chef_chantier: t('Chef de chantier', 'Encarregado'), conducteur_travaux: t('Conducteur', 'Diretor de obra'), secretaire: t('Secrétaire', 'Secretária'), gerant: t('Gérant', 'Gerente') }).map(([key, label]) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ fontSize: 13, color: '#374151', minWidth: 100 }}>{label}</label>
+                <label className="v5-fl" style={{ minWidth: 100, marginBottom: 0 }}>{label}</label>
                 <input
                   type="number" min={0} max={200}
                   value={coutsHoraires[key] || 0}
                   onChange={e => saveCoutsHoraires({ ...coutsHoraires, [key]: parseFloat(e.target.value) || 0 })}
-                  style={{ width: 70, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, textAlign: 'right' }}
+                  className="v5-fi"
+                  style={{ width: 70, textAlign: 'right' }}
                 />
-                <span style={{ fontSize: 12, color: '#9ca3af' }}>€/h</span>
+                <span style={{ fontSize: 11, color: '#999' }}>&euro;/h</span>
               </div>
             ))}
           </div>
@@ -408,9 +372,9 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
 
       {/* ── AUCUN CHANTIER ────────────────────────────────────────────────── */}
       {chantiers.length === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', background: '#f9fafb', borderRadius: 12 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}><HardHat size={48} color="#6b7280" /></div>
-          <p style={{ color: '#6b7280', fontWeight: 500, fontSize: 15, margin: 0, textAlign: 'center' }}>
+        <div className="v5-card" style={{ padding: 48, textAlign: 'center' }}>
+          <HardHat size={40} style={{ color: '#BBB', marginBottom: 12 }} />
+          <p style={{ color: '#999', fontSize: 12 }}>
             {t('Créez vos chantiers dans la section "Chantiers" pour voir leur rentabilité.', 'Crie as suas obras na secção "Obras" para ver a rentabilidade.')}
           </p>
         </div>
@@ -419,62 +383,132 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
       {/* ── KPI GLOBAUX ───────────────────────────────────────────────────── */}
       {financials.length > 0 && !selectedId && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
-            <KpiCard label={t('CA Total', 'Volume Total')} value={`${fmt(totals.ca)} €`} sub={`${totals.total} ${t('chantiers', 'obras')}`} color="#1e40af" />
-            <KpiCard label={t('Bénéfice Net', 'Lucro Líquido')} value={`${fmt(totals.benef)} €`} sub={fmtPct(totals.marge)} color={totals.benef >= 0 ? '#22c55e' : '#ef4444'} />
-            <KpiCard label={t('Rentables', 'Rentáveis')} value={`${totals.rentables}/${totals.total}`} sub={totals.risque > 0 ? `${totals.risque} ${t('à risque', 'em risco')}` : t('Tous ok', 'Todos ok')} color={totals.risque > 0 ? '#f59e0b' : '#22c55e'} />
-            <KpiCard label={t('Marge moyenne', 'Margem média')} value={fmtPct(totals.marge)} color={totals.marge >= 15 ? '#22c55e' : totals.marge >= 5 ? '#f59e0b' : '#ef4444'} />
+          <div className="v5-kpi-g">
+            <div className="v5-kpi hl">
+              <div className="v5-kpi-l">{t('CA Total', 'Volume Total')}</div>
+              <div className="v5-kpi-v">{fmt(totals.ca)} &euro;</div>
+              <div className="v5-kpi-s">{totals.total} {t('chantiers', 'obras')}</div>
+            </div>
+            <div className="v5-kpi">
+              <div className="v5-kpi-l">{t('Bénéfice Net', 'Lucro Líquido')}</div>
+              <div className="v5-kpi-v" style={{ color: totals.benef >= 0 ? '#2E7D32' : '#C62828' }}>{fmt(totals.benef)} &euro;</div>
+              <div className="v5-kpi-s">{fmtPct(totals.marge)}</div>
+            </div>
+            <div className="v5-kpi">
+              <div className="v5-kpi-l">{t('Rentables', 'Rentáveis')}</div>
+              <div className="v5-kpi-v">{totals.rentables}/{totals.total}</div>
+              <div className="v5-kpi-s">{totals.risque > 0 ? `${totals.risque} ${t('à risque', 'em risco')}` : t('Tous ok', 'Todos ok')}</div>
+            </div>
+            <div className="v5-kpi">
+              <div className="v5-kpi-l">{t('Marge moyenne', 'Margem média')}</div>
+              <div className="v5-kpi-v" style={{ color: totals.marge >= 15 ? '#2E7D32' : totals.marge >= 5 ? '#EF6C00' : '#C62828' }}>{fmtPct(totals.marge)}</div>
+            </div>
           </div>
 
-          {/* ── LISTE DES CHANTIERS ──────────────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* ── COMPARATIF BUDGÉTAIRE (table v5) ──────────────────────────── */}
+          <div className="v5-card" style={{ overflow: 'auto', marginBottom: 16 }}>
+            <div className="v5-st">{t('Comparatif budgétaire', 'Comparativo orçamental')}</div>
+            <table className="v5-dt">
+              <thead>
+                <tr>
+                  <th>{t('Chantier', 'Obra')}</th>
+                  <th>{t('Budget prévu', 'Orçamento previsto')}</th>
+                  <th>{t('Réalisé', 'Realizado')}</th>
+                  <th>{t('Écart', 'Desvio')}</th>
+                  <th>{t('Marge prév.', 'Margem prev.')}</th>
+                  <th>{t('Marge réelle', 'Margem real')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {financials.map(f => {
+                  const ecart = f.coutTotal - (parseFloat(f.chantier.budget) || 0)
+                  const isOverBudget = ecart > 0
+                  return (
+                    <tr key={f.chantier.id} onClick={() => { setSelectedId(f.chantier.id); resetSim() }} style={{ cursor: 'pointer' }}>
+                      <td style={{ fontWeight: 600, color: isOverBudget ? '#C62828' : undefined }}>
+                        {f.chantier.titre}{isOverBudget ? ' ⚠️' : ''}
+                      </td>
+                      <td>{fmt(parseFloat(f.chantier.budget) || 0)} &euro;</td>
+                      <td>{fmt(f.coutTotal)} &euro;</td>
+                      <td style={{ color: isOverBudget ? '#C62828' : '#2E7D32', fontWeight: isOverBudget ? 600 : 400 }}>
+                        {isOverBudget ? '+' : ''}{fmt(ecart)} &euro;{isOverBudget ? ' dépasst' : ''}
+                      </td>
+                      <td>—</td>
+                      <td style={{ fontWeight: 600, color: f.margePercent >= 15 ? '#2E7D32' : f.margePercent >= 5 ? '#EF6C00' : '#C62828' }}>
+                        {fmtPct(f.margePercent)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── BAR CHART ──────────────────────────────────────────────────── */}
+          <div className="v5-card" style={{ marginBottom: 16 }}>
+            <div className="v5-st">{t('Budget prévu vs réalisé', 'Orçamento previsto vs realizado')}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, height: 160, padding: '0 8px' }}>
+              {financials.slice(0, 6).map(f => {
+                const budget = parseFloat(f.chantier.budget) || 0
+                const maxVal = Math.max(...financials.slice(0, 6).map(x => Math.max(parseFloat(x.chantier.budget) || 0, x.coutTotal)))
+                const budgetH = maxVal > 0 ? (budget / maxVal) * 130 : 0
+                const realH = maxVal > 0 ? (f.coutTotal / maxVal) * 130 : 0
+                const isOver = f.coutTotal > budget
+                return (
+                  <div key={f.chantier.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 130 }}>
+                      <div style={{ width: 18, height: budgetH, background: '#FFD54F', borderRadius: '3px 3px 0 0', position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: -16, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 600, color: '#666', whiteSpace: 'nowrap' }}>{fmt(budget / 1000)}k</span>
+                      </div>
+                      <div style={{ width: 18, height: realH, background: isOver ? '#EF5350' : '#FFA726', borderRadius: '3px 3px 0 0', position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: -16, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 600, color: '#666', whiteSpace: 'nowrap' }}>{fmt(f.coutTotal / 1000)}k{isOver ? ' ⚠️' : ''}</span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10, color: '#999', textAlign: 'center' }}>{f.chantier.titre.slice(0, 10)}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: '#999', marginTop: 8 }}>
+              {t('🟡 Budget prévu  •  🟠 Réalisé  •  🔴 Dépassement', '🟡 Orçamento previsto  •  🟠 Realizado  •  🔴 Ultrapassado')}
+            </div>
+          </div>
+
+          {/* ── LISTE DES CHANTIERS (cards) ───────────────────────────────── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {financials.map(f => (
-              <button
+              <div
                 key={f.chantier.id}
+                className="v5-card"
                 onClick={() => { setSelectedId(f.chantier.id); resetSim() }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
-                  background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12,
-                  borderLeft: `4px solid ${f.badgeColor}`, cursor: 'pointer',
-                  textAlign: 'left', width: '100%',
-                }}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, borderLeft: `3px solid ${f.badgeColor}` }}
               >
-                {/* Score */}
                 <div style={{
-                  width: 48, height: 48, borderRadius: '50%', background: f.badgeColor + '18',
+                  width: 40, height: 40, borderRadius: '50%', background: f.badgeColor + '18',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 800, fontSize: 18, color: f.badgeColor, flexShrink: 0,
+                  fontWeight: 800, fontSize: 16, color: f.badgeColor, flexShrink: 0,
                 }}>
                   {f.score}
                 </div>
-
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{f.chantier.titre}</div>
-                  <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
-                    <MapPin size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{f.chantier.adresse || f.chantier.client} · {f.chantier.statut}
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{f.chantier.titre}</div>
+                  <div style={{ color: '#999', fontSize: 11, marginTop: 2 }}>
+                    {f.chantier.adresse || f.chantier.client} · {f.chantier.statut}
                     {f.joursReel > 0 && ` · ${f.joursReel}j`}
                   </div>
                 </div>
-
-                {/* Résultat */}
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: f.beneficeNet >= 0 ? '#22c55e' : '#ef4444' }}>
-                    {f.beneficeNet >= 0 ? '+' : ''}{fmt(f.beneficeNet)} €
+                  <div style={{ fontWeight: 600, fontSize: 14, color: f.beneficeNet >= 0 ? '#2E7D32' : '#C62828' }}>
+                    {f.beneficeNet >= 0 ? '+' : ''}{fmt(f.beneficeNet)} &euro;
                   </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                    {fmtPct(f.margePercent)} · {fmt(f.caTotal)} € CA
+                  <div style={{ fontSize: 10, color: '#999' }}>
+                    {fmtPct(f.margePercent)} · {fmt(f.caTotal)} &euro; CA
                   </div>
                 </div>
-
-                {/* Badge */}
-                <span style={{
-                  padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                  background: f.badgeColor + '18', color: f.badgeColor, whiteSpace: 'nowrap',
-                }}>
-                  <>{BADGE_LABELS[f.badge] && <BadgeIcon type={BADGE_LABELS[f.badge].icon} />}{BADGE_LABELS[f.badge]?.[isPt ? 'pt' : 'fr']}</>
+                <span className={`v5-badge ${f.badge === 'rentable' ? 'v5-badge-green' : f.badge === 'moyen' ? 'v5-badge-orange' : 'v5-badge-red'}`}>
+                  {BADGE_LABELS[f.badge] && <BadgeIcon type={BADGE_LABELS[f.badge].icon} />}{BADGE_LABELS[f.badge]?.[isPt ? 'pt' : 'fr']}
                 </span>
-              </button>
+              </div>
             ))}
           </div>
         </>
@@ -485,107 +519,97 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {selected && (
         <div>
-          {/* Retour */}
-          <button
-            onClick={() => { setSelectedId(null); resetSim() }}
-            style={{ padding: '6px 14px', background: '#f3f4f6', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', fontSize: 13, marginBottom: 16 }}
-          >
-            ← {t('Retour aux chantiers', 'Voltar às obras')}
+          <button onClick={() => { setSelectedId(null); resetSim() }} className="v5-btn" style={{ marginBottom: 12 }}>
+            &larr; {t('Retour aux chantiers', 'Voltar às obras')}
           </button>
 
           {/* En-tête chantier */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
             <div>
-              <h3 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700 }}>{selected.chantier.titre}</h3>
-              <div style={{ color: '#6b7280', fontSize: 13 }}>
-                {selected.chantier.client} · <MapPin size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{selected.chantier.adresse}
+              <div style={{ fontSize: 16, fontWeight: 600 }}>{selected.chantier.titre}</div>
+              <div style={{ color: '#999', fontSize: 12 }}>
+                {selected.chantier.client} · {selected.chantier.adresse}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
-                width: 56, height: 56, borderRadius: '50%', background: selected.badgeColor + '18',
+                width: 48, height: 48, borderRadius: '50%', background: selected.badgeColor + '18',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 800, fontSize: 22, color: selected.badgeColor,
+                fontWeight: 800, fontSize: 20, color: selected.badgeColor,
               }}>
                 {selected.score}
               </div>
-              <span style={{
-                padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700,
-                background: selected.badgeColor + '18', color: selected.badgeColor,
-              }}>
-                <>{BADGE_LABELS[selected.badge] && <BadgeIcon type={BADGE_LABELS[selected.badge].icon} />}{BADGE_LABELS[selected.badge]?.[isPt ? 'pt' : 'fr']}</>
+              <span className={`v5-badge ${selected.badge === 'rentable' ? 'v5-badge-green' : selected.badge === 'moyen' ? 'v5-badge-orange' : 'v5-badge-red'}`}>
+                {BADGE_LABELS[selected.badge] && <BadgeIcon type={BADGE_LABELS[selected.badge].icon} />}{BADGE_LABELS[selected.badge]?.[isPt ? 'pt' : 'fr']}
               </span>
             </div>
           </div>
 
           {/* ── 4 KPI CARDS ──────────────────────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
-            <KpiCard
-              label={t('Bénéfice net', 'Lucro líquido')}
-              value={`${selected.beneficeNet >= 0 ? '+' : ''}${fmt(selected.beneficeNet)} €`}
-              sub={`${fmtPct(selected.margePercent)} ${t('de marge', 'de margem')}`}
-              color={selected.beneficeNet >= 0 ? '#22c55e' : '#ef4444'}
-              big
-            />
-            <KpiCard
-              label={t('Durée chantier', 'Duração da obra')}
-              value={`${selected.joursReel}j / ${selected.joursPrevu}j`}
-              sub={selected.joursReel > selected.joursPrevu
+          <div className="v5-kpi-g">
+            <div className="v5-kpi hl">
+              <div className="v5-kpi-l">{t('Bénéfice net', 'Lucro líquido')}</div>
+              <div className="v5-kpi-v" style={{ color: selected.beneficeNet >= 0 ? '#2E7D32' : '#C62828' }}>
+                {selected.beneficeNet >= 0 ? '+' : ''}{fmt(selected.beneficeNet)} &euro;
+              </div>
+              <div className="v5-kpi-s">{fmtPct(selected.margePercent)} {t('de marge', 'de margem')}</div>
+            </div>
+            <div className="v5-kpi">
+              <div className="v5-kpi-l">{t('Durée chantier', 'Duração da obra')}</div>
+              <div className="v5-kpi-v">{selected.joursReel}j / {selected.joursPrevu}j</div>
+              <div className="v5-kpi-s">{selected.joursReel > selected.joursPrevu
                 ? `+${selected.joursReel - selected.joursPrevu}j ${t('de retard', 'de atraso')}`
-                : t('Dans les temps', 'Dentro do prazo')}
-              color={selected.joursReel <= selected.joursPrevu ? '#22c55e' : '#f59e0b'}
-            />
-            <KpiCard
-              label={t('Bénéfice / jour', 'Lucro / dia')}
-              value={`${fmt(selected.beneficeParJour)} €`}
-              sub={t('par jour ouvré', 'por dia útil')}
-              color={selected.beneficeParJour >= 0 ? '#1e40af' : '#ef4444'}
-            />
-            <KpiCard
-              label={t('Projection mensuelle', 'Projeção mensal')}
-              value={`${fmt(selected.projectionMensuelle)} €`}
-              sub={`${MOIS_JOURS_OUVRES}j ${t('ouvrés/mois', 'úteis/mês')}`}
-              color={selected.projectionMensuelle >= 0 ? '#1e40af' : '#ef4444'}
-            />
+                : t('Dans les temps', 'Dentro do prazo')}</div>
+            </div>
+            <div className="v5-kpi">
+              <div className="v5-kpi-l">{t('Bénéfice / jour', 'Lucro / dia')}</div>
+              <div className="v5-kpi-v">{fmt(selected.beneficeParJour)} &euro;</div>
+              <div className="v5-kpi-s">{t('par jour ouvré', 'por dia útil')}</div>
+            </div>
+            <div className="v5-kpi">
+              <div className="v5-kpi-l">{t('Projection mensuelle', 'Projeção mensal')}</div>
+              <div className="v5-kpi-v">{fmt(selected.projectionMensuelle)} &euro;</div>
+              <div className="v5-kpi-s">{MOIS_JOURS_OUVRES}j {t('ouvrés/mois', 'úteis/mês')}</div>
+            </div>
           </div>
 
-          {/* ── TABLEAU CENTRAL SIMPLIFIÉ ─────────────────────────────────── */}
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          {/* ── TABLEAU CENTRAL ─────────────────────────────────────────── */}
+          <div className="v5-card" style={{ overflow: 'auto', marginBottom: 16 }}>
+            <table className="v5-dt">
               <thead>
-                <tr style={{ background: '#f9fafb' }}>
-                  <th style={thStyle}>{t('Élément', 'Elemento')}</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>{t('Montant', 'Montante')}</th>
-                  <th style={{ ...thStyle, textAlign: 'right' }}>%</th>
+                <tr>
+                  <th>{t('Élément', 'Elemento')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('Montant', 'Montante')}</th>
+                  <th style={{ textAlign: 'right' }}>%</th>
                 </tr>
               </thead>
               <tbody>
-                <tr style={trStyle}>
-                  <td style={tdStyle}><DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Chiffre d\'affaires', 'Volume de negócios')}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#1e40af' }}>{fmt(selected.caTotal)} €</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#9ca3af' }}>100%</td>
+                <tr>
+                  <td><DollarSign size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t("Chiffre d'affaires", 'Volume de negócios')}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600, color: '#1565C0' }}>{fmt(selected.caTotal)} &euro;</td>
+                  <td style={{ textAlign: 'right', color: '#999' }}>100%</td>
                 </tr>
-                <tr style={trStyle}>
-                  <td style={tdStyle}><HardHat size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Main d\'œuvre', 'Mão de obra')} <span style={{ color: '#9ca3af', fontSize: 11 }}>({fmt(selected.heuresTotal)}h · {selected.nbOuvriers} {t('pers.', 'pess.')})</span></td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#ef4444' }}>- {fmt(selected.coutMainOeuvre)} €</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#9ca3af' }}>{selected.caTotal > 0 ? fmtPct(selected.coutMainOeuvre / selected.caTotal * 100) : '—'}</td>
+                <tr>
+                  <td><HardHat size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t("Main d'œuvre", 'Mão de obra')} <span style={{ color: '#999', fontSize: 10 }}>({fmt(selected.heuresTotal)}h · {selected.nbOuvriers} {t('pers.', 'pess.')})</span></td>
+                  <td style={{ textAlign: 'right', color: '#C62828' }}>- {fmt(selected.coutMainOeuvre)} &euro;</td>
+                  <td style={{ textAlign: 'right', color: '#999' }}>{selected.caTotal > 0 ? fmtPct(selected.coutMainOeuvre / selected.caTotal * 100) : '—'}</td>
                 </tr>
-                <tr style={trStyle}>
-                  <td style={tdStyle}><Boxes size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Matériaux', 'Materiais')}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#ef4444' }}>- {fmt(selected.coutMateriaux)} €</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#9ca3af' }}>{selected.caTotal > 0 ? fmtPct(selected.coutMateriaux / selected.caTotal * 100) : '—'}</td>
+                <tr>
+                  <td><Boxes size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Matériaux', 'Materiais')}</td>
+                  <td style={{ textAlign: 'right', color: '#C62828' }}>- {fmt(selected.coutMateriaux)} &euro;</td>
+                  <td style={{ textAlign: 'right', color: '#999' }}>{selected.caTotal > 0 ? fmtPct(selected.coutMateriaux / selected.caTotal * 100) : '—'}</td>
                 </tr>
-                <tr style={trStyle}>
-                  <td style={tdStyle}><Truck size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Autres frais', 'Outros custos')}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#ef4444' }}>- {fmt(selected.coutAutres)} €</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#9ca3af' }}>{selected.caTotal > 0 ? fmtPct(selected.coutAutres / selected.caTotal * 100) : '—'}</td>
+                <tr>
+                  <td><Truck size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t('Autres frais', 'Outros custos')}</td>
+                  <td style={{ textAlign: 'right', color: '#C62828' }}>- {fmt(selected.coutAutres)} &euro;</td>
+                  <td style={{ textAlign: 'right', color: '#999' }}>{selected.caTotal > 0 ? fmtPct(selected.coutAutres / selected.caTotal * 100) : '—'}</td>
                 </tr>
-                <tr style={{ background: selected.beneficeNet >= 0 ? '#f0fdf4' : '#fef2f2', fontWeight: 700 }}>
-                  <td style={{ ...tdStyle, fontSize: 15 }}>{selected.beneficeNet >= 0 ? <CheckCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : <AlertCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4, color: '#ef4444' }} />}{t('BÉNÉFICE NET', 'LUCRO LÍQUIDO')}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', fontSize: 16, color: selected.beneficeNet >= 0 ? '#22c55e' : '#ef4444' }}>
-                    {selected.beneficeNet >= 0 ? '+' : ''}{fmt(selected.beneficeNet)} €
+                <tr style={{ background: selected.beneficeNet >= 0 ? '#E8F5E9' : '#FFEBEE', fontWeight: 600 }}>
+                  <td>{selected.beneficeNet >= 0 ? <CheckCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : <AlertCircle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4, color: '#C62828' }} />}{t('BÉNÉFICE NET', 'LUCRO LÍQUIDO')}</td>
+                  <td style={{ textAlign: 'right', color: selected.beneficeNet >= 0 ? '#2E7D32' : '#C62828' }}>
+                    {selected.beneficeNet >= 0 ? '+' : ''}{fmt(selected.beneficeNet)} &euro;
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right', color: selected.beneficeNet >= 0 ? '#22c55e' : '#ef4444' }}>
+                  <td style={{ textAlign: 'right', color: selected.beneficeNet >= 0 ? '#2E7D32' : '#C62828' }}>
                     {fmtPct(selected.margePercent)}
                   </td>
                 </tr>
@@ -595,17 +619,11 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
 
           {/* ── SEUIL DE RENTABILITÉ ─────────────────────────────────────── */}
           {selected.seuilRentabiliteJours !== Infinity && (
-            <div style={{
-              background: selected.joursReel >= selected.seuilRentabiliteJours ? '#f0fdf4' : '#fffbeb',
-              border: `1px solid ${selected.joursReel >= selected.seuilRentabiliteJours ? '#bbf7d0' : '#fde68a'}`,
-              borderRadius: 10, padding: 16, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{ fontSize: 28 }}>{selected.joursReel >= selected.seuilRentabiliteJours ? <CheckCircle size={28} color="#22c55e" /> : <Hourglass size={28} color="#f59e0b" />}</div>
+            <div className={`v5-al ${selected.joursReel >= selected.seuilRentabiliteJours ? 'info' : 'warn'}`} style={{ marginBottom: 16 }}>
+              {selected.joursReel >= selected.seuilRentabiliteJours ? <CheckCircle size={14} /> : <Hourglass size={14} />}
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>
-                  {t('Seuil de rentabilité', 'Limiar de rentabilidade')} : {selected.seuilRentabiliteJours} {t('jours', 'dias')}
-                </div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                <strong>{t('Seuil de rentabilité', 'Limiar de rentabilidade')} : {selected.seuilRentabiliteJours} {t('jours', 'dias')}</strong>
+                <div style={{ fontSize: 11 }}>
                   {selected.joursReel >= selected.seuilRentabiliteJours
                     ? t(`Atteint au jour ${selected.seuilRentabiliteJours} — vous êtes en zone de profit`, `Atingido no dia ${selected.seuilRentabiliteJours} — está em zona de lucro`)
                     : t(`Encore ${selected.seuilRentabiliteJours - selected.joursReel} jours avant d'être rentable`, `Ainda ${selected.seuilRentabiliteJours - selected.joursReel} dias para ser rentável`)}
@@ -614,107 +632,85 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
             </div>
           )}
 
-          {/* ── BARRE DE PROGRESSION VISUELLE ────────────────────────────── */}
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 24 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
-              {t('Répartition des coûts', 'Distribuição de custos')}
-            </div>
-            <div style={{ display: 'flex', height: 32, borderRadius: 8, overflow: 'hidden', background: '#f3f4f6' }}>
+          {/* ── BARRE DE PROGRESSION ────────────────────────────────────── */}
+          <div className="v5-card" style={{ marginBottom: 16 }}>
+            <div className="v5-st">{t('Répartition des coûts', 'Distribuição de custos')}</div>
+            <div className="v5-prog-row" style={{ height: 28, borderRadius: 6, overflow: 'hidden', background: '#E8E8E8' }}>
               {selected.coutTotal > 0 ? (
                 <>
-                  <div style={{ width: `${(selected.coutMainOeuvre / selected.coutTotal) * 100}%`, background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 600, minWidth: 30 }}>
-                    <HardHat size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{Math.round((selected.coutMainOeuvre / selected.coutTotal) * 100)}%
+                  <div style={{ width: `${(selected.coutMainOeuvre / selected.coutTotal) * 100}%`, background: '#42A5F5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 600, minWidth: 30 }}>
+                    {Math.round((selected.coutMainOeuvre / selected.coutTotal) * 100)}%
                   </div>
-                  <div style={{ width: `${(selected.coutMateriaux / selected.coutTotal) * 100}%`, background: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 600, minWidth: 30 }}>
-                    <Boxes size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{Math.round((selected.coutMateriaux / selected.coutTotal) * 100)}%
+                  <div style={{ width: `${(selected.coutMateriaux / selected.coutTotal) * 100}%`, background: '#FFA726', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 600, minWidth: 30 }}>
+                    {Math.round((selected.coutMateriaux / selected.coutTotal) * 100)}%
                   </div>
-                  <div style={{ width: `${(selected.coutAutres / selected.coutTotal) * 100}%`, background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 600, minWidth: 30 }}>
-                    <Truck size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{Math.round((selected.coutAutres / selected.coutTotal) * 100)}%
+                  <div style={{ width: `${(selected.coutAutres / selected.coutTotal) * 100}%`, background: '#AB47BC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 600, minWidth: 30 }}>
+                    {Math.round((selected.coutAutres / selected.coutTotal) * 100)}%
                   </div>
                 </>
               ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 12 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: 11 }}>
                   {t('Aucun coût enregistré', 'Nenhum custo registado')}
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: '#6b7280' }}>
-              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', marginRight: 4, verticalAlign: 'middle' }} />{t('Main d\'œuvre', 'Mão de obra')}</span>
-              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', marginRight: 4, verticalAlign: 'middle' }} />{t('Matériaux', 'Materiais')}</span>
-              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#8b5cf6', marginRight: 4, verticalAlign: 'middle' }} />{t('Autres', 'Outros')}</span>
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 10, color: '#999' }}>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#42A5F5', marginRight: 4, verticalAlign: 'middle' }} />{t("Main d'œuvre", 'Mão de obra')}</span>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#FFA726', marginRight: 4, verticalAlign: 'middle' }} />{t('Matériaux', 'Materiais')}</span>
+              <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#AB47BC', marginRight: 4, verticalAlign: 'middle' }} />{t('Autres', 'Outros')}</span>
             </div>
           </div>
 
-          {/* ═══════════════════════════════════════════════════════════════ */}
           {/* ── SIMULATEUR ────────────────────────────────────────────────── */}
-          {/* ═══════════════════════════════════════════════════════════════ */}
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 20, marginBottom: 24 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
-              <SlidersHorizontal size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{t('Simulateur "Et si..."', 'Simulador "E se..."')}
-            </div>
-            <p style={{ color: '#6b7280', fontSize: 12, marginTop: 0, marginBottom: 16 }}>
-              {t('Testez l\'impact de changements sur votre rentabilité', 'Teste o impacto de mudanças na sua rentabilidade')}
+          <div className="v5-card" style={{ marginBottom: 16 }}>
+            <div className="v5-st"><SlidersHorizontal size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{t('Simulateur "Et si..."', 'Simulador "E se..."')}</div>
+            <p style={{ color: '#999', fontSize: 11, marginTop: 0, marginBottom: 14 }}>
+              {t("Testez l'impact de changements sur votre rentabilité", 'Teste o impacto de mudanças na sua rentabilidade')}
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
-              <div>
-                <label style={simLabelStyle}>{t('Jours supplémentaires', 'Dias adicionais')}</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 16 }}>
+              <div className="v5-fg">
+                <label className="v5-fl">{t('Jours supplémentaires', 'Dias adicionais')}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="range" min={0} max={30} value={simJoursExtra} onChange={e => setSimJoursExtra(parseInt(e.target.value))} style={{ flex: 1 }} />
-                  <span style={simValStyle}>+{simJoursExtra}j</span>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: '#1565C0', minWidth: 36, textAlign: 'center' }}>+{simJoursExtra}j</span>
                 </div>
               </div>
-              <div>
-                <label style={simLabelStyle}>{t('Ouvriers en plus', 'Operários adicionais')}</label>
+              <div className="v5-fg">
+                <label className="v5-fl">{t('Ouvriers en plus', 'Operários adicionais')}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="range" min={0} max={10} value={simOuvriersExtra} onChange={e => setSimOuvriersExtra(parseInt(e.target.value))} style={{ flex: 1 }} />
-                  <span style={simValStyle}>+{simOuvriersExtra}</span>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: '#1565C0', minWidth: 36, textAlign: 'center' }}>+{simOuvriersExtra}</span>
                 </div>
               </div>
-              <div>
-                <label style={simLabelStyle}>{t('Coût imprévu (€)', 'Custo extra (€)')}</label>
+              <div className="v5-fg">
+                <label className="v5-fl">{t('Coût imprévu (€)', 'Custo extra (€)')}</label>
                 <input
                   type="number" min={0} value={simCoutExtra}
                   onChange={e => setSimCoutExtra(parseFloat(e.target.value) || 0)}
-                  style={{ width: '100%', padding: '6px 10px', border: '1px solid #bfdbfe', borderRadius: 6, fontSize: 13 }}
+                  className="v5-fi"
                 />
               </div>
             </div>
 
-            {/* Résultat simulé */}
             {simulated && (simJoursExtra > 0 || simOuvriersExtra > 0 || simCoutExtra > 0) && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, background: '#fff', borderRadius: 10, padding: 14 }}>
-                <SimResult
-                  label={t('Bénéfice', 'Lucro')}
-                  before={`${fmt(selected.beneficeNet)} €`}
-                  after={`${fmt(simulated.benefice)} €`}
-                  isGood={simulated.benefice >= selected.beneficeNet}
-                />
-                <SimResult
-                  label={t('Marge', 'Margem')}
-                  before={fmtPct(selected.margePercent)}
-                  after={fmtPct(simulated.marge)}
-                  isGood={simulated.marge >= selected.margePercent}
-                />
-                <SimResult
-                  label={t('Bénéf/jour', 'Lucro/dia')}
-                  before={`${fmt(selected.beneficeParJour)} €`}
-                  after={`${fmt(simulated.benefParJour)} €`}
-                  isGood={simulated.benefParJour >= selected.beneficeParJour}
-                />
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Score</div>
-                  <div style={{ fontWeight: 800, fontSize: 22, color: simulated.badgeColor }}>{simulated.score}</div>
-                  <div style={{ fontSize: 11, color: simulated.badgeColor, fontWeight: 600 }}>
-                    <>{BADGE_LABELS[simulated.badge] && <BadgeIcon type={BADGE_LABELS[simulated.badge].icon} />}{BADGE_LABELS[simulated.badge]?.[isPt ? 'pt' : 'fr']}</>
+              <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+                <SimKpi label={t('Bénéfice', 'Lucro')} before={`${fmt(selected.beneficeNet)} €`} after={`${fmt(simulated.benefice)} €`} isGood={simulated.benefice >= selected.beneficeNet} />
+                <SimKpi label={t('Marge', 'Margem')} before={fmtPct(selected.margePercent)} after={fmtPct(simulated.marge)} isGood={simulated.marge >= selected.margePercent} />
+                <SimKpi label={t('Bénéf/jour', 'Lucro/dia')} before={`${fmt(selected.beneficeParJour)} €`} after={`${fmt(simulated.benefParJour)} €`} isGood={simulated.benefParJour >= selected.beneficeParJour} />
+                <div className="v5-kpi" style={{ textAlign: 'center' }}>
+                  <div className="v5-kpi-l">Score</div>
+                  <div className="v5-kpi-v" style={{ color: simulated.badgeColor }}>{simulated.score}</div>
+                  <div className="v5-kpi-s" style={{ color: simulated.badgeColor, fontWeight: 600 }}>
+                    {BADGE_LABELS[simulated.badge] && <BadgeIcon type={BADGE_LABELS[simulated.badge].icon} />}{BADGE_LABELS[simulated.badge]?.[isPt ? 'pt' : 'fr']}
                   </div>
                 </div>
               </div>
             )}
 
             {(simJoursExtra > 0 || simOuvriersExtra > 0 || simCoutExtra > 0) && (
-              <button onClick={resetSim} style={{ marginTop: 10, padding: '6px 12px', background: 'none', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#1e40af' }}>
-                ↺ {t('Réinitialiser', 'Reiniciar')}
+              <button onClick={resetSim} className="v5-btn" style={{ marginTop: 10 }}>
+                &larr; {t('Réinitialiser', 'Reiniciar')}
               </button>
             )}
           </div>
@@ -728,54 +724,14 @@ export default function RentabiliteChantierSection({ artisan }: { artisan: impor
 // SUB-COMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function KpiCard({ label, value, sub, color, big }: { label: string; value: string; sub?: string; color: string; big?: boolean }) {
+function SimKpi({ label, before, after, isGood }: { label: string; before: string; after: string; isGood: boolean }) {
   return (
-    <div style={{
-      background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: big ? '18px 20px' : '14px 16px',
-      borderTop: `3px solid ${color}`,
-    }}>
-      <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: big ? 24 : 20, fontWeight: 800, color, lineHeight: 1.2 }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>{sub}</div>}
-    </div>
-  )
-}
-
-function SimResult({ label, before, after, isGood }: { label: string; before: string; after: string; isGood: boolean }) {
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'line-through' }}>{before}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: isGood ? '#22c55e' : '#ef4444' }}>
+    <div className="v5-kpi" style={{ textAlign: 'center' }}>
+      <div className="v5-kpi-l">{label}</div>
+      <div style={{ fontSize: 11, color: '#999', textDecoration: 'line-through' }}>{before}</div>
+      <div className="v5-kpi-v" style={{ fontSize: 18, color: isGood ? '#2E7D32' : '#C62828' }}>
         {isGood ? '↑' : '↓'} {after}
       </div>
     </div>
   )
-}
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const thStyle: React.CSSProperties = {
-  padding: '10px 14px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280',
-  borderBottom: '1px solid #e5e7eb',
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '10px 14px',
-}
-
-const trStyle: React.CSSProperties = {
-  borderBottom: '1px solid #f3f4f6',
-}
-
-const simLabelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6,
-}
-
-const simValStyle: React.CSSProperties = {
-  minWidth: 40, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#1e40af',
 }

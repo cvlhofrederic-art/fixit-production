@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings, useGeoPointage } from '@/lib/hooks/use-btp-data'
 import { Artisan } from '@/lib/types'
-import { Loader2, Clock, ClipboardList, Radio, Plus, MapPin, CheckCircle, Search, AlertTriangle, Square, Ruler, Calendar, Pencil, Satellite, X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // POINTAGE GÉO V2 — Pointage par GPS + manuel
@@ -172,71 +172,89 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
     ? ['Chefe de obra', 'Pedreiro', 'Eletricista', 'Canalizador', 'Carpinteiro', 'Pintor', 'Servente']
     : ['Chef de chantier', 'Maçon', 'Électricien', 'Plombier', 'Charpentier', 'Peintre', 'Manoeuvre']
 
+  // Weekly summary: group by employee, show hours per weekday
+  const getWeeklySummary = () => {
+    const weekDays = isPt ? ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'] : ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven']
+    const summary = employes.map(emp => {
+      const empPointages = allPointages.filter(p => p.employe === emp)
+      const byDay: Record<number, number> = {}
+      let total = 0
+      empPointages.forEach(p => {
+        if (!p.date) return
+        const d = new Date(p.date + 'T00:00')
+        const dow = d.getDay() // 0=Sun, 1=Mon...
+        if (dow >= 1 && dow <= 5) {
+          byDay[dow] = (byDay[dow] || 0) + (p.heuresTravaillees || 0)
+          total += (p.heuresTravaillees || 0)
+        }
+      })
+      return { employe: emp, byDay, total }
+    })
+    return { weekDays, summary }
+  }
+
   if (loadingP) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 24 }}><Loader2 size={24} className="animate-spin" /></div>
-      <p className="v22-card-meta">{isPt ? 'A carregar...' : 'Chargement...'}</p>
+      <Loader2 size={24} className="animate-spin" style={{ display: 'inline-block', color: '#999' }} />
+      <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div>
+      {/* Page header */}
+      <div className="v5-pg-t">
+        <h1>{isPt ? 'Pointagem equipas' : 'Pointage équipes'}</h1>
+        <p>{isPt ? 'Manual ou automático por GPS' : 'Suivi des heures'}</p>
+      </div>
 
-      {/* Header */}
-      <div className="v22-page-header">
-        <div>
-          <h2 className="v22-page-title"><Clock size={20} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Pointagem' : 'Pointage'}</h2>
-          <p className="v22-page-sub">{isPt ? 'Manuel ou automático por GPS' : 'Manuel ou automatique par GPS'}</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`v22-btn v22-btn-sm`}
-            style={{ background: tab === 'pointages' ? 'var(--v22-yellow)' : 'transparent' }}
-            onClick={() => setTab('pointages')}>
-            <ClipboardList size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Pontagens' : 'Pointages'}
+      {/* Tabs + manual pointer button */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: '.75rem', alignItems: 'center' }}>
+        <div className="v5-tabs" style={{ marginBottom: 0, borderBottom: 'none' }}>
+          <button className={`v5-tab-b${tab === 'pointages' ? ' active' : ''}`} onClick={() => setTab('pointages')}>
+            {isPt ? 'Pontagens' : 'Pointages'}
           </button>
-          <button className={`v22-btn v22-btn-sm`}
-            style={{ background: tab === 'geo' ? 'var(--v22-yellow)' : 'transparent' }}
-            onClick={() => setTab('geo')}>
-            <Radio size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />GPS
+          <button className={`v5-tab-b${tab === 'geo' ? ' active' : ''}`} onClick={() => setTab('geo')}>
+            GPS
           </button>
-          {tab === 'pointages' && (
-            <button className="v22-btn" onClick={() => setShowForm(true)}>
-              <Plus size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Pontar' : 'Pointer'}
-            </button>
-          )}
         </div>
+        {tab === 'pointages' && (
+          <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>
+            {isPt ? '⏱️ Pontar manualmente' : '⏱️ Pointer manuellement'}
+          </button>
+        )}
       </div>
 
       {/* ══ TAB GPS ══ */}
       {tab === 'geo' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
 
-          {/* Statut GPS */}
-          <div className="v22-card" style={{ padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          {/* GPS status card */}
+          <div className="v5-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <div style={{
-                width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
-                background: geoStatus === 'in_zone' ? '#DEF7EC' : geoStatus === 'pointed' ? '#E8F5E9' : geoStatus === 'watching' ? '#FEF5E4' : '#F3F4F6',
+                width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                background: geoStatus === 'in_zone' ? '#E8F5E9' : geoStatus === 'pointed' ? '#E8F5E9' : geoStatus === 'watching' ? '#FFF3E0' : '#F5F5F5',
               }}>
-                {geoStatus === 'in_zone' ? <MapPin size={24} /> : geoStatus === 'pointed' ? <CheckCircle size={24} /> : geoStatus === 'watching' ? <Search size={24} /> : <Radio size={24} />}
+                {geoStatus === 'in_zone' ? '📍' : geoStatus === 'pointed' ? '✅' : geoStatus === 'watching' ? '🔍' : '📡'}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>
                   {geoStatus === 'idle' && (isPt ? 'GPS desativado' : 'GPS désactivé')}
                   {geoStatus === 'watching' && (isPt ? 'A procurar obras próximas...' : 'Recherche de chantiers proches...')}
                   {geoStatus === 'in_zone' && (isPt ? `Perto de: ${nearestChantier?.titre}` : `Proche de : ${nearestChantier?.titre}`)}
                   {geoStatus === 'pointed' && (isPt ? 'Pontado!' : 'Pointé !')}
                 </div>
-                <div className="v22-card-meta" style={{ fontSize: 12 }}>
-                  {nearestChantier && <><Ruler size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{nearestChantier.distance}m</>}
+                <div style={{ fontSize: 11, color: '#999' }}>
+                  {nearestChantier && <>{nearestChantier.distance}m</>}
                   {geo.position && ` — ${geo.position.lat.toFixed(4)}, ${geo.position.lng.toFixed(4)}`}
                 </div>
               </div>
             </div>
 
             {!settings.geo_pointage_enabled && (
-              <div style={{ background: '#FEF3C7', borderRadius: 8, padding: 12, fontSize: 13, color: '#92400E', marginBottom: 12 }}>
-                <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt
+              <div className="v5-al warn" style={{ marginBottom: 12 }}>
+                ⚠️ {isPt
                   ? 'A pointagem GPS está desativada. Ative nas Configurações BTP.'
                   : 'Le pointage GPS est désactivé. Activez-le dans les Paramètres BTP.'}
               </div>
@@ -244,72 +262,63 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
 
             <div style={{ display: 'flex', gap: 8 }}>
               {!geo.watching ? (
-                <button className="v22-btn" onClick={() => { geo.start(); setGeoStatus('watching') }}
-                  style={{ background: '#22C55E', color: '#fff' }}>
-                  <Radio size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Ativar GPS' : 'Activer GPS'}
+                <button className="v5-btn v5-btn-s" onClick={() => { geo.start(); setGeoStatus('watching') }}>
+                  📡 {isPt ? 'Ativar GPS' : 'Activer GPS'}
                 </button>
               ) : (
-                <button className="v22-btn" onClick={() => { geo.stop(); setGeoStatus('idle') }}
-                  style={{ background: '#EF4444', color: '#fff' }}>
-                  <Square size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Parar GPS' : 'Arrêter GPS'}
+                <button className="v5-btn v5-btn-d" onClick={() => { geo.stop(); setGeoStatus('idle') }}>
+                  ⏹ {isPt ? 'Parar GPS' : 'Arrêter GPS'}
                 </button>
               )}
               {geoStatus === 'in_zone' && nearestChantier && (
-                <button className="v22-btn" onClick={() => pointGeo(nearestChantier)}
-                  style={{ background: 'var(--v22-yellow)', fontWeight: 700 }}>
-                  <CheckCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? `Pontar em ${nearestChantier.titre}` : `Pointer sur ${nearestChantier.titre}`}
+                <button className="v5-btn v5-btn-p" onClick={() => pointGeo(nearestChantier)}>
+                  ✅ {isPt ? `Pontar em ${nearestChantier.titre}` : `Pointer sur ${nearestChantier.titre}`}
                 </button>
               )}
             </div>
           </div>
 
-          {/* Liste des chantiers avec leur GPS */}
-          <div className="v22-card">
-            <div className="v22-card-head">
-              <div className="v22-card-title"><MapPin size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />{isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
-            </div>
-            <div className="v22-card-body">
-              {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 20 }}>
-                  <p className="v22-card-meta">
-                    {isPt
-                      ? 'Nenhuma obra com GPS. Adicione coordenadas GPS ao criar uma obra.'
-                      : 'Aucun chantier avec GPS. Ajoutez les coordonnées GPS en créant un chantier.'}
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').map(c => {
-                    const dist = geo.position ? geo.distanceTo(c.latitude!, c.longitude!) : null
-                    const inZone = dist !== null && dist <= (c.geoRayonM || 100)
-                    return (
-                      <div key={c.id} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 14px', borderRadius: 8,
-                        background: inZone ? '#DEF7EC' : 'var(--v22-bg)',
-                        border: inZone ? '2px solid #22C55E' : '1px solid var(--v22-border)',
-                      }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{c.titre}</div>
-                          <div className="v22-card-meta" style={{ fontSize: 11 }}>
-                            {c.adresse} — {isPt ? 'raio' : 'rayon'}: {c.geoRayonM || 100}m
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          {dist !== null ? (
-                            <span style={{ fontWeight: 700, fontSize: 14, color: inZone ? '#22C55E' : '#6B7280' }}>
-                              {dist < 1000 ? `${Math.round(dist)}m` : `${(dist / 1000).toFixed(1)}km`}
-                            </span>
-                          ) : (
-                            <span className="v22-card-meta" style={{ fontSize: 11 }}>—</span>
-                          )}
+          {/* Chantiers with GPS */}
+          <div className="v5-card">
+            <div className="v5-st">📍 {isPt ? 'Obras com GPS' : 'Chantiers avec GPS'}</div>
+            {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').length === 0 ? (
+              <p style={{ textAlign: 'center', padding: 16, fontSize: 12, color: '#999' }}>
+                {isPt
+                  ? 'Nenhuma obra com GPS. Adicione coordenadas GPS ao criar uma obra.'
+                  : 'Aucun chantier avec GPS. Ajoutez les coordonnées GPS en créant un chantier.'}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(chantiers as Chantier[]).filter(c => c.latitude && c.statut === 'En cours').map(c => {
+                  const dist = geo.position ? geo.distanceTo(c.latitude!, c.longitude!) : null
+                  const inZone = dist !== null && dist <= (c.geoRayonM || 100)
+                  return (
+                    <div key={c.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 12px', borderRadius: 6,
+                      background: inZone ? '#E8F5E9' : '#FAFAFA',
+                      border: inZone ? '2px solid #4CAF50' : '1px solid #E8E8E8',
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 12 }}>{c.titre}</div>
+                        <div style={{ fontSize: 10, color: '#999' }}>
+                          {c.adresse} — {isPt ? 'raio' : 'rayon'}: {c.geoRayonM || 100}m
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                      <div>
+                        {dist !== null ? (
+                          <span style={{ fontWeight: 700, fontSize: 13, color: inZone ? '#4CAF50' : '#999' }}>
+                            {dist < 1000 ? `${Math.round(dist)}m` : `${(dist / 1000).toFixed(1)}km`}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: '#BBB' }}>—</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -319,169 +328,174 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan }) {
         <>
           {/* Form pointage manuel */}
           {showForm && (
-            <div className="v22-card">
-              <div className="v22-card-head">
-                <div className="v22-card-title">{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
-                <button className="v22-btn v22-btn-sm" onClick={() => setShowForm(false)} aria-label="Fermer"><X size={14} /></button>
+            <div className="v5-card" style={{ marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
+                <div className="v5-st" style={{ marginBottom: 0 }}>{isPt ? 'Nova pontagem' : 'Nouveau pointage'}</div>
+                <button className="v5-btn v5-btn-sm" onClick={() => setShowForm(false)}>✕</button>
               </div>
-              <div className="v22-card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Funcionário *' : 'Employé *'}</label>
-                    {membres.length > 0 ? (
-                      <select className="v22-form-input" value={form.employe} onChange={e => {
-                        const m = (membres as Membre[]).find(m => `${m.prenom} ${m.nom}` === e.target.value)
-                        setForm({ ...form, employe: e.target.value, poste: m?.typeCompte || form.poste })
-                      }}>
-                        <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
-                        {(membres as Membre[]).map(m => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
-                      </select>
-                    ) : (
-                      <input className="v22-form-input" value={form.employe} onChange={e => setForm({ ...form, employe: e.target.value })}
-                        placeholder={isPt ? 'Nome do funcionário' : 'Nom de l\'employé'} />
-                    )}
-                  </div>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Função' : 'Poste'}</label>
-                    <select className="v22-form-input" value={form.poste} onChange={e => setForm({ ...form, poste: e.target.value })}>
+              <div className="v5-fr" style={{ marginBottom: '.75rem' }}>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Funcionário *' : 'Employé *'}</label>
+                  {membres.length > 0 ? (
+                    <select className="v5-fi" value={form.employe} onChange={e => {
+                      const m = (membres as Membre[]).find(m => `${m.prenom} ${m.nom}` === e.target.value)
+                      setForm({ ...form, employe: e.target.value, poste: m?.typeCompte || form.poste })
+                    }}>
                       <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
-                      {POSTES.map(p => <option key={p} value={p}>{p}</option>)}
+                      {(membres as Membre[]).map(m => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Obra' : 'Chantier'}</label>
-                    {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').length > 0 ? (
-                      <select className="v22-form-input" value={form.chantier} onChange={e => {
-                        const c = (chantiers as Chantier[]).find(c => c.titre === e.target.value)
-                        setForm({ ...form, chantier: e.target.value, chantierId: c?.id || '' })
-                      }}>
-                        <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
-                        {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').map(c => (
-                          <option key={c.id} value={c.titre}>{c.titre}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input className="v22-form-input" value={form.chantier} onChange={e => setForm({ ...form, chantier: e.target.value })} />
-                    )}
-                  </div>
-                  <div>
-                    <label className="v22-form-label"><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Date</label>
-                    <input type="date" className="v22-form-input" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Chegada' : 'Arrivée'}</label>
-                    <input type="time" className="v22-form-input" value={form.heureArrivee} onChange={e => setForm({ ...form, heureArrivee: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Saída' : 'Départ'}</label>
-                    <input type="time" className="v22-form-input" value={form.heureDepart} onChange={e => setForm({ ...form, heureDepart: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Pausa (min)' : 'Pause (min)'}</label>
-                    <input type="number" className="v22-form-input" value={form.pauseMinutes} onChange={e => setForm({ ...form, pauseMinutes: Number(e.target.value) })} />
-                  </div>
-                  <div>
-                    <label className="v22-form-label">Notes</label>
-                    <input className="v22-form-input" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
-                  </div>
+                  ) : (
+                    <input className="v5-fi" value={form.employe} onChange={e => setForm({ ...form, employe: e.target.value })}
+                      placeholder={isPt ? 'Nome do funcionário' : 'Nom de l\'employé'} />
+                  )}
                 </div>
-                <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
-                  <Clock size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Horas' : 'Heures'}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Função' : 'Poste'}</label>
+                  <select className="v5-fi" value={form.poste} onChange={e => setForm({ ...form, poste: e.target.value })}>
+                    <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
+                    {POSTES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                  <button className="v22-btn" onClick={addPointage} disabled={!form.employe}>
-                    <CheckCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt ? 'Registar' : 'Enregistrer'}
-                  </button>
-                  <button className="v22-btn" style={{ background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }}
-                    onClick={() => setShowForm(false)}>
-                    {isPt ? 'Cancelar' : 'Annuler'}
-                  </button>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Obra' : 'Chantier'}</label>
+                  {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').length > 0 ? (
+                    <select className="v5-fi" value={form.chantier} onChange={e => {
+                      const c = (chantiers as Chantier[]).find(c => c.titre === e.target.value)
+                      setForm({ ...form, chantier: e.target.value, chantierId: c?.id || '' })
+                    }}>
+                      <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
+                      {(chantiers as Chantier[]).filter(c => c.statut === 'En cours').map(c => (
+                        <option key={c.id} value={c.titre}>{c.titre}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input className="v5-fi" value={form.chantier} onChange={e => setForm({ ...form, chantier: e.target.value })} />
+                  )}
                 </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">Date</label>
+                  <input type="date" className="v5-fi" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Chegada' : 'Arrivée'}</label>
+                  <input type="time" className="v5-fi" value={form.heureArrivee} onChange={e => setForm({ ...form, heureArrivee: e.target.value })} />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Saída' : 'Départ'}</label>
+                  <input type="time" className="v5-fi" value={form.heureDepart} onChange={e => setForm({ ...form, heureDepart: e.target.value })} />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">{isPt ? 'Pausa (min)' : 'Pause (min)'}</label>
+                  <input type="number" className="v5-fi" value={form.pauseMinutes} onChange={e => setForm({ ...form, pauseMinutes: Number(e.target.value) })} />
+                </div>
+                <div className="v5-fg">
+                  <label className="v5-fl">Notes</label>
+                  <input className="v5-fi" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+                </div>
+              </div>
+              <div className="v5-al info" style={{ marginBottom: 12 }}>
+                ⏱️ {isPt ? 'Horas' : 'Heures'}: <strong>{calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes).toFixed(2)}h</strong>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="v5-btn v5-btn-p" onClick={addPointage} disabled={!form.employe}>
+                  ✅ {isPt ? 'Registar' : 'Enregistrer'}
+                </button>
+                <button className="v5-btn" onClick={() => setShowForm(false)}>
+                  {isPt ? 'Cancelar' : 'Annuler'}
+                </button>
               </div>
             </div>
           )}
 
-          {/* Table pointages */}
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 16 }}>
-            <div className="v22-card">
-              <div className="v22-card-body" style={{ paddingBottom: 8 }}>
-                <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                  <div>
-                    <label className="v22-form-label"><Calendar size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />Date</label>
-                    <input type="date" className="v22-form-input" style={{ width: 160 }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="v22-form-label">{isPt ? 'Funcionário' : 'Employé'}</label>
-                    <select className="v22-form-input" style={{ width: 160 }} value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
-                      <option value="">{isPt ? 'Todos' : 'Tous'}</option>
-                      {employes.map(e => <option key={e}>{e}</option>)}
-                    </select>
-                  </div>
-                  <button className="v22-btn v22-btn-sm" onClick={() => setFilterDate('')}
-                    style={{ background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
-                    {isPt ? 'Ver tudo' : 'Voir tout'}
-                  </button>
-                  <span className="v22-card-meta" style={{ paddingBottom: 2 }}>
-                    {filtered.length} pointages — <strong>{totalH.toFixed(1)}h</strong>
-                  </span>
-                </div>
+          {/* Daily tracking table */}
+          <div className="v5-card" style={{ overflowX: 'auto', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.65rem' }}>
+              <div className="v5-st" style={{ marginBottom: 0 }}>
+                {isPt ? 'Pontagem do dia' : 'Pointage du jour'} — {filterDate ? new Date(filterDate + 'T00:00').toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' }) : (isPt ? 'Todos' : 'Tous')}
               </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div className="v5-search" style={{ marginBottom: 0 }}>
+                <input type="date" className="v5-search-in" style={{ minWidth: 140, flex: 'none' }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+                <select className="v5-filter-sel" value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
+                  <option value="">{isPt ? 'Todos' : 'Tous'}</option>
+                  {employes.map(e => <option key={e}>{e}</option>)}
+                </select>
+                <button className="v5-btn v5-btn-sm" onClick={() => setFilterDate('')}>{isPt ? 'Ver tudo' : 'Voir tout'}</button>
+              </div>
+            </div>
+            <table className="v5-dt">
+              <thead>
+                <tr>
+                  <th>{isPt ? 'Funcionário' : 'Employé'}</th>
+                  <th>{isPt ? 'Obra' : 'Chantier'}</th>
+                  <th>{isPt ? 'Chegada' : 'Arrivée'}</th>
+                  <th>{isPt ? 'Saída' : 'Départ'}</th>
+                  <th>{isPt ? 'Horas' : 'Heures'}</th>
+                  <th>GPS</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: '#999' }}>
+                    {isPt ? 'Nenhuma pontagem' : 'Aucun pointage'}
+                  </td></tr>
+                ) : filtered.map(p => (
+                  <tr key={p.id}>
+                    <td style={{ fontWeight: 600 }}>{p.employe}</td>
+                    <td>{p.chantier || '—'}</td>
+                    <td>{p.heureArrivee}</td>
+                    <td>{p.heureDepart || '—'}</td>
+                    <td style={{ fontWeight: 600 }}>{p.heuresTravaillees ? `${p.heuresTravaillees}h` : '—'}</td>
+                    <td>
+                      {p.mode === 'geo_confirme' && <span className="v5-badge v5-badge-green">✓ Sur site</span>}
+                      {p.mode === 'geo_auto' && <span className="v5-badge v5-badge-blue">✓ Auto</span>}
+                      {p.mode === 'manuel' && <span className="v5-badge v5-badge-gray">Manuel</span>}
+                      {!p.mode && <span className="v5-badge v5-badge-gray">—</span>}
+                    </td>
+                    <td>
+                      <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => remove(p.id)}>✕</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: 8, fontSize: 11, color: '#999', textAlign: 'right' }}>
+              {filtered.length} {isPt ? 'pontagens' : 'pointages'} — <strong>{totalH.toFixed(1)}h</strong>
+            </div>
+          </div>
+
+          {/* Weekly summary table */}
+          <div className="v5-card">
+            <div className="v5-st">{isPt ? 'Resumo horas semanais' : 'Résumé heures hebdomadaires'}</div>
+            {(() => {
+              const { weekDays, summary } = getWeeklySummary()
+              return (
+                <table className="v5-dt">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
-                      {[isPt ? 'Funcionário' : 'Employé', isPt ? 'Função' : 'Poste', isPt ? 'Obra' : 'Chantier', 'Date',
-                        isPt ? 'Chegada' : 'Arrivée', isPt ? 'Saída' : 'Départ', isPt ? 'Horas' : 'Heures', 'Mode', ''].map(h => (
-                        <th key={h || '_x'} style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
-                      ))}
+                    <tr>
+                      <th>{isPt ? 'Funcionário' : 'Employé'}</th>
+                      {weekDays.map(d => <th key={d}>{d}</th>)}
+                      <th>Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.length === 0 ? (
-                      <tr><td colSpan={9} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--v22-text-mid)', fontSize: 13 }}>
-                        {isPt ? 'Nenhuma pontagem' : 'Aucun pointage'}
+                    {summary.length === 0 ? (
+                      <tr><td colSpan={weekDays.length + 2} style={{ textAlign: 'center', padding: 16, color: '#999' }}>
+                        {isPt ? 'Sem dados' : 'Aucune donnée'}
                       </td></tr>
-                    ) : filtered.map(p => (
-                      <tr key={p.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 600 }}>{p.employe}</td>
-                        <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.poste}</td>
-                        <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.chantier}</td>
-                        <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.date ? new Date(p.date + 'T00:00').toLocaleDateString(dateLocale, { weekday: 'short', day: '2-digit', month: 'short' }) : ''}</td>
-                        <td style={{ padding: '8px 12px' }}>{p.heureArrivee}</td>
-                        <td style={{ padding: '8px 12px' }}>{p.heureDepart || '—'}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{p.heuresTravaillees}h</td>
-                        <td style={{ padding: '8px 12px' }}>
-                          {p.mode === 'geo_confirme' && <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}><MapPin size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />GPS</span>}
-                          {p.mode === 'geo_auto' && <span className="v22-tag v22-tag-blue" style={{ fontSize: 10 }}><Satellite size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />Auto</span>}
-                          {p.mode === 'manuel' && <span className="v22-tag v22-tag-gray" style={{ fontSize: 10 }}><Pencil size={10} /></span>}
-                        </td>
-                        <td style={{ padding: '8px 12px' }}>
-                          <button onClick={() => remove(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 14 }}><X size={14} /></button>
-                        </td>
+                    ) : summary.map(row => (
+                      <tr key={row.employe}>
+                        <td style={{ fontWeight: 600 }}>{row.employe}</td>
+                        {[1, 2, 3, 4, 5].map(dow => (
+                          <td key={dow}>{row.byDay[dow] ? `${row.byDay[dow].toFixed(0)}h` : '—'}</td>
+                        ))}
+                        <td style={{ fontWeight: 600 }}>{row.total.toFixed(0)}h</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            {/* Récap employés */}
-            <div className="v22-card" style={{ padding: 16 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: '#0D1B2E', marginBottom: 12 }}>
-                {isPt ? 'Resumo por funcionário' : 'Récap par employé'}
-              </div>
-              {heuresByEmp.length === 0 ? (
-                <p className="v22-card-meta" style={{ fontSize: 12 }}>{isPt ? 'Sem dados' : 'Aucune donnée'}</p>
-              ) : heuresByEmp.map(e => (
-                <div key={e.employe} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--v22-border)' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0D1B2E' }}>{e.employe}</div>
-                    <div style={{ fontSize: 11, color: '#8A9BB0' }}>{e.jours} {isPt ? 'dias' : 'jours'}</div>
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--v22-yellow)' }}>{e.heures.toFixed(1)}h</div>
-                </div>
-              ))}
-            </div>
+              )
+            })()}
           </div>
         </>
       )}
