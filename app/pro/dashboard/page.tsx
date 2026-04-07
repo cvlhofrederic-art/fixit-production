@@ -1,5 +1,6 @@
 'use client'
 
+import './dashboard-v5.css'
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
@@ -65,6 +66,10 @@ const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTP
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection))
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection))
 const CompteUtilisateursSection = dynamic(() => import('@/components/dashboard/CompteUtilisateursSection'))
+
+// V5 layout components (pro_societe only)
+const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'))
+const V5Header = dynamic(() => import('@/components/dashboard/V5Header'))
 
 // Conciergerie sections — NO ssr:false (causes React #419 hydration error)
 const ProprietesConciergerieSection = dynamic(() => import('@/components/dashboard/ConciergerieSections').then(mod => mod.ProprietesConciergerieSection))
@@ -327,6 +332,9 @@ function DashboardPage() {
     ? artisan.company_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'PR'
 
+  // V5 layout applies only to pro_societe
+  const isV5 = orgRole === 'pro_societe'
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F8F9FA]">
@@ -336,7 +344,7 @@ function DashboardPage() {
   }
 
   return (
-    <div id="artisan-dashboard-v22" className="h-screen flex flex-col overflow-hidden">
+    <div id={isV5 ? 'artisan-dashboard-v5' : 'artisan-dashboard-v22'} className={isV5 ? 'v5-app' : 'h-screen flex flex-col overflow-hidden'}>
 
       {/* ── BOUTON RETOUR ADMIN (mode override) ── */}
       {showAdminBtn && (
@@ -363,7 +371,18 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* ══════════ V22 TOPBAR ══════════ */}
+      {/* ══════════ V5 SIDEBAR — pro_societe only ══════════ */}
+      {isV5 && (
+        <V5Sidebar
+          activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
+          isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
+          isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
+          setSettingsTab={setSettingsTab}
+        />
+      )}
+
+      {/* ══════════ V22 TOPBAR — non pro_societe ══════════ */}
+      {!isV5 && (
       <header className="h-14 flex-shrink-0 flex items-center px-5 gap-4" style={{ background: 'var(--v22-text)', borderBottom: '2px solid var(--v22-yellow)' }}>
         <button className="lg:hidden text-white text-lg" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
         <a href="#" className="v22-mono text-xs font-medium tracking-wider uppercase no-underline" onClick={(e) => { e.preventDefault(); navigateTo('home') }}>
@@ -496,54 +515,37 @@ function DashboardPage() {
           {initials}
         </div>
       </header>
+      )}
 
-      {/* ══════════ BODY (sidebar + content) ══════════ */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* ══════════ BODY ══════════ */}
+      <div className={isV5 ? 'v5-main' : 'flex flex-1 overflow-hidden'}>
 
-      {/* ══════════ V22 SIDEBAR ══════════ */}
+      {/* ── V5 header (inside v5-main column) ── */}
+      {isV5 && (
+        <V5Header
+          artisan={artisan} initials={initials} notifications={notifications}
+          showNotifDropdown={showNotifDropdown} setShowNotifDropdown={setShowNotifDropdown}
+          unreadNotifCount={unreadNotifCount} setUnreadNotifCount={setUnreadNotifCount}
+          setNotifications={setNotifications} notifLoading={notifLoading} setNotifLoading={setNotifLoading}
+          getDashAuthToken={getDashAuthToken} bookings={bookings}
+          setSelectedBooking={setSelectedBooking} setShowBookingDetail={setShowBookingDetail}
+          navigateTo={navigateTo} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}
+        />
+      )}
+
+      {/* ══════════ V22 SIDEBAR — non pro_societe ══════════ */}
+      {!isV5 && (
       <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[220px] h-[calc(100vh-48px)] overflow-y-auto transition-transform duration-200 v22-sidebar flex flex-col flex-shrink-0`} style={{ borderRight: '1px solid var(--v22-yellow)' }}>
         <div className="flex-1 pt-5">
           {/* Principal */}
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.main')}</div>
             <V22SidebarItem label={t('proDash.modules.home')} active={activePage === 'home'} onClick={() => navigateTo('home')} />
-            {orgRole === 'pro_societe' && isProGerant && (
-              <V22SidebarItem label={isPt ? '👥 Gestão de contas' : '👥 Gestion comptes'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} />
-            )}
             {orgRole === 'artisan' && <>
               <V22SidebarItem label={t('proDash.modules.calendar')} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />
               <V22SidebarItem label="Chantiers" active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} />
               <V22SidebarItem label={t('proDash.modules.motifs')} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
               <V22SidebarItem label={t('proDash.modules.hours')} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
-            </>}
-            {orgRole === 'pro_societe' && <>
-              {/* ── Gestion chantier ── */}
-              <div className="mb-3">
-                <div className="v22-sidebar-label">{isPt ? 'Gestão de obra' : 'Gestion chantier'}</div>
-                {proCanAccess('chantiers') && <V22SidebarItem label={isPt ? '🏗️ Obras' : '🏗️ Chantiers'} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} />}
-                {proCanAccess('equipes') && <V22SidebarItem label={isPt ? '👷 Equipas' : '👷 Équipes'} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} />}
-                {proCanAccess('calendar') && <V22SidebarItem label={isPt ? '📅 Agenda' : '📅 Agenda / Planning'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />}
-                {proCanAccess('gantt') && <V22SidebarItem label={isPt ? '📊 Planificação Gantt' : '📊 Planification Gantt'} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} />}
-                {proCanAccess('pointage') && <V22SidebarItem label={isPt ? '⏱️ Marcação de horas' : '⏱️ Pointage équipes'} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} />}
-              </div>
-              {/* ── Finance BTP ── */}
-              <div className="mb-3">
-                <div className="v22-sidebar-label">{isPt ? 'Finanças BTP' : 'Finance BTP'}</div>
-                {proCanAccess('compta_btp') && <V22SidebarItem label={isPt ? '🧠 Contabilidade IA' : '🧠 Compta Intelligente'} active={activePage === 'compta_btp'} onClick={() => navigateTo('compta_btp')} />}
-                {proCanAccess('rentabilite') && <V22SidebarItem label={isPt ? '💰 Rentabilidade' : '💰 Rentabilité Chantier'} active={activePage === 'rentabilite'} onClick={() => navigateTo('rentabilite')} />}
-                {proCanAccess('rfq_btp') && <V22SidebarItem label={isPt ? '📋 Orçamentos Fornecedores' : '📋 Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />}
-                {proCanAccess('situations') && <V22SidebarItem label={isPt ? '📈 Situações de obra' : '📈 Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />}
-                {proCanAccess('garanties') && <V22SidebarItem label={isPt ? '🔒 Retenções de garantia' : '🔒 Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />}
-                {proCanAccess('sous_traitance') && <V22SidebarItem label={isPt ? '🤝 Subempreitada DC4' : '🤝 Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />}
-                {proCanAccess('sous_traitance_offres') && <V22SidebarItem label={isPt ? '🏗️ Recrutar Subempreiteiros' : '🏗️ Recruter sous-traitants'} active={activePage === 'sous_traitance_offres'} onClick={() => navigateTo('sous_traitance_offres')} />}
-                {proCanAccess('dpgf') && <V22SidebarItem label={isPt ? '📁 Concursos / DPGF' : '📁 Appels d\'offres'} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />}
-              </div>
-              {/* ── Lots & Paramétrage ── */}
-              <div className="mb-3">
-                <div className="v22-sidebar-label">{isPt ? 'Lotes & Parâmetros' : 'Lots & Paramétrage'}</div>
-                <V22SidebarItem label={isPt ? '🗂️ Lotes / Prestações' : '🗂️ Lots / Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
-                <V22SidebarItem label={isPt ? '⏱️ Horários de obra' : '⏱️ Horaires chantier'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
-              </div>
             </>}
             {orgRole === 'pro_conciergerie' && <>
               <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
@@ -572,12 +574,12 @@ function DashboardPage() {
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.facturation')}</div>
             {isModuleEnabled('devis') && <V22SidebarItem label={t('proDash.modules.quotes')} active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
-            {(orgRole === 'artisan' || orgRole === 'pro_societe') && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
+            {orgRole === 'artisan' && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
             <V22SidebarItem label={t('proDash.modules.sitePhotos', 'Photos Chantier')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
-            {(orgRole === 'artisan' || orgRole === 'pro_societe') && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
-            {isModuleEnabled('contrats') && (orgRole === 'pro_societe' || orgRole === 'pro_gestionnaire') && (
+            {orgRole === 'artisan' && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
+            {isModuleEnabled('contrats') && orgRole === 'pro_gestionnaire' && (
               <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
             )}
           </div>
@@ -587,9 +589,9 @@ function DashboardPage() {
             {isModuleEnabled('stats') && <V22SidebarItem label={t('proDash.modules.stats')} active={activePage === 'stats'} onClick={() => navigateTo('stats')} />}
             {isModuleEnabled('revenus') && <V22SidebarItem label={t('proDash.modules.revenue')} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />}
             {isModuleEnabled('comptabilite') && <V22SidebarItem label={t('proDash.modules.accounting')} active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />}
-            {isModuleEnabled('materiaux') && (orgRole === 'artisan' || orgRole === 'pro_societe') && (
+            {isModuleEnabled('materiaux') && orgRole === 'artisan' && (
               <V22SidebarItem
-                label={orgRole === 'pro_societe' ? (isPt ? 'Materiais & Aprovisionamento' : 'Matériaux & Appro') : t('proDash.modules.materials')}
+                label={t('proDash.modules.materials')}
                 active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')}
               />
             )}
@@ -599,12 +601,12 @@ function DashboardPage() {
             {isModuleEnabled('marketplace_btp') && <V22SidebarItem label="🏗️ Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />}
           </div>
           {/* Profil Pro */}
-          {(orgRole === 'artisan' || orgRole === 'pro_societe') && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
+          {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
             <div className="mb-5">
               <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
-              {isModuleEnabled('wallet') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Conformité' : t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
-              {isModuleEnabled('portfolio') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Références chantiers' : t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
-              {isModuleEnabled('parrainage') && <V22SidebarItem label={orgRole === 'pro_societe' ? 'Parrainage entreprises' : t('proDash.modules.parrainage', 'Parrainage')} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
+              {isModuleEnabled('wallet') && <V22SidebarItem label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
+              {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
+              {isModuleEnabled('parrainage') && <V22SidebarItem label={t('proDash.modules.parrainage', 'Parrainage')} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
             </div>
           )}
         </div>
@@ -617,13 +619,14 @@ function DashboardPage() {
           <V22SidebarItem label={t('proDash.logout')} active={false} onClick={async () => { await supabase.auth.signOut(); window.location.href = `/${locale}/` }} />
         </div>
       </aside>
+      )}
 
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className={`fixed inset-0 z-30 ${isV5 ? '' : 'lg:hidden'} bg-black/50`} onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* ══════════ CONTENT ══════════ */}
-      <main className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--v22-bg)' }}>
+      <main className={isV5 ? 'v5-ct' : 'flex-1 overflow-y-auto p-6'} style={isV5 ? undefined : { background: 'var(--v22-bg)' }}>
 
           {/* ────── HOME ────── */}
           {activePage === 'home' && (
@@ -1232,7 +1235,69 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
-          {/* ────── AIDE V22 ────── */}
+          {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
+          {activePage === 'meteo' && isV5 && (
+            <div className="v5-fade">
+              <div className="v5-pg-t"><h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1><p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p></div>
+              <div className="v5-kpi-g">
+                <div className="v5-kpi" style={{ borderLeft: '4px solid #4CAF50' }}><div className="v5-kpi-l">{isPt ? 'Obras OK' : 'Chantiers OK'}</div><div className="v5-kpi-v" style={{ color: '#4CAF50' }}>—</div><div className="v5-kpi-s">{isPt ? 'sem alerta' : "pas d'alerte"}</div></div>
+                <div className="v5-kpi" style={{ borderLeft: '4px solid #FFA726' }}><div className="v5-kpi-l">Vigilance</div><div className="v5-kpi-v" style={{ color: '#FFA726' }}>—</div><div className="v5-kpi-s">{isPt ? 'chuva prevista' : 'pluie prévue'}</div></div>
+                <div className="v5-kpi" style={{ borderLeft: '4px solid #EF5350' }}><div className="v5-kpi-l">{isPt ? 'Alerta vermelho' : 'Alerte rouge'}</div><div className="v5-kpi-v" style={{ color: '#EF5350' }}>—</div><div className="v5-kpi-s">{isPt ? 'vento > 60 km/h' : 'vent > 60 km/h'}</div></div>
+                <div className="v5-kpi hl"><div className="v5-kpi-l">{isPt ? 'Dias de geada previstos' : 'Jours de gel prévus'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">{isPt ? 'nenhum esta semana' : 'aucun cette semaine'}</div></div>
+              </div>
+              <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>🌤️</div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Módulo em desenvolvimento' : 'Module en cours de développement'}</h3>
+                <p style={{ fontSize: 12, color: '#999', maxWidth: 500, margin: '0 auto' }}>{isPt ? 'As previsões meteorológicas por estaleiro estarão disponíveis em breve via a API Open-Meteo. Cada estaleiro será monitorizado automaticamente com alertas por limiares BTP.' : 'Les prévisions météo par chantier seront disponibles prochainement via l\'API Open-Meteo. Chaque chantier sera surveillé automatiquement avec alertes par seuils BTP.'}</p>
+                <p style={{ fontSize: 10, color: '#BBB', marginTop: 16 }}>
+                  {isPt ? 'Limiares BTP' : 'Seuils BTP'} : 🌧️ {isPt ? 'Chuva' : 'Pluie'} {'>'} 5mm = {isPt ? 'sem reboco/betão' : 'pas de ravalement/béton'} • 💨 {isPt ? 'Vento' : 'Vent'} {'>'} 60 km/h = {isPt ? 'paragem grua/andaime' : 'arrêt grue/échafaudage'} • ❄️ {isPt ? 'Geada' : 'Gel'} = {isPt ? 'sem alvenaria' : 'pas de maçonnerie'} • 🌡️ {'>'} 33°C = {isPt ? 'horários adaptados' : 'horaires aménagés'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ────── PORTAIL CLIENT (pro_societe v5) ────── */}
+          {activePage === 'portail_client' && isV5 && (
+            <div className="v5-fade">
+              <div className="v5-pg-t"><h1>{isPt ? 'Portal cliente' : 'Portail client'}</h1><p>{isPt ? 'Dê aos seus clientes acesso em tempo real às suas obras' : 'Donnez à vos clients un accès en temps réel à leurs chantiers'}</p></div>
+              <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <div className="v5-kpi hl"><div className="v5-kpi-l">{isPt ? 'Portais ativos' : 'Portails actifs'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">{isPt ? 'em breve' : 'prochainement'}</div></div>
+                <div className="v5-kpi"><div className="v5-kpi-l">{isPt ? 'Última consulta' : 'Dernière consultation'}</div><div className="v5-kpi-v" style={{ fontSize: 16 }}>—</div><div className="v5-kpi-s">—</div></div>
+                <div className="v5-kpi"><div className="v5-kpi-l">{isPt ? 'Situações validadas online' : 'Situations validées en ligne'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">—</div></div>
+              </div>
+              <div className="v5-sg2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '1.25rem' }}>
+                <div className="v5-card">
+                  <div className="v5-st">{isPt ? 'O que o cliente vê' : 'Ce que le client voit'}</div>
+                  <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
+                    📊 <strong>{isPt ? 'Progresso' : 'Avancement'}</strong> — {isPt ? 'Barra de progresso por lote, % global, próximas etapas' : 'Barre de progression par lot, % global, prochaines étapes'}<br/>
+                    📸 <strong>{isPt ? 'Fotos' : 'Photos'}</strong> — {isPt ? 'Galeria de fotos da obra, filtradas por fase' : 'Galerie de photos du chantier, filtrées par phase'}<br/>
+                    📈 <strong>{isPt ? 'Situações de obra' : 'Situations de travaux'}</strong> — {isPt ? 'Consulta e validação online com assinatura eletrónica' : 'Consultation et validation en ligne avec signature électronique'}<br/>
+                    📄 <strong>{isPt ? 'Documentos' : 'Documents'}</strong> — {isPt ? 'PV, relatórios, planos partilhados pela empresa' : 'PV, rapports, plans partagés par l\'entreprise'}<br/>
+                    💬 <strong>{isPt ? 'Mensagens' : 'Messagerie'}</strong> — {isPt ? 'Canal de discussão dedicado à obra' : 'Canal de discussion dédié au chantier'}<br/>
+                    🌤️ <strong>{isPt ? 'Meteorologia' : 'Météo'}</strong> — {isPt ? 'Previsões e impacto no planning (leitura apenas)' : 'Prévisions et impact sur le planning (lecture seule)'}
+                  </div>
+                </div>
+                <div className="v5-card">
+                  <div className="v5-st">{isPt ? 'Como funciona' : 'Comment ça fonctionne'}</div>
+                  <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
+                    <strong>1.</strong> {isPt ? 'Ative o portal num estaleiro (toggle)' : 'Activez le portail sur un chantier (toggle ci-dessus)'}<br/>
+                    <strong>2.</strong> {isPt ? 'Escolha os módulos visíveis pelo cliente' : 'Choisissez les modules visibles par le client'}<br/>
+                    <strong>3.</strong> {isPt ? 'O cliente recebe um email automático com o seu link de acesso' : 'Le client reçoit un email automatique avec son lien d\'accès'}<br/>
+                    <strong>4.</strong> {isPt ? 'Sem palavra-passe : acesso por link seguro + código SMS' : 'Pas de mot de passe : accès par lien sécurisé + code SMS'}<br/>
+                    <strong>5.</strong> {isPt ? 'O cliente consulta em modo leitura (exceto validação de situações)' : 'Le client consulte en lecture seule (sauf validation des situations)'}<br/>
+                    <strong>6.</strong> {isPt ? 'Veja quem consultou o quê e quando' : 'Vous voyez qui a consulté quoi et quand'}
+                  </div>
+                </div>
+              </div>
+              <div className="v5-card" style={{ textAlign: 'center', padding: '2rem' }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>🌐</div>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Módulo em desenvolvimento' : 'Module en cours de développement'}</h3>
+                <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'O portal cliente estará disponível em breve. Os seus clientes poderão acompanhar as suas obras em tempo real.' : 'Le portail client sera disponible prochainement. Vos clients pourront suivre leurs chantiers en temps réel.'}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ────── AIDE ────── */}
           {activePage === 'help' && (
             <AideSection navigateTo={navigateTo} />
           )}
@@ -1552,6 +1617,19 @@ function V22SidebarItem({ label, active, badge, badgeRed, onClick }: {
       {badge && badge > 0 && (
         <span className={`v22-badge-count ${badgeRed ? 'red' : ''}`}>{badge}</span>
       )}
+    </div>
+  )
+}
+
+/** V5 sidebar item — light theme for pro_societe dashboard */
+function V5SidebarItem({ icon, label, active, badge, onClick }: {
+  icon: string; label: string; active?: boolean; badge?: number; onClick: () => void
+}) {
+  return (
+    <div onClick={onClick} className={`v5-sb-i${active ? ' active' : ''}`}>
+      <span className="v5-sb-icon">{icon}</span>
+      <span className="v5-sb-label">{label}</span>
+      {badge != null && badge > 0 && <span className="v5-sb-badge">{badge}</span>}
     </div>
   )
 }
