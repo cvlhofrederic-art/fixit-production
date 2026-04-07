@@ -257,164 +257,118 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
   // Filter modules for permission grid — skip gestion_comptes (always GERANT-only)
   const editableModules = ALL_PRO_MODULES.filter(m => m !== 'gestion_comptes' && m !== 'settings')
 
+  // Role badge colors matching HTML v5 template
+  const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
+    GERANT: { bg: '#FFF8E1', color: '#F57F17' },
+    CONDUCTEUR_TRAVAUX: { bg: '#E3F2FD', color: '#1565C0' },
+    CHEF_CHANTIER: { bg: '#E3F2FD', color: '#1565C0' },
+    SECRETAIRE: { bg: '#F3E5F5', color: '#7B1FA2' },
+    COMPTABLE: { bg: '#E8F5E9', color: '#2E7D32' },
+    OUVRIER: { bg: '#F5F5F5', color: '#757575' },
+  }
+  const AVATAR_COLORS = ['#F57C00', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#4CAF50', '#EF5350', '#26C6DA']
+
+  const getRelativeLogin = (dateStr: string | null) => {
+    if (!dateStr) return '—'
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return isPt ? 'Agora' : "Aujourd'hui"
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return isPt ? `Hoje ${new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : `Aujourd'hui ${new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+    const days = Math.floor(hours / 24)
+    if (days === 1) return isPt ? 'Ontem' : 'Hier'
+    return new Date(dateStr).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { day: 'numeric', month: 'short' })
+  }
+
   if (loading) {
     return (
-      <div className="animate-fadeIn">
-        <div className="v22-page-header">
-          <div className="v22-page-title">👥 {isPt ? 'Gestão de contas' : 'Gestion des comptes'}</div>
-        </div>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm" style={{ color: 'var(--v22-text-muted)' }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
-        </div>
+      <div className="v5-fade">
+        <div className="v5-pg-t"><h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1></div>
+        <div style={{ textAlign: 'center', padding: '4rem', color: '#999', fontSize: 12 }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
       </div>
     )
   }
 
   return (
-    <div className="animate-fadeIn">
+    <div className="v5-fade">
       {/* Header */}
-      <div className="v22-page-header">
-        <div className="v22-page-title">👥 {isPt ? 'Gestão de contas' : 'Gestion des comptes'}</div>
-        <div className="v22-page-sub">
-          {isPt
-            ? `${members.length} membro(s) · Gerir acessos e permissões da equipa`
-            : `${members.length} membre(s) · Gérer les accès et permissions de l'équipe`}
-        </div>
+      <div className="v5-pg-t">
+        <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
+        <p>{isPt
+          ? `Gerir os acessos da sua equipa — ${members.length} contas ativas / 20 max`
+          : `Gérez les accès de votre équipe — ${members.length} comptes actifs / 20 max`}</p>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="v22-btn v22-btn-primary text-xs px-4 py-2"
-          >
-            + {isPt ? 'Convidar membro' : 'Inviter un membre'}
-          </button>
-        </div>
-        <div className="text-xs" style={{ color: 'var(--v22-text-muted)' }}>
-          {isPt ? 'Apenas o gerente pode gerir contas' : 'Seul le gérant peut gérer les comptes'}
-        </div>
+      {/* Search + Create */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem', flexWrap: 'wrap', gap: '.5rem' }}>
+        <input className="v5-search-in" placeholder={isPt ? 'Pesquisar um utilizador...' : 'Rechercher un utilisateur...'} style={{ maxWidth: 300 }} />
+        <button onClick={() => setShowInviteModal(true)} className="v5-btn v5-btn-p">
+          + {isPt ? 'Criar uma conta' : 'Créer un compte'}
+        </button>
       </div>
 
       {/* Members Table */}
-      <div className="v22-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--v22-border)', background: 'var(--v22-bg)' }}>
-                <th className="text-left px-4 py-3 font-semibold" style={{ color: 'var(--v22-text-muted)' }}>{isPt ? 'Nome' : 'Nom'}</th>
-                <th className="text-left px-4 py-3 font-semibold" style={{ color: 'var(--v22-text-muted)' }}>Email</th>
-                <th className="text-left px-4 py-3 font-semibold" style={{ color: 'var(--v22-text-muted)' }}>{isPt ? 'Papel' : 'Rôle'}</th>
-                <th className="text-left px-4 py-3 font-semibold" style={{ color: 'var(--v22-text-muted)' }}>{isPt ? 'Estado' : 'Statut'}</th>
-                <th className="text-left px-4 py-3 font-semibold" style={{ color: 'var(--v22-text-muted)' }}>{isPt ? 'Criado' : 'Créé'}</th>
-                <th className="text-right px-4 py-3 font-semibold" style={{ color: 'var(--v22-text-muted)' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center" style={{ color: 'var(--v22-text-muted)' }}>
-                    {isPt ? 'Nenhum membro na equipa' : 'Aucun membre dans l\'équipe'}
-                  </td>
-                </tr>
-              )}
-              {members.map(member => (
-                <tr key={member.id} style={{ borderBottom: '1px solid var(--v22-border)', opacity: member.is_active ? 1 : 0.5 }}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold"
-                        style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
-                        {member.full_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold" style={{ color: 'var(--v22-text)' }}>{member.full_name}</div>
-                        {member.phone && <div style={{ color: 'var(--v22-text-muted)', fontSize: 10 }}>{member.phone}</div>}
-                      </div>
+      <div className="v5-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+        <table className="v5-dt">
+          <thead>
+            <tr>
+              <th>{isPt ? 'Utilizador' : 'Utilisateur'}</th>
+              <th>Email</th>
+              <th>{isPt ? 'Papel' : 'Rôle'}</th>
+              <th>{isPt ? 'Obras' : 'Chantiers'}</th>
+              <th>{isPt ? 'Estado' : 'Statut'}</th>
+              <th>{isPt ? 'Última conexão' : 'Dernière connexion'}</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.length === 0 && (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>{isPt ? 'Nenhum membro na equipa' : 'Aucun membre dans l\'équipe'}</td></tr>
+            )}
+            {members.map((member, idx) => {
+              const initials = member.full_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+              const badgeStyle = ROLE_BADGE[member.role] || ROLE_BADGE.OUVRIER
+              const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length]
+              return (
+                <tr key={member.id} style={{ opacity: member.is_active ? 1 : 0.5 }}>
+                  <td style={{ fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{initials}</div>
+                      {member.full_name}
                     </div>
                   </td>
-                  <td className="px-4 py-3" style={{ color: 'var(--v22-text-muted)' }}>{member.email}</td>
-                  <td className="px-4 py-3">
-                    {member.role === 'GERANT' ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
-                        {getRoleLabel(member.role)}
-                      </span>
-                    ) : (
-                      <select
-                        value={member.role}
-                        onChange={(e) => handleRoleChange(member, e.target.value as ProTeamRole)}
-                        className="text-xs px-2 py-1 rounded border"
-                        style={{ borderColor: 'var(--v22-border)', background: 'var(--v22-bg)', color: 'var(--v22-text)' }}
-                      >
-                        {PRO_TEAM_ROLES.filter(r => r !== 'GERANT').map(r => (
-                          <option key={r} value={r}>{getRoleLabel(r)}</option>
-                        ))}
-                      </select>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">{getStatusBadge(member)}</td>
-                  <td className="px-4 py-3" style={{ color: 'var(--v22-text-muted)' }}>{formatDate(member.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    {member.role !== 'GERANT' && (
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openPermsModal(member)}
-                          className="px-2 py-1 rounded text-[10px] font-semibold transition hover:bg-[var(--v22-bg)]"
-                          style={{ color: 'var(--v22-yellow)' }}
-                          title={isPt ? 'Permissões' : 'Permissions'}
-                        >
-                          🔐
-                        </button>
-                        {!member.accepted_at && (
-                          <button
-                            onClick={() => handleResendInvite(member)}
-                            className="px-2 py-1 rounded text-[10px] font-semibold transition hover:bg-[var(--v22-bg)]"
-                            style={{ color: 'var(--v22-text-muted)' }}
-                            title={isPt ? 'Reenviar convite' : 'Renvoyer invitation'}
-                          >
-                            📧
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleToggleActive(member)}
-                          className="px-2 py-1 rounded text-[10px] font-semibold transition hover:bg-[var(--v22-bg)]"
-                          style={{ color: member.is_active ? '#f59e0b' : '#16a34a' }}
-                          title={member.is_active ? (isPt ? 'Desativar' : 'Désactiver') : (isPt ? 'Reativar' : 'Réactiver')}
-                        >
-                          {member.is_active ? '⏸️' : '▶️'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(member)}
-                          className="px-2 py-1 rounded text-[10px] font-semibold transition hover:bg-[var(--v22-bg)]"
-                          style={{ color: '#dc2626' }}
-                          title={isPt ? 'Eliminar' : 'Supprimer'}
-                        >
-                          🗑️
-                        </button>
+                  <td>{member.email}</td>
+                  <td><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{ROLE_LABELS[member.role]?.[isPt ? 'pt' : 'fr'] || member.role}</span></td>
+                  <td>{member.role === 'GERANT' ? (isPt ? 'Todos' : 'Tous') : (member.assigned_chantiers?.join(', ') || '—')}</td>
+                  <td><span className={`v5-badge ${member.is_active ? 'v5-badge-green' : 'v5-badge-gray'}`}>{member.is_active ? (isPt ? 'Ativo' : 'Actif') : (isPt ? 'Inativo' : 'Inactif')}</span></td>
+                  <td>{getRelativeLogin(member.last_login_at || member.accepted_at)}</td>
+                  <td>
+                    {member.role === 'GERANT' ? '—' : (
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setShowPermsModal(member) }}>{isPt ? 'Modificar' : 'Modifier'}</button>
+                        <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => handleToggleActive(member)}>{member.is_active ? (isPt ? 'Desativar' : 'Désactiver') : (isPt ? 'Ativar' : 'Activer')}</button>
                       </div>
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
-      {/* Roles Legend */}
-      <div className="mt-6 v22-card p-4">
-        <h4 className="text-[10px] font-bold uppercase mb-3" style={{ color: 'var(--v22-text-muted)', letterSpacing: '0.3px' }}>
-          {isPt ? 'Papéis disponíveis' : 'Rôles disponibles'}
-        </h4>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-          {PRO_TEAM_ROLES.filter(r => r !== 'GERANT').map(role => (
-            <div key={role} className="flex items-center gap-2 text-xs" style={{ color: 'var(--v22-text)' }}>
-              <span className="font-semibold">{getRoleLabel(role)}</span>
-            </div>
-          ))}
+      {/* Roles & Permissions description */}
+      <div className="v5-card">
+        <div className="v5-st">{isPt ? 'Papéis & permissões' : 'Rôles & permissions'}</div>
+        <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6 }}>
+          <strong>{isPt ? 'Gerente' : 'Gérant'}</strong> — {isPt ? 'Acesso completo. Único a gerir as contas.' : 'Accès complet. Seul à gérer les comptes.'}<br/>
+          <strong>{isPt ? 'Condutor de obras' : 'Conducteur de travaux'}</strong> — {isPt ? 'Obras, equipas, planning, orçamentos fornecedores, subempreitada.' : 'Chantiers, équipes, planning, devis fournisseurs, sous-traitance.'}<br/>
+          <strong>{isPt ? 'Chefe de obra' : 'Chef de chantier'}</strong> — {isPt ? 'As suas obras: planning, marcação, relatórios, fotos.' : 'Ses chantiers : planning, pointage, rapports, photos.'}<br/>
+          <strong>{isPt ? 'Secretária' : 'Secrétaire'}</strong> — {isPt ? 'Orçamentos, faturas, mensagens, clientes, conformidade.' : 'Devis, factures, messagerie, clients, conformité.'}<br/>
+          <strong>{isPt ? 'Contabilista' : 'Comptable'}</strong> — {isPt ? 'Contabilidade, rentabilidade, faturas, situações, retenções, receitas.' : 'Compta, rentabilité, factures, situations, retenues, revenus.'}<br/>
+          <strong>{isPt ? 'Operário' : 'Ouvrier'}</strong> — {isPt ? 'Marcação pessoal, fotos, planning apenas leitura.' : 'Pointage personnel, photos, planning lecture seule.'}
         </div>
       </div>
-
       {/* ═══ INVITE MODAL ═══ */}
       {showInviteModal && (
         <>
