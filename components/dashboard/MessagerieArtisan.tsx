@@ -356,7 +356,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
     const diffMin = Math.floor(diffMs / 60000)
-    if (diffMin < 1) return "\u00C0 l'instant"
+    if (diffMin < 1) return "À l'instant"
     if (diffMin < 60) return `Il y a ${diffMin}min`
     const diffH = Math.floor(diffMin / 60)
     if (diffH < 24) return `Il y a ${diffH}h`
@@ -377,11 +377,11 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
   // Quick templates
   const quickTemplates = tab === 'clients'
     ? isPt
-      ? ['\uD83D\uDCCD A caminho', '\u2705 Terminado', '\u26A0\uFE0F Problema encontrado', '\uD83D\uDD11 Acesso necess\u00E1rio']
-      : ['\uD83D\uDCCD En route', '\u2705 Termin\u00E9', '\u26A0\uFE0F Probl\u00E8me rencontr\u00E9', '\uD83D\uDD11 Acc\u00E8s requis']
+      ? ['📍 A caminho', '✅ Terminado', '⚠️ Problema encontrado', '🔑 Acesso necessário']
+      : ['📍 En route', '✅ Terminé', '⚠️ Problème rencontré', '🔑 Accès requis']
     : isPt
-      ? ['\uD83D\uDCCD A caminho', '\u2705 Terminado', '\uD83D\uDCC4 Or\u00E7amento enviado', '\uD83D\uDCF8 Fotos enviadas']
-      : ['\uD83D\uDCCD En route', '\u2705 Termin\u00E9', '\uD83D\uDCC4 Devis envoy\u00E9', '\uD83D\uDCF8 Photos envoy\u00E9es']
+      ? ['📍 A caminho', '✅ Terminado', '📄 Orçamento enviado', '📸 Fotos enviadas']
+      : ['📍 En route', '✅ Terminé', '📄 Devis envoyé', '📸 Photos envoyées']
 
   // ═══ RENDER ═══
   return (
@@ -521,7 +521,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                 <div className="v22-msg-empty">
                   <div style={{ fontSize: 40, marginBottom: 8 }}>{activeConv.contact_type === 'pro' ? '\uD83C\uDFE2' : '\uD83C\uDFE0'}</div>
                   <div>Conversation ouverte</div>
-                  <div style={{ marginTop: 4, fontSize: 11 }}>Aucun message pour le moment. Envoyez un message pour d\u00E9marrer.</div>
+                  <div style={{ marginTop: 4, fontSize: 11 }}>Aucun message pour le moment. Envoyez un message pour démarrer.</div>
                 </div>
               ) : (
                 messages.map(msg => (
@@ -555,7 +555,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                 <textarea
                   ref={inputRef}
                   className="v22-msg-textarea"
-                  placeholder={`Message \u00E0 ${activeConv.contact_name || 'votre contact'}\u2026`}
+                  placeholder={`Message \u00E0 ${activeConv.contact_name || 'votre contact'}…`}
                   value={inputValue}
                   rows={2}
                   onChange={e => setInputValue(e.target.value)}
@@ -566,7 +566,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                   disabled={!inputValue.trim() || sending}
                   className="v22-msg-send"
                 >
-                  {sending ? '\u2026' : 'Envoyer'}
+                  {sending ? '…' : 'Envoyer'}
                 </button>
               </div>
             </div>
@@ -584,13 +584,13 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
             </div>
             <div className="v22-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
-                Indiquez votre heure d&apos;arriv\u00E9e et la dur\u00E9e estim\u00E9e
+                Indiquez votre heure d&apos;arrivée et la durée estimée
               </div>
 
               {/* Heure d'arrivée */}
               <div>
                 <div className="v22-form-label" style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Heure d&apos;arriv\u00E9e
+                  Heure d&apos;arrivée
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
                   <input
@@ -617,7 +617,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
               {/* Durée estimée */}
               <div>
                 <div className="v22-form-label" style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Dur\u00E9e estim\u00E9e
+                  Durée estimée
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                   {[
@@ -627,8 +627,8 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                     { label: '2 h', value: 2 },
                     { label: '3 h', value: 3 },
                     { label: '4 h', value: 4 },
-                    { label: '\u00BD journ\u00E9e', value: 4 },
-                    { label: 'Journ\u00E9e', value: 8 },
+                    { label: '½ journée', value: 4 },
+                    { label: 'Journée', value: 8 },
                     { label: '2 jours', value: 16 },
                   ].map(opt => (
                     <button
@@ -651,7 +651,7 @@ export default function MessagerieArtisan({ artisan, onConversationRead, onPropo
                   padding: '6px 0',
                   border: '1px solid var(--v22-yellow-border)',
                 }}>
-                  {'\uD83D\uDCC5'} Cr\u00E9neau bloqu\u00E9 : {arrivalTime} {'\u2192'}{' '}
+                  {'📅'} Créneau bloqué : {arrivalTime} {'→'}{' '}
                   {(() => {
                     const [h, m] = arrivalTime.split(':').map(Number)
                     const totalMin = h * 60 + m + Math.round(durationHours * 60)
@@ -719,7 +719,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
       </div>
       <div className="v22-msg-bubble-col">
         <span className="v22-msg-bubble-sender">
-          {senderLabel} {isOwn ? '\u00B7 Artisan' : contactType === 'pro' ? "\u00B7 Donneur d'ordres" : '\u00B7 Client'}
+          {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? "· Donneur d'ordres" : '· Client'}
         </span>
         <div className={`v22-msg-bubble ${isOwn ? 'own' : ''}`}>
           {msg.type === 'photo' && msg.metadata?.url ? (
@@ -770,14 +770,14 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
 
           {om.adresse && (
             <div className="v22-msg-mission-row">
-              <span>{'\uD83D\uDCCD'}</span>
+              <span>{'📍'}</span>
               <span>{om.adresse}</span>
             </div>
           )}
 
           {om.date_souhaitee && (
             <div className="v22-msg-mission-row">
-              <span>{'\uD83D\uDCC5'}</span>
+              <span>{'📅'}</span>
               <span>{new Date(om.date_souhaitee + 'T12:00:00').toLocaleDateString(dateFmtLocale, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
             </div>
           )}
@@ -785,7 +785,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
           {om.arrival_time && (om.statut === 'accepte' || om.statut === 'en_cours' || om.statut === 'termine') && (
             <div className="v22-msg-arrival-info">
               <span>{'\uD83D\uDD50'}</span>
-              <span>Arriv\u00E9e pr\u00E9vue \u00E0 {om.arrival_time}</span>
+              <span>Arrivée prévue \u00E0 {om.arrival_time}</span>
             </div>
           )}
 
@@ -812,7 +812,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
         {om.statut === 'accepte' && !isOwn && (
           <div className="v22-msg-mission-foot">
             <button onClick={() => onAction(msg.id, 'en_cours')} className="v22-btn v22-btn-blue" style={{ flex: 1 }}>
-              {'\uD83D\uDD27'} D\u00E9marrer l&apos;intervention
+              {'🔧'} Démarrer l&apos;intervention
             </button>
           </div>
         )}
@@ -820,7 +820,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
         {om.statut === 'en_cours' && !isOwn && (
           <div className="v22-msg-mission-foot">
             <button onClick={() => onAction(msg.id, 'termine')} className="v22-btn v22-btn-green" style={{ flex: 1 }}>
-              {'\u2705'} Marquer comme termin\u00E9
+              {'✅'} Marquer comme terminé
             </button>
           </div>
         )}
@@ -839,7 +839,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName }
               className="v22-btn v22-btn-primary"
               style={{ flex: 1 }}
             >
-              {'\uD83D\uDCC4'} Proposer un devis
+              {'📄'} Proposer un devis
             </button>
           </div>
         )}

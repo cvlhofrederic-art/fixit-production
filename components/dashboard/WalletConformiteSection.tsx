@@ -566,7 +566,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
             }[status]
             return (
               <div key={docDef.id} className="v5-w-doc">
-                <span className="v5-w-doc-i">{docDef.icon || '\uD83D\uDCC4'}</span>
+                <span className="v5-w-doc-i">{docDef.icon || '📄'}</span>
                 <div className="v5-w-doc-inf">
                   <div className="v5-w-doc-nm">
                     {docDef.nom}
@@ -575,18 +575,18 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                   <div className="v5-w-doc-exp">
                     {doc?.expiryDate
                       ? `${t('proDash.wallet.expireLe')} ${new Date(doc.expiryDate).toLocaleDateString(dateLocale)}`
-                      : docDef.validite ? `Validit\u00E9 : ${docDef.validite}` : docDef.description
+                      : docDef.validite ? `Validité : ${docDef.validite}` : docDef.description
                     }
                   </div>
                   {/* Scan result inline */}
                   {scanning[docDef.id] && (
                     <div style={{ fontSize: 11, color: '#1565C0', marginTop: 4 }}>
-                      \uD83D\uDD0D V\u00E9rification en cours...
+                      🔍 Vérification en cours...
                     </div>
                   )}
                   {scanResults[docDef.id] && !scanning[docDef.id] && (
                     <div style={{ fontSize: 10, marginTop: 4, color: scanResults[docDef.id]?.antiFraud?.suspicious ? '#C62828' : '#2E7D32' }}>
-                      {scanResults[docDef.id]?.antiFraud?.suspicious ? '\u26A0\uFE0F Document suspect' : '\u2705 Document v\u00E9rifi\u00E9'}
+                      {scanResults[docDef.id]?.antiFraud?.suspicious ? '\u26A0\uFE0F Document suspect' : '\u2705 Document vérifié'}
                     </div>
                   )}
                 </div>
@@ -594,9 +594,9 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                 <div className="v5-w-doc-acts">
                   {doc?.url && (
                     <>
-                      <button onClick={() => window.open(doc.url, '_blank')} className="v5-btn v5-btn-sm" title="Voir">\uD83D\uDC41\uFE0F</button>
+                      <button onClick={() => window.open(doc.url, '_blank')} className="v5-btn v5-btn-sm" title="Voir">👁️</button>
                       <button onClick={() => removeDoc(docDef.id)} disabled={!!removing[docDef.id]} className="v5-btn v5-btn-sm" title="Supprimer" style={{ opacity: removing[docDef.id] ? 0.5 : 1 }}>
-                        {removing[docDef.id] ? '\u23F3' : '\uD83D\uDDD1\uFE0F'}
+                        {removing[docDef.id] ? '⏳' : '🗑️'}
                       </button>
                     </>
                   )}
@@ -611,7 +611,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                     className="v5-btn v5-btn-p v5-btn-sm"
                     style={{ opacity: uploading[docDef.id] ? 0.5 : 1 }}
                   >
-                    {uploading[docDef.id] ? '\u23F3' : doc?.url ? '\uD83D\uDD04' : '\uD83D\uDCCE'}
+                    {uploading[docDef.id] ? '⏳' : doc?.url ? '🔄' : '📎'}
                   </button>
                   {/* Expiry date */}
                   {editExpiry === docDef.id ? (
@@ -625,7 +625,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                     </div>
                   ) : (
                     <button onClick={() => setEditExpiry(docDef.id)} disabled={!!savingExpiry[docDef.id]} className="v5-btn v5-btn-sm" title={doc?.expiryDate ? t('proDash.wallet.echeance') : t('proDash.wallet.ajouterEcheance')} style={{ opacity: savingExpiry[docDef.id] ? 0.5 : 1 }}>
-                      {savingExpiry[docDef.id] ? '\u23F3' : '\uD83D\uDCC5'}
+                      {savingExpiry[docDef.id] ? '⏳' : '📅'}
                     </button>
                   )}
                   <ObtainButton doc={docDef} legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null} />
@@ -637,7 +637,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
 
         {/* Send dossier */}
         <div className="v5-card" style={{ marginTop: '1.25rem' }}>
-          <div className="v5-st">\uD83D\uDCE4 {t('proDash.wallet.envoyerDossier')}</div>
+          <div className="v5-st">📤 {t('proDash.wallet.envoyerDossier')}</div>
           <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>{t('proDash.wallet.envoyerDossierDesc')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -651,7 +651,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               className="v5-btn v5-btn-p"
               style={{ opacity: WALLET_DOCS.filter(d => docs[d.id]?.url).length === 0 ? 0.5 : 1, whiteSpace: 'nowrap' }}
             >
-              \uD83D\uDCE7 {t('proDash.wallet.envoyerLeDossier')}
+              📧 {t('proDash.wallet.envoyerLeDossier')}
             </button>
           </div>
         </div>
@@ -675,7 +675,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                       onClick={() => { setShowUploadModal(null); fileInputRefs.current[docDef.id]?.click() }}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px', border: 'none', borderBottom: i < WALLET_DOCS.length - 1 ? '1px solid #E8E8E8' : 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', fontSize: 13, fontFamily: 'inherit' }}
                     >
-                      <span style={{ fontSize: 18 }}>{docDef.icon || '\uD83D\uDCC4'}</span>
+                      <span style={{ fontSize: 18 }}>{docDef.icon || '📄'}</span>
                       <span style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 500, color: '#1a1a1a' }}>{docDef.nom}</span>
                         {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#C62828', fontWeight: 700 }}>OBLIGATOIRE</span>}
