@@ -8,7 +8,6 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { useTranslation } from '@/lib/i18n/context'
-import { DashboardSkeleton } from '@/components/dashboard'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
@@ -110,10 +109,10 @@ interface DevisLine {
 }
 
 function SuspenseFallback() {
-  // Neutral spinner — safe for SSR hydration (no window/sessionStorage access)
+  // Neutral spinner — pure inline styles, safe for SSR hydration, no V22/V5 leak
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#F2F2F0' }}>
-      <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0' }}>
+      <div style={{ width: 28, height: 28, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
     </div>
   )
 }
@@ -359,24 +358,11 @@ function DashboardPage() {
   const isV5 = orgRole === 'pro_societe'
 
   if (loading) {
-    if (isV5) {
-      return (
-        <div id="artisan-dashboard-v5" className="v5-app">
-          <aside className="v5-sb">
-            <div className="v5-sb-logo">
-              <div className="v5-sb-logo-name">VITFIX <span className="v5-sb-logo-badge">PRO</span></div>
-            </div>
-            <div className="v5-sb-nav" />
-          </aside>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--v5-content-bg)' }}>
-            <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          </div>
-        </div>
-      )
-    }
+    // Neutral loading screen — no V22 or V5 styling to prevent flash
+    // orgRole is always 'artisan' initially so we can't branch on isV5 here
     return (
-      <div className="min-h-screen bg-[#F8F9FA]">
-        <DashboardSkeleton />
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0' }}>
+        <div style={{ width: 28, height: 28, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       </div>
     )
   }
