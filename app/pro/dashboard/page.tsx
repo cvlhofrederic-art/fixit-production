@@ -117,7 +117,15 @@ function DashboardPage() {
 
   // ── Core auth state (kept here — loadDashboardData initializes all hooks) ──
   const [artisan, setArtisan] = useState<Artisan | null>(null)
-  const [orgRole, setOrgRole] = useState<OrgRole>('artisan')
+  const [orgRole, setOrgRole] = useState<OrgRole>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem('fixit_org_role')
+      if (cached && ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(cached)) {
+        return cached as OrgRole
+      }
+    }
+    return 'artisan'
+  })
   const [loading, setLoading] = useState(true)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
   const [adminLoading, setAdminLoading] = useState(false)
@@ -233,7 +241,10 @@ function DashboardPage() {
     if (!user) { router.push('/auth/login'); return }
 
     const role = user.user_metadata?.role || 'artisan'
-    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) setOrgRole(role as OrgRole)
+    if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) {
+      setOrgRole(role as OrgRole)
+      try { sessionStorage.setItem('fixit_org_role', role) } catch { /* private browsing */ }
+    }
 
     // Store pro team role in localStorage for usePermissions hook
     if (role === 'pro_societe') {
@@ -337,6 +348,21 @@ function DashboardPage() {
   const isV5 = orgRole === 'pro_societe'
 
   if (loading) {
+    if (isV5) {
+      return (
+        <div id="artisan-dashboard-v5" className="v5-app">
+          <aside className="v5-sb">
+            <div className="v5-sb-logo">
+              <div className="v5-sb-logo-name">VITFIX <span className="v5-sb-logo-badge">PRO</span></div>
+            </div>
+            <div className="v5-sb-nav" />
+          </aside>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--v5-content-bg)' }}>
+            <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen bg-[#F8F9FA]">
         <DashboardSkeleton />

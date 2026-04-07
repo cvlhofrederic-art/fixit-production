@@ -274,6 +274,7 @@
 .v5-cb-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(255,193,7,.5); }
 .v5-cb-win { position: fixed; bottom: 84px; right: 22px; width: 320px; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.15); z-index: 901; display: none; flex-direction: column; overflow: hidden; animation: v5SlideUp .3s; }
 .v5-cb-win.show { display: flex; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes v5SlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 .v5-cb-hdr { background: var(--v5-primary-yellow); padding: .6rem .85rem; display: flex; align-items: center; gap: 8px; }
 .v5-cb-av { width: 30px; height: 30px; border-radius: 50%; background: #F57C00; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
