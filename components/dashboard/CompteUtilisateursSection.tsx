@@ -33,9 +33,10 @@ interface TeamMember {
 
 interface Props {
   artisan: Artisan
+  isGerant?: boolean
 }
 
-export default function CompteUtilisateursSection({ artisan }: Props) {
+export default function CompteUtilisateursSection({ artisan, isGerant = false }: Props) {
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
 
@@ -302,9 +303,11 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
       {/* Search + Create */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem', flexWrap: 'wrap', gap: '.5rem' }}>
         <input className="v5-search-in" placeholder={isPt ? 'Pesquisar um utilizador...' : 'Rechercher un utilisateur...'} style={{ maxWidth: 300 }} />
-        <button onClick={() => setShowInviteModal(true)} className="v5-btn v5-btn-p">
-          + {isPt ? 'Criar uma conta' : 'Créer un compte'}
-        </button>
+        {isGerant && (
+          <button onClick={() => setShowInviteModal(true)} className="v5-btn v5-btn-p">
+            + {isPt ? 'Criar uma conta' : 'Créer un compte'}
+          </button>
+        )}
       </div>
 
       {/* Members Table */}
@@ -343,10 +346,11 @@ export default function CompteUtilisateursSection({ artisan }: Props) {
                   <td><span className={`v5-badge ${member.is_active ? 'v5-badge-green' : 'v5-badge-gray'}`}>{member.is_active ? (isPt ? 'Ativo' : 'Actif') : (isPt ? 'Inativo' : 'Inactif')}</span></td>
                   <td>{getRelativeLogin(member.last_login_at || member.accepted_at)}</td>
                   <td>
-                    {member.role === 'GERANT' ? '—' : (
+                    {member.role === 'GERANT' || !isGerant ? '—' : (
                       <div style={{ display: 'flex', gap: 5 }}>
                         <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setShowPermsModal(member) }}>{isPt ? 'Modificar' : 'Modifier'}</button>
                         <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => handleToggleActive(member)}>{member.is_active ? (isPt ? 'Desativar' : 'Désactiver') : (isPt ? 'Ativar' : 'Activer')}</button>
+                        <button className="v5-btn v5-btn-sm" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleDelete(member)}>{isPt ? 'Eliminar' : 'Supprimer'}</button>
                       </div>
                     )}
                   </td>
