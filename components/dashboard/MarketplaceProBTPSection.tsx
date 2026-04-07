@@ -549,7 +549,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           <div className="v5-search">
             <input className="v5-search-in" placeholder={isPt ? 'Pesquisar...' : 'Rechercher...'} style={{ maxWidth: 300 }} />
             <button className="v5-btn v5-btn-p" onClick={() => { setEditListing(null); setTab('nouvelle_annonce') }}>
-              + {isPt ? 'D\u00e9poser annonce' : 'D\u00e9poser annonce'}
+              + {isPt ? 'Déposer annonce' : 'Déposer annonce'}
             </button>
           </div>
         </>
@@ -602,7 +602,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           {/* Filtres */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: isV5 ? '0.75rem' : 20 }}>
             <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
-              <option value="">{isPt ? '— Todas as categorias —' : '— Toutes cat\u00e9gories —'}</option>
+              <option value="">{isPt ? '— Todas as categorias —' : '— Toutes catégories —'}</option>
               {MARKETPLACE_CATEGORIES.filter(c => !aeOnly || c.accessibleAE).map(c => (
                 <option key={c.id} value={c.id}>{c.emoji} {isPt ? c.labelPt : c.labelFr}</option>
               ))}
@@ -755,15 +755,15 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           {isV5 ? (
             <div className="v5-kpi-g" style={{ marginBottom: '0.75rem' }}>
               <div className="v5-kpi hl">
-                <div className="v5-kpi-l">{isPt ? 'Total an\u00fancios' : 'Total annonces'}</div>
+                <div className="v5-kpi-l">{isPt ? 'Total anúncios' : 'Total annonces'}</div>
                 <div className="v5-kpi-v">{statsTotal}</div>
               </div>
               <div className="v5-kpi">
-                <div className="v5-kpi-l">{isPt ? 'An\u00fancios ativos' : 'Annonces actives'}</div>
+                <div className="v5-kpi-l">{isPt ? 'Anúncios ativos' : 'Annonces actives'}</div>
                 <div className="v5-kpi-v" style={{ color: '#2E7D32' }}>{statsActive}</div>
               </div>
               <div className="v5-kpi">
-                <div className="v5-kpi-l">{isPt ? 'Total visualiza\u00e7\u00f5es' : 'Vues totales'}</div>
+                <div className="v5-kpi-l">{isPt ? 'Total visualizações' : 'Vues totales'}</div>
                 <div className="v5-kpi-v" style={{ color: '#1565C0' }}>{statsVues}</div>
               </div>
               <div className="v5-kpi">
@@ -795,7 +795,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           {/* Répartition par catégorie */}
           <div className={cardCls}>
             {!isV5 && <div className="v22-card-head"><div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BarChart3 size={14} /> {isPt ? 'Anúncios por categoria' : 'Annonces par catégorie'}</div></div>}
-            {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px', display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={12} /> {isPt ? 'An\u00fancios por categoria' : 'Annonces par cat\u00e9gorie'}</div>}
+            {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px', display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={12} /> {isPt ? 'Anúncios por categoria' : 'Annonces par catégorie'}</div>}
             <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: isV5 ? 0 : 16 }}>
               {MARKETPLACE_CATEGORIES.filter(c => myListings.some(l => l.categorie === c.id)).map(c => {
                 const count = myListings.filter(l => l.categorie === c.id).length

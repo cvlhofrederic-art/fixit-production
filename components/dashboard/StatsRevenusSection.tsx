@@ -327,7 +327,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Statistiques</h1><p>Analyse de l&apos;activit\u00e9 BTP</p></div>
+      <div className="v5-pg-t"><h1>Statistiques</h1><p>Analyse de l&apos;activité BTP</p></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
@@ -344,7 +344,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
         <div className="v5-kpi">
           <div className="v5-kpi-l">Taux transformation</div>
           <div className="v5-kpi-v">{tauxTransformation}%</div>
-          <div className="v5-kpi-s">offres \u2192 sign\u00e9es</div>
+          <div className="v5-kpi-s">offres → signées</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Panier moyen</div>
@@ -357,7 +357,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
       <div className="v5-sg2">
         {/* Bar chart — CA mensuel 6 mois */}
         <div className="v5-card">
-          <div className="v5-st">CA mensuel \u2014 6 derniers mois</div>
+          <div className="v5-st">CA mensuel — 6 derniers mois</div>
           <div className="ch-bar-c" style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 160, padding: '0 8px' }}>
             {months.map((m, i) => {
               const pct = maxMonthly > 0 ? Math.round((m.value / maxMonthly) * 100) : 0
@@ -383,9 +383,9 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
           </div>
         </div>
 
-        {/* Pie chart — R\u00e9partition CA par service */}
+        {/* Pie chart — Répartition CA par service */}
         <div className="v5-card">
-          <div className="v5-st">R\u00e9partition CA par service</div>
+          <div className="v5-st">Répartition CA par service</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', padding: '1rem 0' }}>
             {/* Pie placeholder */}
             <div style={{
@@ -459,14 +459,14 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Revenus</h1><p>Flux de tr\u00e9sorerie et encaissements</p></div>
+      <div className="v5-pg-t"><h1>Revenus</h1><p>Flux de trésorerie et encaissements</p></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
         <div className="v5-kpi hl">
           <div className="v5-kpi-l">CA {currentYear}</div>
           <div className="v5-kpi-v">{formatPrice(totalRevenue, locale)}</div>
-          <div className="v5-kpi-s">cumul\u00e9</div>
+          <div className="v5-kpi-s">cumulé</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Encaissements {now.toLocaleDateString(dateLocale, { month: 'long' })}</div>
@@ -475,7 +475,7 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
             if (!b.booking_date) return false
             const bd = new Date(b.booking_date)
             return bd.getMonth() === currentMonth && bd.getFullYear() === currentYear
-          }).length} op\u00e9rations</div>
+          }).length} opérations</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">Factures en attente</div>
@@ -489,9 +489,9 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
         </div>
       </div>
 
-      {/* Encaissements r\u00e9cents table */}
+      {/* Encaissements récents table */}
       <div className="v5-card">
-        <div className="v5-st">Encaissements r\u00e9cents</div>
+        <div className="v5-st">Encaissements récents</div>
         <table className="v5-dt">
           <thead>
             <tr>

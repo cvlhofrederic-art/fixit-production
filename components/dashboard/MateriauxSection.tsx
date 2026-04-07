@@ -416,7 +416,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               className={`v5-btn${userCity ? '' : ' v5-btn-p'}`}
               style={{ marginLeft: 'auto' }}
             >
-              {geoLoading ? '\u23f3' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre \u00e0 jour') : (locale === 'pt' ? 'Localiza\u00e7\u00e3o GPS' : 'Localisation GPS')}
+              {geoLoading ? '⏳' : '📍'} {userCity ? (locale === 'pt' ? 'Atualizar' : 'Mettre à jour') : (locale === 'pt' ? 'Localização GPS' : 'Localisation GPS')}
             </button>
           </div>
         </>
@@ -821,11 +821,11 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                       <div className={cardCls}>
                         {isV5 ? (
                           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 10, letterSpacing: '.3px' }}>
-                            {locale === 'pt' ? '💰 Integrar no or\u00e7amento' : '💰 Int\u00e9grer au devis'}
+                            {locale === 'pt' ? '💰 Integrar no orçamento' : '💰 Intégrer au devis'}
                             <span className={`v5-badge ${isAssujetti ? 'v5-badge-gray' : 'v5-badge-yellow'}`} style={{ marginLeft: 8 }}>
                               {isAssujetti
-                                ? `${(artisan as unknown as { legal_form?: string })?.legal_form || 'Soci\u00e9t\u00e9'} \u2014 TVA ${TVA_REVENTE}%`
-                                : `${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} \u2014 Franchise TVA`
+                                ? `${(artisan as unknown as { legal_form?: string })?.legal_form || 'Société'} — TVA ${TVA_REVENTE}%`
+                                : `${isAutoEntrepreneur ? 'Auto-entrepreneur' : 'EI'} — Franchise TVA`
                               }
                             </span>
                           </div>
@@ -1103,7 +1103,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                         <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>
                           {locale === 'pt'
                             ? `${productTab === 'new' ? '🛒' : '♻️'} Ofertas ${productTab === 'new' ? 'novas' : 'recondicionadas / outlet'}`
-                            : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconstitionn\u00e9es / d\u00e9stockage'}`}
+                            : `${productTab === 'new' ? '🛒' : '♻️'} Offres ${productTab === 'new' ? 'neuves' : 'reconstitionnées / déstockage'}`}
                         </div>
                       )}
                       <table>
@@ -1375,7 +1375,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
             </div>
             <div className={cardCls}>
               {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div></div>}
-              {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '💡 Dicas de utiliza\u00e7\u00e3o' : '💡 Conseils d\'utilisation'}</div>}
+              {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div>}
               <div className={isV5 ? '' : 'v22-card-body'}>
                 <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
                   {locale === 'pt' ? (

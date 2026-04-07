@@ -255,8 +255,8 @@ function FacturesSectionV5({
     .sort((a, b) => new Date(b.savedAt || b.docDate || '').getTime() - new Date(a.savedAt || a.docDate || '').getTime())
 
   const getV5Badge = (doc: PersistedDocument) => {
-    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: '\u00c9mise' }
-    if (doc.status === 'payee') return { cls: 'v5-badge v5-badge-green', label: 'Pay\u00e9e' }
+    if (doc.status === 'envoye') return { cls: 'v5-badge v5-badge-blue', label: 'Émise' }
+    if (doc.status === 'payee') return { cls: 'v5-badge v5-badge-green', label: 'Payée' }
     return { cls: 'v5-badge v5-badge-yellow', label: 'Brouillon' }
   }
 
@@ -278,7 +278,7 @@ function FacturesSectionV5({
       <div className="v5-search">
         <input
           className="v5-search-in"
-          placeholder="Rechercher\u2026"
+          placeholder="Rechercher…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -292,7 +292,7 @@ function FacturesSectionV5({
         <table className="v5-dt">
           <thead>
             <tr>
-              <th>N\u00b0</th>
+              <th>N°</th>
               <th>Client</th>
               <th>Type</th>
               <th>Montant TTC</th>
@@ -308,9 +308,9 @@ function FacturesSectionV5({
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
                   <td style={{ fontWeight: 600 }}>{doc.docNumber}</td>
-                  <td>{doc.clientName || 'Non renseign\u00e9'}</td>
+                  <td>{doc.clientName || 'Non renseigné'}</td>
                   <td>{guessType(doc)}</td>
-                  <td>{totalTTC.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} \u20ac</td>
+                  <td>{totalTTC.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -332,8 +332,8 @@ function FacturesSectionV5({
                       {doc.clientEmail && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
-                          const subject = encodeURIComponent(`Facture ${doc.docNumber} \u2014 ${artisan?.company_name || 'Fixit'}`)
-                          const body = encodeURIComponent(`Bonjour ${doc.clientName || ''},\n\nVeuillez trouver ci-joint votre facture N\u00b0${doc.docNumber} d'un montant de ${totalHT.toFixed(2)} \u20ac HT.\n\nCordialement,\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+                          const subject = encodeURIComponent(`Facture ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
+                          const body = encodeURIComponent(`Bonjour ${doc.clientName || ''},\n\nVeuillez trouver ci-joint votre facture N°${doc.docNumber} d'un montant de ${totalHT.toFixed(2)} € HT.\n\nCordialement,\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                           window.open(`mailto:${doc.clientEmail}?subject=${subject}&body=${body}`)
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
@@ -367,7 +367,7 @@ function FacturesSectionV5({
             }) : (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
-                  {search ? 'Aucune facture trouv\u00e9e' : 'Aucune facture. Cr\u00e9ez votre premi\u00e8re facture.'}
+                  {search ? 'Aucune facture trouvée' : 'Aucune facture. Créez votre première facture.'}
                 </td>
               </tr>
             )}

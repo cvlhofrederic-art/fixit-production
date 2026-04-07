@@ -274,7 +274,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
 
         <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
           {filtered.length} &eacute;l&eacute;ment{filtered.length !== 1 ? 's' : ''} affich&eacute;{filtered.length !== 1 ? 's' : ''}
-          {filtered.length > 0 && ` \u2014 co\u00fbt total : ${fmt(totalRevient)}`}
+          {filtered.length > 0 && ` — coût total : ${fmt(totalRevient)}`}
         </div>
 
         {/* Modal */}
@@ -331,7 +331,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
                 <button onClick={() => setModal(false)} className="v5-btn">Annuler</button>
-                <button onClick={handleSave} className="v5-btn v5-btn-p">{editId ? 'Enregistrer' : 'Cr\u00e9er'}</button>
+                <button onClick={handleSave} className="v5-btn v5-btn-p">{editId ? 'Enregistrer' : 'Créer'}</button>
               </div>
             </div>
           </div>
