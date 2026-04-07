@@ -347,7 +347,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   <td><span className={`v5-badge ${member.is_active ? 'v5-badge-green' : 'v5-badge-gray'}`}>{member.is_active ? (isPt ? 'Ativo' : 'Actif') : (isPt ? 'Inativo' : 'Inactif')}</span></td>
                   <td>{getRelativeLogin(member.last_login_at || member.accepted_at)}</td>
                   <td>
-                    {member.role === 'GERANT' || !isGerant ? '—' : (
+                    {!isGerant || member.email === artisan.email ? '—' : (
                       <div style={{ display: 'flex', gap: 5 }}>
                         <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setShowPermsModal(member) }}>{isPt ? 'Modificar' : 'Modifier'}</button>
                         <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => handleToggleActive(member)}>{member.is_active ? (isPt ? 'Desativar' : 'Désactiver') : (isPt ? 'Ativar' : 'Activer')}</button>
