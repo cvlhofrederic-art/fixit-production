@@ -76,8 +76,9 @@ const PointageGeoSection = dynamic(() => import('@/components/dashboard/Pointage
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
 const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
 
-// V5 layout components (pro_societe only)
+// V5 layout components
 const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'))
+const V5SidebarArtisan = dynamic(() => import('@/components/dashboard/V5SidebarArtisan'))
 const V5Header = dynamic(() => import('@/components/dashboard/V5Header'))
 
 // Conciergerie sections — NO ssr:false (causes React #419 hydration error)
@@ -354,8 +355,8 @@ function DashboardPage() {
     ? artisan.company_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'PR'
 
-  // V5 layout applies only to pro_societe
-  const isV5 = orgRole === 'pro_societe'
+  // V5 layout applies to pro_societe AND artisan
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   if (loading) {
     // Neutral loading screen — no V22 or V5 styling to prevent flash
@@ -395,13 +396,20 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* ══════════ V5 SIDEBAR — pro_societe only ══════════ */}
-      {isV5 && (
+      {/* ══════════ V5 SIDEBAR ═══════��══ */}
+      {isV5 && orgRole === 'pro_societe' && (
         <V5Sidebar
           activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
           isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
           setSettingsTab={setSettingsTab}
+        />
+      )}
+      {isV5 && orgRole === 'artisan' && (
+        <V5SidebarArtisan
+          activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
+          isModuleEnabled={isModuleEnabled} isPt={isPt} pendingBookings={pendingBookings}
+          unreadMsgCount={unreadMsgCount} settingsTab={settingsTab} setSettingsTab={setSettingsTab}
         />
       )}
 
@@ -557,7 +565,7 @@ function DashboardPage() {
         />
       )}
 
-      {/* ══════════ V22 SIDEBAR — non pro_societe ══════════ */}
+      {/* ══════════ V22 SIDEBAR — conciergerie & gestionnaire only ══════════ */}
       {!isV5 && (
       <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-[220px] h-[calc(100vh-48px)] overflow-y-auto transition-transform duration-200 v22-sidebar flex flex-col flex-shrink-0`} style={{ borderRight: '1px solid var(--v22-yellow)' }}>
         <div className="flex-1 pt-5">
@@ -565,12 +573,6 @@ function DashboardPage() {
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.main')}</div>
             <V22SidebarItem label={t('proDash.modules.home')} active={activePage === 'home'} onClick={() => navigateTo('home')} />
-            {orgRole === 'artisan' && <>
-              <V22SidebarItem label={t('proDash.modules.calendar')} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} badgeRed onClick={() => navigateTo('calendar')} />
-              <V22SidebarItem label="Chantiers" active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} />
-              <V22SidebarItem label={t('proDash.modules.motifs')} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} />
-              <V22SidebarItem label={t('proDash.modules.hours')} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} />
-            </>}
             {orgRole === 'pro_conciergerie' && <>
               <V22SidebarItem label={t('proDash.conciergerie.properties')} active={activePage === 'proprietes'} onClick={() => navigateTo('proprietes')} />
               <V22SidebarItem label={t('proDash.modules.planning')} active={activePage === 'calendar'} onClick={() => navigateTo('calendar')} />
@@ -598,11 +600,9 @@ function DashboardPage() {
           <div className="mb-5">
             <div className="v22-sidebar-label">{t('proDash.sidebar.facturation')}</div>
             {isModuleEnabled('devis') && <V22SidebarItem label={t('proDash.modules.quotes')} active={activePage === 'devis'} onClick={() => navigateTo('devis')} />}
-            {orgRole === 'artisan' && <V22SidebarItem label="Pipeline" active={activePage === 'pipeline'} onClick={() => navigateTo('pipeline')} />}
             {isModuleEnabled('factures') && <V22SidebarItem label={t('proDash.modules.invoices')} active={activePage === 'factures'} onClick={() => navigateTo('factures')} />}
             {isModuleEnabled('rapports') && <V22SidebarItem label={t('proDash.modules.reports')} active={activePage === 'rapports'} onClick={() => navigateTo('rapports')} />}
             <V22SidebarItem label={t('proDash.modules.sitePhotos', 'Photos Chantier')} active={activePage === 'photos_chantier'} onClick={() => navigateTo('photos_chantier')} />
-            {orgRole === 'artisan' && <V22SidebarItem label="Bibliothèque" active={activePage === 'bibliotheque'} onClick={() => navigateTo('bibliotheque')} />}
             {isModuleEnabled('contrats') && orgRole === 'pro_gestionnaire' && (
               <V22SidebarItem label={t('proDash.modules.contracts')} active={activePage === 'contrats'} onClick={() => navigateTo('contrats')} />
             )}
@@ -613,26 +613,11 @@ function DashboardPage() {
             {isModuleEnabled('stats') && <V22SidebarItem label={t('proDash.modules.stats')} active={activePage === 'stats'} onClick={() => navigateTo('stats')} />}
             {isModuleEnabled('revenus') && <V22SidebarItem label={t('proDash.modules.revenue')} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />}
             {isModuleEnabled('comptabilite') && <V22SidebarItem label={t('proDash.modules.accounting')} active={activePage === 'comptabilite'} onClick={() => navigateTo('comptabilite')} />}
-            {isModuleEnabled('materiaux') && orgRole === 'artisan' && (
-              <V22SidebarItem
-                label={t('proDash.modules.materials')}
-                active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')}
-              />
-            )}
             {isModuleEnabled('marches') && (
               <V22SidebarItem label={t('proDash.modules.marches', 'Bourse aux Marchés')} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
             )}
             {isModuleEnabled('marketplace_btp') && <V22SidebarItem label="🏗️ Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} />}
           </div>
-          {/* Profil Pro */}
-          {orgRole === 'artisan' && (isModuleEnabled('wallet') || isModuleEnabled('portfolio') || isModuleEnabled('parrainage')) && (
-            <div className="mb-5">
-              <div className="v22-sidebar-label">{t('proDash.sidebar.profilPro')}</div>
-              {isModuleEnabled('wallet') && <V22SidebarItem label={t('proDash.modules.wallet')} active={activePage === 'wallet'} onClick={() => navigateTo('wallet')} />}
-              {isModuleEnabled('portfolio') && <V22SidebarItem label={t('proDash.modules.portfolio')} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />}
-              {isModuleEnabled('parrainage') && <V22SidebarItem label={t('proDash.modules.parrainage', 'Parrainage')} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />}
-            </div>
-          )}
         </div>
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
