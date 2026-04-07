@@ -135,15 +135,8 @@ function DashboardPage() {
 
   // ── Core auth state (kept here — loadDashboardData initializes all hooks) ──
   const [artisan, setArtisan] = useState<Artisan | null>(null)
-  const [orgRole, setOrgRole] = useState<OrgRole>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('fixit_org_role')
-      if (cached && ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(cached)) {
-        return cached as OrgRole
-      }
-    }
-    return 'artisan'
-  })
+  // Always start as 'artisan' to match SSR — loadDashboardData sets the real role
+  const [orgRole, setOrgRole] = useState<OrgRole>('artisan')
   const [loading, setLoading] = useState(true)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
   const [adminLoading, setAdminLoading] = useState(false)
