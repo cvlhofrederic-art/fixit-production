@@ -100,9 +100,33 @@ interface DevisLine {
   totalHT: number
 }
 
+function SuspenseFallback() {
+  const isV5 = typeof window !== 'undefined' && (() => {
+    try { return sessionStorage.getItem('fixit_org_role') === 'pro_societe' } catch { return false }
+  })()
+
+  if (isV5) {
+    return (
+      <div id="artisan-dashboard-v5" className="v5-app">
+        <aside className="v5-sb">
+          <div className="v5-sb-logo">
+            <div className="v5-sb-logo-name">VITFIX <span className="v5-sb-logo-badge">PRO</span></div>
+          </div>
+          <div className="v5-sb-nav" />
+        </aside>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--v5-content-bg)' }}>
+          <div style={{ width: 24, height: 24, border: '3px solid #E0E0E0', borderTopColor: '#FFC107', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      </div>
+    )
+  }
+
+  return <div className="min-h-screen bg-[#F8F9FA]"><DashboardSkeleton /></div>
+}
+
 export default function DashboardPageWrapper() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F8F9FA]"><DashboardSkeleton /></div>}>
+    <Suspense fallback={<SuspenseFallback />}>
       <DashboardPage />
     </Suspense>
   )
