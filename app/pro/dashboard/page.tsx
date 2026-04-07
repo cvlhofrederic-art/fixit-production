@@ -1,6 +1,7 @@
 'use client'
 
 import './dashboard-v5.css'
+import './dashboard-v5-overrides.css'
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
