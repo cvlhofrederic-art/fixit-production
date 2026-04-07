@@ -135,6 +135,146 @@ export default function HomeSection({
     }
   }, [artisan?.id, locale])
 
+  // ═══════════════════════════════════════════════════════
+  // V5 RENDER — pro_societe uses the v5 design system
+  // ═══════════════════════════════════════════════════════
+  if (orgRole === 'pro_societe') {
+    const urgentCount = pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length
+    return (
+      <div className="v5-fade">
+        <div className="v5-pg-t" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1 }}>
+            <h1>{locale === 'pt' ? 'Painel' : 'Tableau de bord'}</h1>
+            <p>{artisan?.company_name || 'Entreprise'} — {locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum}, {monthYear}</p>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="v5-btn v5-btn-sm" onClick={() => navigateTo('stats')}>{locale === 'pt' ? 'Exportar' : 'Exporter'}</button>
+            <button className="v5-btn v5-btn-p v5-btn-sm" onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }}>+ {locale === 'pt' ? 'Novo orçamento' : 'Nouveau devis'}</button>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div className="v5-kpi-g">
+          <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
+            <div className="v5-kpi-l">{locale === 'pt' ? 'Obras ativas' : 'Chantiers actifs'}</div>
+            <div className="v5-kpi-v">{bookings.filter(b => b.status === 'confirmed').length}</div>
+            <div className="v5-kpi-s">{urgentCount > 0 ? `dont ${urgentCount} ${locale === 'pt' ? 'urgentes' : 'en retard'}` : (locale === 'pt' ? 'em dia' : 'à jour')}</div>
+          </div>
+          <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('revenus')}>
+            <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação mensal' : 'CA ce mois'}</div>
+            <div className="v5-kpi-v">{formatPrice(totalRevenue)}</div>
+            <div className="v5-kpi-s">↑ {completedBookings.length} {locale === 'pt' ? 'terminadas' : 'chantiers livrés'}</div>
+          </div>
+          <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
+            <div className="v5-kpi-l">{locale === 'pt' ? 'Nota média' : 'Note moyenne'}</div>
+            <div className="v5-kpi-v">{artisan?.rating_avg || '5.0'} ★</div>
+            <div className="v5-kpi-s">{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
+          </div>
+          <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
+            <div className="v5-kpi-l">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
+            <div className="v5-kpi-v">{conversionRate}%</div>
+            <div className="v5-kpi-s">{completedBookings.length}/{totalReceived}</div>
+          </div>
+        </div>
+
+        {/* Main grid: Chantiers en cours + Planning + Alertes */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.2fr', gap: '.75rem', marginBottom: '1.25rem' }}>
+          {/* Demandes / Chantiers */}
+          <div className="v5-card">
+            <div className="v5-st" style={{ display: 'flex', alignItems: 'center' }}>
+              {locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues'}
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#999', cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>{locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}</span>
+            </div>
+            {pendingBookings.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</div>
+            ) : (
+              <table className="v5-dt">
+                <thead><tr><th>{locale === 'pt' ? 'Cliente' : 'Client'}</th><th>Service</th><th>{locale === 'pt' ? 'Estado' : 'Statut'}</th></tr></thead>
+                <tbody>
+                  {pendingBookings.slice(0, 5).map(b => {
+                    const clientName = extractClientName(b)
+                    const isUrgent = b.notes?.toLowerCase().includes('urgent')
+                    return (
+                      <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
+                        <td style={{ fontWeight: 600 }}>{clientName}</td>
+                        <td>{b.services?.name || 'Intervention'}</td>
+                        <td><span className={`v5-badge ${isUrgent ? 'v5-badge-red' : 'v5-badge-orange'}`}>{isUrgent ? 'Urgent' : (locale === 'pt' ? 'Pendente' : 'En attente')}</span></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Planning semaine */}
+          <div className="v5-card">
+            <div className="v5-st">{locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine'}</div>
+            {todayBookings.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nada agendado para hoje' : "Rien de prévu aujourd'hui"}</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {todayBookings.slice(0, 5).map(b => {
+                  const clientName = extractClientName(b)
+                  const dayName = new Date(b.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'short' })
+                  return (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
+                      <div style={{ background: '#E3F2FD', color: '#1565C0', padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'capitalize' as const }}>{dayName}</div>
+                      <div style={{ fontSize: 11 }}>{b.services?.name || 'RDV'} — {clientName}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Alertes */}
+          <div className="v5-card">
+            <div className="v5-st">{locale === 'pt' ? 'Alertas BTP' : 'Alertes BTP'}</div>
+            {alerts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
+            ) : (
+              alerts.map((a, i) => (
+                <div key={i} className={`v5-al ${a.type === 'red' ? 'err' : 'warn'}`}>{a.title}</div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Bottom: 3 summary cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.75rem', marginBottom: '1.25rem' }}>
+          <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem' }}>
+            <div className="v5-st">{locale === 'pt' ? 'Últimas avaliações' : 'Derniers avis'}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, margin: '.4rem 0' }}>{artisan?.rating_avg || '5.0'} / 5</div>
+            <div style={{ fontSize: 11, color: '#888' }}>{artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
+          </div>
+          <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('messages')}>
+            <div className="v5-st">{locale === 'pt' ? 'Mensagens' : 'Messagerie'}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{pendingBookings.length}</div>
+            <div style={{ fontSize: 11, color: '#888' }}>conversations</div>
+          </div>
+          <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('devis')}>
+            <div className="v5-st">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
+            <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''} — ${formatPrice(recentDevis[0].total || recentDevis[0].amount || 0)}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
+          </div>
+        </div>
+
+        {/* Actions rapides */}
+        <div className="v5-st" style={{ marginBottom: '.5rem' }}>{t('proDash.home.actionsRapides')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }}>
+          <button className="v5-act-btn primary" onClick={() => navigateTo('equipes')}><span style={{ fontSize: 18 }}>👷</span><span>{t('proDash.home.nouvelleEquipe')}</span></button>
+          <button className="v5-act-btn" onClick={() => navigateTo('chantiers')}><span style={{ fontSize: 18 }}>🏗️</span><span>{t('proDash.home.nouveauChantier')}</span></button>
+          <button className="v5-act-btn" onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+          <button className="v5-act-btn" onClick={() => { setShowFactureForm(true); setActivePage('factures'); setSidebarOpen(false) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+        </div>
+      </div>
+    )
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // V22 RENDER — artisan, conciergerie, gestionnaire
+  // ═══════════════════════════════════════════════════════
   return (
     <div className="animate-fadeIn">
       {/* ── Page Header ── */}
@@ -420,12 +560,6 @@ export default function HomeSection({
           <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }} />
           <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setShowFactureForm(true); setActivePage('factures'); setSidebarOpen(false) }} />
           <QuickAction icon="🔧" label={t('proDash.home.nouveauMotif')} onClick={() => { openNewMotif(); navigateTo('motifs') }} />
-        </>}
-        {orgRole === 'pro_societe' && <>
-          <QuickAction icon="👷" label={t('proDash.home.nouvelleEquipe')} onClick={() => navigateTo('equipes')} />
-          <QuickAction icon="📋" label={t('proDash.home.nouveauChantier')} onClick={() => navigateTo('chantiers')} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setShowDevisForm(true); setActivePage('devis'); setSidebarOpen(false) }} />
-          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setShowFactureForm(true); setActivePage('factures'); setSidebarOpen(false) }} />
         </>}
         {orgRole === 'pro_conciergerie' && <>
           <QuickAction icon="🏠" label={t('proDash.home.nouvellePropriete')} onClick={() => navigateTo('proprietes')} />
