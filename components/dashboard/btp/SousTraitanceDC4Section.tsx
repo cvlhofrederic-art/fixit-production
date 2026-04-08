@@ -8,7 +8,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   const { t } = useTranslation()
   const locale = useLocale()
   const isFR = locale !== 'pt'
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `dc4_${userId}`
   const DCE_KEY = `dce_analyses_${userId}`

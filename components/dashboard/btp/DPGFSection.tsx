@@ -7,7 +7,7 @@ import { FolderOpen, Download } from 'lucide-react'
 export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `dpgf_${userId}`
   interface Lot { numero: string; designation: string; montantHT: number }

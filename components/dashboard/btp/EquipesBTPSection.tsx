@@ -12,7 +12,7 @@ import {
 export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   const TYPE_COLORS_V5: Record<TypeCompte, string> = {
     ouvrier: 'v5-badge v5-badge-gray',

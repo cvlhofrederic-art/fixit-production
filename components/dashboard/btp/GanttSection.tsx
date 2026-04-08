@@ -6,7 +6,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `gantt_${userId}`
   interface Tache {

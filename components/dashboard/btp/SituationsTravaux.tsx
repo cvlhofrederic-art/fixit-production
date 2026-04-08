@@ -7,7 +7,7 @@ import { BarChart3 } from 'lucide-react'
 export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `situations_${userId}`
   interface Poste { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }

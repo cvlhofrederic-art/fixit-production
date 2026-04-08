@@ -13,7 +13,7 @@ interface ChantierItem {
 export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: Artisan; bookings: Booking[]; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_chantiers_${artisan?.id}`
   const [chantiers, setChantiers] = useState<ChantierItem[]>(() => {
