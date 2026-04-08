@@ -59,6 +59,7 @@ const PipelineSection = dynamic(() => import('@/components/dashboard/PipelineSec
 const BibliothequeSection = dynamic(() => import('@/components/dashboard/BibliothequeSection'), { loading: SectionLoader })
 const ParrainageSection = dynamic(() => import('@/components/dashboard/ParrainageSection'), { loading: SectionLoader })
 const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), { loading: SectionLoader })
+const ModulesSection = dynamic(() => import('@/components/dashboard/ModulesSection'), { loading: SectionLoader })
 
 // BTP sections — direct imports (no barrel) for proper tree-shaking
 const EquipesBTPV2 = dynamic(() => import('@/components/dashboard/EquipesBTPV2'), { loading: SectionLoader })
@@ -623,7 +624,7 @@ function DashboardPage() {
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
           <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
-          <V22SidebarItem label="Modules" active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
+          <V22SidebarItem label="Modules" active={activePage === 'modules'} onClick={() => navigateTo('modules')} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
           <V22SidebarItem label={t('proDash.logout')} active={false} onClick={async () => { await supabase.auth.signOut(); window.location.href = `/${locale}/` }} />
         </div>
@@ -966,6 +967,13 @@ function DashboardPage() {
               setProfilePhotoUploading={setProfilePhotoUploading}
               uploadMsg={uploadMsg}
               setUploadMsg={setUploadMsg}
+            />
+          )}
+
+          {/* ────── MODULES ────── */}
+          {activePage === 'modules' && (
+            <ModulesSection
+              orgRole={orgRole}
               ALL_MODULES={ALL_MODULES}
               modulesConfig={modulesConfig}
               saveModulesConfig={saveModulesConfig}
