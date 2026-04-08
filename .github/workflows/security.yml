@@ -34,16 +34,16 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Initialiser CodeQL
-        uses: github/codeql-action/init@480db559a14342288b67e54bd959dd52dc3ee68f # v3
+        uses: github/codeql-action/init@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@480db559a14342288b67e54bd959dd52dc3ee68f # v3
+        uses: github/codeql-action/autobuild@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
 
       - name: Exécuter l'analyse CodeQL
-        uses: github/codeql-action/analyze@480db559a14342288b67e54bd959dd52dc3ee68f # v3
+        uses: github/codeql-action/analyze@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
         with:
           category: "/language:${{ matrix.language }}"
 
@@ -94,7 +94,7 @@ jobs:
           --sarif --output semgrep-results.sarif .
 
       - name: Uploader les résultats dans GitHub Security
-        uses: github/codeql-action/upload-sarif@480db559a14342288b67e54bd959dd52dc3ee68f # v3
+        uses: github/codeql-action/upload-sarif@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
         if: always()
         with:
           sarif_file: semgrep-results.sarif
