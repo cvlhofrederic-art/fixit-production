@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useThemeVars } from './useThemeVars'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -81,6 +82,7 @@ const EMPTY_FORM = (isSociete: boolean): Omit<BiblioItem, 'id'> => ({
 export default function BibliothequeSection({ artisan, orgRole = 'artisan', navigateTo }: BibliothequeSectionProps) {
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const storageKey = `fixit_bibliotheque_${artisan?.id || 'guest'}`
 
   const [items, setItems] = useState<BiblioItem[]>([])
@@ -345,10 +347,10 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--v22-text)' }}>
+          <h2 className="text-lg font-semibold" style={{ color: tv.text }}>
             {isSociete ? "Bibliothèque d'entreprise" : 'Bibliothèque'}
           </h2>
-          <p className="text-sm" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>
+          <p className="text-sm" style={{ color: tv.textSecondary }}>
             {isSociete
               ? `${items.length} poste${items.length > 1 ? 's' : ''} — ouvrages, matériaux, MO, sous-traitants`
               : 'Vos ouvrages, matériaux et main-d\'œuvre'}
@@ -361,12 +363,12 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="px-3 py-1.5 text-sm rounded border outline-none focus:ring-1"
-            style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}
+            style={{ borderColor: tv.border, borderRadius: 4 }}
           />
           <button
             onClick={openCreate}
             className="px-3 py-1.5 text-sm font-medium text-black rounded whitespace-nowrap"
-            style={{ background: 'var(--v22-yellow, #facc15)', borderRadius: 4 }}
+            style={{ background: tv.primary, borderRadius: 4 }}
           >
             {isSociete ? '+ Nouveau poste' : '+ Nouvel ouvrage'}
           </button>
@@ -374,15 +376,15 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       </div>
 
       {/* Tabs type */}
-      <div className="flex gap-1 border-b" style={{ borderColor: 'var(--v22-border)' }}>
+      <div className="flex gap-1 border-b" style={{ borderColor: tv.border }}>
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className="px-3 py-1.5 text-sm transition-colors"
             style={{
-              color: tab === t.key ? 'var(--v22-text)' : 'var(--v22-text-secondary, #6b7280)',
-              borderBottom: tab === t.key ? '2px solid var(--v22-yellow, #facc15)' : '2px solid transparent',
+              color: tab === t.key ? tv.text : tv.textSecondary,
+              borderBottom: tab === t.key ? `2px solid ${tv.primary}` : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >
@@ -400,9 +402,9 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
               onClick={() => setCorpsFilter(c)}
               className="px-2.5 py-1 text-xs rounded-full border transition-colors"
               style={{
-                borderColor: corpsFilter === c ? 'var(--v22-yellow)' : 'var(--v22-border)',
-                backgroundColor: corpsFilter === c ? 'var(--v22-yellow)' : 'transparent',
-                color: corpsFilter === c ? '#000' : 'var(--v22-text-muted)',
+                borderColor: corpsFilter === c ? tv.primary : tv.border,
+                backgroundColor: corpsFilter === c ? tv.primary : 'transparent',
+                color: corpsFilter === c ? '#000' : tv.textMuted,
                 fontWeight: corpsFilter === c ? 600 : 400,
               }}
             >
@@ -413,35 +415,35 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto border rounded" style={{ borderColor: 'var(--v22-border)', borderRadius: 4 }}>
+      <div className="overflow-x-auto border rounded" style={{ borderColor: tv.border, borderRadius: 4 }}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left" style={{ background: 'var(--v22-bg-secondary, #f9fafb)' }}>
-              <th className="px-3 py-2 font-medium" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>Désignation</th>
-              {isSociete && <th className="px-3 py-2 font-medium" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>Corps</th>}
-              <th className="px-3 py-2 font-medium" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>Catégorie</th>
-              <th className="px-3 py-2 font-medium" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>Unité</th>
-              <th className="px-3 py-2 font-medium text-right" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>
+            <tr className="text-left" style={{ background: tv.bg }}>
+              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Désignation</th>
+              {isSociete && <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Corps</th>}
+              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Catégorie</th>
+              <th className="px-3 py-2 font-medium" style={{ color: tv.textSecondary }}>Unité</th>
+              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>
                 {isSociete ? 'Coût HT' : 'Revient HT'}
               </th>
-              <th className="px-3 py-2 font-medium text-right" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>Marge %</th>
-              <th className="px-3 py-2 font-medium text-right" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>
+              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>Marge %</th>
+              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>
                 {isSociete ? 'Prix vente HT' : 'Client HT'}
               </th>
-              <th className="px-3 py-2 font-medium text-right" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>Actions</th>
+              <th className="px-3 py-2 font-medium text-right" style={{ color: tv.textSecondary }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={isSociete ? 8 : 7} className="px-3 py-6 text-center text-sm" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>
+                <td colSpan={isSociete ? 8 : 7} className="px-3 py-6 text-center text-sm" style={{ color: tv.textSecondary }}>
                   Aucun élément trouvé.
                 </td>
               </tr>
             )}
             {filtered.map(item => (
-              <tr key={item.id} className="border-t hover:bg-gray-50/50" style={{ borderColor: 'var(--v22-border)' }}>
-                <td className="px-3 py-2" style={{ color: 'var(--v22-text)' }}>{item.nom}</td>
+              <tr key={item.id} className="border-t hover:bg-gray-50/50" style={{ borderColor: tv.border }}>
+                <td className="px-3 py-2" style={{ color: tv.text }}>{item.nom}</td>
                 {isSociete && (
                   <td className="px-3 py-2">
                     {item.corps && (
@@ -452,12 +454,12 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
                   </td>
                 )}
                 <td className="px-3 py-2">{typeTag(item.type)}</td>
-                <td className="px-3 py-2" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>{item.unite}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: 'var(--v22-text)' }}>{fmt(item.rev)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: 'var(--v22-text)' }}>{item.marge}%</td>
-                <td className="px-3 py-2 text-right font-mono text-xs font-semibold" style={{ color: 'var(--v22-text)' }}>{fmt(prixClient(item.rev, item.marge))}</td>
+                <td className="px-3 py-2" style={{ color: tv.textSecondary }}>{item.unite}</td>
+                <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: tv.text }}>{fmt(item.rev)}</td>
+                <td className="px-3 py-2 text-right font-mono text-xs" style={{ color: tv.text }}>{item.marge}%</td>
+                <td className="px-3 py-2 text-right font-mono text-xs font-semibold" style={{ color: tv.text }}>{fmt(prixClient(item.rev, item.marge))}</td>
                 <td className="px-3 py-2 text-right">
-                  <button onClick={() => openEdit(item)} className="text-xs mr-2 hover:underline" style={{ color: 'var(--v22-yellow, #ca8a04)' }}>Éditer</button>
+                  <button onClick={() => openEdit(item)} className="text-xs mr-2 hover:underline" style={{ color: tv.primary }}>Éditer</button>
                   <button onClick={() => handleDelete(item.id)} className="text-xs text-red-500 hover:underline">Suppr.</button>
                 </td>
               </tr>
@@ -466,7 +468,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
         </table>
       </div>
 
-      <p className="text-xs" style={{ color: 'var(--v22-text-secondary, #6b7280)' }}>
+      <p className="text-xs" style={{ color: tv.textSecondary }}>
         {filtered.length} élément{filtered.length !== 1 ? 's' : ''} affiché{filtered.length !== 1 ? 's' : ''}
         {filtered.length > 0 && ` — coût total : ${fmt(totalRevient)}`}
       </p>

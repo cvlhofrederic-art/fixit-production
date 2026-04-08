@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 import { toast } from 'sonner'
 
 /* ========== PHOTOS CHANTIER ========== */
@@ -16,6 +17,7 @@ interface RapportItem { id: string; titre?: string; rapportNumber?: string; clie
 
 export default function PhotosChantierSection({ artisan, bookings, orgRole }: { artisan: import('@/lib/types').Artisan; bookings: import('@/lib/types').Booking[]; orgRole?: string }) {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -188,7 +190,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
 
         {/* Photos grid */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--v22-text-muted)', fontSize: 12 }}>
+          <div style={{ textAlign: 'center', padding: '48px 0', color: tv.textMuted, fontSize: 12 }}>
             {t('proDash.photos.chargement')}
           </div>
         ) : photos.length === 0 ? (
@@ -269,7 +271,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {assigning === photo.id ? (
                         <div style={{ width: '100%' }}>
-                          <p style={{ fontSize: 10, color: 'var(--v22-text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                          <p style={{ fontSize: 10, color: tv.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             {'🔗'} {t('proDash.photos.associerChantier')}
                           </p>
                           <select
@@ -289,7 +291,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                         </div>
                       ) : assigningRapport === photo.id ? (
                         <div style={{ width: '100%' }}>
-                          <p style={{ fontSize: 10, color: 'var(--v22-text-muted)', fontWeight: 600, marginBottom: 4 }}>
+                          <p style={{ fontSize: 10, color: tv.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             {'📋'} {t('proDash.photos.associerRapport')}
                           </p>
                           <select
@@ -304,7 +306,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                             ))}
                           </select>
                           {rapports.length === 0 && (
-                            <p style={{ fontSize: 10, color: 'var(--v22-text-muted)', fontStyle: 'italic', marginBottom: 4 }}>
+                            <p style={{ fontSize: 10, color: tv.textMuted, fontStyle: 'italic', marginBottom: 4 }}>
                               {t('proDash.photos.aucunRapportCree')}
                             </p>
                           )}
@@ -320,7 +322,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                           <button onClick={() => setAssigningRapport(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ flex: 1, fontSize: 10 }}>
                             {'📋'} {t('proDash.photos.rapport')}
                           </button>
-                          <button onClick={() => deletePhoto(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10, color: 'var(--v22-red)' }}>
+                          <button onClick={() => deletePhoto(photo.id)} className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} style={{ fontSize: 10, color: tv.red }}>
                             {'🗑️'}
                           </button>
                         </>

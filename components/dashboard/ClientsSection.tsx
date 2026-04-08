@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Service, Booking } from '@/lib/types'
+import { useThemeVars } from './useThemeVars'
 
 interface InterventionAddress {
   id: string
@@ -77,6 +78,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 }) {
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -686,7 +688,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 </div>
 
                 {clientForm.interventionAddresses.length === 0 ? (
-                  <p style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
+                  <p style={{ fontSize: 11, color: tv.textMuted, fontStyle: 'italic' }}>
                     {clientForm.type === 'professionnel'
                       ? t('proDash.clients.exempleProLieux')
                       : t('proDash.clients.exemplePartLieux')}
@@ -714,7 +716,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                         <button
                           onClick={() => removeInterventionAddress(addr.id)}
                           className="v22-btn v22-btn-sm"
-                          style={{ color: 'var(--v22-red)', flexShrink: 0 }}
+                          style={{ color: tv.red, flexShrink: 0 }}
                         >
                           ✕
                         </button>
@@ -792,7 +794,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
       {/* Loading */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--v22-text-muted)', fontSize: 13 }}>
+        <div style={{ textAlign: 'center', padding: '60px 0', color: tv.textMuted, fontSize: 13 }}>
           <p>{t('proDash.clients.chargement')}</p>
         </div>
       )}
@@ -800,10 +802,10 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       {/* Empty */}
       {!loading && filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <div style={{ fontSize: 13, color: 'var(--v22-text-mid)', marginBottom: 8 }}>
+          <div style={{ fontSize: 13, color: tv.textMid, marginBottom: 8 }}>
             {search ? t('proDash.clients.aucunResultat') : t('proDash.clients.pasEncoreClients')}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 16 }}>
             {search ? t('proDash.clients.essayerAutreTerme') : t('proDash.clients.clientsApparaitront')}
           </div>
           {!search && (
@@ -844,17 +846,17 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 const city = (c.mainAddress || c.address || '').split(',').pop()?.trim() || ''
 
                 return (
-                  <tr key={c.id} onClick={() => setExpandedId(isExpanded ? null : c.id)} style={isExpanded ? { background: 'var(--v22-bg)' } : undefined}>
+                  <tr key={c.id} onClick={() => setExpandedId(isExpanded ? null : c.id)} style={isExpanded ? { background: tv.bg } : undefined}>
                     <td>
                       <span className="v22-client-name">{c.name}</span>
-                      {c.phone && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{c.phone}</div>}
+                      {c.phone && <div style={{ fontSize: 11, color: tv.textMuted }}>{c.phone}</div>}
                     </td>
                     <td>
                       <span className={`v22-tag ${isExp ? 'v22-tag-yellow' : 'v22-tag-gray'}`}>
                         {isExp ? 'B2B' : 'B2C'}
                       </span>
                     </td>
-                    <td style={{ fontSize: 12, color: 'var(--v22-text-mid)' }}>{city || '—'}</td>
+                    <td style={{ fontSize: 12, color: tv.textMid }}>{city || '—'}</td>
                     <td style={{ fontSize: 12 }}>{bks.length}</td>
                     <td className="v22-amount">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</td>
                     <td>
@@ -895,38 +897,38 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
             <div className="v22-card-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               {/* Contact info + addresses */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: tv.textMuted, marginBottom: 10 }}>
                   {t('proDash.clients.coordonnees')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
                   {c.phone && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.telephone')}</span>
-                      <a href={`tel:${c.phone}`} style={{ color: 'var(--v22-text)' }}>{c.phone}</a>
+                      <span style={{ color: tv.textMuted, width: 70, flexShrink: 0 }}>{t('proDash.clients.telephone')}</span>
+                      <a href={`tel:${c.phone}`} style={{ color: tv.text }}>{c.phone}</a>
                     </div>
                   )}
                   {c.email && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.email')}</span>
-                      <a href={`mailto:${c.email}`} style={{ color: 'var(--v22-text)' }}>{c.email}</a>
+                      <span style={{ color: tv.textMuted, width: 70, flexShrink: 0 }}>{t('proDash.clients.email')}</span>
+                      <a href={`mailto:${c.email}`} style={{ color: tv.text }}>{c.email}</a>
                     </div>
                   )}
                   {(c.mainAddress || c.address) && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{c.mainAddressLabel || t('proDash.clients.adresse')}</span>
+                      <span style={{ color: tv.textMuted, width: 70, flexShrink: 0 }}>{c.mainAddressLabel || t('proDash.clients.adresse')}</span>
                       <span>{c.mainAddress || c.address}</span>
                     </div>
                   )}
                   {c.siret && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.siret')}</span>
+                      <span style={{ color: tv.textMuted, width: 70, flexShrink: 0 }}>{t('proDash.clients.siret')}</span>
                       <span className="v22-mono">{c.siret}</span>
                     </div>
                   )}
                   {c.notes && (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ color: 'var(--v22-text-muted)', width: 70, flexShrink: 0 }}>{t('proDash.clients.notes')}</span>
-                      <span style={{ color: 'var(--v22-text-mid)', fontStyle: 'italic', fontSize: 11 }}>{c.notes}</span>
+                      <span style={{ color: tv.textMuted, width: 70, flexShrink: 0 }}>{t('proDash.clients.notes')}</span>
+                      <span style={{ color: tv.textMid, fontStyle: 'italic', fontSize: 11 }}>{c.notes}</span>
                     </div>
                   )}
                 </div>
@@ -934,14 +936,14 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 {/* Intervention addresses */}
                 {hasInterventionAddresses && (
                   <div style={{ marginTop: 14 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--v22-text-muted)', marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: tv.textMuted, marginBottom: 8 }}>
                       {t('proDash.clients.lieuxIntervention')}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {(c.interventionAddresses || []).map((addr: InterventionAddress) => (
-                        <div key={addr.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 8px', background: 'var(--v22-bg)', borderRadius: 4, border: '1px solid var(--v22-border)' }}>
-                          <span style={{ fontWeight: 500, color: 'var(--v22-amber)', flexShrink: 0, minWidth: 70 }}>{addr.label || t('proDash.clients.lieu')}</span>
-                          <span style={{ color: 'var(--v22-text-mid)' }}>{addr.address}</span>
+                        <div key={addr.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 8px', background: tv.bg, borderRadius: 4, border: `1px solid ${tv.border}` }}>
+                          <span style={{ fontWeight: 500, color: tv.primary, flexShrink: 0, minWidth: 70 }}>{addr.label || t('proDash.clients.lieu')}</span>
+                          <span style={{ color: tv.textMid }}>{addr.address}</span>
                         </div>
                       ))}
                     </div>
@@ -964,7 +966,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                       <button
                         onClick={() => deleteManualClient(c.id)}
                         className="v22-btn v22-btn-sm"
-                        style={{ color: 'var(--v22-red)' }}
+                        style={{ color: tv.red }}
                       >
                         {t('proDash.clients.supprimerClient') || 'Supprimer'}
                       </button>
@@ -975,22 +977,22 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
               {/* Booking history */}
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: tv.textMuted, marginBottom: 10 }}>
                   {t('proDash.clients.historique')} ({bks.length})
                 </div>
                 {bks.length === 0 ? (
-                  <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>{t('proDash.clients.aucuneIntervention')}</p>
+                  <p style={{ fontSize: 12, color: tv.textMuted, fontStyle: 'italic' }}>{t('proDash.clients.aucuneIntervention')}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                     {[...bks].sort((a: ClientBooking, b: ClientBooking) => b.date.localeCompare(a.date)).map((bk: ClientBooking) => (
-                      <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '6px 8px', background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 4 }}>
+                      <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '6px 8px', background: tv.cardBg, border: `1px solid ${tv.border}`, borderRadius: 4 }}>
                         <span style={{
                           width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                          background: bk.status === 'completed' ? 'var(--v22-green)' : bk.status === 'confirmed' ? '#2563eb' : bk.status === 'cancelled' ? 'var(--v22-red)' : 'var(--v22-amber)'
+                          background: bk.status === 'completed' ? tv.green : bk.status === 'confirmed' ? '#2563eb' : bk.status === 'cancelled' ? tv.red : tv.primary
                         }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.service || 'Intervention'}</div>
-                          {bk.address && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.address}</div>}
+                          {bk.address && <div style={{ fontSize: 11, color: tv.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bk.address}</div>}
                           <div className="v22-ref">{new Date(bk.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                         </div>
                         <span className={`v22-tag ${bk.status === 'completed' ? 'v22-tag-green' : bk.status === 'confirmed' ? 'v22-tag-gray' : bk.status === 'cancelled' ? 'v22-tag-red' : 'v22-tag-amber'}`}>
@@ -1000,14 +1002,14 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     ))}
                   </div>
                 )}
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--v22-border)', display: 'flex', gap: 24, fontSize: 12 }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${tv.border}`, display: 'flex', gap: 24, fontSize: 12 }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 16 }} className="v22-amount">{ca > 0 ? `${ca.toFixed(0)} €` : '—'}</div>
-                    <div style={{ color: 'var(--v22-text-muted)', fontSize: 11 }}>{t('proDash.clients.caTotal')}</div>
+                    <div style={{ color: tv.textMuted, fontSize: 11 }}>{t('proDash.clients.caTotal')}</div>
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 16 }}>{bks.length}</div>
-                    <div style={{ color: 'var(--v22-text-muted)', fontSize: 11 }}>{bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
+                    <div style={{ color: tv.textMuted, fontSize: 11 }}>{bks.length > 1 ? t('proDash.clients.interventions') : t('proDash.clients.intervention')}</div>
                   </div>
                 </div>
               </div>

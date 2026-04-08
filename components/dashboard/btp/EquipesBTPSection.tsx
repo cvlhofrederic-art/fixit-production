@@ -8,11 +8,13 @@ import {
   TYPE_LABELS, TYPE_COLORS, MODULE_LABELS, MODULE_ICONS, MODULES,
   DEFAULT_PERMS, METIERS_FR, EMPTY_PERM,
 } from './types'
+import { useThemeVars } from '../useThemeVars'
 
 export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   const TYPE_COLORS_V5: Record<TypeCompte, string> = {
     ouvrier: 'v5-badge v5-badge-gray',
@@ -174,7 +176,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
           ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 4, padding: '0 24px 16px', borderBottom: '1px solid var(--v22-border)' }}>
+        <div style={{ display: 'flex', gap: 4, padding: '0 24px 16px', borderBottom: `1px solid ${tv.border}` }}>
           {(['membres', 'equipes', 'roles'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`v22-tab${tab === t ? ' active' : ''}`}>
@@ -204,7 +206,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 15 }}>{m.prenom} {m.nom}</div>
-                        {m.rolePerso && <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)', marginTop: 2 }}>{m.rolePerso}</div>}
+                        {m.rolePerso && <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid, marginTop: 2 }}>{m.rolePerso}</div>}
                       </div>
                       <span className={(isV5 ? TYPE_COLORS_V5 : TYPE_COLORS)[m.typeCompte]} style={{ fontSize: 11 }}>{TYPE_LABELS[m.typeCompte]}</span>
                     </div>
@@ -213,7 +215,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                     {equipe && <div className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><HardHat size={12} /> {equipe.nom}</div>}
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ flex: 1 }} onClick={() => openEditMembre(m)}><Pencil size={14} /> {isPt ? 'Editar' : 'Modifier'}</button>
-                      <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? { color: '#C0392B' } : { background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteMembre(m.id)} aria-label="Supprimer ce collaborateur"><Trash2 size={14} /></button>
+                      <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? { color: '#C0392B' } : { background: tv.redBg, color: tv.red }} onClick={() => deleteMembre(m.id)} aria-label="Supprimer ce collaborateur"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -240,7 +242,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 15 }}>{eq.nom}</div>
-                        {eq.metier && <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)', fontWeight: 600, marginTop: 2 }}>{eq.metier}</div>}
+                        {eq.metier && <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-primary-yellow-dark)' : tv.primary, fontWeight: 600, marginTop: 2 }}>{eq.metier}</div>}
                       </div>
                       <span className={isV5 ? 'v5-badge v5-badge-green' : 'v22-tag v22-tag-green'} style={{ fontSize: 11 }}>{eqMembres.length} {isPt ? 'membros' : 'membres'}</span>
                     </div>
@@ -253,7 +255,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                     )}
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ flex: 1 }} onClick={() => { setEditingEquipe(eq); setEForm({ nom: eq.nom, metier: eq.metier, chantierId: eq.chantierId, membreIds: eq.membreIds }); setShowEquipeModal(true) }} aria-label="Modifier cette équipe"><Pencil size={14} /></button>
-                      <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? { color: '#C0392B' } : { background: 'var(--v22-red-bg)', color: 'var(--v22-red, #C0392B)' }} onClick={() => deleteEquipe(eq.id)} aria-label="Supprimer cette équipe"><Trash2 size={14} /></button>
+                      <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? { color: '#C0392B' } : { background: tv.redBg, color: tv.red }} onClick={() => deleteEquipe(eq.id)} aria-label="Supprimer cette équipe"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -281,18 +283,18 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               <div style={{ overflowX: 'auto' }}>
                 <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
-                    <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-                      <th style={isV5 ? { textAlign: 'left' } : { padding: '8px 12px', textAlign: 'left', color: 'var(--v22-text-mid)', fontWeight: 600 }}>{isPt ? 'Tipo' : 'Type'}</th>
-                      {MODULES.map(mod => <th key={mod} style={isV5 ? { textAlign: 'center' } : { padding: '8px 8px', textAlign: 'center', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{MODULE_ICONS[mod]}</th>)}
+                    <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+                      <th style={isV5 ? { textAlign: 'left' } : { padding: '8px 12px', textAlign: 'left', color: tv.textMid, fontWeight: 600 }}>{isPt ? 'Tipo' : 'Type'}</th>
+                      {MODULES.map(mod => <th key={mod} style={isV5 ? { textAlign: 'center' } : { padding: '8px 8px', textAlign: 'center', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{MODULE_ICONS[mod]}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {(Object.keys(DEFAULT_PERMS) as TypeCompte[]).map(type => (
-                      <tr key={type} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                      <tr key={type} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}><span className={(isV5 ? TYPE_COLORS_V5 : TYPE_COLORS)[type]} style={{ fontSize: 11 }}>{TYPE_LABELS[type]}</span></td>
                         {MODULES.map(mod => (
                           <td key={mod} style={isV5 ? { textAlign: 'center' } : { padding: '8px 8px', textAlign: 'center' }}>
-                            {DEFAULT_PERMS[type][mod] ? <Check size={14} style={{ color: isV5 ? '#2E7D32' : 'var(--v22-green)' }} /> : <Minus size={14} style={{ color: isV5 ? '#CCC' : 'var(--v22-border)' }} />}
+                            {DEFAULT_PERMS[type][mod] ? <Check size={14} style={{ color: isV5 ? '#2E7D32' : tv.green }} /> : <Minus size={14} style={{ color: isV5 ? '#CCC' : tv.border }} />}
                           </td>
                         ))}
                       </tr>
@@ -302,7 +304,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               </div>
               <div style={{ padding: '8px 16px 12px' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {MODULES.map(mod => <span key={mod} style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{MODULE_ICONS[mod]} {MODULE_LABELS[mod]}</span>)}
+                  {MODULES.map(mod => <span key={mod} style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{MODULE_ICONS[mod]} {MODULE_LABELS[mod]}</span>)}
                 </div>
               </div>
             </div>
@@ -328,15 +330,15 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                   <div style={{ overflowX: 'auto' }}>
                     <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                       <thead>
-                        <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-                          <th style={isV5 ? { textAlign: 'left' } : { padding: '8px 12px', textAlign: 'left', color: 'var(--v22-text-mid)', fontWeight: 600 }}>{isPt ? 'Função' : 'Rôle'}</th>
-                          {MODULES.map(mod => <th key={mod} style={isV5 ? { textAlign: 'center' } : { padding: '8px 8px', textAlign: 'center', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{MODULE_ICONS[mod]}</th>)}
+                        <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+                          <th style={isV5 ? { textAlign: 'left' } : { padding: '8px 12px', textAlign: 'left', color: tv.textMid, fontWeight: 600 }}>{isPt ? 'Função' : 'Rôle'}</th>
+                          {MODULES.map(mod => <th key={mod} style={isV5 ? { textAlign: 'center' } : { padding: '8px 8px', textAlign: 'center', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{MODULE_ICONS[mod]}</th>)}
                           <th />
                         </tr>
                       </thead>
                       <tbody>
                         {roles.map(role => (
-                          <tr key={role.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                          <tr key={role.id} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                             <td style={isV5 ? { fontWeight: 600 } : { padding: '8px 12px', fontWeight: 600 }}>{role.nom}</td>
                             {MODULES.map(mod => (
                               <td key={mod} style={isV5 ? { textAlign: 'center' } : { padding: '8px 8px', textAlign: 'center' }}>
@@ -344,13 +346,13 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                                   onClick={() => toggleRolePerm(role.id, mod)}
                                   aria-label="Basculer la permission"
                                   style={{ cursor: 'pointer', background: 'none', border: 'none', fontSize: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    color: role.permissions[mod] ? (isV5 ? '#2E7D32' : 'var(--v22-green)') : (isV5 ? '#CCC' : 'var(--v22-border)') }}>
+                                    color: role.permissions[mod] ? (isV5 ? '#2E7D32' : tv.green) : (isV5 ? '#CCC' : tv.border) }}>
                                   {role.permissions[mod] ? <Check size={14} /> : <Minus size={14} />}
                                 </button>
                               </td>
                             ))}
                             <td style={isV5 ? undefined : { padding: '8px 8px' }}>
-                              <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ padding: '2px 8px', background: 'none', color: isV5 ? '#C0392B' : 'var(--v22-red, #C0392B)' }} onClick={() => deleteRole(role.id)} aria-label="Supprimer ce rôle">✕</button>
+                              <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ padding: '2px 8px', background: 'none', color: isV5 ? '#C0392B' : tv.red }} onClick={() => deleteRole(role.id)} aria-label="Supprimer ce rôle">✕</button>
                             </td>
                           </tr>
                         ))}
@@ -397,7 +399,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                 </select>
               </div>
               <div className={isV5 ? 'v5-fg' : undefined}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'} <span style={{ fontWeight: 400, color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }}>(ex: Maçon, Carreleur...)</span></label>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Função / Especialidade' : 'Rôle / Spécialité'} <span style={{ fontWeight: 400, color: isV5 ? 'var(--v5-text-muted)' : tv.textMid }}>(ex: Maçon, Carreleur...)</span></label>
                 {roles.length > 0 ? (
                   <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mForm.rolePerso} onChange={e => setMForm({ ...mForm, rolePerso: e.target.value })}>
                     <option value="">{isPt ? '— Sem função específica' : '— Sans rôle spécifique'}</option>
@@ -426,8 +428,8 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               </div>
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : '1px solid var(--v22-border)' }} onClick={() => { setShowMembreModal(false); setEditingMembre(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-yellow)', fontWeight: 700 }) }} onClick={submitMembre} disabled={!mForm.prenom.trim() || !mForm.nom.trim()}>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : `1px solid ${tv.border}` }} onClick={() => { setShowMembreModal(false); setEditingMembre(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.primary, fontWeight: 700 }) }} onClick={submitMembre} disabled={!mForm.prenom.trim() || !mForm.nom.trim()}>
 {editingMembre ? <><Check size={14} /> {isPt ? 'Guardar' : 'Sauvegarder'}</> : <><Check size={14} /> {isPt ? 'Adicionar' : 'Ajouter'}</>}
               </button>
             </div>
@@ -473,7 +475,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                         <input type="checkbox"
                           checked={eForm.membreIds.includes(m.id)}
                           onChange={e => setEForm({ ...eForm, membreIds: e.target.checked ? [...eForm.membreIds, m.id] : eForm.membreIds.filter(id => id !== m.id) })}
-                          style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', width: 14, height: 14 }}
+                          style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, width: 14, height: 14 }}
                         />
                         <span>{m.prenom} {m.nom}</span>
                         <span className={(isV5 ? TYPE_COLORS_V5 : TYPE_COLORS)[m.typeCompte]} style={{ fontSize: 10 }}>{TYPE_LABELS[m.typeCompte]}</span>
@@ -484,8 +486,8 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               </div>
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : '1px solid var(--v22-border)' }} onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-yellow)', fontWeight: 700 }) }} onClick={submitEquipe} disabled={!eForm.nom.trim()}>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : `1px solid ${tv.border}` }} onClick={() => { setShowEquipeModal(false); setEditingEquipe(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.primary, fontWeight: 700 }) }} onClick={submitEquipe} disabled={!eForm.nom.trim()}>
 {editingEquipe ? <><Check size={14} /> Sauvegarder</> : <><Check size={14} /> {isPt ? 'Criar' : 'Créer'}</>}
               </button>
             </div>
@@ -517,11 +519,11 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Acessos' : 'Accès autorisés'}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {MODULES.map(mod => (
-                    <label key={mod} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '6px 8px', background: isV5 ? 'var(--v5-content-bg)' : 'var(--v22-bg)', borderRadius: 6 }}>
+                    <label key={mod} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '6px 8px', background: isV5 ? 'var(--v5-content-bg)' : tv.bg, borderRadius: 6 }}>
                       <input type="checkbox"
                         checked={rForm.permissions[mod]}
                         onChange={e => setRForm({ ...rForm, permissions: { ...rForm.permissions, [mod]: e.target.checked } })}
-                        style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', width: 14, height: 14 }}
+                        style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, width: 14, height: 14 }}
                       />
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{MODULE_ICONS[mod]} {MODULE_LABELS[mod]}</span>
                     </label>
@@ -530,8 +532,8 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               </div>
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : '1px solid var(--v22-border)' }} onClick={() => setShowRoleModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-yellow)', fontWeight: 700 }) }} onClick={submitRole} disabled={!rForm.nom.trim()}><Check size={14} /> {isPt ? 'Criar função' : 'Créer le rôle'}</button>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : `1px solid ${tv.border}` }} onClick={() => setShowRoleModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.primary, fontWeight: 700 }) }} onClick={submitRole} disabled={!rForm.nom.trim()}><Check size={14} /> {isPt ? 'Criar função' : 'Créer le rôle'}</button>
             </div>
           </div>
         </div>

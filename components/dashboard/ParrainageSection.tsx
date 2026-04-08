@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useThemeVars } from './useThemeVars'
 import type { Artisan } from '@/lib/types'
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -35,6 +36,7 @@ interface HistoryItem {
 export default function ParrainageSection({ artisan, orgRole }: ParrainageSectionProps) {
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -241,7 +243,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-text, #0D1B2E)', marginBottom: 4 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: tv.text, marginBottom: 4 }}>
           {isSociete ? '🤝 Parrainage Entreprises BTP' : '🎁 Parrainage'}
         </h2>
         <p style={{ fontSize: 14, color: '#8A9BB0' }}>

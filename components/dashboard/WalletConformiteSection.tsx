@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -139,6 +140,7 @@ function DocumentRow({
   onUploadClick, onEditExpiry, onSetExpiry, onCancelExpiry, onView, onRemove,
   fileInputRef, onFileChange, t, scanResult, scanning, legalForm,
 }: DocumentRowProps) {
+  const tv = useThemeVars(false)
   const statusTagClass = {
     missing: 'v22-tag v22-tag-gray',
     valid: 'v22-tag v22-tag-green',
@@ -156,7 +158,7 @@ function DocumentRow({
   return (
     <div style={{
       padding: '12px 14px',
-      borderBottom: isLast ? 'none' : '1px solid var(--v22-border)',
+      borderBottom: isLast ? 'none' : `1px solid ${tv.border}`,
     }}>
       {/* Ligne principale */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -166,7 +168,7 @@ function DocumentRow({
         {/* Nom + badges */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, color: 'var(--v22-text)', fontSize: 13 }}>{docDef.nom}</span>
+            <span style={{ fontWeight: 600, color: tv.text, fontSize: 13 }}>{docDef.nom}</span>
             {docDef.obligatoire && (
               <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: '#FEE2E2', color: '#DC2626', letterSpacing: 0.3 }}>
                 OBLIGATOIRE
@@ -180,7 +182,7 @@ function DocumentRow({
           </div>
 
           {/* Description */}
-          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{docDef.description}</div>
+          <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>{docDef.description}</div>
 
           {/* Condition + validité */}
           {docDef.condition ? (
@@ -188,14 +190,14 @@ function DocumentRow({
               ⚠ {docDef.condition} — validité : {docDef.validite}
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
               Validité : {docDef.validite}
             </div>
           )}
 
           {/* Date d'expiration si définie */}
           {doc?.expiryDate && (
-            <div className="v22-mono" style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+            <div className="v22-mono" style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
               {t('proDash.wallet.expireLe')} {new Date(doc.expiryDate).toLocaleDateString(dateLocale)}
             </div>
           )}
@@ -241,7 +243,7 @@ function DocumentRow({
                   )}
                 </>
               )}
-              <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 2 }}>
                 Type détecté : {scanResult.docType} — confiance : {Math.round((scanResult.confidence ?? 0) * 100)}%
               </div>
             </div>
@@ -326,6 +328,8 @@ function DocumentRow({
 // ── Composant principal ──────────────────────────────────────
 export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }: { artisan: import('@/lib/types').Artisan; orgRole?: OrgRole }) {
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const isV5 = isSociete
+  const tv = useThemeVars(isV5)
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -710,7 +714,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               ? `${metierLabel} — ${actionsRequired > 0 ? `${actionsRequired} action${actionsRequired > 1 ? 's' : ''} requise${actionsRequired > 1 ? 's' : ''}` : t('proDash.wallet.subtitle')}`
               : actionsRequired > 0 ? `${actionsRequired} actions requises` : t('proDash.wallet.subtitle')
             }
-            {isSociete && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--v22-text-muted)' }}>· Kbis, RC Pro, Décennale + documents métier + Statuts + Attestation fiscale</span>}
+            {isSociete && <span style={{ marginLeft: 8, fontSize: 11, color: tv.textMuted }}>· Kbis, RC Pro, Décennale + documents métier + Statuts + Attestation fiscale</span>}
           </div>
         </div>
         <button className="v22-btn v22-btn-primary v22-btn-sm" onClick={() => setShowUploadModal('_pick')}>
@@ -734,7 +738,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
         <div className="v22-card-body">
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 22, fontWeight: 700 }}>{pct}%</span>
-            <span className="v22-mono" style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+            <span className="v22-mono" style={{ fontSize: 11, color: tv.textMuted }}>
               {validCount}/{WALLET_DOCS.length} documents
               {obligatoryMissing > 0 && (
                 <span style={{ color: '#DC2626', marginLeft: 8 }}>· {obligatoryMissing} obligatoire{obligatoryMissing > 1 ? 's' : ''} manquant{obligatoryMissing > 1 ? 's' : ''}</span>
@@ -742,7 +746,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
             </span>
           </div>
           <div className="v22-prog-bar">
-            <div className="v22-prog-fill" style={{ width: `${pct}%`, background: validCount === WALLET_DOCS.length ? 'var(--v22-green)' : undefined }} />
+            <div className="v22-prog-fill" style={{ width: `${pct}%`, background: validCount === WALLET_DOCS.length ? tv.green : undefined }} />
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 11 }}>
             <span><span className="v22-tag v22-tag-green">{validCount}</span> {t('proDash.wallet.valide')}</span>
@@ -802,7 +806,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
           <span className="v22-card-title">📤 {t('proDash.wallet.envoyerDossier')}</span>
         </div>
         <div className="v22-card-body">
-          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 10 }}>{t('proDash.wallet.envoyerDossierDesc')}</div>
+          <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 10 }}>{t('proDash.wallet.envoyerDossierDesc')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               type="email"
@@ -822,7 +826,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
             </button>
           </div>
           {WALLET_DOCS.filter(d => docs[d.id]?.url).length === 0 && (
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 6 }}>⚠️ {t('proDash.wallet.uploadAuMoinsUn')}</div>
+            <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 6 }}>⚠️ {t('proDash.wallet.uploadAuMoinsUn')}</div>
           )}
         </div>
       </div>
@@ -847,13 +851,13 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                       padding: '10px 16px', border: 'none',
-                      borderBottom: i < WALLET_DOCS.length - 1 ? '1px solid var(--v22-border)' : 'none',
+                      borderBottom: i < WALLET_DOCS.length - 1 ? `1px solid ${tv.border}` : 'none',
                       background: 'transparent', cursor: 'pointer', textAlign: 'left', fontSize: 13,
                     }}
                   >
                     <span style={{ fontSize: 18 }}>{docDef.icon || '📄'}</span>
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontWeight: 500, color: 'var(--v22-text)' }}>{docDef.nom}</span>
+                      <span style={{ fontWeight: 500, color: tv.text }}>{docDef.nom}</span>
                       {docDef.obligatoire && <span style={{ marginLeft: 6, fontSize: 10, color: '#DC2626', fontWeight: 700 }}>OBLIGATOIRE</span>}
                     </span>
                     <span className={statusTagClass}>{statusLabel}</span>

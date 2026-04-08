@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTranslation } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 import { toast } from 'sonner'
 import {
   type AccessLevel,
@@ -39,6 +40,8 @@ interface Props {
 export default function CompteUtilisateursSection({ artisan, isGerant = false }: Props) {
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
+  const isV5 = true
+  const tv = useThemeVars(isV5)
 
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -430,7 +433,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                 <h3 style={{ fontSize: 14, fontWeight: 700 }}>
                   🔐 {isPt ? 'Permissões' : 'Permissions'} — {showPermsModal.full_name}
                 </h3>
-                <p style={{ fontSize: 10, marginTop: 4, color: 'var(--v22-text-muted)' }}>
+                <p style={{ fontSize: 10, marginTop: 4, color: tv.textMuted }}>
                   {isPt ? 'Papel' : 'Rôle'}: {getRoleLabel(showPermsModal.role)}
                 </p>
               </div>
@@ -468,7 +471,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                         }}>
                           <td style={{ padding: '8px 12px' }}>
                             {getModuleLabel(moduleId)}
-                            {isOverridden && <span style={{ marginLeft: 4, fontSize: 9, color: 'var(--v22-yellow)' }}>●</span>}
+                            {isOverridden && <span style={{ marginLeft: 4, fontSize: 9, color: tv.primary }}>●</span>}
                           </td>
                           {(['FULL', 'READ', 'NONE'] as AccessLevel[]).map(level => (
                             <td key={level} style={{ textAlign: 'center', padding: '8px 12px' }}>

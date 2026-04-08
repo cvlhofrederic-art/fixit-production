@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 
 type CanalContact = { id: string; nom: string; role: string; lastSeen?: string }
 type CanalMsg = {
@@ -19,6 +20,7 @@ type CanalMsg = {
 export default function CanalProSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `fixit_canal_contacts_${artisan?.id}`
   const [contacts, setContacts] = useState<CanalContact[]>(() => {
@@ -221,16 +223,16 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* ── Liste contacts ── */}
-        <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--v22-surface)', borderRight: '1px solid var(--v22-border)' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--v22-border)' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--v22-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contacts</div>
+        <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', background: tv.surface, borderRight: `1px solid ${tv.border}` }}>
+          <div style={{ padding: '10px 14px', borderBottom: `1px solid ${tv.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: tv.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contacts</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {contacts.length === 0 ? (
               <div style={{ padding: 24, textAlign: 'center' }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
-                <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 12 }}>Aucun contact</p>
-                <button onClick={() => setShowAddContact(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? {} : { fontSize: 11, color: 'var(--v22-yellow)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>+ Ajouter un contact</button>
+                <p style={{ fontSize: 12, color: tv.textMuted, marginBottom: 12 }}>Aucun contact</p>
+                <button onClick={() => setShowAddContact(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.primary, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>+ Ajouter un contact</button>
               </div>
             ) : (
               contacts.map(c => (
@@ -239,17 +241,17 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                   onClick={() => setSelectedContact(c)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer',
-                    borderBottom: '1px solid var(--v22-border)',
-                    background: selectedContact?.id === c.id ? 'var(--v22-yellow-light)' : 'transparent',
-                    borderLeft: selectedContact?.id === c.id ? '3px solid var(--v22-yellow)' : '3px solid transparent',
+                    borderBottom: `1px solid ${tv.border}`,
+                    background: selectedContact?.id === c.id ? tv.primaryLight : 'transparent',
+                    borderLeft: selectedContact?.id === c.id ? `3px solid ${tv.primary}` : '3px solid transparent',
                   }}
                 >
                   <div className="v22-chat-avatar">
                     {c.nom.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--v22-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nom}</div>
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{c.role}</div>
+                    <div style={{ fontWeight: 600, fontSize: 12, color: tv.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nom}</div>
+                    <div style={{ fontSize: 11, color: tv.textMuted }}>{c.role}</div>
                   </div>
                 </div>
               ))
@@ -258,13 +260,13 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
         </div>
 
         {/* ── Zone chat ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--v22-bg)', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: tv.bg, minWidth: 0 }}>
           {!selectedContact ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
-                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--v22-text)' }}>Sélectionnez un contact</h3>
-                <p style={{ color: 'var(--v22-text-muted)', fontSize: 12, marginBottom: 16 }}>Choisissez un artisan ou technicien pour démarrer la conversation</p>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: tv.text }}>Sélectionnez un contact</h3>
+                <p style={{ color: tv.textMuted, fontSize: 12, marginBottom: 16 }}>Choisissez un artisan ou technicien pour démarrer la conversation</p>
                 {voiceSupported && (
                   <div className={isV5 ? 'v5-card' : 'v22-alert v22-alert-amber'} style={{ maxWidth: 320, margin: '0 auto' }}>
                     <p style={{ fontSize: 12, fontWeight: 600 }}>🎤 Commandes vocales disponibles</p>
@@ -276,20 +278,20 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
           ) : (
             <>
               {/* Header contact */}
-              <div style={{ background: 'var(--v22-surface)', borderBottom: '1px solid var(--v22-border)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                <div className="v22-chat-avatar" style={{ background: 'var(--v22-yellow)' }}>
+              <div style={{ background: tv.surface, borderBottom: `1px solid ${tv.border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <div className="v22-chat-avatar" style={{ background: tv.primary }}>
                   {selectedContact.nom.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{selectedContact.nom}</div>
-                  <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{selectedContact.role} · Canal direct</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{selectedContact.nom}</div>
+                  <div style={{ fontSize: 11, color: tv.textMuted }}>{selectedContact.role} · Canal direct</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   {voiceSupported && !isRecording && (
-                    <button onClick={startVoice} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? {} : { background: 'var(--v22-green-light)', color: 'var(--v22-green)', borderColor: 'var(--v22-green)' }}>🎤 Vocal</button>
+                    <button onClick={startVoice} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={isV5 ? {} : { background: tv.greenLight, color: tv.green, borderColor: tv.green }}>🎤 Vocal</button>
                   )}
                   {isRecording && (
-                    <button onClick={stopVoice} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm animate-pulse'} style={isV5 ? {} : { background: 'var(--v22-red-light)', color: 'var(--v22-red)', borderColor: 'var(--v22-red)' }}>⏹ Stop</button>
+                    <button onClick={stopVoice} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm animate-pulse'} style={isV5 ? {} : { background: tv.redBg, color: tv.red, borderColor: tv.red }}>⏹ Stop</button>
                   )}
                 </div>
               </div>
@@ -297,11 +299,11 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
               {/* Messages */}
               <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {msgLoading ? (
-                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--v22-text-muted)', fontSize: 12 }}>Chargement...</div>
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: tv.textMuted, fontSize: 12 }}>Chargement...</div>
                 ) : messages.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px 0' }}>
                     <div style={{ fontSize: 32, marginBottom: 12 }}>💬</div>
-                    <p style={{ color: 'var(--v22-text-muted)', fontSize: 12 }}>Démarrez la conversation</p>
+                    <p style={{ color: tv.textMuted, fontSize: 12 }}>Démarrez la conversation</p>
                     {voiceSupported && (
                       <div className={isV5 ? 'v5-card' : 'v22-alert v22-alert-amber'} style={{ marginTop: 16, maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', textAlign: 'left' }}>
                         <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>🎤 Exemples de commandes vocales :</p>
@@ -322,7 +324,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                       <div key={msg.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                         <div className={isMe ? 'v22-chat-bubble v22-chat-bubble-user' : 'v22-chat-bubble v22-chat-bubble-assistant'} style={{ maxWidth: '75%' }}>
                           {!isMe && (
-                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: tv.textMuted, marginBottom: 4 }}>
                               {msg.sender_name}
                               {msg.sender_role && <span className={ROLE_TAG_CLASS[msg.sender_role] || 'v22-tag v22-tag-gray'} style={{ marginLeft: 6, fontSize: 9 }}>{msg.sender_role}</span>}
                             </div>
@@ -343,7 +345,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                             } catch { return null }
                             return null
                           })()}
-                          <div style={{ fontSize: 10, marginTop: 4, color: isMe ? 'rgba(0,0,0,0.5)' : 'var(--v22-text-muted)' }}>
+                          <div style={{ fontSize: 10, marginTop: 4, color: isMe ? 'rgba(0,0,0,0.5)' : tv.textMuted }}>
                             {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
                             {msg.read_at && isMe && ' · Lu'}
                           </div>
@@ -368,7 +370,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
               )}
 
               {/* Zone saisie */}
-              <div style={{ background: 'var(--v22-surface)', borderTop: '1px solid var(--v22-border)', padding: 14, flexShrink: 0 }}>
+              <div style={{ background: tv.surface, borderTop: `1px solid ${tv.border}`, padding: 14, flexShrink: 0 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx" onChange={e => setAttachFile(e.target.files?.[0] || null)} />
@@ -378,16 +380,16 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                         onMouseDown={startVoice}
                         onTouchStart={startVoice}
                         className={isV5 ? `v5-btn v5-btn-sm ${isRecording ? 'animate-pulse' : ''}` : `v22-btn v22-btn-sm ${isRecording ? 'animate-pulse' : ''}`}
-                        style={isRecording && !isV5 ? { background: 'var(--v22-red-light)', color: 'var(--v22-red)', borderColor: 'var(--v22-red)' } : {}}
+                        style={isRecording && !isV5 ? { background: tv.redBg, color: tv.red, borderColor: tv.red } : {}}
                         title="Commande vocale"
                       >🎤</button>
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
                     {attachFile && (
-                      <div style={{ marginBottom: 6, background: 'var(--v22-amber-light)', borderRadius: 3, padding: '4px 10px', fontSize: 11, color: 'var(--v22-amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ marginBottom: 6, background: tv.primaryLight, borderRadius: 3, padding: '4px 10px', fontSize: 11, color: tv.primary, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>📎 {attachFile.name}</span>
-                        <button onClick={() => setAttachFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-amber)', fontSize: 12 }}>✕</button>
+                        <button onClick={() => setAttachFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: tv.primary, fontSize: 12 }}>✕</button>
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -412,8 +414,8 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 </div>
                 {/* Actions rapides vocales */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} disabled={sending} className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: isV5 ? undefined : '1px solid var(--v22-border)' }}>🚗 En route</button>
-                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} disabled={sending} className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: isV5 ? undefined : '1px solid var(--v22-border)' }}>📍 Arrivé</button>
+                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} disabled={sending} className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: isV5 ? undefined : `1px solid ${tv.border}` }}>🚗 En route</button>
+                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} disabled={sending} className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1, border: isV5 ? undefined : `1px solid ${tv.border}` }}>📍 Arrivé</button>
                   <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} disabled={sending} className={isV5 ? 'v5-badge v5-badge-green' : 'v22-tag v22-tag-green'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>✅ Terminé</button>
                   <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} disabled={sending} className={isV5 ? 'v5-badge v5-badge-red' : 'v22-tag v22-tag-red'} style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚨 Alerte</button>
                 </div>
@@ -445,7 +447,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
               <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Identifiant utilisateur (optionnel)</label>
                 <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
-                <p style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</p>
+                <p style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</p>
               </div>
             </div>
             <div className={isV5 ? '' : 'v22-modal-foot'} style={{ display: 'flex', gap: 10, padding: isV5 ? '0 16px 16px' : undefined }}>

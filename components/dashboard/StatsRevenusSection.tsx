@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 import ResumeActivite from '@/components/stats/ResumeActivite'
 
 async function downloadCsv(type: 'clients' | 'bookings' | 'revenue') {
@@ -42,6 +43,7 @@ export default function StatsRevenusSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only
@@ -103,7 +105,7 @@ export default function StatsRevenusSection({
         <div className="v22-stats" style={{ marginBottom: '20px' }}>
           <div className="v22-stat">
             <div className="v22-stat-label">{t('proDash.stats.totalEncaisse')}</div>
-            <div className="v22-stat-val" style={{ color: 'var(--v22-green)' }}>{formatPrice(totalRevenue, locale)}</div>
+            <div className="v22-stat-val" style={{ color: tv.green }}>{formatPrice(totalRevenue, locale)}</div>
             <div className="v22-stat-delta v22-up">{completedBookings.length} {t('proDash.stats.interventionsTerminees')}</div>
           </div>
           <div className="v22-stat v22-stat-yellow">
@@ -140,7 +142,7 @@ export default function StatsRevenusSection({
                     <td>{b.services?.name || 'Service'}</td>
                     <td>
                       <span className="v22-amount" style={{
-                        color: b.status === 'completed' ? 'var(--v22-green)' : b.status === 'pending' ? 'var(--v22-amber)' : 'var(--v22-text-muted)'
+                        color: b.status === 'completed' ? tv.green : b.status === 'pending' ? tv.primary : tv.textMuted
                       }}>
                         {b.status !== 'cancelled' ? `+${formatPrice(b.price_ttc || 0, locale)}` : '-'}
                       </span>
@@ -165,7 +167,7 @@ export default function StatsRevenusSection({
           </div>
         ) : (
           <div className="v22-card" style={{ padding: '40px', textAlign: 'center' }}>
-            <span style={{ color: 'var(--v22-text-muted)', fontSize: '12px' }}>{t('proDash.home.aucuneActivite')}</span>
+            <span style={{ color: tv.textMuted, fontSize: '12px' }}>{t('proDash.home.aucuneActivite')}</span>
           </div>
         )}
       </div>
@@ -174,6 +176,7 @@ export default function StatsRevenusSection({
 }
 
 function ExportHeader({ t }: { t: (k: string) => string }) {
+  const tv = useThemeVars(false)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
 
@@ -223,9 +226,9 @@ function ExportHeader({ t }: { t: (k: string) => string }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  color: 'var(--v22-text)',
+                  color: tv.text,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--v22-bg)')}
+                onMouseEnter={e => (e.currentTarget.style.background = tv.bg)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 <span>{'👥'}</span> {t('proDash.export.clients')}
@@ -243,9 +246,9 @@ function ExportHeader({ t }: { t: (k: string) => string }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  color: 'var(--v22-text)',
+                  color: tv.text,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--v22-bg)')}
+                onMouseEnter={e => (e.currentTarget.style.background = tv.bg)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 <span>{'📋'}</span> {t('proDash.export.bookings')}
@@ -263,9 +266,9 @@ function ExportHeader({ t }: { t: (k: string) => string }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  color: 'var(--v22-text)',
+                  color: tv.text,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--v22-bg)')}
+                onMouseEnter={e => (e.currentTarget.style.background = tv.bg)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 <span>{'💰'}</span> {t('proDash.export.revenue')}

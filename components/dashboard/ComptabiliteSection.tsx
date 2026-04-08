@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { LeaAvatar } from '@/components/common/RobotAvatars'
+import { useThemeVars } from './useThemeVars'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { supabase } from '@/lib/supabase'
@@ -17,6 +18,8 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -168,9 +171,9 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
           { label: 'Net estimé', value: formatEur(annualHT * 0.771 - totalExpenses), icon: '📈', variant: 'yellow' },
         ]).map((stat, i) => (
           <div key={i} className={`v22-stat ${stat.variant === 'yellow' ? 'v22-stat-yellow' : ''}`}
-            style={stat.variant === 'green' ? { background: 'var(--v22-green-light)' } : stat.variant === 'red' ? { background: 'var(--v22-red-light)' } : undefined}>
+            style={stat.variant === 'green' ? { background: tv.greenLight } : stat.variant === 'red' ? { background: tv.redBg } : undefined}>
             <div style={{ fontSize: 18, marginBottom: 2 }}>{stat.icon}</div>
-            <div className="v22-stat-val" style={stat.variant === 'green' ? { color: 'var(--v22-green)' } : stat.variant === 'red' ? { color: 'var(--v22-red)' } : undefined}>{stat.value}</div>
+            <div className="v22-stat-val" style={stat.variant === 'green' ? { color: tv.green } : stat.variant === 'red' ? { color: tv.red } : undefined}>{stat.value}</div>
             <div className="v22-stat-label">{stat.label}</div>
           </div>
         ))}
@@ -180,22 +183,22 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
       <div className="v22-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 500, padding: 0 }}>
 
         {/* Chat header */}
-        <div style={{ borderBottom: '1px solid var(--v22-border)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--v22-bg)' }}>
+        <div style={{ borderBottom: `1px solid ${tv.border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, background: tv.bg }}>
           <div style={{ width: 30, height: 30, borderRadius: 10, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={22} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{isPt ? 'Léa — Contabilista IA' : 'Léa — Agent Comptable IA'}</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{isPt ? 'Léa — Contabilista IA' : 'Léa — Agent Comptable IA'}</div>
+            <div style={{ fontSize: 11, color: tv.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {isPt ? (
-                <>Acesso a <strong style={{ color: 'var(--v22-text-mid)' }}>{bookings.filter(b => b.status === 'completed').length} intervenções</strong> · <strong style={{ color: 'var(--v22-text-mid)' }}>{expenses.length} despesas</strong> · cálculos em qualquer período</>
+                <>Acesso a <strong style={{ color: tv.textMid }}>{bookings.filter(b => b.status === 'completed').length} intervenções</strong> · <strong style={{ color: tv.textMid }}>{expenses.length} despesas</strong> · cálculos em qualquer período</>
               ) : (
-                <>Accès à <strong style={{ color: 'var(--v22-text-mid)' }}>{bookings.filter(b => b.status === 'completed').length} interventions</strong> · <strong style={{ color: 'var(--v22-text-mid)' }}>{expenses.length} dépenses</strong> · calculs sur toute période</>
+                <>Accès à <strong style={{ color: tv.textMid }}>{bookings.filter(b => b.status === 'completed').length} interventions</strong> · <strong style={{ color: tv.textMid }}>{expenses.length} dépenses</strong> · calculs sur toute période</>
               )}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', animation: 'pulse 2s infinite' }} />
-              <span style={{ fontSize: 11, color: 'var(--v22-green)', fontWeight: 500 }}>En ligne</span>
+              <span style={{ fontSize: 11, color: tv.green, fontWeight: 500 }}>En ligne</span>
             </div>
             {messages.length > 0 && (
               <button onClick={() => { setMessages([]); setChatStarted(false) }}
@@ -213,8 +216,8 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
               {/* Welcome */}
               <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={26} /></div>
-                <div style={{ background: 'var(--v22-bg)', borderRadius: '14px 14px 14px 4px', padding: '10px 14px', maxWidth: '82%' }}>
-                  <p style={{ fontSize: 13, color: 'var(--v22-text)', lineHeight: 1.6, margin: 0 }}>
+                <div style={{ background: tv.bg, borderRadius: '14px 14px 14px 4px', padding: '10px 14px', maxWidth: '82%' }}>
+                  <p style={{ fontSize: 13, color: tv.text, lineHeight: 1.6, margin: 0 }}>
                     {isPt ? (
                       <>Olá! Sou a <strong>Léa</strong>, a sua contabilista IA especializada em construção e serviços.<br /><br />
                       Tenho acesso em tempo real a <strong>todos os seus dados</strong>: cada intervenção, cada despesa com a data e categoria exatas.<br /><br />
@@ -232,7 +235,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {QUICK_QUESTIONS.map((q, i) => (
                   <button key={i} onClick={() => sendMessage(q.q)}
-                    className="v22-btn" style={{ textAlign: 'left', fontSize: 11, background: 'var(--v22-amber-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', padding: '8px 12px', lineHeight: 1.4, fontWeight: 500 }}>
+                    className="v22-btn" style={{ textAlign: 'left', fontSize: 11, background: tv.primaryLight, border: `1px solid ${tv.primaryBorder}`, color: '#7A6000', padding: '8px 12px', lineHeight: 1.4, fontWeight: 500 }}>
                     {q.label}
                   </button>
                 ))}
@@ -252,8 +255,8 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
                   <div style={{
                     maxWidth: '80%', padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
                     borderRadius: msg.role === 'user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
-                    background: msg.role === 'user' ? 'var(--v22-yellow)' : 'var(--v22-bg)',
-                    color: 'var(--v22-text)',
+                    background: msg.role === 'user' ? tv.primary : tv.bg,
+                    color: tv.text,
                   }}>
                     <div dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
                   </div>
@@ -263,11 +266,11 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
               {isLoading && (
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #7C3AED, #A78BFA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={26} /></div>
-                  <div style={{ background: 'var(--v22-bg)', borderRadius: '4px 14px 14px 14px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginRight: 4 }}>{isPt ? 'Léa está a analisar os seus dados' : 'Léa analyse vos données'}</span>
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--v22-text-muted)', animation: 'bounce 1s infinite', animationDelay: '0ms' }} />
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--v22-text-muted)', animation: 'bounce 1s infinite', animationDelay: '150ms' }} />
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--v22-text-muted)', animation: 'bounce 1s infinite', animationDelay: '300ms' }} />
+                  <div style={{ background: tv.bg, borderRadius: '4px 14px 14px 14px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, color: tv.textMuted, marginRight: 4 }}>{isPt ? 'Léa está a analisar os seus dados' : 'Léa analyse vos données'}</span>
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: tv.textMuted, animation: 'bounce 1s infinite', animationDelay: '0ms' }} />
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: tv.textMuted, animation: 'bounce 1s infinite', animationDelay: '150ms' }} />
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: tv.textMuted, animation: 'bounce 1s infinite', animationDelay: '300ms' }} />
                   </div>
                 </div>
               )}
@@ -278,7 +281,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
 
         {/* Suggestions rapides pendant le chat */}
         {chatStarted && (
-          <div style={{ padding: '8px 14px', display: 'flex', gap: 8, overflowX: 'auto', borderTop: '1px solid var(--v22-border)' }}>
+          <div style={{ padding: '8px 14px', display: 'flex', gap: 8, overflowX: 'auto', borderTop: `1px solid ${tv.border}` }}>
             {(isPt ? [
               { label: '🔧 Materiais', q: 'Total gasto em materiais este ano, detalhe linha a linha?' },
               { label: '👷 Mão de obra', q: 'Total gasto em mão de obra e subempreiteiros este ano?' },
@@ -295,7 +298,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
               { label: '🧾 Top dépenses', q: 'Quelles sont mes 5 plus grosses dépenses de l\'année ?' },
             ]).map((s, i) => (
               <button key={i} onClick={() => sendMessage(s.q)}
-                className="v22-btn v22-btn-sm" style={{ flexShrink: 0, background: 'var(--v22-amber-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                className="v22-btn v22-btn-sm" style={{ flexShrink: 0, background: tv.primaryLight, border: `1px solid ${tv.primaryBorder}`, color: '#7A6000', whiteSpace: 'nowrap', fontWeight: 500 }}>
                 {s.label}
               </button>
             ))}
@@ -303,7 +306,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
         )}
 
         {/* Input */}
-        <div style={{ borderTop: '1px solid var(--v22-border)', padding: 14, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+        <div style={{ borderTop: `1px solid ${tv.border}`, padding: 14, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <textarea
             ref={inputRef as any}
             value={inputValue}
@@ -331,13 +334,13 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
             {isLoading ? '⏳' : isPt ? '↑ Enviar' : '↑ Envoyer'}
           </button>
         </div>
-        <div style={{ padding: '0 14px 10px', fontSize: 10, color: 'var(--v22-text-muted)', textAlign: 'center' }}>
+        <div style={{ padding: '0 14px 10px', fontSize: 10, color: tv.textMuted, textAlign: 'center' }}>
           {isPt ? 'Enter = enviar · Shift+Enter = nova linha' : 'Entrée = envoyer · Maj+Entrée = saut de ligne'}
         </div>
       </div>
 
       {/* Disclaimer */}
-      <div className="v22-card" style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--v22-text-muted)' }}>
+      <div className="v22-card" style={{ padding: 10, textAlign: 'center', fontSize: 11, color: tv.textMuted }}>
         {isPt
           ? 'ℹ️ Léa fornece informações indicativas baseadas nos seus dados Fixit. Para aconselhamento fiscal vinculativo, consulte um TOC/ROC certificado.'
           : 'ℹ️ Léa fournit des informations indicatives basées sur vos données Vitfix. Pour des conseils fiscaux engageant votre responsabilité, consultez un expert-comptable agréé.'}
@@ -559,22 +562,23 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   }, [])
 
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   /* ── Tab style helpers (v22 compta-tab pattern) ── */
   const tabStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({
     fontSize: 12, fontWeight: active ? 600 : 500, padding: '8px 16px',
-    borderBottom: `2px solid ${active ? 'var(--v22-yellow)' : 'transparent'}`,
+    borderBottom: `2px solid ${active ? tv.primary : 'transparent'}`,
     background: 'none', border: 'none', borderBottomWidth: 2, borderBottomStyle: 'solid',
-    borderBottomColor: active ? 'var(--v22-yellow)' : 'transparent',
-    cursor: 'pointer', color: active ? 'var(--v22-text)' : 'var(--v22-text-muted)',
+    borderBottomColor: active ? tv.primary : 'transparent',
+    cursor: 'pointer', color: active ? tv.text : tv.textMuted,
     whiteSpace: 'nowrap', transition: 'all 0.15s',
   })
 
   const pillStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({
     fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 6,
-    border: active ? 'none' : '1px solid var(--v22-border)',
-    background: active ? 'var(--v22-yellow)' : 'var(--v22-surface)',
-    color: active ? 'var(--v22-text)' : 'var(--v22-text-muted)',
+    border: active ? 'none' : `1px solid ${tv.border}`,
+    background: active ? tv.primary : tv.cardBg,
+    color: active ? tv.text : tv.textMuted,
     cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
   })
 
@@ -593,7 +597,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} style={{ width: 'auto', padding: '5px 10px', fontSize: 12, fontWeight: 600 }}>
             {[currentYear - 1, currentYear, currentYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <div style={isV5 ? { display: 'flex', gap: 4 } : { display: 'flex', background: 'var(--v22-bg)', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--v22-border)' }}>
+          <div style={isV5 ? { display: 'flex', gap: 4 } : { display: 'flex', background: tv.bg, borderRadius: 6, overflow: 'hidden', border: `1px solid ${tv.border}` }}>
             {(['mois', 'trimestre', 'annee'] as const).map(p => (
               <button key={p} onClick={() => setSelectedPeriod(p)}
                 className={isV5 ? `v5-btn v5-btn-sm${selectedPeriod === p ? ' v5-btn-p' : ''}` : ''}
@@ -634,7 +638,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
         )}
 
         {/* Sub-tabs */}
-        <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: 20 } : { display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--v22-border)' }}>
+        <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: 20 } : { display: 'flex', gap: 0, marginBottom: 20, borderBottom: `1px solid ${tv.border}` }}>
           {(isPt ? ([
             { key: 'dashboard' as const, label: 'Painel' },
             { key: 'revenus' as const, label: 'Receitas' },
@@ -661,25 +665,25 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
           <div>
             {/* KPI Cards */}
             <div className={isV5 ? 'v5-kpi-g' : 'v22-stats'} style={{ marginBottom: 24 }}>
-              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid var(--v22-green)' }}>
+              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: `3px solid ${tv.green}` }}>
                 <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Faturacao c/IVA' : 'Chiffre d\'affaires TTC'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#2E7D32' : 'var(--v22-green)', fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffaires)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{completedFiltered.length} {isPt ? 'intervencao(oes)' : 'intervention(s)'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#2E7D32' : tv.green, fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffaires)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{completedFiltered.length} {isPt ? 'intervencao(oes)' : 'intervention(s)'}</div>
               </div>
               <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid #3b82f6' }}>
                 <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Faturacao s/IVA' : 'CA Hors Taxes'}</div>
                 <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: '#3b82f6', fontSize: isV5 ? undefined : 22 }}>{formatEur(chiffreAffairesHT)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
               </div>
-              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: '3px solid var(--v22-red)' }}>
+              <div className={isV5 ? 'v5-kpi' : 'v22-stat'} style={isV5 ? undefined : { borderLeft: `3px solid ${tv.red}` }}>
                 <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Despesas dedutiveis' : 'Charges deductibles'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#C62828' : 'var(--v22-red)', fontSize: isV5 ? undefined : 22 }}>{formatEur(totalExpenses)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{filteredExpenses.length} {isPt ? 'despesa(s)' : 'depense(s)'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: isV5 ? '#C62828' : tv.red, fontSize: isV5 ? undefined : 22 }}>{formatEur(totalExpenses)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{filteredExpenses.length} {isPt ? 'despesa(s)' : 'depense(s)'}</div>
               </div>
-              <div className={isV5 ? `v5-kpi${resultatNet >= 0 ? ' hl' : ''}` : `v22-stat ${resultatNet >= 0 ? 'v22-stat-yellow' : ''}`} style={!isV5 && resultatNet < 0 ? { borderLeft: '3px solid var(--v22-red)' } : undefined}>
+              <div className={isV5 ? `v5-kpi${resultatNet >= 0 ? ' hl' : ''}` : `v22-stat ${resultatNet >= 0 ? 'v22-stat-yellow' : ''}`} style={!isV5 && resultatNet < 0 ? { borderLeft: `3px solid ${tv.red}` } : undefined}>
                 <div className={isV5 ? 'v5-kpi-l' : 'v22-stat-label'}>{isPt ? 'Resultado liquido' : 'Resultat net'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: resultatNet >= 0 ? (isV5 ? '#1a1a1a' : 'var(--v22-text)') : (isV5 ? '#C62828' : 'var(--v22-red)'), fontSize: isV5 ? undefined : 22 }}>{formatEur(resultatNet)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: 'var(--v22-text-muted)' }}>{isPt ? 'antes de impostos' : 'avant impots'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : 'v22-stat-val'} style={{ color: resultatNet >= 0 ? (isV5 ? '#1a1a1a' : tv.text) : (isV5 ? '#C62828' : tv.red), fontSize: isV5 ? undefined : 22 }}>{formatEur(resultatNet)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? undefined : { fontSize: 11, color: tv.textMuted }}>{isPt ? 'antes de impostos' : 'avant impots'}</div>
               </div>
             </div>
 
@@ -701,19 +705,19 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                           {isPt ? tvaStatus.badge.pt : tvaStatus.badge.fr}
                         </span>
                       </div>
-                      <p style={{ fontSize: 11.5, color: 'var(--v22-text-muted)', lineHeight: 1.5, margin: 0, marginBottom: 10 }}>
+                      <p style={{ fontSize: 11.5, color: tv.textMuted, lineHeight: 1.5, margin: 0, marginBottom: 10 }}>
                         {isPt ? tvaStatus.message.pt : tvaStatus.message.fr}
                       </p>
                       {/* Barre de progression */}
                       <div style={{ marginBottom: 4 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: tv.textMuted, marginBottom: 4 }}>
                           <span>0</span>
                           <span style={{ color: tvaStatus.color, fontWeight: 600 }}>
                             {tvaStatus.percent}% {isPt ? 'do limite' : 'du seuil'}
                           </span>
                           <span style={{ fontWeight: 600 }}>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}</span>
                         </div>
-                        <div style={{ height: 6, borderRadius: 3, background: 'var(--v22-border)', overflow: 'hidden' }}>
+                        <div style={{ height: 6, borderRadius: 3, background: tv.border, overflow: 'hidden' }}>
                           <div style={{
                             height: '100%', borderRadius: 3,
                             background: tvaStatus.color,
@@ -722,7 +726,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                           }} />
                         </div>
                         {tvaStatus.seuilMajore && (
-                          <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 4 }}>
+                          <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 4 }}>
                             {isPt ? 'Limite majorado' : 'Seuil majoré'} : {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuilMajore)}
                             {' · '}{isPt ? 'Taxa aplicável' : 'Taux applicable'} : {(tvaStatus.taux * 100).toFixed(0)} %
                           </div>
@@ -750,7 +754,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 140 }}>
                   {monthlyRevenue.map((m, i) => (
                     <div key={i} className={isV5 ? 'v5-ch-bar' : ''} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                      <div className={isV5 ? 'v5-ch-bar-v' : ''} style={isV5 ? {} : { fontSize: 9, color: 'var(--v22-text-muted)', fontWeight: 600 }}>
+                      <div className={isV5 ? 'v5-ch-bar-v' : ''} style={isV5 ? {} : { fontSize: 9, color: tv.textMuted, fontWeight: 600 }}>
                         {m.ca > 0 ? formatEur(m.ca).replace('€', '') + '€' : ''}
                       </div>
                       <div
@@ -758,10 +762,10 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                         style={{
                           width: '100%', borderRadius: '4px 4px 0 0', transition: 'all 0.2s',
                           height: `${Math.max(4, (m.ca / maxCA) * 100)}%`,
-                          background: (i === currentMonth && selectedYear === currentYear) ? (isV5 ? 'var(--v5-accent, #FFC107)' : 'var(--v22-yellow)') : '#dbeafe',
+                          background: (i === currentMonth && selectedYear === currentYear) ? (isV5 ? 'var(--v5-accent, #FFC107)' : tv.primary) : '#dbeafe',
                         }}
                       />
-                      <div className={isV5 ? 'v5-ch-bar-lb' : ''} style={isV5 ? {} : { fontSize: 9, color: 'var(--v22-text-muted)' }}>{m.month}</div>
+                      <div className={isV5 ? 'v5-ch-bar-lb' : ''} style={isV5 ? {} : { fontSize: 9, color: tv.textMuted }}>{m.month}</div>
                     </div>
                   ))}
                 </div>
@@ -770,14 +774,14 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
             {/* Health indicator */}
             <div className={isV5 ? 'v5-kpi-g' : ''} style={isV5 ? {} : { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: 'var(--v22-green-light)', borderColor: 'var(--v22-green)', padding: 16 }}>
-                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: 'var(--v22-green)', marginBottom: 6 }}>✅ {isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: 'var(--v22-green)' }}>
+              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: tv.greenLight, borderColor: tv.green, padding: 16 }}>
+                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: tv.green, marginBottom: 6 }}>✅ {isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
+                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: tv.green }}>
                   {isPt
                     ? (isAutoEntrepreneur ? 'Regime Simplificado (Recibos Verdes)' : '⚠️ Ultrapassou o limite!')
                     : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
                 </div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: 'var(--v22-green)', marginTop: 4 }}>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.green, marginTop: 4 }}>
                   {isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
                   {' / '}{isPt ? '200 000 €' : '77 700 €'}
                 </div>
@@ -787,8 +791,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? {} : { fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{formatEur(cotisationsSociales)}</div>
                 <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: '#2563eb', marginTop: 4 }}>{isPt ? '21,4% SS sobre rend. relevante (70%)' : '21,7% du CA HT annuel'}</div>
               </div>
-              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: 'var(--v22-amber-light)', borderColor: 'var(--v22-amber)', padding: 16 }}>
-                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: 'var(--v22-amber)', marginBottom: 6 }}>📋 {isPt ? 'Próxima declaração' : 'Prochaine déclaration'}</div>
+              <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: tv.primaryLight, borderColor: tv.primary, padding: 16 }}>
+                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: tv.primary, marginBottom: 6 }}>📋 {isPt ? 'Próxima declaração' : 'Prochaine déclaration'}</div>
                 <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: '#92400e', fontWeight: 600 }}>
                   {isPt ? (() => {
                     const q = Math.floor(currentMonth / 3)
@@ -800,7 +804,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     return dates[q] || 'Voir calendrier'
                   })()}
                 </div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: 'var(--v22-amber)', marginTop: 4 }}>{isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle'}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.primary, marginTop: 4 }}>{isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle'}</div>
               </div>
             </div>
           </div>
@@ -816,21 +820,21 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 </div>
               </div>
               <div style={{ padding: '12px 16px', display: 'flex', gap: 20 }}>
-                <div><span style={{ fontSize: 20, fontWeight: 800, color: 'var(--v22-green)' }}>{formatEur(chiffreAffaires)}</span><span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginLeft: 4 }}>{isPt ? 'c/IVA' : 'TTC'}</span></div>
-                <div><span style={{ fontSize: 20, fontWeight: 800, color: '#3b82f6' }}>{formatEur(chiffreAffairesHT)}</span><span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginLeft: 4 }}>{isPt ? 's/IVA' : 'HT'}</span></div>
-                <div><span style={{ fontSize: 20, fontWeight: 800, color: 'var(--v22-text-muted)' }}>{formatEur(tvaCollectee)}</span><span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginLeft: 4 }}>{isPt ? 'IVA 23%' : 'TVA 20%'}</span></div>
+                <div><span style={{ fontSize: 20, fontWeight: 800, color: tv.green }}>{formatEur(chiffreAffaires)}</span><span style={{ fontSize: 11, color: tv.textMuted, marginLeft: 4 }}>{isPt ? 'c/IVA' : 'TTC'}</span></div>
+                <div><span style={{ fontSize: 20, fontWeight: 800, color: '#3b82f6' }}>{formatEur(chiffreAffairesHT)}</span><span style={{ fontSize: 11, color: tv.textMuted, marginLeft: 4 }}>{isPt ? 's/IVA' : 'HT'}</span></div>
+                <div><span style={{ fontSize: 20, fontWeight: 800, color: tv.textMuted }}>{formatEur(tvaCollectee)}</span><span style={{ fontSize: 11, color: tv.textMuted, marginLeft: 4 }}>{isPt ? 'IVA 23%' : 'TVA 20%'}</span></div>
               </div>
               {completedFiltered.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--v22-text-muted)' }}>{isPt ? 'Nenhuma intervenção concluída neste período' : 'Aucune intervention terminée sur cette période'}</div>
+                <div style={{ padding: 40, textAlign: 'center', color: tv.textMuted }}>{isPt ? 'Nenhuma intervenção concluída neste período' : 'Aucune intervention terminée sur cette période'}</div>
               ) : (
                 <table className={isV5 ? 'v5-dt' : ''} style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ background: 'var(--v22-bg)' }}>
-                      <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: 'var(--v22-text-muted)', fontWeight: 600 }}>Data</th>
-                      <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: 'var(--v22-text-muted)', fontWeight: 600 }}>{isPt ? 'Cliente / Serviço' : 'Client / Service'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: 'var(--v22-text-muted)', fontWeight: 600 }}>{isPt ? 's/IVA' : 'HT'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: 'var(--v22-text-muted)', fontWeight: 600 }}>{isPt ? 'IVA' : 'TVA'}</th>
-                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: 'var(--v22-text-muted)', fontWeight: 600 }}>{isPt ? 'c/IVA' : 'TTC'}</th>
+                    <tr style={{ background: tv.bg }}>
+                      <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>Data</th>
+                      <th style={{ textAlign: 'left', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 'Cliente / Serviço' : 'Client / Service'}</th>
+                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 's/IVA' : 'HT'}</th>
+                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 'IVA' : 'TVA'}</th>
+                      <th style={{ textAlign: 'right', padding: '8px 16px', fontSize: 11, color: tv.textMuted, fontWeight: 600 }}>{isPt ? 'c/IVA' : 'TTC'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -839,25 +843,25 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                       const ht = b.price_ht || (b.price_ttc || 0) / 1.2
                       const tva = (b.price_ttc || 0) - ht
                       return (
-                        <tr key={b.id} style={{ borderTop: '1px solid var(--v22-border)' }}>
-                          <td style={{ padding: '10px 16px', color: 'var(--v22-text-muted)' }}>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale) : ''}</td>
+                        <tr key={b.id} style={{ borderTop: `1px solid ${tv.border}` }}>
+                          <td style={{ padding: '10px 16px', color: tv.textMuted }}>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale) : ''}</td>
                           <td style={{ padding: '10px 16px' }}>
                             <div className="v22-client-name">{clientName}</div>
-                            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{b.services?.name}</div>
+                            <div style={{ fontSize: 11, color: tv.textMuted }}>{b.services?.name}</div>
                           </td>
                           <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600 }}>{formatEur(ht)}</td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--v22-text-muted)' }}>{formatEur(tva)}</td>
-                          <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: 'var(--v22-green)' }}>{formatEur(b.price_ttc || 0)}</td>
+                          <td style={{ padding: '10px 16px', textAlign: 'right', color: tv.textMuted }}>{formatEur(tva)}</td>
+                          <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: tv.green }}>{formatEur(b.price_ttc || 0)}</td>
                         </tr>
                       )
                     })}
                   </tbody>
                   <tfoot>
-                    <tr style={{ background: 'var(--v22-bg)', borderTop: '2px solid var(--v22-border-dark)' }}>
+                    <tr style={{ background: tv.bg, borderTop: `2px solid ${tv.borderDark}` }}>
                       <td colSpan={2} style={{ padding: '10px 16px', fontWeight: 700 }}>{isPt ? 'TOTAL' : 'TOTAL'}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700 }}>{formatEur(chiffreAffairesHT)}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: 'var(--v22-text-muted)' }}>{formatEur(tvaCollectee)}</td>
-                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: 'var(--v22-green)' }}>{formatEur(chiffreAffaires)}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: tv.textMuted }}>{formatEur(tvaCollectee)}</td>
+                      <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: tv.green }}>{formatEur(chiffreAffaires)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -877,7 +881,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                       <div key={s.id}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                           <span style={{ fontWeight: 500 }}>{s.name}</span>
-                          <span style={{ fontWeight: 700, color: 'var(--v22-green)' }}>{formatEur(sCA)} ({sBookings.length} RDV)</span>
+                          <span style={{ fontWeight: 700, color: tv.green }}>{formatEur(sCA)} ({sBookings.length} RDV)</span>
                         </div>
                         <div className="v22-prog-bar">
                           <div className="v22-prog-fill" style={{ width: `${pct}%` }} />
@@ -897,7 +901,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
                 <div className={isV5 ? 'v5-st' : ''} style={isV5 ? {} : { fontWeight: 700, fontSize: 15 }}>{isPt ? '🧾 Despesas dedutíveis' : '🧾 Charges déductibles'}</div>
-                <div style={{ fontSize: 13, color: 'var(--v22-text-muted)' }}>{isPt ? 'Total' : 'Total'} : <span style={{ fontWeight: 700, color: 'var(--v22-red)' }}>{formatEur(totalExpenses)}</span></div>
+                <div style={{ fontSize: 13, color: tv.textMuted }}>{isPt ? 'Total' : 'Total'} : <span style={{ fontWeight: 700, color: tv.red }}>{formatEur(totalExpenses)}</span></div>
               </div>
               <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
                 {isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}
@@ -905,7 +909,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             </div>
 
             {showAddExpense && (
-              <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 16 } : { borderColor: 'var(--v22-yellow)', borderWidth: 2, marginBottom: 16 }}>
+              <div className={isV5 ? 'v5-card' : 'v22-card'} style={isV5 ? { marginBottom: 16 } : { borderColor: tv.primary, borderWidth: 2, marginBottom: 16 }}>
                 <div className={isV5 ? '' : 'v22-card-head'}><div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Nova despesa dedutível' : 'Nouvelle charge déductible'}</div></div>
                 <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -955,10 +959,10 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     <div key={c.key}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                         <span>{c.icon} {c.label}</span>
-                        <span style={{ fontWeight: 700, color: 'var(--v22-red)' }}>{formatEur(c.total)}</span>
+                        <span style={{ fontWeight: 700, color: tv.red }}>{formatEur(c.total)}</span>
                       </div>
                       <div className="v22-prog-bar">
-                        <div className="v22-prog-fill" style={{ width: `${(c.total / (totalExpenses || 1)) * 100}%`, background: 'var(--v22-red)' }} />
+                        <div className="v22-prog-fill" style={{ width: `${(c.total / (totalExpenses || 1)) * 100}%`, background: tv.red }} />
                       </div>
                     </div>
                   ))}
@@ -974,26 +978,26 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 </div>
               </div>
               {filteredExpenses.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--v22-text-muted)' }}>
+                <div style={{ padding: 40, textAlign: 'center', color: tv.textMuted }}>
                   <div style={{ fontSize: 32, marginBottom: 10 }}>🧾</div>
                   <div>{isPt ? 'Nenhuma despesa registada neste período' : 'Aucune charge enregistrée sur cette période'}</div>
-                  <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? { marginTop: 10 } : { marginTop: 10, color: 'var(--v22-yellow)', fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>{isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}</button>
+                  <button onClick={() => setShowAddExpense(true)} className={isV5 ? 'v5-btn v5-btn-sm' : ''} style={isV5 ? { marginTop: 10 } : { marginTop: 10, color: tv.primary, fontWeight: 600, fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>{isPt ? '+ Adicionar despesa' : '+ Ajouter une charge'}</button>
                 </div>
               ) : (
                 <div>
                   {filteredExpenses.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map(e => {
                     const cat = EXPENSE_CATEGORIES.find(c => c.key === e.category)
                     return (
-                      <div key={e.id} className="expense-row" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: '1px solid var(--v22-border)' }}>
+                      <div key={e.id} className="expense-row" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: `1px solid ${tv.border}` }}>
                         <div style={{ fontSize: 20 }}>{cat?.icon || '📦'}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{e.label}</div>
-                          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>{cat?.label} · {e.date ? new Date(e.date).toLocaleDateString(dateFmtLocale) : ''}</div>
-                          {e.notes && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>{e.notes}</div>}
+                          <div style={{ fontSize: 11, color: tv.textMuted }}>{cat?.label} · {e.date ? new Date(e.date).toLocaleDateString(dateFmtLocale) : ''}</div>
+                          {e.notes && <div style={{ fontSize: 11, color: tv.textMuted, fontStyle: 'italic' }}>{e.notes}</div>}
                         </div>
-                        <div className="v22-amount" style={{ color: 'var(--v22-red)' }}>{formatEur(parseFloat(String(e.amount ?? 0)))}</div>
+                        <div className="v22-amount" style={{ color: tv.red }}>{formatEur(parseFloat(String(e.amount ?? 0)))}</div>
                         <button onClick={() => deleteExpense(e.id ?? '')}
-                          style={{ opacity: 0, color: 'var(--v22-red)', cursor: 'pointer', background: 'none', border: 'none', fontSize: 16, marginLeft: 6, transition: 'opacity 0.15s' }}
+                          style={{ opacity: 0, color: tv.red, cursor: 'pointer', background: 'none', border: 'none', fontSize: 16, marginLeft: 6, transition: 'opacity 0.15s' }}
                           className="del-btn">🗑</button>
                       </div>
                     )
@@ -1026,14 +1030,14 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 {/* Jauge */}
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
-                      {isPt ? 'Volume de negócios HT' : 'CA HT annuel'} : <strong style={{ color: 'var(--v22-text)' }}>{formatEur(annualHT)}</strong>
+                    <span style={{ fontSize: 11, color: tv.textMuted }}>
+                      {isPt ? 'Volume de negócios HT' : 'CA HT annuel'} : <strong style={{ color: tv.text }}>{formatEur(annualHT)}</strong>
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: tvaStatus.color }}>
                       {tvaStatus.percent}%
                     </span>
                   </div>
-                  <div style={{ height: 10, borderRadius: 5, background: 'var(--v22-border)', overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ height: 10, borderRadius: 5, background: tv.border, overflow: 'hidden', position: 'relative' }}>
                     {/* Marqueur 80% */}
                     <div style={{ position: 'absolute', left: '80%', top: 0, bottom: 0, width: 1, background: '#eab308', zIndex: 1 }} />
                     <div style={{
@@ -1047,7 +1051,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                       transition: 'width 0.6s ease',
                     }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--v22-text-muted)', marginTop: 3 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: tv.textMuted, marginTop: 3 }}>
                     <span>0</span>
                     <span style={{ color: '#eab308' }}>80%</span>
                     <span>{new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}</span>
@@ -1055,43 +1059,43 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 </div>
 
                 {/* Message contextuel */}
-                <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', lineHeight: 1.6, marginBottom: 16, padding: '10px 12px', borderRadius: 6, background: tvaStatus.bgColor }}>
+                <div style={{ fontSize: 12, color: tv.textMuted, lineHeight: 1.6, marginBottom: 16, padding: '10px 12px', borderRadius: 6, background: tvaStatus.bgColor }}>
                   {isPt ? tvaStatus.message.pt : tvaStatus.message.fr}
                 </div>
 
                 {/* Détails techniques */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
+                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
                       {isPt ? 'Limite de isenção' : 'Seuil de franchise'}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
                       {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuil)}
                     </div>
                   </div>
                   {tvaStatus.seuilMajore && (
-                    <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
-                      <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                    <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
+                      <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
                         {isPt ? 'Limite majorado' : 'Seuil majoré'}
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
                         {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(tvaStatus.seuilMajore)}
                       </div>
                     </div>
                   )}
-                  <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
+                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
                       {isPt ? 'Taxa de IVA aplicável' : 'Taux TVA applicable'}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
                       {(tvaStatus.taux * 100).toFixed(0)} %
                     </div>
                   </div>
-                  <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: 3 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}` }}>
+                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: 3 }}>
                       {isPt ? 'IVA estimado se aplicável' : 'TVA estimée si applicable'}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>
                       {formatEur(annualHT * tvaStatus.taux)}
                     </div>
                   </div>
@@ -1101,15 +1105,15 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '12px 14px', borderRadius: 8,
-                  border: '1px solid var(--v22-border)', background: 'var(--v22-surface)',
+                  border: `1px solid ${tv.border}`, background: tv.cardBg,
                 }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v22-text)', marginBottom: 2 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: tv.text, marginBottom: 2 }}>
                       {isPt
                         ? '🔔 Ativar IVA automaticamente ao ultrapassar o limite'
                         : '🔔 Activer la TVA automatiquement dès dépassement du seuil'}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                    <div style={{ fontSize: 11, color: tv.textMuted }}>
                       {isPt
                         ? 'Receba alertas imediatos e acompanhe a sua obrigação de registo no IVA'
                         : 'Recevez des alertes immédiates et suivez votre obligation de passage à la TVA'}
@@ -1122,7 +1126,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     style={{
                       flexShrink: 0, marginLeft: 16,
                       width: 44, height: 24, borderRadius: 12,
-                      background: tvaAutoActivate ? 'var(--v22-yellow)' : 'var(--v22-border)',
+                      background: tvaAutoActivate ? tv.primary : tv.border,
                       border: 'none', cursor: tvaTogglingLoading ? 'not-allowed' : 'pointer',
                       position: 'relative', transition: 'background 0.2s',
                       opacity: tvaTogglingLoading ? 0.6 : 1,
@@ -1140,15 +1144,15 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
                 {/* Aide contextuelle FR */}
                 {!isPt && tvaStatus.status !== 'safe' && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', lineHeight: 1.6 }}>
-                    <strong style={{ color: 'var(--v22-text)' }}>📋 Mentions obligatoires sur vos factures :</strong>
+                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}`, fontSize: 11, color: tv.textMuted, lineHeight: 1.6 }}>
+                    <strong style={{ color: tv.text }}>📋 Mentions obligatoires sur vos factures :</strong>
                     <br />
                     {'Une fois assujetti, indiquez le taux TVA (20 %), le montant HT, la TVA et le montant TTC sur chaque facture. Déposez votre déclaration CA12/CA3 auprès du SIE.'}
                   </div>
                 )}
                 {isPt && tvaStatus.status !== 'safe' && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontSize: 11, color: 'var(--v22-text-muted)', lineHeight: 1.6 }}>
-                    <strong style={{ color: 'var(--v22-text)' }}>📋 Obrigações após registo no IVA :</strong>
+                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 6, background: tv.bg, border: `1px solid ${tv.border}`, fontSize: 11, color: tv.textMuted, lineHeight: 1.6 }}>
+                    <strong style={{ color: tv.text }}>📋 Obrigações após registo no IVA :</strong>
                     <br />
                     Emita faturas com IVA a 23 %, envie a Declaração Periódica de IVA trimestralmente (ou mensal se VN &gt; 650 000 €) e mantenha o e-fatura em dia.
                   </div>

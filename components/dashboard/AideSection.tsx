@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useThemeVars } from './useThemeVars'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -30,6 +31,8 @@ const FAQ_ITEMS_SOCIETE = [
 export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSectionProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const isV5 = isSociete
+  const tv = useThemeVars(isV5)
   const FAQ_ITEMS = isSociete ? FAQ_ITEMS_SOCIETE : FAQ_ITEMS_ARTISAN
 
   // ═══════════════════════════════════════════════════════
@@ -100,17 +103,17 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
             <div className="v22-card-title">Questions fr&eacute;quentes</div>
           </div>
           {FAQ_ITEMS.map((item, i) => (
-            <div key={i} style={{ borderBottom: i < FAQ_ITEMS.length - 1 ? '1px solid var(--v22-border)' : 'none' }}>
+            <div key={i} style={{ borderBottom: i < FAQ_ITEMS.length - 1 ? `1px solid ${tv.border}` : 'none' }}>
               <div
                 className="flex items-center justify-between cursor-pointer select-none"
-                style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 500, color: 'var(--v22-text)' }}
+                style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 500, color: tv.text }}
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
               >
                 <span>{item.q}</span>
-                <span className="v22-mono" style={{ fontSize: '16px', color: 'var(--v22-text-muted)', transition: 'transform 0.2s', transform: openFaq === i ? 'rotate(45deg)' : 'none' }}>+</span>
+                <span className="v22-mono" style={{ fontSize: '16px', color: tv.textMuted, transition: 'transform 0.2s', transform: openFaq === i ? 'rotate(45deg)' : 'none' }}>+</span>
               </div>
               {openFaq === i && (
-                <div style={{ padding: '0 14px 12px', fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.7, borderTop: '1px solid var(--v22-border)', paddingTop: '10px', background: 'var(--v22-bg)' }}>
+                <div style={{ padding: '0 14px 12px', fontSize: '12px', color: tv.textMid, lineHeight: 1.7, borderTop: `1px solid ${tv.border}`, paddingTop: '10px', background: tv.bg }}>
                   {item.a}
                 </div>
               )}
@@ -125,17 +128,17 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
               <div className="v22-card-title">Contact support</div>
             </div>
             <div className="v22-card-body">
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--v22-bg)', fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>Email</span>
-                <span className="v22-mono font-medium" style={{ color: 'var(--v22-text)' }}>support@vitfix.io</span>
+              <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${tv.bg}`, fontSize: '12px' }}>
+                <span style={{ color: tv.textMid }}>Email</span>
+                <span className="v22-mono font-medium" style={{ color: tv.text }}>support@vitfix.io</span>
               </div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--v22-bg)', fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>T&eacute;l&eacute;phone</span>
-                <span className="v22-mono font-medium" style={{ color: 'var(--v22-text)' }}>+33 1 80 00 00 00</span>
+              <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${tv.bg}`, fontSize: '12px' }}>
+                <span style={{ color: tv.textMid }}>T&eacute;l&eacute;phone</span>
+                <span className="v22-mono font-medium" style={{ color: tv.text }}>+33 1 80 00 00 00</span>
               </div>
               <div className="flex justify-between py-2" style={{ fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>Horaires</span>
-                <span className="v22-mono font-medium" style={{ color: 'var(--v22-text)' }}>Lun &ndash; Ven &middot; 9h &ndash; 18h</span>
+                <span style={{ color: tv.textMid }}>Horaires</span>
+                <span className="v22-mono font-medium" style={{ color: tv.text }}>Lun &ndash; Ven &middot; 9h &ndash; 18h</span>
               </div>
               <button className="v22-btn v22-btn-primary w-full mt-3" onClick={() => toast.info('Ticket cr\u00E9\u00E9 \u2014 r\u00E9ponse sous 24h')}>Ouvrir un ticket</button>
             </div>
@@ -147,20 +150,20 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
               <div className="v22-card-title">Version</div>
             </div>
             <div className="v22-card-body">
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--v22-bg)', fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>Application</span>
+              <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${tv.bg}`, fontSize: '12px' }}>
+                <span style={{ color: tv.textMid }}>Application</span>
                 <span className="v22-mono font-medium">VITFIX Pro</span>
               </div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--v22-bg)', fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>Version</span>
+              <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${tv.bg}`, fontSize: '12px' }}>
+                <span style={{ color: tv.textMid }}>Version</span>
                 <span className="v22-mono font-medium">v2.2.0</span>
               </div>
-              <div className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--v22-bg)', fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>Mise &agrave; jour</span>
+              <div className="flex justify-between py-2" style={{ borderBottom: `1px solid ${tv.bg}`, fontSize: '12px' }}>
+                <span style={{ color: tv.textMid }}>Mise &agrave; jour</span>
                 <span className="v22-mono font-medium">Mars 2026</span>
               </div>
               <div className="flex justify-between py-2" style={{ fontSize: '12px' }}>
-                <span style={{ color: 'var(--v22-text-mid)' }}>Statut</span>
+                <span style={{ color: tv.textMid }}>Statut</span>
                 <span className="v22-tag v22-tag-green">Stable</span>
               </div>
             </div>

@@ -10,6 +10,7 @@ import {
   URL_DECLARATION_PT,
 } from '@/lib/declaration-sociale'
 import type { PeriodeDeclaration, ResultatCotisations } from '@/lib/declaration-sociale'
+import { useThemeVars } from './useThemeVars'
 
 interface HistoriqueEntry {
   id: string
@@ -39,6 +40,8 @@ function formatEur(v: number): string {
 export default function DeclarationSocialeSection() {
   const locale = useLocale()
   const isPt = locale === 'pt'
+  const isV5 = false
+  const tv = useThemeVars(isV5)
 
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DeclarationData | null>(null)
@@ -135,9 +138,9 @@ export default function DeclarationSocialeSection() {
         {[1, 2, 3].map(i => (
           <div key={i} className="v22-card" style={{ height: 120 }}>
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ height: 16, width: '60%', background: 'var(--v22-border)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
-              <div style={{ height: 12, width: '80%', background: 'var(--v22-border)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
-              <div style={{ height: 12, width: '40%', background: 'var(--v22-border)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+              <div style={{ height: 16, width: '60%', background: tv.border, borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+              <div style={{ height: 12, width: '80%', background: tv.border, borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+              <div style={{ height: 12, width: '40%', background: tv.border, borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
             </div>
           </div>
         ))}
@@ -174,7 +177,7 @@ export default function DeclarationSocialeSection() {
             </div>
           </div>
           <div className="v22-card-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--v22-text-muted)' }}>
+            <p style={{ margin: 0, fontSize: 13, color: tv.textMuted }}>
               {isPt
                 ? 'Configure o seu regime para calcular automaticamente as suas contribuições sociais a cada período.'
                 : 'Configurez votre régime pour calculer automatiquement vos cotisations sociales à chaque période.'}
@@ -216,8 +219,8 @@ export default function DeclarationSocialeSection() {
                     style={{
                       padding: '10px 14px',
                       borderRadius: 8,
-                      border: `2px solid ${formTypeActivite === ta.key ? 'var(--v22-yellow)' : 'var(--v22-border)'}`,
-                      background: formTypeActivite === ta.key ? 'var(--v22-amber-light)' : 'var(--v22-surface)',
+                      border: `2px solid ${formTypeActivite === ta.key ? tv.primary : tv.border}`,
+                      background: formTypeActivite === ta.key ? tv.primaryLight : tv.surface,
                       textAlign: 'left',
                       cursor: 'pointer',
                       fontSize: 13,
@@ -261,7 +264,7 @@ export default function DeclarationSocialeSection() {
 
             {/* ACRE (FR only) */}
             {formPays === 'FR' && (
-              <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--v22-border)', background: 'var(--v22-bg)' }}>
+              <div style={{ padding: 14, borderRadius: 8, border: `1px solid ${tv.border}`, background: tv.bg }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
@@ -271,14 +274,14 @@ export default function DeclarationSocialeSection() {
                   />
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>ACRE (Aide aux Créateurs)</div>
-                    <div style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
+                    <div style={{ fontSize: 12, color: tv.textMuted }}>
                       Réduction de 50% sur les cotisations la 1ère année
                     </div>
                   </div>
                 </label>
                 {formAcre && (
                   <div style={{ marginTop: 10 }}>
-                    <label style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>Date de fin ACRE</label>
+                    <label style={{ fontSize: 12, color: tv.textMuted }}>Date de fin ACRE</label>
                     <input
                       type="date"
                       value={formAcreDateFin}
@@ -287,7 +290,7 @@ export default function DeclarationSocialeSection() {
                         width: '100%',
                         padding: '8px 12px',
                         borderRadius: 6,
-                        border: '1px solid var(--v22-border)',
+                        border: `1px solid ${tv.border}`,
                         fontSize: 13,
                         marginTop: 4,
                       }}
@@ -331,10 +334,10 @@ export default function DeclarationSocialeSection() {
         <div className="v22-alert v22-alert-red" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 14 }}>
           <div style={{ fontSize: 24 }}>{'🚨'}</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--v22-red)' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: tv.red }}>
               {isPt ? 'Declaração em atraso!' : 'Déclaration en retard !'}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--v22-red)' }}>
+            <div style={{ fontSize: 12, color: tv.red }}>
               {isPt
                 ? `O prazo para ${periode.label} expirou há ${Math.abs(periode.jours_restants)} dias.`
                 : `La date limite pour ${periode.label} est dépassée de ${Math.abs(periode.jours_restants)} jours.`}
@@ -344,15 +347,15 @@ export default function DeclarationSocialeSection() {
       )}
 
       {!periode.est_en_retard && periode.jours_restants <= 15 && !alreadyDeclared && (
-        <div className="v22-alert" style={{ borderLeftColor: 'var(--v22-amber)', background: 'var(--v22-amber-light)', display: 'flex', gap: 12, alignItems: 'center', padding: 14 }}>
+        <div className="v22-alert" style={{ borderLeftColor: tv.primary, background: tv.primaryLight, display: 'flex', gap: 12, alignItems: 'center', padding: 14 }}>
           <div style={{ fontSize: 24 }}>{'⏰'}</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--v22-amber)' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: tv.primary }}>
               {isPt
                 ? `${periode.jours_restants} dias restantes`
                 : `${periode.jours_restants} jours restants`}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
+            <div style={{ fontSize: 12, color: tv.textMuted }}>
               {isPt
                 ? `Prazo para declarar ${periode.label}: ${new Date(periode.date_limite).toLocaleDateString('pt-PT')}`
                 : `Date limite pour déclarer ${periode.label} : ${new Date(periode.date_limite).toLocaleDateString('fr-FR')}`}
@@ -375,7 +378,7 @@ export default function DeclarationSocialeSection() {
         </div>
         <div className="v22-card-body" style={{ padding: 16 }}>
           {/* Period info */}
-          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 14 }}>
             {isPt ? 'Período' : 'Période'} : {new Date(periode.date_debut).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR')} → {new Date(periode.date_fin).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR')}
             {' | '}
             {isPt ? 'Prazo' : 'Délai'} : {new Date(periode.date_limite).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR')}
@@ -383,51 +386,51 @@ export default function DeclarationSocialeSection() {
 
           {/* CA + Cotisations grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div style={{ padding: 16, borderRadius: 8, background: 'var(--v22-green-light)', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+            <div style={{ padding: 16, borderRadius: 8, background: tv.greenLight, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: tv.textMuted, marginBottom: 4 }}>
                 {isPt ? 'Faturação do período' : 'CA de la période'}
               </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-green)' }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: tv.green }}>
                 {formatEur(ca.montant)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
                 {ca.nb_factures} {isPt ? (data.source_ca === 'factures' ? 'faturas' : 'intervenções') : (data.source_ca === 'factures' ? 'factures' : 'interventions')}
               </div>
             </div>
 
-            <div style={{ padding: 16, borderRadius: 8, background: 'var(--v22-red-light)', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+            <div style={{ padding: 16, borderRadius: 8, background: tv.redBg, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: tv.textMuted, marginBottom: 4 }}>
                 {isPt ? 'Contribuições estimadas' : 'Cotisations estimées'}
               </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-red)' }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: tv.red }}>
                 {formatEur(cotisations.cotisations_estimees)}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
                 {cotisations.taux_label}
               </div>
             </div>
           </div>
 
           {/* Detail */}
-          <div style={{ padding: 12, borderRadius: 8, background: 'var(--v22-bg)', fontSize: 13, marginBottom: 14 }}>
+          <div style={{ padding: 12, borderRadius: 8, background: tv.bg, fontSize: 13, marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ color: 'var(--v22-text-muted)' }}>{isPt ? 'Cálculo' : 'Calcul'}</span>
+              <span style={{ color: tv.textMuted }}>{isPt ? 'Cálculo' : 'Calcul'}</span>
               <span style={{ fontWeight: 600 }}>{cotisations.detail}</span>
             </div>
             {acre_actif && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--v22-text-muted)' }}>ACRE</span>
+                <span style={{ color: tv.textMuted }}>ACRE</span>
                 <span className="v22-tag v22-tag-green" style={{ fontSize: 10 }}>-50%</span>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--v22-border)', paddingTop: 6, marginTop: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${tv.border}`, paddingTop: 6, marginTop: 6 }}>
               <span style={{ fontWeight: 700 }}>{isPt ? 'A pagar' : 'À payer'}</span>
-              <span style={{ fontWeight: 700, color: 'var(--v22-red)' }}>{formatEur(cotisations.cotisations_estimees)}</span>
+              <span style={{ fontWeight: 700, color: tv.red }}>{formatEur(cotisations.cotisations_estimees)}</span>
             </div>
           </div>
 
           {/* Disclaimer */}
-          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 16, fontStyle: 'italic' }}>
+          <div style={{ fontSize: 11, color: tv.textMuted, marginBottom: 16, fontStyle: 'italic' }}>
             {cotisations.disclaimer}
           </div>
 
@@ -461,11 +464,11 @@ export default function DeclarationSocialeSection() {
 
       {/* ── ACRE info (FR) ── */}
       {pays === 'FR' && acre_actif && (
-        <div className="v22-alert" style={{ borderLeftColor: 'var(--v22-green)', background: 'var(--v22-green-light)', padding: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--v22-green)' }}>
+        <div className="v22-alert" style={{ borderLeftColor: tv.green, background: tv.greenLight, padding: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: tv.green }}>
             {'🎁'} ACRE actif — réduction 50%
           </div>
-          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 4 }}>
             Vos cotisations sont réduites de moitié pendant la première année d'activité.
           </div>
         </div>
@@ -483,16 +486,16 @@ export default function DeclarationSocialeSection() {
             <table style={{ width: '100%', fontSize: 13 }}>
               <thead>
                 <tr>
-                  <th style={{ padding: '10px 14px', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', borderBottom: `1px solid ${tv.border}` }}>
                     {isPt ? 'Período' : 'Période'}
                   </th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid var(--v22-border)' }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', borderBottom: `1px solid ${tv.border}` }}>
                     {isPt ? 'Faturação' : 'CA'}
                   </th>
-                  <th style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid var(--v22-border)' }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', borderBottom: `1px solid ${tv.border}` }}>
                     {isPt ? 'Contribuições' : 'Cotisations'}
                   </th>
-                  <th style={{ padding: '10px 14px', textAlign: 'center', borderBottom: '1px solid var(--v22-border)' }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'center', borderBottom: `1px solid ${tv.border}` }}>
                     {isPt ? 'Estado' : 'Statut'}
                   </th>
                 </tr>
@@ -502,7 +505,7 @@ export default function DeclarationSocialeSection() {
                   <tr key={h.id}>
                     <td style={{ padding: '10px 14px', fontWeight: 600 }}>{h.periode_label}</td>
                     <td style={{ padding: '10px 14px', textAlign: 'right' }}>{formatEur(h.ca_periode)}</td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--v22-red)' }}>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', color: tv.red }}>
                       {formatEur(h.cotisations_estimees)}
                     </td>
                     <td style={{ padding: '10px 14px', textAlign: 'center' }}>
@@ -525,7 +528,7 @@ export default function DeclarationSocialeSection() {
       {/* ── Config summary + modify link ── */}
       <div className="v22-card" style={{ padding: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
+          <div style={{ fontSize: 12, color: tv.textMuted }}>
             {pays === 'FR' ? '🇫🇷' : '🇵🇹'} {data.type_activite?.replace(/_/g, ' ')} | {data.periodicite}
             {acre_actif ? ' | ACRE' : ''}
           </div>
@@ -534,7 +537,7 @@ export default function DeclarationSocialeSection() {
               // Reset to unconfigured to show form again
               setData(prev => prev ? { ...prev, configure: false } : null)
             }}
-            style={{ fontSize: 12, color: 'var(--v22-yellow)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+            style={{ fontSize: 12, color: tv.primary, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
           >
             {'✏️'} {isPt ? 'Modificar' : 'Modifier'}
           </button>
@@ -548,19 +551,19 @@ export default function DeclarationSocialeSection() {
             className="v22-card" style={{ textAlign: 'center', padding: 16, textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>{'🏛️'}</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>Portal das Finanças</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>IVA & IRS</div>
+            <div style={{ fontSize: 11, color: tv.textMuted }}>IVA & IRS</div>
           </a>
           <a href="https://www.seg-social.pt" target="_blank" rel="noopener noreferrer"
             className="v22-card" style={{ textAlign: 'center', padding: 16, textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>{'🛡️'}</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>Segurança Social</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>Contribuições SS</div>
+            <div style={{ fontSize: 11, color: tv.textMuted }}>Contribuições SS</div>
           </a>
           <a href="https://www.e-fatura.pt" target="_blank" rel="noopener noreferrer"
             className="v22-card" style={{ textAlign: 'center', padding: 16, textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>{'🧾'}</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>e-Fatura</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>Faturas à AT</div>
+            <div style={{ fontSize: 11, color: tv.textMuted }}>Faturas à AT</div>
           </a>
         </div>
       ) : (
@@ -569,13 +572,13 @@ export default function DeclarationSocialeSection() {
             className="v22-card" style={{ textAlign: 'center', padding: 16, textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>{'🏛️'}</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>URSSAF</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>Déclarer votre CA</div>
+            <div style={{ fontSize: 11, color: tv.textMuted }}>Déclarer votre CA</div>
           </a>
           <a href="https://www.impots.gouv.fr" target="_blank" rel="noopener noreferrer"
             className="v22-card" style={{ textAlign: 'center', padding: 16, textDecoration: 'none', color: 'inherit' }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>{'📋'}</div>
             <div style={{ fontWeight: 600, fontSize: 13 }}>impots.gouv.fr</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>Déclaration de revenus</div>
+            <div style={{ fontSize: 11, color: tv.textMuted }}>Déclaration de revenus</div>
           </a>
         </div>
       )}

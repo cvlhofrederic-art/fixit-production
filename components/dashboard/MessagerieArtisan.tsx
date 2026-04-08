@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 
 const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 const authHeader = async (): Promise<Record<string, string>> => {
@@ -118,6 +119,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
   const locale = useLocale()
   const isPt = locale === 'pt'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
   const URGENCE_CONFIG = getUrgenceConfig(isPt)
   const STATUT_CONFIG = getStatutConfig(isPt)
@@ -407,9 +409,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         {/* ── Header avec compteur non lus ── */}
         {!isV5 && (
         <div style={{ padding: '16px 16px 8px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--v22-text)' }}>Messagerie</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: tv.text }}>Messagerie</span>
           {(unreadClients + unreadPro) > 0 && (
-            <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>{unreadClients + unreadPro} non lu{(unreadClients + unreadPro) > 1 ? 's' : ''}</span>
+            <span style={{ fontSize: 12, color: tv.textMuted }}>{unreadClients + unreadPro} non lu{(unreadClients + unreadPro) > 1 ? 's' : ''}</span>
           )}
         </div>
         )}
@@ -423,9 +425,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               className={isV5 ? `v5-msg-tab ${tab === t ? 'active' : ''}` : ''}
               style={isV5 ? {} : {
                 flex: 1, padding: '5px 0', fontSize: 11, fontWeight: tab === t ? 700 : 500,
-                background: tab === t ? 'var(--v22-yellow)' : 'transparent',
-                color: tab === t ? '#1a1a2e' : 'var(--v22-text-muted)',
-                border: tab === t ? 'none' : '1px solid var(--v22-border)',
+                background: tab === t ? tv.primary : 'transparent',
+                color: tab === t ? '#1a1a2e' : tv.textMuted,
+                border: tab === t ? 'none' : `1px solid ${tv.border}`,
                 borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
               }}
             >
@@ -454,7 +456,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             <div className={isV5 ? 'v5-card' : 'v22-msg-empty'} style={{ textAlign: 'center', padding: 24 }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>{'\uD83D\uDCAC'}</div>
               <div>{search.trim() ? 'Aucun résultat' : 'Aucune conversation'}</div>
-              <div style={{ marginTop: 4, color: 'var(--v22-text-muted)', fontSize: 11 }}>
+              <div style={{ marginTop: 4, color: tv.textMuted, fontSize: 11 }}>
                 {search.trim() ? 'Essayez un autre terme' : 'Vos conversations apparaîtront ici'}
               </div>
             </div>
@@ -517,7 +519,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>{'\uD83D\uDCAC'}</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>Sélectionnez une conversation</div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
+              <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
             </div>
           </div>
         ) : (
@@ -548,7 +550,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             <div className={isV5 ? '' : 'v22-msg-thread'} style={isV5 ? { flex: 1, overflowY: 'auto', padding: 16 } : {}}>
               {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
-                  <div style={{ width: 24, height: 24, border: '2px solid var(--v22-border)', borderTopColor: 'var(--v22-yellow)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  <div style={{ width: 24, height: 24, border: `2px solid ${tv.border}`, borderTopColor: tv.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                 </div>
               ) : messages.length === 0 ? (
                 <div className={isV5 ? 'v5-card' : 'v22-msg-empty'} style={{ textAlign: 'center', padding: 24 }}>
@@ -620,7 +622,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               <button onClick={() => setShowTimePickerForMsg(null)} className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'}>{'\u2715'}</button>
             </div>
             <div className={isV5 ? '' : 'v22-modal-body'} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
-              <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+              <div style={{ fontSize: 11, color: tv.textMuted }}>
                 Indiquez votre heure d&apos;arrivée et la durée estimée
               </div>
 
@@ -688,11 +690,11 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
                   marginTop: 8,
                   textAlign: 'center',
                   fontSize: 11,
-                  color: 'var(--v22-text-mid)',
-                  background: 'var(--v22-yellow-light)',
+                  color: tv.textMid,
+                  background: tv.primaryLight,
                   borderRadius: 3,
                   padding: '6px 0',
-                  border: '1px solid var(--v22-yellow-border)',
+                  border: `1px solid ${tv.primaryBorder}`,
                 }}>
                   {'📅'} Créneau bloqué : {arrivalTime} {'→'}{' '}
                   {(() => {
@@ -731,6 +733,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   isV5?: boolean
 }) {
   const locale = useLocale()
+  const tv = useThemeVars(isV5)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const time = new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })
 
@@ -741,7 +744,7 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
         <span className={isV5 ? 'v5-msg-tx' : 'v22-msg-system-text'} style={isV5 ? { fontSize: 11, color: 'var(--text-muted)' } : {}}>
           {msg.content}
           <br />
-          <span style={{ fontSize: 9, color: 'var(--v22-text-muted)' }}>{time}</span>
+          <span style={{ fontSize: 9, color: tv.textMuted }}>{time}</span>
         </span>
       </div>
     )
@@ -814,6 +817,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
   isV5?: boolean
 }) {
   const locale = useLocale()
+  const tv = useThemeVars(isV5)
   const isPt = locale === 'pt'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
   const URGENCE_CONFIG = getUrgenceConfig(isPt)
@@ -916,7 +920,7 @@ function OrdreMissionCard({ msg, isOwn, onAction, onProposerDevis, contactName, 
 
         {/* Timestamp */}
         <div style={{ padding: '0 14px 8px', textAlign: 'right' }}>
-          <span style={{ fontSize: 10, color: 'var(--v22-text-muted)' }}>
+          <span style={{ fontSize: 10, color: tv.textMuted }}>
             {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>

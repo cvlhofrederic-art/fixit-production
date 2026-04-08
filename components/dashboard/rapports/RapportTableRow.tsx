@@ -3,6 +3,8 @@
  * Extracted from RapportsSection.tsx.
  */
 
+import { useThemeVars } from '../useThemeVars'
+
 interface RapportIntervention {
   id: string
   rapportNumber: string
@@ -68,6 +70,8 @@ export default function RapportTableRow({
   pdfLoading,
   onNavigate,
 }: RapportTableRowProps) {
+  const isV5 = false
+  const tv = useThemeVars(isV5)
   const st = RAPPORT_STATUS_MAP[r.status] || RAPPORT_STATUS_MAP.termine
   const duration = r.startTime && r.endTime ? (() => {
     const [sh, sm] = r.startTime.split(':').map(Number)
@@ -94,7 +98,7 @@ export default function RapportTableRow({
           return (
             <div
               className="v22-card-meta"
-              style={{ marginTop: '2px', color: 'var(--v22-yellow)', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
+              style={{ marginTop: '2px', color: tv.primary, cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
               onClick={() => onNavigate?.('devis')}
             >
               📋 Lie au devis: {label}
@@ -113,7 +117,7 @@ export default function RapportTableRow({
           return (
             <div
               className="v22-card-meta"
-              style={{ marginTop: '2px', color: 'var(--v22-yellow)', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
+              style={{ marginTop: '2px', color: tv.primary, cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
               onClick={() => onNavigate?.('devis')}
             >
               🧾 Lie a la facture: {label}
@@ -164,7 +168,7 @@ export default function RapportTableRow({
             {pdfLoading === r.id ? '\u23F3' : 'PDF'}
           </button>
           <button onClick={() => onEdit(r)} className="v22-btn v22-btn-sm">&#9997;&#65039;</button>
-          <button onClick={() => onDelete(r.id)} className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>🗑️</button>
+          <button onClick={() => onDelete(r.id)} className="v22-btn v22-btn-sm" style={{ color: tv.red }}>🗑️</button>
           {r.sentStatus !== 'envoye' && (
             <button onClick={() => onMarkSent(r.id)} className="v22-btn v22-btn-sm">
               Marquer envoye

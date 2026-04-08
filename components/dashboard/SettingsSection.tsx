@@ -7,6 +7,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
+import { useThemeVars } from './useThemeVars'
 
 interface SettingsSectionProps {
   artisan: Artisan
@@ -78,6 +79,7 @@ function isValidIban(iban: string): boolean {
 }
 
 function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean }) {
+  const tv = useThemeVars(isV5)
   const [modes, setModes] = useState<PaymentMode[]>(DEFAULT_MODES)
   const [mentionDevis, setMentionDevis] = useState(true)
   const [mentionFacture, setMentionFacture] = useState(true)
@@ -120,7 +122,7 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
 
   const activeModes = modes.filter(m => m.actif)
 
-  if (loading) return <div className={isV5 ? 'v5-card' : 'v22-card'}><div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: 20, color: 'var(--v22-text-muted)' }}>Chargement...</div></div>
+  if (loading) return <div className={isV5 ? 'v5-card' : 'v22-card'}><div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: 20, color: tv.textMuted }}>Chargement...</div></div>
 
   return (
     <div className={isV5 ? 'v5-card' : 'v22-card'}>
@@ -128,12 +130,12 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
         <div className={isV5 ? 'v5-st' : 'v22-card-title'}>Informations de paiement</div>
       </div>
       <div className={isV5 ? '' : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 4 }}>
+        <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 4 }}>
           Ces informations apparaîtront sur vos devis et factures envoyés aux clients.
         </div>
 
         {modes.map((mode, idx) => (
-          <div key={mode.type} style={{ borderBottom: '1px solid var(--v22-border)', paddingBottom: 10 }}>
+          <div key={mode.type} style={{ borderBottom: `1px solid ${tv.border}`, paddingBottom: 10 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
               <input type="checkbox" checked={mode.actif} onChange={(e) => updateMode(idx, { actif: e.target.checked })} />
               {MODE_LABELS[mode.type]}
@@ -165,7 +167,7 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
                   <label style={{ fontSize: 12, width: 60 }}>Lien</label>
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.lien || ''} onChange={(e) => updateMode(idx, { lien: e.target.value })} placeholder="https://buy.stripe.com/..." style={{ flex: 1, fontSize: 12 }} />
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, paddingLeft: 66 }}>Le client paiera directement depuis ce lien</div>
+                <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, paddingLeft: 66 }}>Le client paiera directement depuis ce lien</div>
               </div>
             )}
 
@@ -179,7 +181,7 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
             )}
 
             {mode.actif && mode.type === 'especes' && (
-              <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 11, color: 'var(--v22-text-muted)' }}>Aucune info supplémentaire requise</div>
+              <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 11, color: tv.textMuted }}>Aucune info supplémentaire requise</div>
             )}
 
             {mode.actif && mode.type === 'autre' && (
@@ -204,11 +206,11 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
 
         {/* Aperçu */}
         {activeModes.length > 0 && (
-          <div style={{ background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 8, padding: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6, color: 'var(--v22-text-muted)' }}>APERÇU SUR LE DOCUMENT</div>
+          <div style={{ background: tv.surface, border: `1px solid ${tv.border}`, borderRadius: 8, padding: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6, color: tv.textMuted }}>APERÇU SUR LE DOCUMENT</div>
             <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MODE DE RÈGLEMENT</div>
             {activeModes.map(m => (
-              <div key={m.type} style={{ fontSize: 11, color: 'var(--v22-text-secondary)', marginBottom: 2 }}>
+              <div key={m.type} style={{ fontSize: 11, color: tv.textSecondary, marginBottom: 2 }}>
                 {m.type === 'virement' && `Virement : ${formatIban(m.iban || '...')} — ${m.titulaire || '...'}`}
                 {m.type === 'stripe' && `Paiement en ligne : ${m.lien || '...'}`}
                 {m.type === 'cheque' && `Chèque à l'ordre de : ${m.ordre || '...'}`}
@@ -230,6 +232,7 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
 // ── Parrainage Settings Tab ────────────────────────────────────────────────
 
 function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: boolean }) {
+  const tv = useThemeVars(isV5)
   const [referralCode, setReferralCode] = useState('')
   const [creditMois, setCreditMois] = useState(0)
   const [totalParrainages, setTotalParrainages] = useState(0)
@@ -293,7 +296,7 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
 
   if (loading) {
     return (
-      <div style={{ padding: 16, textAlign: 'center', color: 'var(--v22-text-muted)' }}>
+      <div style={{ padding: 16, textAlign: 'center', color: tv.textMuted }}>
         Chargement...
       </div>
     )
@@ -310,20 +313,20 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
           {referralCode ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <div style={{ flex: 1, padding: '10px 14px', background: 'var(--v22-bg)', borderRadius: 8, border: '1px solid var(--v22-border)', fontFamily: 'monospace', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--v22-text)' }}>
+                <div style={{ flex: 1, padding: '10px 14px', background: tv.bg, borderRadius: 8, border: `1px solid ${tv.border}`, fontFamily: 'monospace', fontSize: 16, fontWeight: 700, letterSpacing: '0.1em', color: tv.text }}>
                   {referralCode}
                 </div>
                 <button onClick={copyLink} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ whiteSpace: 'nowrap' }}>
                   {copied ? '✅ Copié' : '📋 Copier le lien'}
                 </button>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', wordBreak: 'break-all' }}>
+              <div style={{ fontSize: 12, color: tv.textMuted, wordBreak: 'break-all' }}>
                 {referralLink}
               </div>
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
-              <p style={{ fontSize: 14, color: 'var(--v22-text-muted)', marginBottom: 12 }}>
+              <p style={{ fontSize: 14, color: tv.textMuted, marginBottom: 12 }}>
                 Aucun code de parrainage. Générez-en un pour commencer à parrainer.
               </p>
               <button onClick={generateCode} disabled={generating} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ opacity: generating ? 0.5 : 1 }}>
@@ -341,13 +344,13 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
         </div>
         <div className={isV5 ? '' : 'v22-card-body'}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ padding: 16, background: 'var(--v22-bg)', borderRadius: 8, textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--v22-text)' }}>{totalParrainages}</div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 4 }}>Parrainage{totalParrainages > 1 ? 's' : ''} réussi{totalParrainages > 1 ? 's' : ''}</div>
+            <div style={{ padding: 16, background: tv.bg, borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: tv.text }}>{totalParrainages}</div>
+              <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 4 }}>Parrainage{totalParrainages > 1 ? 's' : ''} réussi{totalParrainages > 1 ? 's' : ''}</div>
             </div>
-            <div style={{ padding: 16, background: creditMois > 0 ? 'var(--v22-green-light)' : 'var(--v22-bg)', borderRadius: 8, textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 700, color: creditMois > 0 ? 'var(--v22-green)' : 'var(--v22-text)' }}>{creditMois}</div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 4 }}>Mois gratuit{creditMois > 1 ? 's' : ''} disponible{creditMois > 1 ? 's' : ''}</div>
+            <div style={{ padding: 16, background: creditMois > 0 ? tv.greenLight : tv.bg, borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, color: creditMois > 0 ? tv.green : tv.text }}>{creditMois}</div>
+              <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 4 }}>Mois gratuit{creditMois > 1 ? 's' : ''} disponible{creditMois > 1 ? 's' : ''}</div>
             </div>
           </div>
         </div>
@@ -359,10 +362,10 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
           <div className={isV5 ? 'v5-st' : 'v22-card-title'}>🔔 Notifications parrainage</div>
         </div>
         <div className={isV5 ? '' : 'v22-card-body'}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--v22-bg)', borderRadius: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: tv.bg, borderRadius: 6 }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>Emails de parrainage</div>
-              <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>Emails de parrainage</div>
+              <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 2 }}>
                 {notifEnabled ? 'Recevez un email à chaque étape du parrainage' : 'Notifications par email désactivées'}
               </div>
             </div>
@@ -372,7 +375,7 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
               style={{
                 width: 44, height: 24, borderRadius: 12, position: 'relative',
                 transition: 'background .2s',
-                background: notifEnabled ? 'var(--v22-green)' : 'var(--v22-border-dark)',
+                background: notifEnabled ? tv.green : tv.borderDark,
                 border: 'none', cursor: savingNotif ? 'wait' : 'pointer', flexShrink: 0,
                 opacity: savingNotif ? 0.5 : 1,
               }}
@@ -392,6 +395,7 @@ function ParrainageSettingsTab({ artisanId, isV5 }: { artisanId: string; isV5: b
 }
 
 function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
+  const tv = useThemeVars(isV5)
   const { t } = useTranslation()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -434,7 +438,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
         {msg && (
           <div className={isV5 ? `v5-badge v5-badge-${msg.type === 'success' ? 'green' : 'red'}` : `v22-alert ${msg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             {msg.text}
-            <button onClick={() => setMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-text-muted)', fontSize: 14 }}>{'✕'}</button>
+            <button onClick={() => setMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: tv.textMuted, fontSize: 14 }}>{'✕'}</button>
           </div>
         )}
 
@@ -459,7 +463,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
             autoComplete="new-password"
             className={isV5 ? 'v5-fi' : 'v22-form-input'}
           />
-          <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.pwdMinLength')}</span>
+          <span style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, display: 'block' }}>{t('proDash.settings.pwdMinLength')}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
           <button
@@ -486,6 +490,7 @@ export default function SettingsSection({
 }: SettingsSectionProps) {
   const { t } = useTranslation()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
@@ -543,19 +548,19 @@ export default function SettingsSection({
                 {uploadMsg && (
                   <div className={isV5 ? `v5-badge v5-badge-${uploadMsg.type === 'success' ? 'green' : 'red'}` : `v22-alert ${uploadMsg.type === 'success' ? 'v22-alert-green' : 'v22-alert-red'}`} style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {uploadMsg.text}
-                    <button onClick={() => setUploadMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v22-text-muted)', fontSize: 14 }}>{'✕'}</button>
+                    <button onClick={() => setUploadMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: tv.textMuted, fontSize: 14 }}>{'✕'}</button>
                   </div>
                 )}
 
                 {/* Photo de profil — base64 direct en DB */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                     {profilePhotoPreview ? (
                       <Image src={profilePhotoPreview} alt={t('proDash.settings.photoProfil')} fill className="object-cover" unoptimized />
                     ) : (artisan as any)?.profile_photo_url ? (
                       <Image src={(artisan as any).profile_photo_url} alt={t('proDash.settings.photoProfil')} fill className="object-cover" sizes="64px" />
                     ) : (
-                      <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--v22-text-muted)' }}>{initials}</span>
+                      <span style={{ fontSize: 22, fontWeight: 700, color: tv.textMuted }}>{initials}</span>
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -589,19 +594,19 @@ export default function SettingsSection({
                         }
                       }} />
                     </label>
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
+                    <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>{t('proDash.settings.photoFormat')}</div>
                   </div>
                 </div>
 
                 {/* Logo entreprise (pour devis/factures PDF) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 0', borderTop: '1px solid var(--v22-border)' }}>
-                  <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: '2px dashed var(--v22-border)', flexShrink: 0, background: 'var(--v22-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 0', borderTop: `1px solid ${tv.border}` }}>
+                  <div style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: `2px dashed ${tv.border}`, flexShrink: 0, background: tv.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                     {logoPreview ? (
                       <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
                     ) : (artisan as any)?.logo_url ? (
                       <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="64px" style={{ padding: 4 }} />
                     ) : (
-                      <span style={{ fontSize: 10, color: 'var(--v22-text-muted)', textAlign: 'center', lineHeight: 1.2 }}>Logo<br/>PDF</span>
+                      <span style={{ fontSize: 10, color: tv.textMuted, textAlign: 'center', lineHeight: 1.2 }}>Logo<br/>PDF</span>
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -637,7 +642,7 @@ export default function SettingsSection({
                         }
                       }} />
                     </label>
-                    <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>PNG, JPG ou WebP. Max 2 Mo. Apparaît en haut à gauche des devis.</div>
+                    <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>PNG, JPG ou WebP. Max 2 Mo. Apparaît en haut à gauche des devis.</div>
                   </div>
                 </div>
 
@@ -673,7 +678,7 @@ export default function SettingsSection({
               <div className={isV5 ? '' : 'v22-card-body'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
-                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1, background: 'var(--v22-bg)', color: 'var(--v22-text-muted)', fontSize: 12 }} />
+                    className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1, background: tv.bg, color: tv.textMuted, fontSize: 12 }} />
                   <button onClick={() => { navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`); toast.success(t('proDash.settings.lienCopie')) }}
                     className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ whiteSpace: 'nowrap' }}>
                     {'📋'} {t('proDash.settings.copier')}
@@ -705,25 +710,25 @@ export default function SettingsSection({
               </div>
               <div className={isV5 ? '' : 'v22-card-body'}>
                 {/* Toggle auto-accept */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--v22-bg)', borderRadius: 6, marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: tv.bg, borderRadius: 6, marginBottom: 12 }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{t('proDash.settings.validationAutoRdv')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{t('proDash.settings.validationAutoRdv')}</div>
+                    <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 2 }}>
                       {autoAccept ? t('proDash.settings.autoAcceptOn') : t('proDash.settings.autoAcceptOff')}
                     </div>
                   </div>
                   {isV5 ? (
                     <button onClick={toggleAutoAccept} className={`v5-tgl${autoAccept ? ' active' : ''}`} />
                   ) : (
-                    <button onClick={toggleAutoAccept} style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: autoAccept ? 'var(--v22-green)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                    <button onClick={toggleAutoAccept} style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: autoAccept ? tv.green : tv.borderDark, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                       <div style={{ position: 'absolute', top: 2, width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', transition: 'left .2s', left: autoAccept ? 22 : 2 }} />
                     </button>
                   )}
                 </div>
 
                 {autoAccept && (
-                  <div style={{ padding: 12, background: 'var(--v22-green-light)', borderRadius: 6, border: '1px solid var(--v22-green)', marginBottom: 12 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 8 }}>{'⚙️'} {t('proDash.settings.optionsAutoAccept')}</div>
+                  <div style={{ padding: 12, background: tv.greenLight, borderRadius: 6, border: `1px solid ${tv.green}`, marginBottom: 12 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 8 }}>{'⚙️'} {t('proDash.settings.optionsAutoAccept')}</div>
                     <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.settings.dureeBlocage')}</label>
                     <select
                       value={settingsForm.auto_block_duration_minutes}
@@ -737,14 +742,14 @@ export default function SettingsSection({
                       <option value={360}>{t('proDash.settings.heures6')}</option>
                       <option value={480}>{t('proDash.settings.heures8')}</option>
                     </select>
-                    <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.blocageInfo')}</span>
+                    <span style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, display: 'block' }}>{t('proDash.settings.blocageInfo')}</span>
                   </div>
                 )}
 
                 {/* Auto-reply */}
-                <div style={{ padding: 12, background: 'var(--v22-bg)', borderRadius: 6, marginBottom: 12 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 4 }}>{'💬'} {t('proDash.settings.reponseAuto')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 8 }}>{t('proDash.settings.reponseAutoDesc')}</div>
+                <div style={{ padding: 12, background: tv.bg, borderRadius: 6, marginBottom: 12 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 4 }}>{'💬'} {t('proDash.settings.reponseAuto')}</div>
+                  <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 8 }}>{t('proDash.settings.reponseAutoDesc')}</div>
                   <textarea
                     value={settingsForm.auto_reply_message}
                     onChange={e => setSettingsForm({...settingsForm, auto_reply_message: e.target.value})}
@@ -756,8 +761,8 @@ export default function SettingsSection({
                 </div>
 
                 {/* Intervention radius */}
-                <div style={{ padding: 12, background: 'var(--v22-bg)', borderRadius: 6 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 8 }}>{'📍'} {t('proDash.settings.perimetreIntervention')}</div>
+                <div style={{ padding: 12, background: tv.bg, borderRadius: 6 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 8 }}>{'📍'} {t('proDash.settings.perimetreIntervention')}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <input
                       type="range"
@@ -766,11 +771,11 @@ export default function SettingsSection({
                       step={5}
                       value={settingsForm.zone_radius_km}
                       onChange={e => setSettingsForm({...settingsForm, zone_radius_km: parseInt(e.target.value)})}
-                      style={{ flex: 1, accentColor: 'var(--v22-yellow)' }}
+                      style={{ flex: 1, accentColor: tv.primary }}
                     />
-                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--v22-text)', minWidth: 60, textAlign: 'right' }}>{settingsForm.zone_radius_km} km</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: tv.text, minWidth: 60, textAlign: 'right' }}>{settingsForm.zone_radius_km} km</span>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4, display: 'block' }}>{t('proDash.settings.rayonAutour')}</span>
+                  <span style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, display: 'block' }}>{t('proDash.settings.rayonAutour')}</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, paddingTop: 12 }}>
@@ -802,8 +807,8 @@ export default function SettingsSection({
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--v22-text)' }}>🧩 {t('proDash.settings.mesModules')}</div>
-                <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.modulesDesc')}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: tv.text }}>🧩 {t('proDash.settings.mesModules')}</div>
+                <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 2 }}>{t('proDash.settings.modulesDesc')}</div>
               </div>
               <span className={isV5 ? 'v5-badge v5-badge-yellow' : 'v22-tag v22-tag-yellow'}>
                 {ALL_MODULES.filter(m => !m.locked && isModuleEnabled(m.id)).length}/{ALL_MODULES.filter(m => !m.locked).length} {t('proDash.settings.actifs')}
@@ -823,26 +828,26 @@ export default function SettingsSection({
                 if (groupMods.length === 0) return null
                 return (
                   <div key={group.title}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--v22-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{group.title}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: tv.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{group.title}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                       {groupMods.map(mod => {
                         const enabled = isModuleEnabled(mod.id)
                         return (
-                          <div key={mod.id} className={isV5 ? 'v5-card' : 'v22-card'} style={{ opacity: enabled ? 1 : 0.6, borderColor: enabled ? 'var(--v22-yellow-border)' : 'var(--v22-border)' }}>
+                          <div key={mod.id} className={isV5 ? 'v5-card' : 'v22-card'} style={{ opacity: enabled ? 1 : 0.6, borderColor: enabled ? tv.primaryBorder : tv.border }}>
                             <div style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: enabled ? 'var(--v22-yellow-light)' : 'var(--v22-bg)' }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: enabled ? tv.primaryLight : tv.bg }}>
                                 {mod.icon}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{mod.label}</div>
-                                <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{mod.description}</div>
+                                <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{mod.label}</div>
+                                <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>{mod.description}</div>
                               </div>
                               {isV5 ? (
                                 <button onClick={() => toggleModule(mod.id)} className={`v5-tgl${enabled ? ' active' : ''}`} />
                               ) : (
                                 <button
                                   onClick={() => toggleModule(mod.id)}
-                                  style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: enabled ? 'var(--v22-yellow)' : 'var(--v22-border-dark)', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+                                  style={{ width: 44, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s', background: enabled ? tv.primary : tv.borderDark, border: 'none', cursor: 'pointer', flexShrink: 0 }}
                                 >
                                   <div style={{ width: 20, height: 20, background: '#fff', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,.15)', position: 'absolute', top: 2, transition: 'left .2s', left: enabled ? 22 : 2 }} />
                                 </button>
@@ -862,7 +867,7 @@ export default function SettingsSection({
               <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div className={isV5 ? 'v5-st' : 'v22-card-title'}>↕️ {t('proDash.settings.ordreMenu')}</div>
-                  <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.ordreMenuDesc')}</div>
+                  <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 2 }}>{t('proDash.settings.ordreMenuDesc')}</div>
                 </div>
                 <button
                   onClick={() => saveModulesConfig(ALL_MODULES.map((m, i) => ({ id: m.id, enabled: true, order: i })))}
@@ -880,21 +885,21 @@ export default function SettingsSection({
                     const mod = ALL_MODULES.find(m => m.id === conf.id)
                     if (!mod) return null
                     return (
-                      <div key={mod.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', border: '1px solid var(--v22-yellow-border)', borderRadius: 6, background: 'var(--v22-surface)', transition: 'border-color .15s' }}>
-                        <span style={{ color: 'var(--v22-text-muted)', userSelect: 'none', fontSize: 16, lineHeight: 1, fontFamily: 'monospace' }}>⠿</span>
+                      <div key={mod.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', border: `1px solid ${tv.primaryBorder}`, borderRadius: 6, background: tv.surface, transition: 'border-color .15s' }}>
+                        <span style={{ color: tv.textMuted, userSelect: 'none', fontSize: 16, lineHeight: 1, fontFamily: 'monospace' }}>⠿</span>
                         <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{mod.icon}</span>
-                        <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: 'var(--v22-text)' }}>{mod.label}</span>
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: tv.text }}>{mod.label}</span>
                         <span className={isV5 ? 'v5-badge' : 'v22-ref'} style={{ width: 20, textAlign: 'center' }}>{idx + 1}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <button
                             onClick={() => moveModule(mod.id, 'up')}
                             disabled={idx === 0}
-                            style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 3, border: 'none', background: 'none', cursor: idx === 0 ? 'not-allowed' : 'pointer', color: idx === 0 ? 'var(--v22-border)' : 'var(--v22-text-muted)', fontSize: 11, fontWeight: 700, opacity: idx === 0 ? 0.3 : 1 }}
+                            style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 3, border: 'none', background: 'none', cursor: idx === 0 ? 'not-allowed' : 'pointer', color: idx === 0 ? tv.border : tv.textMuted, fontSize: 11, fontWeight: 700, opacity: idx === 0 ? 0.3 : 1 }}
                           >▲</button>
                           <button
                             onClick={() => moveModule(mod.id, 'down')}
                             disabled={idx === enabledMods.length - 1}
-                            style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 3, border: 'none', background: 'none', cursor: idx === enabledMods.length - 1 ? 'not-allowed' : 'pointer', color: idx === enabledMods.length - 1 ? 'var(--v22-border)' : 'var(--v22-text-muted)', fontSize: 11, fontWeight: 700, opacity: idx === enabledMods.length - 1 ? 0.3 : 1 }}
+                            style={{ width: 22, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 3, border: 'none', background: 'none', cursor: idx === enabledMods.length - 1 ? 'not-allowed' : 'pointer', color: idx === enabledMods.length - 1 ? tv.border : tv.textMuted, fontSize: 11, fontWeight: 700, opacity: idx === enabledMods.length - 1 ? 0.3 : 1 }}
                           >▼</button>
                         </div>
                       </div>
@@ -909,8 +914,8 @@ export default function SettingsSection({
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <span style={{ fontSize: 18 }}>💡</span>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-amber)' }}>{t('proDash.settings.astuce')}</div>
-                  <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>{t('proDash.settings.astuceTexte')}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: tv.primary }}>{t('proDash.settings.astuce')}</div>
+                  <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>{t('proDash.settings.astuceTexte')}</div>
                 </div>
               </div>
             </div>

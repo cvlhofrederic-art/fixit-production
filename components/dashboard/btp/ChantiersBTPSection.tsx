@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { PlusCircle, Users, HardHat, Calendar, DollarSign, MapPin, Check } from 'lucide-react'
+import { useThemeVars } from '../useThemeVars'
 import type { Artisan, Booking } from '@/lib/types'
 
 interface ChantierItem {
@@ -14,6 +15,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_chantiers_${artisan?.id}`
   const [chantiers, setChantiers] = useState<ChantierItem[]>(() => {
@@ -186,8 +188,8 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
               </div>
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: isV5 ? '1px solid #E8E8E8' : '1px solid var(--v22-border)' }} onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: 'var(--v22-yellow)', fontWeight: 700 }) }} onClick={handleSave} disabled={!form.titre.trim()}><Check size={14} /> {isPt ? 'Criar obra' : 'Cr\u00E9er le chantier'}</button>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.primary, fontWeight: 700 }) }} onClick={handleSave} disabled={!form.titre.trim()}><Check size={14} /> {isPt ? 'Criar obra' : 'Cr\u00E9er le chantier'}</button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useThemeVars } from './useThemeVars'
 
 // ══════════════════════════════════════════════════════════════
 // ServiceEtapesEditor — Gestion des étapes template d'un motif
@@ -20,6 +21,8 @@ interface Props {
 }
 
 export default function ServiceEtapesEditor({ serviceId }: Props) {
+  const isV5 = false
+  const tv = useThemeVars(isV5)
   const [etapes, setEtapes] = useState<Etape[]>([])
   const [loading, setLoading] = useState(false)
   const [newText, setNewText] = useState('')
@@ -146,7 +149,7 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
 
   if (!serviceId) {
     return (
-      <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--v22-text-muted)', fontStyle: 'italic' }}>
+      <div style={{ padding: '12px 0', fontSize: 12, color: tv.textMuted, fontStyle: 'italic' }}>
         Sauvegardez le motif pour pouvoir ajouter des étapes.
       </div>
     )
@@ -157,12 +160,12 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
       <label className="v22-form-label" style={{ marginBottom: 6 }}>
         {'📋'} Étapes par défaut
       </label>
-      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: tv.textMuted, marginBottom: 10 }}>
         Ces étapes seront copiées sur chaque devis utilisant ce motif
       </div>
 
       {loading ? (
-        <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--v22-text-muted)' }}>
+        <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: tv.textMuted }}>
           Chargement...
         </div>
       ) : (
@@ -183,19 +186,19 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
                     gap: 8,
                     padding: '6px 8px',
                     borderRadius: 6,
-                    border: '1px solid var(--v22-border)',
-                    background: dragIndex === index ? 'var(--v22-yellow-light)' : 'var(--v22-surface)',
+                    border: `1px solid ${tv.border}`,
+                    background: dragIndex === index ? tv.primaryLight : tv.surface,
                     cursor: 'grab',
                     fontSize: 13,
                   }}
                 >
                   {/* Drag handle */}
-                  <span style={{ color: 'var(--v22-text-muted)', cursor: 'grab', fontSize: 14, userSelect: 'none' }}>
+                  <span style={{ color: tv.textMuted, cursor: 'grab', fontSize: 14, userSelect: 'none' }}>
                     ≡
                   </span>
 
                   {/* Numéro */}
-                  <span style={{ color: 'var(--v22-text-muted)', fontSize: 11, minWidth: 18, textAlign: 'center' }}>
+                  <span style={{ color: tv.textMuted, fontSize: 11, minWidth: 18, textAlign: 'center' }}>
                     {index + 1}.
                   </span>
 
@@ -228,14 +231,14 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
                         onClick={() => startEdit(etape)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: 'var(--v22-text-muted)' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: tv.textMuted }}
                         title="Modifier"
                       >
                         ✎
                       </button>
                       <button
                         onClick={() => handleDelete(etape.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: 'var(--v22-red)' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: tv.red }}
                         title="Supprimer"
                       >
                         ✕
@@ -270,7 +273,7 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
           </div>
 
           {etapes.length === 0 && (
-            <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 6, fontStyle: 'italic' }}>
+            <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 6, fontStyle: 'italic' }}>
               Aucune étape. Les étapes décrivent le déroulement de l'intervention pour le client.
             </div>
           )}

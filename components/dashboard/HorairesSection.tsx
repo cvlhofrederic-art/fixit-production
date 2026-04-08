@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslation } from '@/lib/i18n/context'
+import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Availability } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -36,6 +37,7 @@ export default function HorairesSection({
   const { t } = useTranslation()
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = isSociete
+  const tv = useThemeVars(isV5)
 
   return (
     <div className={isV5 ? 'v5-fade' : undefined}>
@@ -112,7 +114,7 @@ export default function HorairesSection({
               const dayServiceIds = dayServices[String(day)] || []
               const activeServices = services.filter(s => s.active)
               return (
-                <div key={day} className={isV5 ? 'v5-horaire-row' : undefined} style={isV5 ? undefined : { padding: 10, borderRadius: 6, background: 'var(--v22-bg)' }}>
+                <div key={day} className={isV5 ? 'v5-horaire-row' : undefined} style={isV5 ? undefined : { padding: 10, borderRadius: 6, background: tv.bg }}>
                   <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                     <span style={{ width: 90, fontWeight: 600, fontSize: 13 }}>{DAY_NAMES[day]}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -134,7 +136,7 @@ export default function HorairesSection({
                             border: 'none',
                             cursor: 'pointer',
                             transition: 'background .2s',
-                            background: avail?.is_available ? 'var(--v22-green)' : 'var(--v22-border-dark)',
+                            background: avail?.is_available ? tv.green : tv.borderDark,
                           }}
                         >
                           <div style={{
@@ -177,7 +179,7 @@ export default function HorairesSection({
                     </div>
                   </div>
                   {avail?.is_available && activeServices.length > 0 && (
-                    <div style={{ marginTop: 10, marginLeft: 100, paddingLeft: 12, borderLeft: '2px solid var(--v22-yellow)' }}>
+                    <div style={{ marginTop: 10, marginLeft: 100, paddingLeft: 12, borderLeft: `2px solid ${tv.primary}` }}>
                       <p className="v22-form-label" style={{ marginBottom: 6 }}>
                       {isSociete ? 'Lots disponibles ce jour' : t('proDash.horaires.motifsDisponibles')}
                     </p>
@@ -196,7 +198,7 @@ export default function HorairesSection({
                                 type="checkbox"
                                 checked={isAssigned}
                                 onChange={() => toggleDayService(day, service.id)}
-                                style={{ width: 13, height: 13, accentColor: 'var(--v22-yellow)' }}
+                                style={{ width: 13, height: 13, accentColor: tv.primary }}
                               />
                               <span>{service.name}</span>
                             </label>
@@ -204,7 +206,7 @@ export default function HorairesSection({
                         })}
                       </div>
                       {dayServiceIds.length === 0 && (
-                        <p style={{ fontSize: 11, color: 'var(--v22-amber)', marginTop: 4 }}>{t('proDash.horaires.aucunMotif')}</p>
+                        <p style={{ fontSize: 11, color: tv.primary, marginTop: 4 }}>{t('proDash.horaires.aucunMotif')}</p>
                       )}
                     </div>
                   )}
@@ -214,7 +216,7 @@ export default function HorairesSection({
           </div>
           {savingAvail && (
             <div style={{ padding: '0 14px 14px' }}>
-              <p style={{ fontSize: 12, color: 'var(--v22-yellow)', fontWeight: 500 }}>{t('proDash.horaires.sauvegarde')}</p>
+              <p style={{ fontSize: 12, color: tv.primary, fontWeight: 500 }}>{t('proDash.horaires.sauvegarde')}</p>
             </div>
           )}
         </div>

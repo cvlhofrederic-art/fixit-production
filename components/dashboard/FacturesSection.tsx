@@ -5,6 +5,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData } from '@/lib/devis-types'
+import { useThemeVars, ThemeVars } from './useThemeVars'
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -62,6 +63,7 @@ export default function FacturesSection({
 
   const factureDocs = savedDocuments.filter(d => d.docType === 'facture')
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   const getStatusTag = (doc: PersistedDocument, isOverdue: boolean) => {
     if (isOverdue && doc.status !== 'envoye') return { cls: 'v22-tag v22-tag-red', label: t('proDash.factures.echue') }
@@ -82,6 +84,7 @@ export default function FacturesSection({
       dateLocale={dateLocale}
       locale={locale}
       t={t}
+      tv={tv}
     />
   }
 
@@ -189,7 +192,7 @@ export default function FacturesSection({
                               {t('proDash.factures.envoyerEmail')}
                             </button>
                           )}
-                          <button className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }} onClick={(e) => {
+                          <button className="v22-btn v22-btn-sm" style={{ color: tv.red }} onClick={(e) => {
                             e.stopPropagation()
                             if (!confirm(`${t('proDash.factures.supprimerFactureConfirm')} ${doc.docNumber} ?`)) return
                             const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
@@ -213,8 +216,8 @@ export default function FacturesSection({
         ) : (
           <div className="v22-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>{'🧾'}</div>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: 'var(--v22-text)' }}>{t('proDash.factures.aucuneFacture')}</div>
-            <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 20 }}>{t('proDash.factures.creerPremiereFacture')}</div>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: tv.text }}>{t('proDash.factures.aucuneFacture')}</div>
+            <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 20 }}>{t('proDash.factures.creerPremiereFacture')}</div>
             <button className="v22-btn v22-btn-primary" onClick={() => setShowFactureForm(true)}>
               {t('proDash.factures.creerFacture')}
             </button>
@@ -230,7 +233,7 @@ export default function FacturesSection({
    ═══════════════════════════════════════════════════════ */
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis,
-  artisan, setSavedDocuments, dateLocale, locale, t,
+  artisan, setSavedDocuments, dateLocale, locale, t, tv,
 }: {
   factureDocs: PersistedDocument[]
   setShowFactureForm: (v: boolean) => void
@@ -240,6 +243,7 @@ function FacturesSectionV5({
   dateLocale: string
   locale: string
   t: (k: string) => string
+  tv: ThemeVars
 }) {
   const [search, setSearch] = useState('')
 
@@ -366,7 +370,7 @@ function FacturesSectionV5({
               )
             }) : (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
                   {search ? 'Aucune facture trouvée' : 'Aucune facture. Créez votre première facture.'}
                 </td>
               </tr>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
+import { useThemeVars } from './useThemeVars'
 
 interface HomeSectionProps {
   artisan: Artisan
@@ -77,6 +78,8 @@ export default function HomeSection({
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   const now = new Date()
   const weekNum = getWeekNumber(now)
@@ -315,7 +318,7 @@ export default function HomeSection({
         <div className="v22-stat" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
           <div className="v22-stat-label">{locale === 'pt' ? 'Nota média' : 'Note moyenne'}</div>
           <div className="v22-stat-val">{artisan?.rating_avg || '5.0'} ★</div>
-          <div className="v22-stat-delta" style={{ color: 'var(--v22-text-muted)' }}>{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
+          <div className="v22-stat-delta" style={{ color: tv.textMuted }}>{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
         </div>
         <div className="v22-stat" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
           <div className="v22-stat-label">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
@@ -331,13 +334,13 @@ export default function HomeSection({
           <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center' }}>
             <div className="v22-card-title">{locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues'}</div>
             <span className="v22-tag v22-tag-yellow" style={{ marginLeft: 'auto' }}>{pendingBookings.length} {locale === 'pt' ? 'pendentes' : 'en attente'}</span>
-            <button className="v22-btn v22-btn-sm" style={{ marginLeft: '8px', border: 'none', background: 'none', color: 'var(--v22-text-muted)', cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('calendar')}>
+            <button className="v22-btn v22-btn-sm" style={{ marginLeft: '8px', border: 'none', background: 'none', color: tv.textMuted, cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('calendar')}>
               {locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}
             </button>
           </div>
           <div className="v22-card-body" style={{ padding: 0 }}>
             {pendingBookings.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: tv.textMuted }}>
                 {locale === 'pt' ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}
               </div>
             ) : (
@@ -350,17 +353,17 @@ export default function HomeSection({
                 return (
                   <div
                     key={b.id}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderBottom: '1px solid var(--v22-border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderBottom: `1px solid ${tv.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#FAFAF7')}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                     onClick={() => navigateTo('calendar')}
                   >
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '10px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: tv.primaryLight, border: `1px solid ${tv.primaryBorder}`, color: '#7A6000', fontSize: '10px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {initials}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{clientName}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)', marginTop: '1px' }}>{desc}{b.address ? ` · ${b.address}` : ''}</div>
+                      <div style={{ fontWeight: 500, fontSize: '12px', color: tv.text }}>{clientName}</div>
+                      <div style={{ fontSize: '11px', color: tv.textMuted, marginTop: '1px' }}>{desc}{b.address ? ` · ${b.address}` : ''}</div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
                       <span className="v22-ref">{time}</span>
@@ -379,18 +382,18 @@ export default function HomeSection({
           <div className="v22-card">
             <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center' }}>
               <div className="v22-card-title">{locale === 'pt' ? 'Agenda de hoje' : 'Agenda du jour'}</div>
-              <button className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto', border: 'none', background: 'none', color: 'var(--v22-text-muted)', cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('calendar')}>
+              <button className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto', border: 'none', background: 'none', color: tv.textMuted, cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('calendar')}>
                 {locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}
               </button>
             </div>
             <div className="v22-card-body">
               {todayBookings.length === 0 ? (
-                <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)', padding: '12px 0' }}>
+                <div style={{ textAlign: 'center', fontSize: '12px', color: tv.textMuted, padding: '12px 0' }}>
                   {locale === 'pt' ? 'Nada agendado para hoje' : "Rien de prévu aujourd'hui"}
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--v22-text-muted)', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: tv.textMuted, marginBottom: '6px' }}>
                     {locale === 'pt' ? 'Hoje' : "Aujourd'hui"} — {now.toLocaleDateString(dateLocale, { weekday: 'short', day: 'numeric', month: 'short' })}
                   </div>
                   {todayBookings.slice(0, 4).map((b, i) => {
@@ -401,16 +404,16 @@ export default function HomeSection({
                         key={b.id}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '2px',
-                          borderLeft: `2px solid ${isCompleted ? 'var(--v22-green)' : 'var(--v22-yellow)'}`,
-                          background: isCompleted ? 'var(--v22-green-light)' : 'var(--v22-yellow-light)',
+                          borderLeft: `2px solid ${isCompleted ? tv.green : tv.primary}`,
+                          background: isCompleted ? tv.greenLight : tv.primaryLight,
                           marginBottom: '4px', cursor: 'pointer',
                         }}
                         onClick={() => navigateTo('calendar')}
                       >
                         <span className="v22-ref">{b.booking_time?.substring(0, 5) || '—'}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{b.services?.name || 'RDV'} — {clientName}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)' }}>{b.address || ''}{ (b as unknown as { duration?: string | number }).duration ? ` · ${(b as unknown as { duration?: string | number }).duration}` : ''}</div>
+                          <div style={{ fontWeight: 500, fontSize: '12px', color: tv.text }}>{b.services?.name || 'RDV'} — {clientName}</div>
+                          <div style={{ fontSize: '11px', color: tv.textMuted }}>{b.address || ''}{ (b as unknown as { duration?: string | number }).duration ? ` · ${(b as unknown as { duration?: string | number }).duration}` : ''}</div>
                         </div>
                       </div>
                     )
@@ -428,7 +431,7 @@ export default function HomeSection({
             </div>
             <div style={{ padding: '10px' }}>
               {alerts.length === 0 ? (
-                <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)', padding: '8px 0' }}>
+                <div style={{ textAlign: 'center', fontSize: '12px', color: tv.textMuted, padding: '8px 0' }}>
                   {locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}
                 </div>
               ) : (
@@ -436,7 +439,7 @@ export default function HomeSection({
                   {alerts.map((a, i) => (
                     <div key={i} className={`v22-alert v22-alert-${a.type}`}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{a.title}</div>
+                        <div style={{ fontWeight: 500, fontSize: '12px', color: tv.text }}>{a.title}</div>
                         <div className="v22-ref" style={{ marginTop: '2px' }}>{a.sub}</div>
                       </div>
                       <div className="v22-ref" style={{ flexShrink: 0 }}>{a.time}</div>
@@ -459,7 +462,7 @@ export default function HomeSection({
           </div>
           <div className="v22-card-body" style={{ padding: 0 }}>
             {/* Placeholder: no avis data in props */}
-            <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+            <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: tv.textMuted }}>
               {locale === 'pt' ? 'Nenhuma avaliação ainda' : 'Aucun avis pour le moment'}
             </div>
           </div>
@@ -469,13 +472,13 @@ export default function HomeSection({
         <div className="v22-card">
           <div className="v22-card-head">
             <div className="v22-card-title">{locale === 'pt' ? 'Mensagens' : 'Messagerie'}</div>
-            <div className="v22-card-meta" style={{ color: 'var(--v22-red)' }}>
+            <div className="v22-card-meta" style={{ color: tv.red }}>
               {/* Placeholder count */}
             </div>
           </div>
           <div className="v22-card-body" style={{ padding: 0 }}>
             {pendingBookings.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: tv.textMuted }}>
                 {locale === 'pt' ? 'Nenhuma mensagem' : 'Aucun message'}
               </div>
             ) : (
@@ -485,17 +488,17 @@ export default function HomeSection({
                 return (
                   <div
                     key={b.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: '1px solid var(--v22-border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderBottom: `1px solid ${tv.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#FAFAF7')}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                     onClick={() => navigateTo('messages')}
                   >
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--v22-yellow-light)', border: '1px solid var(--v22-yellow-border)', color: '#7A6000', fontSize: '9px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: tv.primaryLight, border: `1px solid ${tv.primaryBorder}`, color: '#7A6000', fontSize: '9px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {initials}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500, fontSize: '12px', color: 'var(--v22-text)' }}>{clientName}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--v22-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 500, fontSize: '12px', color: tv.text }}>{clientName}</div>
+                      <div style={{ fontSize: '11px', color: tv.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {b.services?.name || (locale === 'pt' ? 'Nova mensagem...' : 'Nouveau message...')}
                       </div>
                     </div>
@@ -513,23 +516,23 @@ export default function HomeSection({
         <div className="v22-card">
           <div className="v22-card-head" style={{ display: 'flex', alignItems: 'center' }}>
             <div className="v22-card-title">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
-            <button className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto', border: 'none', background: 'none', color: 'var(--v22-text-muted)', cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('devis')}>
+            <button className="v22-btn v22-btn-sm" style={{ marginLeft: 'auto', border: 'none', background: 'none', color: tv.textMuted, cursor: 'pointer', fontSize: '11px' }} onClick={() => navigateTo('devis')}>
               {locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}
             </button>
           </div>
           <div className="v22-card-body" style={{ padding: 0 }}>
             {recentDevis.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '12px', color: tv.textMuted }}>
                 {locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis'}
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>{locale === 'pt' ? 'Réf.' : 'Réf.'}</th>
-                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>Client</th>
-                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'right', borderBottom: '1px solid var(--v22-border)' }}>{locale === 'pt' ? 'Valor' : 'Montant'}</th>
-                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--v22-text-muted)', textAlign: 'left', borderBottom: '1px solid var(--v22-border)' }}>{locale === 'pt' ? 'Estado' : 'Statut'}</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: tv.textMuted, textAlign: 'left', borderBottom: `1px solid ${tv.border}` }}>{locale === 'pt' ? 'Réf.' : 'Réf.'}</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: tv.textMuted, textAlign: 'left', borderBottom: `1px solid ${tv.border}` }}>Client</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: tv.textMuted, textAlign: 'right', borderBottom: `1px solid ${tv.border}` }}>{locale === 'pt' ? 'Valor' : 'Montant'}</th>
+                    <th style={{ padding: '6px 8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: tv.textMuted, textAlign: 'left', borderBottom: `1px solid ${tv.border}` }}>{locale === 'pt' ? 'Estado' : 'Statut'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -544,10 +547,10 @@ export default function HomeSection({
                         onMouseLeave={e => { e.currentTarget.querySelectorAll('td').forEach(td => (td as HTMLElement).style.background = '') }}
                         onClick={() => navigateTo('devis')}
                       >
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px' }}><span className="v22-ref">{d.ref || d.number || `${i + 1}`}</span></td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', fontWeight: 500 }}>{d.client || d.clientName || '—'}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(d.total || d.amount || 0)}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--v22-border)', fontSize: '12px' }}><span className={`v22-tag ${statusClass}`}>{statusLabel}</span></td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className="v22-ref">{d.ref || d.number || `${i + 1}`}</span></td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', fontWeight: 500 }}>{d.client || d.clientName || '—'}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(d.total || d.amount || 0)}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className={`v22-tag ${statusClass}`}>{statusLabel}</span></td>
                       </tr>
                     )
                   })}
@@ -563,16 +566,16 @@ export default function HomeSection({
         <div className="v22-card-head"><div className="v22-card-title">{t('proDash.home.actionsRapides')}</div></div>
         <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
         {orgRole === 'pro_conciergerie' && <>
-          <QuickAction icon="🏠" label={t('proDash.home.nouvellePropriete')} onClick={() => navigateTo('proprietes')} />
-          <QuickAction icon="📅" label={t('proDash.home.planifierVisite')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} />
-          <QuickAction icon="🔑" label={t('proDash.home.gererAcces')} onClick={() => navigateTo('acces')} />
+          <QuickAction icon="🏠" label={t('proDash.home.nouvellePropriete')} onClick={() => navigateTo('proprietes')} textColor={tv.text} />
+          <QuickAction icon="📅" label={t('proDash.home.planifierVisite')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} textColor={tv.text} />
+          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} textColor={tv.text} />
+          <QuickAction icon="🔑" label={t('proDash.home.gererAcces')} onClick={() => navigateTo('acces')} textColor={tv.text} />
         </>}
         {orgRole === 'pro_gestionnaire' && <>
-          <QuickAction icon="📋" label={t('proDash.home.ordreDeMission')} onClick={() => navigateTo('missions')} />
-          <QuickAction icon="🏢" label={t('proDash.home.gererImmeuble')} onClick={() => navigateTo('immeubles')} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} />
-          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }} />
+          <QuickAction icon="📋" label={t('proDash.home.ordreDeMission')} onClick={() => navigateTo('missions')} textColor={tv.text} />
+          <QuickAction icon="🏢" label={t('proDash.home.gererImmeuble')} onClick={() => navigateTo('immeubles')} textColor={tv.text} />
+          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} textColor={tv.text} />
+          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }} textColor={tv.text} />
         </>}
         </div>
       </div>
@@ -580,13 +583,13 @@ export default function HomeSection({
   )
 }
 
-function QuickAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function QuickAction({ icon, label, onClick, textColor }: { icon: string; label: string; onClick: () => void; textColor: string }) {
   return (
     <div onClick={onClick}
       className="v22-card cursor-pointer text-center hover:shadow-md transition-shadow"
       style={{ padding: '16px 10px' }}>
       <div style={{ fontSize: '24px', marginBottom: '6px' }}>{icon}</div>
-      <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--v22-text)' }}>{label}</div>
+      <div style={{ fontSize: '12px', fontWeight: 500, color: textColor }}>{label}</div>
     </div>
   )
 }

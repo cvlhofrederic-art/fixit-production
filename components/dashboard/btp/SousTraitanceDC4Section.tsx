@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { HardHat, FileText, BarChart3, Check, Minus, Search, FileEdit, Handshake, Loader, Brain, Lightbulb, CheckSquare } from 'lucide-react'
+import { useThemeVars } from '../useThemeVars'
 
 export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isFR = locale !== 'pt'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `dc4_${userId}`
   const DCE_KEY = `dce_analyses_${userId}`
@@ -172,7 +174,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
       </div>
 
       {/* Tabs */}
-      <div className={isV5 ? 'v5-tabs' : undefined} style={isV5 ? undefined : { display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--v22-border)', paddingBottom: 8 }}>
+      <div className={isV5 ? 'v5-tabs' : undefined} style={isV5 ? undefined : { display: 'flex', gap: 4, marginBottom: 16, borderBottom: `1px solid ${tv.border}`, paddingBottom: 8 }}>
         <button onClick={() => setTab('sous_traitants')} className={isV5 ? `v5-tab-b${tab === 'sous_traitants' ? ' active' : ''}` : `v22-tab${tab === 'sous_traitants' ? ' active' : ''}`}>
           <HardHat size={12} /> {isFR ? 'Sous-traitants' : 'Subempreiteiros'} ({soustraitants.length})
         </button>
@@ -214,7 +216,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                 { label: isFR ? 'Montant total' : 'Montante total', val: `${soustraitants.filter(s => s.statut !== 'refusé').reduce((s, st) => s + st.montantMarche, 0).toLocaleString(dateLocale)} \u20AC` },
               ].map((k, i) => (
                 <div key={i} className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{k.label}</div>
+                  <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{k.label}</div>
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{k.val}</div>
                 </div>
               ))}
@@ -260,7 +262,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
                 <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addST} disabled={!form.entreprise}>{isFR ? 'Ajouter' : 'Adicionar'}</button>
-                <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{isFR ? 'Annuler' : 'Cancelar'}</button>
+                <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{isFR ? 'Annuler' : 'Cancelar'}</button>
               </div>
             </div>
           )}
@@ -269,28 +271,28 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
           <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ overflowX: 'auto', padding: 0 }}>
             <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Sous-traitant' : 'Subempreiteiro'}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Chantier' : 'Obra'}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Montant' : 'Montante'}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>% {isFR ? 'March\u00E9' : 'Contrato'}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isFR ? 'Statut' : 'Estado'}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>DC4</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>Actions</th>
+                <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isFR ? 'Sous-traitant' : 'Subempreiteiro'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isFR ? 'Chantier' : 'Obra'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isFR ? 'Montant' : 'Montante'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>% {isFR ? 'March\u00E9' : 'Contrato'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isFR ? 'Statut' : 'Estado'}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>DC4</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {soustraitants.length === 0 ? (
                   <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'🤝'}</div>{isFR ? 'Aucun sous-traitant enregistr\u00E9' : 'Nenhum subempreiteiro registado'}</td></tr>
                 ) : soustraitants.map(s => (
-                  <tr key={s.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                  <tr key={s.id} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                     <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
                       {s.entreprise}
-                      <div style={{ fontSize: 10, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)', fontWeight: 400 }}>{s.siret} \u00B7 {s.responsable}</div>
+                      <div style={{ fontSize: 10, color: isV5 ? 'var(--v5-text-light)' : tv.textMid, fontWeight: 400 }}>{s.siret} \u00B7 {s.responsable}</div>
                     </td>
                     <td style={isV5 ? undefined : { padding: '8px 12px' }}>
                       {s.chantier}
-                      <div style={{ fontSize: 10, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{s.lot}</div>
+                      <div style={{ fontSize: 10, color: isV5 ? 'var(--v5-text-light)' : tv.textMid }}>{s.lot}</div>
                     </td>
                     <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{s.montantMarche.toLocaleString(dateLocale)} \u20AC</td>
                     <td style={isV5 ? undefined : { padding: '8px 12px' }}>\u2014</td>
@@ -300,7 +302,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                       </span>
                     </td>
                     <td style={{ textAlign: 'center', ...(isV5 ? {} : { padding: '8px 12px' }) }}>
-                      {s.dc4Genere ? <Check size={14} style={{ color: '#2E7D32' }} /> : <Minus size={14} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} />}
+                      {s.dc4Genere ? <Check size={14} style={{ color: '#2E7D32' }} /> : <Minus size={14} style={{ color: isV5 ? 'var(--v5-text-muted)' : tv.textMid }} />}
                     </td>
                     <td style={isV5 ? undefined : { padding: '8px 12px' }}>
                       <div style={{ display: 'flex', gap: 4 }}>
@@ -374,7 +376,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                         style={{ cursor: a.status === 'done' ? 'pointer' : 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 12 }}>{a.titre}</div>
-                          <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{a.country} {a.projectType} \u00B7 {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
+                          <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-light)' : tv.textMid }}>{a.country} {a.projectType} \u00B7 {new Date(a.createdAt).toLocaleDateString(dateLocale)}</div>
                         </div>
                         <span className={isV5
                           ? `v5-badge ${a.status === 'done' ? 'v5-badge-green' : a.status === 'error' ? 'v5-badge-red' : 'v5-badge-yellow'}`
@@ -419,15 +421,15 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                     ) : (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                         <div className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
-                          <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{isFR ? 'Score technique' : 'Score t\u00E9cnico'}</div>
+                          <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{isFR ? 'Score technique' : 'Score t\u00E9cnico'}</div>
                           <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedAnalysis.result.scoring.technique || '\u2014'}/100</div>
                         </div>
                         <div className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
-                          <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{isFR ? 'Comp\u00E9titivit\u00E9 prix' : 'Competitividade pre\u00E7o'}</div>
+                          <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{isFR ? 'Comp\u00E9titivit\u00E9 prix' : 'Competitividade pre\u00E7o'}</div>
                           <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedAnalysis.result.scoring.prix || '\u2014'}/100</div>
                         </div>
                         <div className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
-                          <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{isFR ? 'Probabilit\u00E9 de gain' : 'Probabilidade de ganho'}</div>
+                          <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{isFR ? 'Probabilit\u00E9 de gain' : 'Probabilidade de ganho'}</div>
                           <div style={{ fontSize: 20, fontWeight: 700 }}>{selectedAnalysis.result.scoring.probabilite || '\u2014'}%</div>
                         </div>
                       </div>
@@ -440,7 +442,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                     return (
                       <div key={key} className={isV5 ? 'v5-card' : 'v22-card'}>
                         <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{titles[key] || key}</div>
-                        <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{typeof section === 'string' ? section : JSON.stringify(section, null, 2)}</div>
+                        <div style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{typeof section === 'string' ? section : JSON.stringify(section, null, 2)}</div>
                       </div>
                     )
                   })}
@@ -458,7 +460,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
             <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <FileEdit size={14} /> {isFR ? 'Structure type \u2014 M\u00E9moire technique BTP' : 'Estrutura tipo \u2014 Mem\u00F3ria t\u00E9cnica'}
             </div>
-            <p style={{ color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)', fontSize: 11, marginBottom: '1rem' }}>
+            <p style={{ color: isV5 ? 'var(--v5-text-light)' : tv.textMid, fontSize: 11, marginBottom: '1rem' }}>
               {isFR ? 'Structure recommand\u00E9e pour maximiser votre note technique.' : 'Estrutura recomendada para maximizar a nota t\u00E9cnica.'}
             </p>
             {[
@@ -472,10 +474,10 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
               { n: '8', title: isFR ? 'R\u00E9f\u00E9rences similaires' : 'Refer\u00EAncias similares', desc: isFR ? '3 \u00E0 5 chantiers comparables avec montants, ma\u00EEtres d\'ouvrage, photos, attestations de bonne ex\u00E9cution.' : '3 a 5 obras compar\u00E1veis com montantes, donos de obra, fotos, atestados.' },
             ].map(s => (
               <div key={s.n} style={{ display: 'flex', gap: 12, padding: '.65rem 0', borderBottom: '1px solid #F0F0F0' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{s.n}</div>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, color: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{s.n}</div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 2 }}>{s.title}</div>
-                  <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)', lineHeight: 1.5 }}>{s.desc}</div>
+                  <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid, lineHeight: 1.5 }}>{s.desc}</div>
                 </div>
               </div>
             ))}
@@ -504,15 +506,15 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                 <div key={cat.cat} className={isV5 ? 'v5-card' : 'v22-card'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.65rem' }}>
                     <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ margin: 0 }}>{cat.cat}</div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: checked === total ? '#2E7D32' : (isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)') }}>{checked}/{total}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: checked === total ? '#2E7D32' : (isV5 ? 'var(--v5-text-light)' : tv.textMid) }}>{checked}/{total}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {cat.items.map((item, i) => {
                       const key = `${cat.cat}_${i}`
                       const done = !!checkStates[key]
                       return (
-                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: done ? (isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)') : (isV5 ? 'var(--v5-text-primary)' : 'inherit'), textDecoration: done ? 'line-through' : 'none', padding: '3px 0' }}>
-                          <input type="checkbox" checked={done} onChange={() => toggleCheck(key)} style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', width: 14, height: 14 }} />
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: done ? (isV5 ? 'var(--v5-text-muted)' : tv.textMid) : (isV5 ? 'var(--v5-text-primary)' : 'inherit'), textDecoration: done ? 'line-through' : 'none', padding: '3px 0' }}>
+                          <input type="checkbox" checked={done} onChange={() => toggleCheck(key)} style={{ accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, width: 14, height: 14 }} />
                           {item}
                         </label>
                       )
@@ -534,7 +536,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                 <div className={isV5 ? 'v5-card' : 'v22-card'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 600 }}>{isFR ? 'Progression globale' : 'Progresso global'}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? '#2E7D32' : (isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)') }}>{pct}%</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: pct === 100 ? '#2E7D32' : (isV5 ? 'var(--v5-primary-yellow-dark)' : tv.primary) }}>{pct}%</span>
                   </div>
                   {isV5 ? (
                     <div className="v5-prog-row">
@@ -544,7 +546,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                     </div>
                   ) : (
                     <div style={{ height: 6, borderRadius: 3, background: '#E8E8E8' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: pct === 100 ? '#2E7D32' : 'var(--v22-yellow)' }} />
+                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: pct === 100 ? '#2E7D32' : tv.primary }} />
                     </div>
                   )}
                 </div>

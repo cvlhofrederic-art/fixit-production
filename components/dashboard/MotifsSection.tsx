@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
 import ServiceEtapesEditor from '@/components/dashboard/ServiceEtapesEditor'
+import { useThemeVars } from './useThemeVars'
 import type { Service } from '@/lib/types'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -42,6 +43,7 @@ export default function MotifsSection({
   const [savingWithEtapes, setSavingWithEtapes] = useState(false)
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = isSociete
+  const tv = useThemeVars(isV5)
 
   // Reset local étapes when modal opens/closes
   const origOpenNewMotif = openNewMotif
@@ -105,7 +107,7 @@ export default function MotifsSection({
                     ? `${Math.floor(service.duration_minutes / 60)}h${service.duration_minutes % 60 > 0 ? String(service.duration_minutes % 60).padStart(2, '0') : '00'}`
                     : '—'}
                 </td>
-                <td className="v22-amount" style={{ color: 'var(--v22-amber)', textAlign: 'left' }}>{getPriceRangeLabel(service)}</td>
+                <td className="v22-amount" style={{ color: tv.primary, textAlign: 'left' }}>{getPriceRangeLabel(service)}</td>
                 <td>
                   <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{getPricingUnit(service)}</span>
                 </td>
@@ -140,7 +142,7 @@ export default function MotifsSection({
                     }}
                       disabled={deletingId === service.id}
                       className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'}
-                      style={{ color: isV5 ? undefined : 'var(--v22-red)', opacity: deletingId === service.id ? 0.5 : 1, cursor: deletingId === service.id ? 'not-allowed' : 'pointer' }}>
+                      style={{ color: isV5 ? undefined : tv.red, opacity: deletingId === service.id ? 0.5 : 1, cursor: deletingId === service.id ? 'not-allowed' : 'pointer' }}>
                       {deletingId === service.id ? '...' : '🗑️'}
                     </button>
                   </div>
@@ -281,8 +283,8 @@ export default function MotifsSection({
                         style={{
                           textAlign: 'left',
                           padding: '8px 10px',
-                          borderColor: motifForm.pricing_unit === opt.value ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
-                          background: motifForm.pricing_unit === opt.value ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
+                          borderColor: motifForm.pricing_unit === opt.value ? tv.primary : undefined,
+                          background: motifForm.pricing_unit === opt.value ? tv.primaryLight : undefined,
                         }}>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>{opt.label}</div>
                         <div className="v22-ref">{opt.desc}</div>
@@ -330,8 +332,8 @@ export default function MotifsSection({
                       className={isV5 ? 'v5-btn' : 'v22-btn'}
                       style={{
                         textAlign: 'left', padding: '8px 10px',
-                        borderColor: !motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
-                        background: !motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
+                        borderColor: !motifForm.validation_auto ? tv.primary : undefined,
+                        background: !motifForm.validation_auto ? tv.primaryLight : undefined,
                       }}>
                       <div style={{ fontWeight: 600, fontSize: 12 }}>👤 {t('proDash.motifs.validationManuelle')}</div>
                       <div className="v22-ref">{t('proDash.motifs.validationManuelleDesc')}</div>
@@ -341,8 +343,8 @@ export default function MotifsSection({
                       className={isV5 ? 'v5-btn' : 'v22-btn'}
                       style={{
                         textAlign: 'left', padding: '8px 10px',
-                        borderColor: motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
-                        background: motifForm.validation_auto ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
+                        borderColor: motifForm.validation_auto ? tv.primary : undefined,
+                        background: motifForm.validation_auto ? tv.primaryLight : undefined,
                       }}>
                       <div style={{ fontWeight: 600, fontSize: 12 }}>⚡ {t('proDash.motifs.validationAutomatique')}</div>
                       <div className="v22-ref">{t('proDash.motifs.validationAutomatiqueDesc')}</div>
@@ -360,8 +362,8 @@ export default function MotifsSection({
                         className={isV5 ? 'v5-btn' : 'v22-btn'}
                         style={{
                           textAlign: 'center', padding: '8px 6px',
-                          borderColor: motifForm.delai_minimum_heures === h ? (isV5 ? 'var(--v5-yellow, var(--v22-yellow))' : 'var(--v22-yellow)') : undefined,
-                          background: motifForm.delai_minimum_heures === h ? (isV5 ? 'var(--v5-yellow-light, var(--v22-yellow-light))' : 'var(--v22-yellow-light)') : undefined,
+                          borderColor: motifForm.delai_minimum_heures === h ? tv.primary : undefined,
+                          background: motifForm.delai_minimum_heures === h ? tv.primaryLight : undefined,
                         }}>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>
                           {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { supabase } from '@/lib/supabase'
+import { useThemeVars } from './useThemeVars'
 
 /* ══════════ MATÉRIAUX & PRIX SECTION ══════════ */
 
@@ -138,6 +139,7 @@ type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnair
 export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { artisan: import('@/lib/types').Artisan; onExportDevis: (lines: ExportLine[]) => void; orgRole?: OrgRole }) {
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')
@@ -500,7 +502,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                   <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>
                     {isSociete ? 'Agent Approvisionnement BTP' : locale === 'pt' ? 'Agente Materiais IA' : 'Agent Matériaux IA'}
                   </div>
-                  <p style={{ fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
+                  <p style={{ fontSize: '12px', color: tv.textMid, lineHeight: 1.6 }}>
                     {isSociete
                       ? <>Décrivez votre lot ou chantier — l&apos;agent génère la liste des matériaux avec comparatif de prix fournisseurs <strong>(Point P, Brico Dépôt, Leroy Merlin Pro…)</strong></>
                       : locale === 'pt'
@@ -540,7 +542,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '24px' }}>
                   <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛍️</div>
                   <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '6px' }}>{locale === 'pt' ? 'Pesquisa Produto' : 'Recherche Produit'}</div>
-                  <p style={{ fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
+                  <p style={{ fontSize: '12px', color: tv.textMid, lineHeight: 1.6 }}>
                     {locale === 'pt'
                       ? <>Pesquise uma ferramenta ou produto específico. O agente analisa as lojas online <strong>(Amazon, ManoMano, Leroy Merlin PT, AKI…)</strong> e mostra os melhores preços com links de compra diretos.</>
                       : <>Recherchez un outil ou produit spécifique. L&apos;agent scanne les boutiques en ligne <strong>(Amazon, ManoMano, Leroy Merlin, Castorama…)</strong> et affiche les meilleurs prix avec des liens d&apos;achat directs.</>
@@ -587,11 +589,11 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                     <div className="v22-chat-avatar">🛒</div>
                     <div className="v22-chat-bubble v22-chat-bubble-assistant" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ display: 'flex', gap: '4px' }}>
-                        <span style={{ width: '6px', height: '6px', background: 'var(--v22-yellow)', borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '0ms' }} />
-                        <span style={{ width: '6px', height: '6px', background: 'var(--v22-yellow)', borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '150ms' }} />
-                        <span style={{ width: '6px', height: '6px', background: 'var(--v22-yellow)', borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '300ms' }} />
+                        <span style={{ width: '6px', height: '6px', background: tv.primary, borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '0ms' }} />
+                        <span style={{ width: '6px', height: '6px', background: tv.primary, borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '150ms' }} />
+                        <span style={{ width: '6px', height: '6px', background: tv.primary, borderRadius: '50%', animation: 'bounce 0.6s infinite', animationDelay: '300ms' }} />
                       </span>
-                      <span style={{ color: 'var(--v22-text-muted)', fontSize: '11px' }}>{searchMode === 'product'
+                      <span style={{ color: tv.textMuted, fontSize: '11px' }}>{searchMode === 'product'
                         ? (locale === 'pt' ? 'A pesquisar o produto nas lojas online...' : 'Recherche du produit sur les boutiques en ligne...')
                         : (locale === 'pt' ? 'A pesquisar materiais e preços...' : 'Recherche des matériaux et prix en cours...')}</span>
                     </div>
@@ -615,12 +617,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                         <div className="v22-card-head" style={{ gap: '10px' }}>
                           <span style={{ fontSize: '18px' }}>{getCategoryIcon(m.category)}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, color: 'var(--v22-text)' }}>{m.name}</div>
+                            <div style={{ fontWeight: 600, color: tv.text }}>{m.name}</div>
                             <div className="v22-ref">{m.qty} {m.unit} · {m.category}</div>
                           </div>
                           {m.bestPrice && (
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div className="v22-amount" style={{ fontSize: '16px', color: 'var(--v22-green)' }}>{m.bestPrice.price} €</div>
+                              <div className="v22-amount" style={{ fontSize: '16px', color: tv.green }}>{m.bestPrice.price} €</div>
                               <div className="v22-ref">
                                 {m.qty > 1 ? `${m.bestPrice.price} x ${m.qty} = ${Math.round(m.bestPrice.price * m.qty)} €` : (locale === 'pt' ? 'Melhor preço' : 'Meilleur prix')}
                               </div>
@@ -643,7 +645,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                       const isWorst = sorted.length > 1 && p.price === worstP && worstP !== bestP
                                       const ecartPct = bestP > 0 && !isBest ? Math.round(((p.price - bestP) / bestP) * 100) : 0
                                       return (
-                                        <tr key={j} style={isBest ? { background: 'var(--v22-green-light)' } : isWorst ? { background: 'var(--v22-red-light)' } : undefined}>
+                                        <tr key={j} style={isBest ? { background: tv.greenLight } : isWorst ? { background: tv.redBg } : undefined}>
                                           <td style={{ width: '1%', whiteSpace: 'nowrap' }}>
                                             <span className={STORE_COLORS[p.store] || 'v22-tag v22-tag-gray'}>
                                               {p.store}
@@ -657,7 +659,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                             {m.qty > 1 && <span>{p.price} x {m.qty} = {Math.round(p.price * m.qty)} €</span>}
                                           </td>
                                           <td className="v22-amount" style={{
-                                            color: isBest ? 'var(--v22-green)' : isWorst ? 'var(--v22-red)' : 'var(--v22-text)',
+                                            color: isBest ? tv.green : isWorst ? tv.red : tv.text,
                                             fontWeight: 600,
                                             width: '1%',
                                             whiteSpace: 'nowrap',
@@ -692,17 +694,17 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
 
                         {/* Normes applicables */}
                         {(m.norms?.length > 0 || m.normDetails) && (
-                          <div style={{ padding: '10px 14px', background: 'var(--v22-amber-light)', borderTop: '1px solid var(--v22-border)' }}>
+                          <div style={{ padding: '10px 14px', background: tv.primaryLight, borderTop: `1px solid ${tv.border}` }}>
                             {m.norms?.length > 0 && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--v22-amber)' }}>📋 {locale === 'pt' ? 'Normas:' : 'Normes :'}</span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: tv.primary }}>📋 {locale === 'pt' ? 'Normas:' : 'Normes :'}</span>
                                 {m.norms.map((n: string, ni: number) => (
                                   <span key={ni} className="v22-tag v22-tag-amber v22-mono">{n}</span>
                                 ))}
                               </div>
                             )}
                             {m.normDetails && (
-                              <p style={{ fontSize: '11px', color: 'var(--v22-amber)', lineHeight: 1.5 }}>
+                              <p style={{ fontSize: '11px', color: tv.primary, lineHeight: 1.5 }}>
                                 ⚠️ {m.normDetails}
                               </p>
                             )}
@@ -744,7 +746,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                         </th>
                                       )
                                     })}
-                                    <th style={{ textAlign: 'right', color: 'var(--v22-green)' }}>{locale === 'pt' ? 'Melhor' : 'Meilleur'}</th>
+                                    <th style={{ textAlign: 'right', color: tv.green }}>{locale === 'pt' ? 'Melhor' : 'Meilleur'}</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -763,27 +765,27 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                           const ecart = rowBest > 0 && p && p.price > rowBest ? Math.round(((p.price - rowBest) / rowBest) * 100) : 0
                                           return (
                                             <td key={s} className="v22-amount" style={{
-                                              color: isBest ? 'var(--v22-green)' : isWorst ? 'var(--v22-red)' : p ? 'var(--v22-text)' : 'var(--v22-text-muted)',
-                                              background: isBest ? 'var(--v22-green-light)' : isWorst ? 'var(--v22-red-light)' : undefined,
+                                              color: isBest ? tv.green : isWorst ? tv.red : p ? tv.text : tv.textMuted,
+                                              background: isBest ? tv.greenLight : isWorst ? tv.redBg : undefined,
                                               fontWeight: isBest || isWorst ? 600 : 400,
                                             }}>
                                               {p ? (
                                                 <span>
                                                   {m.qty > 1 ? `${Math.round(p.price * m.qty)}` : p.price} €
-                                                  {ecart > 0 && <span className="v22-ref" style={{ marginLeft: '4px', color: isWorst ? 'var(--v22-red)' : undefined }}> +{ecart}%</span>}
+                                                  {ecart > 0 && <span className="v22-ref" style={{ marginLeft: '4px', color: isWorst ? tv.red : undefined }}> +{ecart}%</span>}
                                                 </span>
                                               ) : '—'}
                                             </td>
                                           )
                                         })}
-                                        <td className="v22-amount" style={{ color: 'var(--v22-green)', fontWeight: 600 }}>
+                                        <td className="v22-amount" style={{ color: tv.green, fontWeight: 600 }}>
                                           {m.bestPrice ? `${m.qty > 1 ? Math.round(m.bestPrice.price * m.qty) : m.bestPrice.price} €` : '—'}
                                         </td>
                                       </tr>
                                     )
                                   })}
                                   {/* Total par enseigne */}
-                                  <tr style={{ fontWeight: 700, borderTop: '2px solid var(--v22-border-dark)' }}>
+                                  <tr style={{ fontWeight: 700, borderTop: `2px solid ${tv.borderDark}` }}>
                                     <td colSpan={2}>TOTAL</td>
                                     {storeTotals.map(st => {
                                       const isCheapest = st.total > 0 && st.total === bestStoreTotal && st.coverage === currentResults!.length
@@ -791,20 +793,20 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                       const ecart = bestStoreTotal > 0 && st.total > bestStoreTotal ? Math.round(((st.total - bestStoreTotal) / bestStoreTotal) * 100) : 0
                                       return (
                                         <td key={st.store} className="v22-amount" style={{
-                                          color: isCheapest ? 'var(--v22-green)' : isMostExpensive ? 'var(--v22-red)' : st.total > 0 ? 'var(--v22-text)' : 'var(--v22-text-muted)',
-                                          background: isCheapest ? 'var(--v22-green-light)' : undefined,
+                                          color: isCheapest ? tv.green : isMostExpensive ? tv.red : st.total > 0 ? tv.text : tv.textMuted,
+                                          background: isCheapest ? tv.greenLight : undefined,
                                         }}>
                                           {st.total > 0 ? (
                                             <span>
                                               {Math.round(st.total)} €
-                                              {ecart > 0 && <span className="v22-ref" style={{ marginLeft: '4px', color: isMostExpensive ? 'var(--v22-red)' : undefined }}> +{ecart}%</span>}
+                                              {ecart > 0 && <span className="v22-ref" style={{ marginLeft: '4px', color: isMostExpensive ? tv.red : undefined }}> +{ecart}%</span>}
                                               {st.coverage < currentResults!.length && <span className="v22-ref" style={{ marginLeft: '2px' }}>*</span>}
                                             </span>
                                           ) : '—'}
                                         </td>
                                       )
                                     })}
-                                    <td className="v22-amount" style={{ color: 'var(--v22-green)', fontSize: '13px' }}>
+                                    <td className="v22-amount" style={{ color: tv.green, fontSize: '13px' }}>
                                       {totalBestPrice > 0 ? `${Math.round(currentResults!.reduce((sum, m) => sum + (m.bestPrice ? m.bestPrice.price * m.qty : 0), 0))} €` : '—'}
                                     </td>
                                   </tr>
@@ -851,11 +853,11 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                             <input
                               type="range" min={0} max={60} value={globalMarkup}
                               onChange={e => setGlobalMarkup(Number(e.target.value))}
-                              style={{ flex: 1, accentColor: 'var(--v22-yellow)' }}
+                              style={{ flex: 1, accentColor: tv.primary }}
                             />
                             <span className="v22-mono" style={{
                               fontSize: '16px', fontWeight: 700, width: '42px', textAlign: 'right',
-                              color: margeIsRentable ? 'var(--v22-green)' : 'var(--v22-red)',
+                              color: margeIsRentable ? tv.green : tv.red,
                             }}>
                               {globalMarkup}%
                             </span>
@@ -871,19 +873,19 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                             </div>
                           )}
                           {margeIsRentable && totalBestPrice > 0 && (
-                            <div className="v22-alert" style={{ marginBottom: '12px', cursor: 'default', borderLeftColor: 'var(--v22-green)', background: 'var(--v22-green-light)' }}>
-                              <span style={{ color: 'var(--v22-green)' }}>
+                            <div className="v22-alert" style={{ marginBottom: '12px', cursor: 'default', borderLeftColor: tv.green, background: tv.greenLight }}>
+                              <span style={{ color: tv.green }}>
                                 {locale === 'pt' ? `✅ Margem conforme às normas do setor (${margeMinRecommandee}% mín)` : `✅ Marge conforme aux standards nationaux BTP (${margeMinRecommandee}% min)`}
                               </span>
                             </div>
                           )}
 
                           {/* Tableau de calcul fiscal */}
-                          <div style={{ background: 'var(--v22-bg)', borderRadius: '4px', padding: '12px', marginBottom: '14px' }}>
+                          <div style={{ background: tv.bg, borderRadius: '4px', padding: '12px', marginBottom: '14px' }}>
                             <table style={{ borderCollapse: 'collapse' }}>
                               <tbody>
                                 <tr>
-                                  <td style={{ border: 'none', padding: '4px 0', color: 'var(--v22-text-mid)', fontSize: '12px' }}>
+                                  <td style={{ border: 'none', padding: '4px 0', color: tv.textMid, fontSize: '12px' }}>
                                     {locale === 'pt' ? 'Custo compra materiais (preço loja c/ IVA)' : 'Coût achat matériaux (prix magasin TTC)'}
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '4px 0' }}>{Math.round(totalBestPrice)} €</td>
@@ -893,7 +895,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                     <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
                                       {locale === 'pt' ? `→ IVA compra recuperado (${TVA_ACHAT}%) — crédito de IVA` : `→ TVA achat récupérée (${TVA_ACHAT}%) — crédit de TVA`}
                                     </td>
-                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: 'var(--v22-green)' }}>−{Math.round(totalBestPrice - totalCoutAchatHT)} €</td>
+                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: tv.green }}>−{Math.round(totalBestPrice - totalCoutAchatHT)} €</td>
                                   </tr>
                                 )}
                                 {isAutoEntrepreneur && (
@@ -901,22 +903,22 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                     <td className="v22-ref" style={{ border: 'none', padding: '2px 0 2px 12px' }}>
                                       {locale === 'pt' ? '→ IVA compra não recuperável (incluído no seu custo real)' : '→ TVA achat non récupérable (incluse dans votre coût réel)'}
                                     </td>
-                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: 'var(--v22-amber)' }}>{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</td>
+                                    <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0', color: tv.primary }}>{Math.round(totalBestPrice - totalBestPrice / (1 + TVA_ACHAT / 100))} €</td>
                                   </tr>
                                 )}
-                                <tr style={{ borderTop: '1px solid var(--v22-border)' }}>
-                                  <td style={{ border: 'none', padding: '6px 0 4px', color: 'var(--v22-text-mid)', fontSize: '12px' }}>
+                                <tr style={{ borderTop: `1px solid ${tv.border}` }}>
+                                  <td style={{ border: 'none', padding: '6px 0 4px', color: tv.textMid, fontSize: '12px' }}>
                                     {locale === 'pt' ? 'Custo real s/ IVA profissional' : 'Coût réel HT artisan'}
                                   </td>
                                   <td className="v22-amount" style={{ border: 'none', padding: '6px 0 4px' }}>{Math.round(totalCoutAchatHT)} €</td>
                                 </tr>
                                 <tr>
-                                  <td style={{ border: 'none', padding: '4px 0', color: 'var(--v22-amber)', fontSize: '12px' }}>
+                                  <td style={{ border: 'none', padding: '4px 0', color: tv.primary, fontSize: '12px' }}>
                                     {locale === 'pt' ? `Margem revenda ${globalMarkup}%` : `Marge revente ${globalMarkup}%`}
                                   </td>
-                                  <td className="v22-amount" style={{ border: 'none', padding: '4px 0', color: 'var(--v22-amber)', fontWeight: 700 }}>+{markupAmount} €</td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '4px 0', color: tv.primary, fontWeight: 700 }}>+{markupAmount} €</td>
                                 </tr>
-                                <tr style={{ borderTop: '1px solid var(--v22-border)' }}>
+                                <tr style={{ borderTop: `1px solid ${tv.border}` }}>
                                   <td style={{ border: 'none', padding: '6px 0 4px', fontWeight: 700, fontSize: '12px' }}>
                                     {locale === 'pt' ? 'Montante s/ IVA a faturar' : 'Montant HT à facturer'}
                                   </td>
@@ -930,11 +932,11 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                     <td className="v22-amount v22-ref" style={{ border: 'none', padding: '2px 0' }}>{Math.round(totalRevente * TVA_REVENTE / 100)} €</td>
                                   </tr>
                                 )}
-                                <tr style={{ borderTop: '2px solid var(--v22-border-dark)' }}>
-                                  <td style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '13px', color: isAssujetti ? 'var(--v22-green)' : 'var(--v22-green)' }}>
+                                <tr style={{ borderTop: `2px solid ${tv.borderDark}` }}>
+                                  <td style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '13px', color: isAssujetti ? tv.green : tv.green }}>
                                     {locale === 'pt' ? 'Total c/ IVA cliente' : 'Total TTC client'}
                                   </td>
-                                  <td className="v22-amount" style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '14px', color: 'var(--v22-green)' }}>{Math.round(totalReventeTTC)} €</td>
+                                  <td className="v22-amount" style={{ border: 'none', padding: '8px 0 4px', fontWeight: 700, fontSize: '14px', color: tv.green }}>{Math.round(totalReventeTTC)} €</td>
                                 </tr>
                               </tbody>
                             </table>
@@ -943,10 +945,10 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           {/* Info légale selon statut */}
                           <div className="v22-alert" style={{
                             marginBottom: '14px', cursor: 'default', fontSize: '11px', lineHeight: 1.6,
-                            borderLeftColor: isAssujetti ? 'var(--v22-green)' : 'var(--v22-amber)',
-                            background: isAssujetti ? 'var(--v22-green-light)' : 'var(--v22-amber-light)',
+                            borderLeftColor: isAssujetti ? tv.green : tv.primary,
+                            background: isAssujetti ? tv.greenLight : tv.primaryLight,
                           }}>
-                            <span style={{ color: isAssujetti ? 'var(--v22-green)' : 'var(--v22-amber)' }}>
+                            <span style={{ color: isAssujetti ? tv.green : tv.primary }}>
                               {locale === 'pt' ? (
                                 isAssujetti ? (
                                   <>
@@ -1041,7 +1043,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                       <div className={cardCls}>
                         <div className={isV5 ? '' : 'v22-card-body'} style={{ textAlign: 'center', padding: '24px' }}>
                           <div style={{ fontSize: '24px', marginBottom: '8px' }}>{productTab === 'new' ? '📦' : '♻️'}</div>
-                          <p style={{ fontSize: '12px', color: 'var(--v22-text-muted)', fontWeight: 500 }}>
+                          <p style={{ fontSize: '12px', color: tv.textMuted, fontWeight: 500 }}>
                             {locale === 'pt'
                               ? `Nenhuma oferta ${productTab === 'new' ? 'nova' : 'recondicionada / outlet'} encontrada para este produto.`
                               : `Aucune offre ${productTab === 'new' ? 'neuve' : 'reconditionnée / déstockage'} trouvée pour ce produit.`}
@@ -1060,7 +1062,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                       <div className="v22-stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                         <div className="v22-stat">
                           <div className="v22-stat-label">{locale === 'pt' ? '🏆 Melhor preço' : '🏆 Meilleur prix'}</div>
-                          <div className="v22-stat-val" style={{ color: 'var(--v22-green)' }}>{cheapest.price.toFixed(2)} €</div>
+                          <div className="v22-stat-val" style={{ color: tv.green }}>{cheapest.price.toFixed(2)} €</div>
                           <span className={STORE_COLORS[cheapest.store] || 'v22-tag v22-tag-gray'}>{cheapest.store}</span>
                         </div>
                         <div className="v22-stat">
@@ -1070,7 +1072,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                         </div>
                         <div className="v22-stat">
                           <div className="v22-stat-label">{locale === 'pt' ? '💸 Mais caro' : '💸 Plus cher'}</div>
-                          <div className="v22-stat-val" style={{ color: 'var(--v22-red)' }}>{mostExpensive.price.toFixed(2)} €</div>
+                          <div className="v22-stat-val" style={{ color: tv.red }}>{mostExpensive.price.toFixed(2)} €</div>
                           <span className={STORE_COLORS[mostExpensive.store] || 'v22-tag v22-tag-gray'}>{mostExpensive.store}</span>
                         </div>
                       </div>
@@ -1083,8 +1085,8 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                     )}
 
                     {productRecommendations && (
-                      <div className="v22-alert" style={{ cursor: 'default', borderLeftColor: 'var(--v22-green)', background: 'var(--v22-green-light)' }}>
-                        <span style={{ color: 'var(--v22-green)' }}>💡 {productRecommendations}</span>
+                      <div className="v22-alert" style={{ cursor: 'default', borderLeftColor: tv.green, background: tv.greenLight }}>
+                        <span style={{ color: tv.green }}>💡 {productRecommendations}</span>
                       </div>
                     )}
 
@@ -1112,12 +1114,12 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                             const isBest = cheapest && p.price === cheapest.price && p.price > 0
                             const saving = cheapest && p.price > 0 ? p.price - cheapest.price : 0
                             return (
-                              <tr key={i} style={isBest ? { background: 'var(--v22-green-light)' } : undefined}>
-                                <td style={{ width: '28px', textAlign: 'center', fontWeight: isBest ? 700 : 400, color: isBest ? 'var(--v22-green)' : 'var(--v22-text-muted)' }}>
+                              <tr key={i} style={isBest ? { background: tv.greenLight } : undefined}>
+                                <td style={{ width: '28px', textAlign: 'center', fontWeight: isBest ? 700 : 400, color: isBest ? tv.green : tv.textMuted }}>
                                   {p.price > 0 ? i + 1 : '—'}
                                 </td>
                                 <td style={{ minWidth: 0 }}>
-                                  <div style={{ fontWeight: 500, color: 'var(--v22-text)' }}>{p.name}</div>
+                                  <div style={{ fontWeight: 500, color: tv.text }}>{p.name}</div>
                                   {p.description && (
                                     <div className="v22-ref" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{p.description}</div>
                                   )}
@@ -1133,15 +1135,15 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                                 </td>
                                 <td className="v22-amount" style={{
                                   width: '1%', whiteSpace: 'nowrap',
-                                  color: isBest ? 'var(--v22-green)' : 'var(--v22-text)',
+                                  color: isBest ? tv.green : tv.text,
                                   fontWeight: isBest ? 700 : 500,
                                 }}>
                                   {p.price > 0 ? (
                                     <>
                                       {p.price.toFixed(2)} €
-                                      {isBest && <div className="v22-ref" style={{ color: 'var(--v22-green)', textTransform: 'uppercase', fontSize: '9px' }}>{locale === 'pt' ? 'Melhor preço' : 'Meilleur prix'}</div>}
+                                      {isBest && <div className="v22-ref" style={{ color: tv.green, textTransform: 'uppercase', fontSize: '9px' }}>{locale === 'pt' ? 'Melhor preço' : 'Meilleur prix'}</div>}
                                       {!isBest && saving > 0 && (
-                                        <div className="v22-ref" style={{ color: 'var(--v22-red)' }}>+{saving.toFixed(2)} €</div>
+                                        <div className="v22-ref" style={{ color: tv.red }}>+{saving.toFixed(2)} €</div>
                                       )}
                                     </>
                                   ) : (
@@ -1226,7 +1228,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                   style={{ border: 'none', borderRadius: '4px 4px 0 0', resize: 'none', padding: '12px 14px' }}
                   disabled={isLoading}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: '1px solid var(--v22-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderTop: `1px solid ${tv.border}` }}>
                   <span className="v22-ref">{locale === 'pt' ? 'Enter = pesquisar · Shift+Enter = nova linha' : 'Entrée = rechercher · Maj+Entrée = saut de ligne'}</span>
                   <button
                     onClick={() => sendMessage(inputValue)}
@@ -1258,7 +1260,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                 <div key={s.id} className={cardCls}>
                   <div className={isV5 ? '' : 'v22-card-head'} style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: 'var(--v22-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.query}</div>
+                      <div style={{ fontWeight: 600, color: tv.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.query}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
                         <span className="v22-ref">
                           📅 {new Date(s.date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -1296,7 +1298,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
                           setSavedSearches(updated)
                           localStorage.setItem(`fixit_materiaux_${artisan?.id}`, JSON.stringify(updated))
                         }}
-                        className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'} style={isV5 ? undefined : { color: 'var(--v22-red)' }}
+                        className={isV5 ? 'v5-btn v5-btn-sm v5-btn-d' : 'v22-btn v22-btn-sm'} style={isV5 ? undefined : { color: tv.red }}
                       >
                         🗑
                       </button>
@@ -1317,7 +1319,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</div></div>}
               {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '🤖 Como funciona o agente?' : '🤖 Comment fonctionne l\'agent ?'}</div>}
               <div className={isV5 ? '' : 'v22-card-body'}>
-                <ol style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)', lineHeight: 1.6 }}>
+                <ol style={{ paddingLeft: '18px', margin: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: tv.textMid, lineHeight: 1.6 }}>
                   {locale === 'pt' ? (
                     <>
                       <li><strong>Análise:</strong> A IA identifica os materiais necessários a partir da sua descrição</li>
@@ -1340,7 +1342,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</div></div>}
               {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '🛍️ Pesquisa Produto' : '🛍️ Recherche Produit'}</div>}
               <div className="v22-card-body">
-                <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
+                <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: tv.textMid }}>
                   {locale === 'pt' ? (
                     <>
                       <li>🔍 <strong>Pesquisa direta</strong>: escreva o nome de uma ferramenta ou produto específico</li>
@@ -1377,7 +1379,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
               {!isV5 && <div className="v22-card-head"><div className="v22-card-title">{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div></div>}
               {isV5 && <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#1a1a1a', marginBottom: 8, letterSpacing: '.3px' }}>{locale === 'pt' ? '💡 Dicas de utilização' : '💡 Conseils d\'utilisation'}</div>}
               <div className={isV5 ? '' : 'v22-card-body'}>
-                <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--v22-text-mid)' }}>
+                <ul style={{ paddingLeft: '0', margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: tv.textMid }}>
                   {locale === 'pt' ? (
                     <>
                       <li>📍 <strong>Ative o GPS</strong> para resultados orientados à sua região</li>

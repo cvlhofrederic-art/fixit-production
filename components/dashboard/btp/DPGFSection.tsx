@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { FolderOpen, Download } from 'lucide-react'
+import { useThemeVars } from '../useThemeVars'
 
 export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `dpgf_${userId}`
   interface Lot { numero: string; designation: string; montantHT: number }
@@ -107,7 +109,7 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
             <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={createAppel} disabled={!form.titre}>{t('proDash.btp.dpgf.creer')}</button>
-            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.dpgf.annuler')}</button>
+            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{t('proDash.btp.dpgf.annuler')}</button>
           </div>
         </div>
       )}
@@ -116,20 +118,20 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
       <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ overflowX: 'auto', padding: 0, marginBottom: '1.25rem' }}>
         <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>R\u00E9f</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.titre') || 'Intitul\u00E9'}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.clientMaitreOuvrage') || 'Ma\u00EEtre d\'ouvrage'}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>Deadline</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>Budget estim\u00E9</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>Statut</th>
+            <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>R\u00E9f</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.titre') || 'Intitul\u00E9'}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.clientMaitreOuvrage') || 'Ma\u00EEtre d\'ouvrage'}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Deadline</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Budget estim\u00E9</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>Statut</th>
             </tr>
           </thead>
           <tbody>
             {appels.length === 0 ? (
               <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'📂'}</div>{t('proDash.btp.dpgf.aucunAppel')}</td></tr>
             ) : appels.map(a => (
-              <tr key={a.id} onClick={() => setSelected(a)} style={{ cursor: 'pointer', ...(isV5 ? {} : { borderBottom: '1px solid var(--v22-border)' }) }}>
+              <tr key={a.id} onClick={() => setSelected(a)} style={{ cursor: 'pointer', ...(isV5 ? {} : { borderBottom: `1px solid ${tv.border}` }) }}>
                 <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>AO-{a.id.slice(-6)}</td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>{a.titre}</td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>{a.client}</td>
@@ -159,7 +161,7 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
                     ? `v5-btn v5-btn-sm${selected.statut === s ? ' v5-btn-p' : ''}`
                     : 'v22-btn'
                   }
-                  style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px', background: selected.statut === s ? 'var(--v22-yellow)' : 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontWeight: selected.statut === s ? 700 : 400 }}
+                  style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px', background: selected.statut === s ? tv.primary : tv.bg, border: `1px solid ${tv.border}`, fontWeight: selected.statut === s ? 700 : 400 }}
                   onClick={() => changeStatut(selected.id, s)}
                 >{dpgfStatLabels[s]}</button>
               ))}
@@ -168,15 +170,15 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
           <div style={{ overflowX: 'auto' }}>
             <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.colNumeroLot')}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.colDesignation')}</th>
-                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.colMontantHT')}</th>
+                <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.colNumeroLot')}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.colDesignation')}</th>
+                  <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.dpgf.colMontantHT')}</th>
                 </tr>
               </thead>
               <tbody>
                 {selected.lots.map((l, i) => (
-                  <tr key={i} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                  <tr key={i} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                     <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{l.numero}</td>
                     <td style={isV5 ? undefined : { padding: '8px 12px' }}>{l.designation}</td>
                     <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{l.montantHT.toLocaleString(dateLocale)} \u20AC</td>
@@ -186,7 +188,7 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
               <tfoot>
                 <tr>
                   <td colSpan={2} style={{ textAlign: 'right', fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{t('proDash.btp.dpgf.totalHT')}</td>
-                  <td style={{ fontWeight: 600, color: isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)', ...(isV5 ? {} : { padding: '8px 12px' }) }}>{getTotal(selected).toLocaleString(dateLocale)} \u20AC</td>
+                  <td style={{ fontWeight: 600, color: isV5 ? 'var(--v5-primary-yellow-dark)' : tv.primary, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{getTotal(selected).toLocaleString(dateLocale)} \u20AC</td>
                 </tr>
                 <tr>
                   <td colSpan={2} style={{ textAlign: 'right', fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{t('proDash.btp.dpgf.totalTTC')}</td>
@@ -196,7 +198,7 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
             </table>
           </div>
           {/* Add lot form */}
-          <div style={{ padding: '1rem 1.25rem', background: isV5 ? 'var(--v5-content-bg)' : 'var(--v22-bg)', borderTop: '1px solid #E8E8E8' }}>
+          <div style={{ padding: '1rem 1.25rem', background: isV5 ? 'var(--v5-content-bg)' : tv.bg, borderTop: '1px solid #E8E8E8' }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <input className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 64 }} placeholder={t('proDash.btp.dpgf.numLotPlaceholder')} value={newLot.numero} onChange={e => setNewLot({...newLot, numero: e.target.value})} />
               <input className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1 }} placeholder={t('proDash.btp.dpgf.designationPlaceholder')} value={newLot.designation} onChange={e => setNewLot({...newLot, designation: e.target.value})} />
@@ -207,8 +209,8 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
         </div>
       ) : (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, flexDirection: 'column', gap: 8 }}>
-          <FolderOpen size={32} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} />
-          <p style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{t('proDash.btp.dpgf.selectionnerAppel')}</p>
+          <FolderOpen size={32} style={{ color: isV5 ? 'var(--v5-text-muted)' : tv.textMid }} />
+          <p style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-light)' : tv.textMid }}>{t('proDash.btp.dpgf.selectionnerAppel')}</p>
         </div>
       )}
     </div>

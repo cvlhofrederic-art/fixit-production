@@ -13,6 +13,7 @@ import {
   type CreateListingPayload,
 } from '@/lib/marketplace-btp-types'
 import { PlusCircle, Pencil, Trash2, Search, ShoppingCart, Package, BarChart3, Tag, Eye, MapPin, Phone, Mail, AlertTriangle, ChevronDown, Camera, Check, Send, Clock, Pause, Play, X, Lock, DollarSign, Calendar, Euro } from 'lucide-react'
+import { useThemeVars } from './useThemeVars'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function fmtEur(v: number, locale: string) {
@@ -49,11 +50,12 @@ function typeLabel(t: string, isPt: boolean) {
 const ETAT_OPTIONS: EtatMateriel[] = ['neuf', 'bon', 'correct', 'use']
 
 // ─── EMPTY STATES ─────────────────────────────────────────────────────────────
-function EmptyState({ text, sub }: { text: string; sub?: string }) {
+function EmptyState({ text, sub, isV5 }: { text: string; sub?: string; isV5?: boolean }) {
+  const tv = useThemeVars(isV5 ?? false)
   return (
-    <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--v22-text-muted)' }}>
+    <div style={{ textAlign: 'center', padding: '48px 24px', color: tv.textMuted }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}><Package size={40} strokeWidth={1.5} /></div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--v22-text)', marginBottom: 4 }}>{text}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: tv.text, marginBottom: 4 }}>{text}</div>
       {sub && <div style={{ fontSize: 12 }}>{sub}</div>}
     </div>
   )
@@ -63,21 +65,22 @@ function EmptyState({ text, sub }: { text: string; sub?: string }) {
 function ListingCard({ listing, isPt, onContact, isOwn, isV5 }: {
   listing: MarketplaceListing; isPt: boolean; onContact?: () => void; isOwn?: boolean; isV5?: boolean
 }) {
+  const tv = useThemeVars(isV5 ?? false)
   const firstPhoto = listing.photos?.[0]
   return (
     <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Photo */}
       <div style={{
-        height: 130, background: firstPhoto ? `url(${firstPhoto}) center/cover` : 'var(--v22-bg)',
+        height: 130, background: firstPhoto ? `url(${firstPhoto}) center/cover` : tv.bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 36, borderBottom: '1px solid var(--v22-border)',
+        fontSize: 36, borderBottom: `1px solid ${tv.border}`,
       }}>
         {!firstPhoto && (MARKETPLACE_CATEGORIES.find(c => c.id === listing.categorie)?.emoji ?? <Package size={36} />)}
       </div>
       <div style={{ padding: '12px 14px', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Titre + état */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--v22-text)', lineHeight: 1.3 }}>{listing.title}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: tv.text, lineHeight: 1.3 }}>{listing.title}</div>
           <span className={isV5 ? `v5-badge v5-badge-${listing.etat === 'neuf' ? 'green' : listing.etat === 'bon' ? 'blue' : listing.etat === 'correct' ? 'yellow' : 'red'}` : ''} style={isV5 ? { fontSize: 9 } : { fontSize: 9, fontWeight: 700, color: etatColor(listing.etat), border: `1px solid ${etatColor(listing.etat)}`, borderRadius: 3, padding: '2px 5px', flexShrink: 0 }}>
             {etatLabel(listing.etat, isPt).toUpperCase()}
           </span>
@@ -88,20 +91,20 @@ function ListingCard({ listing, isPt, onContact, isOwn, isV5 }: {
           <span className={isV5 ? 'v5-badge v5-badge-yellow' : 'v22-tag v22-tag-yellow'} style={{ fontSize: 10 }}>{typeLabel(listing.type_annonce, isPt)}</span>
         </div>
         {/* Prix */}
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v22-yellow)' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: tv.primary }}>
           {listing.prix_vente && <span>{fmtEur(listing.prix_vente, isPt ? 'pt' : 'fr')}{isPt ? ' (venda)' : ' (vente)'}</span>}
           {listing.prix_vente && listing.prix_location_jour && <span> · </span>}
           {listing.prix_location_jour && <span>{fmtEur(listing.prix_location_jour, isPt ? 'pt' : 'fr')}/{isPt ? 'dia' : 'jour'}</span>}
-          {!listing.prix_vente && !listing.prix_location_jour && <span style={{ color: 'var(--v22-text-muted)', fontWeight: 400 }}>{isPt ? 'Preço a negociar' : 'Prix à négocier'}</span>}
+          {!listing.prix_vente && !listing.prix_location_jour && <span style={{ color: tv.textMuted, fontWeight: 400 }}>{isPt ? 'Preço a negociar' : 'Prix à négocier'}</span>}
         </div>
         {/* Localisation + marque */}
-        <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+        <div style={{ fontSize: 11, color: tv.textMuted }}>
           {listing.localisation && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={11} /> {listing.localisation}</span>}
           {listing.marque && <span> · {listing.marque}{listing.modele ? ` ${listing.modele}` : ''}</span>}
           {listing.annee && <span> · {listing.annee}</span>}
         </div>
         {/* Date + vues */}
-        <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', display: 'flex', justifyContent: 'space-between', marginTop: 'auto', paddingTop: 6, borderTop: '1px solid var(--v22-border)' }}>
+        <div style={{ fontSize: 10, color: tv.textMuted, display: 'flex', justifyContent: 'space-between', marginTop: 'auto', paddingTop: 6, borderTop: `1px solid ${tv.border}` }}>
           <span>{daysAgo(listing.created_at, isPt)}</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Eye size={11} /> {listing.vues}</span>
         </div>
@@ -120,6 +123,7 @@ function ListingCard({ listing, isPt, onContact, isOwn, isV5 }: {
 function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
   listing: MarketplaceListing; isPt: boolean; onClose: () => void; onSubmit: (d: Partial<MarketplaceDemande>) => void; isV5?: boolean
 }) {
+  const tv = useThemeVars(isV5 ?? false)
   const [type, setType] = useState<'achat' | 'location'>(listing.type_annonce === 'vente' ? 'achat' : 'location')
   const [dateDebut, setDateDebut] = useState('')
   const [dateFin, setDateFin] = useState('')
@@ -141,8 +145,8 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
           <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'} onClick={onClose}>✕</button>
         </div>
         <div className={isV5 ? '' : 'v22-modal-body'} style={isV5 ? { padding: '1rem' } : undefined}>
-          <p style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 14 }}>
-            <strong style={{ color: 'var(--v22-text)' }}>{listing.title}</strong>{listing.localisation ? ` — ${listing.localisation}` : ''}
+          <p style={{ fontSize: 12, color: tv.textMuted, marginBottom: 14 }}>
+            <strong style={{ color: tv.text }}>{listing.title}</strong>{listing.localisation ? ` — ${listing.localisation}` : ''}
           </p>
 
           {listing.type_annonce === 'vente_location' && (
@@ -150,7 +154,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
               <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Tipo de pedido' : 'Type de demande'}</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['achat', 'location'] as const).map(t => (
-                  <button key={t} onClick={() => setType(t)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: type === t ? 'var(--v22-yellow)' : 'var(--v22-surface)', color: type === t ? 'var(--v22-text)' : 'var(--v22-text-muted)', border: `1px solid ${type === t ? 'var(--v22-yellow)' : 'var(--v22-border)'}`, fontWeight: type === t ? 700 : 400 }}>
+                  <button key={t} onClick={() => setType(t)} className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: type === t ? tv.primary : tv.surface, color: type === t ? tv.text : tv.textMuted, border: `1px solid ${type === t ? tv.primary : tv.border}`, fontWeight: type === t ? 700 : 400 }}>
                     {t === 'achat' ? (isPt ? 'Compra' : 'Achat') : (isPt ? 'Aluguer' : 'Location')}
                   </button>
                 ))}
@@ -172,7 +176,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
           )}
 
           <div className={isV5 ? 'v5-fg' : ''} style={{ marginBottom: 14 }}>
-            <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Preço proposto (€)' : 'Prix proposé (€)'} <span style={{ fontWeight: 400, color: 'var(--v22-text-muted)' }}>{isPt ? '— opcional' : '— optionnel'}</span></label>
+            <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Preço proposto (€)' : 'Prix proposé (€)'} <span style={{ fontWeight: 400, color: tv.textMuted }}>{isPt ? '— opcional' : '— optionnel'}</span></label>
             <input type="number" value={prixPropose} onChange={e => setPrixPropose(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={isPt ? 'Deixar vazio = preço anunciado' : 'Laisser vide = prix affiché'} />
           </div>
 
@@ -197,6 +201,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
 function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
   isPt: boolean; artisan: import('@/lib/types').Artisan; initial?: MarketplaceListing; onSave: (data: CreateListingPayload) => void; onCancel: () => void; isV5?: boolean
 }) {
+  const tv = useThemeVars(isV5 ?? false)
   const [title, setTitle] = useState(initial?.title || '')
   const [desc, setDesc] = useState(initial?.description || '')
   const [cat, setCat] = useState<MarketplaceCategorieId>(initial?.categorie || 'outillage_pro')
@@ -357,7 +362,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid var(--v22-border)' }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: `1px solid ${tv.border}` }}>
           <button className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={onCancel}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={handleSave} disabled={!title.trim()}>
             <Check size={14} /> {isPt ? 'Publicar anúncio' : 'Publier l\'annonce'}
@@ -533,6 +538,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
   // ── CSS class helpers for v5/v22 ──
   const isV5 = isProSociete
+  const tv = useThemeVars(isV5)
   const cardCls = isV5 ? 'v5-card' : 'v22-card'
   const btnCls = isV5 ? 'v5-btn' : 'v22-btn'
   const btnPrimaryCls = isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'
@@ -542,7 +548,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', top: 80, right: 24, zIndex: 9999, background: isV5 ? '#fff' : 'var(--v22-surface)', border: `1px solid ${isV5 ? '#E8E8E8' : 'var(--v22-border)'}`, borderRadius: isV5 ? 6 : 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
+        <div style={{ position: 'fixed', top: 80, right: 24, zIndex: 9999, background: isV5 ? '#fff' : tv.surface, border: `1px solid ${isV5 ? '#E8E8E8' : tv.border}`, borderRadius: isV5 ? 6 : 8, padding: '10px 16px', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
           {toast}
         </div>
       )}
@@ -582,7 +588,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {/* Bandeau restriction AE */}
       {isAE && (
         <div className={cardCls} style={{ marginBottom: isV5 ? '0.75rem' : 16, borderLeft: '3px solid #3b82f6', background: 'rgba(59,130,246,0.06)', padding: '10px 14px' }}>
-          <span style={{ fontSize: 12, color: 'var(--v22-text-muted)' }}>
+          <span style={{ fontSize: 12, color: tv.textMuted }}>
             <Lock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{isPt
               ? 'Acesso restrito a mini-máquinas e material leve. As empresas PRO têm acesso à gama completa.'
               : 'Accès restreint aux mini-engins et matériel léger. Les entreprises PRO ont accès à la gamme complète.'}
@@ -591,12 +597,12 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       )}
 
       {/* Tabs */}
-      <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: '0.75rem' } : { display: 'flex', gap: 0, borderBottom: '1px solid var(--v22-border)', marginBottom: 20, overflowX: 'auto' }}>
+      <div className={isV5 ? 'v5-tabs' : ''} style={isV5 ? { marginBottom: '0.75rem' } : { display: 'flex', gap: 0, borderBottom: `1px solid ${tv.border}`, marginBottom: 20, overflowX: 'auto' }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} className={isV5 ? `v5-tab-b${tab === t.key ? ' active' : ''}` : `v22-tab${tab === t.key ? ' active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             {t.icon} {t.label}
             {t.count != null && t.count > 0 && (
-              <span style={{ marginLeft: 6, background: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', color: isV5 ? '#333' : '#111', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
+              <span style={{ marginLeft: 6, background: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, color: isV5 ? '#333' : '#111', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
                 {t.count}
               </span>
             )}
@@ -627,9 +633,9 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
           {/* Grille */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Clock size={16} className="animate-spin" /> {isPt ? 'A carregar...' : 'Chargement...'}</div>
+            <div style={{ textAlign: 'center', padding: 40, color: tv.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><Clock size={16} className="animate-spin" /> {isPt ? 'A carregar...' : 'Chargement...'}</div>
           ) : listings.length === 0 ? (
-            <EmptyState
+            <EmptyState isV5={isV5}
               text={isPt ? 'Nenhum anúncio disponível' : 'Aucune annonce disponible'}
               sub={isPt ? 'Seja o primeiro a publicar!' : 'Soyez le premier à publier !'}
             />
@@ -649,7 +655,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {tab === 'mes_annonces' && (
         <div>
           {myListings.length === 0 ? (
-            <EmptyState
+            <EmptyState isV5={isV5}
               text={isPt ? 'Nenhum anúncio publicado' : 'Aucune annonce publiée'}
               sub={isPt ? 'Clique em "+ Novo anúncio" para começar' : 'Cliquez "+ Nouvelle annonce" pour commencer'}
             />
@@ -658,15 +664,15 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
               {myListings.map(l => (
                 <div key={l.id} className={cardCls}>
                   <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 6, background: l.photos?.[0] ? `url(${l.photos[0]}) center/cover` : 'var(--v22-bg)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, border: '1px solid var(--v22-border)' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 6, background: l.photos?.[0] ? `url(${l.photos[0]}) center/cover` : tv.bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, border: `1px solid ${tv.border}` }}>
                       {!l.photos?.[0] && (MARKETPLACE_CATEGORIES.find(c => c.id === l.categorie)?.emoji ?? <Package size={22} />)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 2 }}>{l.title}</div>
-                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 2 }}>{l.title}</div>
+                      <div style={{ fontSize: 11, color: tv.textMuted }}>
                         {getCat(l.categorie, isPt)} · {typeLabel(l.type_annonce, isPt)} · {l.localisation || (isPt ? 'Sem localização' : 'Sans localisation')}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
                         <Eye size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> {l.vues} {isPt ? 'visualizações' : 'vues'} · {daysAgo(l.created_at, isPt)}
                       </div>
                     </div>
@@ -685,7 +691,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                         ? <button className={btnSmCls} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'paused')}><Pause size={12} /> {isPt ? 'Pausar' : 'Pauser'}</button>
                         : <button className={`${btnSmCls} ${isV5 ? 'v5-btn-p' : 'v22-btn-primary'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'active')}><Play size={12} /> {isPt ? 'Ativar' : 'Activer'}</button>
                       }
-                      <button className={`${btnSmCls} ${isV5 ? 'v5-btn-d' : ''}`} style={isV5 ? undefined : { color: 'var(--v22-red)' }} onClick={() => setConfirmDeleteId(l.id)} aria-label="Supprimer cette annonce"><Trash2 size={14} /></button>
+                      <button className={`${btnSmCls} ${isV5 ? 'v5-btn-d' : ''}`} style={isV5 ? undefined : { color: tv.red }} onClick={() => setConfirmDeleteId(l.id)} aria-label="Supprimer cette annonce"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -709,7 +715,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {tab === 'demandes' && (
         <div>
           {demandes.length === 0 ? (
-            <EmptyState
+            <EmptyState isV5={isV5}
               text={isPt ? 'Nenhum pedido recebido' : 'Aucune demande reçue'}
               sub={isPt ? 'Os pedidos dos compradores aparecerão aqui' : 'Les demandes des acheteurs apparaîtront ici'}
             />
@@ -720,14 +726,14 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                   <div style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--v22-text)', marginBottom: 2 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 2 }}>
                           {d.type_demande === 'achat' ? (isPt ? 'Pedido de compra' : 'Demande d\'achat') : (isPt ? 'Pedido de aluguer' : 'Demande de location')}
                           {' — '}
-                          <span style={{ color: 'var(--v22-text-muted)', fontWeight: 400 }}>{(d.listing as any)?.title || isPt ? 'Anúncio' : 'Annonce'}</span>
+                          <span style={{ color: tv.textMuted, fontWeight: 400 }}>{(d.listing as any)?.title || isPt ? 'Anúncio' : 'Annonce'}</span>
                         </div>
-                        {d.date_debut && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} /> {d.date_debut}{d.date_fin ? ` → ${d.date_fin}` : ''}</div>}
-                        {d.prix_propose && <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={11} /> {fmtEur(d.prix_propose, isPt ? 'pt' : 'fr')} {isPt ? 'proposto' : 'proposé'}</div>}
-                        {d.message && <div style={{ fontSize: 12, color: 'var(--v22-text)', marginTop: 6, fontStyle: 'italic' }}>"{d.message}"</div>}
+                        {d.date_debut && <div style={{ fontSize: 11, color: tv.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} /> {d.date_debut}{d.date_fin ? ` → ${d.date_fin}` : ''}</div>}
+                        {d.prix_propose && <div style={{ fontSize: 11, color: tv.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={11} /> {fmtEur(d.prix_propose, isPt ? 'pt' : 'fr')} {isPt ? 'proposto' : 'proposé'}</div>}
+                        {d.message && <div style={{ fontSize: 12, color: tv.text, marginTop: 6, fontStyle: 'italic' }}>"{d.message}"</div>}
                       </div>
                       <span className={isV5 ? `v5-badge v5-badge-${d.status === 'pending' ? 'yellow' : d.status === 'accepted' ? 'green' : 'red'}` : ''} style={isV5 ? { fontSize: 10, flexShrink: 0 } : {
                         fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4, flexShrink: 0,
@@ -737,7 +743,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                         {d.status === 'pending' ? (isPt ? 'PENDENTE' : 'EN ATTENTE') : d.status === 'accepted' ? (isPt ? 'ACEITE' : 'ACCEPTÉ') : (isPt ? 'RECUSADO' : 'REFUSÉ')}
                       </span>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginBottom: d.status === 'pending' ? 10 : 0 }}>
+                    <div style={{ fontSize: 10, color: tv.textMuted, marginBottom: d.status === 'pending' ? 10 : 0 }}>
                       {daysAgo(d.created_at, isPt)}
                     </div>
                     {d.status === 'pending' && (
@@ -745,7 +751,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                         <button className={btnPrimaryCls} style={{ fontSize: 11, padding: '5px 14px' }} onClick={() => handleRespond(d, 'accepted', isPt ? 'Pedido aceite. Entraremos em contacto.' : 'Demande acceptée. Nous vous contacterons.')}>
                           <Check size={12} /> {isPt ? 'Aceitar' : 'Accepter'}
                         </button>
-                        <button className={btnCls} style={{ fontSize: 11, padding: '5px 14px', color: isV5 ? '#E53935' : 'var(--v22-red)' }} onClick={() => handleRespond(d, 'rejected', isPt ? 'Lamentamos, não está disponível.' : 'Désolé, non disponible.')}>
+                        <button className={btnCls} style={{ fontSize: 11, padding: '5px 14px', color: isV5 ? '#E53935' : tv.red }} onClick={() => handleRespond(d, 'rejected', isPt ? 'Lamentamos, não está disponível.' : 'Désolé, non disponible.')}>
                           <X size={12} /> {isPt ? 'Recusar' : 'Refuser'}
                         </button>
                       </div>
@@ -782,7 +788,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
             </div>
           ) : (
           <div className="v22-stats" style={{ marginBottom: 20 }}>
-            <div className="v22-stat" style={{ borderLeft: '3px solid var(--v22-yellow)' }}>
+            <div className="v22-stat" style={{ borderLeft: `3px solid ${tv.primary}` }}>
               <div className="v22-stat-label">{isPt ? 'Total anúncios' : 'Total annonces'}</div>
               <div className="v22-stat-val">{statsTotal}</div>
             </div>
@@ -815,13 +821,13 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                       <span>{c.emoji} {isPt ? c.labelPt : c.labelFr}</span>
                       <span style={{ fontWeight: 600 }}>{count} ({pct}%)</span>
                     </div>
-                    <div style={{ height: 6, borderRadius: 3, background: 'var(--v22-border)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: 'var(--v22-yellow)', borderRadius: 3 }} />
+                    <div style={{ height: 6, borderRadius: 3, background: tv.border, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: tv.primary, borderRadius: 3 }} />
                     </div>
                   </div>
                 )
               })}
-              {statsTotal === 0 && <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', textAlign: 'center', padding: 20 }}>{isPt ? 'Sem dados' : 'Aucune donnée'}</div>}
+              {statsTotal === 0 && <div style={{ fontSize: 12, color: tv.textMuted, textAlign: 'center', padding: 20 }}>{isPt ? 'Sem dados' : 'Aucune donnée'}</div>}
             </div>
           </div>
         </div>
@@ -845,13 +851,13 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
               <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-modal-close'} onClick={() => setConfirmDeleteId(null)}>✕</button>
             </div>
             <div className={isV5 ? '' : 'v22-modal-body'} style={isV5 ? { padding: '1rem' } : undefined}>
-              <p style={{ fontSize: 13, color: 'var(--v22-text)' }}>
+              <p style={{ fontSize: 13, color: tv.text }}>
                 {isPt ? 'Tem a certeza que quer eliminar este anúncio? Esta ação é irreversível.' : 'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.'}
               </p>
             </div>
             <div className={isV5 ? '' : 'v22-modal-foot'} style={isV5 ? { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 1rem 1rem' } : undefined}>
               <button className={btnCls} onClick={() => setConfirmDeleteId(null)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className={`${btnCls} ${isV5 ? 'v5-btn-d' : ''}`} style={{ background: isV5 ? '#FFEBEE' : 'var(--v22-red)', color: isV5 ? '#E53935' : '#fff', border: isV5 ? '1px solid #E53935' : 'none' }} onClick={() => handleDelete(confirmDeleteId)}>
+              <button className={`${btnCls} ${isV5 ? 'v5-btn-d' : ''}`} style={{ background: isV5 ? '#FFEBEE' : tv.red, color: isV5 ? '#E53935' : '#fff', border: isV5 ? '1px solid #E53935' : 'none' }} onClick={() => handleDelete(confirmDeleteId)}>
                 <Trash2 size={12} /> {isPt ? 'Eliminar' : 'Supprimer'}
               </button>
             </div>

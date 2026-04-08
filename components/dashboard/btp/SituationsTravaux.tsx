@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { BarChart3 } from 'lucide-react'
+import { useThemeVars } from '../useThemeVars'
 
 export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `situations_${userId}`
   interface Poste { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }
@@ -84,7 +86,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
             <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={createSit} disabled={!form.chantier || !form.client}>{t('proDash.btp.situations.creer')}</button>
-            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.situations.annuler')}</button>
+            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{t('proDash.btp.situations.annuler')}</button>
           </div>
         </div>
       )}
@@ -102,14 +104,14 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
             const sitStatLabels: Record<string, string> = { brouillon: t('proDash.btp.situations.brouillon'), envoyée: t('proDash.btp.situations.envoyee'), validée: t('proDash.btp.situations.validee'), payée: t('proDash.btp.situations.payee') }
             return (
               <div key={s.id} onClick={() => setSelected(s)} className={isV5 ? 'v5-card' : 'v22-card'}
-                style={{ cursor: 'pointer', border: selected?.id === s.id ? (isV5 ? '2px solid var(--v5-primary-yellow)' : '2px solid var(--v22-yellow)') : undefined }}>
+                style={{ cursor: 'pointer', border: selected?.id === s.id ? (isV5 ? '2px solid var(--v5-primary-yellow)' : `2px solid ${tv.primary}`) : undefined }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontWeight: 600, fontSize: 12 }}>{t('proDash.btp.situations.situation')} n&deg;{s.numero}</span>
                   <span className={(isV5 ? sitBadgeV5 : sitBadgeV22)[s.statut]}>{sitStatLabels[s.statut] || s.statut}</span>
                 </div>
-                <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)' }}>{s.chantier}</div>
+                <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid }}>{s.chantier}</div>
                 <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-light)' : '#8A9BB0' }}>{s.client}</div>
-                <div style={{ fontWeight: 600, fontSize: 13, color: isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)', marginTop: 4 }}>{getTotal(s).toLocaleString(dateLocale)} &euro;</div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: isV5 ? 'var(--v5-primary-yellow-dark)' : tv.primary, marginTop: 4 }}>{getTotal(s).toLocaleString(dateLocale)} &euro;</div>
               </div>
             )
           })}
@@ -128,7 +130,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                         ? `v5-tab-b${selected.statut === s ? ' active' : ''}`
                         : `v22-btn${selected.statut === s ? '' : ''}`
                       }
-                      style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px', background: selected.statut === s ? 'var(--v22-yellow)' : 'var(--v22-bg)', border: '1px solid var(--v22-border)', fontWeight: selected.statut === s ? 700 : 400 }}
+                      style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px', background: selected.statut === s ? tv.primary : tv.bg, border: `1px solid ${tv.border}`, fontWeight: selected.statut === s ? 700 : 400 }}
                     >{s}</button>
                   ))}
                 </div>
@@ -136,18 +138,18 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
               <div style={{ overflowX: 'auto' }}>
                 <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
-                    <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colPoste')}</th>
-                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colQte')}</th>
-                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colUnite')}</th>
-                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colPU')}</th>
-                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colAvt')}</th>
-                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colMontant')}</th>
+                    <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colPoste')}</th>
+                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colQte')}</th>
+                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colUnite')}</th>
+                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colPU')}</th>
+                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colAvt')}</th>
+                      <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.situations.colMontant')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {selected.travaux.map((tr, i) => (
-                      <tr key={i} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                      <tr key={i} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.poste}</td>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.quantite}</td>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.unite}</td>
@@ -160,13 +162,13 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                   <tfoot>
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'right', fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{t('proDash.btp.situations.total')}</td>
-                      <td style={{ fontWeight: 600, color: isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)', ...(isV5 ? {} : { padding: '8px 12px' }) }}>{getTotal(selected).toLocaleString(dateLocale)} &euro;</td>
+                      <td style={{ fontWeight: 600, color: isV5 ? 'var(--v5-primary-yellow-dark)' : tv.primary, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{getTotal(selected).toLocaleString(dateLocale)} &euro;</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
               {/* Add poste form */}
-              <div style={{ padding: '1rem 1.25rem', background: isV5 ? 'var(--v5-content-bg)' : 'var(--v22-bg)', borderTop: '1px solid #E8E8E8' }}>
+              <div style={{ padding: '1rem 1.25rem', background: isV5 ? 'var(--v5-content-bg)' : tv.bg, borderTop: '1px solid #E8E8E8' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 8 }}>
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.postePlaceholder')} value={newPoste.poste} onChange={e => setNewPoste({...newPoste, poste: e.target.value})} />
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.qtePlaceholder')} value={newPoste.quantite || ''} onChange={e => setNewPoste({...newPoste, quantite: Number(e.target.value)})} />
@@ -177,16 +179,16 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                   <button className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn'} onClick={addPoste} disabled={!newPoste.poste}>{t('proDash.btp.situations.ajouter')}</button>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{t('proDash.btp.situations.avancement')}</span>
-                  <input type="range" min="0" max="100" value={newPoste.avancement} onChange={e => setNewPoste({...newPoste, avancement: Number(e.target.value)})} style={{ flex: 1, accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)' }} />
+                  <span style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-light)' : tv.textMid }}>{t('proDash.btp.situations.avancement')}</span>
+                  <input type="range" min="0" max="100" value={newPoste.avancement} onChange={e => setNewPoste({...newPoste, avancement: Number(e.target.value)})} style={{ flex: 1, accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary }} />
                   <span style={{ fontSize: 11, fontWeight: 600, minWidth: 32 }}>{newPoste.avancement}%</span>
                 </div>
               </div>
             </div>
           ) : (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, flexDirection: 'column', gap: 8 }}>
-              <BarChart3 size={32} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} />
-              <p style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-light)' : 'var(--v22-text-mid)' }}>{t('proDash.btp.situations.selectionnerSituation')}</p>
+              <BarChart3 size={32} style={{ color: isV5 ? 'var(--v5-text-muted)' : tv.textMid }} />
+              <p style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-light)' : tv.textMid }}>{t('proDash.btp.situations.selectionnerSituation')}</p>
             </div>
           )}
         </div>

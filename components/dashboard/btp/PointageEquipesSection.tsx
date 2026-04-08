@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from '../useThemeVars'
 import { Clock } from 'lucide-react'
 
 export function PointageEquipesSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `pointage_${userId}`
   interface Pointage {
@@ -85,7 +87,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addPointage} disabled={!form.employe}>{t('proDash.btp.pointage.enregistrer')}</button>
-              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'var(--v22-bg)', color: 'var(--v22-text)', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.pointage.annuler')}</button>
+              <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: tv.bg, color: tv.text, border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{t('proDash.btp.pointage.annuler')}</button>
             </div>
           </div>
         </div>
@@ -144,9 +146,9 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                  <tr style={{ borderBottom: `1px solid ${tv.border}` }}>
                     {[t('proDash.btp.pointage.colEmploye'), t('proDash.btp.pointage.colPoste'), t('proDash.btp.pointage.colChantier'), t('proDash.btp.pointage.colDate'), t('proDash.btp.pointage.colArrivee'), t('proDash.btp.pointage.colDepart'), t('proDash.btp.pointage.colHeures'), ''].map(h => (
-                      <th key={h || '_'} style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{h}</th>
+                      <th key={h || '_'} style={{ textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -154,14 +156,14 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                   {filtered.length === 0 ? (
                     <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'⏱️'}</div>{t('proDash.btp.pointage.aucunPointage')}</td></tr>
                   ) : filtered.map(p => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                    <tr key={p.id} style={{ borderBottom: `1px solid ${tv.border}` }}>
                       <td style={{ padding: '8px 12px', fontWeight: 600 }}>{p.employe}</td>
                       <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.poste}</td>
                       <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{p.chantier}</td>
                       <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{new Date(p.date).toLocaleDateString(dateLocale, { weekday: 'short', day: '2-digit', month: 'short' })}</td>
                       <td style={{ padding: '8px 12px' }}>{p.heureArrivee}</td>
                       <td style={{ padding: '8px 12px' }}>{p.heureDepart}</td>
-                      <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--v22-yellow)' }}>{p.heuresTravaillees}h</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 700, color: tv.primary }}>{p.heuresTravaillees}h</td>
                       <td style={{ padding: '8px 12px' }}><button onClick={() => deleteP(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 14 }}>&times;</button></td>
                     </tr>
                   ))}
@@ -176,12 +178,12 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
           {heuresByEmp.length === 0 ? (
             <p className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, ...(isV5 ? { color: 'var(--v5-text-muted)' } : {}) }}>{t('proDash.btp.pointage.aucuneDonnee')}</p>
           ) : heuresByEmp.map(e => (
-            <div key={e.employe} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: isV5 ? '1px solid #E8E8E8' : '1px solid var(--v22-border)' }}>
+            <div key={e.employe} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${isV5 ? '#E8E8E8' : tv.border}` }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0D1B2E' }}>{e.employe}</div>
                 <div style={{ fontSize: 11, color: '#8A9BB0' }}>{e.jours} {t('proDash.btp.pointage.jours')}</div>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: isV5 ? 'var(--v5-primary-yellow-dark)' : 'var(--v22-yellow)' }}>{e.heures.toFixed(1)}h</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: tv.primary }}>{e.heures.toFixed(1)}h</div>
             </div>
           ))}
         </div>

@@ -8,6 +8,7 @@ import { normalizeForSearch, fuzzyFind } from '@/lib/fuzzy-match'
 import { generateRapportPDF } from '@/lib/rapport-pdf'
 import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
+import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
 
 interface CompanyData {
@@ -102,6 +103,7 @@ const RAPPORT_STATUS_MAP = {
 export default function RapportsSection({ artisan, bookings, services, onNavigate, orgRole }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void; orgRole?: string }) {
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_rapports_${artisan?.id}`
   const pdfRef = useRef<HTMLDivElement>(null)
@@ -615,12 +617,12 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
                         placeholder="Jean Dupont" className={isV5 ? 'v5-fi' : 'v22-form-input'} autoComplete="off" />
                       {showClientSuggestions && clientSuggestions.length > 0 && (
-                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 180, overflowY: 'auto' }}>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: tv.surface, border: `1px solid ${tv.border}`, borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 180, overflowY: 'auto' }}>
                           {clientSuggestions.map((c, i) => (
                             <button key={i} onMouseDown={() => selectClientSuggestion(c)}
-                              className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                              className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: `1px solid ${tv.border}` }}>
                               <div style={{ fontWeight: 600 }}>{c.name}</div>
-                              {c.phone && <div style={{ color: 'var(--v22-text-muted)', fontSize: 10 }}>{c.phone}</div>}
+                              {c.phone && <div style={{ color: tv.textMuted, fontSize: 10 }}>{c.phone}</div>}
                             </button>
                           ))}
                         </div>
@@ -680,10 +682,10 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                       rows={2} placeholder="Fuite sous evier cuisine, remplacement robinet defectueux..."
                       className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ resize: 'none' }} />
                     {showMotifSuggestions && motifSuggestions.length > 0 && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--v22-surface)', border: '1px solid var(--v22-border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 160, overflowY: 'auto' }}>
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: tv.surface, border: `1px solid ${tv.border}`, borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 160, overflowY: 'auto' }}>
                         {motifSuggestions.map((m, i) => (
                           <button key={i} onMouseDown={() => selectMotifSuggestion(m)}
-                            className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: '1px solid var(--v22-border)' }}>
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--v22-bg)] transition" style={{ borderBottom: `1px solid ${tv.border}` }}>
                             {m.name}
                           </button>
                         ))}
@@ -711,7 +713,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1 }} />
                       {(form.travaux || []).length > 1 && (
                         <button onClick={() => setForm(p => ({ ...p, travaux: (p.travaux || []).filter((_, j) => j !== i) }))}
-                          className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: 'var(--v22-red)' }}>✕</button>
+                          className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: tv.red }}>✕</button>
                       )}
                     </div>
                   ))}
@@ -736,7 +738,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ flex: 1 }} />
                       {(form.materiaux || []).length > 1 && (
                         <button onClick={() => setForm(p => ({ ...p, materiaux: (p.materiaux || []).filter((_, j) => j !== i) }))}
-                          className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: 'var(--v22-red)' }}>✕</button>
+                          className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} style={{ color: tv.red }}>✕</button>
                       )}
                     </div>
                   ))}
@@ -781,14 +783,14 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                         return (
                           <div key={photoId} style={{ position: 'relative' }}>
                             {photo ? (
-                              <Image src={photo.url || ''} alt="Photo chantier" width={80} height={80} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '6px', border: '2px solid var(--v22-green)' }} unoptimized />
+                              <Image src={photo.url || ''} alt="Photo chantier" width={80} height={80} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '6px', border: `2px solid ${tv.green}` }} unoptimized />
                             ) : (
-                              <div style={{ width: '80px', height: '80px', background: 'var(--v22-bg)', borderRadius: '6px', border: '2px solid var(--v22-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'var(--v22-text-muted)' }}>📸</div>
+                              <div style={{ width: '80px', height: '80px', background: tv.bg, borderRadius: '6px', border: `2px solid ${tv.green}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: tv.textMuted }}>📸</div>
                             )}
                             <button
                               type="button"
                               onClick={() => togglePhotoLink(photoId)}
-                              style={{ position: 'absolute', top: '-6px', right: '-6px', background: 'var(--v22-red)', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
+                              style={{ position: 'absolute', top: '-6px', right: '-6px', background: tv.red, color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
                             >
                               ✕
                             </button>
@@ -807,7 +809,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
                   {/* Picker — grille de photos disponibles */}
                   {showPhotoPicker && (
-                    <div style={{ background: 'var(--v22-bg)', borderRadius: '6px', padding: '10px', marginTop: '8px' }}>
+                    <div style={{ background: tv.bg, borderRadius: '6px', padding: '10px', marginTop: '8px' }}>
                       {photosLoading ? (
                         <div className={isV5 ? '' : 'v22-card-meta'} style={{ textAlign: 'center', padding: '16px' }}>Chargement des photos...</div>
                       ) : availablePhotos.length === 0 ? (
@@ -827,15 +829,15 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                                   type="button"
                                   key={photo.id}
                                   onClick={() => togglePhotoLink(photo.id)}
-                                  style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: isLinked ? '2px solid var(--v22-green)' : '2px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none' }}
+                                  style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: isLinked ? `2px solid ${tv.green}` : `2px solid ${tv.border}`, cursor: 'pointer', padding: 0, background: 'none' }}
                                 >
                                   <Image src={photo.url || ''} alt="" width={100} height={64} style={{ width: '100%', height: '64px', objectFit: 'cover', display: 'block' }} unoptimized />
                                   {isLinked && (
                                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                      <span style={{ background: 'var(--v22-green)', color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
+                                      <span style={{ background: tv.green, color: '#fff', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
                                     </div>
                                   )}
-                                  <div style={{ fontSize: '8px', color: 'var(--v22-text-muted)', padding: '2px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <div style={{ fontSize: '8px', color: tv.textMuted, padding: '2px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {new Date(photo.taken_at).toLocaleDateString(dateFmtLocale)}
                                   </div>
                                 </button>
@@ -874,11 +876,11 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
               <div className={isV5 ? '' : 'v22-stat-label'}>Total rapports</div>
             </div>
             <div className={isV5 ? '' : 'v22-stat'}>
-              <div className={isV5 ? '' : 'v22-stat-val'} style={{ color: 'var(--v22-green)' }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
+              <div className={isV5 ? '' : 'v22-stat-val'} style={{ color: tv.green }}>{rapports.filter(r => r.sentStatus === 'envoye').length}</div>
               <div className={isV5 ? '' : 'v22-stat-label'}>Envoyes</div>
             </div>
             <div className={isV5 ? '' : 'v22-stat'}>
-              <div className={isV5 ? '' : 'v22-stat-val'} style={{ color: 'var(--v22-amber)' }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
+              <div className={isV5 ? '' : 'v22-stat-val'} style={{ color: tv.primary }}>{rapports.filter(r => r.sentStatus !== 'envoye').length}</div>
               <div className={isV5 ? '' : 'v22-stat-label'}>Non envoyes</div>
             </div>
           </div>

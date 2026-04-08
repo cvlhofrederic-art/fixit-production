@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
 import type { Artisan, Service, Booking } from '@/lib/types'
+import { useThemeVars } from './useThemeVars'
 
 interface DevisLine {
   totalHT?: number
@@ -68,6 +69,7 @@ export default function DevisSection({
 
   const devisDocs = savedDocuments.filter(d => d.docType === 'devis')
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only
@@ -156,7 +158,7 @@ export default function DevisSection({
                           : <span className="v22-tag v22-tag-amber">{t('proDash.devis.nonEnvoye')}</span>
                         }
                         {doc.sentAt && (
-                          <div style={{ fontSize: 10, color: 'var(--v22-text-muted)', marginTop: 2 }}>
+                          <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 2 }}>
                             {t('proDash.devis.envoyeLe')} {new Date(doc.sentAt).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })} {t('proDash.common.a')} {new Date(doc.sentAt).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         )}
@@ -190,7 +192,7 @@ export default function DevisSection({
                               localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                               setSavedDocuments([...updDocs, ...updDrafts])
                             }}
-                              className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-green)' }} title={t('proDash.devis.marquerEnvoye')}>
+                              className="v22-btn v22-btn-sm" style={{ color: tv.green }} title={t('proDash.devis.marquerEnvoye')}>
                               {'✅'}
                             </button>
                           )}
@@ -222,7 +224,7 @@ export default function DevisSection({
                             localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                             setSavedDocuments([...updDocs, ...updDrafts])
                           }}
-                            className="v22-btn v22-btn-sm" style={{ color: 'var(--v22-red)' }}>
+                            className="v22-btn v22-btn-sm" style={{ color: tv.red }}>
                             {'🗑️'}
                           </button>
                         </div>
@@ -236,8 +238,8 @@ export default function DevisSection({
         ) : (
           <div className="v22-card" style={{ padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>{'📄'}</div>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: 'var(--v22-text)' }}>{t('proDash.devis.aucunDevis')}</div>
-            <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 16 }}>{t('proDash.devis.creerPremierDevis')}</div>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: tv.text }}>{t('proDash.devis.aucunDevis')}</div>
+            <div style={{ fontSize: 12, color: tv.textMuted, marginBottom: 16 }}>{t('proDash.devis.creerPremierDevis')}</div>
             <button onClick={() => setShowDevisForm(true)} className="v22-btn v22-btn-primary">
               {t('proDash.devis.creerDevis')}
             </button>

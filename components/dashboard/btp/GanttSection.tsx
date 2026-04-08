@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { useThemeVars } from '../useThemeVars'
 
 interface ChantierItem {
   id: string; titre: string; client: string; dateDebut: string
@@ -39,6 +40,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const isPt = locale === 'pt'
 
@@ -222,7 +224,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
-            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           </div>
         </div>
       )}
@@ -240,8 +242,8 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
             <div className={isV5 ? 'v5-gantt-grid' : undefined} style={{ gridTemplateColumns: gridCols, ...(isV5 ? {} : { display: 'grid', gridTemplateColumns: gridCols }) }}>
               {/* Header */}
               <div className={isV5 ? 'v5-gantt-hdr' : undefined} style={isV5 ? undefined : { display: 'contents' }}>
-                <div style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: 'var(--v22-text-mid)', borderBottom: '1px solid var(--v22-border)' }}>{isPt ? 'Obra / Tarefa' : 'Chantier / Tâche'}</div>
-                {months.map((m, i) => <div key={i} style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: 'var(--v22-text-mid)', borderBottom: '1px solid var(--v22-border)', textAlign: 'center' }}>{m.label}</div>)}
+                <div style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Obra / Tarefa' : 'Chantier / Tâche'}</div>
+                {months.map((m, i) => <div key={i} style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}`, textAlign: 'center' }}>{m.label}</div>)}
               </div>
 
               {/* Rows */}
@@ -255,7 +257,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                   <div className={isV5 ? 'v5-gantt-row' : undefined} key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={isV5 ? undefined : { display: 'contents' }}>
                     {/* Name cell */}
                     <div style={{
-                      ...(isV5 ? {} : { padding: '8px 12px', fontSize: 12, borderBottom: '1px solid var(--v22-border)' }),
+                      ...(isV5 ? {} : { padding: '8px 12px', fontSize: 12, borderBottom: `1px solid ${tv.border}` }),
                       ...(row.isChantier ? { fontWeight: 700, fontSize: 13 } : { paddingLeft: isV5 ? 20 : 28, fontSize: 12, color: '#555' }),
                       ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
                       ...(isRetard ? { color: '#C62828' } : {}),
@@ -276,7 +278,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                       const showLabel = bar && bars.indexOf(bar) === middleBarIdx
 
                       return (
-                        <div key={mi} style={{ position: 'relative', ...(isV5 ? {} : { padding: '4px 0', borderBottom: '1px solid var(--v22-border)' }) }}>
+                        <div key={mi} style={{ position: 'relative', ...(isV5 ? {} : { padding: '4px 0', borderBottom: `1px solid ${tv.border}` }) }}>
                           {bar && (
                             <div
                               className={isV5 ? `v5-gantt-bar ${row.statut === 'en_cours' ? 'blue' : row.statut === 'en_retard' ? 'red' : row.statut === 'terminé' ? 'gray' : 'purple'}` : undefined}
@@ -320,18 +322,18 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
               <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Avanço das tarefas' : 'Avancement des tâches'}</div>
               <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isPt ? 'Obra' : 'Chantier'}</th>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isPt ? 'Estado' : 'Statut'}</th>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{isPt ? 'Avanço' : 'Avancement'}</th>
+                  <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
+                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Obra' : 'Chantier'}</th>
+                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Estado' : 'Statut'}</th>
+                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Avanço' : 'Avancement'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subTasksOnly.map(row => {
                     const chantier = chantiers.find(c => c.id === row.chantierId)
                     return (
-                      <tr key={row.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+                      <tr key={row.id} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                         <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
                           {row.nom}
                           <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{row.responsable}</div>
@@ -360,7 +362,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                           <input
                             type="range" min="0" max="100" value={row.avancement}
                             onChange={e => updateAvancement(row.id, Number(e.target.value))}
-                            style={{ width: '100%', accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)', height: 4, marginTop: 4 }}
+                            style={{ width: '100%', accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, height: 4, marginTop: 4 }}
                           />
                         </td>
                       </tr>
@@ -385,7 +387,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: '.75rem' }}>
               {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
                 <div key={s} className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{statLabels[s]}</div>
+                  <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{statLabels[s]}</div>
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{ganttRows.filter(r => r.statut === s).length}</div>
                 </div>
               ))}

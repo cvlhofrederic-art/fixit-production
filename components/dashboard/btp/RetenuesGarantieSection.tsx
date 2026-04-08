@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { Lightbulb } from 'lucide-react'
+import { useThemeVars } from '../useThemeVars'
 
 export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `retenues_${userId}`
   interface Retenue {
@@ -83,14 +85,14 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
           <div className="v22-card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{t('proDash.btp.retenues.retenuEnAttente')}</div>
+            <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{t('proDash.btp.retenues.retenuEnAttente')}</div>
             <div style={{ fontSize: 22, fontWeight: 700 }}>{totalRetenu.toLocaleString(dateLocale)} &euro;</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{t('proDash.btp.retenues.chantiersConcernes')}: {retenues.filter(r => r.statut === 'active').length}</div>
+            <div style={{ fontSize: 11, color: tv.textMid }}>{t('proDash.btp.retenues.chantiersConcernes')}: {retenues.filter(r => r.statut === 'active').length}</div>
           </div>
           <div className="v22-card" style={{ padding: 16 }}>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)', marginBottom: 4 }}>{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
+            <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{t('proDash.btp.retenues.libere') || 'Libération imminente'}</div>
             <div style={{ fontSize: 22, fontWeight: 700 }}>{imminentRetenue ? `${imminentRetenue.montantRetenu.toLocaleString(dateLocale)} \u20AC` : `${totalLib\u00E9r\u00E9.toLocaleString(dateLocale)} \u20AC`}</div>
-            <div style={{ fontSize: 11, color: 'var(--v22-text-mid)' }}>{imminentRetenue ? imminentRetenue.chantier : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
+            <div style={{ fontSize: 11, color: tv.textMid }}>{imminentRetenue ? imminentRetenue.chantier : `${retenues.filter(r => r.statut === 'libérée').length} chantier(s)`}</div>
           </div>
         </div>
       )}
@@ -121,8 +123,8 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
               <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.dateFinTravaux} onChange={e => setForm({...form, dateFinTravaux: e.target.value})} />
             </div>
             <div className={isV5 ? 'v5-fg' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 18 }}>
-              <input type="checkbox" id="caution_ret" checked={form.caution} onChange={e => setForm({...form, caution: e.target.checked})} style={{ width: 16, height: 16, accentColor: isV5 ? 'var(--v5-primary-yellow)' : 'var(--v22-yellow)' }} />
-              <label htmlFor="caution_ret" style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : 'var(--v22-text-mid)' }}>{t('proDash.btp.retenues.cautionBancaire')}</label>
+              <input type="checkbox" id="caution_ret" checked={form.caution} onChange={e => setForm({...form, caution: e.target.checked})} style={{ width: 16, height: 16, accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary }} />
+              <label htmlFor="caution_ret" style={{ fontSize: 12, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid }}>{t('proDash.btp.retenues.cautionBancaire')}</label>
             </div>
           </div>
           {form.montantMarche > 0 && (
@@ -132,7 +134,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: '.75rem' }}>
             <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={addRetenue} disabled={!form.chantier || !form.client}>{t('proDash.btp.retenues.enregistrer')}</button>
-            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: '1px solid var(--v22-border)' }} onClick={() => setShowForm(false)}>{t('proDash.btp.retenues.annuler')}</button>
+            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{t('proDash.btp.retenues.annuler')}</button>
           </div>
         </div>
       )}
@@ -141,21 +143,21 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
       <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ overflowX: 'auto', padding: 0 }}>
         <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colChantier')}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colClient')}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colMarcheHT')}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colRetenu')}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colFinTravaux')}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colStatut')}</th>
-              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: 'var(--v22-text-mid)', fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colActions')}</th>
+            <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colChantier')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colClient')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colMarcheHT')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colRetenu')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colFinTravaux')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colStatut')}</th>
+              <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{t('proDash.btp.retenues.colActions')}</th>
             </tr>
           </thead>
           <tbody>
             {retenues.length === 0 ? (
               <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'🔒'}</div>{t('proDash.btp.retenues.aucuneRetenue')}</td></tr>
             ) : retenues.map(r => (
-              <tr key={r.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
+              <tr key={r.id} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                 <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{r.chantier}</td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>{r.client}</td>
                 <td style={isV5 ? undefined : { padding: '8px 12px' }}>{r.montantMarche.toLocaleString(dateLocale)} &euro;</td>
