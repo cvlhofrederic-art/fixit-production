@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const tokenData = await tokenRes.json()
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      logger.error('Token exchange error:', tokenData)
+      logger.error('Token exchange error:', { error: tokenData?.error, error_description: tokenData?.error_description })
       return NextResponse.redirect(`${APP_URL}/syndic/dashboard?email_error=token_exchange`)
     }
 

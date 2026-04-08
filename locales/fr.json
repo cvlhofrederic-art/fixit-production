@@ -4591,7 +4591,17 @@
     },
     "protection": {
       "title": "Protection des données",
-      "p1": "Vitfix met en œuvre des mesures techniques et organisationnelles appropriées pour protéger vos données personnelles contre tout accès non autorisé, altération, divulgation ou destruction. Nos serveurs sont hébergés chez Vercel (certifié SOC 2) et nos bases de données chez Supabase avec chiffrement au repos."
+      "p1": "Vitfix met en œuvre des mesures techniques et organisationnelles appropriées pour protéger vos données personnelles contre tout accès non autorisé, altération, divulgation ou destruction. Nos serveurs sont hébergés chez Vercel (certifié SOC 2) et nos bases de données chez Supabase avec chiffrement au repos.",
+      "subProcessorsTitle": "Sous-traitants et services tiers",
+      "subProcessorsIntro": "Vos données peuvent être traitées par les sous-traitants suivants, dans le cadre du fonctionnement de la plateforme :",
+      "subProcessorVercel": "Vercel (hébergement et déploiement, États-Unis)",
+      "subProcessorSupabase": "Supabase (base de données et authentification, États-Unis)",
+      "subProcessorStripe": "Stripe (traitement des paiements, Irlande)",
+      "subProcessorSentry": "Sentry (surveillance des erreurs, États-Unis)",
+      "subProcessorResend": "Resend (envoi d'emails transactionnels, États-Unis)",
+      "subProcessorUpstash": "Upstash (limitation de débit et cache, États-Unis)",
+      "subProcessorLangfuse": "Langfuse (suivi qualité IA, Allemagne)",
+      "subProcessorDocuseal": "Docuseal (signature électronique de documents, États-Unis)"
     },
     "rights": {
       "title": "Vos droits",

@@ -4594,7 +4594,17 @@
     },
     "protection": {
       "title": "Proteção dos dados",
-      "p1": "A Vitfix implementa medidas técnicas e organizativas adequadas para proteger os seus dados pessoais contra qualquer acesso não autorizado, alteração, divulgação ou destruição. Os nossos servidores estão alojados na Vercel (certificada SOC 2) e as nossas bases de dados na Supabase com encriptação em repouso."
+      "p1": "A Vitfix implementa medidas técnicas e organizativas adequadas para proteger os seus dados pessoais contra qualquer acesso não autorizado, alteração, divulgação ou destruição. Os nossos servidores estão alojados na Vercel (certificada SOC 2) e as nossas bases de dados na Supabase com encriptação em repouso.",
+      "subProcessorsTitle": "Subcontratantes e serviços terceiros",
+      "subProcessorsIntro": "Os seus dados podem ser tratados pelos seguintes subcontratantes, no âmbito do funcionamento da plataforma:",
+      "subProcessorVercel": "Vercel (alojamento e implementação, Estados Unidos)",
+      "subProcessorSupabase": "Supabase (base de dados e autenticação, Estados Unidos)",
+      "subProcessorStripe": "Stripe (processamento de pagamentos, Irlanda)",
+      "subProcessorSentry": "Sentry (monitorização de erros, Estados Unidos)",
+      "subProcessorResend": "Resend (envio de emails transacionais, Estados Unidos)",
+      "subProcessorUpstash": "Upstash (limitação de pedidos e cache, Estados Unidos)",
+      "subProcessorLangfuse": "Langfuse (monitorização de qualidade IA, Alemanha)",
+      "subProcessorDocuseal": "Docuseal (assinatura eletrónica de documentos, Estados Unidos)"
     },
     "rights": {
       "title": "Os seus direitos",

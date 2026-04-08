@@ -40,6 +40,20 @@ export default async function ConfidentialitePage() {
             <p className="text-gray-600 leading-relaxed">
               {t('privacy.protection.p1')}
             </p>
+            <h3 className="text-lg font-semibold text-gray-800 mt-4 mb-2">{t('privacy.protection.subProcessorsTitle')}</h3>
+            <p className="text-gray-600 leading-relaxed mb-2">
+              {t('privacy.protection.subProcessorsIntro')}
+            </p>
+            <ul className="list-disc list-inside text-gray-600 space-y-1">
+              <li>{t('privacy.protection.subProcessorVercel')}</li>
+              <li>{t('privacy.protection.subProcessorSupabase')}</li>
+              <li>{t('privacy.protection.subProcessorStripe')}</li>
+              <li>{t('privacy.protection.subProcessorSentry')}</li>
+              <li>{t('privacy.protection.subProcessorResend')}</li>
+              <li>{t('privacy.protection.subProcessorUpstash')}</li>
+              <li>{t('privacy.protection.subProcessorLangfuse')}</li>
+              <li>{t('privacy.protection.subProcessorDocuseal')}</li>
+            </ul>
           </section>
 
           <section>
