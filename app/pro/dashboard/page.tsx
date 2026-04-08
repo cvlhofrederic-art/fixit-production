@@ -186,7 +186,7 @@ function DashboardPage() {
   const [commTab, setCommTab] = useState<'particuliers' | 'pro'>('particuliers')
 
   // ── Modules config ──
-  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t)
+  const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t)
 
   // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
   const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
@@ -978,6 +978,8 @@ function DashboardPage() {
               categoriesOrder={categoriesOrder}
               saveCategoriesOrder={saveCategoriesOrder}
               moveCategory={moveCategory}
+              reorderModuleTo={reorderModuleTo}
+              reorderCategoryTo={reorderCategoryTo}
               CATEGORIES_DEFAULT={CATEGORIES_DEFAULT}
             />
           )}

@@ -149,6 +149,45 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     saveModulesConfig(sorted)
   }, [modulesConfig, ALL_MODULES, saveModulesConfig])
 
+  // Move a module to a specific position (1-based) within its category
+  const reorderModuleTo = useCallback((moduleId: string, newPos: number) => {
+    const mod = ALL_MODULES.find(m => m.id === moduleId)
+    if (!mod) return
+    const sorted = [...modulesConfig].sort((a, b) => a.order - b.order)
+    const sameCat = sorted.filter(s => {
+      const def = ALL_MODULES.find(m => m.id === s.id)
+      return def?.category === mod.category
+    })
+    const currentIdx = sameCat.findIndex(x => x.id === moduleId)
+    if (currentIdx < 0) return
+    const targetIdx = Math.max(0, Math.min(newPos - 1, sameCat.length - 1))
+    if (targetIdx === currentIdx) return
+    // Remove from current position and insert at target
+    const item = sameCat.splice(currentIdx, 1)[0]
+    sameCat.splice(targetIdx, 0, item)
+    // Reassign orders based on new positions
+    const orderMap = new Map<string, number>()
+    sameCat.forEach((s, i) => orderMap.set(s.id, i))
+    const updated = sorted.map(s => {
+      const newOrder = orderMap.get(s.id)
+      return newOrder !== undefined ? { ...s, order: newOrder } : s
+    })
+    saveModulesConfig(updated)
+  }, [modulesConfig, ALL_MODULES, saveModulesConfig])
+
+  // Move a category to a specific position (1-based)
+  const reorderCategoryTo = useCallback((catId: string, newPos: number) => {
+    const sorted = [...categoriesOrder].sort((a, b) => a.order - b.order)
+    const currentIdx = sorted.findIndex(x => x.id === catId)
+    if (currentIdx < 0) return
+    const targetIdx = Math.max(0, Math.min(newPos - 1, sorted.length - 1))
+    if (targetIdx === currentIdx) return
+    const item = sorted.splice(currentIdx, 1)[0]
+    sorted.splice(targetIdx, 0, item)
+    sorted.forEach((c, i) => { c.order = i })
+    saveCategoriesOrder(sorted)
+  }, [categoriesOrder, saveCategoriesOrder])
+
   const moveCategory = useCallback((catId: string, direction: 'up' | 'down') => {
     const sorted = [...categoriesOrder].sort((a, b) => a.order - b.order)
     const idx = sorted.findIndex(x => x.id === catId)
@@ -170,6 +209,8 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     categoriesOrder,
     saveCategoriesOrder,
     moveCategory,
+    reorderModuleTo,
+    reorderCategoryTo,
     CATEGORIES_DEFAULT,
   }
 }

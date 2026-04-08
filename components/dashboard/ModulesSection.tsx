@@ -13,6 +13,8 @@ interface ModulesSectionProps {
   categoriesOrder: CategoryDef[]
   saveCategoriesOrder: (cats: CategoryDef[]) => void
   moveCategory: (catId: string, direction: 'up' | 'down') => void
+  reorderModuleTo: (moduleId: string, newPos: number) => void
+  reorderCategoryTo: (catId: string, newPos: number) => void
   CATEGORIES_DEFAULT: CategoryDef[]
 }
 
@@ -25,6 +27,8 @@ export default function ModulesSection({
   categoriesOrder,
   saveCategoriesOrder,
   moveCategory,
+  reorderModuleTo,
+  reorderCategoryTo,
   CATEGORIES_DEFAULT,
 }: ModulesSectionProps) {
   const { t } = useTranslation()
@@ -50,6 +54,14 @@ export default function ModulesSection({
   const sortedCategories = [...categoriesOrder].sort((a, b) => a.order - b.order)
   const enabledCount = ALL_MODULES.filter(m => !m.locked && isModuleEnabled(m.id)).length
   const totalCount = ALL_MODULES.filter(m => !m.locked).length
+
+  // Shared input style (v6 .mod-pos)
+  const posInputStyle = {
+    width: 40, textAlign: 'center' as const, padding: '4px 2px',
+    border: `1px solid ${tv.border}`, borderRadius: 4,
+    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+    color: tv.textMuted, background: tv.bg,
+  }
 
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
@@ -79,7 +91,7 @@ export default function ModulesSection({
               <span style={{ fontSize: 13, fontWeight: 700, color: tv.text }}>📦 ORDRE DU MENU</span>
               <br />
               <span style={{ fontSize: 11, color: tv.textMuted }}>
-                Réorganisez les modules et catégories — {enabledCount}/{totalCount} actifs
+                Utilisez les flèches ou modifiez le numéro pour réorganiser — {enabledCount}/{totalCount} actifs
               </span>
             </div>
             <button
@@ -116,6 +128,20 @@ export default function ModulesSection({
                     <span style={{ fontSize: 10, color: tv.textMuted, fontWeight: 600 }}>
                       {catModules.filter(m => !m.locked && isModuleEnabled(m.id)).length}/{catModules.filter(m => !m.locked).length}
                     </span>
+                    {/* Position input */}
+                    <input
+                      type="number"
+                      defaultValue={catIdx + 1}
+                      key={`cat-${cat.id}-${catIdx}`}
+                      min={1}
+                      max={sortedCategories.length}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value)
+                        if (!isNaN(val) && val !== catIdx + 1) reorderCategoryTo(cat.id, val)
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                      style={posInputStyle}
+                    />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                       <button
                         onClick={() => moveCategory(cat.id, 'up')}
@@ -139,10 +165,10 @@ export default function ModulesSection({
                   </div>
 
                   {/* ── Module rows ── */}
-                  {sortedMods.map(({ def: mod, conf }, modIdx) => {
+                  {sortedMods.map(({ def: mod }, modIdx) => {
                     const enabled = isModuleEnabled(mod.id)
-                    const sameCatEnabled = sortedMods.filter(s => !s.def.locked)
-                    const modCatIdx = sameCatEnabled.findIndex(s => s.def.id === mod.id)
+                    const sameCatNonLocked = sortedMods.filter(s => !s.def.locked)
+                    const modCatIdx = sameCatNonLocked.findIndex(s => s.def.id === mod.id)
                     return (
                       <div key={mod.id} style={{
                         display: 'flex', alignItems: 'center', gap: 10,
@@ -158,14 +184,26 @@ export default function ModulesSection({
                           <span style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{mod.label}</span>
                           <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 1 }}>{mod.description}</div>
                         </div>
-                        {/* Position badge */}
-                        <span style={{
-                          width: 28, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          borderRadius: 4, border: `1px solid ${tv.border}`, fontSize: 11, fontWeight: 600,
-                          color: tv.textMuted, background: tv.bg, fontFamily: 'inherit',
-                        }}>
-                          {(conf?.order ?? modIdx) + 1}
-                        </span>
+                        {/* Position input */}
+                        {!mod.locked ? (
+                          <input
+                            type="number"
+                            defaultValue={modIdx + 1}
+                            key={`mod-${mod.id}-${modIdx}`}
+                            min={1}
+                            max={sortedMods.length}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value)
+                              if (!isNaN(val) && val !== modIdx + 1) reorderModuleTo(mod.id, val)
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                            style={posInputStyle}
+                          />
+                        ) : (
+                          <span style={{ ...posInputStyle, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {modIdx + 1}
+                          </span>
+                        )}
                         {/* Arrows */}
                         {!mod.locked && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -180,11 +218,11 @@ export default function ModulesSection({
                             >▲</button>
                             <button
                               onClick={() => moveModule(mod.id, 'down')}
-                              disabled={modCatIdx === sameCatEnabled.length - 1}
+                              disabled={modCatIdx === sameCatNonLocked.length - 1}
                               style={{
-                                background: 'none', border: 'none', cursor: modCatIdx === sameCatEnabled.length - 1 ? 'default' : 'pointer',
-                                fontSize: 11, color: modCatIdx === sameCatEnabled.length - 1 ? tv.border : tv.textMuted, fontWeight: 700,
-                                padding: '0 4px', lineHeight: 1, opacity: modCatIdx === sameCatEnabled.length - 1 ? 0.3 : 1,
+                                background: 'none', border: 'none', cursor: modCatIdx === sameCatNonLocked.length - 1 ? 'default' : 'pointer',
+                                fontSize: 11, color: modCatIdx === sameCatNonLocked.length - 1 ? tv.border : tv.textMuted, fontWeight: 700,
+                                padding: '0 4px', lineHeight: 1, opacity: modCatIdx === sameCatNonLocked.length - 1 ? 0.3 : 1,
                               }}
                             >▼</button>
                           </div>
@@ -192,23 +230,25 @@ export default function ModulesSection({
                         {/* Toggle */}
                         {mod.locked ? (
                           <span style={{ fontSize: 10, color: tv.textMuted, fontWeight: 600, whiteSpace: 'nowrap' }}>🔒 requis</span>
-                        ) : isV5 ? (
-                          <button onClick={() => toggleModule(mod.id)} className={`v5-tgl${enabled ? ' active' : ''}`} />
                         ) : (
-                          <button
-                            onClick={() => toggleModule(mod.id)}
-                            style={{
-                              width: 44, height: 24, borderRadius: 12, position: 'relative',
-                              transition: 'background .2s', background: enabled ? tv.primary : tv.borderDark,
-                              border: 'none', cursor: 'pointer', flexShrink: 0,
-                            }}
-                          >
-                            <div style={{
-                              width: 20, height: 20, background: '#fff', borderRadius: '50%',
-                              boxShadow: '0 1px 2px rgba(0,0,0,.15)', position: 'absolute', top: 2,
-                              transition: 'left .2s', left: enabled ? 22 : 2,
-                            }} />
-                          </button>
+                          <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, flexShrink: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={enabled}
+                              onChange={() => toggleModule(mod.id)}
+                              style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                            />
+                            <span style={{
+                              position: 'absolute', cursor: 'pointer', inset: 0, borderRadius: 12,
+                              background: enabled ? tv.primary : tv.borderDark, transition: 'background .2s',
+                            }}>
+                              <span style={{
+                                position: 'absolute', width: 20, height: 20, background: '#fff', borderRadius: '50%',
+                                boxShadow: '0 1px 2px rgba(0,0,0,.15)', top: 2,
+                                left: enabled ? 22 : 2, transition: 'left .2s',
+                              }} />
+                            </span>
+                          </label>
                         )}
                       </div>
                     )
