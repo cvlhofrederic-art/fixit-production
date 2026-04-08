@@ -174,7 +174,7 @@ export default async function RootLayout({
   // over cookie, which may be stale when middleware updates it in the response
   const cookieStore = await cookies()
   const headerStore = await headers()
-  const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'pt') as Locale
+  const locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
 
 
   // NL and ES investor pages target Porto (same as EN)

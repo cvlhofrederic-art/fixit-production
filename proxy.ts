@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
-const DEFAULT_LOCALE = 'pt'
+const DEFAULT_LOCALE = 'fr'
 
 function getLocaleFromPath(pathname: string): string | null {
   for (const locale of SUPPORTED_LOCALES) {

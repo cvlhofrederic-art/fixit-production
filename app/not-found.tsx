@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 
 export default async function NotFound() {
   const cookieStore = await cookies()
-  const locale = cookieStore.get('locale')?.value || 'pt'
+  const locale = cookieStore.get('locale')?.value || 'fr'
 
   const text = {
     pt: {
