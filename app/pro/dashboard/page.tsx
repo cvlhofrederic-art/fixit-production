@@ -402,7 +402,7 @@ function DashboardPage() {
           activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
           isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
-          setSettingsTab={setSettingsTab}
+          settingsTab={settingsTab} setSettingsTab={setSettingsTab}
         />
       )}
       {isV5 && orgRole === 'artisan' && (

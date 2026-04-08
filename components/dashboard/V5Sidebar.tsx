@@ -17,6 +17,7 @@ interface V5SidebarProps {
   isPt: boolean
   pendingBookings: { length: number }
   unreadMsgCount: number
+  settingsTab: 'profil' | 'parrainage' | 'modules'
   setSettingsTab: (tab: 'profil' | 'parrainage' | 'modules') => void
 }
 
@@ -67,7 +68,7 @@ function V5SidebarItem({ icon, label, active, badge, onClick, page }: {
 export default function V5Sidebar({
   activePage, navigateTo, handleLogout,
   isProGerant, proCanAccess, isModuleEnabled,
-  isPt, pendingBookings, unreadMsgCount, setSettingsTab,
+  isPt, pendingBookings, unreadMsgCount, settingsTab, setSettingsTab,
 }: V5SidebarProps) {
   return (
     <aside className="v5-sb">
@@ -224,8 +225,8 @@ export default function V5Sidebar({
         <div className="v5-sb-bottom">
           <div className="v5-sb-sec">
             <div className="v5-sb-sec-t">{isPt ? 'Conta' : 'Compte'}</div>
-            <V5SidebarItem icon="⚙️" label={isPt ? 'Meu perfil' : 'Mon profil'} active={activePage === 'settings'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} page="settings" />
-            <V5SidebarItem icon="🧩" label="Modules" active={false} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
+            <V5SidebarItem icon="⚙️" label={isPt ? 'Meu perfil' : 'Mon profil'} active={activePage === 'settings' && settingsTab !== 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} page="settings" />
+            <V5SidebarItem icon="🧩" label="Modules" active={activePage === 'settings' && settingsTab === 'modules'} onClick={() => { navigateTo('settings'); setSettingsTab('modules') }} />
             <V5SidebarItem icon="❓" label={isPt ? 'Ajuda' : 'Aide'} active={activePage === 'help'} onClick={() => navigateTo('help')} />
             <div className="v5-sb-i logout" onClick={handleLogout}>
               <span className="v5-sb-icon">🚪</span>
