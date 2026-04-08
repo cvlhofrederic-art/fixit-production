@@ -56,7 +56,7 @@ const defaultItem = (): NewItem => ({
 })
 
 export default function RFQSection({ artisan, orgRole }: Props) {
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const country = (artisan.country?.toUpperCase() === 'PT' ? 'PT' : 'FR') as 'FR' | 'PT'
   const isFR = country === 'FR'
 

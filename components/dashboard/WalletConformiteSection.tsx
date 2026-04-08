@@ -325,7 +325,7 @@ function DocumentRow({
 
 // ── Composant principal ──────────────────────────────────────
 export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }: { artisan: import('@/lib/types').Artisan; orgRole?: OrgRole }) {
-  const isSociete = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'

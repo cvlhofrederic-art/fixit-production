@@ -61,7 +61,7 @@ export default function FacturesSection({
   }
 
   const factureDocs = savedDocuments.filter(d => d.docType === 'facture')
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   const getStatusTag = (doc: PersistedDocument, isOverdue: boolean) => {
     if (isOverdue && doc.status !== 'envoye') return { cls: 'v22-tag v22-tag-red', label: t('proDash.factures.echue') }

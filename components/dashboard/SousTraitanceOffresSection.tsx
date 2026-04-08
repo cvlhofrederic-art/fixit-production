@@ -134,7 +134,7 @@ const EMPTY_FORM = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function SousTraitanceOffresSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isPt = typeof document !== 'undefined' && document.cookie.includes('locale=pt')
 
   const [tab, setTab] = useState<'annonces' | 'publier' | 'candidats'>('annonces')

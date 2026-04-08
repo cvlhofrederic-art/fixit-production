@@ -29,7 +29,7 @@ const FAQ_ITEMS_SOCIETE = [
 
 export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSectionProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const isSociete = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const FAQ_ITEMS = isSociete ? FAQ_ITEMS_SOCIETE : FAQ_ITEMS_ARTISAN
 
   // ═══════════════════════════════════════════════════════

@@ -372,7 +372,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
 export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  const isProSociete = orgRole === 'pro_societe'
+  const isProSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   // Seuls les artisans classiques sont limités aux catégories AE
   const isAE = !isProSociete && orgRole === 'artisan'

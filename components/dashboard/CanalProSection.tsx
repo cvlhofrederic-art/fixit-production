@@ -18,7 +18,7 @@ type CanalMsg = {
 
 export default function CanalProSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const STORAGE_KEY = `fixit_canal_contacts_${artisan?.id}`
   const [contacts, setContacts] = useState<CanalContact[]>(() => {

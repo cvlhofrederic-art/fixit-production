@@ -81,7 +81,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
     DAY_NAMES, DAY_SHORT, orgRole,
   } = props
 
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   const { t } = useTranslation()
   const locale = useLocale()

@@ -21,7 +21,7 @@ interface PipelineItem {
 
 // Labels adaptés selon le rôle
 function getStages(orgRole: OrgRole) {
-  const isSociete = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   return [
     { id: 'draft',    label: 'À envoyer',                    color: '#888' },
     { id: 'sent',     label: 'Envoyé',                       color: '#2980b9' },
@@ -47,7 +47,7 @@ function computeStage(doc: SavedDocument, isDraft: boolean): string {
 export default function PipelineSection({ artisan, orgRole = 'artisan', navigateTo }: PipelineSectionProps) {
   const [items, setItems] = useState<PipelineItem[]>([])
   const [loading, setLoading] = useState(true)
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   const stages = getStages(orgRole)
 

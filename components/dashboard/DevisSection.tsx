@@ -67,7 +67,7 @@ export default function DevisSection({
   }
 
   const devisDocs = savedDocuments.filter(d => d.docType === 'devis')
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only

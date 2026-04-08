@@ -34,7 +34,7 @@ export default function HorairesSection({
   orgRole,
 }: HorairesSectionProps) {
   const { t } = useTranslation()
-  const isSociete = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = isSociete
 
   return (

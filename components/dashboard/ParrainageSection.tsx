@@ -33,8 +33,8 @@ interface HistoryItem {
 }
 
 export default function ParrainageSection({ artisan, orgRole }: ParrainageSectionProps) {
-  const isSociete = orgRole === 'pro_societe'
-  const isV5 = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const [stats, setStats] = useState<ReferralStats | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)

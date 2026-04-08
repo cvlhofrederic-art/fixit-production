@@ -75,8 +75,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   onNewDevis: (clientName: string) => void
   orgRole?: OrgRole
 }) {
-  const isSociete = orgRole === 'pro_societe'
-  const isV5 = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const { t } = useTranslation()
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'

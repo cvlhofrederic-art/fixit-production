@@ -138,7 +138,7 @@ export default function HomeSection({
   // ═══════════════════════════════════════════════════════
   // V5 RENDER — pro_societe uses the v5 design system
   // ═══════════════════════════════════════════════════════
-  if (orgRole === 'pro_societe') {
+  if (orgRole === 'pro_societe' || orgRole === 'artisan') {
     const urgentCount = pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length
     return (
       <div className="v5-fade">
@@ -155,10 +155,10 @@ export default function HomeSection({
 
         {/* KPIs */}
         <div className="v5-kpi-g">
-          <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
-            <div className="v5-kpi-l">{locale === 'pt' ? 'Obras ativas' : 'Chantiers actifs'}</div>
-            <div className="v5-kpi-v">{bookings.filter(b => b.status === 'confirmed').length}</div>
-            <div className="v5-kpi-s">{urgentCount > 0 ? `dont ${urgentCount} ${locale === 'pt' ? 'urgentes' : 'en retard'}` : (locale === 'pt' ? 'em dia' : 'à jour')}</div>
+          <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo(orgRole === 'artisan' ? 'calendar' : 'chantiers')}>
+            <div className="v5-kpi-l">{orgRole === 'artisan' ? (locale === 'pt' ? 'Pedidos pendentes' : 'Demandes en attente') : (locale === 'pt' ? 'Obras ativas' : 'Chantiers actifs')}</div>
+            <div className="v5-kpi-v">{orgRole === 'artisan' ? pendingBookings.length : bookings.filter(b => b.status === 'confirmed').length}</div>
+            <div className="v5-kpi-s">{urgentCount > 0 ? `→ ${urgentCount} ${locale === 'pt' ? 'urgentes' : 'urgentes'}` : (locale === 'pt' ? 'em dia' : 'à jour')}</div>
           </div>
           <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('revenus')}>
             <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação mensal' : 'CA ce mois'}</div>
@@ -230,7 +230,7 @@ export default function HomeSection({
 
           {/* Alertes */}
           <div className="v5-card">
-            <div className="v5-st">{locale === 'pt' ? 'Alertas BTP' : 'Alertes BTP'}</div>
+            <div className="v5-st">{locale === 'pt' ? 'Alertas' : 'Alertes'}</div>
             {alerts.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
             ) : (
@@ -263,10 +263,17 @@ export default function HomeSection({
         {/* Actions rapides */}
         <div className="v5-st" style={{ marginBottom: '.5rem' }}>{t('proDash.home.actionsRapides')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }}>
-          <button className="v5-act-btn primary" onClick={() => navigateTo('equipes')}><span style={{ fontSize: 18 }}>👷</span><span>{t('proDash.home.nouvelleEquipe')}</span></button>
-          <button className="v5-act-btn" onClick={() => navigateTo('chantiers')}><span style={{ fontSize: 18 }}>🏗️</span><span>{t('proDash.home.nouveauChantier')}</span></button>
-          <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
-          <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+          {orgRole === 'artisan' ? (<>
+            <button className="v5-act-btn primary" onClick={() => { setShowNewRdv(true); navigateTo('calendar') }}><span style={{ fontSize: 18 }}>📅</span><span>{t('proDash.home.nouvelRdv')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>🧾</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+            <button className="v5-act-btn" onClick={() => { openNewMotif(); navigateTo('motifs') }}><span style={{ fontSize: 18 }}>🔧</span><span>{t('proDash.home.nouveauMotif')}</span></button>
+          </>) : (<>
+            <button className="v5-act-btn primary" onClick={() => navigateTo('equipes')}><span style={{ fontSize: 18 }}>👷</span><span>{t('proDash.home.nouvelleEquipe')}</span></button>
+            <button className="v5-act-btn" onClick={() => navigateTo('chantiers')}><span style={{ fontSize: 18 }}>🏗️</span><span>{t('proDash.home.nouveauChantier')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }}><span style={{ fontSize: 18 }}>📄</span><span>{t('proDash.home.creerDevis')}</span></button>
+            <button className="v5-act-btn" onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }}><span style={{ fontSize: 18 }}>💰</span><span>{t('proDash.home.nouvelleFacture')}</span></button>
+          </>)}
         </div>
       </div>
     )

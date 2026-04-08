@@ -40,7 +40,7 @@ export default function MotifsSection({
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [savingWithEtapes, setSavingWithEtapes] = useState(false)
-  const isSociete = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isV5 = isSociete
 
   // Reset local étapes when modal opens/closes

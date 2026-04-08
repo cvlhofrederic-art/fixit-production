@@ -136,8 +136,8 @@ const PRODUCT_PRESETS_PT = [
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
 export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { artisan: import('@/lib/types').Artisan; onExportDevis: (lines: ExportLine[]) => void; orgRole?: OrgRole }) {
-  const isSociete = orgRole === 'pro_societe'
-  const isV5 = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const locale = useLocale()
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const [activeTab, setActiveTab] = useState<'recherche' | 'historique' | 'aide'>('recherche')

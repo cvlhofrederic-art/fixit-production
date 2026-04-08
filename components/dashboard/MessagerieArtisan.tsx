@@ -117,7 +117,7 @@ function getClientTypeBadge(contactType: string) {
 export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis }: Props) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
   const URGENCE_CONFIG = getUrgenceConfig(isPt)
   const STATUT_CONFIG = getStatutConfig(isPt)

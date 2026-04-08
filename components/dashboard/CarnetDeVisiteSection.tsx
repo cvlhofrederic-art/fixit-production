@@ -17,7 +17,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
   const locale = useLocale()
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_portfolio_${artisan?.id}`
-  const isSociete = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   const PORTFOLIO_CATEGORIES = isSociete ? [
     'VRD / Terrassement',

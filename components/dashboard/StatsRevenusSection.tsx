@@ -41,7 +41,7 @@ export default function StatsRevenusSection({
 }: StatsRevenusSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   /* ═══════════════════════════════════════════
      V5 layout — pro_societe only

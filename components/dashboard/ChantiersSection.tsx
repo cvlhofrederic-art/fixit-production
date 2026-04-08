@@ -43,7 +43,7 @@ const alerteColor = (a: string) => a === 'facture_impayee' ? { bg: 'var(--v22-re
 const statutBadgeV5 = (s: string) => s === 'encours' ? 'v5-badge v5-badge-blue' : s === 'avenir' ? 'v5-badge v5-badge-yellow' : 'v5-badge v5-badge-green'
 
 export default function ChantiersSection({ artisan, navigateTo, orgRole }: ChantiersSectionProps) {
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const [tab, setTab] = useState<Statut>('tous')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})

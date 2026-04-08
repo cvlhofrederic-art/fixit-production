@@ -79,8 +79,8 @@ const EMPTY_FORM = (isSociete: boolean): Omit<BiblioItem, 'id'> => ({
 })
 
 export default function BibliothequeSection({ artisan, orgRole = 'artisan', navigateTo }: BibliothequeSectionProps) {
-  const isSociete = orgRole === 'pro_societe'
-  const isV5 = orgRole === 'pro_societe'
+  const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const storageKey = `fixit_bibliotheque_${artisan?.id || 'guest'}`
 
   const [items, setItems] = useState<BiblioItem[]>([])

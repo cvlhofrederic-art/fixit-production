@@ -558,7 +558,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
     setTvaTogglingLoading(false)
   }, [])
 
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   /* ── Tab style helpers (v22 compta-tab pattern) ── */
   const tabStyle = (active: boolean): React.CSSProperties => isV5 ? {} : ({

@@ -485,7 +485,7 @@ export default function SettingsSection({
   ALL_MODULES, modulesConfig, saveModulesConfig, moveModule,
 }: SettingsSectionProps) {
   const { t } = useTranslation()
-  const isV5 = orgRole === 'pro_societe'
+  const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
