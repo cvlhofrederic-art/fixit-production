@@ -5,17 +5,19 @@ import LocaleLink from '@/components/common/LocaleLink'
 
 // Locale-aware paths for pages that have different slugs per locale
 const localePaths = {
-  search:       { fr: '/recherche', pt: '/pesquisar' },
-  pricing:      { fr: '/tarifs', pt: '/precos' },
-  reviews:      { fr: '/avis', pt: '/avaliacoes' },
-  legalNotice:  { fr: '/mentions-legales', pt: '/mentions-legales' },
-  terms:        { fr: '/cgu', pt: '/cgu' },
+  search:       { fr: '/recherche', pt: '/pesquisar', en: '/search' },
+  pricing:      { fr: '/tarifs', pt: '/precos', en: '/pricing' },
+  reviews:      { fr: '/avis', pt: '/avaliacoes', en: '/reviews' },
+  legalNotice:  { fr: '/mentions-legales', pt: '/avisos-legais', en: '/legal-notices' },
+  terms:        { fr: '/cgu', pt: '/termos', en: '/terms' },
+  privacy:      { fr: '/confidentialite', pt: '/privacidade', en: '/privacy' },
+  cookies:      { fr: '/cookies', pt: '/politica-cookies', en: '/cookie-policy' },
 } as const
 
 export default function Footer() {
   const { t } = useTranslation()
   const locale = useLocale()
-  const lp = (key: keyof typeof localePaths) => localePaths[key][locale === 'pt' ? 'pt' : 'fr']
+  const lp = (key: keyof typeof localePaths) => localePaths[key][locale as keyof (typeof localePaths)[typeof key]] || localePaths[key]['fr']
 
   return (
     <footer className="bg-dark pt-14 pb-8 px-[5%] text-white/50">
@@ -107,12 +109,12 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/confidentialite" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('privacy')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.privacy')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/cookies" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('cookies')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.cookies')}
                 </LocaleLink>
               </li>
