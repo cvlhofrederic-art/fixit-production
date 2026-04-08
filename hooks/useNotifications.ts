@@ -98,7 +98,7 @@ export function useNotifications(
                     (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
       setUnreadMsgCount(total)
     } catch {}
-  }, [userId])
+  }, [userId, getAuthToken])
 
   useEffect(() => {
     if (!userId) return

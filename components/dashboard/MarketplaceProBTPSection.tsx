@@ -402,6 +402,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
   }, [])
 
   // ── Charger annonces publiques ────────────────────────────────────────────
+  const artisanCountry = (artisan as unknown as { country?: string })?.country
   const loadListings = useCallback(async () => {
     setLoading(true)
     try {
@@ -409,7 +410,6 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       if (filterCat)  params.set('categorie', filterCat)
       if (filterType) params.set('type', filterType)
       if (aeOnly)     params.set('ae_only', 'true')
-      const artisanCountry = (artisan as unknown as { country?: string })?.country
       if (artisanCountry) params.set('country', artisanCountry)
 
       const res = await fetch(`/api/marketplace-btp?${params.toString()}`)
@@ -417,7 +417,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       setListings(data.listings ?? [])
     } catch {}
     setLoading(false)
-  }, [filterCat, filterType, aeOnly, (artisan as unknown as { country?: string })?.country])
+  }, [filterCat, filterType, aeOnly, artisanCountry])
 
   const loadMyListings = useCallback(async () => {
     if (!artisan?.user_id) return
@@ -426,7 +426,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       const data = await res.json()
       setMyListings(data.listings ?? [])
     } catch {}
-  }, [artisan?.user_id])
+  }, [artisan])
 
   const loadDemandes = useCallback(async () => {
     // Charger les demandes reçues sur mes annonces

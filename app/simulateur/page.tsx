@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import SimulateurChat from '@/components/simulateur/SimulateurChat'
 
 export const metadata: Metadata = {
@@ -21,9 +22,9 @@ export default function SimulateurPage() {
       {/* Simple header */}
       <header className="border-b border-gray-100 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <a href="/" className="flex items-center gap-2 text-lg font-bold text-gray-900">
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold text-gray-900">
             <span className="text-amber-500">⚡</span> Vitfix
-          </a>
+          </Link>
           <div className="flex gap-3">
             <a
               href="/auth/login"

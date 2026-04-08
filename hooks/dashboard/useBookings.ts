@@ -75,7 +75,7 @@ export function useBookings(
     }
     const updated = [newClient, ...existing]
     localStorage.setItem(storageKey, JSON.stringify(updated))
-  }, [artisan?.id])
+  }, [artisan])
 
   const createRdvManual = useCallback(async () => {
     if (!artisan || !newRdv.date || !newRdv.time || !newRdv.service_id) return
