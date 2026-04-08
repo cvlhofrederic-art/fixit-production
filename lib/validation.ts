@@ -976,6 +976,25 @@ export const emailAgentOcrSchema = z.object({
   mime_type: z.string().max(100).optional().default('image/jpeg'),
 })
 
+// ── Availability Services POST schema ──────────────────────────────────────
+export const availabilityServicesSchema = z.object({
+  artisan_id: z.string().uuid('artisan_id doit être un UUID valide'),
+  dayServices: z.record(z.string(), z.array(z.string())),
+})
+
+// ── Seed Motifs POST schema ───────────────────────────────────────────────
+export const seedMotifsSchema = z.object({
+  artisan_id: z.string().uuid('artisan_id doit être un UUID valide'),
+  categories: z.array(z.string().max(100)).min(1, 'Au moins une catégorie requise').max(50),
+})
+
+// ── Artisan Photos PATCH schema ───────────────────────────────────────────
+export const artisanPhotosPatchSchema = z.object({
+  photo_id: z.string().uuid('photo_id doit être un UUID valide'),
+  booking_id: z.string().uuid().nullable().optional(),
+  label: z.string().max(200).optional(),
+})
+
 // ── Email Agent Poll GET schema (query params) ──────────────────────────────
 export const emailAgentPollGetSchema = z.object({
   syndic_id: z.string().uuid('syndic_id doit être un UUID valide').optional(),

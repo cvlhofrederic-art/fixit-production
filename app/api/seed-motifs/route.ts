@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import defaultMotifs from '@/lib/default-motifs.json'
+import { validateBody, seedMotifsSchema } from '@/lib/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,11 +55,10 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`seed_motifs_${ip}`, 5, 60_000))) return rateLimitResponse()
 
   try {
-    const { artisan_id, categories } = await request.json()
-
-    if (!artisan_id || !Array.isArray(categories)) {
-      return NextResponse.json({ error: 'artisan_id et categories requis' }, { status: 400 })
-    }
+    const body = await request.json()
+    const v = validateBody(seedMotifsSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { artisan_id, categories } = v.data
 
     // Vérifier que l'artisan existe
     const { data: artisan } = await supabaseAdmin

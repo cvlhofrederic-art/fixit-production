@@ -562,12 +562,6 @@ export default function HomeSection({
       <div className="v22-card" style={{ marginTop: '16px' }}>
         <div className="v22-card-head"><div className="v22-card-title">{t('proDash.home.actionsRapides')}</div></div>
         <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-        {orgRole === 'artisan' && <>
-          <QuickAction icon="📅" label={t('proDash.home.nouvelRdv')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} />
-          <QuickAction icon="📄" label={t('proDash.home.creerDevis')} onClick={() => { setActivePage('devis'); setSidebarOpen(false); setTimeout(() => setShowDevisForm(true), 50) }} />
-          <QuickAction icon="🧾" label={t('proDash.home.nouvelleFacture')} onClick={() => { setActivePage('factures'); setSidebarOpen(false); setTimeout(() => setShowFactureForm(true), 50) }} />
-          <QuickAction icon="🔧" label={t('proDash.home.nouveauMotif')} onClick={() => { openNewMotif(); navigateTo('motifs') }} />
-        </>}
         {orgRole === 'pro_conciergerie' && <>
           <QuickAction icon="🏠" label={t('proDash.home.nouvellePropriete')} onClick={() => navigateTo('proprietes')} />
           <QuickAction icon="📅" label={t('proDash.home.planifierVisite')} onClick={() => { setShowNewRdv(true); navigateTo('calendar') }} />

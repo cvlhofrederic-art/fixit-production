@@ -74,26 +74,26 @@ export function SAVMaintenanceSection({ artisan }: { artisan: import('@/lib/type
   const updateSavStatut = (id: string, statut: InterventionSAV['statut']) => saveSav(savList.map(s => s.id === id ? { ...s, statut } : s))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">SAV & Maintenance</h2>
-        <button onClick={() => tab === 'contrats' ? setShowContratModal(true) : setShowSavModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium">
+        <h2 className="text-lg font-semibold text-gray-900">SAV & Maintenance</h2>
+        <button onClick={() => tab === 'contrats' ? setShowContratModal(true) : setShowSavModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-medium">
           + {tab === 'contrats' ? 'Contrat' : 'Intervention SAV'}
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-green-600">{contratsActifs.length}</p>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-green-600">{contratsActifs.length}</p>
           <p className="text-sm text-gray-500">Contrats actifs</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-amber-600">{revenusRecurrents.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-amber-600">{revenusRecurrents.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</p>
           <p className="text-sm text-gray-500">Revenus récurrents</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-blue-600">{prochaineEcheance}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-blue-600">{prochaineEcheance}</p>
           <p className="text-sm text-gray-500">Prochaine échéance</p>
         </div>
       </div>
@@ -111,7 +111,7 @@ export function SAVMaintenanceSection({ artisan }: { artisan: import('@/lib/type
         <div className="space-y-3">
           {contrats.length === 0 && <p className="text-gray-400 text-center py-8">Aucun contrat de maintenance</p>}
           {contrats.map(c => (
-            <div key={c.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+            <div key={c.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <span className="font-semibold text-gray-900">{c.reference}</span>
@@ -143,7 +143,7 @@ export function SAVMaintenanceSection({ artisan }: { artisan: import('@/lib/type
         <div className="space-y-3">
           {savList.length === 0 && <p className="text-gray-400 text-center py-8">Aucune intervention SAV</p>}
           {savList.map(s => (
-            <div key={s.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+            <div key={s.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <span className="font-semibold text-gray-900">{s.reference}</span>
@@ -172,24 +172,24 @@ export function SAVMaintenanceSection({ artisan }: { artisan: import('@/lib/type
       {/* Modal Contrat */}
       {showContratModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowContratModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouveau contrat de maintenance</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-4">Nouveau contrat de maintenance</h3>
             <div className="space-y-3">
-              <input placeholder="Client" value={cForm.client} onChange={e => setCForm({ ...cForm, client: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <select value={cForm.type} onChange={e => setCForm({ ...cForm, type: e.target.value as ContratMaintenance['type'] })} className="w-full border rounded-lg px-3 py-2 text-sm">
+              <input placeholder="Client" value={cForm.client} onChange={e => setCForm({ ...cForm, client: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <select value={cForm.type} onChange={e => setCForm({ ...cForm, type: e.target.value as ContratMaintenance['type'] })} className="w-full border rounded px-3 py-2 text-sm">
                 {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
-              <input type="number" min={0} step={0.01} placeholder="Montant (EUR)" value={cForm.montant || ''} onChange={e => setCForm({ ...cForm, montant: +e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="number" min={0} step={0.01} placeholder="Montant (EUR)" value={cForm.montant || ''} onChange={e => setCForm({ ...cForm, montant: +e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-500">Début</label><input type="date" value={cForm.dateDebut} onChange={e => setCForm({ ...cForm, dateDebut: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-                <div><label className="text-xs text-gray-500">Fin</label><input type="date" value={cForm.dateFin} onChange={e => setCForm({ ...cForm, dateFin: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Début</label><input type="date" value={cForm.dateDebut} onChange={e => setCForm({ ...cForm, dateDebut: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Fin</label><input type="date" value={cForm.dateFin} onChange={e => setCForm({ ...cForm, dateFin: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
               </div>
-              <input placeholder="Chantier d'origine" value={cForm.chantierOrigine} onChange={e => setCForm({ ...cForm, chantierOrigine: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <textarea placeholder="Description" value={cForm.description} onChange={e => setCForm({ ...cForm, description: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} />
+              <input placeholder="Chantier d'origine" value={cForm.chantierOrigine} onChange={e => setCForm({ ...cForm, chantierOrigine: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <textarea placeholder="Description" value={cForm.description} onChange={e => setCForm({ ...cForm, description: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={3} />
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowContratModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addContrat} disabled={!cForm.client.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowContratModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addContrat} disabled={!cForm.client.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>
@@ -198,19 +198,19 @@ export function SAVMaintenanceSection({ artisan }: { artisan: import('@/lib/type
       {/* Modal SAV */}
       {showSavModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowSavModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouvelle intervention SAV</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-4">Nouvelle intervention SAV</h3>
             <div className="space-y-3">
-              <input placeholder="Client" value={sForm.client} onChange={e => setSForm({ ...sForm, client: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <input placeholder="Référence contrat (optionnel)" value={sForm.contratRef} onChange={e => setSForm({ ...sForm, contratRef: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <textarea placeholder="Description" value={sForm.description} onChange={e => setSForm({ ...sForm, description: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} />
-              <input type="date" value={sForm.dateIntervention} onChange={e => setSForm({ ...sForm, dateIntervention: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <div><label className="text-xs text-gray-500">Durée (heures)</label><input type="number" min={0.5} step={0.5} value={sForm.dureeHeures} onChange={e => setSForm({ ...sForm, dureeHeures: +e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-              <textarea placeholder="Notes" value={sForm.notes} onChange={e => setSForm({ ...sForm, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
+              <input placeholder="Client" value={sForm.client} onChange={e => setSForm({ ...sForm, client: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder="Référence contrat (optionnel)" value={sForm.contratRef} onChange={e => setSForm({ ...sForm, contratRef: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <textarea placeholder="Description" value={sForm.description} onChange={e => setSForm({ ...sForm, description: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={3} />
+              <input type="date" value={sForm.dateIntervention} onChange={e => setSForm({ ...sForm, dateIntervention: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <div><label className="text-xs text-gray-500">Durée (heures)</label><input type="number" min={0.5} step={0.5} value={sForm.dureeHeures} onChange={e => setSForm({ ...sForm, dureeHeures: +e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+              <textarea placeholder="Notes" value={sForm.notes} onChange={e => setSForm({ ...sForm, notes: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={2} />
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowSavModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addSav} disabled={!sForm.client.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowSavModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addSav} disabled={!sForm.client.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>

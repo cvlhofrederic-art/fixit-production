@@ -66,9 +66,9 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
     const sc = statutColor(selected.statut)
     const currentNotes = notes[selected.id] ?? selected.notes
     return (
-      <div className={isV5 ? 'v5-fade' : 'space-y-4 font-[family-name:var(--font-dm-sans)]'}>
+      <div className={isV5 ? 'v5-fade' : 'space-y-3 font-[family-name:var(--font-dm-sans)]'}>
         {/* Toast */}
-        {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white" style={{ background: 'var(--v22-green)' }}>{toast}</div>}
+        {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded text-sm text-white" style={{ background: 'var(--v22-green)' }}>{toast}</div>}
 
         {/* Back + header */}
         <div className={isV5 ? 'v5-pg-t' : 'flex items-center gap-3'}>
@@ -85,7 +85,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         </div>
 
         {/* Info panel */}
-        <div className={isV5 ? 'v5-card' : 'rounded-xl p-4 grid grid-cols-2 gap-3 text-sm'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
+        <div className={isV5 ? 'v5-card' : 'rounded-md p-4 grid grid-cols-2 gap-3 text-sm'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
           {isV5 ? (
             <div className="v5-dt">
               <div><span>Client</span><p>{selected.client}</p></div>
@@ -115,7 +115,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         )}
 
         {/* Timeline */}
-        <div className={isV5 ? 'v5-card' : 'rounded-xl p-4'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
+        <div className={isV5 ? 'v5-card' : 'rounded-md p-4'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
           <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-3'} style={isV5 ? undefined : { color: 'var(--v22-text)' }}>Chronologie</h3>
           <div className={isV5 ? '' : 'space-y-3'}>
             {selected.timeline.map((t, i) => (
@@ -131,10 +131,10 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         </div>
 
         {/* Notes */}
-        <div className={isV5 ? 'v5-card' : 'rounded-xl p-4'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
+        <div className={isV5 ? 'v5-card' : 'rounded-md p-4'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
           <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-2'} style={isV5 ? undefined : { color: 'var(--v22-text)' }}>Notes</h3>
           <textarea
-            className={isV5 ? 'v5-fi' : 'w-full rounded-lg p-2.5 text-sm resize-none focus:outline-none focus:ring-2'}
+            className={isV5 ? 'v5-fi' : 'w-full rounded p-2.5 text-sm resize-none focus:outline-none focus:ring-2'}
             style={isV5 ? undefined : { border: '1px solid var(--v22-border)', color: 'var(--v22-text)', background: 'var(--v22-bg)', '--tw-ring-color': 'var(--v22-yellow)' } as React.CSSProperties}
             rows={3} value={currentNotes} placeholder="Ajouter une note..."
             onChange={e => setNotes(prev => ({ ...prev, [selected.id]: e.target.value }))}
@@ -142,7 +142,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         </div>
 
         {/* Documents & Photos */}
-        <div className={isV5 ? 'v5-card' : 'rounded-xl p-4'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
+        <div className={isV5 ? 'v5-card' : 'rounded-md p-4'} style={isV5 ? undefined : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
           <h3 className={isV5 ? 'v5-st' : 'text-sm font-semibold mb-3'} style={isV5 ? undefined : { color: 'var(--v22-text)' }}>Documents & Photos</h3>
           <div className={isV5 ? '' : 'flex flex-wrap gap-2 text-xs'}>
             {selected.devis && <span className={isV5 ? 'v5-badge' : 'px-2.5 py-1 rounded-md'} style={isV5 ? undefined : { background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', color: 'var(--v22-text)' }}>Devis {selected.devis}</span>}
@@ -152,7 +152,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
           {selected.photos > 0 && (
             <div className={isV5 ? '' : 'mt-3 grid grid-cols-4 gap-2'} style={isV5 ? { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '12px' } : undefined}>
               {Array.from({ length: selected.photos }).map((_, i) => (
-                <div key={i} className={isV5 ? 'v5-card' : 'aspect-square rounded-lg flex items-center justify-center text-xs'} style={isV5 ? { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' } : { background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', color: 'var(--v22-text-muted)' }}>
+                <div key={i} className={isV5 ? 'v5-card' : 'aspect-square rounded-md flex items-center justify-center text-xs'} style={isV5 ? { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' } : { background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', color: 'var(--v22-text-muted)' }}>
                   Photo {i + 1}
                 </div>
               ))}
@@ -163,20 +163,20 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         {/* Actions */}
         <div className={isV5 ? '' : 'flex gap-2'} style={isV5 ? { display: 'flex', gap: '8px' } : undefined}>
           {selected.statut === 'avenir' && (
-            <button onClick={() => showToast('Chantier démarré')} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded-lg text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-green)' }}>
+            <button onClick={() => showToast('Chantier démarré')} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-green)' }}>
               Démarrer le chantier
             </button>
           )}
           {selected.statut === 'encours' && (<>
-            <button onClick={() => showToast('Chantier clôturé')} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded-lg text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-green)' }}>
+            <button onClick={() => showToast('Chantier clôturé')} className={isV5 ? 'v5-btn v5-btn-p' : 'flex-1 py-2.5 rounded text-sm font-medium text-white'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-green)' }}>
               Clôturer
             </button>
-            <button onClick={() => { navigateTo('devis-factures'); showToast('Redirection vers factures') }} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded-lg text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
+            <button onClick={() => { navigateTo('devis-factures'); showToast('Redirection vers factures') }} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-yellow)', color: 'var(--v22-text)' }}>
               Créer facture
             </button>
           </>)}
           {selected.statut === 'cloture' && (
-            <button onClick={() => showToast('PDF exporté')} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded-lg text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', color: 'var(--v22-text)' }}>
+            <button onClick={() => showToast('PDF exporté')} className={isV5 ? 'v5-btn' : 'flex-1 py-2.5 rounded text-sm font-medium'} style={isV5 ? { flex: 1 } : { background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', color: 'var(--v22-text)' }}>
               Exporter PDF
             </button>
           )}
@@ -187,11 +187,11 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
 
   // ── List view ──
   return (
-    <div className={isV5 ? 'v5-fade' : 'space-y-4 font-[family-name:var(--font-dm-sans)]'}>
-      {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white" style={{ background: 'var(--v22-green)' }}>{toast}</div>}
+    <div className={isV5 ? 'v5-fade' : 'space-y-3 font-[family-name:var(--font-dm-sans)]'}>
+      {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded text-sm text-white" style={{ background: 'var(--v22-green)' }}>{toast}</div>}
 
       <div className={isV5 ? 'v5-pg-t' : ''}>
-        <h1 className={isV5 ? '' : 'text-xl font-semibold'} style={isV5 ? undefined : { color: 'var(--v22-text)' }}>Chantiers</h1>
+        <h1 className={isV5 ? '' : 'text-lg font-semibold'} style={isV5 ? undefined : { color: 'var(--v22-text)' }}>Chantiers</h1>
         {isV5 && <p>Suivi de vos chantiers en cours, à venir et clôturés</p>}
       </div>
 
@@ -209,8 +209,8 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
               <span className="v5-kpi-v">{s.value}</span>
             </div>
           ) : (
-            <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
-              <p className="text-2xl font-semibold" style={{ color: s.color }}>{s.value}</p>
+            <div key={s.label} className="rounded-md p-3 text-center" style={{ background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
+              <p className="text-base font-semibold" style={{ color: s.color }}>{s.value}</p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--v22-text-muted)' }}>{s.label}</p>
             </div>
           )
@@ -219,7 +219,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
 
       {/* Alertes */}
       {allAlertes.length > 0 && (
-        <div className={isV5 ? 'v5-card' : 'rounded-xl p-3 space-y-2'} style={isV5 ? undefined : { background: 'var(--v22-amber-light)', border: '1px solid #EED580' }}>
+        <div className={isV5 ? 'v5-card' : 'rounded-md p-3 space-y-2'} style={isV5 ? undefined : { background: 'var(--v22-amber-light)', border: '1px solid #EED580' }}>
           <p className={isV5 ? 'v5-st' : 'text-xs font-semibold'} style={isV5 ? undefined : { color: 'var(--v22-amber)' }}>Alertes ({allAlertes.length})</p>
           {allAlertes.map((a, i) => (
             <div key={i} className={isV5 ? '' : 'flex items-center justify-between text-xs'} style={isV5 ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } : undefined}>
@@ -233,7 +233,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
       )}
 
       {/* Filter tabs */}
-      <div className={isV5 ? 'v5-tabs' : 'flex gap-1 p-1 rounded-lg'} style={isV5 ? undefined : { background: 'var(--v22-bg)' }}>
+      <div className={isV5 ? 'v5-tabs' : 'flex gap-1 p-1 rounded'} style={isV5 ? undefined : { background: 'var(--v22-bg)' }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={isV5 ? `v5-tab-b${tab === t.key ? ' active' : ''}` : 'flex-1 py-1.5 text-sm rounded-md font-medium transition-colors'}
@@ -249,7 +249,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
           const sc = statutColor(c.statut)
           return (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
-              className={isV5 ? 'v5-card' : 'w-full text-left rounded-xl p-3.5 transition-shadow hover:shadow-sm'}
+              className={isV5 ? 'v5-card' : 'w-full text-left rounded-md p-3.5 transition-shadow hover:shadow-sm'}
               style={isV5 ? { width: '100%', textAlign: 'left', cursor: 'pointer', marginBottom: '8px' } : { background: 'var(--v22-surface)', border: '1px solid var(--v22-border)' }}>
               <div className={isV5 ? '' : 'flex items-start justify-between gap-2'} style={isV5 ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' } : undefined}>
                 <div className={isV5 ? '' : 'min-w-0 flex-1'} style={isV5 ? { minWidth: 0, flex: 1 } : undefined}>

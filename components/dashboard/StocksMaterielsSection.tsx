@@ -63,30 +63,30 @@ export function StocksMaterielsSection({ artisan }: { artisan: import('@/lib/typ
   const deleteConsommable = (id: string) => saveConsommables(consommables.filter(c => c.id !== id))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Stocks & Matériel</h2>
-        <button onClick={() => tab === 'materiel' ? setShowMaterielModal(true) : setShowConsoModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium">
+        <h2 className="text-lg font-semibold text-gray-900">Stocks & Matériel</h2>
+        <button onClick={() => tab === 'materiel' ? setShowMaterielModal(true) : setShowConsoModal(true)} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-medium">
           + {tab === 'materiel' ? 'Matériel' : 'Consommable'}
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-gray-900">{materiels.length}</p>
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-gray-900">{materiels.length}</p>
           <p className="text-sm text-gray-500">Total matériel</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-blue-600">{surChantier}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-blue-600">{surChantier}</p>
           <p className="text-sm text-gray-500">Sur chantier</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-green-600">{auDepot}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-green-600">{auDepot}</p>
           <p className="text-sm text-gray-500">Au dépôt</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-red-600">{hs}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-red-600">{hs}</p>
           <p className="text-sm text-gray-500">HS</p>
         </div>
       </div>
@@ -102,9 +102,9 @@ export function StocksMaterielsSection({ artisan }: { artisan: import('@/lib/typ
 
       {tab === 'materiel' && (
         <div className="space-y-3">
-          {materiels.length === 0 && <p className="text-gray-400 text-center py-8">Aucun matériel enregistré</p>}
+          {materiels.length === 0 && <p className="text-gray-400 text-center py-4">Aucun matériel enregistré</p>}
           {materiels.map(m => (
-            <div key={m.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+            <div key={m.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-gray-900">{m.nom}</span>
@@ -126,11 +126,11 @@ export function StocksMaterielsSection({ artisan }: { artisan: import('@/lib/typ
 
       {tab === 'consommables' && (
         <div className="space-y-3">
-          {consommables.length === 0 && <p className="text-gray-400 text-center py-8">Aucun consommable enregistré</p>}
+          {consommables.length === 0 && <p className="text-gray-400 text-center py-4">Aucun consommable enregistré</p>}
           {consommables.map(c => {
             const lowStock = c.quantiteEnStock <= c.seuilAlerte
             return (
-              <div key={c.id} className={`bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow ${lowStock ? 'border-amber-300 bg-amber-50' : ''}`}>
+              <div key={c.id} className={`bg-white rounded-md border p-4 hover:shadow-sm transition-shadow ${lowStock ? 'border-amber-300 bg-amber-50' : ''}`}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-900">{c.nom}</span>
@@ -154,32 +154,32 @@ export function StocksMaterielsSection({ artisan }: { artisan: import('@/lib/typ
       {/* Modal Matériel */}
       {showMaterielModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowMaterielModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouveau matériel</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-4">Nouveau matériel</h3>
             <div className="space-y-3">
-              <input placeholder="Nom" value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input placeholder="Nom" value={mForm.nom} onChange={e => setMForm({ ...mForm, nom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <div className="grid grid-cols-2 gap-3">
-                <select value={mForm.categorie} onChange={e => setMForm({ ...mForm, categorie: e.target.value as Materiel['categorie'] })} className="border rounded-lg px-3 py-2 text-sm">
+                <select value={mForm.categorie} onChange={e => setMForm({ ...mForm, categorie: e.target.value as Materiel['categorie'] })} className="border rounded px-3 py-2 text-sm">
                   {CAT_MATERIEL.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
                 </select>
-                <select value={mForm.etat} onChange={e => setMForm({ ...mForm, etat: e.target.value as Materiel['etat'] })} className="border rounded-lg px-3 py-2 text-sm">
+                <select value={mForm.etat} onChange={e => setMForm({ ...mForm, etat: e.target.value as Materiel['etat'] })} className="border rounded px-3 py-2 text-sm">
                   {ETATS.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <input placeholder="Marque" value={mForm.marque} onChange={e => setMForm({ ...mForm, marque: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
-                <input placeholder="Référence" value={mForm.reference} onChange={e => setMForm({ ...mForm, reference: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
+                <input placeholder="Marque" value={mForm.marque} onChange={e => setMForm({ ...mForm, marque: e.target.value })} className="border rounded px-3 py-2 text-sm" />
+                <input placeholder="Référence" value={mForm.reference} onChange={e => setMForm({ ...mForm, reference: e.target.value })} className="border rounded px-3 py-2 text-sm" />
               </div>
-              <input placeholder="Localisation (ex: Dépôt, Chantier X)" value={mForm.localisation} onChange={e => setMForm({ ...mForm, localisation: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input placeholder="Localisation (ex: Dépôt, Chantier X)" value={mForm.localisation} onChange={e => setMForm({ ...mForm, localisation: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-500">Date d&apos;achat</label><input type="date" value={mForm.dateAchat} onChange={e => setMForm({ ...mForm, dateAchat: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-                <div><label className="text-xs text-gray-500">Valeur (EUR)</label><input type="number" min={0} step={0.01} value={mForm.valeur || ''} onChange={e => setMForm({ ...mForm, valeur: +e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Date d&apos;achat</label><input type="date" value={mForm.dateAchat} onChange={e => setMForm({ ...mForm, dateAchat: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Valeur (EUR)</label><input type="number" min={0} step={0.01} value={mForm.valeur || ''} onChange={e => setMForm({ ...mForm, valeur: +e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
               </div>
-              <textarea placeholder="Notes" value={mForm.notes} onChange={e => setMForm({ ...mForm, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
+              <textarea placeholder="Notes" value={mForm.notes} onChange={e => setMForm({ ...mForm, notes: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={2} />
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowMaterielModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addMateriel} disabled={!mForm.nom.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowMaterielModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addMateriel} disabled={!mForm.nom.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>
@@ -188,26 +188,26 @@ export function StocksMaterielsSection({ artisan }: { artisan: import('@/lib/typ
       {/* Modal Consommable */}
       {showConsoModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowConsoModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouveau consommable</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-4">Nouveau consommable</h3>
             <div className="space-y-3">
-              <input placeholder="Nom" value={cForm.nom} onChange={e => setCForm({ ...cForm, nom: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <select value={cForm.categorie} onChange={e => setCForm({ ...cForm, categorie: e.target.value as Consommable['categorie'] })} className="w-full border rounded-lg px-3 py-2 text-sm">
+              <input placeholder="Nom" value={cForm.nom} onChange={e => setCForm({ ...cForm, nom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <select value={cForm.categorie} onChange={e => setCForm({ ...cForm, categorie: e.target.value as Consommable['categorie'] })} className="w-full border rounded px-3 py-2 text-sm">
                 {CAT_CONSO.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
               </select>
               <div className="grid grid-cols-3 gap-3">
-                <div><label className="text-xs text-gray-500">Unité</label><input value={cForm.unite} onChange={e => setCForm({ ...cForm, unite: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-                <div><label className="text-xs text-gray-500">Quantité</label><input type="number" min={0} value={cForm.quantiteEnStock} onChange={e => setCForm({ ...cForm, quantiteEnStock: +e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-                <div><label className="text-xs text-gray-500">Seuil alerte</label><input type="number" min={0} value={cForm.seuilAlerte} onChange={e => setCForm({ ...cForm, seuilAlerte: +e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Unité</label><input value={cForm.unite} onChange={e => setCForm({ ...cForm, unite: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Quantité</label><input type="number" min={0} value={cForm.quantiteEnStock} onChange={e => setCForm({ ...cForm, quantiteEnStock: +e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Seuil alerte</label><input type="number" min={0} value={cForm.seuilAlerte} onChange={e => setCForm({ ...cForm, seuilAlerte: +e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-500">Prix unitaire</label><input type="number" min={0} step={0.01} value={cForm.prixUnitaire || ''} onChange={e => setCForm({ ...cForm, prixUnitaire: +e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-                <input placeholder="Fournisseur" value={cForm.fournisseur} onChange={e => setCForm({ ...cForm, fournisseur: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
+                <div><label className="text-xs text-gray-500">Prix unitaire</label><input type="number" min={0} step={0.01} value={cForm.prixUnitaire || ''} onChange={e => setCForm({ ...cForm, prixUnitaire: +e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+                <input placeholder="Fournisseur" value={cForm.fournisseur} onChange={e => setCForm({ ...cForm, fournisseur: e.target.value })} className="border rounded px-3 py-2 text-sm" />
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowConsoModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addConsommable} disabled={!cForm.nom.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowConsoModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addConsommable} disabled={!cForm.nom.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>

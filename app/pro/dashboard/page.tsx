@@ -772,7 +772,7 @@ function DashboardPage() {
               <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h1 className="text-2xl font-semibold">💬 Messagerie</h1>
+                    <h1 className="text-lg font-semibold">💬 Messagerie</h1>
                   </div>
                   {commTab === 'particuliers' && pendingBookings.length > 0 && (
                     <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-sm font-semibold">{pendingBookings.length} en attente</span>
@@ -781,13 +781,13 @@ function DashboardPage() {
                 <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => setCommTab('particuliers')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${commTab === 'particuliers' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition ${commTab === 'particuliers' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                   >
                     {isPt ? '🏠 Particulares' : '🏠 Particuliers'}
                   </button>
                   <button
                     onClick={() => setCommTab('pro')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${commTab === 'pro' ? 'bg-[#FFC107] text-gray-900 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    className={`px-3 py-1.5 rounded text-xs font-medium transition ${commTab === 'pro' ? 'bg-[#FFC107] text-gray-900' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                   >
                     🏢 Pro
                   </button>
@@ -796,40 +796,40 @@ function DashboardPage() {
 
               {/* ── Onglet Particuliers ── */}
               {commTab === 'particuliers' && (
-                <div className="p-6 lg:p-8">
+                <div className="p-4 lg:p-5">
                   {pendingBookings.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {pendingBookings.map((b) => (
-                        <div key={b.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-[#FFC107]">
+                        <div key={b.id} className="bg-white p-4 rounded-md border-l-2 border-[#FFC107] border border-[#E8E8E8]">
                           <div className="flex flex-col sm:flex-row justify-between gap-3">
                             <div>
-                              <div className="font-bold text-lg">{b.services?.name || 'Demande de RDV'}</div>
+                              <div className="font-semibold text-sm">{b.services?.name || 'Demande de RDV'}</div>
                               <div className="text-sm text-gray-600 mt-1">📅 {b.booking_date} à {b.booking_time?.substring(0, 5)}</div>
                               <div className="text-sm text-gray-500">📍 {b.address}</div>
                               {b.notes && <div className="text-sm text-gray-500 mt-2 bg-gray-50 p-2 rounded">{b.notes}</div>}
                             </div>
                             <div className="flex flex-wrap gap-2 self-start">
-                              <button onClick={() => openDashMessages(b)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg font-semibold text-sm transition">💬</button>
-                              <button onClick={() => handleTransformBookingToDevis(b)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-1">📄 Devis</button>
-                              <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition">✓ Accepter</button>
-                              <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-semibold text-sm transition">✕ Refuser</button>
+                              <button onClick={() => openDashMessages(b)} className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded font-medium text-xs transition">💬</button>
+                              <button onClick={() => handleTransformBookingToDevis(b)} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded font-medium text-xs transition flex items-center gap-1">📄 Devis</button>
+                              <button onClick={() => updateBookingStatus(b.id, 'confirmed')} className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded font-medium text-xs transition">✓ Accepter</button>
+                              <button onClick={() => updateBookingStatus(b.id, 'cancelled')} className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded font-medium text-xs transition">✕ Refuser</button>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="bg-white p-12 rounded-2xl text-center shadow-sm">
-                      <div className="text-6xl mb-4">✅</div>
-                      <h3 className="text-2xl font-bold mb-3">{isPt ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</h3>
-                      <p className="text-gray-500 text-lg">{isPt ? 'Todos os pedidos de clientes foram tratados' : 'Toutes les demandes clients ont été traitées'}</p>
+                    <div className="bg-white p-8 rounded-md text-center border border-[#E8E8E8]">
+                      <div className="text-4xl mb-3">✅</div>
+                      <h3 className="text-base font-semibold mb-2">{isPt ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</h3>
+                      <p className="text-gray-500 text-sm">{isPt ? 'Todos os pedidos de clientes foram tratados' : 'Toutes les demandes clients ont été traitées'}</p>
                     </div>
                   )}
 
                   {/* Historique conversations clients */}
                   {bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').length > 0 && (
                     <div className="mt-8">
-                      <h3 className="font-bold text-gray-700 mb-3">{isPt ? '📨 Conversas de clientes ativas' : '📨 Conversations clients actives'}</h3>
+                      <h3 className="font-semibold text-gray-700 mb-3 text-sm">{isPt ? '📨 Conversas de clientes ativas' : '📨 Conversations clients actives'}</h3>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {bookings.filter(b => b.status === 'confirmed' || b.status === 'completed').slice(0, 12).map(b => {
                           const rawNotes = b.notes || ''
@@ -838,7 +838,7 @@ function DashboardPage() {
                           const clientLabel = clientNameMatch ? clientNameMatch[1].trim() : 'Client'
                           return (
                             <button key={b.id} onClick={() => openDashMessages(b)}
-                              className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-[#FFC107] hover:shadow-md transition text-left">
+                              className="bg-white p-3 rounded-md border border-[#E8E8E8] hover:border-[#FFC107] transition text-left">
                               <div className="font-semibold text-sm text-gray-900 truncate">{clientLabel}</div>
                               <div className="text-xs text-gray-500 mt-1">{b.services?.name || 'Intervention'} — {b.booking_date}</div>
                               <div className="text-xs text-gray-300 mt-1">💬 Ouvrir la conversation</div>
@@ -853,28 +853,28 @@ function DashboardPage() {
 
               {/* ── Onglet Pro ── */}
               {commTab === 'pro' && (
-                <div className="p-6 lg:p-8">
+                <div className="p-4 lg:p-5">
                   {/* Canal Pro */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 mb-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-bold text-blue-900 text-lg mb-1">📡 Canal Pro</h3>
+                        <h3 className="font-semibold text-blue-900 text-sm mb-1">📡 Canal Pro</h3>
                         <p className="text-sm text-blue-600">{isPt ? 'Mensagens diretas com os seus contactos profissionais' : 'Messagerie directe avec vos contacts professionnels'}</p>
                       </div>
-                      <button onClick={() => navigateTo('canal')} className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
+                      <button onClick={() => navigateTo('canal')} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded font-medium text-xs transition">
                         {isPt ? 'Abrir o canal →' : 'Ouvrir le canal →'}
                       </button>
                     </div>
                   </div>
 
                   {/* Ordres de mission */}
-                  <div className="bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-2xl p-6 mb-6">
+                  <div className="bg-purple-50 border border-purple-200 rounded-md p-4 mb-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-bold text-purple-900 text-lg mb-1">{isPt ? '📋 Ordens de trabalho' : '📋 Ordres de mission'}</h3>
+                        <h3 className="font-semibold text-purple-900 text-sm mb-1">{isPt ? '📋 Ordens de trabalho' : '📋 Ordres de mission'}</h3>
                         <p className="text-sm text-purple-600">{isPt ? 'Missões recebidas de condomínios e gestores' : 'Missions reçues des syndics et gestionnaires'}</p>
                       </div>
-                      <button onClick={() => navigateTo('messages')} className="bg-purple-500 hover:bg-purple-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-sm">
+                      <button onClick={() => navigateTo('messages')} className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded font-medium text-xs transition">
                         {isPt ? 'Ver na mensagem →' : 'Voir dans la messagerie →'}
                       </button>
                     </div>
@@ -893,8 +893,8 @@ function DashboardPage() {
                       { icon: '🏠', label: 'Bailleurs sociaux', desc: 'Logements sociaux' },
                       { icon: '🔑', label: 'Conciergeries', desc: 'Locations courtes' },
                     ]).map((t) => (
-                      <div key={t.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-                        <div className="text-2xl mb-2">{t.icon}</div>
+                      <div key={t.label} className="bg-white rounded-md p-3 border border-[#E8E8E8] text-center">
+                        <div className="text-lg mb-1">{t.icon}</div>
                         <div className="font-semibold text-sm text-gray-900">{t.label}</div>
                         <div className="text-xs text-gray-500">{t.desc}</div>
                       </div>
@@ -1071,63 +1071,63 @@ function DashboardPage() {
 
           {/* ────── GANTT (Société BTP) ────── */}
           {activePage === 'gantt' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <GanttSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── SITUATIONS DE TRAVAUX (Société BTP) ────── */}
           {activePage === 'situations' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <SituationsTravaux userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RETENUES DE GARANTIE (Société BTP) ────── */}
           {activePage === 'garanties' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <RetenuesGarantieSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <PointageGeoSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── SOUS-TRAITANCE DC4 (Société BTP) ────── */}
           {activePage === 'sous_traitance' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <SousTraitanceDC4Section userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RENTABILITÉ CHANTIER (Société BTP) ────── */}
           {activePage === 'rentabilite' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── COMPTA INTELLIGENTE BTP ────── */}
           {activePage === 'compta_btp' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <ComptaBTPSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RECRUTEMENT SOUS-TRAITANTS (Société BTP) ────── */}
           {activePage === 'sous_traitance_offres' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <SousTraitanceOffresSection artisan={artisan!} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── DPGF APPELS D'OFFRES (Société BTP) ────── */}
           {activePage === 'dpgf' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <DPGFSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
           )}
@@ -1144,42 +1144,42 @@ function DashboardPage() {
 
           {/* ────── CHANNEL MANAGER (Conciergerie) ────── */}
           {activePage === 'channel_manager' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <ChannelManagerSection userId={artisan?.id || ''} />
             </div>
           )}
 
           {/* ────── TARIFICATION (Conciergerie) ────── */}
           {activePage === 'tarification' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <TarificationSection userId={artisan?.id || ''} />
             </div>
           )}
 
           {/* ────── CHECK-IN / CHECK-OUT (Conciergerie) ────── */}
           {activePage === 'checkinout' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <CheckinOutSection userId={artisan?.id || ''} />
             </div>
           )}
 
           {/* ────── LIVRET D'ACCUEIL (Conciergerie) ────── */}
           {activePage === 'livret' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <LivretAccueilSection userId={artisan?.id || ''} />
             </div>
           )}
 
           {/* ────── PLANNING MÉNAGE (Conciergerie) ────── */}
           {activePage === 'menage' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <PlanningMenageSection userId={artisan?.id || ''} />
             </div>
           )}
 
           {/* ────── REVPAR (Conciergerie) ────── */}
           {activePage === 'revpar' && (
-            <div className="p-6 lg:p-8 animate-fadeIn">
+            <div className="p-4 lg:p-5 animate-fadeIn">
               <RevPARSection userId={artisan?.id || ''} />
             </div>
           )}
@@ -1402,7 +1402,7 @@ function DashboardPage() {
       {dashMsgFullscreenImg && (
         <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setDashMsgFullscreenImg(null)}>
           <Image src={dashMsgFullscreenImg} alt="Photo" width={1200} height={800} className="max-w-full max-h-full object-contain rounded-lg" sizes="100vw" />
-          <button onClick={() => setDashMsgFullscreenImg(null)} className="absolute top-4 right-4 text-white text-2xl bg-black/50 rounded-full w-10 h-10 flex items-center justify-center">✕</button>
+          <button onClick={() => setDashMsgFullscreenImg(null)} className="absolute top-4 right-4 text-white text-base bg-black/50 rounded-full w-8 h-8 flex items-center justify-center">✕</button>
         </div>
       )}
 
@@ -1436,7 +1436,7 @@ function DashboardPage() {
                           <img
                             src={msg.attachment_url}
                             alt="Photo"
-                            className="rounded-xl max-w-[220px] max-h-[220px] object-cover cursor-pointer"
+                            className="rounded-md max-w-[220px] max-h-[220px] object-cover cursor-pointer"
                             onClick={() => setDashMsgFullscreenImg(msg.attachment_url ?? null)}
                           />
                           {msg.content && <p className="text-xs mt-1 px-2">{msg.content}</p>}
@@ -1469,11 +1469,11 @@ function DashboardPage() {
                     const isSigned = m.signed === true
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl border-2 overflow-hidden ${isSigned ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
-                          <div className="px-4 py-3">
+                        <div className={`max-w-[85%] rounded-md border overflow-hidden ${isSigned ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+                          <div className="px-3 py-2.5">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-lg">{isSigned ? '✅' : '📄'}</span>
-                              <span className="font-bold text-sm text-gray-900">{isSigned ? t('proDash.msg.quotesSigned') : t('proDash.msg.quotesSent')}</span>
+                              <span className="text-sm">{isSigned ? '✅' : '📄'}</span>
+                              <span className="font-semibold text-xs text-gray-900">{isSigned ? t('proDash.msg.quotesSigned') : t('proDash.msg.quotesSent')}</span>
                             </div>
                             <p className="text-xs text-gray-700">N°{m.docNumber} — {m.totalStr}</p>
                             {m.docTitle && <p className="text-xs text-gray-600 mt-0.5">{m.docTitle}</p>}
@@ -1491,11 +1491,11 @@ function DashboardPage() {
                     const m = msg.metadata as { docNumber?: string; totalStr?: string; signer_name?: string; signed_at?: string; prestationDate?: string }
                     return (
                       <div key={msg.id} className="flex justify-start">
-                        <div className="max-w-[85%] rounded-2xl border-2 border-green-400 bg-green-50 overflow-hidden">
-                          <div className="px-4 py-3">
+                        <div className="max-w-[85%] rounded-md border border-green-400 bg-green-50 overflow-hidden">
+                          <div className="px-3 py-2.5">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-lg">✅</span>
-                              <span className="font-bold text-sm text-green-800">{t('proDash.msg.clientSigned')}</span>
+                              <span className="text-sm">✅</span>
+                              <span className="font-semibold text-xs text-green-800">{t('proDash.msg.clientSigned')}</span>
                             </div>
                             <p className="text-xs text-green-700">N°{m.docNumber} — {m.totalStr}</p>
                             {m.signer_name && <p className="text-xs text-green-600 mt-0.5">Signé par {m.signer_name}</p>}
@@ -1506,7 +1506,7 @@ function DashboardPage() {
                               <button
                                 onClick={() => handleBlockAgendaFromDevis(msg)}
                                 disabled={dashMsgBlockingAgenda === msg.id}
-                                className="w-full py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                className="w-full py-1.5 rounded bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50"
                               >
                                 {dashMsgBlockingAgenda === msg.id ? (
                                   <><span className="animate-spin">⏳</span> {t('proDash.msg.blocking')}</>
@@ -1585,7 +1585,7 @@ function DashboardPage() {
                   placeholder={dashMsgRecording ? `🔴 ${t('proDash.msg.recording')}` : t('proDash.msg.placeholder')}
                   aria-label="Écrire un message"
                   disabled={dashMsgRecording}
-                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#FFC107] disabled:bg-gray-50"
+                  className="flex-1 border border-[#E0E0E0] rounded px-3 py-2 text-xs focus:outline-none focus:border-[#FFC107] disabled:bg-gray-50"
                 />
                 {/* Send button */}
                 <button
@@ -1611,13 +1611,13 @@ function SidebarItem({ icon, label, active, badge, onClick }: {
 }) {
   return (
     <div onClick={onClick}
-      className={`flex items-center gap-3 px-6 py-4 cursor-pointer transition-all text-[0.95rem] ${
-        active ? 'bg-[#FFC107]/25 border-l-4 border-[#FFC107]' : 'hover:bg-[#FFC107]/15 hover:pl-8'
+      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-all text-xs ${
+        active ? 'bg-[#FFC107]/25 border-l-2 border-[#FFC107]' : 'hover:bg-[#FFC107]/15 hover:pl-6'
       }`}>
       <span>{icon}</span>
       <span>{label}</span>
       {badge && badge > 0 && (
-        <span className="ml-auto bg-red-500 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">{badge}</span>
+        <span className="ml-auto bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-semibold">{badge}</span>
       )}
     </div>
   )

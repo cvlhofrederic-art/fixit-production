@@ -4,7 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
-import { validateBody } from '@/lib/validation'
+import { validateBody, artisanPhotosPatchSchema } from '@/lib/validation'
 
 const artisanPhotosFormSchema = z.object({
   artisan_id: z.string().uuid(),
@@ -193,11 +193,9 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { photo_id, booking_id, label } = body
-
-    if (!photo_id) {
-      return NextResponse.json({ error: 'photo_id requis' }, { status: 400 })
-    }
+    const v = validateBody(artisanPhotosPatchSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { photo_id, booking_id, label } = v.data
 
     // Vérifier ownership via artisan
     const { data: photo } = await supabaseAdmin

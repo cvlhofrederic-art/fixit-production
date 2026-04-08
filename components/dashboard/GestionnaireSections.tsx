@@ -41,43 +41,43 @@ export function ImmeublesGestionnaireSection({ artisan }: { artisan: Artisan }) 
 
   return (
     <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-green-500 shadow-sm flex justify-between items-center">
-        <h1 className="text-2xl font-semibold">{'🏢'} {t('proDash.gestionnaire.immeubles.title')}</h1>
-        <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-green-700 transition shadow-sm">{t('proDash.gestionnaire.immeubles.nouvelImmeuble')}</button>
+      <div className="bg-white px-6 lg:px-5 py-6 border-b border-green-500 flex justify-between items-center">
+        <h1 className="text-lg font-semibold">{'🏢'} {t('proDash.gestionnaire.immeubles.title')}</h1>
+        <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-green-700 transition">{t('proDash.gestionnaire.immeubles.nouvelImmeuble')}</button>
       </div>
-      <div className="p-6 lg:p-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-500">
+      <div className="p-4 lg:p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div className="bg-white p-4 rounded-md border-l-2 border-green-500">
             <div className="text-sm text-gray-500 mb-1">{t('proDash.gestionnaire.immeubles.immeublesGeres')}</div>
-            <div className="text-3xl font-bold text-green-600">{immeubles.length}</div>
+            <div className="text-base font-semibold text-green-600">{immeubles.length}</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-500">
+          <div className="bg-white p-4 rounded-md border-l-2 border-blue-500">
             <div className="text-sm text-gray-500 mb-1">{t('proDash.gestionnaire.immeubles.totalLots')}</div>
-            <div className="text-3xl font-bold text-blue-600">{immeubles.reduce((s, i) => s + (parseInt(i.lots) || 0), 0)}</div>
+            <div className="text-base font-semibold text-blue-600">{immeubles.reduce((s, i) => s + (parseInt(i.lots) || 0), 0)}</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-500">
+          <div className="bg-white p-4 rounded-md border-l-2 border-amber-500">
             <div className="text-sm text-gray-500 mb-1">{t('proDash.gestionnaire.immeubles.residentiels')}</div>
-            <div className="text-3xl font-bold text-amber-600">{immeubles.filter(i => i.typeImmeuble === t('proDash.gestionnaire.immeubles.residentiels_types')).length}</div>
+            <div className="text-base font-semibold text-amber-600">{immeubles.filter(i => i.typeImmeuble === t('proDash.gestionnaire.immeubles.residentiels_types')).length}</div>
           </div>
         </div>
 
         {immeubles.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+          <div className="bg-white rounded-md p-12 text-center">
             <div className="text-6xl mb-4">{'🏢'}</div>
-            <h3 className="text-xl font-bold mb-2">{t('proDash.gestionnaire.immeubles.aucunImmeuble')}</h3>
-            <p className="text-gray-500 mb-6">{t('proDash.gestionnaire.immeubles.ajoutezImmeubles')}</p>
-            <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.immeubles.ajouterImmeuble')}</button>
+            <h3 className="text-sm font-semibold mb-2">{t('proDash.gestionnaire.immeubles.aucunImmeuble')}</h3>
+            <p className="text-gray-500 mb-4">{t('proDash.gestionnaire.immeubles.ajoutezImmeubles')}</p>
+            <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-6 py-3 rounded font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.immeubles.ajouterImmeuble')}</button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {immeubles.map(im => (
-              <div key={im.id} className="bg-white rounded-2xl shadow-sm p-6 border-2 border-gray-100 hover:border-green-200 transition">
+              <div key={im.id} className="bg-white rounded-md p-4 border border-gray-100 hover:border-green-200 transition">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-bold text-lg">{im.nom}</h3>
+                    <h3 className="font-semibold text-sm">{im.nom}</h3>
                     <span className="text-sm text-green-600">{im.typeImmeuble}</span>
                   </div>
-                  <span className="bg-green-50 text-green-700 px-2 py-1 rounded-lg text-xs font-bold">{im.lots || 0} {t('proDash.gestionnaire.immeubles.lots')}</span>
+                  <span className="bg-green-50 text-green-700 px-2 py-1 rounded text-xs font-semibold">{im.lots || 0} {t('proDash.gestionnaire.immeubles.lots')}</span>
                 </div>
                 {im.adresse && <p className="text-sm text-gray-600 mb-1">{'📍'} {im.adresse}</p>}
                 {im.anneeConstruction && <p className="text-sm text-gray-600 mb-1">{'🏗️'} {t('proDash.gestionnaire.immeubles.construitEn')} {im.anneeConstruction}</p>}
@@ -91,51 +91,51 @@ export function ImmeublesGestionnaireSection({ artisan }: { artisan: Artisan }) 
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b"><h2 className="text-xl font-bold">{'🏢'} {t('proDash.gestionnaire.immeubles.nouvelImmeubleModal')}</h2></div>
-            <div className="p-6 space-y-4">
+          <div className="bg-white rounded-md w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b"><h2 className="text-sm font-semibold">{'🏢'} {t('proDash.gestionnaire.immeubles.nouvelImmeubleModal')}</h2></div>
+            <div className="p-4 space-y-3">
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.nomResidence')}</label>
-                <input value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={t('proDash.gestionnaire.immeubles.nomResidencePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                <input value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={t('proDash.gestionnaire.immeubles.nomResidencePlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.type')}</label>
-                  <select value={form.typeImmeuble} onChange={e => setForm({...form, typeImmeuble: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none">
+                  <select value={form.typeImmeuble} onChange={e => setForm({...form, typeImmeuble: e.target.value})} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none">
                     {[t('proDash.gestionnaire.immeubles.residentiels_types'), t('proDash.gestionnaire.immeubles.commercial'), t('proDash.gestionnaire.immeubles.mixte'), t('proDash.gestionnaire.immeubles.bureaux')].map(tp => <option key={tp}>{tp}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.nombreLots')}</label>
-                  <input type="number" value={form.lots} onChange={e => setForm({...form, lots: e.target.value})} placeholder="12" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input type="number" value={form.lots} onChange={e => setForm({...form, lots: e.target.value})} placeholder="12" className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.adresse')}</label>
-                <input value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={t('proDash.gestionnaire.immeubles.adressePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                <input value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={t('proDash.gestionnaire.immeubles.adressePlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.anneeConstruction')}</label>
-                  <input type="number" value={form.anneeConstruction} onChange={e => setForm({...form, anneeConstruction: e.target.value})} placeholder="1985" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input type="number" value={form.anneeConstruction} onChange={e => setForm({...form, anneeConstruction: e.target.value})} placeholder="1985" className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.charges')}</label>
-                  <input type="number" value={form.charges} onChange={e => setForm({...form, charges: e.target.value})} placeholder="0" className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input type="number" value={form.charges} onChange={e => setForm({...form, charges: e.target.value})} placeholder="0" className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.syndic')}</label>
-                <input value={form.syndic} onChange={e => setForm({...form, syndic: e.target.value})} placeholder={t('proDash.gestionnaire.immeubles.syndicPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                <input value={form.syndic} onChange={e => setForm({...form, syndic: e.target.value})} placeholder={t('proDash.gestionnaire.immeubles.syndicPlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.immeubles.notes')}</label>
-                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} placeholder={t('proDash.gestionnaire.immeubles.notesPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none resize-none" />
+                <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} placeholder={t('proDash.gestionnaire.immeubles.notesPlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none resize-none" />
               </div>
             </div>
-            <div className="p-6 border-t flex gap-3">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50 transition">{t('proDash.gestionnaire.immeubles.annuler')}</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.immeubles.enregistrer')}</button>
+            <div className="p-4 border-t flex gap-3">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded font-semibold hover:bg-gray-50 transition">{t('proDash.gestionnaire.immeubles.annuler')}</button>
+              <button onClick={handleSave} className="flex-1 py-2.5 bg-green-600 text-white rounded font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.immeubles.enregistrer')}</button>
             </div>
           </div>
         </div>
@@ -191,34 +191,34 @@ export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: Ar
 
   return (
     <div className="animate-fadeIn">
-      <div className="bg-white px-6 lg:px-10 py-6 border-b-2 border-green-500 shadow-sm flex justify-between items-center">
-        <h1 className="text-2xl font-semibold">{'📋'} {t('proDash.gestionnaire.missions.title')}</h1>
-        <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-green-700 transition shadow-sm">{t('proDash.gestionnaire.missions.nouvelOrdre')}</button>
+      <div className="bg-white px-6 lg:px-5 py-6 border-b border-green-500 flex justify-between items-center">
+        <h1 className="text-lg font-semibold">{'📋'} {t('proDash.gestionnaire.missions.title')}</h1>
+        <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-green-700 transition">{t('proDash.gestionnaire.missions.nouvelOrdre')}</button>
       </div>
-      <div className="p-6 lg:p-8">
-        <div className="flex gap-2 mb-6 flex-wrap">
+      <div className="p-4 lg:p-5">
+        <div className="flex gap-2 mb-4 flex-wrap">
           {([allLabel, urgLabel, enCoursLabel, termLabel] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${filter === f ? 'bg-green-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>{f} ({f === allLabel ? missions.length : f === urgLabel ? missions.filter(m => m.priorite === 'urgente').length : f === enCoursLabel ? missions.filter(m => m.statut === enCoursLabel).length : missions.filter(m => m.statut === termLabel).length})</button>
           ))}
         </div>
 
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+          <div className="bg-white rounded-md p-12 text-center">
             <div className="text-6xl mb-4">{'📋'}</div>
-            <h3 className="text-xl font-bold mb-2">{t('proDash.gestionnaire.missions.aucunOrdreMission')}</h3>
-            <p className="text-gray-500 mb-6">{t('proDash.gestionnaire.missions.creerPremier')}</p>
-            <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.missions.creerOrdre')}</button>
+            <h3 className="text-sm font-semibold mb-2">{t('proDash.gestionnaire.missions.aucunOrdreMission')}</h3>
+            <p className="text-gray-500 mb-4">{t('proDash.gestionnaire.missions.creerPremier')}</p>
+            <button onClick={() => setShowModal(true)} className="bg-green-600 text-white px-6 py-3 rounded font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.missions.creerOrdre')}</button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filtered.map(m => (
-              <div key={m.id} className="bg-white rounded-2xl shadow-sm p-6">
+              <div key={m.id} className="bg-white rounded-md p-4">
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <h3 className="font-bold text-lg">{m.titre || m.type}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${PRIO_COLORS[m.priorite] || ''}`}>{m.priorite}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[m.statut] || ''}`}>{m.statut}</span>
+                      <h3 className="font-semibold text-sm">{m.titre || m.type}</h3>
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${PRIO_COLORS[m.priorite] || ''}`}>{m.priorite}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[m.statut] || ''}`}>{m.statut}</span>
                     </div>
                     {m.immeuble && <p className="text-sm text-gray-600 mb-1">{'🏢'} {m.immeuble}{m.lot ? ` — ${t('proDash.ordres.lot')} ${m.lot}` : ''}</p>}
                     {m.locataire && <p className="text-sm text-gray-600 mb-1">{'👤'} {m.locataire}</p>}
@@ -228,7 +228,7 @@ export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: Ar
                     {m.description && <p className="text-sm text-gray-500 mt-2">{m.description}</p>}
                   </div>
                   <div className="min-w-[160px]">
-                    <select value={m.statut} onChange={e => changeStatut(m.id, e.target.value)} className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:border-green-500 outline-none">
+                    <select value={m.statut} onChange={e => changeStatut(m.id, e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-semibold focus:border-green-500 outline-none">
                       {[t('proDash.gestionnaire.missions.enAttente'), enCoursLabel, termLabel, t('proDash.gestionnaire.missions.annulee')].map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
@@ -241,23 +241,23 @@ export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: Ar
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b"><h2 className="text-xl font-bold">{'📋'} {t('proDash.gestionnaire.missions.nouvelOrdreMission')}</h2></div>
-            <div className="p-6 space-y-4">
+          <div className="bg-white rounded-md w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b"><h2 className="text-sm font-semibold">{'📋'} {t('proDash.gestionnaire.missions.nouvelOrdreMission')}</h2></div>
+            <div className="p-4 space-y-3">
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.titre')}</label>
-                <input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={t('proDash.gestionnaire.missions.titrePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                <input value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={t('proDash.gestionnaire.missions.titrePlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.type')}</label>
-                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none">
+                  <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none">
                     {TYPES.map(tp => <option key={tp}>{tp}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.priorite')}</label>
-                  <select value={form.priorite} onChange={e => setForm({...form, priorite: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none">
+                  <select value={form.priorite} onChange={e => setForm({...form, priorite: e.target.value})} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none">
                     <option value="basse">{t('proDash.gestionnaire.missions.basse')}</option>
                     <option value="normale">{t('proDash.gestionnaire.missions.normale')}</option>
                     <option value="haute">{t('proDash.gestionnaire.missions.haute')}</option>
@@ -268,35 +268,35 @@ export function MissionsGestionnaireSection({ artisan, bookings }: { artisan: Ar
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.immeuble')}</label>
-                  <input value={form.immeuble} onChange={e => setForm({...form, immeuble: e.target.value})} placeholder={t('proDash.gestionnaire.missions.immeublePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input value={form.immeuble} onChange={e => setForm({...form, immeuble: e.target.value})} placeholder={t('proDash.gestionnaire.missions.immeublePlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.lotAppartement')}</label>
-                  <input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder={t('proDash.gestionnaire.missions.lotPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input value={form.lot} onChange={e => setForm({...form, lot: e.target.value})} placeholder={t('proDash.gestionnaire.missions.lotPlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.locataire')}</label>
-                  <input value={form.locataire} onChange={e => setForm({...form, locataire: e.target.value})} placeholder={t('proDash.gestionnaire.missions.locatairePlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input value={form.locataire} onChange={e => setForm({...form, locataire: e.target.value})} placeholder={t('proDash.gestionnaire.missions.locatairePlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.artisanAssigne')}</label>
-                  <input value={form.artisan} onChange={e => setForm({...form, artisan: e.target.value})} placeholder={t('proDash.gestionnaire.missions.artisanPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                  <input value={form.artisan} onChange={e => setForm({...form, artisan: e.target.value})} placeholder={t('proDash.gestionnaire.missions.artisanPlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.dateInterventionSouhaitee')}</label>
-                <input type="date" value={form.dateIntervention} onChange={e => setForm({...form, dateIntervention: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none" />
+                <input type="date" value={form.dateIntervention} onChange={e => setForm({...form, dateIntervention: e.target.value})} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">{t('proDash.gestionnaire.missions.description')}</label>
-                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={t('proDash.gestionnaire.missions.descriptionPlaceholder')} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 focus:border-green-500 outline-none resize-none" />
+                <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} placeholder={t('proDash.gestionnaire.missions.descriptionPlaceholder')} className="w-full border border-gray-200 rounded px-4 py-2.5 focus:border-green-500 outline-none resize-none" />
               </div>
             </div>
-            <div className="p-6 border-t flex gap-3">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl font-semibold hover:bg-gray-50 transition">{t('proDash.gestionnaire.missions.annuler')}</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.missions.creerLOrdre')}</button>
+            <div className="p-4 border-t flex gap-3">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded font-semibold hover:bg-gray-50 transition">{t('proDash.gestionnaire.missions.annuler')}</button>
+              <button onClick={handleSave} className="flex-1 py-2.5 bg-green-600 text-white rounded font-semibold hover:bg-green-700 transition">{t('proDash.gestionnaire.missions.creerLOrdre')}</button>
             </div>
           </div>
         </div>

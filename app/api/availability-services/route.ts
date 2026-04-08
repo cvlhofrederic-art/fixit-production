@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { validateBody, availabilityServicesSchema } from '@/lib/validation'
 
 // GET: Fetch dayServices config from artisan's bio marker
 export async function GET(request: NextRequest) {
@@ -50,11 +51,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { artisan_id, dayServices } = body
-
-    if (!artisan_id || !dayServices) {
-      return NextResponse.json({ error: 'artisan_id and dayServices are required' }, { status: 400 })
-    }
+    const v = validateBody(availabilityServicesSchema, body)
+    if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { artisan_id, dayServices } = v.data
 
     // Vérifier que l'utilisateur connecté est bien cet artisan
     if (user.id !== artisan_id) {

@@ -166,10 +166,10 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
   if (loading) {
     return (
       <div className="animate-fadeIn">
-        <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
-          <h1 className="text-xl font-semibold">📋 {t('proDash.ordres.title')}</h1>
+        <div className="bg-white px-6 lg:px-5 h-20 border-b border-[#34495E] flex items-center">
+          <h1 className="text-lg font-semibold">📋 {t('proDash.ordres.title')}</h1>
         </div>
-        <div className="p-10 flex justify-center items-center text-gray-400">
+        <div className="p-5 flex justify-center items-center text-gray-400">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-400"></div>
           <span className="ml-3">Chargement des ordres de mission…</span>
         </div>
@@ -180,16 +180,16 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
   if (ordres.length === 0) {
     return (
       <div className="animate-fadeIn">
-        <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center">
+        <div className="bg-white px-6 lg:px-5 h-20 border-b border-[#34495E] flex items-center">
           <div>
-            <h1 className="text-xl font-semibold leading-tight">📋 {t('proDash.ordres.title')}</h1>
+            <h1 className="text-lg font-semibold leading-tight">📋 {t('proDash.ordres.title')}</h1>
             <p className="text-xs text-gray-400 mt-0.5">{t('proDash.ordres.subtitle')}</p>
           </div>
         </div>
-        <div className="p-6 lg:p-10">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 text-center py-20">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-xl font-bold text-gray-700">{t('proDash.ordres.aucunOrdreMission')}</h3>
+        <div className="p-4 lg:p-5">
+          <div className="bg-white rounded-md border border-gray-200 text-center py-20">
+            <div className="text-2xl mb-3">📋</div>
+            <h3 className="text-base font-semibold text-gray-700">{t('proDash.ordres.aucunOrdreMission')}</h3>
             <p className="text-gray-500 mt-2 text-sm">{t('proDash.ordres.ordresApparaitrontIci')}</p>
           </div>
         </div>
@@ -200,10 +200,10 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
   return (
     <div className="animate-fadeIn flex flex-col h-full">
       {/* Header */}
-      <div className="bg-white px-6 lg:px-10 h-20 border-b border-[#34495E] flex items-center flex-shrink-0">
+      <div className="bg-white px-6 lg:px-5 h-20 border-b border-[#34495E] flex items-center flex-shrink-0">
         <div className="flex items-center justify-between w-full">
           <div>
-            <h1 className="text-xl font-bold">📋 {t('proDash.ordres.titleSyndic')}</h1>
+            <h1 className="text-lg font-semibold">📋 {t('proDash.ordres.titleSyndic')}</h1>
             <p className="text-xs text-gray-500 mt-0.5">
               {ordres.length} {ordres.length > 1 ? t('proDash.ordres.ordresRecus') : t('proDash.ordres.ordreRecu')}
             </p>
@@ -216,7 +216,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
               <button
                 key={val}
                 onClick={() => setTab(val as any)}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition font-medium ${tab === val ? 'bg-[#FFC107] border-[#FFC107] text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                className={`text-xs px-3 py-1.5 rounded border transition font-medium ${tab === val ? 'bg-[#FFC107] border-[#FFC107] text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
               >
                 {lbl}
               </button>
@@ -242,12 +242,12 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
               <button
                 key={o.id}
                 onClick={() => setSelectedOrdre(o)}
-                className={`w-full text-left p-4 border-b border-gray-100 transition hover:bg-white ${isSelected ? 'bg-white border-l-4 border-l-[#FFC107]' : ''}`}
+                className={`w-full text-left p-4 border-b border-gray-100 transition hover:bg-white ${isSelected ? 'bg-white border-l-2 border-l-[#FFC107]' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                      <span className="text-xs font-bold text-gray-900 truncate">
+                      <span className="text-xs font-semibold text-gray-900 truncate">
                         {o.ordre_mission?.titre || t('proDash.ordres.intervention')}
                       </span>
                       {urgence !== 'normale' && (
@@ -285,7 +285,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
           {!selectedOrdre ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center text-gray-500">
-                <div className="text-5xl mb-3">📋</div>
+                <div className="text-2xl mb-2">📋</div>
                 <p className="font-medium">{t('proDash.ordres.selectionnerOrdre')}</p>
                 <p className="text-sm mt-1">{t('proDash.ordres.voirDetailsCanal')}</p>
               </div>
@@ -297,11 +297,11 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="font-bold text-gray-900">
+                      <h2 className="font-semibold text-gray-900">
                         {selectedOrdre.ordre_mission?.titre || t('proDash.ordres.intervention')}
                       </h2>
                       {selectedOrdre.ordre_mission?.urgence === 'urgente' && (
-                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold border border-red-200">🔴 Urgent</span>
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold border border-red-200">🔴 Urgent</span>
                       )}
                       {(selectedOrdre.ordre_mission?.statut === 'accepte' || selectedOrdre.ordre_mission?.statut === 'termine') && (
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✅ {t('proDash.ordres.confirme')}</span>
@@ -326,7 +326,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                     <button
                       onClick={() => confirmerOrdre(selectedOrdre)}
                       disabled={confirmingId === selectedOrdre.id}
-                      className="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition shadow-sm disabled:opacity-60"
+                      className="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm transition disabled:opacity-60"
                     >
                       {confirmingId === selectedOrdre.id ? '…' : `✅ ${t('proDash.ordres.confirmerMission')}`}
                     </button>
@@ -342,7 +342,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                   </div>
                 ) : canalMessages.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <div className="text-4xl mb-2">💬</div>
+                    <div className="text-2xl mb-2">💬</div>
                     <p className="text-sm">{t('proDash.ordres.pasMessages')}</p>
                   </div>
                 ) : canalMessages.map((msg) => {
@@ -353,7 +353,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                   if (isSystem || isOrdre) {
                     return (
                       <div key={msg.id} className="flex justify-center">
-                        <div className="bg-white border border-gray-200 rounded-xl px-4 py-2 max-w-xl">
+                        <div className="bg-white border border-gray-200 rounded-md px-4 py-2 max-w-xl">
                           <p className="text-xs text-gray-500 text-center leading-relaxed whitespace-pre-line">
                             {isOrdre ? `📋 Ordre de mission : ${msg.content}` : msg.content}
                           </p>
@@ -373,7 +373,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                           {' · '}
                           {isMe ? t('proDash.ordres.vous') : t('proDash.ordres.gestionnaire')}
                         </p>
-                        <div className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-line shadow-sm ${isMe ? 'bg-[#FFC107] text-white rounded-tr-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
+                        <div className={`rounded-md px-4 py-2.5 text-sm whitespace-pre-line ${isMe ? 'bg-[#FFC107] text-white rounded-tr-sm' : 'bg-white text-gray-900 border border-gray-100 rounded-tl-sm'}`}>
                           {msg.content}
                         </div>
                         <p className="text-xs text-gray-300 px-1">
@@ -406,7 +406,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                 </div>
                 <div className="flex gap-2">
                   <textarea
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-amber-400 outline-none resize-none"
+                    className="flex-1 border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:border-amber-400 outline-none resize-none"
                     placeholder={t('proDash.ordres.repondreGestionnaire')}
                     value={newMsg}
                     rows={2}
@@ -416,7 +416,7 @@ export default function OrdresMissionPage({ artisan, userId }: { artisan: import
                   <button
                     onClick={sendMsg}
                     disabled={!newMsg.trim() || sendingMsg}
-                    className="bg-[#FFC107] text-white px-5 py-2 rounded-xl font-semibold text-sm hover:bg-amber-500 transition disabled:opacity-50 self-end"
+                    className="bg-[#FFC107] text-white px-5 py-2 rounded font-semibold text-sm hover:bg-amber-500 transition disabled:opacity-50 self-end"
                   >
                     {sendingMsg ? '…' : t('proDash.ordres.envoyer')}
                   </button>

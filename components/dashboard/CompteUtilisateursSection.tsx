@@ -247,12 +247,12 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
 
   const getStatusBadge = (member: TeamMember) => {
     if (!member.is_active) {
-      return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ background: '#fee2e2', color: '#dc2626' }}>{isPt ? 'Desativado' : 'Désactivé'}</span>
+      return <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase" style={{ background: '#fee2e2', color: '#dc2626' }}>{isPt ? 'Desativado' : 'Désactivé'}</span>
     }
     if (!member.accepted_at) {
-      return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ background: '#FFF8E1', color: '#F59E0B' }}>{isPt ? 'Pendente' : 'En attente'}</span>
+      return <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase" style={{ background: '#FFF8E1', color: '#F59E0B' }}>{isPt ? 'Pendente' : 'En attente'}</span>
     }
-    return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{ background: '#dcfce7', color: '#16a34a' }}>{isPt ? 'Ativo' : 'Actif'}</span>
+    return <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase" style={{ background: '#dcfce7', color: '#16a34a' }}>{isPt ? 'Ativo' : 'Actif'}</span>
   }
 
   // Filter modules for permission grid — skip settings (always per-role)

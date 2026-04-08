@@ -144,7 +144,7 @@ export default function EntrepriseLayout({
               <path d="M3 5h14M3 10h14M3 15h14" />
             </svg>
           </button>
-          <span className="text-white text-sm font-bold tracking-wide">
+          <span className="text-white text-sm font-semibold tracking-wide">
             VITFIX <span style={{ color: '#C8460A' }}>PRO</span>
           </span>
         </div>
@@ -222,7 +222,7 @@ export default function EntrepriseLayout({
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-5">
           {children}
         </main>
       </div>

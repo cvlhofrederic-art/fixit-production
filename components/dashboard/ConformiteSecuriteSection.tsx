@@ -101,28 +101,28 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
   const addBtn = getAddButton()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Conformité & Sécurité</h2>
-        <button onClick={addBtn.onClick} className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium">+ {addBtn.label}</button>
+        <h2 className="text-lg font-semibold text-gray-900">Conformité & Sécurité</h2>
+        <button onClick={addBtn.onClick} className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-medium">+ {addBtn.label}</button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-gray-900">{habilitations.length}</p>
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-gray-900">{habilitations.length}</p>
           <p className="text-sm text-gray-500">Habilitations</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-green-600">{valides}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-green-600">{valides}</p>
           <p className="text-sm text-gray-500">Valides</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-amber-600">{expirantBientot}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-amber-600">{expirantBientot}</p>
           <p className="text-sm text-gray-500">Expirant bientôt</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
-          <p className="text-2xl font-bold text-red-600">{expires}</p>
+        <div className="bg-white rounded-md border p-4">
+          <p className="text-base font-semibold text-red-600">{expires}</p>
           <p className="text-sm text-gray-500">Expirées</p>
         </div>
       </div>
@@ -142,7 +142,7 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
           {habilitations.map(h => {
             const s = habilitationStatut(h.dateExpiration)
             return (
-              <div key={h.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+              <div key={h.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-900">{h.employe}</span>
@@ -166,7 +166,7 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
         <div className="space-y-3">
           {ppspsList.length === 0 && <p className="text-gray-400 text-center py-8">Aucun PPSPS enregistré</p>}
           {ppspsList.map(p => (
-            <div key={p.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+            <div key={p.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold text-gray-900">{p.chantier}</span>
                 <div className="flex items-center gap-2">
@@ -191,7 +191,7 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
         <div className="space-y-3">
           {registre.length === 0 && <p className="text-gray-400 text-center py-8">Aucun événement enregistré</p>}
           {registre.map(r => (
-            <div key={r.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+            <div key={r.id} className="bg-white rounded-md border p-4 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-gray-900">{r.date}</span>
@@ -217,22 +217,22 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
       {/* Modal Habilitation */}
       {showHabModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowHabModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouvelle habilitation</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-4">Nouvelle habilitation</h3>
             <div className="space-y-3">
-              <input placeholder="Employé" value={hForm.employe} onChange={e => setHForm({ ...hForm, employe: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <select value={hForm.type} onChange={e => setHForm({ ...hForm, type: e.target.value as Habilitation['type'] })} className="w-full border rounded-lg px-3 py-2 text-sm">
+              <input placeholder="Employé" value={hForm.employe} onChange={e => setHForm({ ...hForm, employe: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <select value={hForm.type} onChange={e => setHForm({ ...hForm, type: e.target.value as Habilitation['type'] })} className="w-full border rounded px-3 py-2 text-sm">
                 {TYPES_HAB.map(t => <option key={t} value={t}>{TYPES_HAB_LABELS[t]}</option>)}
               </select>
-              <input placeholder="Organisme de formation" value={hForm.organisme} onChange={e => setHForm({ ...hForm, organisme: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input placeholder="Organisme de formation" value={hForm.organisme} onChange={e => setHForm({ ...hForm, organisme: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-500">Date obtention</label><input type="date" value={hForm.dateObtention} onChange={e => setHForm({ ...hForm, dateObtention: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-                <div><label className="text-xs text-gray-500">Date expiration</label><input type="date" value={hForm.dateExpiration} onChange={e => setHForm({ ...hForm, dateExpiration: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Date obtention</label><input type="date" value={hForm.dateObtention} onChange={e => setHForm({ ...hForm, dateObtention: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Date expiration</label><input type="date" value={hForm.dateExpiration} onChange={e => setHForm({ ...hForm, dateExpiration: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowHabModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addHab} disabled={!hForm.employe.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowHabModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addHab} disabled={!hForm.employe.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>
@@ -241,18 +241,18 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
       {/* Modal PPSPS */}
       {showPpspsModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowPpspsModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouveau PPSPS</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-4">Nouveau PPSPS</h3>
             <div className="space-y-3">
-              <input placeholder="Chantier" value={pForm.chantier} onChange={e => setPForm({ ...pForm, chantier: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <input placeholder="Rédacteur" value={pForm.redacteurNom} onChange={e => setPForm({ ...pForm, redacteurNom: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <div><label className="text-xs text-gray-500">Date rédaction</label><input type="date" value={pForm.dateRedaction} onChange={e => setPForm({ ...pForm, dateRedaction: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
-              <textarea placeholder="Risques identifiés" value={pForm.risquesIdentifies} onChange={e => setPForm({ ...pForm, risquesIdentifies: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} />
-              <textarea placeholder="Mesures de prévention" value={pForm.mesuresPrevention} onChange={e => setPForm({ ...pForm, mesuresPrevention: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} />
+              <input placeholder="Chantier" value={pForm.chantier} onChange={e => setPForm({ ...pForm, chantier: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <input placeholder="Rédacteur" value={pForm.redacteurNom} onChange={e => setPForm({ ...pForm, redacteurNom: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <div><label className="text-xs text-gray-500">Date rédaction</label><input type="date" value={pForm.dateRedaction} onChange={e => setPForm({ ...pForm, dateRedaction: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
+              <textarea placeholder="Risques identifiés" value={pForm.risquesIdentifies} onChange={e => setPForm({ ...pForm, risquesIdentifies: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={3} />
+              <textarea placeholder="Mesures de prévention" value={pForm.mesuresPrevention} onChange={e => setPForm({ ...pForm, mesuresPrevention: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={3} />
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowPpspsModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addPpsps} disabled={!pForm.chantier.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowPpspsModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addPpsps} disabled={!pForm.chantier.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>
@@ -261,27 +261,27 @@ export function ConformiteSecuriteSection({ artisan }: { artisan: import('@/lib/
       {/* Modal Registre */}
       {showRegModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowRegModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">Nouvel événement sécurité</h3>
+          <div className="bg-white rounded-md p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold mb-4">Nouvel événement sécurité</h3>
             <div className="space-y-3">
-              <div><label className="text-xs text-gray-500">Date</label><input type="date" value={rForm.date} onChange={e => setRForm({ ...rForm, date: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs text-gray-500">Date</label><input type="date" value={rForm.date} onChange={e => setRForm({ ...rForm, date: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <select value={rForm.type} onChange={e => setRForm({ ...rForm, type: e.target.value as RegistreEntry['type'] })} className="border rounded-lg px-3 py-2 text-sm">
+                <select value={rForm.type} onChange={e => setRForm({ ...rForm, type: e.target.value as RegistreEntry['type'] })} className="border rounded px-3 py-2 text-sm">
                   {REGISTRE_TYPES.map(t => <option key={t} value={t}>{REGISTRE_TYPE_LABELS[t]}</option>)}
                 </select>
-                <select value={rForm.gravite} onChange={e => setRForm({ ...rForm, gravite: e.target.value as RegistreEntry['gravite'] })} className="border rounded-lg px-3 py-2 text-sm">
+                <select value={rForm.gravite} onChange={e => setRForm({ ...rForm, gravite: e.target.value as RegistreEntry['gravite'] })} className="border rounded px-3 py-2 text-sm">
                   <option value="mineur">Mineur</option>
                   <option value="moyen">Moyen</option>
                   <option value="grave">Grave</option>
                 </select>
               </div>
-              <input placeholder="Chantier" value={rForm.chantier} onChange={e => setRForm({ ...rForm, chantier: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-              <textarea placeholder="Description" value={rForm.description} onChange={e => setRForm({ ...rForm, description: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} />
-              <textarea placeholder="Actions correctives" value={rForm.actionsCorrectives} onChange={e => setRForm({ ...rForm, actionsCorrectives: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
+              <input placeholder="Chantier" value={rForm.chantier} onChange={e => setRForm({ ...rForm, chantier: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" />
+              <textarea placeholder="Description" value={rForm.description} onChange={e => setRForm({ ...rForm, description: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={3} />
+              <textarea placeholder="Actions correctives" value={rForm.actionsCorrectives} onChange={e => setRForm({ ...rForm, actionsCorrectives: e.target.value })} className="w-full border rounded px-3 py-2 text-sm" rows={2} />
             </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowRegModal(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Annuler</button>
-              <button onClick={addRegistre} disabled={!rForm.description.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowRegModal(false)} className="flex-1 px-4 py-2 border rounded text-sm">Annuler</button>
+              <button onClick={addRegistre} disabled={!rForm.description.trim()} className="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600 disabled:opacity-50">Créer</button>
             </div>
           </div>
         </div>

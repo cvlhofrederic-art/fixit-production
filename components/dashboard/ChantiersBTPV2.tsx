@@ -373,7 +373,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const doneCount = chantiers.filter((c: ChantierForm & { statut?: string }) => c.statut === 'Terminé').length
 
   if (loading) return (
-    <div style={{ padding: 40, textAlign: 'center' }}>
+    <div style={{ padding: '1.25rem', textAlign: 'center' }}>
       <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 8px' }} />
       <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
     </div>
@@ -415,7 +415,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
       {/* ── Table ── */}
       {filtered.length === 0 ? (
-        <div className={isV5 ? "v5-card" : "v22-card"} style={{ padding: '2.5rem', textAlign: 'center' }}>
+        <div className={isV5 ? "v5-card" : "v22-card"} style={{ padding: '1.25rem', textAlign: 'center' }}>
           <HardHat size={40} style={{ margin: '0 auto 10px', color: '#BBB' }} />
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
             {isPt ? 'Nenhuma obra' : 'Aucun chantier'}
@@ -548,7 +548,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     fontSize: 11,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 700, color: renta.beneficeActuel >= 0 ? '#2E7D32' : '#C62828' }}>
+                      <span style={{ fontWeight: 600, color: renta.beneficeActuel >= 0 ? '#2E7D32' : '#C62828' }}>
                         {renta.status === 'profit' ? <CheckCircle2 size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : renta.status === 'warning' ? <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : <AlertCircle size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />}
                         {' '}{c.titre}: {renta.beneficeActuel >= 0 ? '+' : ''}{fmt(renta.beneficeActuel, dl)} €
                       </span>
@@ -562,7 +562,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
                     {renta.enRetard && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, color: '#C62828' }}>
+                        <span style={{ fontWeight: 600, color: '#C62828' }}>
                           <Siren size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {renta.joursRetard}{isPt ? ' dias de atraso' : 'j retard'} = -{fmt(renta.perteRetardTotal, dl)} €
                         </span>
                         <span style={{ color: '#E53935' }}>
@@ -631,7 +631,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                       type="number" min={1} max={60} value={prolongDays}
                       onChange={e => setProlongDays(Math.max(1, Number(e.target.value)))}
                       className={isV5 ? "v5-fi" : "v22-input"}
-                      style={{ width: 80, textAlign: 'center', fontWeight: 700, fontSize: 15 }}
+                      style={{ width: 80, textAlign: 'center', fontWeight: 600, fontSize: 14 }}
                     />
                     <span style={{ fontSize: 12, color: '#F57F17' }}>{isPt ? 'dias a mais' : 'jours de plus'}</span>
                   </div>
@@ -641,12 +641,12 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     <div className={isV5 ? "v5-fr" : "v22-form-row"} style={{ marginTop: 10, padding: 10, background: '#fff', borderRadius: 6 }}>
                       <div>
                         <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Novo custo M.O.' : 'Nouveau coût M.O.'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#C62828' }}>{fmt(newRenta.coutMOTotal, dl)} €</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#C62828' }}>{fmt(newRenta.coutMOTotal, dl)} €</div>
                         <div style={{ fontSize: 10, color: '#C62828' }}>+{fmt(newRenta.coutMOTotal - renta.coutMOTotal, dl)} €</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 10, color: '#999' }}>{isPt ? 'Nova rentabilidade' : 'Nouvelle rentabilité'}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: newRenta.beneficePrevu >= 0 ? '#2E7D32' : '#C62828' }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: newRenta.beneficePrevu >= 0 ? '#2E7D32' : '#C62828' }}>
                           {newRenta.beneficePrevu >= 0 ? '+' : ''}{fmt(newRenta.beneficePrevu, dl)} €
                         </div>
                         <div style={{ fontSize: 10, color: newRenta.beneficePrevu < renta.beneficePrevu ? '#C62828' : '#999' }}>
@@ -680,8 +680,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setDeleteConfirm(null)}>✕</button>
             </div>
-            <div style={{ padding: '20px 16px', textAlign: 'center' }}>
-              <p style={{ fontSize: 13, marginBottom: 16 }}>
+            <div style={{ padding: 16, textAlign: 'center' }}>
+              <p style={{ fontSize: 13, marginBottom: 12 }}>
                 {isPt ? 'Tem certeza que deseja remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -784,7 +784,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
                     onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })}
                     style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 600, fontSize: 13, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}m</span>
+                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}m</span>
                 </div>
               </div>
 
