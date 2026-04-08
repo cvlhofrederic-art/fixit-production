@@ -180,7 +180,7 @@ function DashboardPage() {
   const { calendarView, setCalendarView, selectedDay, setSelectedDay, getBookingsForDate, getWorkingWeekDates, getCalendarTitle, navigateCalendar, getMonthDays } = calHook
 
   const setHook = useSettings(artisan, setArtisan, dayServices, isPt, t)
-  const { settingsForm, setSettingsForm, savingSettings, settingsTab, setSettingsTab, profilePhotoFile, setProfilePhotoFile, profilePhotoPreview, setProfilePhotoPreview, profilePhotoUploading, setProfilePhotoUploading, uploadMsg, setUploadMsg, saveSettings, uploadDocument, initSettingsForm } = setHook
+  const { settingsForm, setSettingsForm, savingSettings, profilePhotoFile, setProfilePhotoFile, profilePhotoPreview, setProfilePhotoPreview, profilePhotoUploading, setProfilePhotoUploading, uploadMsg, setUploadMsg, saveSettings, uploadDocument, initSettingsForm } = setHook
 
   // ── Communication tabs ──
   const [commTab, setCommTab] = useState<'particuliers' | 'pro'>('particuliers')
@@ -403,14 +403,13 @@ function DashboardPage() {
           activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
           isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
-          settingsTab={settingsTab} setSettingsTab={setSettingsTab}
         />
       )}
       {isV5 && orgRole === 'artisan' && (
         <V5SidebarArtisan
           activePage={activePage} navigateTo={navigateTo} handleLogout={handleLogout}
           isModuleEnabled={isModuleEnabled} isPt={isPt} pendingBookings={pendingBookings}
-          unreadMsgCount={unreadMsgCount} settingsTab={settingsTab} setSettingsTab={setSettingsTab}
+          unreadMsgCount={unreadMsgCount}
         />
       )}
 
@@ -623,7 +622,7 @@ function DashboardPage() {
         {/* Compte (bottom) */}
         <div className="flex-shrink-0 pt-3 pb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="v22-sidebar-label">{t('proDash.sidebar.compte')}</div>
-          <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings' && settingsTab === 'profil'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} />
+          <V22SidebarItem label={t('proDash.myProfile')} active={activePage === 'settings'} onClick={() => navigateTo('settings')} />
           <V22SidebarItem label="Modules" active={activePage === 'modules'} onClick={() => navigateTo('modules')} />
           <V22SidebarItem label={t('proDash.modules.help')} active={activePage === 'help'} onClick={() => navigateTo('help')} />
           <V22SidebarItem label={t('proDash.logout')} active={false} onClick={async () => { await supabase.auth.signOut(); window.location.href = `/${locale}/` }} />
@@ -950,8 +949,6 @@ function DashboardPage() {
               artisan={artisan!}
               orgRole={orgRole}
               initials={initials}
-              settingsTab={settingsTab}
-              setSettingsTab={setSettingsTab}
               settingsForm={settingsForm}
               setSettingsForm={setSettingsForm}
               savingSettings={savingSettings}

@@ -15,8 +15,6 @@ interface V5SidebarArtisanProps {
   isPt: boolean
   pendingBookings: { length: number }
   unreadMsgCount: number
-  settingsTab: string
-  setSettingsTab: (tab: 'profil' | 'parrainage') => void
 }
 
 // Prefetch map — hover over sidebar item → preload the JS chunk
@@ -64,7 +62,6 @@ function V5ArtisanItem({ icon, label, active, badge, onClick, page }: {
 export default function V5SidebarArtisan({
   activePage, navigateTo, handleLogout,
   isModuleEnabled, isPt, pendingBookings, unreadMsgCount,
-  settingsTab, setSettingsTab,
 }: V5SidebarArtisanProps) {
   return (
     <aside className="v5-sb">
@@ -161,7 +158,7 @@ export default function V5SidebarArtisan({
         <div className="v5-sb-bottom">
           <div className="v5-sb-sec">
             <div className="v5-sb-sec-t">{isPt ? 'Conta' : 'Compte'}</div>
-            <V5ArtisanItem icon="⚙️" label={isPt ? 'Meu perfil' : 'Mon profil'} active={activePage === 'settings'} onClick={() => { navigateTo('settings'); setSettingsTab('profil') }} page="settings" />
+            <V5ArtisanItem icon="⚙️" label={isPt ? 'Meu perfil' : 'Mon profil'} active={activePage === 'settings'} onClick={() => navigateTo('settings')} page="settings" />
             <V5ArtisanItem icon="🧩" label="Modules" active={activePage === 'modules'} onClick={() => navigateTo('modules')} />
             <V5ArtisanItem icon="❓" label={isPt ? 'Ajuda' : 'Aide'} active={activePage === 'help'} onClick={() => navigateTo('help')} />
             <div className="v5-sb-i logout" onClick={handleLogout}>

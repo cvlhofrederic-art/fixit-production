@@ -13,8 +13,6 @@ interface SettingsSectionProps {
   artisan: Artisan
   initials: string
   orgRole?: string
-  settingsTab: 'profil' | 'parrainage'
-  setSettingsTab: (v: 'profil' | 'parrainage') => void
   settingsForm: {
     company_name: string; email: string; phone: string; bio: string;
     auto_block_duration_minutes: number; auto_reply_message: string; zone_radius_km: number
@@ -476,7 +474,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
 }
 
 export default function SettingsSection({
-  artisan, initials, orgRole, settingsTab, setSettingsTab, settingsForm, setSettingsForm,
+  artisan, initials, orgRole, settingsForm, setSettingsForm,
   savingSettings, saveSettings, autoAccept, toggleAutoAccept,
   profilePhotoPreview, setProfilePhotoPreview, profilePhotoFile, setProfilePhotoFile,
   profilePhotoUploading, uploadDocument, setProfilePhotoUploading,
@@ -496,25 +494,22 @@ export default function SettingsSection({
         <div style={{ flex: 1 }}>
           {isV5 ? (
             <>
-              <h1>{settingsTab === 'parrainage' ? '🎁 Parrainage' : 'Mon profil'}</h1>
-              <p>{settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : 'Gérez vos informations personnelles et professionnelles.'}</p>
+              <h1>Mon profil</h1>
+              <p>Gérez vos informations personnelles et professionnelles.</p>
             </>
           ) : (
             <>
-              <div className="v22-page-title">{settingsTab === 'parrainage' ? '🎁 Parrainage' : 'Mon profil'}</div>
-              <div className="v22-page-sub">{settingsTab === 'parrainage' ? 'Code, crédits et notifications de parrainage' : 'Gérez vos informations personnelles et professionnelles.'}</div>
+              <div className="v22-page-title">Mon profil</div>
+              <div className="v22-page-sub">Gérez vos informations personnelles et professionnelles.</div>
             </>
           )}
         </div>
-        {settingsTab === 'profil' && (
-          <button onClick={saveSettings} disabled={savingSettings} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ opacity: savingSettings ? 0.5 : 1 }}>
-            {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrer')}`}
-          </button>
-        )}
+        <button onClick={saveSettings} disabled={savingSettings} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ opacity: savingSettings ? 0.5 : 1 }}>
+          {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 ${t('proDash.settings.enregistrer')}`}
+        </button>
       </div>
 
       {/* Profil & Parametres */}
-      {settingsTab === 'profil' && (
       <div style={{ padding: '16px' }}>
         {/* Two-column grid: profile left, settings right */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -673,15 +668,6 @@ export default function SettingsSection({
             {/* Informations de paiement */}
             <PaymentInfoCard artisanId={artisan?.id as string} isV5={isV5} />
 
-            {/* Parrainage — intégré dans Mon profil */}
-            <div className={isV5 ? 'v5-card' : 'v22-card'}>
-              <div className={isV5 ? '' : 'v22-card-head'}>
-                <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{'🎁'} Parrainage</div>
-              </div>
-              <div className={isV5 ? '' : 'v22-card-body'}>
-                <ParrainageSettingsTab artisanId={artisan?.id as string} isV5={isV5} />
-              </div>
-            </div>
           </div>
 
           {/* RIGHT COLUMN */}
@@ -776,12 +762,6 @@ export default function SettingsSection({
           </div>
         </div>
       </div>
-      )}
-
-      {/* Parrainage */}
-      {settingsTab === 'parrainage' && (
-        <ParrainageSettingsTab artisanId={artisan.id} isV5={isV5} />
-      )}
 
     </div>
   )

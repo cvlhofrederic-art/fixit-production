@@ -28,7 +28,6 @@ export function useSettings(
 ) {
   const [settingsForm, setSettingsForm] = useState<SettingsForm>(DEFAULT_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'profil' | 'parrainage'>('profil')
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null)
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string>('')
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false)
@@ -142,7 +141,7 @@ export function useSettings(
 
   return {
     settingsForm, setSettingsForm,
-    savingSettings, settingsTab, setSettingsTab,
+    savingSettings,
     profilePhotoFile, setProfilePhotoFile,
     profilePhotoPreview, setProfilePhotoPreview,
     profilePhotoUploading, setProfilePhotoUploading,
