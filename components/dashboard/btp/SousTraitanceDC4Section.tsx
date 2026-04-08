@@ -223,7 +223,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
 
           {/* Add button */}
           <div style={{ marginBottom: '.75rem' }}>
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(!showForm)}>
+            <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(!showForm)}>
               {showForm ? '\u2715 Fermer' : `+ ${isFR ? 'Nouveau DC4' : 'Novo DC4'}`}
             </button>
           </div>
@@ -281,7 +281,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
               </thead>
               <tbody>
                 {soustraitants.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)', fontSize: 12 }}>{isFR ? 'Aucun sous-traitant enregistr\u00E9' : 'Nenhum subempreiteiro registado'}</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'🤝'}</div>{isFR ? 'Aucun sous-traitant enregistr\u00E9' : 'Nenhum subempreiteiro registado'}</td></tr>
                 ) : soustraitants.map(s => (
                   <tr key={s.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
                     <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>

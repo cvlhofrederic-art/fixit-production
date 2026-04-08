@@ -40,27 +40,21 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1><Clock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.title')}</h1>
-            <p>{t('proDash.btp.pointage.subtitle')}</p>
-          </>
-        ) : (
-          <>
-            <div>
+        <div>
+          {isV5 ? (
+            <>
+              <h1><Clock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.title')}</h1>
+              <p>{t('proDash.btp.pointage.subtitle')}</p>
+            </>
+          ) : (
+            <>
               <h2 className="v22-page-title"><Clock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.title')}</h2>
               <p className="v22-page-sub">{t('proDash.btp.pointage.subtitle')}</p>
-            </div>
-            <button className="v22-btn" onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
-          </>
-        )}
-      </div>
-
-      {isV5 && (
-        <div style={{ marginBottom: '.75rem' }}>
-          <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
+            </>
+          )}
         </div>
-      )}
+        <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
+      </div>
 
       {showForm && (
         <div className={isV5 ? 'v5-card' : 'v22-card'}>
@@ -132,7 +126,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--v5-text-muted)', fontSize: 13 }}>{t('proDash.btp.pointage.aucunPointage')}</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'⏱️'}</div>{t('proDash.btp.pointage.aucunPointage')}</td></tr>
                   ) : filtered.map(p => (
                     <tr key={p.id}>
                       <td style={{ fontWeight: 600 }}>{p.employe}</td>
@@ -158,7 +152,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                 </thead>
                 <tbody>
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--v22-text-mid)', fontSize: 13 }}>{t('proDash.btp.pointage.aucunPointage')}</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'⏱️'}</div>{t('proDash.btp.pointage.aucunPointage')}</td></tr>
                   ) : filtered.map(p => (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--v22-border)' }}>
                       <td style={{ padding: '8px 12px', fontWeight: 600 }}>{p.employe}</td>

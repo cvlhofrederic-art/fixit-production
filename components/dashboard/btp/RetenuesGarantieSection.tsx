@@ -57,17 +57,13 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
   return (
     <div>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1>{t('proDash.btp.retenues.title')}</h1>
-            <p>{t('proDash.btp.retenues.subtitle')}</p>
-          </>
-        ) : (
-          <div>
-            <h1 className="v22-page-title">{t('proDash.btp.retenues.title')}</h1>
-            <p className="v22-page-sub">{t('proDash.btp.retenues.subtitle')}</p>
-          </div>
-        )}
+        <div>
+          {isV5 ? <h1>{t('proDash.btp.retenues.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.retenues.title')}</h1>}
+          {isV5 ? <p>{t('proDash.btp.retenues.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.retenues.subtitle')}</p>}
+        </div>
+        <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
+          + {t('proDash.btp.retenues.nouvelleRetenue')}
+        </button>
       </div>
 
       {/* KPI row */}
@@ -98,13 +94,6 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           </div>
         </div>
       )}
-
-      {/* Add button */}
-      <div style={{ marginBottom: '.75rem' }}>
-        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(true)}>
-          + {t('proDash.btp.retenues.nouvelleRetenue')}
-        </button>
-      </div>
 
       {/* Form */}
       {showForm && (
@@ -164,7 +153,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           </thead>
           <tbody>
             {retenues.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)', fontSize: 12 }}>{t('proDash.btp.retenues.aucuneRetenue')}</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'🔒'}</div>{t('proDash.btp.retenues.aucuneRetenue')}</td></tr>
             ) : retenues.map(r => (
               <tr key={r.id} style={isV5 ? undefined : { borderBottom: '1px solid var(--v22-border)' }}>
                 <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{r.chantier}</td>

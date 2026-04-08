@@ -78,7 +78,7 @@
 
 /* ─── CONTENT ─── */
 .v5-ct { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem; background: var(--v5-content-bg); }
-.v5-pg-t { margin-bottom: 1.1rem; }
+.v5-pg-t { margin-bottom: 1.1rem; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .v5-pg-t h1 { font-size: 18px; font-weight: 600; margin-bottom: .15rem; }
 .v5-pg-t p { font-size: 12px; color: #999; }
 
@@ -114,6 +114,8 @@
 .v5-btn-d { background: #fff; border-color: #E53935; color: #E53935; }
 .v5-btn-d:hover { background: #FFEBEE; }
 .v5-btn-sm { padding: 3px 7px; font-size: 10px; }
+.v5-btn-action { background: #F57C00; border-color: #F57C00; color: #fff; font-weight: 600; padding: 8px 18px; font-size: 13px; border-radius: 6px; gap: 6px; }
+.v5-btn-action:hover { background: #EF6C00; border-color: #EF6C00; }
 .v5-btn-g { display: flex; gap: 5px; flex-wrap: wrap; }
 
 /* ─── Tables ─── */

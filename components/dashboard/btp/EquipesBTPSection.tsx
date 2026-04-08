@@ -119,33 +119,16 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
     <div style={{ padding: '0' }}>
       {/* Header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
-            <p>{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
-          </>
-        ) : (
-          <>
-            <div>
-              <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
-              <p className="v22-page-sub">{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {tab === 'membres' && <button className="v22-btn" onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}
-              {tab === 'equipes' && <button className="v22-btn" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}><PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}</button>}
-              {tab === 'roles'   && <button className="v22-btn" onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
-            </div>
-          </>
-        )}
-      </div>
-
-      {isV5 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: '.75rem' }}>
-          {tab === 'membres' && <button className="v5-btn v5-btn-p" onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}
-          {tab === 'equipes' && <button className="v5-btn v5-btn-p" onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}><PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}</button>}
-          {tab === 'roles'   && <button className="v5-btn v5-btn-p" onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
+        <div>
+          <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
         </div>
-      )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {tab === 'membres' && <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}
+          {tab === 'equipes' && <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}><PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}</button>}
+          {tab === 'roles'   && <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
+        </div>
+      </div>
 
       {/* Stats row */}
       {isV5 ? (
@@ -206,11 +189,11 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
         {/* ── TAB MEMBRES ── */}
         {tab === 'membres' && (
           membres.length === 0 ? (
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ marginBottom: 12 }}><Users size={40} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} /></div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
-              <p className={isV5 ? undefined : 'v22-card-meta'} style={{ marginBottom: 16, ...(isV5 ? { color: 'var(--v5-text-muted)', fontSize: 12 } : {}) }}>{isPt ? 'Adicione os membros da sua empresa' : 'Ajoutez les membres de votre entreprise'}</p>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowMembreModal(true)}><PlusCircle size={14} /> {isPt ? 'Adicionar membro' : 'Ajouter un membre'}</button>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ marginBottom: 12 }}><Users size={44} style={{ color: '#CCC' }} /></div>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
+              <p style={{ color: '#999', fontSize: 12, marginBottom: 20 }}>{isPt ? 'Adicione os membros da sua empresa' : 'Ajoutez les membres de votre entreprise'}</p>
+              <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowMembreModal(true)}><PlusCircle size={16} /> {isPt ? 'Adicionar membro' : 'Ajouter un membre'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -242,11 +225,11 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
         {/* ── TAB ÉQUIPES ── */}
         {tab === 'equipes' && (
           equipes.length === 0 ? (
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ marginBottom: 12 }}><HardHat size={40} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} /></div>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
-              <p className={isV5 ? undefined : 'v22-card-meta'} style={{ marginBottom: 16, ...(isV5 ? { color: 'var(--v5-text-muted)', fontSize: 12 } : {}) }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowEquipeModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ marginBottom: 12 }}><HardHat size={44} style={{ color: '#CCC' }} /></div>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
+              <p style={{ color: '#999', fontSize: 12, marginBottom: 20 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
+              <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowEquipeModal(true)}><PlusCircle size={16} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>

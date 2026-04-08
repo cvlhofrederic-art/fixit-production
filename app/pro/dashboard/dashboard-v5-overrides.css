@@ -95,6 +95,17 @@
 #artisan-dashboard-v5 .v22-btn-danger:hover { background: #FFEBEE; }
 #artisan-dashboard-v5 .v22-btn-ghost { background: none; border-color: transparent; color: #999; }
 #artisan-dashboard-v5 .v22-btn-ghost:hover { color: #666; background: #FAFAFA; }
+#artisan-dashboard-v5 .v22-btn-action {
+  background: #F57C00;
+  border-color: #F57C00;
+  color: #fff;
+  font-weight: 600;
+  padding: 8px 18px;
+  font-size: 13px;
+  border-radius: 6px;
+  gap: 6px;
+}
+#artisan-dashboard-v5 .v22-btn-action:hover { background: #EF6C00; border-color: #EF6C00; }
 #artisan-dashboard-v5 .v22-btn:disabled,
 #artisan-dashboard-v5 .v22-btn[disabled] { opacity: .5; cursor: not-allowed; pointer-events: none; }
 

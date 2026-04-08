@@ -108,22 +108,20 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   return (
     <div>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1>Planification Gantt</h1>
-            <p>Vue d&apos;ensemble des chantiers</p>
-          </>
-        ) : (
-          <div>
-            <h1 className="v22-page-title">Planification Gantt</h1>
-            <p className="v22-page-sub">Vue d&apos;ensemble des chantiers</p>
-          </div>
-        )}
-      </div>
-
-      {/* Add task button */}
-      <div style={{ marginBottom: '.75rem', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(true)}>+ {t('proDash.btp.gantt.ajouterTache')}</button>
+        <div>
+          {isV5 ? (
+            <>
+              <h1>Planification Gantt</h1>
+              <p>Vue d&apos;ensemble des chantiers</p>
+            </>
+          ) : (
+            <>
+              <h1 className="v22-page-title">Planification Gantt</h1>
+              <p className="v22-page-sub">Vue d&apos;ensemble des chantiers</p>
+            </>
+          )}
+        </div>
+        <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {t('proDash.btp.gantt.ajouterTache')}</button>
       </div>
 
       {/* Form */}
@@ -165,9 +163,11 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
 
       {/* Gantt Chart */}
       {taches.length === 0 ? (
-        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 8, color: '#BBB' }}>&#x1F4CA;</div>
-          <p style={{ fontSize: 12, color: '#999' }}>{t('proDash.btp.gantt.aucuneTache')}</p>
+        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>&#x1F4CA;</div>
+          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: 'var(--v5-text-primary, #1a1a1a)' }}>{t('proDash.btp.gantt.aucuneTache')}</div>
+          <p style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Ajoutez votre premi\u00E8re t\u00E2che pour visualiser le planning</p>
+          <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {t('proDash.btp.gantt.ajouterTache')}</button>
         </div>
       ) : (
         <>

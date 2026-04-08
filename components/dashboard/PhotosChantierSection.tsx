@@ -118,11 +118,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     <div>
       {/* Page header */}
       <div className={isV5 ? "v5-pg-t" : "v22-page-header"}>
-        <div style={{ flex: 1 }}>
+        <div>
           {isV5 ? <h1>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
           {isV5 ? <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
         </div>
-        <button className={isV5 ? "v5-btn v5-btn-p v5-btn-sm" : "v22-btn v22-btn-primary v22-btn-sm"} onClick={() => {/* upload trigger if needed */}}>
+        <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => {/* upload trigger if needed */}}>
           + {t('proDash.photos.ajouterPhotos') || 'Ajouter photos'}
         </button>
       </div>
@@ -192,10 +192,10 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
             {t('proDash.photos.chargement')}
           </div>
         ) : photos.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>{'📸'}</div>
-            <div style={{ color: 'var(--v22-text-mid)', fontWeight: 500, fontSize: 13 }}>{t('proDash.photos.aucunePhoto')}</div>
-            <div style={{ color: 'var(--v22-text-muted)', fontSize: 11, marginTop: 4 }}>{t('proDash.photos.prendrePhotos')}</div>
+          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ fontSize: 44, marginBottom: 12, opacity: 0.4 }}>{'📸'}</div>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: 'var(--v5-text-primary, #1a1a1a)' }}>{t('proDash.photos.aucunePhoto')}</div>
+            <div style={{ color: '#999', fontSize: 12, marginBottom: 20 }}>{t('proDash.photos.prendrePhotos')}</div>
           </div>
         ) : (
           <div style={{

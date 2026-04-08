@@ -60,27 +60,12 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
     <div>
       {/* Header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
-            <p>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
-          </>
-        ) : (
-          <>
-            <div>
-              <h1 className="v22-page-title"><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
-              <p className="v22-page-sub">{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
-            </div>
-            <button className="v22-btn" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
-          </>
-        )}
-      </div>
-
-      {isV5 && (
-        <div style={{ marginBottom: '.75rem' }}>
-          <button className="v5-btn v5-btn-p" onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
+        <div>
+          <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+          <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
         </div>
-      )}
+        <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
+      </div>
 
       <div style={{ padding: isV5 ? undefined : '20px 24px' }}>
         {/* Filtres */}
@@ -108,11 +93,11 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
 
         {/* Empty state */}
         {filtered.length === 0 ? (
-          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 40, textAlign: 'center' }}>
-            <div style={{ marginBottom: 12 }}><HardHat size={40} style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)' }} /></div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{isPt ? 'Nenhuma obra' : 'Aucun chantier'}</div>
-            <p className={isV5 ? undefined : 'v22-card-meta'} style={{ marginBottom: 16, ...(isV5 ? { color: 'var(--v5-text-muted)', fontSize: 12 } : {}) }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
-            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Criar obra' : 'Créer un chantier'}</button>
+          <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <div style={{ marginBottom: 12 }}><HardHat size={44} style={{ color: '#CCC' }} /></div>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma obra' : 'Aucun chantier'}</div>
+            <p style={{ color: '#999', fontSize: 12, marginBottom: 20 }}>{isPt ? 'Registe a sua primeira obra' : 'Créez votre premier chantier'}</p>
+            <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowModal(true)}><PlusCircle size={16} /> {isPt ? 'Criar obra' : 'Créer un chantier'}</button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

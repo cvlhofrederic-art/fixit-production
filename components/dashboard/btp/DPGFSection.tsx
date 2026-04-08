@@ -74,22 +74,11 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
   return (
     <div>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1>{t('proDash.btp.dpgf.title')}</h1>
-            <p>{t('proDash.btp.dpgf.subtitle')}</p>
-          </>
-        ) : (
-          <div>
-            <h1 className="v22-page-title">{t('proDash.btp.dpgf.title')}</h1>
-            <p className="v22-page-sub">{t('proDash.btp.dpgf.subtitle')}</p>
-          </div>
-        )}
-      </div>
-
-      {/* New appel button */}
-      <div style={{ marginBottom: '.75rem' }}>
-        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(true)}>
+        <div>
+          {isV5 ? <h1>{t('proDash.btp.dpgf.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.dpgf.title')}</h1>}
+          {isV5 ? <p>{t('proDash.btp.dpgf.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.dpgf.subtitle')}</p>}
+        </div>
+        <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
           + {t('proDash.btp.dpgf.nouvelAppel')}
         </button>
       </div>
@@ -138,7 +127,7 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
           </thead>
           <tbody>
             {appels.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)', fontSize: 12 }}>{t('proDash.btp.dpgf.aucunAppel')}</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: '#999', fontSize: 13 }}><div style={{ marginBottom: 6, opacity: 0.4, fontSize: 28 }}>{'📂'}</div>{t('proDash.btp.dpgf.aucunAppel')}</td></tr>
             ) : appels.map(a => (
               <tr key={a.id} onClick={() => setSelected(a)} style={{ cursor: 'pointer', ...(isV5 ? {} : { borderBottom: '1px solid var(--v22-border)' }) }}>
                 <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>AO-{a.id.slice(-6)}</td>

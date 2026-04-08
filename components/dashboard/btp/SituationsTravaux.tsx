@@ -57,21 +57,11 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
   return (
     <div>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-        {isV5 ? (
-          <>
-            <h1>{t('proDash.btp.situations.title')}</h1>
-            <p>{t('proDash.btp.situations.subtitle')}</p>
-          </>
-        ) : (
-          <div>
-            <h1 className="v22-page-title">{t('proDash.btp.situations.title')}</h1>
-            <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>
-          </div>
-        )}
-      </div>
-
-      <div style={{ marginBottom: '.75rem' }}>
-        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} onClick={() => setShowForm(true)}>
+        <div>
+          {isV5 ? <h1>{t('proDash.btp.situations.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.situations.title')}</h1>}
+          {isV5 ? <p>{t('proDash.btp.situations.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>}
+        </div>
+        <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
           + {t('proDash.btp.situations.nouvelleSituation')}
         </button>
       </div>
@@ -103,8 +93,10 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
         {/* Left column: list of situations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {situations.length === 0 ? (
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: '1.5rem' }}>
-              <p style={{ color: isV5 ? 'var(--v5-text-muted)' : 'var(--v22-text-mid)', fontSize: 12 }}>{t('proDash.btp.situations.aucuneSituation')}</p>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: '48px 24px' }}>
+              <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.4 }}>{'📋'}</div>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{t('proDash.btp.situations.aucuneSituation')}</div>
+              <p style={{ color: '#999', fontSize: 12 }}>Cr\u00E9ez votre premi\u00E8re situation de travaux</p>
             </div>
           ) : situations.map(s => {
             const sitStatLabels: Record<string, string> = { brouillon: t('proDash.btp.situations.brouillon'), envoyée: t('proDash.btp.situations.envoyee'), validée: t('proDash.btp.situations.validee'), payée: t('proDash.btp.situations.payee') }
