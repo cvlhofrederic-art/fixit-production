@@ -710,11 +710,13 @@ function DashboardPage() {
           {/* ────── MESSAGERIE V2 ────── */}
           {(activePage === 'messages' || activePage === 'comm_pro') && artisan && (
             <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+              {!isV5 && (
               <div className="v22-page-header" style={{ flexShrink: 0 }}>
                 <div className="v22-page-title">💬 {t('proDash.modules.messaging')}</div>
                 <div className="v22-page-sub">{t('proDash.messaging.subtitle')}</div>
               </div>
-              <div style={{ flex: 1, minHeight: 0, padding: '12px' }}>
+              )}
+              <div style={{ flex: 1, minHeight: 0, padding: isV5 ? '0' : '12px' }}>
             <MessagerieArtisan
               artisan={artisan!}
               orgRole={orgRole}

@@ -389,18 +389,18 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
 
   // ═══ RENDER ═══
   return (
-    <div className={isV5 ? 'v5-fade' : 'v22-msg-wrap'} style={{ height: '100%' }}>
+    <div className={isV5 ? 'v5-fade' : 'v22-msg-wrap'} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
 
       {/* ═══ V5 Page Header ═══ */}
       {isV5 && (
-        <div className="v5-pg-t">
+        <div className="v5-pg-t" style={{ flexShrink: 0 }}>
           <h1>Messagerie</h1>
           <p>Conversations avec vos clients et donneurs d&apos;ordres</p>
         </div>
       )}
 
       {/* ═══ PANNEAU GAUCHE — Liste conversations ═══ */}
-      <div className={isV5 ? 'v5-msg-chat' : ''} style={isV5 ? {} : undefined}>
+      <div className={isV5 ? 'v5-msg-chat' : ''} style={isV5 ? { flex: 1, minHeight: 0 } : undefined}>
       <div className={isV5
         ? `v5-msg-list ${activeConv ? 'v22-msg-left-hidden' : ''}`
         : `v22-msg-left ${activeConv ? 'v22-msg-left-hidden' : 'v22-msg-left-full'}`
@@ -515,10 +515,10 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         : `v22-msg-right ${activeConv ? 'v22-msg-right-full' : 'v22-msg-right-hidden'}`
       }>
         {!activeConv ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>{'\uD83D\uDCAC'}</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Sélectionnez une conversation</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Selectionnez une conversation</div>
               <div style={{ fontSize: 12, color: tv.textMuted, marginTop: 6 }}>Choisissez un contact dans la liste pour voir les messages</div>
             </div>
           </div>
