@@ -63,12 +63,12 @@ const AideSection = dynamic(() => import('@/components/dashboard/AideSection'), 
 const ModulesSection = dynamic(() => import('@/components/dashboard/ModulesSection'), { loading: SectionLoader })
 
 // BTP sections — direct imports (no barrel) for proper tree-shaking
-const EquipesBTPV2 = dynamic(() => import('@/components/dashboard/EquipesBTPV2'), { loading: SectionLoader })
+const EquipesBTPV2 = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/EquipesBTPV2'))
 const ChantiersBTPSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/ChantiersBTPSection').then(mod => mod.ChantiersBTPSection), { loading: SectionLoader })
 const GanttSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/GanttSection').then(mod => mod.GanttSection), { loading: SectionLoader })
 const SituationsTravaux = dynamic(() => import('@/components/dashboard/btp/SituationsTravaux').then(mod => mod.SituationsTravaux), { loading: SectionLoader })
 const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/btp/RetenuesGarantieSection').then(mod => mod.RetenuesGarantieSection), { loading: SectionLoader })
-const PointageEquipesSection = dynamic(() => import('@/components/dashboard/btp/PointageEquipesSection').then(mod => mod.PointageEquipesSection), { loading: SectionLoader })
+const PointageEquipesSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/PointageEquipesSection').then(mod => mod.PointageEquipesSection), { loading: SectionLoader })
 const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/btp/SousTraitanceDC4Section').then(mod => mod.SousTraitanceDC4Section), { loading: SectionLoader })
 const DPGFSection = dynamic(() => import('@/components/dashboard/btp/DPGFSection').then(mod => mod.DPGFSection), { loading: SectionLoader })
 const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'), { loading: SectionLoader })
