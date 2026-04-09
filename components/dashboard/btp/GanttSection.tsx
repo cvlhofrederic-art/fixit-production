@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
 
 interface ChantierItem {
   id: string; titre: string; client: string; dateDebut: string
@@ -44,22 +45,15 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const isPt = locale === 'pt'
 
-  const CHANTIERS_KEY = `fixit_chantiers_${userId}`
   const SUBTASKS_KEY = `gantt_subtasks_${userId}`
 
-  // Load chantiers from shared localStorage
-  const [chantiers, setChantiers] = useState<ChantierItem[]>([])
-  useEffect(() => {
-    try { setChantiers(JSON.parse(localStorage.getItem(CHANTIERS_KEY) || '[]')) } catch { setChantiers([]) }
-    // Listen for changes from ChantiersBTPSection
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === CHANTIERS_KEY) {
-        try { setChantiers(JSON.parse(e.newValue || '[]')) } catch { /* */ }
-      }
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [CHANTIERS_KEY])
+  // Load chantiers from Supabase via useBTPData (with 30s cache)
+  const { items: supaChantiers } = useBTPData<ChantierItem>({
+    table: 'chantiers',
+    artisanId: userId,
+    userId: userId,
+  })
+  const chantiers = supaChantiers
 
   // Sub-tasks (manually added, linked to a chantier)
   const [sousTaches, setSousTaches] = useState<SousTache[]>(() => {
