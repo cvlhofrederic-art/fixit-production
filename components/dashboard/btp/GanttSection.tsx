@@ -82,13 +82,13 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const updateAvancement = (id: string, val: number) => saveST(sousTaches.map(st => st.id === id ? { ...st, avancement: val } : st))
   const deleteSousTache = (id: string) => saveST(sousTaches.filter(st => st.id !== id))
 
-  // Build Gantt rows: chantiers + sub-tasks grouped
-  const chantiersWithDates = chantiers.filter(c => c.dateDebut && c.dateFin)
+  // Build Gantt rows: chantiers (exclude terminé) + sub-tasks grouped
+  const chantiersWithDates = chantiers.filter(c => c.dateDebut && c.dateFin && c.statut !== 'Terminé')
 
   const ganttRows: GanttRow[] = []
   chantiersWithDates.forEach((c, idx) => {
     const couleur = getChantierColor(idx)
-    const avancement = c.statut === 'Terminé' ? 100 : computeChantierAvancement(c.dateDebut, c.dateFin)
+    const avancement = computeChantierAvancement(c.dateDebut, c.dateFin)
     // Chantier row
     ganttRows.push({
       id: c.id, nom: c.titre, responsable: c.equipe || c.client || '',
@@ -108,8 +108,10 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
       })
     })
   })
-  // Orphan sub-tasks (chantier deleted)
-  sousTaches.filter(st => !st.chantierId || !chantiers.find(c => c.id === st.chantierId)).forEach(st => {
+  // Orphan sub-tasks (chantier deleted or terminated)
+  sousTaches.filter(st => !st.chantierId || !chantiersWithDates.find(c => c.id === st.chantierId)).forEach(st => {
+    // Skip sub-tasks of terminated chantiers
+    if (st.chantierId && chantiers.find(c => c.id === st.chantierId && c.statut === 'Terminé')) return
     const isOverdue = st.avancement < 100 && new Date(st.fin) < new Date()
     ganttRows.push({
       id: st.id, nom: st.nom, chantierId: st.chantierId, responsable: st.responsable,
@@ -138,39 +140,18 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const months = ganttRows.length > 0 ? getMonths() : []
   const gridCols = months.length > 0 ? `200px repeat(${months.length}, 1fr)` : '200px 1fr'
 
-  const getTaskBars = (row: GanttRow) => {
-    const taskStart = new Date(row.debut).getTime()
-    const taskEnd = new Date(row.fin).getTime()
-    const taskDuration = taskEnd - taskStart
-    // Global fill end: the point in time up to which the bar is filled
-    const fillEnd = taskDuration > 0 ? taskStart + taskDuration * (row.avancement / 100) : taskStart
-    const bars: { monthIdx: number; left: string; right: string; fillPct: number }[] = []
-    months.forEach((m, idx) => {
-      const mStart = m.start.getTime()
-      const mEnd = m.end.getTime()
-      const mDuration = mEnd - mStart
-      if (taskEnd < mStart || taskStart > mEnd) return
-      const barStart = Math.max(0, (taskStart - mStart) / mDuration)
-      const barEnd = Math.max(0, (mEnd - taskEnd) / mDuration)
-      // Calculate fill percentage for THIS month segment
-      const segStart = Math.max(taskStart, mStart)
-      const segEnd = Math.min(taskEnd, mEnd)
-      let fillPct = 0
-      if (fillEnd >= segEnd) {
-        fillPct = 100 // fully filled
-      } else if (fillEnd > segStart) {
-        fillPct = ((fillEnd - segStart) / (segEnd - segStart)) * 100
-      }
-      bars.push({ monthIdx: idx, left: `${(barStart * 100).toFixed(1)}%`, right: `${(barEnd * 100).toFixed(1)}%`, fillPct })
-    })
-    return bars
-  }
+  // Timeline total range
+  const timelineStart = months.length ? months[0].start.getTime() : Date.now()
+  const timelineEnd = months.length ? months[months.length - 1].end.getTime() : Date.now() + 30 * 86400000
+  const timelineSpan = timelineEnd - timelineStart || 1
 
-  const getTodayPosition = (monthIdx: number): string | null => {
-    const now = new Date()
-    const m = months[monthIdx]
-    if (!m || now < m.start || now > m.end) return null
-    return `${(((now.getTime() - m.start.getTime()) / (m.end.getTime() - m.start.getTime())) * 100).toFixed(1)}%`
+  // Position a bar as % of the total timeline
+  const getBarPosition = (row: GanttRow) => {
+    const s = new Date(row.debut).getTime()
+    const e = new Date(row.fin).getTime()
+    const left = Math.max(0, (s - timelineStart) / timelineSpan * 100)
+    const right = Math.max(0, (timelineEnd - e) / timelineSpan * 100)
+    return { left: `${left.toFixed(2)}%`, right: `${right.toFixed(2)}%` }
   }
 
   const statusColor = (s: GanttRow['statut']) =>
@@ -260,88 +241,99 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
       ) : (
         <>
           <div className={isV5 ? 'v5-gantt' : 'v22-card'} style={isV5 ? undefined : { overflow: 'auto' }}>
-            <div className={isV5 ? 'v5-gantt-grid' : undefined} style={{ gridTemplateColumns: gridCols, ...(isV5 ? {} : { display: 'grid', gridTemplateColumns: gridCols }) }}>
-              {/* Header */}
-              <div className={isV5 ? 'v5-gantt-hdr' : undefined} style={isV5 ? undefined : { display: 'contents' }}>
-                <div style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Obra / Tarefa' : 'Chantier / Tâche'}</div>
-                {months.map((m, i) => <div key={i} style={isV5 ? undefined : { padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}`, textAlign: 'center' }}>{m.label}</div>)}
-              </div>
+            {/* Header row */}
+            <div style={{ display: 'grid', gridTemplateColumns: gridCols }}>
+              <div style={{ padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Obra' : 'Chantier'}</div>
+              {months.map((m, i) => <div key={i} style={{ padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}`, textAlign: 'center', textTransform: 'uppercase' }}>{m.label}</div>)}
+            </div>
 
-              {/* Rows */}
-              {ganttRows.map(row => {
-                const bars = getTaskBars(row)
-                const color = row.couleur || statusColor(row.statut)
-                const isTermine = row.statut === 'terminé'
-                const isRetard = row.statut === 'en_retard'
+            {/* Rows — one continuous bar per chantier */}
+            {ganttRows.map(row => {
+              const color = row.couleur || statusColor(row.statut)
+              const isRetard = row.statut === 'en_retard'
+              const pos = getBarPosition(row)
 
-                return (
-                  <div className={isV5 ? 'v5-gantt-row' : undefined} key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={isV5 ? undefined : { display: 'contents' }}>
-                    {/* Name cell */}
-                    <div style={{
-                      ...(isV5 ? {} : { padding: '8px 12px', fontSize: 12, borderBottom: `1px solid ${tv.border}` }),
-                      ...(row.isChantier ? { fontWeight: 700, fontSize: 13 } : { paddingLeft: isV5 ? 20 : 28, fontSize: 12, color: '#555' }),
-                      ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
-                      ...(isRetard ? { color: '#C62828' } : {}),
-                    }}>
-                      {row.isChantier ? '🏗️ ' : '└ '}{row.nom}
-                      {isTermine && ' ✓'}
-                      {isRetard && ' ⚠️'}
-                      {!row.isChantier && (
-                        <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 10, verticalAlign: 'middle' }} title="Supprimer">✕</button>
-                      )}
+              return (
+                <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: `1px solid ${tv.border}` }}>
+                  {/* Name cell */}
+                  <div style={{
+                    padding: '10px 12px', display: 'flex', alignItems: 'center',
+                    ...(row.isChantier ? { fontWeight: 700, fontSize: 13 } : { paddingLeft: 28, fontSize: 12, color: '#555' }),
+                    ...(isRetard ? { color: '#C62828' } : {}),
+                  }}>
+                    {row.isChantier ? '' : '└ '}{row.nom}
+                    {isRetard && ' ⚠️'}
+                    {!row.isChantier && (
+                      <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 10, verticalAlign: 'middle' }} title="Supprimer">✕</button>
+                    )}
+                  </div>
+
+                  {/* Chart area — single cell spanning all months */}
+                  <div style={{ gridColumn: '2 / -1', position: 'relative', minHeight: row.isChantier ? 36 : 28 }}>
+                    {/* Month grid lines */}
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${months.length}, 1fr)` }}>
+                      {months.map((_, i) => <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${tv.border}22` : 'none' }} />)}
                     </div>
 
-                    {/* Month cells */}
-                    {months.map((_, mi) => {
-                      const bar = bars.find(b => b.monthIdx === mi)
-                      const todayPos = getTodayPosition(mi)
-                      const middleBarIdx = Math.floor(bars.length / 2)
-                      const showLabel = bar && bars.indexOf(bar) === middleBarIdx
+                    {/* Continuous bar — full extent = light color, filled portion = solid color */}
+                    <div style={{
+                      position: 'absolute',
+                      top: row.isChantier ? '15%' : '22%',
+                      bottom: row.isChantier ? '15%' : '22%',
+                      left: pos.left,
+                      right: pos.right,
+                      borderRadius: row.isChantier ? 6 : 4,
+                      background: color,
+                      opacity: 0.92,
+                      overflow: 'hidden',
+                    }}>
+                      {/* Unfilled portion (lighter) overlaid on the right side */}
+                      {row.avancement < 100 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0, bottom: 0,
+                          left: `${row.avancement}%`,
+                          right: 0,
+                          background: `${color}55`,
+                          mixBlendMode: 'lighten',
+                        }} />
+                      )}
+                      {/* Percentage label centered on bar */}
+                      <span style={{
+                        position: 'absolute', top: '50%', left: '50%',
+                        transform: 'translate(-50%,-50%)',
+                        fontSize: row.isChantier ? 11 : 9, fontWeight: 700,
+                        color: '#fff', whiteSpace: 'nowrap', zIndex: 2,
+                        textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                      }}>
+                        {row.avancement}%
+                      </span>
+                    </div>
 
+                    {/* Per-chantier progress marker (red line at avancement point) */}
+                    {row.isChantier && row.avancement > 0 && row.avancement < 100 && (() => {
+                      const taskStart = new Date(row.debut).getTime()
+                      const taskEnd = new Date(row.fin).getTime()
+                      const progressTime = taskStart + (taskEnd - taskStart) * (row.avancement / 100)
+                      const progressPct = ((progressTime - timelineStart) / timelineSpan * 100).toFixed(2)
                       return (
-                        <div key={mi} style={{ position: 'relative', ...(isV5 ? {} : { padding: '4px 0', borderBottom: `1px solid ${tv.border}` }) }}>
-                          {bar && (
-                            <div
-                              style={{
-                                position: 'absolute',
-                                top: row.isChantier ? '15%' : '25%',
-                                bottom: row.isChantier ? '15%' : '25%',
-                                left: bar.left,
-                                right: bar.right,
-                                borderRadius: row.isChantier ? 5 : 3,
-                                background: `${color}30`,
-                                overflow: 'hidden',
-                                ...(row.statut === 'planifié' ? { opacity: 0.5 } : {}),
-                              }}
-                            >
-                              {/* Filled portion — calculated per-segment based on global avancement */}
-                              <div style={{
-                                width: `${bar.fillPct}%`,
-                                height: '100%',
-                                background: color,
-                                borderRadius: bar.fillPct >= 100 ? 'inherit' : `${row.isChantier ? 5 : 3}px 0 0 ${row.isChantier ? 5 : 3}px`,
-                                transition: 'width 0.3s ease',
-                              }} />
-                              {showLabel && (
-                                <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 9, fontWeight: 600, color: row.avancement > 40 ? '#fff' : '#333', whiteSpace: 'nowrap', zIndex: 1 }}>
-                                  {row.avancement}%
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {todayPos && <div className={isV5 ? 'v5-gantt-today' : undefined} style={{ left: todayPos, ...(isV5 ? {} : { position: 'absolute', top: 0, bottom: 0, width: 2, background: '#EF5350', zIndex: 1 }) }} />}
-                        </div>
+                        <div style={{
+                          position: 'absolute', top: 0, bottom: 0,
+                          left: `${progressPct}%`, width: 2,
+                          background: '#EF5350', zIndex: 3,
+                          borderRadius: 1,
+                        }} />
                       )
-                    })}
+                    })()}
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Legend */}
           <div style={{ fontSize: 11, color: '#999', marginTop: 8, textAlign: 'center' }}>
-            &#x1F534; {isPt ? 'Linha vermelha = hoje' : 'Ligne rouge = aujourd\'hui'} &nbsp;&bull;&nbsp; 🏗️ = {isPt ? 'Obra' : 'Chantier'} &nbsp;&bull;&nbsp; └ = {isPt ? 'Tarefa' : 'Sous-tâche'}
+            🔴 {isPt ? 'Linha vermelha = avanço do chantier' : 'Ligne rouge = avancement du chantier'} &nbsp;&bull;&nbsp; {isPt ? 'Obras terminadas não aparecem' : 'Chantiers terminés masqués'}
           </div>
 
           {/* Sub-task advancement */}
