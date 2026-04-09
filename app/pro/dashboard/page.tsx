@@ -71,6 +71,7 @@ const RetenuesGarantieSection = dynamic(() => import('@/components/dashboard/btp
 const PointageEquipesSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/btp/PointageEquipesSection').then(mod => mod.PointageEquipesSection), { loading: SectionLoader })
 const SousTraitanceDC4Section = dynamic(() => import('@/components/dashboard/btp/SousTraitanceDC4Section').then(mod => mod.SousTraitanceDC4Section), { loading: SectionLoader })
 const DPGFSection = dynamic(() => import('@/components/dashboard/btp/DPGFSection').then(mod => mod.DPGFSection), { loading: SectionLoader })
+const PortailClientSection = dynamic(() => import('@/components/dashboard/btp/PortailClientSection'), { loading: SectionLoader })
 const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/SousTraitanceOffresSection'), { loading: SectionLoader })
 const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'), { loading: SectionLoader })
 const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2), { loading: SectionLoader })
@@ -1277,43 +1278,9 @@ function DashboardPage() {
 
           {/* ────── PORTAIL CLIENT (pro_societe v5) ────── */}
           {activePage === 'portail_client' && isV5 && (
-            <div className="v5-fade">
-              <div className="v5-pg-t"><div><h1>{isPt ? 'Portal cliente' : 'Portail client'}</h1><p>{isPt ? 'Dê aos seus clientes acesso em tempo real às suas obras' : 'Donnez à vos clients un accès en temps réel à leurs chantiers'}</p></div></div>
-              <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                <div className="v5-kpi hl"><div className="v5-kpi-l">{isPt ? 'Portais ativos' : 'Portails actifs'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">{isPt ? 'em breve' : 'prochainement'}</div></div>
-                <div className="v5-kpi"><div className="v5-kpi-l">{isPt ? 'Última consulta' : 'Dernière consultation'}</div><div className="v5-kpi-v" style={{ fontSize: 16 }}>—</div><div className="v5-kpi-s">—</div></div>
-                <div className="v5-kpi"><div className="v5-kpi-l">{isPt ? 'Situações validadas online' : 'Situations validées en ligne'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">—</div></div>
-              </div>
-              <div className="v5-sg2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '1.25rem' }}>
-                <div className="v5-card">
-                  <div className="v5-st">{isPt ? 'O que o cliente vê' : 'Ce que le client voit'}</div>
-                  <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
-                    📊 <strong>{isPt ? 'Progresso' : 'Avancement'}</strong> — {isPt ? 'Barra de progresso por lote, % global, próximas etapas' : 'Barre de progression par lot, % global, prochaines étapes'}<br/>
-                    📸 <strong>{isPt ? 'Fotos' : 'Photos'}</strong> — {isPt ? 'Galeria de fotos da obra, filtradas por fase' : 'Galerie de photos du chantier, filtrées par phase'}<br/>
-                    📈 <strong>{isPt ? 'Situações de obra' : 'Situations de travaux'}</strong> — {isPt ? 'Consulta e validação online com assinatura eletrónica' : 'Consultation et validation en ligne avec signature électronique'}<br/>
-                    📄 <strong>{isPt ? 'Documentos' : 'Documents'}</strong> — {isPt ? 'PV, relatórios, planos partilhados pela empresa' : 'PV, rapports, plans partagés par l\'entreprise'}<br/>
-                    💬 <strong>{isPt ? 'Mensagens' : 'Messagerie'}</strong> — {isPt ? 'Canal de discussão dedicado à obra' : 'Canal de discussion dédié au chantier'}<br/>
-                    🌤️ <strong>{isPt ? 'Meteorologia' : 'Météo'}</strong> — {isPt ? 'Previsões e impacto no planning (leitura apenas)' : 'Prévisions et impact sur le planning (lecture seule)'}
-                  </div>
-                </div>
-                <div className="v5-card">
-                  <div className="v5-st">{isPt ? 'Como funciona' : 'Comment ça fonctionne'}</div>
-                  <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
-                    <strong>1.</strong> {isPt ? 'Ative o portal num estaleiro (toggle)' : 'Activez le portail sur un chantier (toggle ci-dessus)'}<br/>
-                    <strong>2.</strong> {isPt ? 'Escolha os módulos visíveis pelo cliente' : 'Choisissez les modules visibles par le client'}<br/>
-                    <strong>3.</strong> {isPt ? 'O cliente recebe um email automático com o seu link de acesso' : 'Le client reçoit un email automatique avec son lien d\'accès'}<br/>
-                    <strong>4.</strong> {isPt ? 'Sem palavra-passe : acesso por link seguro + código SMS' : 'Pas de mot de passe : accès par lien sécurisé + code SMS'}<br/>
-                    <strong>5.</strong> {isPt ? 'O cliente consulta em modo leitura (exceto validação de situações)' : 'Le client consulte en lecture seule (sauf validation des situations)'}<br/>
-                    <strong>6.</strong> {isPt ? 'Veja quem consultou o quê e quando' : 'Vous voyez qui a consulté quoi et quand'}
-                  </div>
-                </div>
-              </div>
-              <div className="v5-card" style={{ textAlign: 'center', padding: '2rem' }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>🌐</div>
-                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Módulo em desenvolvimento' : 'Module en cours de développement'}</h3>
-                <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'O portal cliente estará disponível em breve. Os seus clientes poderão acompanhar as suas obras em tempo real.' : 'Le portail client sera disponible prochainement. Vos clients pourront suivre leurs chantiers en temps réel.'}</p>
-              </div>
-            </div>
+            <SectionErrorBoundary fallbackTitle="Erreur dans le portail client">
+              <PortailClientSection userId={artisan?.user_id || artisan?.id || ''} artisanId={artisan?.id || ''} orgRole={orgRole} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── AIDE ────── */}

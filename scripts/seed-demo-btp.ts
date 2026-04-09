@@ -190,9 +190,45 @@ async function seed() {
       acompte_recu: 3840,
       penalite_retard_jour: 100,
     },
+    {
+      owner_id: ownerId,
+      titre: 'Extension maison individuelle — Chemin de Paradis',
+      client: 'M. Rossi Antoine',
+      adresse: '15 Chemin de Paradis, 13008 Marseille',
+      latitude: 43.2580, longitude: 5.3895,
+      geo_rayon_m: 100,
+      date_debut: '2026-04-01', date_fin: '2026-05-30',
+      budget: 62000,
+      statut: 'En cours',
+      description: `${DEMO_TAG} Extension 30m² : fondations, élévation murs, charpente, toiture, menuiseries, isolation, finitions intérieures`,
+      equipe: 'Équipe A',
+      marge_prevue_pct: 28,
+      tva_taux: 20,
+      montant_facture: 62000,
+      acompte_recu: 18600,
+      penalite_retard_jour: 250,
+    },
+    {
+      owner_id: ownerId,
+      titre: 'Réhabilitation local commercial — Cours Julien',
+      client: 'SCI Les Terrasses du Sud',
+      adresse: '24 Cours Julien, 13006 Marseille',
+      latitude: 43.2925, longitude: 5.3835,
+      geo_rayon_m: 120,
+      date_debut: '2026-03-25', date_fin: '2026-04-25',
+      budget: 38000,
+      statut: 'En cours',
+      description: `${DEMO_TAG} Transformation local commercial 80m² : décloisonnement, dalle béton, plomberie, électricité NFC, faux plafond, vitrine`,
+      equipe: 'Équipe B',
+      marge_prevue_pct: 22,
+      tva_taux: 20,
+      montant_facture: 38000,
+      acompte_recu: 11400,
+      penalite_retard_jour: 180,
+    },
   ]
 
-  console.log('🏗️ Insertion des 3 chantiers...')
+  console.log('🏗️ Insertion des 5 chantiers...')
   const { data: insertedChantiers, error: errChantiers } = await supabase
     .from('chantiers_btp')
     .insert(chantiers)
@@ -325,9 +361,63 @@ async function seed() {
         { description: 'Finitions + joints silicone + nettoyage', qty: 1, priceHT: 1804, totalHT: 1804, unite: 'forfait', tvaRate: 10 },
       ]),
     },
+    {
+      artisan_id: artisanId,
+      artisan_user_id: ownerId,
+      numero: 'DEV-DEMO-004',
+      client_name: 'M. Rossi Antoine',
+      client_email: 'a.rossi@demo.fr',
+      client_phone: '06 44 55 66 77',
+      client_address: '15 Chemin de Paradis, 13008 Marseille',
+      status: 'signed',
+      currency: 'EUR',
+      country: 'FR',
+      tax_rate: 20,
+      tax_label: 'TVA 20%',
+      total_ht_cents: 6200000,
+      total_tax_cents: 1240000,
+      total_ttc_cents: 7440000,
+      notes: `${DEMO_TAG} Extension maison individuelle — Chemin de Paradis`,
+      items: JSON.stringify([
+        { description: 'Terrassement + fondations semelles filantes', qty: 1, priceHT: 8500, totalHT: 8500, unite: 'forfait', tvaRate: 20 },
+        { description: 'Élévation murs parpaing (30m²)', qty: 30, priceHT: 180, totalHT: 5400, unite: 'm²', tvaRate: 20 },
+        { description: 'Charpente traditionnelle + couverture tuiles', qty: 1, priceHT: 14000, totalHT: 14000, unite: 'forfait', tvaRate: 20 },
+        { description: 'Menuiseries alu (3 fenêtres + 1 baie vitrée)', qty: 4, priceHT: 2800, totalHT: 11200, unite: 'u', tvaRate: 20 },
+        { description: 'Isolation thermique ITE (60m²)', qty: 60, priceHT: 120, totalHT: 7200, unite: 'm²', tvaRate: 20 },
+        { description: 'Électricité + plomberie extension', qty: 1, priceHT: 6200, totalHT: 6200, unite: 'forfait', tvaRate: 20 },
+        { description: 'Placo + peinture finitions intérieures', qty: 1, priceHT: 9500, totalHT: 9500, unite: 'forfait', tvaRate: 20 },
+      ]),
+    },
+    {
+      artisan_id: artisanId,
+      artisan_user_id: ownerId,
+      numero: 'DEV-DEMO-005',
+      client_name: 'SCI Les Terrasses du Sud',
+      client_email: 'contact@terrasses-sud.fr',
+      client_phone: '04 91 55 66 77',
+      client_address: '24 Cours Julien, 13006 Marseille',
+      status: 'signed',
+      currency: 'EUR',
+      country: 'FR',
+      tax_rate: 20,
+      tax_label: 'TVA 20%',
+      total_ht_cents: 3800000,
+      total_tax_cents: 760000,
+      total_ttc_cents: 4560000,
+      notes: `${DEMO_TAG} Réhabilitation local commercial — Cours Julien`,
+      items: JSON.stringify([
+        { description: 'Démolition cloisons + évacuation', qty: 1, priceHT: 3200, totalHT: 3200, unite: 'forfait', tvaRate: 20 },
+        { description: 'Dalle béton surfacée (80m²)', qty: 80, priceHT: 65, totalHT: 5200, unite: 'm²', tvaRate: 20 },
+        { description: 'Plomberie complète (sanitaires + cuisine pro)', qty: 1, priceHT: 5500, totalHT: 5500, unite: 'forfait', tvaRate: 20 },
+        { description: 'Mise aux normes électrique NFC 15-100', qty: 1, priceHT: 7200, totalHT: 7200, unite: 'forfait', tvaRate: 20 },
+        { description: 'Faux plafond acoustique (80m²)', qty: 80, priceHT: 55, totalHT: 4400, unite: 'm²', tvaRate: 20 },
+        { description: 'Vitrine commerciale alu + verre feuilleté', qty: 1, priceHT: 8500, totalHT: 8500, unite: 'forfait', tvaRate: 20 },
+        { description: 'Peinture + finitions', qty: 1, priceHT: 4000, totalHT: 4000, unite: 'forfait', tvaRate: 20 },
+      ]),
+    },
   ]
 
-  console.log('📄 Insertion des 3 devis...')
+  console.log('📄 Insertion des 5 devis...')
   const { data: insertedDevis, error: errDevis } = await supabase
     .from('devis')
     .insert(devisData)
@@ -340,7 +430,7 @@ async function seed() {
   }
 
   // 5. Quelques dépenses liées aux chantiers
-  if (insertedChantiers && insertedChantiers.length >= 3) {
+  if (insertedChantiers && insertedChantiers.length >= 5) {
     const depenses = [
       { owner_id: ownerId, chantier_id: insertedChantiers[0].id, date: '2026-03-12', label: `${DEMO_TAG} Matériaux placo + rails`, amount: 1450, category: 'materiaux' },
       { owner_id: ownerId, chantier_id: insertedChantiers[0].id, date: '2026-03-15', label: `${DEMO_TAG} Peinture Tollens (4 seaux)`, amount: 380, category: 'materiaux' },
@@ -349,6 +439,12 @@ async function seed() {
       { owner_id: ownerId, chantier_id: insertedChantiers[2].id, date: '2026-03-18', label: `${DEMO_TAG} Carrelage + faïence SDB`, amount: 1100, category: 'materiaux' },
       { owner_id: ownerId, chantier_id: insertedChantiers[2].id, date: '2026-03-19', label: `${DEMO_TAG} Receveur douche + paroi`, amount: 890, category: 'materiaux' },
       { owner_id: ownerId, chantier_id: insertedChantiers[2].id, date: '2026-03-21', label: `${DEMO_TAG} Meuble vasque + miroir`, amount: 750, category: 'materiaux' },
+      { owner_id: ownerId, chantier_id: insertedChantiers[3].id, date: '2026-04-02', label: `${DEMO_TAG} Béton fondations + ferraillage`, amount: 3200, category: 'materiaux' },
+      { owner_id: ownerId, chantier_id: insertedChantiers[3].id, date: '2026-04-05', label: `${DEMO_TAG} Parpaings + ciment élévation`, amount: 2100, category: 'materiaux' },
+      { owner_id: ownerId, chantier_id: insertedChantiers[3].id, date: '2026-04-07', label: `${DEMO_TAG} Location mini-pelle 3j`, amount: 580, category: 'location' },
+      { owner_id: ownerId, chantier_id: insertedChantiers[4].id, date: '2026-03-26', label: `${DEMO_TAG} Démolition — location marteau-piqueur`, amount: 320, category: 'location' },
+      { owner_id: ownerId, chantier_id: insertedChantiers[4].id, date: '2026-03-28', label: `${DEMO_TAG} Béton prêt à l'emploi dalle (6m³)`, amount: 1800, category: 'materiaux' },
+      { owner_id: ownerId, chantier_id: insertedChantiers[4].id, date: '2026-04-01', label: `${DEMO_TAG} Câblage électrique NFC`, amount: 1250, category: 'materiaux' },
     ]
 
     console.log('💸 Insertion des dépenses...')
