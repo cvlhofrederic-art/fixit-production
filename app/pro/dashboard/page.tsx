@@ -12,6 +12,7 @@ import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
+import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useServices, useAbsences, useAvailability, useCalendar, useSettings, useBookings } from '@/hooks/dashboard'
@@ -279,6 +280,7 @@ function DashboardPage() {
     if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push('/auth/login'); return }
     if (!artisanData) {
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id })
+      seedDemoLocalStorage(user.id)
       prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], user.id)
       setLoading(false); return
     }
@@ -289,6 +291,9 @@ function DashboardPage() {
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const aid = artisanData.id
+
+    // Seed demo localStorage data for super admin demo account (no-op for other accounts)
+    seedDemoLocalStorage(aid)
 
     // Load localStorage data first (instant) — unblocks UI immediately
     try { setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${aid}`) || '[]')) } catch { setAbsences([]) }
