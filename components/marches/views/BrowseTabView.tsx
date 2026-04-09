@@ -272,36 +272,34 @@ export default function BrowseTabView({
             )}
           </div>
 
-          {/* Action buttons row */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                onClick={onScanMarches}
-                disabled={scanning}
-                style={{
-                  padding: '8px 20px', borderRadius: 8, border: 'none',
-                  background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
-                  cursor: scanning ? 'not-allowed' : 'pointer',
-                  fontWeight: 600, fontSize: 13,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}
-              >
-                {scanning ? (
-                  <>
-                    <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                    {isPt ? 'A analisar...' : 'Scan en cours...'}
-                  </>
-                ) : (
-                  <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
-                )}
-              </button>
-              {scanMeta && (
-                <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', alignSelf: 'center' }}>
-                  Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-                  {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
-                </span>
+          {/* Action buttons row — aligned right */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+            {scanMeta && (
+              <span style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginRight: 'auto' }}>
+                Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
+              </span>
+            )}
+            <button
+              onClick={onScanMarches}
+              disabled={scanning}
+              style={{
+                padding: '8px 20px', borderRadius: 8, border: 'none',
+                background: scanning ? '#d4a017' : '#FFC107', color: '#1a1a1a',
+                cursor: scanning ? 'not-allowed' : 'pointer',
+                fontWeight: 600, fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {scanning ? (
+                <>
+                  <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid #1a1a1a', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                  {isPt ? 'A analisar...' : 'Scan en cours...'}
+                </>
+              ) : (
+                <>📡 {isPt ? 'Scanner marchés publics' : 'Scanner marchés publics'}</>
               )}
-            </div>
+            </button>
             {!isPt && (
               <button
                 type="button"
