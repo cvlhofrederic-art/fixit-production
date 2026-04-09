@@ -62,7 +62,18 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
     return session?.access_token || null
   }, [])
 
-  const fetchMembers = useCallback(async () => {
+  const fetchMembers = useCallback(async (skipCache = false) => {
+    // In-memory cache to avoid re-fetching on tab switches
+    const CACHE_KEY = '__team_members_cache'
+    const CACHE_TTL = 30_000
+    if (!skipCache) {
+      const cached = (window as any)[CACHE_KEY]
+      if (cached && Date.now() - cached.at < CACHE_TTL) {
+        setMembers(cached.data)
+        setLoading(false)
+        return
+      }
+    }
     try {
       const token = await getAuthToken()
       if (!token) return
@@ -71,7 +82,9 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       })
       if (res.ok) {
         const data = await res.json()
-        setMembers(data.members || [])
+        const list = data.members || []
+        setMembers(list)
+        ;(window as any)[CACHE_KEY] = { data: list, at: Date.now() }
       }
     } catch {
       toast.error(isPt ? 'Erro ao carregar a equipa' : 'Erreur lors du chargement de l\'équipe')

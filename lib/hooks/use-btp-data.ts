@@ -206,6 +206,10 @@ function mapFromSupabase(table: ShortName, item: any): any {
   }
 }
 
+// ── In-memory cache to avoid re-fetching on every tab switch ──
+const _dataCache: Record<string, { data: any[]; at: number }> = {}
+const DATA_CACHE_TTL = 30_000 // 30s — data stays fresh between tab switches
+
 interface UseBTPDataOptions {
   table: ShortName
   artisanId: string  // for localStorage import key
@@ -214,8 +218,12 @@ interface UseBTPDataOptions {
 }
 
 export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true }: UseBTPDataOptions) {
-  const [items, setItems] = useState<T[]>([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = `${table}_${userId}`
+  const cached = _dataCache[cacheKey]
+  const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
+
+  const [items, setItems] = useState<T[]>(hasFreshCache ? cached.data : [])
+  const [loading, setLoading] = useState(!hasFreshCache)
   const [error, setError] = useState<string | null>(null)
   const imported = useRef(false)
 
@@ -228,7 +236,9 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       if (!res.ok) throw new Error('Fetch failed')
       const json = await res.json()
       const raw = json[table] || []
-      setItems(raw.map((r: any) => mapFromSupabase(table, r)))
+      const mapped = raw.map((r: any) => mapFromSupabase(table, r))
+      setItems(mapped)
+      _dataCache[cacheKey] = { data: mapped, at: Date.now() }
       setError(null)
       return raw
     } catch (err) {
@@ -237,13 +247,19 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } finally {
       setLoading(false)
     }
-  }, [table])
+  }, [table, cacheKey])
 
   // ── Auto-import from localStorage on first load ─────────────────────────
   useEffect(() => {
     let cancelled = false
 
     async function init() {
+      // Skip fetch if cache is fresh — data was already set in useState
+      if (hasFreshCache) {
+        setLoading(false)
+        return
+      }
+
       const data = await refresh()
 
       // If Supabase is empty and localStorage has data → import
@@ -276,7 +292,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
 
     init()
     return () => { cancelled = true }
-  }, [table, artisanId, autoImport, refresh, tableName])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, artisanId, autoImport, tableName])
 
   // ── CRUD operations ─────────────────────────────────────────────────────
 
@@ -392,9 +409,14 @@ const DEFAULT_SETTINGS: BTPSettings = {
   amortissements_mensuels: 0,
 }
 
+// Settings cache
+let _settingsCache: { data: BTPSettings; at: number } | null = null
+const SETTINGS_CACHE_TTL = 60_000
+
 export function useBTPSettings() {
-  const [settings, setSettings] = useState<BTPSettings>(DEFAULT_SETTINGS)
-  const [loading, setLoading] = useState(true)
+  const hasFresh = _settingsCache && (Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL)
+  const [settings, setSettings] = useState<BTPSettings>(hasFresh ? _settingsCache!.data : DEFAULT_SETTINGS)
+  const [loading, setLoading] = useState(!hasFresh)
 
   const refresh = useCallback(async () => {
     try {
@@ -402,7 +424,9 @@ export function useBTPSettings() {
       if (!res.ok) throw new Error()
       const json = await res.json()
       if (json.settings) {
-        setSettings({ ...DEFAULT_SETTINGS, ...json.settings })
+        const merged = { ...DEFAULT_SETTINGS, ...json.settings }
+        setSettings(merged)
+        _settingsCache = { data: merged, at: Date.now() }
       } else {
         // No saved settings yet — try to initialize from user_metadata.legal_structure
         try {
@@ -428,11 +452,18 @@ export function useBTPSettings() {
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    if (_settingsCache && Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL) {
+      setLoading(false)
+      return
+    }
+    refresh()
+  }, [refresh])
 
   const save = useCallback(async (changes: Partial<BTPSettings>) => {
     const updated = { ...settings, ...changes }
     setSettings(updated)
+    _settingsCache = { data: updated, at: Date.now() }
     try {
       await fetch('/api/btp', {
         method: 'POST',
