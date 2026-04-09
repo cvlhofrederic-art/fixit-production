@@ -139,17 +139,29 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const gridCols = months.length > 0 ? `200px repeat(${months.length}, 1fr)` : '200px 1fr'
 
   const getTaskBars = (row: GanttRow) => {
-    const taskStart = new Date(row.debut)
-    const taskEnd = new Date(row.fin)
-    const bars: { monthIdx: number; left: string; right: string; showLabel: boolean }[] = []
+    const taskStart = new Date(row.debut).getTime()
+    const taskEnd = new Date(row.fin).getTime()
+    const taskDuration = taskEnd - taskStart
+    // Global fill end: the point in time up to which the bar is filled
+    const fillEnd = taskDuration > 0 ? taskStart + taskDuration * (row.avancement / 100) : taskStart
+    const bars: { monthIdx: number; left: string; right: string; fillPct: number }[] = []
     months.forEach((m, idx) => {
       const mStart = m.start.getTime()
       const mEnd = m.end.getTime()
       const mDuration = mEnd - mStart
-      if (taskEnd.getTime() < mStart || taskStart.getTime() > mEnd) return
-      const barStart = Math.max(0, (taskStart.getTime() - mStart) / mDuration)
-      const barEnd = Math.max(0, (mEnd - taskEnd.getTime()) / mDuration)
-      bars.push({ monthIdx: idx, left: `${(barStart * 100).toFixed(1)}%`, right: `${(barEnd * 100).toFixed(1)}%`, showLabel: bars.length === 0 })
+      if (taskEnd < mStart || taskStart > mEnd) return
+      const barStart = Math.max(0, (taskStart - mStart) / mDuration)
+      const barEnd = Math.max(0, (mEnd - taskEnd) / mDuration)
+      // Calculate fill percentage for THIS month segment
+      const segStart = Math.max(taskStart, mStart)
+      const segEnd = Math.min(taskEnd, mEnd)
+      let fillPct = 0
+      if (fillEnd >= segEnd) {
+        fillPct = 100 // fully filled
+      } else if (fillEnd > segStart) {
+        fillPct = ((fillEnd - segStart) / (segEnd - segStart)) * 100
+      }
+      bars.push({ monthIdx: idx, left: `${(barStart * 100).toFixed(1)}%`, right: `${(barEnd * 100).toFixed(1)}%`, fillPct })
     })
     return bars
   }
@@ -302,12 +314,12 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                                 ...(row.statut === 'planifié' ? { opacity: 0.5 } : {}),
                               }}
                             >
-                              {/* Filled portion = avancement % */}
+                              {/* Filled portion — calculated per-segment based on global avancement */}
                               <div style={{
-                                width: `${row.avancement}%`,
+                                width: `${bar.fillPct}%`,
                                 height: '100%',
                                 background: color,
-                                borderRadius: 'inherit',
+                                borderRadius: bar.fillPct >= 100 ? 'inherit' : `${row.isChantier ? 5 : 3}px 0 0 ${row.isChantier ? 5 : 3}px`,
                                 transition: 'width 0.3s ease',
                               }} />
                               {showLabel && (
