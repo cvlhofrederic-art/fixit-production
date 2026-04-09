@@ -30,8 +30,8 @@ function mapChantierStatut(statut: string, dateFin: string): GanttRow['statut'] 
   return 'en_cours'
 }
 
-// Palette de couleurs distinctes par chantier (rotation cyclique)
-const PALETTE = ['#3B82F6', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16']
+// Palette from HTML mockup — rotation cyclique
+const PALETTE = ['#42A5F5', '#66BB6A', '#FFA726', '#FFCA28', '#AB47BC', '#EF5350', '#42A5F5']
 
 function getChantierColor(index: number): string {
   return PALETTE[index % PALETTE.length]
@@ -155,7 +155,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   }
 
   const statusColor = (s: GanttRow['statut']) =>
-    s === 'en_cours' ? '#3B82F6' : s === 'en_retard' ? '#EF5350' : s === 'terminé' ? '#9E9E9E' : '#AB47BC'
+    s === 'en_cours' ? '#42A5F5' : s === 'en_retard' ? '#EF5350' : s === 'terminé' ? '#BDBDBD' : '#AB47BC'
 
   const statLabels: Record<string, string> = {
     planifié: t('proDash.btp.gantt.planifie'),
@@ -166,6 +166,36 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
 
   const subTasksOnly = ganttRows.filter(r => !r.isChantier)
 
+  // Today line position (% of timeline)
+  const todayPct = months.length > 0 ? Math.max(0, Math.min(100, ((Date.now() - timelineStart) / timelineSpan) * 100)) : 0
+
+  // Per-month bar segments for a row
+  const getMonthSegments = (row: GanttRow) => {
+    const rowStart = new Date(row.debut).getTime()
+    const rowEnd = new Date(row.fin).getTime()
+    return months.map(m => {
+      const mStart = m.start.getTime()
+      const mEnd = m.end.getTime()
+      // No overlap
+      if (rowEnd <= mStart || rowStart >= mEnd) return null
+      // Clamp to month boundaries
+      const segStart = Math.max(rowStart, mStart)
+      const segEnd = Math.min(rowEnd, mEnd)
+      const left = ((segStart - mStart) / (mEnd - mStart)) * 100
+      const right = ((mEnd - segEnd) / (mEnd - mStart)) * 100
+      return { left, right }
+    })
+  }
+
+  // Check if "today" falls within a month
+  const getTodayInMonth = (m: { start: Date; end: Date }) => {
+    const now = Date.now()
+    const mStart = m.start.getTime()
+    const mEnd = m.end.getTime()
+    if (now < mStart || now > mEnd) return null
+    return ((now - mStart) / (mEnd - mStart)) * 100
+  }
+
   return (
     <div>
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
@@ -173,7 +203,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
           {isV5 ? (
             <>
               <h1>Planification Gantt</h1>
-              <p>{chantiersWithDates.length} {isPt ? 'obra(s)' : 'chantier(s)'} &middot; {sousTaches.length} {isPt ? 'tarefa(s)' : 'tâche(s)'}</p>
+              <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length > 0 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
             </>
           ) : (
             <>
@@ -227,162 +257,181 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
         </div>
       )}
 
-      {/* Gantt Chart */}
+      {/* Gantt Chart — HTML mockup design */}
       {chantiersLoading ? (
-        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
+        <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: '48px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar obras...' : 'Chargement des chantiers...'}</div>
         </div>
       ) : ganttRows.length === 0 ? (
-        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>&#x1F4CA;</div>
+        <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: '48px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📊</div>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma obra com datas' : 'Aucun chantier avec des dates'}</div>
           <p style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>{isPt ? 'Crie obras com data de início e fim no separador Chantiers para as ver aqui' : 'Créez des chantiers avec dates de début et fin dans l\'onglet Chantiers pour les voir ici'}</p>
         </div>
       ) : (
         <>
-          <div className={isV5 ? 'v5-gantt' : 'v22-card'} style={isV5 ? undefined : { overflow: 'auto' }}>
-            {/* Header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: gridCols }}>
-              <div style={{ padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}` }}>{isPt ? 'Obra' : 'Chantier'}</div>
-              {months.map((m, i) => <div key={i} style={{ padding: '8px 12px', fontWeight: 600, fontSize: 11, color: tv.textMid, borderBottom: `1px solid ${tv.border}`, textAlign: 'center', textTransform: 'uppercase' }}>{m.label}</div>)}
-            </div>
+          {/* Gantt grid container */}
+          <div style={{ overflowX: 'auto', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `180px repeat(${months.length}, 1fr)`, minWidth: 900 }}>
 
-            {/* Rows — one continuous bar per chantier */}
-            {ganttRows.map(row => {
-              const color = row.couleur || statusColor(row.statut)
-              const isRetard = row.statut === 'en_retard'
-              const pos = getBarPosition(row)
-
-              return (
-                <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: `1px solid ${tv.border}` }}>
-                  {/* Name cell */}
-                  <div style={{
-                    padding: '10px 12px', display: 'flex', alignItems: 'center',
-                    ...(row.isChantier ? { fontWeight: 700, fontSize: 13 } : { paddingLeft: 28, fontSize: 12, color: '#555' }),
-                    ...(isRetard ? { color: '#C62828' } : {}),
-                  }}>
-                    {row.isChantier ? '' : '└ '}{row.nom}
-                    {isRetard && ' ⚠️'}
-                    {!row.isChantier && (
-                      <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 10, verticalAlign: 'middle' }} title="Supprimer">✕</button>
-                    )}
-                  </div>
-
-                  {/* Chart area — single cell spanning all months */}
-                  <div style={{ gridColumn: '2 / -1', position: 'relative', minHeight: row.isChantier ? 36 : 28 }}>
-                    {/* Month grid lines */}
-                    <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${months.length}, 1fr)` }}>
-                      {months.map((_, i) => <div key={i} style={{ borderLeft: i > 0 ? `1px solid ${tv.border}22` : 'none' }} />)}
-                    </div>
-
-                    {/* Continuous bar — full extent = light color, filled portion = solid color */}
-                    <div style={{
-                      position: 'absolute',
-                      top: row.isChantier ? '15%' : '22%',
-                      bottom: row.isChantier ? '15%' : '22%',
-                      left: pos.left,
-                      right: pos.right,
-                      borderRadius: row.isChantier ? 6 : 4,
-                      background: color,
-                      opacity: 0.92,
-                      overflow: 'hidden',
-                    }}>
-                      {/* Unfilled portion (lighter) overlaid on the right side */}
-                      {row.avancement < 100 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: 0, bottom: 0,
-                          left: `${row.avancement}%`,
-                          right: 0,
-                          background: `${color}55`,
-                          mixBlendMode: 'lighten',
-                        }} />
-                      )}
-                      {/* Percentage label centered on bar */}
-                      <span style={{
-                        position: 'absolute', top: '50%', left: '50%',
-                        transform: 'translate(-50%,-50%)',
-                        fontSize: row.isChantier ? 11 : 9, fontWeight: 700,
-                        color: '#fff', whiteSpace: 'nowrap', zIndex: 2,
-                        textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                      }}>
-                        {row.avancement}%
-                      </span>
-                    </div>
-
-                    {/* Per-chantier progress marker (red line at avancement point) */}
-                    {row.isChantier && row.avancement > 0 && row.avancement < 100 && (() => {
-                      const taskStart = new Date(row.debut).getTime()
-                      const taskEnd = new Date(row.fin).getTime()
-                      const progressTime = taskStart + (taskEnd - taskStart) * (row.avancement / 100)
-                      const progressPct = ((progressTime - timelineStart) / timelineSpan * 100).toFixed(2)
-                      return (
-                        <div style={{
-                          position: 'absolute', top: 0, bottom: 0,
-                          left: `${progressPct}%`, width: 2,
-                          background: '#EF5350', zIndex: 3,
-                          borderRadius: 1,
-                        }} />
-                      )
-                    })()}
-                  </div>
+              {/* Header row */}
+              <div style={{ display: 'contents' }}>
+                <div style={{ padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'left' }}>
+                  {isPt ? 'Obra' : 'Chantier'}
                 </div>
-              )
-            })}
+                {months.map((m, i) => (
+                  <div key={i} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'center' }}>
+                    {m.label}
+                  </div>
+                ))}
+              </div>
+
+              {/* Data rows */}
+              {ganttRows.map(row => {
+                const color = row.couleur || statusColor(row.statut)
+                const isRetard = row.statut === 'en_retard'
+                const isTermine = row.statut === 'terminé'
+                const isPlanifie = row.statut === 'planifié'
+                const segments = getMonthSegments(row)
+
+                // Find which month contains the widest segment to place the label
+                let labelMonthIdx = -1
+                let maxWidth = 0
+                segments.forEach((seg, i) => {
+                  if (seg) {
+                    const w = 100 - seg.left - seg.right
+                    if (w > maxWidth) { maxWidth = w; labelMonthIdx = i }
+                  }
+                })
+
+                return (
+                  <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={{ display: 'contents' }}>
+                    {/* Name cell */}
+                    <div style={{
+                      padding: 8, paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11,
+                      fontWeight: 600, display: 'flex', alignItems: 'center',
+                      ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
+                      ...(isRetard ? { color: '#C62828' } : {}),
+                      ...(isPlanifie ? { color: '#999' } : {}),
+                      ...(!row.isChantier ? { paddingLeft: 24, fontWeight: 400 } : {}),
+                    }}>
+                      {!row.isChantier && <span style={{ marginRight: 4, color: '#ccc' }}>└</span>}
+                      {row.nom}
+                      {isTermine && row.isChantier && ' ✓'}
+                      {isRetard && ' ⚠️'}
+                      {!row.isChantier && (
+                        <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title="Supprimer">✕</button>
+                      )}
+                    </div>
+
+                    {/* Month cells with bar segments */}
+                    {months.map((m, mi) => {
+                      const seg = segments[mi]
+                      const todayInMonth = getTodayInMonth(m)
+
+                      return (
+                        <div key={mi} style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, position: 'relative' }}>
+                          {seg && (
+                            <div style={{
+                              position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                              left: `${Math.max(4, seg.left)}%`,
+                              right: `${Math.max(4, seg.right)}%`,
+                              height: 20, borderRadius: 3, minWidth: 4,
+                              background: isTermine ? '#BDBDBD' : color,
+                              opacity: isPlanifie ? 0.5 : 1,
+                            }}>
+                              {/* Label on the widest segment */}
+                              {mi === labelMonthIdx && (
+                                <span style={{
+                                  position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                                  left: 6, fontSize: 9, fontWeight: 600,
+                                  color: color === '#FFCA28' ? '#333' : '#fff',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {row.avancement}%
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Today red line */}
+                          {row.isChantier && todayInMonth !== null && (
+                            <div style={{
+                              position: 'absolute', top: 0, bottom: 0,
+                              left: `${todayInMonth}%`, width: 2,
+                              background: '#E53935', zIndex: 2,
+                            }} />
+                          )}
+
+                          {/* Diamond milestone — at end of bar if this is the last month with a segment */}
+                          {row.isChantier && seg && mi > 0 && !segments[mi + 1] && seg.right > 10 && (
+                            <div style={{
+                              width: 10, height: 10, background: '#FFC107',
+                              transform: 'rotate(45deg)', position: 'absolute',
+                              top: '50%', marginTop: -5,
+                              right: `${Math.max(2, seg.right - 5)}%`,
+                              zIndex: 3,
+                            }} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* Legend */}
-          <div style={{ fontSize: 11, color: '#999', marginTop: 8, textAlign: 'center' }}>
-            🔴 {isPt ? 'Linha vermelha = avanço do chantier' : 'Ligne rouge = avancement du chantier'} &nbsp;&bull;&nbsp; {isPt ? 'Obras terminadas não aparecem' : 'Chantiers terminés masqués'}
+          <div style={{ marginTop: 8, fontSize: 10, color: '#999' }}>
+            🔴 {isPt ? 'Linha vermelha = hoje' : 'Ligne rouge = aujourd\'hui'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = marco' : 'Losange = jalon clé'}
           </div>
 
-          {/* Sub-task advancement */}
+          {/* Sub-task advancement table */}
           {subTasksOnly.length > 0 && (
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginTop: '.75rem' }}>
-              <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Avanço das tarefas' : 'Avancement des tâches'}</div>
-              <table className={isV5 ? 'v5-dt' : undefined} style={isV5 ? undefined : { width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', marginTop: 12 }}>
+              <div style={{ padding: '8px 12px', fontWeight: 700, fontSize: 11, color: '#333', borderBottom: '1px solid #E8E8E8', background: '#FAFAFA' }}>
+                {isPt ? 'Avanço das tarefas' : 'Avancement des tâches'}
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Obra' : 'Chantier'}</th>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Estado' : 'Statut'}</th>
-                    <th style={isV5 ? undefined : { textAlign: 'left', padding: '8px 12px', color: tv.textMid, fontWeight: 600, fontSize: 11 }}>{isPt ? 'Avanço' : 'Avancement'}</th>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Obra' : 'Chantier'}</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Estado' : 'Statut'}</th>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Avanço' : 'Avancement'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subTasksOnly.map(row => {
                     const chantier = chantiers.find(c => c.id === row.chantierId)
                     return (
-                      <tr key={row.id} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
-                        <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
+                      <tr key={row.id}>
+                        <td style={{ padding: 8, paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 }}>
                           {row.nom}
                           <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{row.responsable}</div>
                         </td>
-                        <td style={isV5 ? undefined : { padding: '8px 12px' }}>{chantier?.titre || '—'}</td>
-                        <td style={isV5 ? undefined : { padding: '8px 12px' }}>
-                          <span className={isV5 ? `v5-badge ${
-                            row.statut === 'en_cours' ? 'v5-badge-blue' :
-                            row.statut === 'terminé' ? 'v5-badge-green' :
-                            row.statut === 'en_retard' ? 'v5-badge-red' : 'v5-badge-gray'
-                          }` : `v22-tag ${
-                            row.statut === 'en_cours' ? 'v22-tag-green' :
-                            row.statut === 'terminé' ? 'v22-tag-gray' :
-                            row.statut === 'en_retard' ? 'v22-tag-red' : 'v22-tag-amber'
-                          }`}>
+                        <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>{chantier?.titre || '—'}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>
+                          <span style={{
+                            display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600,
+                            background: row.statut === 'en_cours' ? '#E3F2FD' : row.statut === 'terminé' ? '#F5F5F5' : row.statut === 'en_retard' ? '#FFEBEE' : '#F3E5F5',
+                            color: row.statut === 'en_cours' ? '#1565C0' : row.statut === 'terminé' ? '#757575' : row.statut === 'en_retard' ? '#C62828' : '#7B1FA2',
+                          }}>
                             {statLabels[row.statut] || row.statut}
                           </span>
                         </td>
-                        <td style={{ minWidth: 180, ...(isV5 ? {} : { padding: '8px 12px' }) }}>
+                        <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, minWidth: 160 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#E8E8E8' }}>
                               <div style={{ width: `${row.avancement}%`, height: '100%', borderRadius: 3, background: statusColor(row.statut) }} />
                             </div>
-                            <span style={{ fontSize: 11, fontWeight: 600, minWidth: 32 }}>{row.avancement}%</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, minWidth: 28 }}>{row.avancement}%</span>
                           </div>
                           <input
                             type="range" min="0" max="100" value={row.avancement}
                             onChange={e => updateAvancement(row.id, Number(e.target.value))}
-                            style={{ width: '100%', accentColor: isV5 ? 'var(--v5-primary-yellow)' : tv.primary, height: 4, marginTop: 4 }}
+                            style={{ width: '100%', accentColor: '#FFC107', height: 4, marginTop: 4 }}
                           />
                         </td>
                       </tr>
@@ -393,26 +442,15 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
             </div>
           )}
 
-          {/* Stats */}
-          {isV5 ? (
-            <div className="v5-kpi-g" style={{ marginTop: '.75rem' }}>
-              {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
-                <div key={s} className="v5-kpi">
-                  <div className="v5-kpi-l">{statLabels[s]}</div>
-                  <div className="v5-kpi-v">{ganttRows.filter(r => r.statut === s).length}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: '.75rem' }}>
-              {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
-                <div key={s} className="v22-card" style={{ padding: 12, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: tv.textMid, marginBottom: 4 }}>{statLabels[s]}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>{ganttRows.filter(r => r.statut === s).length}</div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Stats KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12 }}>
+            {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
+              <div key={s} style={{ border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: 12, textAlign: 'center' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', marginBottom: 4 }}>{statLabels[s]}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: statusColor(s) }}>{ganttRows.filter(r => r.statut === s).length}</div>
+              </div>
+            ))}
+          </div>
         </>
       )}
     </div>
