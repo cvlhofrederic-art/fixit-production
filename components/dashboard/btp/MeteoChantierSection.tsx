@@ -5,7 +5,8 @@ import { useBTPData } from '@/lib/hooks/use-btp-data'
 import { supabase } from '@/lib/supabase'
 
 interface ChantierItem {
-  id: string; titre: string; adresse: string; latitude?: number; longitude?: number
+  id: string; titre: string; adresse: string; ville: string; codePostal: string
+  latitude?: number; longitude?: number
   statut: string; dateDebut?: string; dateFin?: string; description?: string
 }
 
@@ -96,31 +97,50 @@ function classifyAlert(forecast: DayForecast[]): {
   return { alert: level, reasons: [...new Set(allReasons)], dayAlerts, mainAlertDay }
 }
 
+// Extract city candidates from a free-text address — ordered from most to least specific
 function extractCityName(adresse: string): string[] {
   const candidates: string[] = []
   const clean = adresse.trim()
+  if (!clean) return candidates
 
+  // 1. Extract city after a French postal code: "13001 Marseille" → "Marseille"
+  const cpMatch = clean.match(/\b(\d{5})\s+([A-Za-zÀ-ÿ][\w\s-]+)/i)
+  if (cpMatch) {
+    const city = cpMatch[2].trim().split(/[,\n]/)[0].trim()
+    if (city && !candidates.includes(city)) candidates.push(city)
+  }
+
+  // 2. After last comma (often the city): "12 rue X, Marseille" → "Marseille"
+  if (clean.includes(',')) {
+    const parts = clean.split(',')
+    const last = parts[parts.length - 1].replace(/\b\d{5}\b/g, '').replace(/\b\d+\b/g, '').trim()
+    if (last && last.length >= 3 && !candidates.includes(last)) candidates.push(last)
+    // Also try second-to-last if 3+ parts: "12 rue X, 13001, Marseille"
+    if (parts.length >= 3) {
+      const prev = parts[parts.length - 2].replace(/\b\d{5}\b/g, '').replace(/\b\d+\b/g, '').trim()
+      if (prev && prev.length >= 3 && !candidates.includes(prev)) candidates.push(prev)
+    }
+  }
+
+  // 3. Strip numbers + street prefixes → remaining text
   const stripped = clean
     .replace(/\b\d{5}\b/g, '')
-    .replace(/\b\d{1,2}[eè]r?e?\b/gi, '')
-    .replace(/\b\d+\b/g, '')
-    .replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '')
+    .replace(/\b\d{1,3}(bis|ter)?\b/gi, '')
+    .replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|lot|résidence|rés|bât|bâtiment|immeuble|quartier|zone|zi|za|zac|r\.|av\.|bd\.)\b/gi, '')
     .replace(/,/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+  if (stripped && stripped.length >= 3 && !candidates.includes(stripped)) candidates.push(stripped)
 
-  if (stripped) candidates.push(stripped)
-
-  if (clean.includes(',')) {
-    const before = clean.split(',')[0].trim()
-    const beforeClean = before.replace(/\b\d+\b/g, '').replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '').trim()
-    if (beforeClean && !candidates.includes(beforeClean)) candidates.push(beforeClean)
-    const after = clean.split(',').slice(1).join(',').replace(/\b\d{5}\b/g, '').replace(/\b\d+\b/g, '').trim()
-    if (after && !candidates.includes(after)) candidates.push(after)
+  // 4. Individual words ≥ 4 chars, capitalized (likely proper nouns / city names)
+  const words = stripped.split(' ').filter(w => w.length >= 4 && /^[A-ZÀ-Ÿ]/.test(w))
+  for (const w of words) {
+    if (!candidates.includes(w)) candidates.push(w)
   }
 
-  const words = stripped.split(' ').filter(w => w.length >= 4)
-  for (const w of words) {
+  // 5. Fallback: any word ≥ 4 chars
+  const allWords = stripped.split(' ').filter(w => w.length >= 4)
+  for (const w of allWords) {
     if (!candidates.includes(w)) candidates.push(w)
   }
 
@@ -132,28 +152,54 @@ function extractShortCity(adresse: string): string {
   return candidates[0] || adresse
 }
 
+// Geocode with multi-strategy fallback: gouv.fr API → Nominatim → Open-Meteo
 async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
+  if (!adresse?.trim()) return null
+
+  // Strategy 1: api-adresse.data.gouv.fr — best for French addresses
   try {
-    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(adresse)}&count=1&language=fr`)
+    const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`, { signal: AbortSignal.timeout(4000) })
     if (res.ok) {
+      const json = await res.json()
+      const feat = json.features?.[0]
+      if (feat?.geometry?.coordinates) {
+        const [lng, lat] = feat.geometry.coordinates
+        return { lat, lng }
+      }
+    }
+  } catch { /* timeout or network — try next */ }
+
+  // Strategy 2: Nominatim (OpenStreetMap) — handles international + complex addresses
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresse)}&limit=1&accept-language=fr`,
+      { headers: { 'User-Agent': 'Vitfix-BTP/1.0' }, signal: AbortSignal.timeout(4000) }
+    )
+    if (res.ok) {
+      const json = await res.json()
+      if (json[0]?.lat && json[0]?.lon) {
+        return { lat: parseFloat(json[0].lat), lng: parseFloat(json[0].lon) }
+      }
+    }
+  } catch { /* timeout or network — try next */ }
+
+  // Strategy 3: Open-Meteo geocoding with extracted city names
+  const candidates = extractCityName(adresse)
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=1&language=fr`,
+        { signal: AbortSignal.timeout(4000) }
+      )
+      if (!res.ok) continue
       const json = await res.json()
       if (json.results?.[0]) {
         return { lat: json.results[0].latitude, lng: json.results[0].longitude }
       }
-    }
+    } catch { continue }
+  }
 
-    const candidates = extractCityName(adresse)
-    for (const candidate of candidates) {
-      if (candidate === adresse) continue
-      const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=1&language=fr`)
-      if (!res2.ok) continue
-      const json2 = await res2.json()
-      if (json2.results?.[0]) {
-        return { lat: json2.results[0].latitude, lng: json2.results[0].longitude }
-      }
-    }
-    return null
-  } catch { return null }
+  return null
 }
 
 function formatDayShort(dateStr: string, isPt?: boolean): string {
@@ -226,12 +272,12 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
   const [debugInfo, setDebugInfo] = useState('')
   const fetchedRef = useRef(false)
 
-  // Filtrer chantiers actifs (pas terminés/annulés) qui ont une adresse
+  // Filtrer chantiers actifs (pas terminés/annulés) qui ont une ville ou adresse
   const chantiersActifs = chantiers.filter(c =>
     c.statut !== 'Terminé' && c.statut !== 'Annulé'
   )
-  const chantiersAvecAdresse = chantiersActifs.filter(c => c.adresse?.trim())
-  const chantiersSansAdresse = chantiersActifs.filter(c => !c.adresse?.trim())
+  const chantiersAvecLocalisation = chantiersActifs.filter(c => c.ville?.trim() || c.adresse?.trim())
+  const chantiersSansLocalisation = chantiersActifs.filter(c => !c.ville?.trim() && !c.adresse?.trim())
 
   const fetchMeteo = useCallback(async (chantiersToFetch: ChantierItem[]) => {
     if (chantiersToFetch.length === 0) return
@@ -246,12 +292,16 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             let lat = chantier.latitude
             let lng = chantier.longitude
             if (!lat || !lng) {
-              const geo = await geocodeAdresse(chantier.adresse)
+              // Geocode using ville (preferred) then fallback to adresse
+              const searchTerm = chantier.ville?.trim() || chantier.adresse
+              const geo = await geocodeAdresse(searchTerm)
               if (!geo) {
-                failedNames.push(`${chantier.titre} (${chantier.adresse})`)
+                failedNames.push(`${chantier.titre} (${chantier.ville || chantier.adresse})`)
                 return null
               }
               lat = geo.lat; lng = geo.lng
+              // Persist coordinates in Supabase so we never re-geocode this chantier
+              supabase.from('chantiers_btp').update({ latitude: lat, longitude: lng }).eq('id', chantier.id).then(() => {})
             }
             const res = await fetch(
               `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`
@@ -297,7 +347,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
   }, [isPt])
 
   const chantiersRef = useRef<ChantierItem[]>([])
-  chantiersRef.current = chantiersAvecAdresse
+  chantiersRef.current = chantiersAvecLocalisation
 
   // Reset fetchedRef when authUserId changes (ensures re-fetch with correct cache)
   useEffect(() => {
@@ -310,7 +360,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     if (fetchedRef.current) return
     fetchedRef.current = true
     fetchMeteo(chantiersRef.current)
-  }, [chantiersLoading, chantiersAvecAdresse.length, fetchMeteo])
+  }, [chantiersLoading, chantiersAvecLocalisation.length, fetchMeteo])
 
   const nbOk = meteoData.filter(m => m.alert === 'ok').length
   const nbVigilance = meteoData.filter(m => m.alert === 'vigilance').length
@@ -326,8 +376,8 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
           <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
           <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         </div>
-        {(meteoData.length > 0 || chantiersAvecAdresse.length > 0) && (
-          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }} disabled={meteoLoading}>
+        {(meteoData.length > 0 || chantiersAvecLocalisation.length > 0) && (
+          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
             {meteoLoading ? (isPt ? 'A carregar...' : 'Chargement...') : (isPt ? 'Atualizar' : 'Actualiser')}
           </button>
         )}
@@ -375,11 +425,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       )}
 
       {/* Chantiers sans adresse */}
-      {chantiersSansAdresse.length > 0 && (
+      {chantiersSansLocalisation.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem' }}>
-          <strong>{chantiersSansAdresse.length} {isPt ? 'obra(s) sem endereço' : 'chantier(s) sans adresse'}</strong> — {isPt ? 'Adicione o endereço na secção Chantiers para ativar a meteorologia.' : "Ajoutez l'adresse dans la section Chantiers pour activer la météo."}
+          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong> — {isPt ? 'Adicione a cidade na secção Chantiers para ativar a meteorologia.' : 'Ajoutez la ville dans la section Chantiers pour activer la météo.'}
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
-            {chantiersSansAdresse.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansAdresse.length > 5 ? '...' : ''}
+            {chantiersSansLocalisation.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansLocalisation.length > 5 ? '...' : ''}
           </div>
         </div>
       )}
@@ -388,7 +438,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {meteoError && (
         <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
           {meteoError}
-          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }}>{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
+          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecLocalisation) }}>{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
         </div>
       )}
 
@@ -409,7 +459,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {/* Liste des chantiers — layout du mockup HTML v6 */}
       {meteoData.map(m => {
         const badge = getAlertBadgeLabel(m, isPt)
-        const cityShort = extractShortCity(m.chantier.adresse)
+        const cityShort = m.chantier.ville || extractShortCity(m.chantier.adresse)
         // Find the worst alert day for the impact message
         const worstDay = m.mainAlertDay ? m.forecast[m.mainAlertDay.dayIndex] : null
         const worstDayLabel = worstDay ? formatDayShort(worstDay.date, isPt) : null
@@ -494,7 +544,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       })}
 
       {/* Loading indicator for meteo */}
-      {meteoLoading && chantiersAvecAdresse.length > 0 && (
+      {meteoLoading && chantiersAvecLocalisation.length > 0 && (
         <div style={{ textAlign: 'center', padding: '2rem', color: '#999', fontSize: 12 }}>
           {isPt ? 'A carregar previsões meteorológicas...' : 'Chargement des prévisions météo...'}
         </div>

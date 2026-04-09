@@ -7,8 +7,9 @@ import { useThemeVars } from '../useThemeVars'
 import type { Artisan, Booking } from '@/lib/types'
 
 interface ChantierItem {
-  id: string; titre: string; client: string; adresse: string; dateDebut: string
-  dateFin: string; budget: string; statut: string; description: string; equipe: string; createdAt: string
+  id: string; titre: string; client: string; adresse: string; ville: string; codePostal: string
+  dateDebut: string; dateFin: string; budget: string; statut: string; description: string
+  equipe: string; createdAt: string; latitude?: number; longitude?: number
 }
 
 export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: Artisan; bookings: Booking[]; orgRole?: string }) {
@@ -23,16 +24,51 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
   })
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState<'Tous' | 'En cours' | 'Terminés' | 'En attente'>('Tous')
-  const [form, setForm] = useState({ titre: '', client: '', adresse: '', dateDebut: '', dateFin: '', budget: '', statut: 'En attente', description: '', equipe: '' })
+  const [form, setForm] = useState({ titre: '', client: '', adresse: '', ville: '', codePostal: '', dateDebut: '', dateFin: '', budget: '', statut: 'En attente', description: '', equipe: '' })
+  const [saving, setSaving] = useState(false)
 
-  const handleSave = () => {
+  const geocodeVille = async (ville: string): Promise<{ lat: number; lng: number } | null> => {
+    if (!ville.trim()) return null
+    // Strategy 1: api-adresse.data.gouv.fr (French gov API — free, no key)
+    try {
+      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(ville)}&type=municipality&limit=1`, { signal: AbortSignal.timeout(4000) })
+      if (res.ok) {
+        const json = await res.json()
+        const feat = json.features?.[0]
+        if (feat?.geometry?.coordinates) {
+          const [lng, lat] = feat.geometry.coordinates
+          return { lat, lng }
+        }
+      }
+    } catch { /* next */ }
+    // Strategy 2: Open-Meteo geocoding
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ville)}&count=1&language=fr`, { signal: AbortSignal.timeout(4000) })
+      if (res.ok) {
+        const json = await res.json()
+        if (json.results?.[0]) return { lat: json.results[0].latitude, lng: json.results[0].longitude }
+      }
+    } catch { /* silent */ }
+    return null
+  }
+
+  const handleSave = async () => {
     if (!form.titre.trim()) return
-    const c = { id: Date.now().toString(), ...form, createdAt: new Date().toISOString() }
-    const updated = [c, ...chantiers]
-    setChantiers(updated)
-    localStorage.setItem(storageKey, JSON.stringify(updated))
-    setShowModal(false)
-    setForm({ titre: '', client: '', adresse: '', dateDebut: '', dateFin: '', budget: '', statut: 'En attente', description: '', equipe: '' })
+    setSaving(true)
+    try {
+      const geo = form.ville ? await geocodeVille(form.ville) : null
+      const c: ChantierItem = {
+        id: Date.now().toString(), ...form, createdAt: new Date().toISOString(),
+        ...(geo ? { latitude: geo.lat, longitude: geo.lng } : {}),
+      }
+      const updated = [c, ...chantiers]
+      setChantiers(updated)
+      localStorage.setItem(storageKey, JSON.stringify(updated))
+      setShowModal(false)
+      setForm({ titre: '', client: '', adresse: '', ville: '', codePostal: '', dateDebut: '', dateFin: '', budget: '', statut: 'En attente', description: '', equipe: '' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const changeStatut = (id: string, statut: string) => {
@@ -113,7 +149,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                       {c.client && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><Users size={12} /> {c.client}</span>}
-                      {c.adresse && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><MapPin size={12} /> {c.adresse}</span>}
+                      {(c.ville || c.adresse) && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><MapPin size={12} /> {[c.adresse, c.codePostal, c.ville].filter(Boolean).join(', ') || c.adresse}</span>}
                       {(c.dateDebut || c.dateFin) && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><Calendar size={12} /> {c.dateDebut || '?'} &rarr; {c.dateFin || '?'}</span>}
                       {c.budget && <span className={isV5 ? undefined : 'v22-card-meta'} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, ...(isV5 ? { color: 'var(--v5-text-secondary)' } : {}) }}><DollarSign size={12} /> {Number(c.budget).toLocaleString('fr-FR')} &euro;</span>}
                     </div>
@@ -140,7 +176,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
 
       {/* Modal nouveau chantier */}
       {showModal && (
-        <div className={isV5 ? 'v5-modal-ov' : undefined} style={isV5 ? undefined : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div className={isV5 ? 'v5-modal-ov show' : undefined} style={isV5 ? undefined : { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className={isV5 ? 'v5-modal' : 'v22-card'} style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             {isV5 ? (
               <div className="v5-modal-h">
@@ -170,7 +206,17 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
               </div>
               <div className={isV5 ? 'v5-fg' : undefined}>
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
-                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.adresse} onChange={e => setForm({...form, adresse: e.target.value})} placeholder={isPt ? 'Rua, número...' : 'N°, rue...'} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Código postal' : 'Code postal'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.codePostal} onChange={e => setForm({...form, codePostal: e.target.value})} placeholder="13001" maxLength={10} />
+                </div>
+                <div className={isV5 ? 'v5-fg' : undefined}>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cidade *' : 'Ville *'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.ville} onChange={e => setForm({...form, ville: e.target.value})} placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className={isV5 ? 'v5-fg' : undefined}>
@@ -189,7 +235,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
             </div>
             <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
               <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ flex: 1, background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowModal(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
-              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.primary, fontWeight: 700 }) }} onClick={handleSave} disabled={!form.titre.trim()}><Check size={14} /> {isPt ? 'Criar obra' : 'Cr\u00E9er le chantier'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn'} style={{ flex: 1, ...(isV5 ? {} : { background: tv.primary, fontWeight: 700 }) }} onClick={handleSave} disabled={!form.titre.trim() || !form.ville.trim() || saving}><Check size={14} /> {saving ? (isPt ? 'A criar...' : 'Création...') : (isPt ? 'Criar obra' : 'Créer le chantier')}</button>
             </div>
           </div>
         </div>
