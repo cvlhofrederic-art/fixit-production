@@ -7,14 +7,12 @@
  */
 
 const DEMO_ARTISAN_ID = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
+const SEED_VERSION = 2 // Increment to force re-seed after adding new data
 
 function isAlreadySeeded(artisanId: string): boolean {
   try {
-    const docs = localStorage.getItem(`fixit_documents_${artisanId}`)
-    if (docs) {
-      const parsed = JSON.parse(docs)
-      if (Array.isArray(parsed) && parsed.length > 0) return true
-    }
+    const version = localStorage.getItem(`fixit_demo_seed_version_${artisanId}`)
+    if (version && parseInt(version, 10) >= SEED_VERSION) return true
   } catch { /* ignore */ }
   return false
 }
@@ -279,5 +277,308 @@ export function seedDemoLocalStorage(artisanId: string): void {
 
   localStorage.setItem(`fixit_portfolio_${artisanId}`, JSON.stringify(portfolio))
 
-  console.log('[DEMO] localStorage seeded: 5 devis, 4 factures, 3 rapports, 4 références')
+  // ═══════════════════════════════════════
+  // CLIENTS MANUELS (fixit_manual_clients_*)
+  // ═══════════════════════════════════════
+  const manualClients = [
+    {
+      id: 'demo-cli-001', name: 'Mme Dupont Catherine', email: 'c.dupont@email.fr',
+      phone: '06 11 22 33 44', type: 'particulier',
+      mainAddress: '42 Rue de la République, 13001 Marseille',
+      notes: 'Rénovation T3 — cliente satisfaite, recommandation possible',
+      source: 'bouche-à-oreille',
+    },
+    {
+      id: 'demo-cli-002', name: 'Syndic Foncia — Résidence Les Pins', email: 'foncia.pins@foncia.fr',
+      phone: '04 91 55 66 77', type: 'professionnel', siret: '32345678900025',
+      mainAddress: '18 Boulevard Longchamp, 13001 Marseille',
+      notes: 'Syndic copropriété — ravalement façade R+4, bon payeur',
+      source: 'appel d\'offres',
+    },
+    {
+      id: 'demo-cli-003', name: 'M. et Mme Garcia', email: 'garcia.fam@email.fr',
+      phone: '06 77 88 99 00', type: 'particulier',
+      mainAddress: '8 Chemin des Oliviers, 13012 Marseille',
+      notes: 'SDB complète villa — budget respecté, chantier en avance',
+      source: 'site internet',
+    },
+    {
+      id: 'demo-cli-004', name: 'M. Rossi Antoine', email: 'a.rossi@email.fr',
+      phone: '06 44 55 66 77', type: 'particulier',
+      mainAddress: '15 Chemin de Paradis, 13008 Marseille',
+      notes: 'Extension 30m² — permis de construire obtenu, étude G2 OK',
+      source: 'recommandation',
+    },
+    {
+      id: 'demo-cli-005', name: 'SCI Les Terrasses du Sud', email: 'contact@terrasses-sud.fr',
+      phone: '04 91 22 33 44', type: 'professionnel', siret: '98765432100012',
+      mainAddress: '24 Cours Julien, 13006 Marseille',
+      notes: 'Transformation local commercial 80m² — contact M. Belkacem',
+      source: 'réseau professionnel',
+    },
+  ]
+
+  localStorage.setItem(`fixit_manual_clients_${artisanId}`, JSON.stringify(manualClients))
+
+  // ═══════════════════════════════════════
+  // DÉPENSES / EXPENSES (fixit_expenses_*)
+  // ═══════════════════════════════════════
+  const expenses = [
+    { id: 'demo-exp-001', label: 'Placo BA13 + rails R48/M48', amount: 1450, category: 'materiel', date: '2026-03-12', notes: 'Chantier Rue de la République' },
+    { id: 'demo-exp-002', label: 'Peinture Tollens (4 seaux)', amount: 380, category: 'materiel', date: '2026-03-15', notes: 'Chantier Rue de la République' },
+    { id: 'demo-exp-003', label: 'Câbles + tableau électrique NFC', amount: 820, category: 'materiel', date: '2026-03-18', notes: 'Chantier Rue de la République' },
+    { id: 'demo-exp-004', label: 'Location benne gravats 8m³', amount: 350, category: 'vehicule', date: '2026-03-20', notes: 'Chantier Rue de la République' },
+    { id: 'demo-exp-005', label: 'Carrelage antidérapant + faïence SDB', amount: 1100, category: 'materiel', date: '2026-03-18', notes: 'Chantier Villa Les Oliviers' },
+    { id: 'demo-exp-006', label: 'Receveur douche italienne + paroi verre', amount: 890, category: 'materiel', date: '2026-03-19', notes: 'Chantier Villa Les Oliviers' },
+    { id: 'demo-exp-007', label: 'Meuble vasque double + miroir LED', amount: 750, category: 'materiel', date: '2026-03-21', notes: 'Chantier Villa Les Oliviers' },
+    { id: 'demo-exp-008', label: 'Béton C25/30 fondations (4m³)', amount: 3200, category: 'materiel', date: '2026-04-02', notes: 'Chantier Extension Paradis' },
+    { id: 'demo-exp-009', label: 'Parpaings creux 20cm + ciment CEM II', amount: 2100, category: 'materiel', date: '2026-04-05', notes: 'Chantier Extension Paradis' },
+    { id: 'demo-exp-010', label: 'Location mini-pelle 3 jours', amount: 580, category: 'vehicule', date: '2026-04-07', notes: 'Chantier Extension Paradis' },
+    { id: 'demo-exp-011', label: 'Location marteau-piqueur', amount: 320, category: 'vehicule', date: '2026-03-26', notes: 'Chantier Cours Julien' },
+    { id: 'demo-exp-012', label: 'Béton prêt à l\'emploi dalle (6m³)', amount: 1800, category: 'materiel', date: '2026-03-28', notes: 'Chantier Cours Julien' },
+    { id: 'demo-exp-013', label: 'Câblage électrique NFC 15-100', amount: 1250, category: 'materiel', date: '2026-04-01', notes: 'Chantier Cours Julien' },
+    { id: 'demo-exp-014', label: 'Carburant fourgon chantiers', amount: 280, category: 'vehicule', date: '2026-03-31', notes: 'Mars 2026 — 1800km' },
+    { id: 'demo-exp-015', label: 'Assurance RC Pro — trimestrielle', amount: 1850, category: 'assurance', date: '2026-04-01', notes: 'AXA n°RC-2026-4521 — Q2 2026' },
+    { id: 'demo-exp-016', label: 'Expert-comptable — honoraires mars', amount: 600, category: 'charges', date: '2026-04-05', notes: 'Cabinet Martin & Associés' },
+  ]
+
+  localStorage.setItem(`fixit_expenses_${artisanId}`, JSON.stringify(expenses))
+
+  // ═══════════════════════════════════════
+  // COÛTS HORAIRES (fixit_couts_horaires_*)
+  // ═══════════════════════════════════════
+  const coutsHoraires = {
+    ouvrier: 22, chef_chantier: 32, conducteur_travaux: 42, secretaire: 20, gerant: 48, apprenti: 12,
+  }
+
+  localStorage.setItem(`fixit_couts_horaires_${artisanId}`, JSON.stringify(coutsHoraires))
+
+  // ═══════════════════════════════════════
+  // ABSENCES (fixit_absences_*)
+  // ═══════════════════════════════════════
+  const absences = [
+    { id: 'demo-abs-001', type: 'conge', start: '2026-04-21', end: '2026-04-25', motif: 'Congés annuels — Pâques', employe: 'Martin R.' },
+    { id: 'demo-abs-002', type: 'maladie', start: '2026-03-14', end: '2026-03-15', motif: 'Arrêt maladie', employe: 'Benoît K.' },
+    { id: 'demo-abs-003', type: 'formation', start: '2026-04-14', end: '2026-04-14', motif: 'Formation SST renouvellement', employe: 'Samir E.' },
+  ]
+
+  localStorage.setItem(`fixit_absences_${artisanId}`, JSON.stringify(absences))
+
+  // ═══════════════════════════════════════
+  // POINTAGES localStorage fallback (pointage_*)
+  // ═══════════════════════════════════════
+  const pointages = [
+    { id: 'demo-pt-001', employe: 'Martin R.', poste: 'Chef de chantier', chantier: 'Rénovation T3 — République', date: '2026-03-25', heures: 8, arrivee: '07:30', depart: '16:30', pause: 1 },
+    { id: 'demo-pt-002', employe: 'Samir E.', poste: 'Ouvrier qualifié', chantier: 'Rénovation T3 — République', date: '2026-03-25', heures: 8, arrivee: '07:30', depart: '16:30', pause: 1 },
+    { id: 'demo-pt-003', employe: 'Lucas P.', poste: 'Ouvrier', chantier: 'Rénovation T3 — République', date: '2026-03-25', heures: 8, arrivee: '08:00', depart: '17:00', pause: 1 },
+    { id: 'demo-pt-004', employe: 'Benoît K.', poste: 'Ouvrier qualifié', chantier: 'SDB Villa Les Oliviers', date: '2026-03-28', heures: 9, arrivee: '07:00', depart: '17:00', pause: 1 },
+    { id: 'demo-pt-005', employe: 'Martin R.', poste: 'Chef de chantier', chantier: 'Extension Paradis', date: '2026-04-08', heures: 10, arrivee: '06:30', depart: '17:30', pause: 1 },
+    { id: 'demo-pt-006', employe: 'Samir E.', poste: 'Ouvrier qualifié', chantier: 'Extension Paradis', date: '2026-04-08', heures: 10, arrivee: '06:30', depart: '17:30', pause: 1 },
+    { id: 'demo-pt-007', employe: 'Lucas P.', poste: 'Ouvrier', chantier: 'Local Cours Julien', date: '2026-04-01', heures: 8, arrivee: '08:00', depart: '17:00', pause: 1 },
+    { id: 'demo-pt-008', employe: 'Benoît K.', poste: 'Ouvrier qualifié', chantier: 'Local Cours Julien', date: '2026-04-01', heures: 8, arrivee: '08:00', depart: '17:00', pause: 1 },
+  ]
+
+  localStorage.setItem(`pointage_${artisanId}`, JSON.stringify(pointages))
+
+  // ═══════════════════════════════════════
+  // MEMBRES localStorage fallback (fixit_membres_*)
+  // ═══════════════════════════════════════
+  const membres = [
+    { id: 'demo-mb-001', nom: 'Martin', prenom: 'Raphaël', poste: 'Chef de chantier', telephone: '06 12 34 56 78', email: 'r.martin@pacabti.fr', statut: 'actif', dateEmbauche: '2024-09-01' },
+    { id: 'demo-mb-002', nom: 'Elouardi', prenom: 'Samir', poste: 'Ouvrier qualifié', telephone: '06 23 45 67 89', email: 's.elouardi@pacabti.fr', statut: 'actif', dateEmbauche: '2025-01-15' },
+    { id: 'demo-mb-003', nom: 'Keller', prenom: 'Benoît', poste: 'Ouvrier qualifié', telephone: '06 34 56 78 90', email: 'b.keller@pacabti.fr', statut: 'actif', dateEmbauche: '2025-03-01' },
+    { id: 'demo-mb-004', nom: 'Perrin', prenom: 'Lucas', poste: 'Ouvrier', telephone: '06 45 67 89 01', email: 'l.perrin@pacabti.fr', statut: 'actif', dateEmbauche: '2025-06-01' },
+  ]
+
+  localStorage.setItem(`fixit_membres_${artisanId}`, JSON.stringify(membres))
+
+  // ═══════════════════════════════════════
+  // SITUATIONS DE TRAVAUX localStorage fallback (situations_*)
+  // ═══════════════════════════════════════
+  const situations = [
+    {
+      id: 'demo-sit-001', chantier: 'Rénovation T3 — Rue de la République', client: 'Mme Dupont Catherine',
+      numero: 1, date: '2026-03-20', montantMarche: 28500, statut: 'validee',
+      travaux: [
+        { poste: 'Démolition + évacuation', quantite: 1, unite: 'forfait', prixUnit: 2200, avancement: 100 },
+        { poste: 'Placo BA13 (85m²)', quantite: 85, unite: 'm²', prixUnit: 45, avancement: 80 },
+        { poste: 'Électricité NFC 15-100', quantite: 1, unite: 'forfait', prixUnit: 4800, avancement: 60 },
+        { poste: 'Peinture 2 couches (120m²)', quantite: 120, unite: 'm²', prixUnit: 28, avancement: 0 },
+      ],
+    },
+    {
+      id: 'demo-sit-002', chantier: 'SDB complète — Villa Les Oliviers', client: 'M. et Mme Garcia',
+      numero: 1, date: '2026-03-28', montantMarche: 12800, statut: 'validee',
+      travaux: [
+        { poste: 'Dépose sanitaires', quantite: 1, unite: 'forfait', prixUnit: 1200, avancement: 100 },
+        { poste: 'Plomberie complète', quantite: 1, unite: 'forfait', prixUnit: 2800, avancement: 100 },
+        { poste: 'Carrelage sol (8m²)', quantite: 8, unite: 'm²', prixUnit: 95, avancement: 100 },
+        { poste: 'Faïence murale (22m²)', quantite: 22, unite: 'm²', prixUnit: 78, avancement: 50 },
+        { poste: 'Douche italienne + paroi', quantite: 1, unite: 'forfait', prixUnit: 2200, avancement: 90 },
+      ],
+    },
+    {
+      id: 'demo-sit-003', chantier: 'Extension — Chemin de Paradis', client: 'M. Rossi Antoine',
+      numero: 1, date: '2026-04-08', montantMarche: 62000, statut: 'en_cours',
+      travaux: [
+        { poste: 'Terrassement + fondations', quantite: 1, unite: 'forfait', prixUnit: 8500, avancement: 100 },
+        { poste: 'Élévation murs (30m²)', quantite: 30, unite: 'm²', prixUnit: 180, avancement: 60 },
+        { poste: 'Charpente + couverture', quantite: 1, unite: 'forfait', prixUnit: 14000, avancement: 0 },
+        { poste: 'Menuiseries alu (4u)', quantite: 4, unite: 'u', prixUnit: 2800, avancement: 0 },
+      ],
+    },
+  ]
+
+  localStorage.setItem(`situations_${artisanId}`, JSON.stringify(situations))
+
+  // ═══════════════════════════════════════
+  // RETENUES DE GARANTIE localStorage fallback (retenues_*)
+  // ═══════════════════════════════════════
+  const retenues = [
+    {
+      id: 'demo-ret-001', chantier: 'Rénovation T3 — Rue de la République', client: 'Mme Dupont Catherine',
+      montantMarche: 28500, tauxRetenue: 5, montantRetenue: 1425,
+      dateDebutGarantie: '2026-04-10', dateLiberation: '2027-04-10',
+      statut: 'retenue_en_cours', notes: 'Garantie parfait achèvement 1 an',
+    },
+    {
+      id: 'demo-ret-002', chantier: 'SDB complète — Villa Les Oliviers', client: 'M. et Mme Garcia',
+      montantMarche: 12800, tauxRetenue: 5, montantRetenue: 640,
+      dateDebutGarantie: '2026-04-01', dateLiberation: '2027-04-01',
+      statut: 'retenue_en_cours', notes: 'Garantie parfait achèvement 1 an',
+    },
+    {
+      id: 'demo-ret-003', chantier: 'Extension — Chemin de Paradis', client: 'M. Rossi Antoine',
+      montantMarche: 62000, tauxRetenue: 5, montantRetenue: 3100,
+      dateDebutGarantie: '', dateLiberation: '',
+      statut: 'non_applicable', notes: 'Retenue applicable à la réception des travaux',
+    },
+  ]
+
+  localStorage.setItem(`retenues_${artisanId}`, JSON.stringify(retenues))
+
+  // ═══════════════════════════════════════
+  // DC4 SOUS-TRAITANCE localStorage fallback (dc4_*)
+  // ═══════════════════════════════════════
+  const dc4 = [
+    {
+      id: 'demo-dc4-001', soustraitant: 'Électricité Méditerranée SARL', siret: '44455566677788',
+      chantier: 'Rénovation T3 — Rue de la République', lot: 'Électricité',
+      montant: 4800, dateDebut: '2026-03-15', dateFin: '2026-03-28',
+      attestationRC: true, attestationURSSAF: true, statut: 'en_cours',
+      contact: 'M. Fernandez', telephone: '04 91 88 99 00',
+    },
+    {
+      id: 'demo-dc4-002', soustraitant: 'Plomberie Pro 13', siret: '55566677788899',
+      chantier: 'Extension — Chemin de Paradis', lot: 'Plomberie + Sanitaire',
+      montant: 6200, dateDebut: '2026-05-05', dateFin: '2026-05-20',
+      attestationRC: true, attestationURSSAF: false, statut: 'a_venir',
+      contact: 'Mme Nguyen', telephone: '06 11 33 55 77',
+    },
+    {
+      id: 'demo-dc4-003', soustraitant: 'Alu Design Concept', siret: '66677788899900',
+      chantier: 'Local commercial — Cours Julien', lot: 'Vitrine commerciale + menuiseries alu',
+      montant: 8500, dateDebut: '2026-04-10', dateFin: '2026-04-20',
+      attestationRC: true, attestationURSSAF: true, statut: 'en_cours',
+      contact: 'M. Lazrak', telephone: '06 22 44 66 88',
+    },
+  ]
+
+  localStorage.setItem(`dc4_${artisanId}`, JSON.stringify(dc4))
+
+  // ═══════════════════════════════════════
+  // DCE ANALYSES localStorage fallback (dce_analyses_*)
+  // ═══════════════════════════════════════
+  const dceAnalyses = [
+    {
+      id: 'demo-dce-001', nom: 'AO — Rénovation école primaire Jean Jaurès',
+      maitreOuvrage: 'Mairie de Marseille', dateDepot: '2026-04-30',
+      montantEstime: 180000, statut: 'en_analyse',
+      lots: ['Gros œuvre', 'Second œuvre', 'Électricité', 'Plomberie'],
+      notes: 'Appel d\'offres public — marchés travaux. Visite obligatoire 15 avril.',
+    },
+    {
+      id: 'demo-dce-002', nom: 'AO — Aménagement bureaux Euroméditerranée',
+      maitreOuvrage: 'SAS Eurobureau', dateDepot: '2026-05-15',
+      montantEstime: 95000, statut: 'soumis',
+      lots: ['Cloisons', 'Faux plafonds', 'Sols', 'Peinture'],
+      notes: 'Marché privé — réponse attendue fin mai.',
+    },
+  ]
+
+  localStorage.setItem(`dce_analyses_${artisanId}`, JSON.stringify(dceAnalyses))
+
+  // ═══════════════════════════════════════
+  // DPGF localStorage fallback (dpgf_*)
+  // ═══════════════════════════════════════
+  const dpgf = [
+    {
+      id: 'demo-dpgf-001', titre: 'DPGF — Rénovation école Jean Jaurès',
+      affaire: 'AO Mairie de Marseille', date: '2026-04-20', statut: 'en_cours',
+      lots: [
+        { lot: 'Lot 1 — Gros œuvre', postes: [
+          { designation: 'Démolition cloisons existantes', unite: 'forfait', quantite: 1, prixUnit: 4500 },
+          { designation: 'Reprise maçonnerie (15m²)', unite: 'm²', quantite: 15, prixUnit: 180 },
+          { designation: 'Coulage dalles béton (40m²)', unite: 'm²', quantite: 40, prixUnit: 85 },
+        ]},
+        { lot: 'Lot 2 — Second œuvre', postes: [
+          { designation: 'Placo BA13 (200m²)', unite: 'm²', quantite: 200, prixUnit: 42 },
+          { designation: 'Peinture (350m²)', unite: 'm²', quantite: 350, prixUnit: 22 },
+          { designation: 'Carrelage sol (120m²)', unite: 'm²', quantite: 120, prixUnit: 65 },
+        ]},
+      ],
+    },
+    {
+      id: 'demo-dpgf-002', titre: 'DPGF — Bureaux Euroméditerranée',
+      affaire: 'SAS Eurobureau', date: '2026-05-05', statut: 'soumis',
+      lots: [
+        { lot: 'Lot 1 — Cloisons + faux plafonds', postes: [
+          { designation: 'Cloisons vitrées bureau (8 modules)', unite: 'u', quantite: 8, prixUnit: 2200 },
+          { designation: 'Faux plafond acoustique (180m²)', unite: 'm²', quantite: 180, prixUnit: 48 },
+        ]},
+        { lot: 'Lot 2 — Sols + peinture', postes: [
+          { designation: 'Dalles PVC bureau (180m²)', unite: 'm²', quantite: 180, prixUnit: 35 },
+          { designation: 'Peinture murs + plafonds (400m²)', unite: 'm²', quantite: 400, prixUnit: 18 },
+        ]},
+      ],
+    },
+  ]
+
+  localStorage.setItem(`dpgf_${artisanId}`, JSON.stringify(dpgf))
+
+  // ═══════════════════════════════════════
+  // ÉQUIPES BTP localStorage fallback (fixit_equipes_btp_*)
+  // ═══════════════════════════════════════
+  const equipes = [
+    {
+      id: 'demo-eq-001', nom: 'Équipe A — Rénovation', metier: 'Tous corps d\'état',
+      membres: ['Martin R.', 'Samir E.', 'Lucas P.'],
+      chantierActuel: 'Rénovation T3 — Rue de la République',
+    },
+    {
+      id: 'demo-eq-002', nom: 'Équipe B — Gros œuvre', metier: 'Maçonnerie / Structure',
+      membres: ['Benoît K.', 'Lucas P.'],
+      chantierActuel: 'Extension — Chemin de Paradis',
+    },
+  ]
+
+  localStorage.setItem(`fixit_equipes_btp_${artisanId}`, JSON.stringify(equipes))
+
+  // ═══════════════════════════════════════
+  // PORTAIL CLIENT — états (fixit_portal_states_*)
+  // ═══════════════════════════════════════
+  const portalStates: Record<string, { accessEnabled: boolean; lastShared?: string }> = {
+    'Mme Dupont Catherine': { accessEnabled: true, lastShared: '2026-03-25T18:00:00Z' },
+    'M. et Mme Garcia': { accessEnabled: true, lastShared: '2026-03-28T18:00:00Z' },
+    'M. Rossi Antoine': { accessEnabled: false },
+    'Syndic Foncia — Résidence Les Pins': { accessEnabled: false },
+    'SCI Les Terrasses du Sud': { accessEnabled: true, lastShared: '2026-04-06T08:00:00Z' },
+  }
+
+  localStorage.setItem(`fixit_portal_states_${artisanId}`, JSON.stringify(portalStates))
+
+  // Stamp version to prevent re-seeding on next load
+  localStorage.setItem(`fixit_demo_seed_version_${artisanId}`, String(SEED_VERSION))
+
+  console.log('[DEMO] localStorage seeded v' + SEED_VERSION + ': 5 devis, 4 factures, 3 rapports, 4 références, 5 clients, 16 dépenses, 3 situations, 3 retenues, 3 DC4, 2 DCE, 2 DPGF, 2 équipes, 8 pointages, 4 membres, 3 absences, portail client')
 }
