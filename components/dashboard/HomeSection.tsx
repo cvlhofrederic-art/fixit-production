@@ -5,6 +5,7 @@ import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
 
 interface HomeSectionProps {
   artisan: Artisan
@@ -139,10 +140,30 @@ export default function HomeSection({
   }, [artisan?.id, locale])
 
   // ═══════════════════════════════════════════════════════
-  // V5 RENDER — pro_societe uses the v5 design system
+  // V5 RENDER — pro_societe + artisan use the v5 design system
   // ═══════════════════════════════════════════════════════
+
+  // BTP data for pro_societe — pulled from Supabase tables
+  const userId = artisan?.user_id || artisan?.id || ''
+  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; date_debut: string; date_fin: string; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId })
+  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId })
+  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
+  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
+
   if (orgRole === 'pro_societe' || orgRole === 'artisan') {
-    const urgentCount = pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length
+
+    // === pro_societe: compute KPIs from BTP tables ===
+    const isSociete = orgRole === 'pro_societe'
+    const chantiersActifs = isSociete ? btpChantiers.filter(c => c.statut === 'En cours') : []
+    const chantiersAttente = isSociete ? btpChantiers.filter(c => c.statut === 'En attente') : []
+    const totalBudget = isSociete ? btpChantiers.reduce((s, c) => s + (c.montant_facture || c.budget || 0), 0) : totalRevenue
+    const totalAcomptes = isSociete ? btpChantiers.reduce((s, c) => s + (c.acompte_recu || 0), 0) : 0
+    const totalDepenses = isSociete ? btpDepenses.reduce((s, d) => s + (d.amount || 0), 0) : 0
+    const membresActifs = btpMembres.filter(m => m.actif !== false)
+    const margeMoyenne = isSociete && btpChantiers.length > 0 ? Math.round(btpChantiers.reduce((s, c) => s + (c.marge_prevue_pct || 0), 0) / btpChantiers.length) : 0
+
+    const urgentCount = isSociete ? chantiersAttente.length : pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length
+
     return (
       <div className="v5-fade">
         <div className="v5-pg-t" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -158,109 +179,205 @@ export default function HomeSection({
 
         {/* KPIs */}
         <div className="v5-kpi-g">
-          <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo(orgRole === 'artisan' ? 'calendar' : 'chantiers')}>
-            <div className="v5-kpi-l">{orgRole === 'artisan' ? (locale === 'pt' ? 'Pedidos pendentes' : 'Demandes en attente') : (locale === 'pt' ? 'Obras ativas' : 'Chantiers actifs')}</div>
-            <div className="v5-kpi-v">{orgRole === 'artisan' ? pendingBookings.length : bookings.filter(b => b.status === 'confirmed').length}</div>
-            <div className="v5-kpi-s">{urgentCount > 0 ? `→ ${urgentCount} ${locale === 'pt' ? 'urgentes' : 'urgentes'}` : (locale === 'pt' ? 'em dia' : 'à jour')}</div>
-          </div>
-          <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('revenus')}>
-            <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação mensal' : 'CA ce mois'}</div>
-            <div className="v5-kpi-v">{formatPrice(totalRevenue)}</div>
-            <div className="v5-kpi-s">↑ {completedBookings.length} {locale === 'pt' ? 'terminadas' : 'chantiers livrés'}</div>
-          </div>
-          <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
-            <div className="v5-kpi-l">{locale === 'pt' ? 'Nota média' : 'Note moyenne'}</div>
-            <div className="v5-kpi-v">{artisan?.rating_avg || '5.0'} ★</div>
-            <div className="v5-kpi-s">{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
-          </div>
-          <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
-            <div className="v5-kpi-l">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
-            <div className="v5-kpi-v">{conversionRate}%</div>
-            <div className="v5-kpi-s">{completedBookings.length}/{totalReceived}</div>
-          </div>
+          {isSociete ? (<>
+            <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
+              <div className="v5-kpi-l">Chantiers actifs</div>
+              <div className="v5-kpi-v">{chantiersActifs.length}</div>
+              <div className="v5-kpi-s">{chantiersAttente.length > 0 ? `+ ${chantiersAttente.length} en attente` : `${btpChantiers.length} total`}</div>
+            </div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('comptabilite-btp')}>
+              <div className="v5-kpi-l">CA total chantiers</div>
+              <div className="v5-kpi-v">{formatPrice(totalBudget)}</div>
+              <div className="v5-kpi-s">Acomptes : {formatPrice(totalAcomptes)}</div>
+            </div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('rentabilite')}>
+              <div className="v5-kpi-l">Marge moyenne</div>
+              <div className="v5-kpi-v">{margeMoyenne}%</div>
+              <div className="v5-kpi-s">Objectif : 25%</div>
+            </div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('equipes')}>
+              <div className="v5-kpi-l">Effectif</div>
+              <div className="v5-kpi-v">{membresActifs.length}</div>
+              <div className="v5-kpi-s">{membresActifs.filter(m => m.type_compte === 'chef_chantier').length} chefs + {membresActifs.filter(m => m.type_compte === 'ouvrier').length} ouvriers</div>
+            </div>
+          </>) : (<>
+            <div className="v5-kpi hl" style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Pedidos pendentes' : 'Demandes en attente'}</div>
+              <div className="v5-kpi-v">{pendingBookings.length}</div>
+              <div className="v5-kpi-s">{urgentCount > 0 ? `→ ${urgentCount} urgentes` : (locale === 'pt' ? 'em dia' : 'à jour')}</div>
+            </div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('revenus')}>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação mensal' : 'CA ce mois'}</div>
+              <div className="v5-kpi-v">{formatPrice(totalRevenue)}</div>
+              <div className="v5-kpi-s">↑ {completedBookings.length} {locale === 'pt' ? 'terminadas' : 'chantiers livrés'}</div>
+            </div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Nota média' : 'Note moyenne'}</div>
+              <div className="v5-kpi-v">{artisan?.rating_avg || '5.0'} ★</div>
+              <div className="v5-kpi-s">{locale === 'pt' ? 'em' : 'sur'} {artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
+            </div>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('stats')}>
+              <div className="v5-kpi-l">{locale === 'pt' ? 'Taxa conversão' : 'Taux conversion'}</div>
+              <div className="v5-kpi-v">{conversionRate}%</div>
+              <div className="v5-kpi-s">{completedBookings.length}/{totalReceived}</div>
+            </div>
+          </>)}
         </div>
 
-        {/* Main grid: Chantiers en cours + Planning + Alertes */}
+        {/* Main grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.2fr', gap: '.75rem', marginBottom: '1.25rem' }}>
-          {/* Demandes / Chantiers */}
+          {/* Chantiers en cours / Demandes */}
           <div className="v5-card">
             <div className="v5-st" style={{ display: 'flex', alignItems: 'center' }}>
-              {locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues'}
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#999', cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>{locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}</span>
+              {isSociete ? 'Chantiers en cours' : (locale === 'pt' ? 'Pedidos recebidos' : 'Demandes reçues')}
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#999', cursor: 'pointer' }} onClick={() => navigateTo(isSociete ? 'chantiers' : 'calendar')}>{locale === 'pt' ? 'Ver tudo →' : 'Voir tout →'}</span>
             </div>
-            {pendingBookings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</div>
-            ) : (
-              <table className="v5-dt">
-                <thead><tr><th>{locale === 'pt' ? 'Cliente' : 'Client'}</th><th>Service</th><th>{locale === 'pt' ? 'Estado' : 'Statut'}</th></tr></thead>
-                <tbody>
-                  {pendingBookings.slice(0, 5).map(b => {
-                    const clientName = extractClientName(b)
-                    const isUrgent = b.notes?.toLowerCase().includes('urgent')
-                    return (
-                      <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
-                        <td style={{ fontWeight: 600 }}>{clientName}</td>
-                        <td>{b.services?.name || 'Intervention'}</td>
-                        <td><span className={`v5-badge ${isUrgent ? 'v5-badge-red' : 'v5-badge-orange'}`}>{isUrgent ? 'Urgent' : (locale === 'pt' ? 'Pendente' : 'En attente')}</span></td>
+            {isSociete ? (
+              chantiersActifs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucun chantier en cours</div>
+              ) : (
+                <table className="v5-dt">
+                  <thead><tr><th>Chantier</th><th>Client</th><th>Budget</th></tr></thead>
+                  <tbody>
+                    {chantiersActifs.slice(0, 5).map(c => (
+                      <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
+                        <td style={{ fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titre}</td>
+                        <td>{c.client}</td>
+                        <td>{formatPrice(c.budget || 0)}</td>
                       </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            ) : (
+              pendingBookings.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum pedido pendente' : 'Aucune demande en attente'}</div>
+              ) : (
+                <table className="v5-dt">
+                  <thead><tr><th>{locale === 'pt' ? 'Cliente' : 'Client'}</th><th>Service</th><th>{locale === 'pt' ? 'Estado' : 'Statut'}</th></tr></thead>
+                  <tbody>
+                    {pendingBookings.slice(0, 5).map(b => {
+                      const clientName = extractClientName(b)
+                      const isUrgent = b.notes?.toLowerCase().includes('urgent')
+                      return (
+                        <tr key={b.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
+                          <td style={{ fontWeight: 600 }}>{clientName}</td>
+                          <td>{b.services?.name || 'Intervention'}</td>
+                          <td><span className={`v5-badge ${isUrgent ? 'v5-badge-red' : 'v5-badge-orange'}`}>{isUrgent ? 'Urgent' : (locale === 'pt' ? 'Pendente' : 'En attente')}</span></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )
+            )}
+          </div>
+
+          {/* Équipe / Planning */}
+          <div className="v5-card">
+            <div className="v5-st">{isSociete ? 'Équipe' : (locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine')}</div>
+            {isSociete ? (
+              membresActifs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>Aucun membre</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {membresActifs.slice(0, 6).map(m => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('equipes')}>
+                      <div style={{ background: m.type_compte === 'chef_chantier' ? '#FFF3E0' : '#E3F2FD', color: m.type_compte === 'chef_chantier' ? '#E65100' : '#1565C0', padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{m.type_compte === 'chef_chantier' ? 'CHEF' : 'OUV.'}</div>
+                      <div style={{ fontSize: 11 }}>{m.prenom} {m.nom}</div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              todayBookings.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nada agendado para hoje' : "Rien de prévu aujourd'hui"}</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {todayBookings.slice(0, 5).map(b => {
+                    const clientName = extractClientName(b)
+                    const dayName = new Date(b.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'short' })
+                    return (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
+                        <div style={{ background: '#E3F2FD', color: '#1565C0', padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'capitalize' as const }}>{dayName}</div>
+                        <div style={{ fontSize: 11 }}>{b.services?.name || 'RDV'} — {clientName}</div>
+                      </div>
                     )
                   })}
-                </tbody>
-              </table>
+                </div>
+              )
             )}
           </div>
 
-          {/* Planning semaine */}
+          {/* Finances / Alertes */}
           <div className="v5-card">
-            <div className="v5-st">{locale === 'pt' ? 'Agenda de hoje' : 'Planning semaine'}</div>
-            {todayBookings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nada agendado para hoje' : "Rien de prévu aujourd'hui"}</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {todayBookings.slice(0, 5).map(b => {
-                  const clientName = extractClientName(b)
-                  const dayName = new Date(b.booking_date || '').toLocaleDateString(dateLocale, { weekday: 'short' })
-                  return (
-                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigateTo('calendar')}>
-                      <div style={{ background: '#E3F2FD', color: '#1565C0', padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'capitalize' as const }}>{dayName}</div>
-                      <div style={{ fontSize: 11 }}>{b.services?.name || 'RDV'} — {clientName}</div>
-                    </div>
-                  )
-                })}
+            <div className="v5-st">{isSociete ? 'Finances' : (locale === 'pt' ? 'Alertas' : 'Alertes')}</div>
+            {isSociete ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#666' }}>Dépenses totales</span>
+                  <span style={{ fontWeight: 600, color: '#D32F2F' }}>{formatPrice(totalDepenses)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#666' }}>Acomptes reçus</span>
+                  <span style={{ fontWeight: 600, color: '#2E7D32' }}>{formatPrice(totalAcomptes)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#666' }}>Situations</span>
+                  <span style={{ fontWeight: 600 }}>{btpSituations.filter(s => s.statut === 'payée').length}/{btpSituations.length} payées</span>
+                </div>
+                <div style={{ borderTop: '1px solid #EEE', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#666' }}>Marge brute</span>
+                  <span style={{ fontWeight: 700, color: totalAcomptes - totalDepenses > 0 ? '#2E7D32' : '#D32F2F' }}>{formatPrice(totalAcomptes - totalDepenses)}</span>
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* Alertes */}
-          <div className="v5-card">
-            <div className="v5-st">{locale === 'pt' ? 'Alertas' : 'Alertes'}</div>
-            {alerts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
             ) : (
-              alerts.map((a, i) => (
-                <div key={i} className={`v5-al ${a.type === 'red' ? 'err' : 'warn'}`}>{a.title}</div>
-              ))
+              alerts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', fontSize: 12, color: '#BBB' }}>{locale === 'pt' ? 'Nenhum alerta' : 'Aucune alerte'}</div>
+              ) : (
+                alerts.map((a, i) => (
+                  <div key={i} className={`v5-al ${a.type === 'red' ? 'err' : 'warn'}`}>{a.title}</div>
+                ))
+              )
             )}
           </div>
         </div>
 
         {/* Bottom: 3 summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.75rem', marginBottom: '1.25rem' }}>
-          <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem' }}>
-            <div className="v5-st">{locale === 'pt' ? 'Últimas avaliações' : 'Derniers avis'}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, margin: '.4rem 0' }}>{artisan?.rating_avg || '5.0'} / 5</div>
-            <div style={{ fontSize: 11, color: '#888' }}>{artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
-          </div>
-          <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('messages')}>
-            <div className="v5-st">{locale === 'pt' ? 'Mensagens' : 'Messagerie'}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{pendingBookings.length}</div>
-            <div style={{ fontSize: 11, color: '#888' }}>conversations</div>
-          </div>
-          <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('devis')}>
-            <div className="v5-st">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
-            <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
-            <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''} — ${formatPrice(recentDevis[0].total || recentDevis[0].amount || 0)}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
-          </div>
+          {isSociete ? (<>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('situations')}>
+              <div className="v5-st">Situations de travaux</div>
+              <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpSituations.length}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{btpSituations.filter(s => s.statut === 'validée' || s.statut === 'payée').length} validées / payées</div>
+            </div>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('pointage')}>
+              <div className="v5-st">Dépenses</div>
+              <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpDepenses.length}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{formatPrice(totalDepenses)} total</div>
+            </div>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('portail-client')}>
+              <div className="v5-st">Clients</div>
+              <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{new Set(btpChantiers.map(c => c.client)).size}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{btpChantiers.length} chantiers</div>
+            </div>
+          </>) : (<>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem' }}>
+              <div className="v5-st">{locale === 'pt' ? 'Últimas avaliações' : 'Derniers avis'}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, margin: '.4rem 0' }}>{artisan?.rating_avg || '5.0'} / 5</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{artisan?.rating_count || 0} {locale === 'pt' ? 'avaliações' : 'avis'}</div>
+            </div>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('messages')}>
+              <div className="v5-st">{locale === 'pt' ? 'Mensagens' : 'Messagerie'}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{pendingBookings.length}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>conversations</div>
+            </div>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('devis')}>
+              <div className="v5-st">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''} — ${formatPrice(recentDevis[0].total || recentDevis[0].amount || 0)}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
+            </div>
+          </>)}
         </div>
 
         {/* Actions rapides */}
