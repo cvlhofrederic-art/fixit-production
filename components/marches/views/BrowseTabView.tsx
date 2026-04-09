@@ -587,9 +587,36 @@ export default function BrowseTabView({
                     )}
                   </div>
 
-                  {/* Publisher tag */}
+                  {/* Postuler button */}
                   <div style={{ flexShrink: 0 }}>
-                    {publisherTag(m.publisher_type, isPt)}
+                    {m.url_source ? (
+                      <a
+                        href={m.url_source}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          padding: '6px 14px', borderRadius: 6, border: 'none',
+                          background: '#FFC107', color: '#1a1a1a', fontSize: 11, fontWeight: 600,
+                          textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block',
+                        }}
+                      >
+                        {isPt ? 'Ver ↗' : 'Postuler ↗'}
+                      </a>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); onSelectMarche(m) }}
+                        disabled={isFull}
+                        style={{
+                          padding: '6px 14px', borderRadius: 6, border: 'none',
+                          background: isFull ? '#e5e7eb' : '#FFC107', color: '#1a1a1a',
+                          fontSize: 11, fontWeight: 600, cursor: isFull ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {isPt ? 'Candidatar' : 'Postuler'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )
