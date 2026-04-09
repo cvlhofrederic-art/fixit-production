@@ -1271,7 +1271,7 @@ function DashboardPage() {
           {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
           {activePage === 'meteo' && isV5 && (
             <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na meteorologia' : 'Erreur météo'}>
-              <MeteoChantierSection userId={artisan?.id || ''} isPt={isPt} />
+              <MeteoChantierSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt} />
             </SectionErrorBoundary>
           )}
 

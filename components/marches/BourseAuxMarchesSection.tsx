@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
@@ -230,19 +231,22 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const fetchMarchesPrefs = useCallback(async () => {
     if (!isPro || !artisan?.id) return
     try {
-      const res = await fetch(`/api/artisan-marches-prefs?artisan_id=${artisan.id}`)
+      const { data: session } = await supabase.auth.getSession()
+      const token = session?.session?.access_token
+      if (!token) return
+      const res = await fetch('/api/artisan-marches-prefs', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       if (res.ok) {
         const data = await res.json()
-        if (data.prefs) {
-          setMarchesPrefs({
-            marches_opt_in: data.prefs.marches_opt_in ?? false,
-            marches_categories: data.prefs.marches_categories ?? [],
-            marches_work_mode: data.prefs.marches_work_mode ?? 'forfait',
-            marches_tarif_journalier: data.prefs.marches_tarif_journalier ?? null,
-            marches_tarif_horaire: data.prefs.marches_tarif_horaire ?? null,
-            marches_description: data.prefs.marches_description ?? '',
-          })
-        }
+        setMarchesPrefs({
+          marches_opt_in: data.marches_opt_in ?? false,
+          marches_categories: data.marches_categories ?? [],
+          marches_work_mode: data.marches_work_mode ?? 'forfait',
+          marches_tarif_journalier: data.marches_tarif_journalier ?? null,
+          marches_tarif_horaire: data.marches_tarif_horaire ?? null,
+          marches_description: data.marches_description ?? '',
+        })
       }
     } catch {
       // silent
@@ -345,13 +349,25 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     if (!artisan?.id) return
     setPrefsSaving(true)
     try {
-      await fetch('/api/artisan-marches-prefs', {
+      const { data: session } = await supabase.auth.getSession()
+      const token = session?.session?.access_token
+      if (!token) {
+        toast.error('Session expirée, reconnectez-vous')
+        return
+      }
+      const res = await fetch('/api/artisan-marches-prefs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artisan_id: artisan.id, ...marchesPrefs }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(marchesPrefs),
       })
+      if (res.ok) {
+        toast.success('Préférences enregistrées')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Erreur lors de la sauvegarde')
+      }
     } catch {
-      // silent
+      toast.error('Erreur réseau')
     } finally {
       setPrefsSaving(false)
     }
@@ -680,6 +696,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           prefsSaving={prefsSaving}
           onPrefsChange={setMarchesPrefs}
           onSave={saveMarchesPrefs}
+          artisanCategories={artisan?.categories || []}
         />
       )}
     </div>

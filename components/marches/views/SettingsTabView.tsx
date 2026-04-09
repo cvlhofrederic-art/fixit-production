@@ -18,11 +18,16 @@ interface SettingsTabViewProps {
   prefsSaving: boolean
   onPrefsChange: (updater: (prev: MarchesPrefs) => MarchesPrefs) => void
   onSave: () => void
+  artisanCategories?: string[]
 }
 
 export default function SettingsTabView({
-  isPt, marchesPrefs, prefsSaving, onPrefsChange, onSave,
+  isPt, marchesPrefs, prefsSaving, onPrefsChange, onSave, artisanCategories,
 }: SettingsTabViewProps) {
+  // Filter categories to only show the artisan's registered trades
+  const availableCategories = artisanCategories && artisanCategories.length > 0
+    ? CATEGORIES.filter(cat => artisanCategories.includes(cat.id))
+    : CATEGORIES
   return (
     <div style={{ maxWidth: 560 }}>
       {/* 1. Opt-in toggle */}
@@ -79,7 +84,7 @@ export default function SettingsTabView({
               : 'Sélectionnez les catégories de travaux qui vous intéressent'}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-            {CATEGORIES.map(cat => {
+            {availableCategories.map(cat => {
               const checked = marchesPrefs.marches_categories.includes(cat.id)
               return (
                 <label

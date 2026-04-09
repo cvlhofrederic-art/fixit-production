@@ -205,14 +205,15 @@ function getAlertBadgeLabel(m: ChantierMeteo, isPt?: boolean): { label: string; 
   return { label: `✅ RAS`, className: 'v5-badge v5-badge-green' }
 }
 
-export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: boolean }) {
-  // Resolve auth user ID for proper cache alignment with ChantiersBTPV2
-  const [authUserId, setAuthUserId] = useState(userId)
+export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt }: { userId: string; authUserId?: string; isPt?: boolean }) {
+  // Use auth user ID from prop (matches ChantiersBTPV2 cache key), fallback to resolving
+  const [authUserId, setAuthUserId] = useState(authUserIdProp || userId)
   useEffect(() => {
+    if (authUserIdProp) { setAuthUserId(authUserIdProp); return }
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user?.id) setAuthUserId(data.user.id)
     })
-  }, [])
+  }, [authUserIdProp])
 
   const { items: chantiers, loading: chantiersLoading, error: chantiersError } = useBTPData<ChantierItem>({
     table: 'chantiers',
