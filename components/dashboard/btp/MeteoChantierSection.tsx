@@ -51,22 +51,67 @@ function classifyAlert(forecast: DayForecast[]): { alert: 'ok' | 'vigilance' | '
   return { alert: level, reasons: [...new Set(reasons)] }
 }
 
+// Extraire le nom de ville d'une adresse française
+// "Marseille 2e" → "Marseille", "Cassis, 13260" → "Cassis",
+// "Av du Prado, 13008 Marseille" → "Marseille", "Aubagne, 13400" → "Aubagne"
+function extractCityName(adresse: string): string[] {
+  const candidates: string[] = []
+  const clean = adresse.trim()
+
+  // Supprimer les codes postaux (5 chiffres), arrondissements (1e, 2e, etc.), numéros de rue
+  const stripped = clean
+    .replace(/\b\d{5}\b/g, '')          // codes postaux
+    .replace(/\b\d{1,2}[eè]r?e?\b/gi, '') // arrondissements (1e, 2e, 1er, 2ème)
+    .replace(/\b\d+\b/g, '')            // tous les autres nombres
+    .replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '') // préfixes de rue
+    .replace(/,/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (stripped) candidates.push(stripped)
+
+  // Partie avant la virgule (souvent le nom de lieu)
+  if (clean.includes(',')) {
+    const before = clean.split(',')[0].trim()
+    // Nettoyer aussi la partie avant virgule
+    const beforeClean = before.replace(/\b\d+\b/g, '').replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '').trim()
+    if (beforeClean && !candidates.includes(beforeClean)) candidates.push(beforeClean)
+    // Partie après la virgule (souvent ville + CP)
+    const after = clean.split(',').slice(1).join(',').replace(/\b\d{5}\b/g, '').replace(/\b\d+\b/g, '').trim()
+    if (after && !candidates.includes(after)) candidates.push(after)
+  }
+
+  // Chaque mot de 4+ lettres comme dernier recours
+  const words = stripped.split(' ').filter(w => w.length >= 4)
+  for (const w of words) {
+    if (!candidates.includes(w)) candidates.push(w)
+  }
+
+  return candidates.filter(Boolean)
+}
+
 // Géocoder une adresse via Open-Meteo Geocoding API (gratuit, pas de clé)
 async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
   try {
+    // 1. Essayer l'adresse complète
     const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(adresse)}&count=1&language=fr`)
-    if (!res.ok) return null
-    const json = await res.json()
-    if (json.results?.[0]) {
-      return { lat: json.results[0].latitude, lng: json.results[0].longitude }
+    if (res.ok) {
+      const json = await res.json()
+      if (json.results?.[0]) {
+        return { lat: json.results[0].latitude, lng: json.results[0].longitude }
+      }
     }
-    // Essayer juste la ville (dernier mot ou après la virgule)
-    const ville = adresse.includes(',') ? adresse.split(',').pop()?.trim() : adresse.split(' ').pop()
-    if (ville && ville !== adresse) {
-      const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ville)}&count=1&language=fr`)
-      if (!res2.ok) return null
+
+    // 2. Essayer les noms de ville extraits
+    const candidates = extractCityName(adresse)
+    for (const candidate of candidates) {
+      if (candidate === adresse) continue
+      const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=1&language=fr`)
+      if (!res2.ok) continue
       const json2 = await res2.json()
-      if (json2.results?.[0]) return { lat: json2.results[0].latitude, lng: json2.results[0].longitude }
+      if (json2.results?.[0]) {
+        return { lat: json2.results[0].latitude, lng: json2.results[0].longitude }
+      }
     }
     return null
   } catch { return null }
@@ -78,6 +123,7 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
   const [meteoLoading, setMeteoLoading] = useState(false)
   const [meteoError, setMeteoError] = useState<string | null>(null)
   const [selectedChantier, setSelectedChantier] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState('')
   const fetchedRef = useRef(false)
 
   // Filtrer chantiers actifs (pas terminés/annulés) qui ont une adresse
@@ -91,6 +137,8 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
     if (chantiersToFetch.length === 0) return
     setMeteoLoading(true)
     setMeteoError(null)
+    setDebugInfo('')
+    const failedNames: string[] = []
     try {
       const results: ChantierMeteo[] = (await Promise.all(
         chantiersToFetch.map(async (chantier) => {
@@ -100,15 +148,24 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
             let lng = chantier.longitude
             if (!lat || !lng) {
               const geo = await geocodeAdresse(chantier.adresse)
-              if (!geo) return null
+              if (!geo) {
+                failedNames.push(`${chantier.titre} (${chantier.adresse})`)
+                return null
+              }
               lat = geo.lat; lng = geo.lng
             }
             const res = await fetch(
               `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`
             )
-            if (!res.ok) return null
+            if (!res.ok) {
+              failedNames.push(`${chantier.titre} (API erreur ${res.status})`)
+              return null
+            }
             const json = await res.json()
-            if (!json.daily?.time) return null
+            if (!json.daily?.time) {
+              failedNames.push(`${chantier.titre} (données vides)`)
+              return null
+            }
             const forecast: DayForecast[] = json.daily.time.map((date: string, i: number) => ({
               date,
               tempMax: json.daily.temperature_2m_max[i],
@@ -120,13 +177,16 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
             const { alert, reasons } = classifyAlert(forecast)
             return { chantier, forecast, alert, alertReasons: reasons }
           } catch {
+            failedNames.push(`${chantier.titre} (exception)`)
             return null
           }
         })
       )).filter(Boolean) as ChantierMeteo[]
       setMeteoData(results)
       if (results.length === 0 && chantiersToFetch.length > 0) {
-        setMeteoError('Impossible de récupérer la météo. Vérifiez les adresses des chantiers.')
+        setMeteoError(`Géocodage échoué pour ${chantiersToFetch.length} chantier(s). Vérifiez les adresses.`)
+      } else if (failedNames.length > 0) {
+        setDebugInfo(`Météo indisponible pour : ${failedNames.join(', ')}`)
       }
     } catch {
       setMeteoError('Erreur lors du chargement des données météo.')
@@ -135,12 +195,17 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
     }
   }, [])
 
+  // Ref stable pour passer les chantiers au fetch sans dépendance de closure
+  const chantiersRef = useRef<ChantierItem[]>([])
+  chantiersRef.current = chantiersAvecAdresse
+
   useEffect(() => {
-    if (!chantiersLoading && chantiersAvecAdresse.length > 0 && !fetchedRef.current) {
-      fetchedRef.current = true
-      fetchMeteo(chantiersAvecAdresse)
-    }
-  }, [chantiersLoading, chantiersAvecAdresse.length]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (chantiersLoading) return
+    if (chantiersRef.current.length === 0) return
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+    fetchMeteo(chantiersRef.current)
+  }, [chantiersLoading, chantiersAvecAdresse.length, fetchMeteo])
 
   const nbOk = meteoData.filter(m => m.alert === 'ok').length
   const nbVigilance = meteoData.filter(m => m.alert === 'vigilance').length
@@ -213,6 +278,13 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
         <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
           {meteoError}
           <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }}>Réessayer</button>
+        </div>
+      )}
+
+      {/* Debug info partiel */}
+      {debugInfo && (
+        <div className="v5-al info" style={{ marginBottom: '.75rem', fontSize: 11 }}>
+          {debugInfo}
         </div>
       )}
 
