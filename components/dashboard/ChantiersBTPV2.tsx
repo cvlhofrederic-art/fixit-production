@@ -17,6 +17,7 @@ import {
 
 interface ChantierForm {
   titre: string; client: string; adresse: string
+  ville: string; codePostal: string
   dateDebut: string; dateFin: string; budget: string
   statut: string; description: string; equipe: string
   latitude?: number | null; longitude?: number | null
@@ -26,7 +27,8 @@ interface ChantierForm {
 }
 
 const EMPTY_FORM: ChantierForm = {
-  titre: '', client: '', adresse: '', dateDebut: '', dateFin: '',
+  titre: '', client: '', adresse: '', ville: '', codePostal: '',
+  dateDebut: '', dateFin: '',
   budget: '', statut: 'En attente', description: '', equipe: '',
   latitude: null, longitude: null, geoRayonM: 100,
   devis_id: null, membres_ids: [],
@@ -224,6 +226,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     setEditId(c.id)
     setForm({
       titre: c.titre, client: c.client, adresse: c.adresse,
+      ville: c.ville || '', codePostal: c.codePostal || '',
       dateDebut: c.dateDebut, dateFin: c.dateFin, budget: c.budget,
       statut: c.statut, description: c.description, equipe: c.equipe,
       latitude: c.latitude, longitude: c.longitude, geoRayonM: c.geoRayonM || 100,
@@ -761,21 +764,35 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.adresse}
-                    onChange={e => setForm({ ...form, adresse: e.target.value })}
-                    placeholder={isPt ? 'Rua, cidade...' : 'Rue, ville...'} />
-                  <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(form.adresse)}
-                    disabled={geocoding || !form.adresse.trim()}>
-                    {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
-                    {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
-                  </button>
+                <input className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
+                  onChange={e => setForm({ ...form, adresse: e.target.value })}
+                  placeholder={isPt ? 'N°, rua...' : 'N°, rue...'} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Código postal' : 'Code postal'}</label>
+                  <input className={isV5 ? "v5-fi" : "v22-input"} value={form.codePostal}
+                    onChange={e => setForm({ ...form, codePostal: e.target.value })}
+                    placeholder="13001" maxLength={10} />
                 </div>
-                {form.latitude && (
-                  <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <CheckCircle2 size={10} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
+                <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cidade *' : 'Ville *'}</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.ville}
+                      onChange={e => setForm({ ...form, ville: e.target.value })}
+                      placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
+                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(form.ville || form.adresse)}
+                      disabled={geocoding || (!form.ville.trim() && !form.adresse.trim())}>
+                      {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                      {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
+                    </button>
                   </div>
-                )}
+                  {form.latitude && (
+                    <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <CheckCircle2 size={10} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
