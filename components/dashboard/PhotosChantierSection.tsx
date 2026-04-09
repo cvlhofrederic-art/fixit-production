@@ -124,7 +124,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
           {isV5 ? <h1>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
           {isV5 ? <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
         </div>
-        <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => {/* upload trigger if needed */}}>
+        <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => {/* upload trigger if needed */}}>
           + {t('proDash.photos.ajouterPhotos') || 'Ajouter photos'}
         </button>
       </div>

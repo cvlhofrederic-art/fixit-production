@@ -1270,7 +1270,7 @@ function DashboardPage() {
           {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
           {activePage === 'meteo' && isV5 && (
             <div className="v5-fade">
-              <div className="v5-pg-t"><h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1><p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p></div>
+              <div className="v5-pg-t"><div><h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1><p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p></div></div>
               <div className="v5-kpi-g">
                 <div className="v5-kpi" style={{ borderLeft: '4px solid #4CAF50' }}><div className="v5-kpi-l">{isPt ? 'Obras OK' : 'Chantiers OK'}</div><div className="v5-kpi-v" style={{ color: '#4CAF50' }}>—</div><div className="v5-kpi-s">{isPt ? 'sem alerta' : "pas d'alerte"}</div></div>
                 <div className="v5-kpi" style={{ borderLeft: '4px solid #FFA726' }}><div className="v5-kpi-l">Vigilance</div><div className="v5-kpi-v" style={{ color: '#FFA726' }}>—</div><div className="v5-kpi-s">{isPt ? 'chuva prevista' : 'pluie prévue'}</div></div>
@@ -1291,7 +1291,7 @@ function DashboardPage() {
           {/* ────── PORTAIL CLIENT (pro_societe v5) ────── */}
           {activePage === 'portail_client' && isV5 && (
             <div className="v5-fade">
-              <div className="v5-pg-t"><h1>{isPt ? 'Portal cliente' : 'Portail client'}</h1><p>{isPt ? 'Dê aos seus clientes acesso em tempo real às suas obras' : 'Donnez à vos clients un accès en temps réel à leurs chantiers'}</p></div>
+              <div className="v5-pg-t"><div><h1>{isPt ? 'Portal cliente' : 'Portail client'}</h1><p>{isPt ? 'Dê aos seus clientes acesso em tempo real às suas obras' : 'Donnez à vos clients un accès en temps réel à leurs chantiers'}</p></div></div>
               <div className="v5-kpi-g" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 <div className="v5-kpi hl"><div className="v5-kpi-l">{isPt ? 'Portais ativos' : 'Portails actifs'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">{isPt ? 'em breve' : 'prochainement'}</div></div>
                 <div className="v5-kpi"><div className="v5-kpi-l">{isPt ? 'Última consulta' : 'Dernière consultation'}</div><div className="v5-kpi-v" style={{ fontSize: 16 }}>—</div><div className="v5-kpi-s">—</div></div>

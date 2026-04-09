@@ -330,7 +330,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Statistiques</h1><p>Analyse de l&apos;activité BTP</p></div>
+      <div className="v5-pg-t"><div><h1>Statistiques</h1><p>Analyse de l&apos;activité BTP</p></div></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
@@ -462,7 +462,7 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Revenus</h1><p>Flux de trésorerie et encaissements</p></div>
+      <div className="v5-pg-t"><div><h1>Revenus</h1><p>Flux de trésorerie et encaissements</p></div></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">

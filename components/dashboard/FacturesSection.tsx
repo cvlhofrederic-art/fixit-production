@@ -276,7 +276,7 @@ function FacturesSectionV5({
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><h1>Factures</h1><p>Situations, acomptes, solde</p></div>
+      <div className="v5-pg-t"><div><h1>Factures</h1><p>Situations, acomptes, solde</p></div></div>
 
       {/* Search + Create */}
       <div className="v5-search">

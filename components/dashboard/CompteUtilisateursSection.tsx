@@ -311,10 +311,12 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
     <div className="v5-fade">
       {/* Header */}
       <div className="v5-pg-t">
-        <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
-        <p>{isPt
-          ? `Gerir os acessos da sua equipa — ${members.length} contas ativas / 20 max`
-          : `Gérez les accès de votre équipe — ${members.length} comptes actifs / 20 max`}</p>
+        <div>
+          <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
+          <p>{isPt
+            ? `Gerir os acessos da sua equipa — ${members.length} contas ativas / 20 max`
+            : `Gérez les accès de votre équipe — ${members.length} comptes actifs / 20 max`}</p>
+        </div>
       </div>
 
       {/* Search + Create */}

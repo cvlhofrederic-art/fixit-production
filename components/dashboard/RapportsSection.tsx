@@ -482,7 +482,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div>
           <h1 className={isV5 ? '' : 'v22-page-title'}>Rapports d&apos;Intervention</h1>
-          <p className={isV5 ? '' : 'v22-page-sub'}>Compte-rendus BTP, lies a vos interventions</p>
+          <p className={isV5 ? '' : 'v22-page-sub'}>Compte-rendus BTP, liés à vos interventions</p>
         </div>
         <button onClick={openNew} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
           + Nouveau rapport
