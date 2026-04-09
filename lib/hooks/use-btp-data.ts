@@ -210,6 +210,24 @@ function mapFromSupabase(table: ShortName, item: any): any {
 const _dataCache: Record<string, { data: any[]; at: number }> = {}
 const DATA_CACHE_TTL = 30_000 // 30s — data stays fresh between tab switches
 
+// ── Prefetch multiple tables in parallel to fill cache before components mount ──
+export async function prefetchBTPTables(tables: ShortName[], userId: string) {
+  const headers = await authHeaders()
+  await Promise.all(
+    tables.map(async (table) => {
+      const cacheKey = `${table}_${userId}`
+      if (_dataCache[cacheKey] && Date.now() - _dataCache[cacheKey].at < DATA_CACHE_TTL) return
+      try {
+        const res = await fetch(`/api/btp?table=${table}`, { headers })
+        if (!res.ok) return
+        const json = await res.json()
+        const raw = json[table] || []
+        _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+      } catch { /* silent */ }
+    })
+  )
+}
+
 interface UseBTPDataOptions {
   table: ShortName
   artisanId: string  // for localStorage import key

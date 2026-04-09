@@ -11,6 +11,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { useDashboardMessaging } from '@/hooks/useDashboardMessaging'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
+import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useServices, useAbsences, useAvailability, useCalendar, useSettings, useBookings } from '@/hooks/dashboard'
@@ -276,6 +277,7 @@ function DashboardPage() {
     if (!artisanData && !user.user_metadata?._admin_override && !isProOrgRole) { router.push('/auth/login'); return }
     if (!artisanData) {
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id })
+      prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages'], user.id)
       setLoading(false); return
     }
 
@@ -296,6 +298,9 @@ function DashboardPage() {
     } catch { console.warn('fixit_documents/drafts: JSON.parse failed (private browsing?)') }
 
     setLoading(false)
+
+    // Prefetch BTP data in parallel (fills cache for Chantiers, Équipes, Membres, Pointages)
+    prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages'], artisanData.user_id || artisanData.id)
 
     // Parallel fetch: bookings + services (non-blocking, UI already visible)
     const [bookingsRes, servicesRes] = await Promise.all([
