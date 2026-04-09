@@ -134,13 +134,16 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const [linkedPhotos, setLinkedPhotos] = useState<string[]>([])
   const [showPhotoPicker, setShowPhotoPicker] = useState(false)
 
+  // ── Import depuis base client ──
+  const [showClientImport, setShowClientImport] = useState(false)
+
   // ── Auto-complétion client + motif ──
   const [clientSuggestions, setClientSuggestions] = useState<{ name: string; phone?: string; email?: string; address?: string }[]>([])
   const [showClientSuggestions, setShowClientSuggestions] = useState(false)
   const [motifSuggestions, setMotifSuggestions] = useState<{ name: string; id?: string | undefined }[]>([])
   const [showMotifSuggestions, setShowMotifSuggestions] = useState(false)
 
-  // Extraire les clients uniques des bookings
+  // Extraire les clients uniques des bookings + base clients manuelle
   const knownClients = useMemo(() => {
     const map = new Map<string, { name: string; phone?: string; email?: string; address?: string }>()
     for (const b of bookings) {
@@ -154,8 +157,25 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
         })
       }
     }
+    // Ajouter les clients manuels (localStorage)
+    if (typeof window !== 'undefined' && artisan?.id) {
+      try {
+        const manual = JSON.parse(localStorage.getItem(`fixit_manual_clients_${artisan.id}`) || '[]')
+        for (const c of manual) {
+          const name = c.name || ''
+          if (name && !map.has(normalizeForSearch(name))) {
+            map.set(normalizeForSearch(name), {
+              name,
+              phone: c.phone || '',
+              email: c.email || '',
+              address: c.mainAddress || c.address || '',
+            })
+          }
+        }
+      } catch { /* ignore */ }
+    }
     return Array.from(map.values())
-  }, [bookings])
+  }, [bookings, artisan?.id])
 
   // Noms de services/motifs
   const knownMotifs = useMemo(() => {
@@ -606,10 +626,45 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
               {/* Section Client */}
               <div className={isV5 ? 'v5-card' : 'v22-card'}>
-                <div className={isV5 ? '' : 'v22-card-head'}>
+                <div className={isV5 ? '' : 'v22-card-head'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className={isV5 ? 'v5-st' : 'v22-card-title'}>Client</span>
+                  <button
+                    onClick={() => setShowClientImport(!showClientImport)}
+                    className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
+                    style={{ fontSize: 11 }}
+                  >
+                    {showClientImport ? 'Fermer' : '📥 Importer depuis base client'}
+                  </button>
                 </div>
                 <div className={isV5 ? '' : 'v22-card-body'} style={{ padding: '14px' }}>
+                  {/* Import depuis base client */}
+                  {showClientImport && (
+                    <div style={{ marginBottom: 12, padding: '10px 12px', background: isV5 ? '#FFFBEB' : '#F9FAFB', borderRadius: 6, border: `1px solid ${isV5 ? '#FDE68A' : '#E5E7EB'}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Selectionner un client :</div>
+                      {knownClients.length === 0 ? (
+                        <p style={{ fontSize: 11, color: '#999', fontStyle: 'italic' }}>Aucun client dans la base. Ajoutez des clients via la section Base clients ou le Portail client.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+                          {knownClients.map((c, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                selectClientSuggestion(c)
+                                setShowClientImport(false)
+                              }}
+                              className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
+                              style={{ textAlign: 'left', justifyContent: 'flex-start', padding: '8px 10px', fontSize: 11 }}
+                            >
+                              <div><strong>{c.name}</strong></div>
+                              <div style={{ color: '#888', fontSize: 10 }}>
+                                {[c.phone, c.email, c.address].filter(Boolean).join(' · ') || 'Pas de coordonnees'}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ position: 'relative' }}>
                       <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom / Raison sociale *</label>
