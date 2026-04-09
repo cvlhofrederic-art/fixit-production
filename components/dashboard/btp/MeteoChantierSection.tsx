@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
 
 interface ChantierItem {
@@ -51,11 +51,34 @@ function classifyAlert(forecast: DayForecast[]): { alert: 'ok' | 'vigilance' | '
   return { alert: level, reasons: [...new Set(reasons)] }
 }
 
+// Géocoder une adresse via Open-Meteo Geocoding API (gratuit, pas de clé)
+async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(adresse)}&count=1&language=fr`)
+    if (!res.ok) return null
+    const json = await res.json()
+    if (json.results?.[0]) {
+      return { lat: json.results[0].latitude, lng: json.results[0].longitude }
+    }
+    // Essayer juste la ville (dernier mot ou après la virgule)
+    const ville = adresse.includes(',') ? adresse.split(',').pop()?.trim() : adresse.split(' ').pop()
+    if (ville && ville !== adresse) {
+      const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ville)}&count=1&language=fr`)
+      if (!res2.ok) return null
+      const json2 = await res2.json()
+      if (json2.results?.[0]) return { lat: json2.results[0].latitude, lng: json2.results[0].longitude }
+    }
+    return null
+  } catch { return null }
+}
+
 export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: boolean }) {
   const { items: chantiers, loading: chantiersLoading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId })
   const [meteoData, setMeteoData] = useState<ChantierMeteo[]>([])
   const [meteoLoading, setMeteoLoading] = useState(false)
+  const [meteoError, setMeteoError] = useState<string | null>(null)
   const [selectedChantier, setSelectedChantier] = useState<string | null>(null)
+  const fetchedRef = useRef(false)
 
   // Filtrer chantiers actifs (pas terminés/annulés) qui ont une adresse
   const chantiersActifs = chantiers.filter(c =>
@@ -64,31 +87,13 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
   const chantiersAvecAdresse = chantiersActifs.filter(c => c.adresse?.trim())
   const chantiersSansAdresse = chantiersActifs.filter(c => !c.adresse?.trim())
 
-  // Géocoder une adresse via Open-Meteo Geocoding API (gratuit, pas de clé)
-  async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
-    try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(adresse)}&count=1&language=fr`)
-      const json = await res.json()
-      if (json.results?.[0]) {
-        return { lat: json.results[0].latitude, lng: json.results[0].longitude }
-      }
-      // Essayer juste la ville (dernier mot de l'adresse ou après la virgule)
-      const ville = adresse.includes(',') ? adresse.split(',').pop()?.trim() : adresse.split(' ').pop()
-      if (ville && ville !== adresse) {
-        const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ville)}&count=1&language=fr`)
-        const json2 = await res2.json()
-        if (json2.results?.[0]) return { lat: json2.results[0].latitude, lng: json2.results[0].longitude }
-      }
-      return null
-    } catch { return null }
-  }
-
-  const fetchMeteo = useCallback(async () => {
-    if (chantiersAvecAdresse.length === 0) return
+  const fetchMeteo = useCallback(async (chantiersToFetch: ChantierItem[]) => {
+    if (chantiersToFetch.length === 0) return
     setMeteoLoading(true)
+    setMeteoError(null)
     try {
       const results: ChantierMeteo[] = (await Promise.all(
-        chantiersAvecAdresse.map(async (chantier) => {
+        chantiersToFetch.map(async (chantier) => {
           try {
             // Utiliser GPS si dispo, sinon géocoder l'adresse
             let lat = chantier.latitude
@@ -101,8 +106,10 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
             const res = await fetch(
               `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`
             )
+            if (!res.ok) return null
             const json = await res.json()
-            const forecast: DayForecast[] = (json.daily?.time || []).map((date: string, i: number) => ({
+            if (!json.daily?.time) return null
+            const forecast: DayForecast[] = json.daily.time.map((date: string, i: number) => ({
               date,
               tempMax: json.daily.temperature_2m_max[i],
               tempMin: json.daily.temperature_2m_min[i],
@@ -118,16 +125,22 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
         })
       )).filter(Boolean) as ChantierMeteo[]
       setMeteoData(results)
+      if (results.length === 0 && chantiersToFetch.length > 0) {
+        setMeteoError('Impossible de récupérer la météo. Vérifiez les adresses des chantiers.')
+      }
+    } catch {
+      setMeteoError('Erreur lors du chargement des données météo.')
     } finally {
       setMeteoLoading(false)
     }
-  }, [chantiersAvecAdresse.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
-    if (!chantiersLoading && chantiersAvecAdresse.length > 0 && meteoData.length === 0) {
-      fetchMeteo()
+    if (!chantiersLoading && chantiersAvecAdresse.length > 0 && !fetchedRef.current) {
+      fetchedRef.current = true
+      fetchMeteo(chantiersAvecAdresse)
     }
-  }, [chantiersLoading, chantiersAvecAdresse.length, meteoData.length, fetchMeteo])
+  }, [chantiersLoading, chantiersAvecAdresse.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const nbOk = meteoData.filter(m => m.alert === 'ok').length
   const nbVigilance = meteoData.filter(m => m.alert === 'vigilance').length
@@ -146,7 +159,7 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
           <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         </div>
         {meteoData.length > 0 && (
-          <button className="v5-btn v5-btn-p" onClick={fetchMeteo} disabled={meteoLoading}>
+          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }} disabled={meteoLoading}>
             {meteoLoading ? 'Chargement...' : 'Actualiser'}
           </button>
         )}
@@ -192,6 +205,14 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
             {chantiersSansAdresse.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansAdresse.length > 5 ? '...' : ''}
           </div>
+        </div>
+      )}
+
+      {/* Erreur météo */}
+      {meteoError && (
+        <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
+          {meteoError}
+          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }}>Réessayer</button>
         </div>
       )}
 
