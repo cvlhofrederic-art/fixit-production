@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
@@ -28,6 +28,8 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
   const [assigning, setAssigning] = useState<string | null>(null) // photo_id
   const [assigningRapport, setAssigningRapport] = useState<string | null>(null) // photo_id for rapport
   const [fullscreen, setFullscreen] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load rapports from localStorage for linking
   const [rapports, setRapports] = useState<RapportItem[]>([])
@@ -114,6 +116,42 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     } catch (e) { console.error('Error deleting photo:', e); toast.error('Erreur lors de la suppression') }
   }
 
+  const handleUploadPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !artisan) return
+    setUploading(true)
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      let successCount = 0
+      for (const file of Array.from(files)) {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('artisan_id', artisan.id)
+        formData.append('source', 'desktop')
+        formData.append('taken_at', new Date().toISOString())
+        const res = await fetch('/api/artisan-photos', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData,
+        })
+        if (res.ok) successCount++
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount} photo(s) ajoutee(s)`)
+        loadPhotos()
+      }
+      if (successCount < files.length) {
+        toast.error(`${files.length - successCount} photo(s) en erreur`)
+      }
+    } catch (e) {
+      console.error('Upload error:', e)
+      toast.error('Erreur lors de l\'upload')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending' || b.status === 'completed')
 
   return (
@@ -124,9 +162,17 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
           {isV5 ? <h1>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
           {isV5 ? <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
         </div>
-        <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => {/* upload trigger if needed */}}>
-          + {t('proDash.photos.ajouterPhotos') || 'Ajouter photos'}
+        <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? '...' : '+'} {t('proDash.photos.ajouterPhotos') || 'Ajouter photos'}
         </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: 'none' }}
+          onChange={e => handleUploadPhotos(e.target.files)}
+        />
       </div>
 
       {/* Fullscreen lightbox */}
