@@ -4,6 +4,28 @@ import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { HardHat, FileText, BarChart3, Check, Minus, Search, FileEdit, Handshake, Loader, Brain, Lightbulb, CheckSquare } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
+
+interface DCEResult {
+  error?: string
+  scoring?: { technique?: number | string; prix?: number | string; probabilite?: number | string }
+  analyse_marche?: string | Record<string, unknown>
+  exigences?: string | Record<string, unknown>
+  strategie?: string | Record<string, unknown>
+  memoire_technique?: string | Record<string, unknown>
+  analyse_financiere?: string | Record<string, unknown>
+  sous_traitance?: string | Record<string, unknown>
+  checklist_depot?: string | Record<string, unknown>
+}
+interface SousTraitant {
+  id: string; entreprise: string; siret: string; responsable: string; email: string
+  telephone: string; adresse: string; chantier: string; lot: string
+  montantMarche: number; tauxTVA: number; statut: 'en_attente' | 'agréé' | 'refusé'; dateAgrement?: string; dc4Genere: boolean
+}
+interface DCEAnalysis {
+  id: string; titre: string; country: 'FR' | 'PT'; projectType: string; createdAt: string
+  result?: DCEResult; status: 'pending' | 'done' | 'error'
+}
 
 export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
@@ -12,39 +34,12 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const STORAGE_KEY = `dc4_${userId}`
-  const DCE_KEY = `dce_analyses_${userId}`
 
-  // ── Types ──
-  interface DCEResult {
-    error?: string
-    scoring?: { technique?: number | string; prix?: number | string; probabilite?: number | string }
-    analyse_marche?: string | Record<string, unknown>
-    exigences?: string | Record<string, unknown>
-    strategie?: string | Record<string, unknown>
-    memoire_technique?: string | Record<string, unknown>
-    analyse_financiere?: string | Record<string, unknown>
-    sous_traitance?: string | Record<string, unknown>
-    checklist_depot?: string | Record<string, unknown>
-  }
-  interface SousTraitant {
-    id: string; entreprise: string; siret: string; responsable: string; email: string
-    telephone: string; adresse: string; chantier: string; lot: string
-    montantMarche: number; tauxTVA: number; statut: 'en_attente' | 'agréé' | 'refusé'; dateAgrement?: string; dc4Genere: boolean
-  }
-  interface DCEAnalysis {
-    id: string; titre: string; country: 'FR' | 'PT'; projectType: string; createdAt: string
-    result?: DCEResult; status: 'pending' | 'done' | 'error'
-  }
+  const { items: soustraitants, add: addDC4, update: updateDC4 } = useBTPData<SousTraitant>({ table: 'dc4', artisanId: userId, userId })
+  const { items: analyses, add: addDCE, update: updateDCE } = useBTPData<DCEAnalysis>({ table: 'dce_analyses', artisanId: userId, userId })
 
   // ── State ──
   const [tab, setTab] = useState<'sous_traitants' | 'analyse_dce' | 'memoire' | 'checklist'>('sous_traitants')
-  const [soustraitants, setSoustraitants] = useState<SousTraitant[]>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-  })
-  const [analyses, setAnalyses] = useState<DCEAnalysis[]>(() => {
-    try { return JSON.parse(localStorage.getItem(DCE_KEY) || '[]') } catch { return [] }
-  })
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
   const [dceForm, setDceForm] = useState({ titre: '', country: 'FR' as 'FR' | 'PT', projectType: '', description: '', budget: '', deadline: '', lots: '' })
@@ -52,13 +47,11 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   const [selectedAnalysis, setSelectedAnalysis] = useState<DCEAnalysis | null>(null)
 
   // ── Sous-traitants logic ──
-  const save = (data: SousTraitant[]) => { setSoustraitants(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) }
-  const saveDCE = (data: DCEAnalysis[]) => { setAnalyses(data); localStorage.setItem(DCE_KEY, JSON.stringify(data)) }
-  const addST = () => {
-    save([...soustraitants, { id: Date.now().toString(), ...form, statut: 'en_attente', dc4Genere: false }])
+  const addST = async () => {
+    await addDC4({ ...form, statut: 'en_attente', dc4Genere: false })
     setShowForm(false); setForm({ entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
   }
-  const agreer = (id: string) => save(soustraitants.map(s => s.id === id ? { ...s, statut: 'agréé', dateAgrement: new Date().toISOString().split('T')[0] } : s))
+  const agreer = async (id: string) => { await updateDC4(id, { statut: 'agréé', dateAgrement: new Date().toISOString().split('T')[0] }) }
   const genererDC4 = (st: SousTraitant) => {
     const ttc = st.montantMarche * (1 + st.tauxTVA / 100)
     const content = [
@@ -91,19 +84,16 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = `DC4_${st.entreprise.replace(/\s+/g, '_')}.txt`; a.click()
     URL.revokeObjectURL(url)
-    save(soustraitants.map(s => s.id === st.id ? { ...s, dc4Genere: true } : s))
+    updateDC4(st.id, { dc4Genere: true })
   }
 
   // ── DCE Analysis via IA ──
   const lancerAnalyse = async () => {
     if (!dceForm.titre.trim() || !dceForm.description.trim()) return
     setDceLoading(true)
-    const newAnalysis: DCEAnalysis = {
-      id: Date.now().toString(), titre: dceForm.titre, country: dceForm.country,
-      projectType: dceForm.projectType, createdAt: new Date().toISOString(), status: 'pending',
-    }
-    const updated = [newAnalysis, ...analyses]
-    saveDCE(updated)
+    // Create pending analysis in Supabase
+    const created = await addDCE({ titre: dceForm.titre, country: dceForm.country, projectType: dceForm.projectType, status: 'pending' })
+    if (!created) { setDceLoading(false); return }
     try {
       const { supabase } = await import('@/lib/supabase')
       const { data: sess } = await supabase.auth.getSession()
@@ -120,15 +110,18 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
       })
       const json = await res.json()
       if (res.ok && json.analysis) {
-        newAnalysis.result = json.analysis; newAnalysis.status = 'done'
+        await updateDCE(created.id, { result: json.analysis, status: 'done' })
+        setSelectedAnalysis({ ...created, result: json.analysis, status: 'done' })
       } else {
-        newAnalysis.result = { error: json.error || 'Erreur inconnue' }; newAnalysis.status = 'error'
+        const errResult = { error: json.error || 'Erreur inconnue' }
+        await updateDCE(created.id, { result: errResult, status: 'error' })
+        setSelectedAnalysis({ ...created, result: errResult, status: 'error' })
       }
     } catch (err) {
-      newAnalysis.result = { error: String(err) }; newAnalysis.status = 'error'
+      const errResult = { error: String(err) }
+      await updateDCE(created.id, { result: errResult, status: 'error' })
+      setSelectedAnalysis({ ...created, result: errResult, status: 'error' })
     }
-    saveDCE(updated.map(a => a.id === newAnalysis.id ? newAnalysis : a))
-    setSelectedAnalysis(newAnalysis)
     setDceLoading(false)
     setTab('analyse_dce')
   }

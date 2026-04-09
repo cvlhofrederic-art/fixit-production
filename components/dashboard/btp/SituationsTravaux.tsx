@@ -4,6 +4,13 @@ import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { BarChart3 } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
+
+interface Poste { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }
+interface Situation {
+  id: string; chantier: string; client: string; numero: number; date: string
+  montantMarche: number; travaux: Poste[]; statut: 'brouillon' | 'envoyée' | 'validée' | 'payée'
+}
 
 export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
@@ -11,36 +18,32 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const STORAGE_KEY = `situations_${userId}`
-  interface Poste { poste: string; quantite: number; unite: string; prixUnit: number; avancement: number }
-  interface Situation {
-    id: string; chantier: string; client: string; numero: number; date: string
-    montantMarche: number; travaux: Poste[]; statut: 'brouillon' | 'envoyée' | 'validée' | 'payée'
-  }
-  const [situations, setSituations] = useState<Situation[]>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-  })
+
+  const { items: situations, loading, add, update } = useBTPData<Situation>({ table: 'situations', artisanId: userId, userId })
   const [selected, setSelected] = useState<Situation | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ chantier: '', client: '', montantMarche: 0 })
   const [newPoste, setNewPoste] = useState<Poste>({ poste: '', quantite: 0, unite: 'u', prixUnit: 0, avancement: 0 })
 
-  const save = (data: Situation[]) => { setSituations(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) }
-  const createSit = () => {
+  const createSit = async () => {
     const numero = situations.filter(s => s.chantier === form.chantier).length + 1
-    const s: Situation = { id: Date.now().toString(), ...form, numero, date: new Date().toISOString().split('T')[0], travaux: [], statut: 'brouillon' }
-    save([...situations, s]); setSelected(s); setShowForm(false)
+    const created = await add({ ...form, numero, date: new Date().toISOString().split('T')[0], travaux: [], statut: 'brouillon' })
+    if (created) { setSelected(created); setShowForm(false) }
   }
-  const addPoste = () => {
+  const addPoste = async () => {
     if (!selected) return
-    const updated = { ...selected, travaux: [...selected.travaux, { ...newPoste }] }
-    save(situations.map(s => s.id === selected.id ? updated : s)); setSelected(updated)
-    setNewPoste({ poste: '', quantite: 0, unite: 'u', prixUnit: 0, avancement: 0 })
+    const newTravaux = [...selected.travaux, { ...newPoste }]
+    const ok = await update(selected.id, { travaux: newTravaux })
+    if (ok) {
+      const updated = { ...selected, travaux: newTravaux }
+      setSelected(updated)
+      setNewPoste({ poste: '', quantite: 0, unite: 'u', prixUnit: 0, avancement: 0 })
+    }
   }
-  const getTotal = (s: Situation) => s.travaux.reduce((sum, t) => sum + t.quantite * t.prixUnit * (t.avancement / 100), 0)
-  const changeStatut = (id: string, statut: Situation['statut']) => {
-    const upd = situations.map(s => s.id === id ? { ...s, statut } : s)
-    save(upd); if (selected?.id === id) setSelected(prev => prev ? { ...prev, statut } : null)
+  const getTotal = (s: Situation) => s.travaux.reduce((sum, tr) => sum + tr.quantite * tr.prixUnit * (tr.avancement / 100), 0)
+  const changeStatut = async (id: string, statut: Situation['statut']) => {
+    await update(id, { statut })
+    if (selected?.id === id) setSelected(prev => prev ? { ...prev, statut } : null)
   }
 
   const sitBadgeV5: Record<string, string> = {
@@ -67,6 +70,8 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
           + {t('proDash.btp.situations.nouvelleSituation')}
         </button>
       </div>
+
+      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Chargement...</div>}
 
       {showForm && (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '.75rem' }}>

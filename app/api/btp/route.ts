@@ -5,7 +5,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
-const BTP_VALID_TABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp'] as const
+const BTP_VALID_TABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp', 'situations_btp', 'retenues_btp', 'dc4_btp', 'dce_analyses_btp', 'dpgf_btp'] as const
 
 const btpBodySchema = z.object({
   table: z.enum(BTP_VALID_TABLES),
@@ -66,6 +66,21 @@ export async function GET(request: NextRequest) {
       } else if (table === 'settings') {
         const { data } = await supabaseAdmin.from('settings_btp').select('*').eq('owner_id', user.id).single()
         result.settings = data || null
+      } else if (table === 'situations') {
+        const { data } = await supabaseAdmin.from('situations_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
+        result.situations = data || []
+      } else if (table === 'retenues') {
+        const { data } = await supabaseAdmin.from('retenues_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
+        result.retenues = data || []
+      } else if (table === 'dc4') {
+        const { data } = await supabaseAdmin.from('dc4_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
+        result.dc4 = data || []
+      } else if (table === 'dce_analyses') {
+        const { data } = await supabaseAdmin.from('dce_analyses_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(100)
+        result.dce_analyses = data || []
+      } else if (table === 'dpgf') {
+        const { data } = await supabaseAdmin.from('dpgf_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
+        result.dpgf = data || []
       }
       return NextResponse.json(result)
     }

@@ -4,6 +4,13 @@ import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { Lightbulb } from 'lucide-react'
 import { useThemeVars } from '../useThemeVars'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
+
+interface Retenue {
+  id: string; chantier: string; client: string; montantMarche: number; tauxRetenue: number
+  montantRetenu: number; dateFinTravaux: string; dateLiberation?: string
+  statut: 'active' | 'mainlevée_demandée' | 'libérée'; caution: boolean
+}
 
 export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
@@ -11,24 +18,18 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
-  const STORAGE_KEY = `retenues_${userId}`
-  interface Retenue {
-    id: string; chantier: string; client: string; montantMarche: number; tauxRetenue: number
-    montantRetenu: number; dateFinTravaux: string; dateLiberation?: string
-    statut: 'active' | 'mainlevée_demandée' | 'libérée'; caution: boolean
-  }
-  const [retenues, setRetenues] = useState<Retenue[]>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-  })
+
+  const { items: retenues, loading, add, update } = useBTPData<Retenue>({ table: 'retenues', artisanId: userId, userId })
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
 
-  const save = (data: Retenue[]) => { setRetenues(data); localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) }
-  const addRetenue = () => {
-    save([...retenues, { id: Date.now().toString(), ...form, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' }])
+  const addRetenue = async () => {
+    await add({ ...form, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
     setShowForm(false); setForm({ chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
   }
-  const changeStatut = (id: string, statut: Retenue['statut']) => save(retenues.map(r => r.id === id ? { ...r, statut, dateLiberation: statut === 'libérée' ? new Date().toISOString().split('T')[0] : r.dateLiberation } : r))
+  const changeStatut = async (id: string, statut: Retenue['statut']) => {
+    await update(id, { statut, dateLiberation: statut === 'libérée' ? new Date().toISOString().split('T')[0] : undefined })
+  }
 
   const totalRetenu = retenues.filter(r => r.statut === 'active').reduce((s, r) => s + r.montantRetenu, 0)
   const totalLib\u00E9r\u00E9 = retenues.filter(r => r.statut === 'libérée').reduce((s, r) => s + r.montantRetenu, 0)
@@ -67,6 +68,8 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           + {t('proDash.btp.retenues.nouvelleRetenue')}
         </button>
       </div>
+
+      {loading && <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>Chargement...</div>}
 
       {/* KPI row */}
       {isV5 ? (

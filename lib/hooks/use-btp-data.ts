@@ -33,8 +33,8 @@ async function authHeaders(): Promise<Record<string, string>> {
 // Invalider le cache quand la session change (login/logout)
 supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
-type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp'
-type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses'
+type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp'
+type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf'
 
 const TABLE_MAP: Record<ShortName, TableName> = {
   chantiers: 'chantiers_btp',
@@ -42,6 +42,11 @@ const TABLE_MAP: Record<ShortName, TableName> = {
   equipes: 'equipes_btp',
   pointages: 'pointages_btp',
   depenses: 'depenses_btp',
+  situations: 'situations_btp',
+  retenues: 'retenues_btp',
+  dc4: 'dc4_btp',
+  dce_analyses: 'dce_analyses_btp',
+  dpgf: 'dpgf_btp',
 }
 
 // localStorage keys to check for import
@@ -51,6 +56,11 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
   equipes: (id) => `fixit_equipes_btp_${id}`,
   pointages: (id) => `pointage_${id}`,
   depenses: (id) => `fixit_expenses_${id}`,
+  situations: (id) => `situations_${id}`,
+  retenues: (id) => `retenues_${id}`,
+  dc4: (id) => `dc4_${id}`,
+  dce_analyses: (id) => `dce_analyses_${id}`,
+  dpgf: (id) => `dpgf_${id}`,
 }
 
 // Map localStorage fields → Supabase columns
@@ -115,6 +125,61 @@ function mapToSupabase(table: ShortName, item: any): any {
         category: item.category || 'autre',
         date: item.date || new Date().toISOString().split('T')[0],
         notes: item.notes || null,
+      }
+    case 'situations':
+      return {
+        chantier: item.chantier || '',
+        client: item.client || '',
+        numero: item.numero || 1,
+        date: item.date || new Date().toISOString().split('T')[0],
+        montant_marche: item.montantMarche ?? item.montant_marche ?? 0,
+        travaux: JSON.stringify(item.travaux || []),
+        statut: item.statut || 'brouillon',
+      }
+    case 'retenues':
+      return {
+        chantier: item.chantier || '',
+        client: item.client || '',
+        montant_marche: item.montantMarche ?? item.montant_marche ?? 0,
+        taux_retenue: item.tauxRetenue ?? item.taux_retenue ?? 5,
+        montant_retenu: item.montantRetenu ?? item.montant_retenu ?? 0,
+        date_fin_travaux: item.dateFinTravaux || item.date_fin_travaux || null,
+        date_liberation: item.dateLiberation || item.date_liberation || null,
+        statut: item.statut || 'active',
+        caution: item.caution ?? false,
+      }
+    case 'dc4':
+      return {
+        entreprise: item.entreprise || '',
+        siret: item.siret || '',
+        responsable: item.responsable || '',
+        email: item.email || '',
+        telephone: item.telephone || '',
+        adresse: item.adresse || '',
+        chantier: item.chantier || '',
+        lot: item.lot || '',
+        montant_marche: item.montantMarche ?? item.montant_marche ?? 0,
+        taux_tva: item.tauxTVA ?? item.taux_tva ?? 20,
+        statut: item.statut || 'en_attente',
+        date_agrement: item.dateAgrement || item.date_agrement || null,
+        dc4_genere: item.dc4Genere ?? item.dc4_genere ?? false,
+      }
+    case 'dce_analyses':
+      return {
+        titre: item.titre || '',
+        country: item.country || 'FR',
+        project_type: item.projectType || item.project_type || '',
+        status: item.status || 'pending',
+        result: typeof item.result === 'string' ? item.result : JSON.stringify(item.result || {}),
+      }
+    case 'dpgf':
+      return {
+        titre: item.titre || '',
+        client: item.client || '',
+        date_remise: item.dateRemise || item.date_remise || null,
+        montant_estime: item.montantEstime ?? item.montant_estime ?? 0,
+        statut: item.statut || 'en_cours',
+        lots: JSON.stringify(item.lots || []),
       }
     default:
       return item
@@ -200,6 +265,67 @@ function mapFromSupabase(table: ShortName, item: any): any {
         date: item.date,
         notes: item.notes || '',
         chantierId: item.chantier_id,
+      }
+    case 'situations':
+      return {
+        ...item,
+        chantier: item.chantier,
+        client: item.client || '',
+        numero: item.numero,
+        date: item.date,
+        montantMarche: item.montant_marche || 0,
+        travaux: typeof item.travaux === 'string' ? JSON.parse(item.travaux) : (item.travaux || []),
+        statut: item.statut,
+      }
+    case 'retenues':
+      return {
+        ...item,
+        chantier: item.chantier,
+        client: item.client || '',
+        montantMarche: item.montant_marche || 0,
+        tauxRetenue: item.taux_retenue || 5,
+        montantRetenu: item.montant_retenu || 0,
+        dateFinTravaux: item.date_fin_travaux || '',
+        dateLiberation: item.date_liberation || '',
+        statut: item.statut,
+        caution: item.caution ?? false,
+      }
+    case 'dc4':
+      return {
+        ...item,
+        entreprise: item.entreprise,
+        siret: item.siret || '',
+        responsable: item.responsable || '',
+        email: item.email || '',
+        telephone: item.telephone || '',
+        adresse: item.adresse || '',
+        chantier: item.chantier || '',
+        lot: item.lot || '',
+        montantMarche: item.montant_marche || 0,
+        tauxTVA: item.taux_tva || 20,
+        statut: item.statut,
+        dateAgrement: item.date_agrement || '',
+        dc4Genere: item.dc4_genere ?? false,
+      }
+    case 'dce_analyses':
+      return {
+        ...item,
+        titre: item.titre,
+        country: item.country || 'FR',
+        projectType: item.project_type || '',
+        createdAt: item.created_at,
+        status: item.status,
+        result: typeof item.result === 'string' ? JSON.parse(item.result) : (item.result || {}),
+      }
+    case 'dpgf':
+      return {
+        ...item,
+        titre: item.titre,
+        client: item.client || '',
+        dateRemise: item.date_remise || '',
+        montantEstime: item.montant_estime || 0,
+        statut: item.statut,
+        lots: typeof item.lots === 'string' ? JSON.parse(item.lots) : (item.lots || []),
       }
     default:
       return item
