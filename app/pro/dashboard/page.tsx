@@ -77,6 +77,7 @@ const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTP
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection), { loading: SectionLoader })
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
 const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
+const MeteoChantierSection = dynamic(() => import('@/components/dashboard/btp/MeteoChantierSection').then(mod => mod.MeteoChantierSection), { loading: SectionLoader })
 
 // V5 layout components
 const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'))
@@ -1269,23 +1270,9 @@ function DashboardPage() {
 
           {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
           {activePage === 'meteo' && isV5 && (
-            <div className="v5-fade">
-              <div className="v5-pg-t"><div><h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1><p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p></div></div>
-              <div className="v5-kpi-g">
-                <div className="v5-kpi" style={{ borderLeft: '4px solid #4CAF50' }}><div className="v5-kpi-l">{isPt ? 'Obras OK' : 'Chantiers OK'}</div><div className="v5-kpi-v" style={{ color: '#4CAF50' }}>—</div><div className="v5-kpi-s">{isPt ? 'sem alerta' : "pas d'alerte"}</div></div>
-                <div className="v5-kpi" style={{ borderLeft: '4px solid #FFA726' }}><div className="v5-kpi-l">Vigilance</div><div className="v5-kpi-v" style={{ color: '#FFA726' }}>—</div><div className="v5-kpi-s">{isPt ? 'chuva prevista' : 'pluie prévue'}</div></div>
-                <div className="v5-kpi" style={{ borderLeft: '4px solid #EF5350' }}><div className="v5-kpi-l">{isPt ? 'Alerta vermelho' : 'Alerte rouge'}</div><div className="v5-kpi-v" style={{ color: '#EF5350' }}>—</div><div className="v5-kpi-s">{isPt ? 'vento > 60 km/h' : 'vent > 60 km/h'}</div></div>
-                <div className="v5-kpi hl"><div className="v5-kpi-l">{isPt ? 'Dias de geada previstos' : 'Jours de gel prévus'}</div><div className="v5-kpi-v">0</div><div className="v5-kpi-s">{isPt ? 'nenhum esta semana' : 'aucun cette semaine'}</div></div>
-              </div>
-              <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>🌤️</div>
-                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Módulo em desenvolvimento' : 'Module en cours de développement'}</h3>
-                <p style={{ fontSize: 12, color: '#999', maxWidth: 500, margin: '0 auto' }}>{isPt ? 'As previsões meteorológicas por estaleiro estarão disponíveis em breve via a API Open-Meteo. Cada estaleiro será monitorizado automaticamente com alertas por limiares BTP.' : 'Les prévisions météo par chantier seront disponibles prochainement via l\'API Open-Meteo. Chaque chantier sera surveillé automatiquement avec alertes par seuils BTP.'}</p>
-                <p style={{ fontSize: 10, color: '#BBB', marginTop: 16 }}>
-                  {isPt ? 'Limiares BTP' : 'Seuils BTP'} : 🌧️ {isPt ? 'Chuva' : 'Pluie'} {'>'} 5mm = {isPt ? 'sem reboco/betão' : 'pas de ravalement/béton'} • 💨 {isPt ? 'Vento' : 'Vent'} {'>'} 60 km/h = {isPt ? 'paragem grua/andaime' : 'arrêt grue/échafaudage'} • ❄️ {isPt ? 'Geada' : 'Gel'} = {isPt ? 'sem alvenaria' : 'pas de maçonnerie'} • 🌡️ {'>'} 33°C = {isPt ? 'horários adaptados' : 'horaires aménagés'}
-                </p>
-              </div>
-            </div>
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na meteorologia' : 'Erreur météo'}>
+              <MeteoChantierSection userId={artisan?.id || ''} isPt={isPt} />
+            </SectionErrorBoundary>
           )}
 
           {/* ────── PORTAIL CLIENT (pro_societe v5) ────── */}
