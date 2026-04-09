@@ -176,7 +176,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
           <div className="v22-modal-overlay">
             <div className="v22-modal" style={{ maxWidth: 440 }}>
               <div className="v22-modal-head">
-                <span style={{ fontWeight: 600, fontSize: 13 }}>\uD83C\uDFD7\uFE0F Nouveau chantier de r&eacute;f&eacute;rence</span>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>🏗️ Nouveau chantier de r&eacute;f&eacute;rence</span>
                 <button className="v5-btn v5-btn-sm" onClick={() => { setShowForm(false); setPendingFile(null) }}>\u2715</button>
               </div>
               <div style={{ padding: '16px' }}>
@@ -256,11 +256,11 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
         {/* Empty state */}
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>\uD83C\uDFD7\uFE0F</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🏗️</div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>Aucun chantier de r&eacute;f&eacute;rence</div>
             <div style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>Ajoutez vos chantiers r&eacute;alis&eacute;s pour renforcer votre cr&eacute;dibilit&eacute;</div>
             <button className="v5-btn v5-btn-p" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              \uD83C\uDFD7\uFE0F Ajouter un premier chantier
+              🏗️ Ajouter un premier chantier
             </button>
           </div>
         )}
@@ -271,7 +271,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
             {filtered.map(photo => (
               <div key={photo.id} className="v5-gal-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setPreview(photo)}>
                 <div className="v5-gal-thumb" style={{ backgroundImage: `url(${photo.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                  {!photo.url && '\uD83C\uDFD7\uFE0F'}
+                  {!photo.url && '🏗️'}
                 </div>
                 <div className="v5-gal-inf">
                   <div className="v5-gal-ttl">{photo.title}</div>
