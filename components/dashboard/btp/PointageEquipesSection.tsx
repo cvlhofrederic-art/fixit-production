@@ -55,7 +55,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
             </>
           )}
         </div>
-        <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
+        <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => setShowForm(true)}>{t('proDash.btp.pointage.pointer')}</button>
       </div>
 
       {showForm && (

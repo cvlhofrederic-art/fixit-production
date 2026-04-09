@@ -30,11 +30,20 @@ function mapChantierStatut(statut: string, dateFin: string): GanttRow['statut'] 
   return 'en_cours'
 }
 
-const CHANTIER_COLORS: Record<string, string> = {
-  'En cours': '#3B82F6',
-  'En attente': '#AB47BC',
-  'Terminé': '#9E9E9E',
-  'Annulé': '#E0E0E0',
+// Palette de couleurs distinctes par chantier (rotation cyclique)
+const PALETTE = ['#3B82F6', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16']
+
+function getChantierColor(index: number): string {
+  return PALETTE[index % PALETTE.length]
+}
+
+function computeChantierAvancement(dateDebut: string, dateFin: string): number {
+  const start = new Date(dateDebut).getTime()
+  const end = new Date(dateFin).getTime()
+  const now = Date.now()
+  if (now <= start) return 0
+  if (now >= end) return 100
+  return Math.round(((now - start) / (end - start)) * 100)
 }
 
 export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
@@ -77,13 +86,15 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const chantiersWithDates = chantiers.filter(c => c.dateDebut && c.dateFin)
 
   const ganttRows: GanttRow[] = []
-  chantiersWithDates.forEach(c => {
+  chantiersWithDates.forEach((c, idx) => {
+    const couleur = getChantierColor(idx)
+    const avancement = c.statut === 'Terminé' ? 100 : computeChantierAvancement(c.dateDebut, c.dateFin)
     // Chantier row
     ganttRows.push({
       id: c.id, nom: c.titre, responsable: c.equipe || c.client || '',
-      debut: c.dateDebut, fin: c.dateFin, avancement: 0,
+      debut: c.dateDebut, fin: c.dateFin, avancement,
       statut: mapChantierStatut(c.statut, c.dateFin),
-      couleur: CHANTIER_COLORS[c.statut] || '#3B82F6',
+      couleur,
       isChantier: true,
     })
     // Sub-tasks for this chantier
@@ -179,7 +190,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
           )}
         </div>
         {chantiersWithDates.length > 0 && (
-          <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
+          <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
         )}
       </div>
 
@@ -217,7 +228,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
             <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           </div>
         </div>
@@ -247,7 +258,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
               {/* Rows */}
               {ganttRows.map(row => {
                 const bars = getTaskBars(row)
-                const color = row.isChantier ? (row.couleur || statusColor(row.statut)) : (row.couleur || statusColor(row.statut))
+                const color = row.couleur || statusColor(row.statut)
                 const isTermine = row.statut === 'terminé'
                 const isRetard = row.statut === 'en_retard'
 
@@ -279,22 +290,29 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                         <div key={mi} style={{ position: 'relative', ...(isV5 ? {} : { padding: '4px 0', borderBottom: `1px solid ${tv.border}` }) }}>
                           {bar && (
                             <div
-                              className={isV5 ? `v5-gantt-bar ${row.statut === 'en_cours' ? 'blue' : row.statut === 'en_retard' ? 'red' : row.statut === 'terminé' ? 'gray' : 'purple'}` : undefined}
                               style={{
-                                left: bar.left, right: bar.right,
+                                position: 'absolute',
+                                top: row.isChantier ? '15%' : '25%',
+                                bottom: row.isChantier ? '15%' : '25%',
+                                left: bar.left,
+                                right: bar.right,
+                                borderRadius: row.isChantier ? 5 : 3,
+                                background: `${color}30`,
+                                overflow: 'hidden',
                                 ...(row.statut === 'planifié' ? { opacity: 0.5 } : {}),
-                                ...(row.isChantier ? { height: isV5 ? undefined : '70%' } : {}),
-                                ...(isV5 ? {} : {
-                                  position: 'absolute', top: row.isChantier ? '15%' : '25%', bottom: row.isChantier ? '15%' : '25%',
-                                  left: bar.left, right: bar.right,
-                                  borderRadius: row.isChantier ? 5 : 3,
-                                  background: color,
-                                }),
                               }}
                             >
+                              {/* Filled portion = avancement % */}
+                              <div style={{
+                                width: `${row.avancement}%`,
+                                height: '100%',
+                                background: color,
+                                borderRadius: 'inherit',
+                                transition: 'width 0.3s ease',
+                              }} />
                               {showLabel && (
-                                <span className={isV5 ? 'v5-gantt-bar-label' : undefined} style={isV5 ? undefined : { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 9, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap' }}>
-                                  {row.isChantier ? row.statut.replace('_', ' ') : `${row.avancement}%`}
+                                <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontSize: 9, fontWeight: 600, color: row.avancement > 40 ? '#fff' : '#333', whiteSpace: 'nowrap', zIndex: 1 }}>
+                                  {row.avancement}%
                                 </span>
                               )}
                             </div>

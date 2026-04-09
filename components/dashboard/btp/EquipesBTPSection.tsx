@@ -126,9 +126,9 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
           <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {tab === 'membres' && <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}
-          {tab === 'equipes' && <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}><PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}</button>}
-          {tab === 'roles'   && <button className={isV5 ? "v5-btn v5-btn-action" : "v22-btn v22-btn-action"} onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
+          {tab === 'membres' && <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}
+          {tab === 'equipes' && <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => { setEditingEquipe(null); setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] }); setShowEquipeModal(true) }}><PlusCircle size={14} /> {isPt ? 'Equipa' : 'Équipe'}</button>}
+          {tab === 'roles'   && <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => { setRForm({ nom: '', permissions: { ...EMPTY_PERM } }); setShowRoleModal(true) }}><PlusCircle size={14} /> {isPt ? 'Criar função' : 'Créer un rôle'}</button>}
         </div>
       </div>
 
@@ -195,7 +195,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               <div style={{ marginBottom: 12 }}><Users size={44} style={{ color: '#CCC' }} /></div>
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhum colaborador' : 'Aucun collaborateur'}</div>
               <p style={{ color: '#999', fontSize: 12, marginBottom: 20 }}>{isPt ? 'Adicione os membros da sua empresa' : 'Ajoutez les membres de votre entreprise'}</p>
-              <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowMembreModal(true)}><PlusCircle size={16} /> {isPt ? 'Adicionar membro' : 'Ajouter un membre'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowMembreModal(true)}><PlusCircle size={16} /> {isPt ? 'Adicionar membro' : 'Ajouter un membre'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -231,7 +231,7 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
               <div style={{ marginBottom: 12 }}><HardHat size={44} style={{ color: '#CCC' }} /></div>
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma equipa' : 'Aucune équipe'}</div>
               <p style={{ color: '#999', fontSize: 12, marginBottom: 20 }}>{isPt ? 'Crie equipas e afecte-as a obras' : 'Créez des équipes et affectez-les à vos chantiers'}</p>
-              <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowEquipeModal(true)}><PlusCircle size={16} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
+              <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowEquipeModal(true)}><PlusCircle size={16} /> {isPt ? 'Criar equipa' : 'Créer une équipe'}</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
