@@ -449,15 +449,10 @@ export default function BrowseTabView({
         </div>
       )}
 
-      {filterMarcheType !== 'prives' && showScanResults && scanResults.length === 0 && !scanning && !scanError && (
-        <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 14, background: '#f9fafb', borderRadius: 8 }}>
-          <div style={{ fontSize: 28, marginBottom: 6 }}>📭</div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>
-            {isPt ? 'Nenhum mercado público pertinente encontrado' : 'Aucun marché public pertinent trouvé'}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 4 }}>
-            {isPt ? 'Tente alterar os filtros ou alargue a pesquisa' : 'Essayez de modifier vos filtres ou d\'élargir la recherche'}
-          </div>
+      {/* "No scan results" only shows when filter is publics-only AND no private marches exist */}
+      {filterMarcheType === 'publics' && showScanResults && scanResults.length === 0 && !scanning && !scanError && (
+        <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 14, background: '#f9fafb', borderRadius: 8, fontSize: 13, color: 'var(--v22-text-muted)' }}>
+          {isPt ? 'Nenhum mercado público encontrado — use o botão Scanner' : 'Aucun marché public trouvé — utilisez le bouton Scanner'}
         </div>
       )}
 
@@ -487,7 +482,7 @@ export default function BrowseTabView({
       {filterMarcheType !== 'publics' && !loading && marches.length > 0 && (
         <div className="v22-card">
           <div className="v22-card-head">
-            <div className="v22-card-title">{isPt ? 'Demandas de particulares' : 'Demandes de particuliers'}</div>
+            <div className="v22-card-title">{isPt ? 'Mercados disponíveis' : 'Marchés disponibles'}</div>
             <div className="v22-card-meta">{marches.length} {isPt ? 'resultados' : 'résultats'}</div>
           </div>
           <div>
@@ -595,11 +590,9 @@ export default function BrowseTabView({
                         {' - '}
                         {m.budget_max ? formatPrice(m.budget_max, locale) : '—'}
                       </>
-                    ) : (
-                      <span style={{ color: 'var(--v22-text-muted)', fontStyle: 'italic', fontSize: 11 }}>
-                        {isPt ? 'N/D' : 'N/D'}
-                      </span>
-                    )}
+                    ) : m.montant_estime ? (
+                      <span>{formatPrice(m.montant_estime, locale)}</span>
+                    ) : null}
                   </div>
 
                   {/* Publisher tag */}
