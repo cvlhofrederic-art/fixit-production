@@ -48,7 +48,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const SUBTASKS_KEY = `gantt_subtasks_${userId}`
 
   // Load chantiers from Supabase via useBTPData (with 30s cache)
-  const { items: supaChantiers } = useBTPData<ChantierItem>({
+  const { items: supaChantiers, loading: chantiersLoading } = useBTPData<ChantierItem>({
     table: 'chantiers',
     artisanId: userId,
     userId: userId,
@@ -224,7 +224,11 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
       )}
 
       {/* Gantt Chart */}
-      {ganttRows.length === 0 ? (
+      {chantiersLoading ? (
+        <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar obras...' : 'Chargement des chantiers...'}</div>
+        </div>
+      ) : ganttRows.length === 0 ? (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: '48px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>&#x1F4CA;</div>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma obra com datas' : 'Aucun chantier avec des dates'}</div>
