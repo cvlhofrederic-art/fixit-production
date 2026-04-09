@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { supabase } from '@/lib/supabase'
 
 interface ChantierItem {
   id: string; titre: string; adresse: string; latitude?: number; longitude?: number
-  statut: string; dateDebut?: string; dateFin?: string
+  statut: string; dateDebut?: string; dateFin?: string; description?: string
 }
 
 interface DayForecast {
@@ -17,11 +18,21 @@ interface DayForecast {
   weatherCode: number
 }
 
+type AlertLevel = 'ok' | 'vigilance' | 'rouge'
+
+interface DayAlert {
+  dayIndex: number
+  level: AlertLevel
+  reasons: string[]
+}
+
 interface ChantierMeteo {
   chantier: ChantierItem
   forecast: DayForecast[]
-  alert: 'ok' | 'vigilance' | 'rouge'
+  alert: AlertLevel
   alertReasons: string[]
+  dayAlerts: DayAlert[]
+  mainAlertDay: DayAlert | null
 }
 
 const WEATHER_ICONS: Record<number, string> = {
@@ -38,50 +49,76 @@ function getWeatherIcon(code: number): string {
   return WEATHER_ICONS[code] || '🌤️'
 }
 
-function classifyAlert(forecast: DayForecast[]): { alert: 'ok' | 'vigilance' | 'rouge'; reasons: string[] } {
-  const reasons: string[] = []
-  let level: 'ok' | 'vigilance' | 'rouge' = 'ok'
+function classifyAlert(forecast: DayForecast[]): {
+  alert: AlertLevel
+  reasons: string[]
+  dayAlerts: DayAlert[]
+  mainAlertDay: DayAlert | null
+} {
+  let level: AlertLevel = 'ok'
+  const allReasons: string[] = []
+  const dayAlerts: DayAlert[] = []
+  let mainAlertDay: DayAlert | null = null
 
-  for (const day of forecast.slice(0, 3)) {
-    if (day.windMax > 60) { level = 'rouge'; reasons.push(`Vent ${Math.round(day.windMax)} km/h le ${day.date}`) }
-    if (day.tempMin < 0) { level = level === 'rouge' ? 'rouge' : 'vigilance'; reasons.push(`Gel ${Math.round(day.tempMin)}°C le ${day.date}`) }
-    if (day.rain > 5) { level = level === 'rouge' ? 'rouge' : 'vigilance'; reasons.push(`Pluie ${day.rain}mm le ${day.date}`) }
-    if (day.tempMax > 33) { level = level === 'rouge' ? 'rouge' : 'vigilance'; reasons.push(`Chaleur ${Math.round(day.tempMax)}°C le ${day.date}`) }
+  for (let i = 0; i < Math.min(forecast.length, 5); i++) {
+    const day = forecast[i]
+    const dayReasons: string[] = []
+    let dayLevel: AlertLevel = 'ok'
+
+    if (day.windMax > 60) {
+      dayLevel = 'rouge'
+      dayReasons.push(`Vent ${Math.round(day.windMax)} km/h`)
+    }
+    if (day.tempMin < 0) {
+      dayLevel = dayLevel === 'rouge' ? 'rouge' : 'vigilance'
+      dayReasons.push(`Gel ${Math.round(day.tempMin)}°C`)
+    }
+    if (day.rain > 5) {
+      dayLevel = dayLevel === 'rouge' ? 'rouge' : 'vigilance'
+      dayReasons.push(`Pluie ${day.rain}mm`)
+    }
+    if (day.tempMax > 33) {
+      dayLevel = dayLevel === 'rouge' ? 'rouge' : 'vigilance'
+      dayReasons.push(`Chaleur ${Math.round(day.tempMax)}°C`)
+    }
+
+    if (dayLevel !== 'ok') {
+      const alert: DayAlert = { dayIndex: i, level: dayLevel, reasons: dayReasons }
+      dayAlerts.push(alert)
+      if (!mainAlertDay || dayLevel === 'rouge') mainAlertDay = alert
+      allReasons.push(...dayReasons.map(r => `${r} le ${day.date}`))
+    }
+
+    if (dayLevel === 'rouge') level = 'rouge'
+    else if (dayLevel === 'vigilance' && level !== 'rouge') level = 'vigilance'
   }
-  return { alert: level, reasons: [...new Set(reasons)] }
+
+  return { alert: level, reasons: [...new Set(allReasons)], dayAlerts, mainAlertDay }
 }
 
-// Extraire le nom de ville d'une adresse française
-// "Marseille 2e" → "Marseille", "Cassis, 13260" → "Cassis",
-// "Av du Prado, 13008 Marseille" → "Marseille", "Aubagne, 13400" → "Aubagne"
 function extractCityName(adresse: string): string[] {
   const candidates: string[] = []
   const clean = adresse.trim()
 
-  // Supprimer les codes postaux (5 chiffres), arrondissements (1e, 2e, etc.), numéros de rue
   const stripped = clean
-    .replace(/\b\d{5}\b/g, '')          // codes postaux
-    .replace(/\b\d{1,2}[eè]r?e?\b/gi, '') // arrondissements (1e, 2e, 1er, 2ème)
-    .replace(/\b\d+\b/g, '')            // tous les autres nombres
-    .replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '') // préfixes de rue
+    .replace(/\b\d{5}\b/g, '')
+    .replace(/\b\d{1,2}[eè]r?e?\b/gi, '')
+    .replace(/\b\d+\b/g, '')
+    .replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '')
     .replace(/,/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
   if (stripped) candidates.push(stripped)
 
-  // Partie avant la virgule (souvent le nom de lieu)
   if (clean.includes(',')) {
     const before = clean.split(',')[0].trim()
-    // Nettoyer aussi la partie avant virgule
     const beforeClean = before.replace(/\b\d+\b/g, '').replace(/\b(rue|av|avenue|bd|boulevard|allée|impasse|place|chemin|route|r\.|av\.|bd\.)\b/gi, '').trim()
     if (beforeClean && !candidates.includes(beforeClean)) candidates.push(beforeClean)
-    // Partie après la virgule (souvent ville + CP)
     const after = clean.split(',').slice(1).join(',').replace(/\b\d{5}\b/g, '').replace(/\b\d+\b/g, '').trim()
     if (after && !candidates.includes(after)) candidates.push(after)
   }
 
-  // Chaque mot de 4+ lettres comme dernier recours
   const words = stripped.split(' ').filter(w => w.length >= 4)
   for (const w of words) {
     if (!candidates.includes(w)) candidates.push(w)
@@ -90,10 +127,13 @@ function extractCityName(adresse: string): string[] {
   return candidates.filter(Boolean)
 }
 
-// Géocoder une adresse via Open-Meteo Geocoding API (gratuit, pas de clé)
+function extractShortCity(adresse: string): string {
+  const candidates = extractCityName(adresse)
+  return candidates[0] || adresse
+}
+
 async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    // 1. Essayer l'adresse complète
     const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(adresse)}&count=1&language=fr`)
     if (res.ok) {
       const json = await res.json()
@@ -102,7 +142,6 @@ async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: numb
       }
     }
 
-    // 2. Essayer les noms de ville extraits
     const candidates = extractCityName(adresse)
     for (const candidate of candidates) {
       if (candidate === adresse) continue
@@ -117,12 +156,72 @@ async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: numb
   } catch { return null }
 }
 
+function formatDayShort(dateStr: string, isPt?: boolean): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  const weekday = d.toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { weekday: 'short' })
+  const day = d.getDate()
+  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${day}`
+}
+
+function getBTPImpactMessage(day: DayForecast, isPt?: boolean): string | null {
+  if (day.windMax > 60) {
+    return isPt
+      ? `Vento ${Math.round(day.windMax)} km/h — INTERDIÇÃO andaimes e grua (regulamentação). Apenas trabalhos interiores autorizados.`
+      : `Vent ${Math.round(day.windMax)} km/h — INTERDICTION échafaudage et grue (réglementation). Seuls les lots intérieurs autorisés.`
+  }
+  if (day.rain > 5) {
+    return isPt
+      ? `Chuva ${day.rain}mm prevista — ravalement fachada desaconselhado. Prever trabalhos interiores ou adiar.`
+      : `Pluie ${day.rain}mm prévue — ravalement façade déconseillé. Prévoir travaux intérieurs ou report.`
+  }
+  if (day.tempMin < 0) {
+    return isPt
+      ? `Gelo ${Math.round(day.tempMin)}°C — sem alvenaria nem betão. Risco de fissuras.`
+      : `Gel ${Math.round(day.tempMin)}°C — pas de maçonnerie ni béton. Risque de fissuration.`
+  }
+  if (day.tempMax > 33) {
+    return isPt
+      ? `Calor ${Math.round(day.tempMax)}°C — horários adaptados obrigatórios (Code du travail).`
+      : `Chaleur ${Math.round(day.tempMax)}°C — horaires aménagés obligatoires (Code du travail).`
+  }
+  return null
+}
+
+function getAlertBadgeLabel(m: ChantierMeteo, isPt?: boolean): { label: string; className: string } {
+  if (m.alert === 'rouge' && m.mainAlertDay) {
+    const day = m.forecast[m.mainAlertDay.dayIndex]
+    const dayName = formatDayShort(day.date, isPt)
+    if (day.windMax > 60) return { label: `🔴 ${isPt ? 'Vento forte' : 'Vent fort'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-red' }
+    return { label: `🔴 ${isPt ? 'Alerta' : 'Alerte'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-red' }
+  }
+  if (m.alert === 'vigilance' && m.mainAlertDay) {
+    const day = m.forecast[m.mainAlertDay.dayIndex]
+    const dayName = formatDayShort(day.date, isPt)
+    if (day.rain > 5) return { label: `⚠️ ${isPt ? 'Chuva' : 'Pluie'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
+    if (day.tempMin < 0) return { label: `❄️ ${isPt ? 'Gelo' : 'Gel'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
+    if (day.tempMax > 33) return { label: `🌡️ ${isPt ? 'Calor' : 'Chaleur'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
+    return { label: `⚠️ Vigilance ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
+  }
+  return { label: `✅ RAS`, className: 'v5-badge v5-badge-green' }
+}
+
 export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: boolean }) {
-  const { items: chantiers, loading: chantiersLoading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId })
+  // Resolve auth user ID for proper cache alignment with ChantiersBTPV2
+  const [authUserId, setAuthUserId] = useState(userId)
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.id) setAuthUserId(data.user.id)
+    })
+  }, [])
+
+  const { items: chantiers, loading: chantiersLoading, error: chantiersError } = useBTPData<ChantierItem>({
+    table: 'chantiers',
+    artisanId: userId,
+    userId: authUserId,
+  })
   const [meteoData, setMeteoData] = useState<ChantierMeteo[]>([])
   const [meteoLoading, setMeteoLoading] = useState(false)
   const [meteoError, setMeteoError] = useState<string | null>(null)
-  const [selectedChantier, setSelectedChantier] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState('')
   const fetchedRef = useRef(false)
 
@@ -143,7 +242,6 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
       const results: ChantierMeteo[] = (await Promise.all(
         chantiersToFetch.map(async (chantier) => {
           try {
-            // Utiliser GPS si dispo, sinon géocoder l'adresse
             let lat = chantier.latitude
             let lng = chantier.longitude
             if (!lat || !lng) {
@@ -174,8 +272,8 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
               windMax: json.daily.wind_speed_10m_max[i],
               weatherCode: json.daily.weather_code[i],
             }))
-            const { alert, reasons } = classifyAlert(forecast)
-            return { chantier, forecast, alert, alertReasons: reasons }
+            const { alert, reasons, dayAlerts, mainAlertDay } = classifyAlert(forecast)
+            return { chantier, forecast, alert, alertReasons: reasons, dayAlerts, mainAlertDay }
           } catch {
             failedNames.push(`${chantier.titre} (exception)`)
             return null
@@ -184,20 +282,26 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
       )).filter(Boolean) as ChantierMeteo[]
       setMeteoData(results)
       if (results.length === 0 && chantiersToFetch.length > 0) {
-        setMeteoError(`Géocodage échoué pour ${chantiersToFetch.length} chantier(s). Vérifiez les adresses.`)
+        setMeteoError(isPt
+          ? `Geocodificação falhou para ${chantiersToFetch.length} obra(s). Verifique os endereços.`
+          : `Géocodage échoué pour ${chantiersToFetch.length} chantier(s). Vérifiez les adresses.`)
       } else if (failedNames.length > 0) {
-        setDebugInfo(`Météo indisponible pour : ${failedNames.join(', ')}`)
+        setDebugInfo(`${isPt ? 'Meteorologia indisponível para' : 'Météo indisponible pour'} : ${failedNames.join(', ')}`)
       }
     } catch {
-      setMeteoError('Erreur lors du chargement des données météo.')
+      setMeteoError(isPt ? 'Erro ao carregar dados meteorológicos.' : 'Erreur lors du chargement des données météo.')
     } finally {
       setMeteoLoading(false)
     }
-  }, [])
+  }, [isPt])
 
-  // Ref stable pour passer les chantiers au fetch sans dépendance de closure
   const chantiersRef = useRef<ChantierItem[]>([])
   chantiersRef.current = chantiersAvecAdresse
+
+  // Reset fetchedRef when authUserId changes (ensures re-fetch with correct cache)
+  useEffect(() => {
+    fetchedRef.current = false
+  }, [authUserId])
 
   useEffect(() => {
     if (chantiersLoading) return
@@ -212,9 +316,7 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
   const nbRouge = meteoData.filter(m => m.alert === 'rouge').length
   const nbGel = meteoData.reduce((n, m) => n + (m.forecast.slice(0, 7).some(d => d.tempMin < 0) ? 1 : 0), 0)
 
-  const selected = selectedChantier ? meteoData.find(m => m.chantier.id === selectedChantier) : null
-
-  if (chantiersLoading) return <div style={{ textAlign: 'center', padding: 48, color: '#999' }}>Chargement des chantiers...</div>
+  if (chantiersLoading) return <div style={{ textAlign: 'center', padding: 48, color: '#999' }}>{isPt ? 'A carregar obras...' : 'Chargement des chantiers...'}</div>
 
   return (
     <div className="v5-fade">
@@ -223,9 +325,9 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
           <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
           <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         </div>
-        {meteoData.length > 0 && (
+        {(meteoData.length > 0 || chantiersAvecAdresse.length > 0) && (
           <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }} disabled={meteoLoading}>
-            {meteoLoading ? 'Chargement...' : 'Actualiser'}
+            {meteoLoading ? (isPt ? 'A carregar...' : 'Chargement...') : (isPt ? 'Atualizar' : 'Actualiser')}
           </button>
         )}
       </div>
@@ -240,7 +342,7 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
         <div className="v5-kpi" style={{ borderLeft: '4px solid #FFA726' }}>
           <div className="v5-kpi-l">Vigilance</div>
           <div className="v5-kpi-v" style={{ color: '#FFA726' }}>{meteoLoading ? '...' : nbVigilance}</div>
-          <div className="v5-kpi-s">{isPt ? 'chuva/calor' : 'pluie/chaleur'}</div>
+          <div className="v5-kpi-s">{isPt ? 'chuva prevista' : 'pluie prévue'}</div>
         </div>
         <div className="v5-kpi" style={{ borderLeft: '4px solid #EF5350' }}>
           <div className="v5-kpi-l">{isPt ? 'Alerta vermelho' : 'Alerte rouge'}</div>
@@ -248,14 +350,14 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
           <div className="v5-kpi-s">{isPt ? 'vento > 60 km/h' : 'vent > 60 km/h'}</div>
         </div>
         <div className="v5-kpi hl">
-          <div className="v5-kpi-l">{isPt ? 'Chantiers gel prévu' : 'Chantiers gel prévu'}</div>
+          <div className="v5-kpi-l">{isPt ? 'Dia de gelo previsto' : 'Jour de gel prévu'}</div>
           <div className="v5-kpi-v">{meteoLoading ? '...' : nbGel}</div>
-          <div className="v5-kpi-s">{isPt ? 'esta semana' : 'cette semaine'}</div>
+          <div className="v5-kpi-s">{isPt ? 'nenhum esta semana' : 'aucun cette semaine'}</div>
         </div>
       </div>
 
       {/* Aucun chantier */}
-      {chantiersActifs.length === 0 && (
+      {chantiersActifs.length === 0 && !chantiersError && (
         <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏗️</div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhum estaleiro ativo' : 'Aucun chantier actif'}</h3>
@@ -263,10 +365,18 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
         </div>
       )}
 
+      {/* Erreur chargement chantiers */}
+      {chantiersError && (
+        <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
+          {isPt ? 'Erro ao carregar obras.' : 'Erreur lors du chargement des chantiers.'}
+          <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>({chantiersError})</span>
+        </div>
+      )}
+
       {/* Chantiers sans adresse */}
       {chantiersSansAdresse.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem' }}>
-          <strong>{chantiersSansAdresse.length} chantier(s) sans adresse</strong> — {isPt ? 'Adicione o endereço na secção Chantiers para ativar a meteorologia.' : 'Ajoutez l\'adresse dans la section Chantiers pour activer la météo.'}
+          <strong>{chantiersSansAdresse.length} {isPt ? 'obra(s) sem endereço' : 'chantier(s) sans adresse'}</strong> — {isPt ? 'Adicione o endereço na secção Chantiers para ativar a meteorologia.' : "Ajoutez l'adresse dans la section Chantiers pour activer la météo."}
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
             {chantiersSansAdresse.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansAdresse.length > 5 ? '...' : ''}
           </div>
@@ -277,7 +387,7 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
       {meteoError && (
         <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
           {meteoError}
-          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }}>Réessayer</button>
+          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecAdresse) }}>{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
         </div>
       )}
 
@@ -288,92 +398,110 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
         </div>
       )}
 
-      {/* Liste des chantiers avec météo */}
+      {/* Section title */}
       {meteoData.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '.75rem', marginBottom: '1.25rem' }}>
-          {meteoData.map(m => (
-            <div
-              key={m.chantier.id}
-              className="v5-card"
-              onClick={() => setSelectedChantier(m.chantier.id === selectedChantier ? null : m.chantier.id)}
-              style={{
-                cursor: 'pointer',
-                borderLeft: `4px solid ${m.alert === 'rouge' ? '#EF5350' : m.alert === 'vigilance' ? '#FFA726' : '#4CAF50'}`,
-                background: selectedChantier === m.chantier.id ? 'var(--v5-content-bg)' : undefined,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{m.chantier.titre}</div>
-                  <div style={{ fontSize: 11, color: 'var(--v5-text-light)' }}>{m.chantier.adresse || '—'}</div>
-                </div>
-                <span className={`v5-badge ${m.alert === 'rouge' ? 'v5-badge-red' : m.alert === 'vigilance' ? 'v5-badge-orange' : 'v5-badge-green'}`}>
-                  {m.alert === 'rouge' ? 'Alerte' : m.alert === 'vigilance' ? 'Vigilance' : 'OK'}
-                </span>
-              </div>
-              {/* Mini forecast 3 jours */}
-              <div style={{ display: 'flex', gap: 8 }}>
-                {m.forecast.slice(0, 3).map((d, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: 'center', padding: '6px 4px', background: 'rgba(0,0,0,.02)', borderRadius: 6 }}>
-                    <div style={{ fontSize: 10, color: 'var(--v5-text-light)' }}>{new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short' })}</div>
-                    <div style={{ fontSize: 18 }}>{getWeatherIcon(d.weatherCode)}</div>
-                    <div style={{ fontSize: 11, fontWeight: 600 }}>{Math.round(d.tempMax)}°/{Math.round(d.tempMin)}°</div>
-                    {d.rain > 0 && <div style={{ fontSize: 10, color: '#1976D2' }}>{d.rain}mm</div>}
-                    {d.windMax > 40 && <div style={{ fontSize: 10, color: '#C62828' }}>{Math.round(d.windMax)}km/h</div>}
-                  </div>
-                ))}
-              </div>
-              {m.alertReasons.length > 0 && (
-                <div style={{ marginTop: 8, fontSize: 11, color: m.alert === 'rouge' ? '#C62828' : '#E65100' }}>
-                  {m.alertReasons.slice(0, 2).join(' • ')}
-                </div>
-              )}
-            </div>
-          ))}
+        <div className="v5-st" style={{ marginBottom: '.5rem' }}>
+          {isPt ? 'Previsões 5 dias por obra' : 'Prévisions 5 jours par chantier'}
         </div>
       )}
 
-      {/* Détail 7 jours */}
-      {selected && (
-        <div className="v5-card" style={{ padding: 0 }}>
-          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #E8E8E8' }}>
-            <div className="v5-st" style={{ margin: 0 }}>Prévisions 7 jours — {selected.chantier.titre}</div>
+      {/* Liste des chantiers — layout du mockup HTML v6 */}
+      {meteoData.map(m => {
+        const badge = getAlertBadgeLabel(m, isPt)
+        const cityShort = extractShortCity(m.chantier.adresse)
+        // Find the worst alert day for the impact message
+        const worstDay = m.mainAlertDay ? m.forecast[m.mainAlertDay.dayIndex] : null
+        const worstDayLabel = worstDay ? formatDayShort(worstDay.date, isPt) : null
+        const impactMsg = worstDay ? getBTPImpactMessage(worstDay, isPt) : null
+
+        // Set of day indices with alerts for highlighting
+        const alertDayIndices = new Set(m.dayAlerts.map(a => a.dayIndex))
+
+        return (
+          <div key={m.chantier.id} className="v5-card" style={{ marginBottom: '.65rem' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem' }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>🏗️ {m.chantier.titre}</span>
+                <span style={{ fontSize: 10, color: '#999', marginLeft: 8 }}>{cityShort}</span>
+              </div>
+              <span className={badge.className}>{badge.label}</span>
+            </div>
+
+            {/* 5-day forecast inline */}
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '.65rem', flexWrap: 'wrap' }}>
+              {m.forecast.slice(0, 5).map((day, i) => {
+                const hasAlert = alertDayIndices.has(i)
+                const dayAlert = m.dayAlerts.find(a => a.dayIndex === i)
+                const isRouge = dayAlert?.level === 'rouge'
+                const bgColor = hasAlert ? (isRouge ? '#FFEBEE' : '#FFF3E0') : undefined
+                const textColor = hasAlert ? (isRouge ? '#C62828' : '#E65100') : '#999'
+
+                return (
+                  <div key={i} style={{
+                    textAlign: 'center', flex: 1, minWidth: 60,
+                    ...(bgColor ? { background: bgColor, borderRadius: 6, padding: 4 } : {}),
+                  }}>
+                    <div style={{ fontSize: 10, color: hasAlert ? textColor : '#999', fontWeight: hasAlert ? 600 : 400 }}>
+                      {formatDayShort(day.date, isPt)}
+                    </div>
+                    <div style={{ fontSize: 20 }}>
+                      {day.windMax > 60 ? '💨' : getWeatherIcon(day.weatherCode)}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: hasAlert ? textColor : undefined }}>
+                      {Math.round(day.tempMax)}°
+                    </div>
+                    <div style={{ fontSize: 9, color: hasAlert ? textColor : '#999' }}>
+                      {day.rain > 1
+                        ? `🌧 ${day.rain}mm`
+                        : `💨 ${Math.round(day.windMax)} km/h`
+                      }
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* BTP impact alert message */}
+            {impactMsg && worstDayLabel && (
+              <div
+                className={m.alert === 'rouge' ? 'v5-al' : 'v5-al'}
+                style={{
+                  marginTop: '.65rem',
+                  background: m.alert === 'rouge' ? '#FFEBEE' : '#FFF3E0',
+                  color: m.alert === 'rouge' ? '#C62828' : '#E65100',
+                  padding: '.5rem .75rem',
+                  borderRadius: 4,
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                }}
+              >
+                {m.alert === 'rouge' ? '🔴' : '⚠️'}{' '}
+                <strong>{worstDayLabel} :</strong>{' '}
+                {impactMsg}
+              </div>
+            )}
+
+            {/* RAS for OK chantiers */}
+            {m.alert === 'ok' && (
+              <div style={{ fontSize: 11, color: '#888', marginTop: '.5rem', padding: '.5rem', background: '#F5F5F5', borderRadius: 4 }}>
+                {isPt ? 'Sem impacto meteorológico previsto esta semana.' : 'Pas d\'impact météo prévu cette semaine.'}
+              </div>
+            )}
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="v5-dt">
-              <thead>
-                <tr>
-                  <th>Jour</th><th>Météo</th><th>T° max</th><th>T° min</th><th>Pluie</th><th>Vent max</th><th>Impact BTP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selected.forecast.map((d, i) => {
-                  const impacts: string[] = []
-                  if (d.rain > 5) impacts.push('Pas de ravalement/béton')
-                  if (d.windMax > 60) impacts.push('Arrêt grue/échafaudage')
-                  if (d.tempMin < 0) impacts.push('Pas de maçonnerie')
-                  if (d.tempMax > 33) impacts.push('Horaires aménagés')
-                  return (
-                    <tr key={i} style={impacts.length > 0 ? { background: 'rgba(255,0,0,.03)' } : undefined}>
-                      <td style={{ fontWeight: 600 }}>{new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
-                      <td style={{ fontSize: 20 }}>{getWeatherIcon(d.weatherCode)}</td>
-                      <td style={{ color: d.tempMax > 33 ? '#C62828' : undefined, fontWeight: d.tempMax > 33 ? 600 : 400 }}>{Math.round(d.tempMax)}°C</td>
-                      <td style={{ color: d.tempMin < 0 ? '#1565C0' : undefined, fontWeight: d.tempMin < 0 ? 600 : 400 }}>{Math.round(d.tempMin)}°C</td>
-                      <td style={{ color: d.rain > 5 ? '#1976D2' : undefined, fontWeight: d.rain > 5 ? 600 : 400 }}>{d.rain > 0 ? `${d.rain}mm` : '—'}</td>
-                      <td style={{ color: d.windMax > 60 ? '#C62828' : undefined, fontWeight: d.windMax > 60 ? 600 : 400 }}>{Math.round(d.windMax)} km/h</td>
-                      <td style={{ fontSize: 11, color: impacts.length > 0 ? '#C62828' : '#4CAF50' }}>{impacts.length > 0 ? impacts.join(', ') : 'RAS'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+        )
+      })}
+
+      {/* Loading indicator for meteo */}
+      {meteoLoading && chantiersAvecAdresse.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#999', fontSize: 12 }}>
+          {isPt ? 'A carregar previsões meteorológicas...' : 'Chargement des prévisions météo...'}
         </div>
       )}
 
       {/* Seuils BTP */}
-      <div style={{ fontSize: 10, color: '#BBB', marginTop: 16, textAlign: 'center' }}>
-        Seuils BTP : 🌧️ Pluie {'>'} 5mm = pas de ravalement/béton • 💨 Vent {'>'} 60 km/h = arrêt grue/échafaudage • ❄️ Gel = pas de maçonnerie • 🌡️ {'>'} 33°C = horaires aménagés
+      <div style={{ fontSize: 10, color: '#999', marginTop: '.75rem' }}>
+        {isPt ? 'Limiares BTP' : 'Seuils BTP'} : 🌧️ {isPt ? 'Chuva' : 'Pluie'} {'>'} 5mm = {isPt ? 'sem ravalement/betão' : 'pas de ravalement/béton'} • 💨 {isPt ? 'Vento' : 'Vent'} {'>'} 60 km/h = {isPt ? 'paragem grua/andaimes' : 'arrêt grue/échafaudage'} • ❄️ {isPt ? 'Gelo = sem alvenaria' : 'Gel = pas de maçonnerie'} • 🌡️ {'>'} 33°C = {isPt ? 'horários adaptados obrigatórios' : 'horaires aménagés obligatoires'}
       </div>
     </div>
   )
