@@ -57,23 +57,49 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
   const [meteoLoading, setMeteoLoading] = useState(false)
   const [selectedChantier, setSelectedChantier] = useState<string | null>(null)
 
-  // Filtrer chantiers actifs avec coordonnées GPS
-  const chantiersAvecGPS = chantiers.filter(c =>
-    c.latitude && c.longitude && c.statut !== 'Terminé' && c.statut !== 'Annulé'
+  // Filtrer chantiers actifs (pas terminés/annulés) qui ont une adresse
+  const chantiersActifs = chantiers.filter(c =>
+    c.statut !== 'Terminé' && c.statut !== 'Annulé'
   )
-  const chantiersNonGeo = chantiers.filter(c =>
-    (!c.latitude || !c.longitude) && c.statut !== 'Terminé' && c.statut !== 'Annulé'
-  )
+  const chantiersAvecAdresse = chantiersActifs.filter(c => c.adresse?.trim())
+  const chantiersSansAdresse = chantiersActifs.filter(c => !c.adresse?.trim())
+
+  // Géocoder une adresse via Open-Meteo Geocoding API (gratuit, pas de clé)
+  async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(adresse)}&count=1&language=fr`)
+      const json = await res.json()
+      if (json.results?.[0]) {
+        return { lat: json.results[0].latitude, lng: json.results[0].longitude }
+      }
+      // Essayer juste la ville (dernier mot de l'adresse ou après la virgule)
+      const ville = adresse.includes(',') ? adresse.split(',').pop()?.trim() : adresse.split(' ').pop()
+      if (ville && ville !== adresse) {
+        const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ville)}&count=1&language=fr`)
+        const json2 = await res2.json()
+        if (json2.results?.[0]) return { lat: json2.results[0].latitude, lng: json2.results[0].longitude }
+      }
+      return null
+    } catch { return null }
+  }
 
   const fetchMeteo = useCallback(async () => {
-    if (chantiersAvecGPS.length === 0) return
+    if (chantiersAvecAdresse.length === 0) return
     setMeteoLoading(true)
     try {
-      const results: ChantierMeteo[] = await Promise.all(
-        chantiersAvecGPS.map(async (chantier) => {
+      const results: ChantierMeteo[] = (await Promise.all(
+        chantiersAvecAdresse.map(async (chantier) => {
           try {
+            // Utiliser GPS si dispo, sinon géocoder l'adresse
+            let lat = chantier.latitude
+            let lng = chantier.longitude
+            if (!lat || !lng) {
+              const geo = await geocodeAdresse(chantier.adresse)
+              if (!geo) return null
+              lat = geo.lat; lng = geo.lng
+            }
             const res = await fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${chantier.latitude}&longitude=${chantier.longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`
+              `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`
             )
             const json = await res.json()
             const forecast: DayForecast[] = (json.daily?.time || []).map((date: string, i: number) => ({
@@ -87,21 +113,21 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
             const { alert, reasons } = classifyAlert(forecast)
             return { chantier, forecast, alert, alertReasons: reasons }
           } catch {
-            return { chantier, forecast: [], alert: 'ok' as const, alertReasons: [] }
+            return null
           }
         })
-      )
+      )).filter(Boolean) as ChantierMeteo[]
       setMeteoData(results)
     } finally {
       setMeteoLoading(false)
     }
-  }, [chantiersAvecGPS.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chantiersAvecAdresse.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!chantiersLoading && chantiersAvecGPS.length > 0 && meteoData.length === 0) {
+    if (!chantiersLoading && chantiersAvecAdresse.length > 0 && meteoData.length === 0) {
       fetchMeteo()
     }
-  }, [chantiersLoading, chantiersAvecGPS.length, meteoData.length, fetchMeteo])
+  }, [chantiersLoading, chantiersAvecAdresse.length, meteoData.length, fetchMeteo])
 
   const nbOk = meteoData.filter(m => m.alert === 'ok').length
   const nbVigilance = meteoData.filter(m => m.alert === 'vigilance').length
@@ -151,7 +177,7 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
       </div>
 
       {/* Aucun chantier */}
-      {chantiers.filter(c => c.statut !== 'Terminé' && c.statut !== 'Annulé').length === 0 && (
+      {chantiersActifs.length === 0 && (
         <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏗️</div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhum estaleiro ativo' : 'Aucun chantier actif'}</h3>
@@ -159,12 +185,12 @@ export function MeteoChantierSection({ userId, isPt }: { userId: string; isPt?: 
         </div>
       )}
 
-      {/* Chantiers sans GPS */}
-      {chantiersNonGeo.length > 0 && (
+      {/* Chantiers sans adresse */}
+      {chantiersSansAdresse.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem' }}>
-          <strong>{chantiersNonGeo.length} chantier(s) sans coordonnées GPS</strong> — {isPt ? 'Adicione latitude/longitude na secção Chantiers para ativar a meteorologia.' : 'Ajoutez latitude/longitude dans la section Chantiers pour activer la météo.'}
+          <strong>{chantiersSansAdresse.length} chantier(s) sans adresse</strong> — {isPt ? 'Adicione o endereço na secção Chantiers para ativar a meteorologia.' : 'Ajoutez l\'adresse dans la section Chantiers pour activer la météo.'}
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
-            {chantiersNonGeo.slice(0, 5).map(c => c.titre).join(', ')}{chantiersNonGeo.length > 5 ? '...' : ''}
+            {chantiersSansAdresse.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansAdresse.length > 5 ? '...' : ''}
           </div>
         </div>
       )}
