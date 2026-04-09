@@ -491,7 +491,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
       {/* ── Form Modal ── */}
       {showForm && (
-      <div className={isV5 ? 'v5-modal-ov open' : 'v22-modal-overlay open'}>
+      <div className={isV5 ? 'v5-modal-ov show' : 'v22-modal-overlay open'}>
         {showForm && (
           <div className={isV5 ? 'v5-modal' : 'v22-modal v22-modal--tall'} style={{ maxWidth: '720px' }}>
             <div className={isV5 ? 'v5-modal-h' : 'v22-modal-head'}>
