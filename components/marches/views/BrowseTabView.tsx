@@ -45,10 +45,12 @@ interface BrowseTabViewProps {
   filterCategory: string
   filterRegion: string
   filterDepartments: string[]
+  filterMarcheType: 'tous' | 'publics' | 'prives'
   prefsSaved: boolean
   onFilterCategoryChange: (v: string) => void
   onFilterRegionChange: (v: string) => void
   onFilterDepartmentsChange: (v: string[]) => void
+  onFilterMarcheTypeChange: (v: 'tous' | 'publics' | 'prives') => void
   onScanMarches: () => void
   onSaveGeoPrefs: () => void
   onSelectMarche: (m: any) => void
@@ -58,8 +60,8 @@ interface BrowseTabViewProps {
 export default function BrowseTabView({
   isPt, locale, marches, loading, scanning, scanResults, scanMeta, scanError,
   showScanResults, alerts, prefsLoaded, marchesOptIn,
-  filterCategory, filterRegion, filterDepartments, prefsSaved,
-  onFilterCategoryChange, onFilterRegionChange, onFilterDepartmentsChange,
+  filterCategory, filterRegion, filterDepartments, filterMarcheType, prefsSaved,
+  onFilterCategoryChange, onFilterRegionChange, onFilterDepartmentsChange, onFilterMarcheTypeChange,
   onScanMarches, onSaveGeoPrefs, onSelectMarche, onGoToSettings,
 }: BrowseTabViewProps) {
   const [deptDropdownOpen, setDeptDropdownOpen] = useState(false)
@@ -141,6 +143,19 @@ export default function BrowseTabView({
                     {cat.emoji} {isPt ? cat.label : cat.labelFr}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
+              <select
+                value={filterMarcheType}
+                onChange={e => onFilterMarcheTypeChange(e.target.value as 'tous' | 'publics' | 'prives')}
+                className="v22-form-input"
+              >
+                <option value="tous">{isPt ? 'Todos' : 'Tous'}</option>
+                <option value="publics">{isPt ? 'Públicos' : 'Publics'}</option>
+                <option value="prives">{isPt ? 'Privados' : 'Privés'}</option>
               </select>
             </div>
 
@@ -319,14 +334,14 @@ export default function BrowseTabView({
         </div>
       </div>
 
-      {/* Scan Results Panel */}
-      {scanError && (
+      {/* Scan Results Panel — hidden when filter = privés */}
+      {filterMarcheType !== 'prives' && scanError && (
         <div style={{ padding: '10px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 12 }}>
           ⚠️ {scanError}
         </div>
       )}
 
-      {scanResults.length > 0 && (
+      {filterMarcheType !== 'prives' && scanResults.length > 0 && (
         <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
           <div className="v22-card-head" style={{ background: '#fffbeb' }}>
             <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -432,7 +447,7 @@ export default function BrowseTabView({
         </div>
       )}
 
-      {showScanResults && scanResults.length === 0 && !scanning && !scanError && (
+      {filterMarcheType !== 'prives' && showScanResults && scanResults.length === 0 && !scanning && !scanError && (
         <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 14, background: '#f9fafb', borderRadius: 8 }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>📭</div>
           <div style={{ fontSize: 13, fontWeight: 500 }}>
@@ -444,15 +459,15 @@ export default function BrowseTabView({
         </div>
       )}
 
-      {/* Loading */}
-      {loading && (
+      {/* Loading — private marches from DB */}
+      {filterMarcheType === 'publics' ? null : loading && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
           <div style={{ width: 24, height: 24, border: '2px solid var(--v22-yellow)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && marches.length === 0 && (
+      {/* Empty state — private marches */}
+      {filterMarcheType !== 'publics' && !loading && marches.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
@@ -466,11 +481,11 @@ export default function BrowseTabView({
         </div>
       )}
 
-      {/* Opportunités card with list */}
-      {!loading && marches.length > 0 && (
+      {/* Opportunités card with list — private marches from clients */}
+      {filterMarcheType !== 'publics' && !loading && marches.length > 0 && (
         <div className="v22-card">
           <div className="v22-card-head">
-            <div className="v22-card-title">{isPt ? 'Oportunidades' : 'Opportunités'}</div>
+            <div className="v22-card-title">{isPt ? 'Demandas de particulares' : 'Demandes de particuliers'}</div>
             <div className="v22-card-meta">{marches.length} {isPt ? 'resultados' : 'résultats'}</div>
           </div>
           <div>
