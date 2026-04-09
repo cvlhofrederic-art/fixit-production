@@ -334,7 +334,7 @@ function mapFromSupabase(table: ShortName, item: any): any {
 
 // ── In-memory cache to avoid re-fetching on every tab switch ──
 const _dataCache: Record<string, { data: any[]; at: number }> = {}
-const DATA_CACHE_TTL = 30_000 // 30s — data stays fresh between tab switches
+const DATA_CACHE_TTL = 300_000 // 5 min — BTP data rarely changes mid-session
 
 // ── Prefetch multiple tables in parallel to fill cache before components mount ──
 export async function prefetchBTPTables(tables: ShortName[], userId: string) {
@@ -365,9 +365,11 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   const cacheKey = `${table}_${userId}`
   const cached = _dataCache[cacheKey]
   const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
+  const hasAnyCache = !!cached?.data
 
-  const [items, setItems] = useState<T[]>(hasFreshCache ? cached.data : [])
-  const [loading, setLoading] = useState(!hasFreshCache)
+  // Use stale cache as initial data — user sees content instantly, refresh runs in background
+  const [items, setItems] = useState<T[]>(hasAnyCache ? cached.data : [])
+  const [loading, setLoading] = useState(!hasAnyCache)
   const [error, setError] = useState<string | null>(null)
   const imported = useRef(false)
 
@@ -402,6 +404,11 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       if (hasFreshCache) {
         setLoading(false)
         return
+      }
+
+      // Stale cache: show cached data immediately, refresh in background (no loading spinner)
+      if (hasAnyCache) {
+        setLoading(false)
       }
 
       const data = await refresh()
@@ -555,7 +562,7 @@ const DEFAULT_SETTINGS: BTPSettings = {
 
 // Settings cache
 let _settingsCache: { data: BTPSettings; at: number } | null = null
-const SETTINGS_CACHE_TTL = 60_000
+const SETTINGS_CACHE_TTL = 300_000 // 5 min
 
 export function useBTPSettings() {
   const hasFresh = _settingsCache && (Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL)

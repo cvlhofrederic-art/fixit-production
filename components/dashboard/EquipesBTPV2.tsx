@@ -415,8 +415,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   if (loadM || loadE) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
-        <div style={{ marginBottom: 12, animation: 'spin 1s linear infinite', display: 'flex', justifyContent: 'center' }}><Clock size={32} /></div>
-        <p style={{ color: '#999' }}>Chargement...</p>
+        <p style={{ color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</p>
       </div>
     )
   }
