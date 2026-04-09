@@ -482,7 +482,7 @@ export default function BrowseTabView({
       {filterMarcheType !== 'publics' && !loading && marches.length > 0 && (
         <div className="v22-card">
           <div className="v22-card-head">
-            <div className="v22-card-title">{isPt ? 'Mercados disponíveis' : 'Marchés disponibles'}</div>
+            <div className="v22-card-title">{isPt ? 'Concursos em curso' : 'Appels d\'offres en cours'}</div>
             <div className="v22-card-meta">{marches.length} {isPt ? 'resultados' : 'résultats'}</div>
           </div>
           <div>
@@ -529,6 +529,11 @@ export default function BrowseTabView({
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                       {(m.location_city || m.city) && <span>📍 {m.location_city || m.city}{m.concelho && m.concelho !== m.location_city ? `, ${m.concelho}` : ''}</span>}
+                      {(m.budget_min || m.budget_max) ? (
+                        <span>💰 {m.budget_min ? formatPrice(m.budget_min, locale) : '—'} - {m.budget_max ? formatPrice(m.budget_max, locale) : '—'}</span>
+                      ) : (
+                        <span style={{ color: '#9ca3af' }}>💰 Budget N/A</span>
+                      )}
                       {days !== null && (
                         <span style={{ color: days <= 3 ? 'var(--v22-red)' : undefined }}>
                           ⏰ {days > 0 ? (isPt ? `${days}d` : `${days}j`) : (isPt ? 'Expirado' : 'Expiré')}
@@ -580,19 +585,6 @@ export default function BrowseTabView({
                         </span>
                       </div>
                     )}
-                  </div>
-
-                  {/* Budget (mono, right-aligned) */}
-                  <div className="v22-amount" style={{ flexShrink: 0, textAlign: 'right' }}>
-                    {(m.budget_min || m.budget_max) ? (
-                      <>
-                        {m.budget_min ? formatPrice(m.budget_min, locale) : '—'}
-                        {' - '}
-                        {m.budget_max ? formatPrice(m.budget_max, locale) : '—'}
-                      </>
-                    ) : m.montant_estime ? (
-                      <span>{formatPrice(m.montant_estime, locale)}</span>
-                    ) : null}
                   </div>
 
                   {/* Publisher tag */}
