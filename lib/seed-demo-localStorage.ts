@@ -7,7 +7,7 @@
  */
 
 const DEMO_ARTISAN_ID = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-const SEED_VERSION = 3 // Increment to force re-seed after adding new data
+const SEED_VERSION = 4 // Increment to force re-seed after adding new data
 
 function isAlreadySeeded(artisanId: string): boolean {
   try {
@@ -596,8 +596,70 @@ export function seedDemoLocalStorage(artisanId: string): void {
 
   localStorage.setItem(`fixit_portal_states_${artisanId}`, JSON.stringify(portalStates))
 
+  // ═══════════════════════════════════════
+  // BIBLIOTHÈQUE D'OUVRAGES (fixit_bibliotheque_*)
+  // Cohérent avec les 5 chantiers demo
+  // ═══════════════════════════════════════
+  const bibliotheque = [
+    // --- OUVRAGES (prestations composites) ---
+    { id: 1,  nom: 'Démolition cloisons + évacuation gravats',       type: 'ouvrage',  unite: 'forfait', rev: 1800,  marge: 22,  corps: 'Gros œuvre' },
+    { id: 2,  nom: 'Pose placo BA13 sur ossature métallique',        type: 'ouvrage',  unite: 'm²',      rev: 28,    marge: 60,  corps: 'Second œuvre' },
+    { id: 3,  nom: 'Électricité NFC 15-100 — rénovation complète',   type: 'ouvrage',  unite: 'forfait', rev: 3200,  marge: 50,  corps: 'Électricité' },
+    { id: 4,  nom: 'Peinture acrylique mat 2 couches',               type: 'ouvrage',  unite: 'm²',      rev: 12,    marge: 130, corps: 'Second œuvre' },
+    { id: 5,  nom: 'Ravalement façade — nettoyage + enduit',         type: 'ouvrage',  unite: 'm²',      rev: 35,    marge: 45,  corps: 'Gros œuvre' },
+    { id: 6,  nom: 'Échafaudage façade — montage/démontage',         type: 'ouvrage',  unite: 'ml',      rev: 18,    marge: 55,  corps: 'Matériel' },
+    { id: 7,  nom: 'Dépose + pose SDB complète',                     type: 'ouvrage',  unite: 'forfait', rev: 5500,  marge: 55,  corps: 'Second œuvre' },
+    { id: 8,  nom: 'Étanchéité SPEC sous carrelage',                 type: 'ouvrage',  unite: 'm²',      rev: 22,    marge: 50,  corps: 'Second œuvre' },
+    { id: 9,  nom: 'Pose carrelage antidérapant R11',                type: 'ouvrage',  unite: 'm²',      rev: 32,    marge: 50,  corps: 'Second œuvre' },
+    { id: 10, nom: 'Faïence murale 30×60',                           type: 'ouvrage',  unite: 'm²',      rev: 28,    marge: 55,  corps: 'Second œuvre' },
+    { id: 11, nom: 'Terrassement — décaissement fondations',         type: 'ouvrage',  unite: 'm³',      rev: 24,    marge: 45,  corps: 'VRD / Gros œuvre' },
+    { id: 12, nom: 'Coulage semelles filantes béton C25/30',         type: 'ouvrage',  unite: 'ml',      rev: 85,    marge: 40,  corps: 'Gros œuvre' },
+    { id: 13, nom: 'Maçonnerie parpaings creux 20cm',                type: 'ouvrage',  unite: 'm²',      rev: 38,    marge: 50,  corps: 'Gros œuvre' },
+    { id: 14, nom: 'Chaînage horizontal béton armé',                 type: 'ouvrage',  unite: 'ml',      rev: 42,    marge: 45,  corps: 'Gros œuvre' },
+    { id: 15, nom: 'Charpente bois traditionnelle — pose',           type: 'ouvrage',  unite: 'm²',      rev: 55,    marge: 50,  corps: 'Charpente / Couverture' },
+    { id: 16, nom: 'Dalle béton armé 15cm (local commercial)',       type: 'ouvrage',  unite: 'm²',      rev: 65,    marge: 40,  corps: 'Gros œuvre' },
+    { id: 17, nom: 'Cloisons + faux plafond BA13 local',             type: 'ouvrage',  unite: 'm²',      rev: 42,    marge: 55,  corps: 'Second œuvre' },
+    { id: 18, nom: 'Menuiserie alu — vitrine commerciale',           type: 'ouvrage',  unite: 'unité',   rev: 2800,  marge: 30,  corps: 'Sous-traitance' },
+    { id: 19, nom: 'Enduit de façade projeté monocouche',            type: 'ouvrage',  unite: 'm²',      rev: 24,    marge: 55,  corps: 'Gros œuvre' },
+    { id: 20, nom: 'Nettoyage fin de chantier',                      type: 'ouvrage',  unite: 'forfait', rev: 800,   marge: 50,  corps: 'Autre' },
+    // --- MATÉRIAUX ---
+    { id: 21, nom: 'Placo BA13 standard (plaque 2,50m)',             type: 'materiau', unite: 'unité',   rev: 4.80,  marge: 40,  corps: 'Second œuvre' },
+    { id: 22, nom: 'Rail R48 + montant M48 (3m)',                    type: 'materiau', unite: 'ml',      rev: 1.60,  marge: 45,  corps: 'Second œuvre' },
+    { id: 23, nom: 'Câble électrique H07VR 2,5mm²',                  type: 'materiau', unite: 'ml',      rev: 1.20,  marge: 35,  corps: 'Électricité' },
+    { id: 24, nom: 'Tableau électrique 3 rangées NF',                type: 'materiau', unite: 'unité',   rev: 180,   marge: 40,  corps: 'Électricité' },
+    { id: 25, nom: 'Peinture acrylique mat Tollens (15L)',           type: 'materiau', unite: 'unité',   rev: 65,    marge: 45,  corps: 'Second œuvre' },
+    { id: 26, nom: 'Enduit façade Weber monocouche (25kg)',          type: 'materiau', unite: 'sac',     rev: 12,    marge: 40,  corps: 'Gros œuvre' },
+    { id: 27, nom: 'Peinture façade Tollens Façacryl (15L)',         type: 'materiau', unite: 'unité',   rev: 85,    marge: 35,  corps: 'Gros œuvre' },
+    { id: 28, nom: 'Receveur douche extra-plat 120×90',              type: 'materiau', unite: 'unité',   rev: 280,   marge: 35,  corps: 'Second œuvre' },
+    { id: 29, nom: 'Paroi douche verre 8mm 120cm',                   type: 'materiau', unite: 'unité',   rev: 320,   marge: 30,  corps: 'Second œuvre' },
+    { id: 30, nom: 'Carrelage grès cérame antidérapant R11',         type: 'materiau', unite: 'm²',      rev: 22,    marge: 40,  corps: 'Second œuvre' },
+    { id: 31, nom: 'Faïence murale 30×60 blanc satiné',              type: 'materiau', unite: 'm²',      rev: 18,    marge: 45,  corps: 'Second œuvre' },
+    { id: 32, nom: 'Colle carrelage C2 flex (25kg)',                  type: 'materiau', unite: 'sac',     rev: 14,    marge: 40,  corps: 'Second œuvre' },
+    { id: 33, nom: 'Joint époxy gris (5kg)',                          type: 'materiau', unite: 'unité',   rev: 28,    marge: 40,  corps: 'Second œuvre' },
+    { id: 34, nom: 'Meuble vasque double 120cm',                     type: 'materiau', unite: 'unité',   rev: 450,   marge: 25,  corps: 'Second œuvre' },
+    { id: 35, nom: 'Béton prêt C25/30 (livré toupie)',               type: 'materiau', unite: 'm³',      rev: 145,   marge: 30,  corps: 'Gros œuvre' },
+    { id: 36, nom: 'Acier HA ø10 (barre 6m)',                        type: 'materiau', unite: 'ml',      rev: 1.80,  marge: 35,  corps: 'Gros œuvre' },
+    { id: 37, nom: 'Parpaing creux 20×20×50',                        type: 'materiau', unite: 'unité',   rev: 1.10,  marge: 40,  corps: 'Gros œuvre' },
+    { id: 38, nom: 'Ciment Portland CEM II (25kg)',                   type: 'materiau', unite: 'sac',     rev: 6.50,  marge: 40,  corps: 'Gros œuvre' },
+    { id: 39, nom: 'Sable 0/4 (big bag 1T)',                         type: 'materiau', unite: 't',       rev: 45,    marge: 35,  corps: 'Gros œuvre' },
+    { id: 40, nom: 'Tuile canal terre cuite',                        type: 'materiau', unite: 'unité',   rev: 1.80,  marge: 35,  corps: 'Charpente / Couverture' },
+    // --- MAIN-D'ŒUVRE ---
+    { id: 41, nom: "Main-d'œuvre chef de chantier",                  type: 'mo',       unite: 'heure',   rev: 32,    marge: 60,  corps: 'Équipe' },
+    { id: 42, nom: "Main-d'œuvre ouvrier qualifié",                  type: 'mo',       unite: 'heure',   rev: 22,    marge: 55,  corps: 'Équipe' },
+    { id: 43, nom: "Main-d'œuvre ouvrier",                           type: 'mo',       unite: 'heure',   rev: 16,    marge: 50,  corps: 'Équipe' },
+    { id: 44, nom: "Main-d'œuvre conducteur de travaux",             type: 'mo',       unite: 'heure',   rev: 42,    marge: 65,  corps: 'Équipe' },
+    { id: 45, nom: 'Sous-traitant électricité — forfait',            type: 'mo',       unite: 'forfait', rev: 4800,  marge: 25,  corps: 'Sous-traitance' },
+    { id: 46, nom: 'Sous-traitant plomberie — forfait',              type: 'mo',       unite: 'forfait', rev: 6200,  marge: 25,  corps: 'Sous-traitance' },
+    { id: 47, nom: 'Sous-traitant menuiserie alu — forfait',         type: 'mo',       unite: 'forfait', rev: 8500,  marge: 20,  corps: 'Sous-traitance' },
+    { id: 48, nom: 'Location benne gravats 8m³',                     type: 'mo',       unite: 'jour',    rev: 120,   marge: 40,  corps: 'Matériel' },
+    { id: 49, nom: 'Location nacelle 12m',                           type: 'mo',       unite: 'jour',    rev: 280,   marge: 30,  corps: 'Matériel' },
+    { id: 50, nom: 'Location mini-pelle 1,5T',                       type: 'mo',       unite: 'jour',    rev: 195,   marge: 35,  corps: 'Matériel' },
+  ]
+
+  localStorage.setItem(`fixit_bibliotheque_${artisanId}`, JSON.stringify(bibliotheque))
+
   // Stamp version to prevent re-seeding on next load
   localStorage.setItem(`fixit_demo_seed_version_${artisanId}`, String(SEED_VERSION))
 
-  console.log('[DEMO] localStorage seeded v' + SEED_VERSION + ': 5 devis, 4 factures, 3 rapports, 4 références, 5 clients, 16 dépenses, 3 situations, 3 retenues, 3 DC4, 2 DCE, 2 DPGF, 2 équipes, 8 pointages, 4 membres, 3 absences, portail client')
+  console.log('[DEMO] localStorage seeded v' + SEED_VERSION + ': 5 devis, 4 factures, 3 rapports, 4 références, 5 clients, 16 dépenses, 3 situations, 3 retenues, 3 DC4, 2 DCE, 2 DPGF, 2 équipes, 8 pointages, 4 membres, 3 absences, portail client, 50 ouvrages/matériaux')
 }
