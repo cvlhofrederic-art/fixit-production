@@ -52,7 +52,7 @@ export default function MotifsSection({
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ justifyContent: 'space-between' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 className={isV5 ? '' : 'v22-page-title'}>
             {isSociete ? '🏗️ Lots & Prestations BTP' : `${'🔧'} ${t('proDash.motifs.title')}`}

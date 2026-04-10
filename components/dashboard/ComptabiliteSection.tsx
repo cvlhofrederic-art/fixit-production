@@ -609,7 +609,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
         <div>
           {isV5
             ? <><h1>{isPt ? 'Contabilidade & Fiscalidade' : 'Comptabilite & Fiscalite'}</h1><p>{isPt ? 'Gestao contabilistica e agente IA Lea' : 'Gestion comptable et agent IA Lea'}</p></>

@@ -118,7 +118,7 @@ export default function PipelineSection({ artisan, orgRole = 'artisan', navigate
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : ''} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', ...(!isV5 ? { marginBottom: 24 } : {}) }}>
+      <div className={isV5 ? 'v5-pg-t' : ''} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', ...(!isV5 ? { marginBottom: 24 } : {}) }}>
         <div>
           <h1 style={!isV5 ? { fontSize: 20, fontWeight: 700, marginBottom: 4 } : undefined}>Pipeline commercial</h1>
           <p style={!isV5 ? { fontSize: 13, color: '#888' } : undefined}>

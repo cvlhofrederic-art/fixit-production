@@ -213,7 +213,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 'calc(100vh - 120px)' }}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           {isV5 ? <h1>📡 Canal Pro</h1> : <div className="v22-page-title">📡 Canal Pro</div>}
           {isV5 ? <p>Communication directe gestionnaire ↔ artisan</p> : <div className="v22-page-sub">Communication directe gestionnaire ↔ artisan</div>}

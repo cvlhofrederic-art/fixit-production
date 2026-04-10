@@ -106,7 +106,7 @@ export default function CalendarSection(props: CalendarSectionProps) {
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={isV5 ? { display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } : undefined}>
         <div>
           {isV5
             ? <><h1>{t('proDash.calendar.title')}</h1><p>{t('proDash.calendar.subtitle')}</p></>

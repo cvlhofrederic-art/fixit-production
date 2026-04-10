@@ -423,7 +423,7 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>{isPt ? 'Équipes & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
           <p>{isPt ? 'Membros, equipas e custos detalhados' : 'Membres, équipes et coûts détaillés'}</p>
