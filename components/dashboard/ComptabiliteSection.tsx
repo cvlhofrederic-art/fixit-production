@@ -74,6 +74,15 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     { label: '🚗 Despesas de deslocação', q: 'Quanto gastei em transporte e deslocações? Há despesas quilométricas a otimizar?' },
     { label: '🏗️ Despesas dedutíveis', q: 'Quais são todas as despesas dedutíveis específicas da construção e serviços que posso registar?' },
     { label: '📋 Preparar declaração SS/IRS', q: 'Prepara um resumo completo dos meus dados para a próxima declaração SS e Mod. 3 IRS.' },
+  ] : isEntreprise ? [
+    { label: '🔧 Matériaux vs main d\'œuvre', q: 'Donne-moi le total dépensé en matériaux et en main d\'œuvre séparément depuis le début de l\'année, avec le détail ligne par ligne.' },
+    { label: '💳 IS et charges', q: 'Calcule mon IS estimé (15% + 25%) et mes charges sociales dirigeant pour cette année. Détaille le calcul.' },
+    { label: '📊 Bénéfice net réel', q: 'Quel est mon bénéfice net réel après charges d\'exploitation, IS et charges dirigeant ? Fais le calcul complet.' },
+    { label: '📅 Analyse du mois', q: `Analyse mes revenus et dépenses du mois dernier : combien j'ai facturé, dépensé, et quel est mon résultat net ?` },
+    { label: '📈 Marge par chantier', q: 'Analyse la rentabilité de chaque chantier : CA facturé vs charges engagées, et identifie les plus et moins rentables.' },
+    { label: '🚗 Frais de déplacement', q: 'Combien j\'ai dépensé en transport et déplacements ? Y a-t-il des frais kilométriques à optimiser ?' },
+    { label: '🏗️ Charges déductibles BTP', q: 'Quelles sont toutes les charges déductibles spécifiques au BTP que je peux enregistrer ? Amortissements, provisions, sous-traitance.' },
+    { label: '📋 Préparer liasse fiscale', q: 'Prépare un récapitulatif de mes données pour la liasse fiscale : résultat, charges, TVA collectée/déductible.' },
   ] : [
     { label: '🔧 Matériaux vs main d\'œuvre', q: 'Donne-moi le total dépensé en matériaux et en main d\'œuvre séparément depuis le début de l\'année, avec le détail ligne par ligne.' },
     { label: '💳 Cotisations URSSAF', q: 'Combien vais-je payer à l\'URSSAF ce trimestre et sur l\'année entière ? Détaille par trimestre.' },
@@ -492,17 +501,32 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   })
 
   const annualHT = quarterData.reduce((s, v) => s + v, 0)
-  // PT: Regime Simplificado threshold €200k; FR: micro-entrepreneur €77,700
-  const isAutoEntrepreneur = isPt ? annualHT < 200000 : annualHT < 77700
-  // PT: Segurança Social trabalhador independente 21.4% on rendimento relevante (70% services)
-  // FR: URSSAF micro-entrepreneur artisan BTP 21.2%
-  const tauxCotisation = isPt ? 0.214 : 0.212
-  const cotisationsSociales = isPt
-    ? annualHT * 0.70 * tauxCotisation   // SS calcula sobre rendimento relevante (70%)
-    : annualHT * tauxCotisation
-  // PT: IRS retenção na fonte 25% (art.º 101.º CIRS, cat. B — regra geral); FR: IR libératoire 1.1%
-  const impotRevenu = isPt ? annualHT * 0.25 : annualHT * 0.011
-  const resultatApresCharges = annualHT - cotisationsSociales
+  const isEntreprise = orgRole === 'pro_societe'
+  // Micro-entrepreneur only if artisan role AND under threshold
+  const isAutoEntrepreneur = !isEntreprise && (isPt ? annualHT < 200000 : annualHT < 77700)
+
+  // Fiscal calculations differ by status
+  let cotisationsSociales: number
+  let impotRevenu: number
+  let resultatApresCharges: number
+
+  if (isEntreprise) {
+    // Entreprise BTP: IS 15% ≤42500€, 25% au-delà + charges dirigeant estimées ~45% TNS
+    const resultatAvantIS = annualHT - totalExpenses
+    const is15 = Math.min(Math.max(resultatAvantIS, 0), 42500) * 0.15
+    const is25 = Math.max(resultatAvantIS - 42500, 0) * 0.25
+    impotRevenu = is15 + is25
+    cotisationsSociales = 0 // charges sociales dépendent du salaire dirigeant, pas du CA
+    resultatApresCharges = resultatAvantIS - impotRevenu
+  } else if (isPt) {
+    cotisationsSociales = annualHT * 0.70 * 0.214
+    impotRevenu = annualHT * 0.25
+    resultatApresCharges = annualHT - cotisationsSociales
+  } else {
+    cotisationsSociales = annualHT * 0.212
+    impotRevenu = annualHT * 0.011
+    resultatApresCharges = annualHT - cotisationsSociales
+  }
 
   const formatEur = (v: number) => new Intl.NumberFormat(dateFmtLocale, { style: 'currency', currency: 'EUR' }).format(v)
 
@@ -777,19 +801,31 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: tv.greenLight, borderColor: tv.green, padding: 16 }}>
                 <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: tv.green, marginBottom: 6 }}>✅ {isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
                 <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? { fontSize: 13 } : { fontSize: 13, color: tv.green }}>
-                  {isPt
-                    ? (isAutoEntrepreneur ? 'Regime Simplificado (Recibos Verdes)' : '⚠️ Ultrapassou o limite!')
-                    : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
+                  {isEntreprise
+                    ? (isPt ? 'Empresa (Regime Real)' : 'Société BTP (Régime réel)')
+                    : isPt
+                      ? (isAutoEntrepreneur ? 'Regime Simplificado (Recibos Verdes)' : '⚠️ Ultrapassou o limite!')
+                      : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
                 </div>
                 <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.green, marginTop: 4 }}>
-                  {isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
-                  {' / '}{isPt ? '200 000 €' : '77 700 €'}
+                  {isEntreprise
+                    ? (isPt ? 'IS 15% ≤42 500€ · 25% além' : 'IS 15% ≤42 500€ · 25% au-delà')
+                    : <>{isPt ? 'Faturação anual' : 'CA annuel'} : {formatEur(bookings.filter(b => b.status === 'completed' && b.booking_date && new Date(b.booking_date).getFullYear() === selectedYear).reduce((s, b) => s + (b.price_ht || 0), 0))}
+                  {' / '}{isPt ? '200 000 €' : '77 700 €'}</>}
                 </div>
               </div>
               <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: '#EFF6FF', borderColor: '#3b82f6', padding: 16 }}>
-                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>{isPt ? '💳 Contrib. estimadas' : '💳 Cotisations estimées'}</div>
-                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? {} : { fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{formatEur(cotisationsSociales)}</div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: '#2563eb', marginTop: 4 }}>{isPt ? '21,4% SS sobre rend. relevante (70%)' : '21,7% du CA HT annuel'}</div>
+                <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: '#1e40af', marginBottom: 6 }}>
+                  {isEntreprise
+                    ? (isPt ? '💳 IS estimado' : '💳 IS estimé')
+                    : (isPt ? '💳 Contrib. estimadas' : '💳 Cotisations estimées')}
+                </div>
+                <div className={isV5 ? 'v5-kpi-v' : ''} style={isV5 ? {} : { fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{formatEur(isEntreprise ? impotRevenu : cotisationsSociales)}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: '#2563eb', marginTop: 4 }}>
+                  {isEntreprise
+                    ? (isPt ? 'IS estimado sobre resultado' : 'IS estimé sur résultat')
+                    : (isPt ? '21,4% SS sobre rend. relevante (70%)' : '21,7% du CA HT annuel')}
+                </div>
               </div>
               <div className={isV5 ? 'v5-kpi' : 'v22-card'} style={isV5 ? {} : { background: tv.primaryLight, borderColor: tv.primary, padding: 16 }}>
                 <div className={isV5 ? 'v5-kpi-l' : ''} style={isV5 ? {} : { fontWeight: 600, color: tv.primary, marginBottom: 6 }}>📋 {isPt ? 'Próxima declaração' : 'Prochaine déclaration'}</div>
@@ -804,7 +840,11 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     return dates[q] || 'Voir calendrier'
                   })()}
                 </div>
-                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.primary, marginTop: 4 }}>{isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle'}</div>
+                <div className={isV5 ? 'v5-kpi-s' : ''} style={isV5 ? {} : { fontSize: 11, color: tv.primary, marginTop: 4 }}>
+                  {isEntreprise
+                    ? (isPt ? 'Declaração IVA + IRC trimestral' : 'Déclaration TVA + acompte IS')
+                    : (isPt ? 'Declaração Periódica IVA (trimestral)' : 'Déclaration URSSAF trimestrielle')}
+                </div>
               </div>
             </div>
           </div>
