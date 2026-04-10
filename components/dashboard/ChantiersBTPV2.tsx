@@ -385,9 +385,9 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   return (
     <div>
       {/* ── Page header ── */}
-      <div className={isV5 ? "v5-pg-t" : "v22-page-header"} style={{ flexDirection: 'column' }}>
-        <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
-        <p>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
+        <h1 style={isV5 ? { fontSize: 18, fontWeight: 600, marginBottom: 2 } : undefined}>{isPt ? 'Obras' : 'Chantiers'}</h1>
+        <p style={isV5 ? { fontSize: 12, color: '#999', margin: 0 } : undefined}>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
       </div>
 
       {/* ── Search bar ── */}

@@ -393,9 +393,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
 
       {/* ═══ V5 Page Header ═══ */}
       {isV5 && (
-        <div className="v5-pg-t" style={{ flexShrink: 0, flexDirection: 'column' }}>
-          <h1>Messagerie</h1>
-          <p>Conversations avec vos clients et donneurs d&apos;ordres</p>
+        <div style={{ marginBottom: '1.1rem', flexShrink: 0 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Messagerie</h1>
+          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Conversations avec vos clients et donneurs d&apos;ordres</p>
         </div>
       )}
 

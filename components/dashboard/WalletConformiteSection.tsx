@@ -514,9 +514,9 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
   if (isSociete) {
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
-          <h1>Conformit&eacute; r&eacute;glementaire</h1>
-          <p>Documents entreprise</p>
+        <div style={{ marginBottom: '1.1rem' }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Conformit&eacute; r&eacute;glementaire</h1>
+          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Documents entreprise</p>
         </div>
 
         {/* Score card with progress bar */}

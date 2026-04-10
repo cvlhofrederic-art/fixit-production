@@ -219,9 +219,9 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
-      <div className={isV5 ? "v5-pg-t" : "v22-page-header"} style={{ flexDirection: 'column' }}>
-        <h1>{isPt ? 'Contabilidade Inteligente BTP' : 'Compta Intelligente BTP'}</h1>
-        <p>{isPt ? 'Vista contabilística especializada BTP' : 'Vue comptable spécialisée BTP'}</p>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
+        <h1 style={isV5 ? { fontSize: 18, fontWeight: 600, marginBottom: 2 } : undefined}>{isPt ? 'Contabilidade Inteligente BTP' : 'Compta Intelligente BTP'}</h1>
+        <p style={isV5 ? { fontSize: 12, color: '#999', margin: 0 } : undefined}>{isPt ? 'Vista contabilística especializada BTP' : 'Vue comptable spécialisée BTP'}</p>
       </div>
 
       {/* Navigation tabs */}

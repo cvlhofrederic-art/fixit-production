@@ -41,12 +41,12 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
         <div>
           {isV5 ? (
             <>
-              <h1><Clock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.title')}</h1>
-              <p>{t('proDash.btp.pointage.subtitle')}</p>
+              <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}><Clock size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.title')}</h1>
+              <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{t('proDash.btp.pointage.subtitle')}</p>
             </>
           ) : (
             <>

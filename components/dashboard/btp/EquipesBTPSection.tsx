@@ -120,10 +120,10 @@ export function EquipesBTPSection({ artisan, orgRole }: { artisan: import('@/lib
   return (
     <div style={{ padding: '0' }}>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
         <div>
-          <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
-          <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
+          <h1 className={isV5 ? undefined : "v22-page-title"} style={isV5 ? { fontSize: 18, fontWeight: 600, marginBottom: 2 } : undefined}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Equipas & Colaboradores' : 'Équipes & Collaborateurs'}</h1>
+          <p className={isV5 ? undefined : "v22-page-sub"} style={isV5 ? { fontSize: 12, color: '#999', margin: 0 } : undefined}>{isPt ? 'Gerencie membros, equipas e permissões por função' : 'Gérez vos membres, équipes et permissions par rôle'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'membres' && <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => { setEditingMembre(null); setMForm({ prenom: '', nom: '', telephone: '', email: '', typeCompte: 'ouvrier', rolePerso: '', equipeId: '' }); setShowMembreModal(true) }}><PlusCircle size={14} /> {isPt ? 'Membro' : 'Membre'}</button>}

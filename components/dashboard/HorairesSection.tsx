@@ -42,11 +42,11 @@ export default function HorairesSection({
   return (
     <div className={isV5 ? 'v5-fade' : undefined}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
         {isV5 ? (
           <>
-            <h1>{'⏱️'} Horaires chantier &amp; équipes</h1>
-            <p>Définissez les plages d&apos;intervention de votre entreprise — affichées sur votre profil et dans les appels d&apos;offres</p>
+            <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{'⏱️'} Horaires chantier &amp; équipes</h1>
+            <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Définissez les plages d&apos;intervention de votre entreprise — affichées sur votre profil et dans les appels d&apos;offres</p>
           </>
         ) : (
           <>

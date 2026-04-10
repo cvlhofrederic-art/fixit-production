@@ -152,11 +152,11 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
         {isV5 ? (
           <>
-            <h1>{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>
-            <p>{isFR ? 'G\u00E9rez vos sous-traitants, analysez les DCE et pr\u00E9parez vos r\u00E9ponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}</p>
+            <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>
+            <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{isFR ? 'G\u00E9rez vos sous-traitants, analysez les DCE et pr\u00E9parez vos r\u00E9ponses' : 'Gerir subempreiteiros, analisar DCE e preparar propostas'}</p>
           </>
         ) : (
           <div>

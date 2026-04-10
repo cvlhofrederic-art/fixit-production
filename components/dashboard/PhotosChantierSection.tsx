@@ -157,10 +157,10 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
   return (
     <div>
       {/* Page header */}
-      <div className={isV5 ? "v5-pg-t" : "v22-page-header"} style={{ flexDirection: 'column' }}>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
         <div>
-          {isV5 ? <h1>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
-          {isV5 ? <p>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
+          {isV5 ? <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{'📸'} {t('proDash.photos.title')}</h1> : <div className="v22-page-title">{'📸'} {t('proDash.photos.title')}</div>}
+          {isV5 ? <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</p> : <div className="v22-page-sub">{photos.length} photos · {activeBookings.length} {t('proDash.photos.chantier')}</div>}
         </div>
         <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
           {uploading ? '...' : '+'} {t('proDash.photos.ajouterPhotos') || 'Ajouter photos'}

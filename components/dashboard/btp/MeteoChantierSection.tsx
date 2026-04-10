@@ -372,13 +372,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
-        <div>
-          <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
-          <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
-        </div>
+      <div style={{ marginBottom: '1.1rem' }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
+          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         {(meteoData.length > 0 || chantiersAvecLocalisation.length > 0) && (
-          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
+          <button className="v5-btn v5-btn-p" style={{ marginTop: 8 }} onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
             {meteoLoading ? (isPt ? 'A carregar...' : 'Chargement...') : (isPt ? 'Atualizar' : 'Actualiser')}
           </button>
         )}

@@ -163,10 +163,10 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
+      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
         <div>
-          <h1>{isV5 ? '' : <span className="v22-page-title" />}Planification Gantt</h1>
-          <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
+          <h1 style={isV5 ? { fontSize: 18, fontWeight: 600, marginBottom: 2 } : undefined}>{isV5 ? '' : <span className="v22-page-title" />}Planification Gantt</h1>
+          <p style={isV5 ? { fontSize: 12, color: '#999', margin: 0 } : undefined}>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
         </div>
         {active.length > 0 && (
           <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
