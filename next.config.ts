@@ -144,7 +144,7 @@ const nextConfig: NextConfig = {
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://lh3.googleusercontent.com https://ui-avatars.com https://*.stripe.com",
-            "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://*.vercel-insights.com https://*.ingest.sentry.io https://api.groq.com",
+            "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.stripe.com https://*.sentry.io https://*.vercel-insights.com https://*.ingest.sentry.io https://api.groq.com https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com",
             "frame-src 'self' https://js.stripe.com https://*.stripe.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",

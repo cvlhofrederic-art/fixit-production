@@ -159,6 +159,13 @@ function DashboardPage() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
+  // ── Dynamic tab title: show company name ──
+  useEffect(() => {
+    if (artisan?.company_name) {
+      document.title = `Vitfix — ${artisan.company_name}`
+    }
+  }, [artisan?.company_name])
+
   // ── Custom hooks (state + logic extracted) ──
   const svcHook = useServices(artisan?.id, t)
   const { services, setServices, showMotifModal, setShowMotifModal, editingMotif, motifForm, setMotifForm, savingMotif, openNewMotif, openEditMotif, saveMotif, toggleMotifActive, deleteMotif } = svcHook
