@@ -665,6 +665,9 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
   }
 
   if (msgLower.includes('tva') || msgLower.includes('taxe')) {
+    if (isEntrepriseFB) {
+      return `💶 **TVA Entreprise BTP 2026**\n\nEn tant qu'entreprise (SARL/SAS/EURL), vous êtes **obligatoirement assujettie à la TVA** — régime réel normal (CA3 mensuelle) ou simplifié (CA12 annuelle + 2 acomptes).\n\nTaux applicables :\n- **10%** : Travaux rénovation logement >2 ans (art. 279-0 bis CGI)\n- **5,5%** : Éco-rénovation (isolation, PAC, fenêtres RE2020) — art. 278-0 bis CGI\n- **20%** : Construction neuve, locaux professionnels\n\n💡 **TVA récupérable** sur tous vos achats et charges d'exploitation. Sous-traitance : auto-liquidation obligatoire (art. 283-2 nonies CGI).`
+    }
     const seuilTVA = 37500
     const etat = ht > seuilTVA ? `⚠️ **DÉPASSEMENT** du seuil franchise TVA (${fmt(seuilTVA)}) — vous DEVEZ facturer la TVA` : `✅ Sous le seuil franchise TVA (${fmt(seuilTVA)}) — TVA non applicable (art. 293B CGI)`
     return `💶 **TVA BTP 2026**\n\n${etat}\n\nTaux applicables :\n- **10%** : Travaux rénovation logement >2 ans (art. 279-0 bis CGI)\n- **5,5%** : Éco-rénovation (isolation, PAC, fenêtres RE2020) — art. 278-0 bis CGI\n- **20%** : Construction neuve, locaux professionnels\n\n💡 Seuil franchise 2026 : **37 500 €** (majoré 41 250 € tolérance).`
