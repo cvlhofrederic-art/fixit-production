@@ -503,6 +503,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   })
 
   const annualHT = quarterData.reduce((s, v) => s + v, 0)
+  const isEntreprise = orgRole === 'pro_societe'
   // Micro-entrepreneur only if artisan role AND under threshold
   const isAutoEntrepreneur = !isEntreprise && (isPt ? annualHT < 200000 : annualHT < 77700)
 
