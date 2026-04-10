@@ -526,7 +526,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
     resultatApresCharges = annualHT - cotisationsSociales
   } else {
     cotisationsSociales = annualHT * 0.212
-    impotRevenu = annualHT * 0.011
+    impotRevenu = annualHT * 0.017 // versement libératoire IR prestations de services (art. 151-0 CGI)
     resultatApresCharges = annualHT - cotisationsSociales
   }
 
