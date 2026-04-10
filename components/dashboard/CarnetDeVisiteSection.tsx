@@ -152,9 +152,9 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
     return (
       <div className="v5-fade">
         {/* Page title */}
-        <div style={{ marginBottom: '1.1rem' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>R&eacute;f&eacute;rences chantiers</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Portfolio de r&eacute;alisations {artisan?.company_name || ''}</p>
+        <div className="v5-pg-t">
+          <h1>R&eacute;f&eacute;rences chantiers</h1>
+          <p>Portfolio de r&eacute;alisations {artisan?.company_name || ''}</p>
         </div>
 
         {/* Add button */}

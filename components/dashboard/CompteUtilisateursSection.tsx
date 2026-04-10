@@ -301,7 +301,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   if (loading) {
     return (
       <div className="v5-fade">
-        <div style={{ marginBottom: '1.1rem' }}><h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1></div>
+        <div className="v5-pg-t"><h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1></div>
         <div style={{ textAlign: 'center', padding: '4rem', color: '#999', fontSize: 12 }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
       </div>
     )
@@ -310,9 +310,9 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   return (
     <div className="v5-fade">
       {/* Header */}
-      <div style={{ marginBottom: '1.1rem' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{isPt
+      <div className="v5-pg-t">
+          <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
+          <p>{isPt
             ? `Gerir os acessos da sua equipa — ${members.length} contas ativas / 20 max`
             : `Gérez les accès de votre équipe — ${members.length} comptes actifs / 20 max`}</p>
       </div>

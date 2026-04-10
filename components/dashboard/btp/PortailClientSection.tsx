@@ -135,7 +135,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
   if (loading) {
     return (
       <div className="v5-fade">
-        <div style={{ marginBottom: '1.1rem' }}><h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Portail client</h1><p style={{ fontSize: 12, color: '#999', margin: 0 }}>Chargement...</p></div>
+        <div className="v5-pg-t"><h1>Portail client</h1><p>Chargement...</p></div>
         <div className="v5-card" style={{ padding: '3rem', textAlign: 'center' }}>
           <div className="v5-spin" style={{ margin: '0 auto 12px', width: 28, height: 28 }} />
         </div>
@@ -146,9 +146,9 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
   return (
     <div className="v5-fade">
       {/* Header */}
-      <div style={{ marginBottom: '1.1rem' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}><Users size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> Portail client</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Donnez à vos clients un accès en temps réel à leurs chantiers</p>
+      <div className="v5-pg-t">
+          <h1><Users size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> Portail client</h1>
+          <p>Donnez à vos clients un accès en temps réel à leurs chantiers</p>
       </div>
 
       {/* KPIs */}

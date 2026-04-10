@@ -41,9 +41,9 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
   if (isSociete) {
     return (
       <div className="v5-fade">
-        <div style={{ marginBottom: '1.1rem' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Aide</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Centre d&apos;assistance VITFIX &mdash; Soci&eacute;t&eacute; BTP</p>
+        <div className="v5-pg-t">
+          <h1>Aide</h1>
+          <p>Centre d&apos;assistance VITFIX &mdash; Soci&eacute;t&eacute; BTP</p>
         </div>
 
         {/* Getting started card */}

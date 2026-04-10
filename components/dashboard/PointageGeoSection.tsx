@@ -204,9 +204,9 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
   return (
     <div>
       {/* Page header */}
-      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
-        <h1 style={isV5 ? { fontSize: 18, fontWeight: 600, marginBottom: 2 } : undefined}>{isPt ? 'Pointagem equipas' : 'Pointage équipes'}</h1>
-        <p style={isV5 ? { fontSize: 12, color: '#999', margin: 0 } : undefined}>{isPt ? 'Manual ou automático por GPS' : 'Suivi des heures'}</p>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+        <h1>{isPt ? 'Pointagem equipas' : 'Pointage équipes'}</h1>
+        <p>{isPt ? 'Manual ou automático por GPS' : 'Suivi des heures'}</p>
       </div>
 
       {/* Tabs + manual pointer button */}

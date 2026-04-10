@@ -368,9 +368,9 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
         )}
 
         {/* Page title */}
-        <div style={{ marginBottom: '1.1rem' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Base clients</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Ma&icirc;tres d&apos;ouvrage, syndics, architectes</p>
+        <div className="v5-pg-t">
+          <h1>Base clients</h1>
+          <p>Ma&icirc;tres d&apos;ouvrage, syndics, architectes</p>
         </div>
 
         {/* Search + new */}

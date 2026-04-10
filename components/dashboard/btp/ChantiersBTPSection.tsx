@@ -97,10 +97,10 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div>
-          <h1 className={isV5 ? undefined : "v22-page-title"} style={isV5 ? { fontSize: 18, fontWeight: 600, marginBottom: 2 } : undefined}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
-          <p className={isV5 ? undefined : "v22-page-sub"} style={isV5 ? { fontSize: 12, color: '#999', margin: 0 } : undefined}>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
+          <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+          <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
         </div>
         <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
       </div>

@@ -276,7 +276,7 @@ function FacturesSectionV5({
 
   return (
     <div className="v5-fade">
-      <div style={{ marginBottom: '1.1rem' }}><h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Factures</h1><p style={{ fontSize: 12, color: '#999', margin: 0 }}>Situations, acomptes, solde</p></div>
+      <div className="v5-pg-t"><h1>Factures</h1><p>Situations, acomptes, solde</p></div>
 
       {/* Search + Create */}
       <div className="v5-search">

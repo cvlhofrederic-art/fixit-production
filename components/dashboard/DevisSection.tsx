@@ -289,7 +289,7 @@ function DevisSectionV5({
 
   return (
     <div className="v5-fade">
-      <div style={{ marginBottom: '1.1rem' }}><h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Devis</h1><p style={{ fontSize: 12, color: '#999', margin: 0 }}>Gestion des devis entreprise</p></div>
+      <div className="v5-pg-t"><h1>Devis</h1><p>Gestion des devis entreprise</p></div>
 
       {/* Search + Create */}
       <div className="v5-search">

@@ -53,12 +53,12 @@ export default function ModulesSection({
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Page header — exact v6: <div class="pg-t"><h1>Modules</h1><p>...</p></div> */}
-      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div style={{ flex: 1 }}>
           {isV5 ? (
             <>
-              <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Modules</h1>
-              <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Activez, désactivez et réorganisez vos modules</p>
+              <h1>Modules</h1>
+              <p>Activez, désactivez et réorganisez vos modules</p>
             </>
           ) : (
             <>

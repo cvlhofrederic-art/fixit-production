@@ -334,9 +334,9 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
 
       {/* Header */}
       <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div style={{ marginBottom: 0 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants'}</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{isPt ? 'Publique missões e encontre subempreiteiros qualificados' : 'Publiez vos offres et recevez des candidatures'}</p>
+        <div className="v5-pg-t" style={{ marginBottom: 0 }}>
+          <h1>{isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants'}</h1>
+          <p>{isPt ? 'Publique missões e encontre subempreiteiros qualificados' : 'Publiez vos offres et recevez des candidatures'}</p>
         </div>
         <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => setTab('publier')}>
           + {isPt ? 'Publicar uma oferta' : 'Publier une offre'}

@@ -180,9 +180,9 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
   if (isV5) {
     return (
       <div className="v5-fade">
-        <div style={{ marginBottom: '1.1rem' }}>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>Biblioth&egrave;que d&apos;ouvrages</h1>
-          <p style={{ fontSize: 12, color: '#999', margin: 0 }}>Base de donn&eacute;es de prix unitaires &mdash; {items.length} poste{items.length > 1 ? 's' : ''}</p>
+        <div className="v5-pg-t">
+          <h1>Biblioth&egrave;que d&apos;ouvrages</h1>
+          <p>Base de donn&eacute;es de prix unitaires &mdash; {items.length} poste{items.length > 1 ? 's' : ''}</p>
         </div>
 
         {/* Search + new */}

@@ -61,10 +61,10 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
 
   return (
     <div>
-      <div className={isV5 ? '' : 'v22-page-header'} style={{ marginBottom: '1.1rem' }}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div>
-          {isV5 ? <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{t('proDash.btp.situations.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.situations.title')}</h1>}
-          {isV5 ? <p style={{ fontSize: 12, color: '#999', margin: 0 }}>{t('proDash.btp.situations.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>}
+          {isV5 ? <h1>{t('proDash.btp.situations.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.situations.title')}</h1>}
+          {isV5 ? <p>{t('proDash.btp.situations.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>}
         </div>
         <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
           + {t('proDash.btp.situations.nouvelleSituation')}
