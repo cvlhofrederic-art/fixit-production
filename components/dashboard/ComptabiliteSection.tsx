@@ -65,6 +65,8 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
     allExpenses: expenses,              // Toutes les dépenses avec date, catégorie, montant, notes
   }
 
+  const isEntreprise = orgRole === 'pro_societe'
+
   const QUICK_QUESTIONS = isPt ? [
     { label: '🔧 Materiais vs mão de obra', q: 'Dá-me o total gasto em materiais e em mão de obra separadamente desde o início do ano, com o detalhe linha a linha.' },
     { label: '💳 Contribuições Seg. Social', q: 'Quanto vou pagar à Segurança Social este trimestre e no ano inteiro? Detalha por trimestre.' },
@@ -501,7 +503,6 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   })
 
   const annualHT = quarterData.reduce((s, v) => s + v, 0)
-  const isEntreprise = orgRole === 'pro_societe'
   // Micro-entrepreneur only if artisan role AND under threshold
   const isAutoEntrepreneur = !isEntreprise && (isPt ? annualHT < 200000 : annualHT < 77700)
 
