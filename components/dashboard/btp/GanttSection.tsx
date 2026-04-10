@@ -153,7 +153,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
     hdrFirst: { padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700 as const, textTransform: 'uppercase' as const, color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'left' as const },
     row: { display: 'contents' as const },
     cell: { padding: '6px 4px', borderBottom: '1px solid #F0F0F0', fontSize: 11, position: 'relative' as const, height: 36 },
-    nameCell: { padding: '6px 8px', paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 as const, display: 'flex' as const, alignItems: 'center' as const, lineHeight: 1.3 },
+    nameCell: { padding: '6px 8px', paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 as const, display: 'flex' as const, alignItems: 'center' as const, lineHeight: 1.3, overflow: 'hidden' as const, whiteSpace: 'nowrap' as const, textOverflow: 'ellipsis' as const },
     bar: { height: 18, borderRadius: 3, position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', minWidth: 4 },
     barLabel: { position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', left: 6, fontSize: 9, fontWeight: 600 as const, color: '#fff', whiteSpace: 'nowrap' as const },
     progressLine: { position: 'absolute' as const, top: 2, bottom: 2, width: 2, background: '#E53935', zIndex: 2, borderRadius: 1 },
@@ -257,7 +257,6 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                       ...S.nameCell,
                       ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
                       ...(isRetard ? { color: '#C62828' } : {}),
-                      ...(isPlanifie ? { color: '#999' } : {}),
                       ...(!row.isChantier ? { paddingLeft: 24, fontWeight: 400 as const } : {}),
                     }}>
                       {row.nom}
