@@ -59,7 +59,7 @@ export async function proxy(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
-    "connect-src 'self' https://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://*.stripe.com wss://*.supabase.co https://*.sentry.io",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://*.vercel-insights.com",
     "frame-src https://js.stripe.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
