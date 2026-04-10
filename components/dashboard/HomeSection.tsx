@@ -166,7 +166,7 @@ export default function HomeSection({
 
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1 }}>
             <h1>{locale === 'pt' ? 'Painel' : 'Tableau de bord'}</h1>
             <p>{artisan?.company_name || 'Entreprise'} — {locale === 'pt' ? 'Semana' : 'Semaine'} {weekNum}, {monthYear}</p>
