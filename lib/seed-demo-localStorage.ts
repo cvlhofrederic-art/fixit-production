@@ -7,7 +7,7 @@
  */
 
 const DEMO_ARTISAN_ID = '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4'
-const SEED_VERSION = 2 // Increment to force re-seed after adding new data
+const SEED_VERSION = 3 // Increment to force re-seed after adding new data
 
 function isAlreadySeeded(artisanId: string): boolean {
   try {
@@ -18,8 +18,15 @@ function isAlreadySeeded(artisanId: string): boolean {
 }
 
 export function seedDemoLocalStorage(artisanId: string): void {
-  if (artisanId !== DEMO_ARTISAN_ID) return
   if (isAlreadySeeded(artisanId)) return
+  // Only seed for the known demo account OR for accounts with no existing documents
+  const hasExistingDocs = (() => {
+    try {
+      const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
+      return docs.length > 0
+    } catch { return false }
+  })()
+  if (artisanId !== DEMO_ARTISAN_ID && hasExistingDocs) return
 
   // ═══════════════════════════════════════
   // DEVIS + FACTURES (fixit_documents_*)
@@ -158,6 +165,18 @@ export function seedDemoLocalStorage(artisanId: string): void {
         { description: 'Plomberie (60%)', qty: 1, priceHT: 3300, totalHT: 3300, unite: 'forfait', tvaRate: 20 },
       ],
       total_ht_cents: 1170000, total_tax_cents: 234000, total_ttc_cents: 1404000,
+    },
+    {
+      id: 'demo-fac-005', docType: 'facture', docNumber: 'FAC-2026-005',
+      docTitle: 'Acompte 20% — Ravalement façade Bd Longchamp',
+      docDate: '2026-04-08', savedAt: '2026-04-08T10:00:00Z',
+      clientName: 'Syndic Foncia — Résidence Les Pins', clientEmail: 'foncia.pins@foncia.fr',
+      status: 'envoye', sentAt: '2026-04-08T11:00:00Z',
+      paymentDue: '2026-05-08',
+      lines: [
+        { description: 'Acompte 20% — Ravalement façade Résidence Les Pins', qty: 1, priceHT: 9000, totalHT: 9000, unite: 'forfait', tvaRate: 10 },
+      ],
+      total_ht_cents: 900000, total_tax_cents: 90000, total_ttc_cents: 990000,
     },
   ]
 
