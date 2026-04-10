@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
@@ -25,25 +25,28 @@ type GanttRow = {
 function mapChantierStatut(statut: string, dateFin: string): GanttRow['statut'] {
   if (statut === 'Terminé') return 'terminé'
   if (statut === 'En attente') return 'planifié'
-  // "En cours" — check if overdue
   if (dateFin && new Date(dateFin) < new Date()) return 'en_retard'
   return 'en_cours'
 }
 
-// Palette from HTML mockup — rotation cyclique
+// Exact HTML mockup colors
 const PALETTE = ['#42A5F5', '#66BB6A', '#FFA726', '#FFCA28', '#AB47BC', '#EF5350', '#42A5F5']
+function getChantierColor(index: number): string { return PALETTE[index % PALETTE.length] }
 
-function getChantierColor(index: number): string {
-  return PALETTE[index % PALETTE.length]
+function computeAvancement(dateDebut: string, dateFin: string): number {
+  const s = new Date(dateDebut).getTime(), e = new Date(dateFin).getTime(), n = Date.now()
+  if (n <= s) return 0
+  if (n >= e) return 100
+  return Math.round(((n - s) / (e - s)) * 100)
 }
 
-function computeChantierAvancement(dateDebut: string, dateFin: string): number {
-  const start = new Date(dateDebut).getTime()
-  const end = new Date(dateFin).getTime()
-  const now = Date.now()
-  if (now <= start) return 0
-  if (now >= end) return 100
-  return Math.round(((now - start) / (end - start)) * 100)
+/** For a given row & month, return left/right % for the bar segment, or null if no overlap */
+function getSegment(rowStart: number, rowEnd: number, mStart: number, mEnd: number) {
+  if (rowEnd <= mStart || rowStart >= mEnd) return null
+  const segStart = Math.max(rowStart, mStart)
+  const segEnd = Math.min(rowEnd, mEnd)
+  const span = mEnd - mStart
+  return { left: ((segStart - mStart) / span) * 100, right: ((mEnd - segEnd) / span) * 100 }
 }
 
 export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
@@ -55,21 +58,12 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const isPt = locale === 'pt'
 
   const SUBTASKS_KEY = `gantt_subtasks_${userId}`
+  const { items: chantiers, loading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId })
 
-  // Load chantiers from Supabase via useBTPData (with 30s cache)
-  const { items: supaChantiers, loading: chantiersLoading } = useBTPData<ChantierItem>({
-    table: 'chantiers',
-    artisanId: userId,
-    userId: userId,
-  })
-  const chantiers = supaChantiers
-
-  // Sub-tasks (manually added, linked to a chantier)
   const [sousTaches, setSousTaches] = useState<SousTache[]>(() => {
     try { return JSON.parse(localStorage.getItem(SUBTASKS_KEY) || '[]') } catch { return [] }
   })
-  const saveST = (data: SousTache[]) => { setSousTaches(data); localStorage.setItem(SUBTASKS_KEY, JSON.stringify(data)) }
-
+  const saveST = (d: SousTache[]) => { setSousTaches(d); localStorage.setItem(SUBTASKS_KEY, JSON.stringify(d)) }
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })
 
@@ -82,76 +76,47 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const updateAvancement = (id: string, val: number) => saveST(sousTaches.map(st => st.id === id ? { ...st, avancement: val } : st))
   const deleteSousTache = (id: string) => saveST(sousTaches.filter(st => st.id !== id))
 
-  // Build Gantt rows: chantiers (exclude terminé) + sub-tasks grouped
-  const chantiersWithDates = chantiers.filter(c => c.dateDebut && c.dateFin && c.statut !== 'Terminé')
-
-  const ganttRows: GanttRow[] = []
-  chantiersWithDates.forEach((c, idx) => {
-    const couleur = getChantierColor(idx)
-    const avancement = computeChantierAvancement(c.dateDebut, c.dateFin)
-    // Chantier row
-    ganttRows.push({
+  // Build rows
+  const active = chantiers.filter(c => c.dateDebut && c.dateFin && c.statut !== 'Terminé')
+  const rows: GanttRow[] = []
+  active.forEach((c, idx) => {
+    rows.push({
       id: c.id, nom: c.titre, responsable: c.equipe || c.client || '',
-      debut: c.dateDebut, fin: c.dateFin, avancement,
-      statut: mapChantierStatut(c.statut, c.dateFin),
-      couleur,
-      isChantier: true,
+      debut: c.dateDebut, fin: c.dateFin, avancement: computeAvancement(c.dateDebut, c.dateFin),
+      statut: mapChantierStatut(c.statut, c.dateFin), couleur: getChantierColor(idx), isChantier: true,
     })
-    // Sub-tasks for this chantier
     sousTaches.filter(st => st.chantierId === c.id).forEach(st => {
-      const isOverdue = st.avancement < 100 && new Date(st.fin) < new Date()
-      ganttRows.push({
+      const overdue = st.avancement < 100 && new Date(st.fin) < new Date()
+      rows.push({
         id: st.id, nom: st.nom, chantierId: c.id, responsable: st.responsable,
         debut: st.debut, fin: st.fin, avancement: st.avancement,
-        statut: st.avancement >= 100 ? 'terminé' : isOverdue ? 'en_retard' : st.avancement > 0 ? 'en_cours' : 'planifié',
+        statut: st.avancement >= 100 ? 'terminé' : overdue ? 'en_retard' : st.avancement > 0 ? 'en_cours' : 'planifié',
         couleur: st.couleur, isChantier: false,
       })
     })
   })
-  // Orphan sub-tasks (chantier deleted or terminated)
-  sousTaches.filter(st => !st.chantierId || !chantiersWithDates.find(c => c.id === st.chantierId)).forEach(st => {
-    // Skip sub-tasks of terminated chantiers
-    if (st.chantierId && chantiers.find(c => c.id === st.chantierId && c.statut === 'Terminé')) return
-    const isOverdue = st.avancement < 100 && new Date(st.fin) < new Date()
-    ganttRows.push({
-      id: st.id, nom: st.nom, chantierId: st.chantierId, responsable: st.responsable,
-      debut: st.debut, fin: st.fin, avancement: st.avancement,
-      statut: st.avancement >= 100 ? 'terminé' : isOverdue ? 'en_retard' : st.avancement > 0 ? 'en_cours' : 'planifié',
-      couleur: st.couleur, isChantier: false,
-    })
-  })
 
-  // Timeline computation
-  const allDates = ganttRows.flatMap(r => [new Date(r.debut), new Date(r.fin)]).filter(d => !isNaN(d.getTime()))
+  // Timeline months
+  const allDates = rows.flatMap(r => [new Date(r.debut), new Date(r.fin)]).filter(d => !isNaN(d.getTime()))
   const minDate = allDates.length ? new Date(Math.min(...allDates.map(d => d.getTime()))) : new Date()
-  const maxDate = allDates.length ? new Date(Math.max(...allDates.map(d => d.getTime()))) : new Date(Date.now() + 30 * 86400000)
+  const maxDate = allDates.length ? new Date(Math.max(...allDates.map(d => d.getTime()))) : new Date(Date.now() + 90 * 86400000)
 
-  const getMonths = () => {
-    const months: { label: string; start: Date; end: Date }[] = []
+  const months: { label: string; start: Date; end: Date }[] = []
+  if (rows.length > 0) {
     const d = new Date(minDate.getFullYear(), minDate.getMonth(), 1)
     while (d <= maxDate) {
       const start = new Date(d)
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59)
-      months.push({ label: start.toLocaleDateString(dateLocale, { month: 'short' }).replace('.', ''), start, end })
+      months.push({ label: start.toLocaleDateString(dateLocale, { month: 'short' }).replace('.', '').toUpperCase(), start, end })
       d.setMonth(d.getMonth() + 1)
     }
-    return months
   }
-  const months = ganttRows.length > 0 ? getMonths() : []
-  const gridCols = months.length > 0 ? `200px repeat(${months.length}, 1fr)` : '200px 1fr'
 
-  // Timeline total range
-  const timelineStart = months.length ? months[0].start.getTime() : Date.now()
-  const timelineEnd = months.length ? months[months.length - 1].end.getTime() : Date.now() + 30 * 86400000
-  const timelineSpan = timelineEnd - timelineStart || 1
-
-  // Position a bar as % of the total timeline
-  const getBarPosition = (row: GanttRow) => {
-    const s = new Date(row.debut).getTime()
-    const e = new Date(row.fin).getTime()
-    const left = Math.max(0, (s - timelineStart) / timelineSpan * 100)
-    const right = Math.max(0, (timelineEnd - e) / timelineSpan * 100)
-    return { left: `${left.toFixed(2)}%`, right: `${right.toFixed(2)}%` }
+  // "Today" position in each month (% within the month cell, or null)
+  const todayInMonth = (m: { start: Date; end: Date }) => {
+    const now = Date.now(), ms = m.start.getTime(), me = m.end.getTime()
+    if (now < ms || now > me) return null
+    return ((now - ms) / (me - ms)) * 100
   }
 
   const statusColor = (s: GanttRow['statut']) =>
@@ -164,25 +129,34 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
     en_retard: t('proDash.btp.gantt.enRetard'),
   }
 
-  const subTasksOnly = ganttRows.filter(r => !r.isChantier)
+  const subTasks = rows.filter(r => !r.isChantier)
+  const todayLabel = new Date().toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' })
+
+  // CSS-in-JS matching HTML mockup exactly
+  const S = {
+    gantt: { overflowX: 'auto' as const, border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff' },
+    grid: { display: 'grid' as const, gridTemplateColumns: `180px repeat(${months.length}, 1fr)`, minWidth: 900 },
+    hdr: { display: 'contents' as const },
+    hdrCell: { padding: '6px 8px', fontSize: 10, fontWeight: 700 as const, textTransform: 'uppercase' as const, color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'center' as const },
+    hdrFirst: { padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700 as const, textTransform: 'uppercase' as const, color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'left' as const },
+    row: { display: 'contents' as const },
+    cell: { padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, position: 'relative' as const },
+    nameCell: { padding: 8, paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 as const, display: 'flex' as const, alignItems: 'center' as const },
+    bar: { height: 20, borderRadius: 3, position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', minWidth: 4 },
+    barLabel: { position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', left: 6, fontSize: 9, fontWeight: 600 as const, color: '#fff', whiteSpace: 'nowrap' as const },
+    today: { position: 'absolute' as const, top: 0, bottom: 0, width: 2, background: '#E53935', zIndex: 2 },
+    diamond: { width: 10, height: 10, background: '#FFC107', transform: 'rotate(45deg)', position: 'absolute' as const, top: '50%', marginTop: -5, zIndex: 3 },
+  }
 
   return (
     <div>
+      {/* Header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <div>
-          {isV5 ? (
-            <>
-              <h1>Planification Gantt</h1>
-              <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length > 0 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
-            </>
-          ) : (
-            <>
-              <h1 className="v22-page-title">Planification Gantt</h1>
-              <p className="v22-page-sub">{chantiersWithDates.length} {isPt ? 'obra(s)' : 'chantier(s)'} &middot; {sousTaches.length} {isPt ? 'tarefa(s)' : 'tâche(s)'}</p>
-            </>
-          )}
+          <h1>{isV5 ? '' : <span className="v22-page-title" />}Planification Gantt</h1>
+          <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} 2026` : ''}</p>
         </div>
-        {chantiersWithDates.length > 0 && (
+        {active.length > 0 && (
           <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
         )}
       </div>
@@ -191,200 +165,173 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
       {showForm && (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: '1.25rem' }}>
           <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? 'Nova tarefa' : 'Nouvelle sous-tâche'}</div>
-          <div className={isV5 ? 'v5-fr' : undefined} style={{ marginBottom: '.75rem', ...(isV5 ? {} : { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }) }}>
-            <div className={isV5 ? 'v5-fg' : undefined}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Obra' : 'Chantier'}</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: '.75rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Obra' : 'Chantier'}</label>
               <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.chantierId} onChange={e => setForm({...form, chantierId: e.target.value})}>
-                <option value="">{isPt ? 'Selecionar obra...' : 'Sélectionner un chantier...'}</option>
-                {chantiersWithDates.map(c => <option key={c.id} value={c.id}>{c.titre}</option>)}
+                <option value="">{isPt ? 'Selecionar...' : 'Sélectionner...'}</option>
+                {active.map(c => <option key={c.id} value={c.id}>{c.titre}</option>)}
               </select>
             </div>
-            <div className={isV5 ? 'v5-fg' : undefined}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome da tarefa' : 'Nom de la tâche'}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Nome' : 'Nom'}</label>
               <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.nom} onChange={e => setForm({...form, nom: e.target.value})} placeholder={isPt ? 'Ex: Demolição' : 'Ex: Démolition'} />
             </div>
-            <div className={isV5 ? 'v5-fg' : undefined}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Responsável' : 'Responsable'}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Responsável' : 'Responsable'}</label>
               <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.responsable} onChange={e => setForm({...form, responsable: e.target.value})} />
             </div>
-            <div className={isV5 ? 'v5-fg' : undefined}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cor' : 'Couleur'}</label>
-              <input type="color" className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
-            </div>
-            <div className={isV5 ? 'v5-fg' : undefined}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Início' : 'Début'}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Início' : 'Début'}</label>
               <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.debut} onChange={e => setForm({...form, debut: e.target.value})} />
             </div>
-            <div className={isV5 ? 'v5-fg' : undefined}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Fim' : 'Fin'}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Fim' : 'Fin'}</label>
               <input type="date" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.fin} onChange={e => setForm({...form, fin: e.target.value})} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#666' }}>{isPt ? 'Cor' : 'Couleur'}</label>
+              <input type="color" className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ height: 34, padding: '2px 4px' }} value={form.couleur} onChange={e => setForm({...form, couleur: e.target.value})} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
-            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={isV5 ? undefined : { background: 'none', border: `1px solid ${tv.border}` }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+            <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ background: 'none', border: '1px solid #E8E8E8' }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           </div>
         </div>
       )}
 
-      {/* Gantt Chart */}
-      {chantiersLoading ? (
-        <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: '48px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar obras...' : 'Chargement des chantiers...'}</div>
+      {/* Gantt Chart — exact HTML mockup structure */}
+      {loading ? (
+        <div style={{ ...S.gantt, padding: '48px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: '#999' }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
         </div>
-      ) : ganttRows.length === 0 ? (
-        <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: '48px 24px', textAlign: 'center' }}>
+      ) : rows.length === 0 ? (
+        <div style={{ ...S.gantt, padding: '48px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📊</div>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma obra com datas' : 'Aucun chantier avec des dates'}</div>
-          <p style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>{isPt ? 'Crie obras com data de início e fim no separador Chantiers para as ver aqui' : 'Créez des chantiers avec dates de début et fin dans l\'onglet Chantiers pour les voir ici'}</p>
+          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras com datas no separador Chantiers' : 'Créez des chantiers avec dates dans l\'onglet Chantiers'}</p>
         </div>
       ) : (
         <>
-          {/* Gantt container */}
-          <div style={{ overflowX: 'auto', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff' }}>
-            {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `180px 1fr`, minWidth: 900 }}>
-              <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>
-                {isPt ? 'Obra' : 'Chantier'}
+          <div style={S.gantt}>
+            <div style={S.grid}>
+              {/* ── Header ── */}
+              <div style={S.hdr}>
+                <div style={S.hdrFirst}>{isPt ? 'Obra' : 'Chantier'}</div>
+                {months.map((m, i) => <div key={i} style={S.hdrCell}>{m.label}</div>)}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${months.length}, 1fr)`, background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>
-                {months.map((m, i) => (
-                  <div key={i} style={{ padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', textAlign: 'center', borderLeft: i > 0 ? '1px solid #E8E8E8' : 'none' }}>
-                    {m.label}
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            {/* Data rows — continuous bar spanning all months */}
-            {ganttRows.map(row => {
-              const color = row.couleur || statusColor(row.statut)
-              const isRetard = row.statut === 'en_retard'
-              const isTermine = row.statut === 'terminé'
-              const isPlanifie = row.statut === 'planifié'
-              const pos = getBarPosition(row)
+              {/* ── Rows ── */}
+              {rows.map(row => {
+                const color = row.isChantier ? row.couleur : (row.couleur || statusColor(row.statut))
+                const isRetard = row.statut === 'en_retard'
+                const isTermine = row.statut === 'terminé'
+                const isPlanifie = row.statut === 'planifié'
+                const rStart = new Date(row.debut).getTime()
+                const rEnd = new Date(row.fin).getTime()
 
-              return (
-                <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', minWidth: 900, borderBottom: '1px solid #F0F0F0' }}>
-                  {/* Name cell */}
-                  <div style={{
-                    padding: '8px 12px', fontSize: 11, fontWeight: 600,
-                    display: 'flex', alignItems: 'center',
-                    ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
-                    ...(isRetard ? { color: '#C62828' } : {}),
-                    ...(isPlanifie ? { color: '#999' } : {}),
-                    ...(!row.isChantier ? { paddingLeft: 24, fontWeight: 400 } : {}),
-                  }}>
-                    {!row.isChantier && <span style={{ marginRight: 4, color: '#ccc' }}>└</span>}
-                    {row.nom}
-                    {isTermine && row.isChantier && ' ✓'}
-                    {isRetard && ' ⚠️'}
-                    {!row.isChantier && (
-                      <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title="Supprimer">✕</button>
-                    )}
-                  </div>
+                // Find which month has the most bar coverage (for placing the % label)
+                let labelIdx = -1, bestW = 0
+                months.forEach((m, i) => {
+                  const seg = getSegment(rStart, rEnd, m.start.getTime(), m.end.getTime())
+                  if (seg) { const w = 100 - seg.left - seg.right; if (w > bestW) { bestW = w; labelIdx = i } }
+                })
 
-                  {/* Timeline area — single continuous zone */}
-                  <div style={{ position: 'relative', minHeight: 36 }}>
-                    {/* Month separator lines */}
-                    <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${months.length}, 1fr)`, pointerEvents: 'none' }}>
-                      {months.map((_, i) => (
-                        <div key={i} style={{ borderLeft: i > 0 ? '1px solid #F0F0F0' : 'none' }} />
-                      ))}
-                    </div>
-
-                    {/* Continuous bar */}
+                return (
+                  <div key={`${row.isChantier ? 'c' : 't'}-${row.id}`} style={S.row}>
+                    {/* Name */}
                     <div style={{
-                      position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                      left: pos.left, right: pos.right,
-                      height: 20, borderRadius: 3, minWidth: 4,
-                      background: isTermine ? '#BDBDBD' : color,
-                      opacity: isPlanifie ? 0.5 : 1,
+                      ...S.nameCell,
+                      ...(isTermine ? { color: '#999', textDecoration: 'line-through' } : {}),
+                      ...(isRetard ? { color: '#C62828' } : {}),
+                      ...(isPlanifie ? { color: '#999' } : {}),
+                      ...(!row.isChantier ? { paddingLeft: 24, fontWeight: 400 as const } : {}),
                     }}>
-                      {/* % label inside bar, left-aligned */}
-                      <span style={{
-                        position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                        left: 6, fontSize: 9, fontWeight: 600,
-                        color: color === '#FFCA28' ? '#333' : '#fff',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {row.avancement}%
-                      </span>
+                      {row.nom}
+                      {isTermine && row.isChantier && ' ✓'}
+                      {isRetard && ' ⚠️'}
+                      {!row.isChantier && (
+                        <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title="Supprimer">✕</button>
+                      )}
                     </div>
 
-                    {/* Red vertical line at avancement % position within the bar */}
-                    {row.isChantier && row.avancement > 0 && row.avancement < 100 && (() => {
-                      const barLeftPct = parseFloat(pos.left)
-                      const barRightPct = parseFloat(pos.right)
-                      const barWidthPct = 100 - barLeftPct - barRightPct
-                      const linePct = barLeftPct + barWidthPct * (row.avancement / 100)
-                      return (
-                        <div style={{
-                          position: 'absolute', top: 0, bottom: 0,
-                          left: `${linePct}%`, width: 2,
-                          background: '#E53935', zIndex: 2,
-                        }} />
-                      )
-                    })()}
+                    {/* Month cells */}
+                    {months.map((m, mi) => {
+                      const seg = getSegment(rStart, rEnd, m.start.getTime(), m.end.getTime())
+                      const tp = todayInMonth(m)
 
-                    {/* Diamond milestone at end of bar */}
-                    {row.isChantier && row.avancement < 100 && (() => {
-                      const barRightPct = parseFloat(pos.right)
-                      if (barRightPct < 2) return null
                       return (
-                        <div style={{
-                          width: 10, height: 10, background: '#FFC107',
-                          transform: 'rotate(45deg)', position: 'absolute',
-                          top: '50%', marginTop: -5,
-                          right: `${barRightPct - 1}%`,
-                          zIndex: 3,
-                        }} />
+                        <div key={mi} style={S.cell}>
+                          {seg && (
+                            <div style={{
+                              ...S.bar,
+                              left: `${seg.left}%`,
+                              right: `${seg.right}%`,
+                              background: isTermine ? '#BDBDBD' : color,
+                              opacity: isPlanifie ? 0.5 : 1,
+                            }}>
+                              {mi === labelIdx && (
+                                <span style={{ ...S.barLabel, color: color === '#FFCA28' ? '#333' : '#fff' }}>
+                                  {row.avancement}%
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Today red line — shown once per row in the right month cell */}
+                          {tp !== null && (
+                            <div style={{ ...S.today, left: `${tp}%` }} />
+                          )}
+
+                          {/* Diamond milestone at end of last segment */}
+                          {row.isChantier && seg && !getSegment(rStart, rEnd, months[mi + 1]?.start.getTime() || Infinity, months[mi + 1]?.end.getTime() || Infinity) && seg.right > 5 && (
+                            <div style={{ ...S.diamond, right: `${Math.max(1, seg.right - 3)}%` }} />
+                          )}
+                        </div>
                       )
-                    })()}
+                    })}
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
 
           {/* Legend */}
           <div style={{ marginTop: 8, fontSize: 10, color: '#999' }}>
-            🔴 {isPt ? 'Linha vermelha = avanço' : 'Ligne rouge = avancement'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = fim prevista' : 'Losange = fin prévue'}
+            🔴 {isPt ? `Linha vermelha = hoje (${todayLabel})` : `Ligne rouge = aujourd'hui (${todayLabel})`} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = jalon clé' : 'Losange = jalon clé'}
           </div>
 
-          {/* Sub-task advancement table */}
-          {subTasksOnly.length > 0 && (
-            <div style={{ overflow: 'hidden', border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', marginTop: 12 }}>
+          {/* Sub-task table */}
+          {subTasks.length > 0 && (
+            <div style={{ ...S.gantt, marginTop: 12 }}>
               <div style={{ padding: '8px 12px', fontWeight: 700, fontSize: 11, color: '#333', borderBottom: '1px solid #E8E8E8', background: '#FAFAFA' }}>
                 {isPt ? 'Avanço das tarefas' : 'Avancement des tâches'}
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '6px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Tarefa' : 'Tâche'}</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Obra' : 'Chantier'}</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Estado' : 'Statut'}</th>
-                    <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{isPt ? 'Avanço' : 'Avancement'}</th>
+                    {[isPt ? 'Tarefa' : 'Tâche', isPt ? 'Obra' : 'Chantier', isPt ? 'Estado' : 'Statut', isPt ? 'Avanço' : 'Avancement'].map((h, i) => (
+                      <th key={i} style={{ textAlign: 'left', padding: '6px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {subTasksOnly.map(row => {
-                    const chantier = chantiers.find(c => c.id === row.chantierId)
+                  {subTasks.map(row => {
+                    const ch = chantiers.find(c => c.id === row.chantierId)
                     return (
                       <tr key={row.id}>
                         <td style={{ padding: '8px 12px', borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 }}>
                           {row.nom}
-                          <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{row.responsable}</div>
+                          {row.responsable && <div style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>{row.responsable}</div>}
                         </td>
-                        <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>{chantier?.titre || '—'}</td>
+                        <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>{ch?.titre || '—'}</td>
                         <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11 }}>
                           <span style={{
                             display: 'inline-block', padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 600,
                             background: row.statut === 'en_cours' ? '#E3F2FD' : row.statut === 'terminé' ? '#F5F5F5' : row.statut === 'en_retard' ? '#FFEBEE' : '#F3E5F5',
                             color: row.statut === 'en_cours' ? '#1565C0' : row.statut === 'terminé' ? '#757575' : row.statut === 'en_retard' ? '#C62828' : '#7B1FA2',
-                          }}>
-                            {statLabels[row.statut] || row.statut}
-                          </span>
+                          }}>{statLabels[row.statut] || row.statut}</span>
                         </td>
                         <td style={{ padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, minWidth: 160 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -393,11 +340,9 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                             </div>
                             <span style={{ fontSize: 10, fontWeight: 600, minWidth: 28 }}>{row.avancement}%</span>
                           </div>
-                          <input
-                            type="range" min="0" max="100" value={row.avancement}
+                          <input type="range" min="0" max="100" value={row.avancement}
                             onChange={e => updateAvancement(row.id, Number(e.target.value))}
-                            style={{ width: '100%', accentColor: '#FFC107', height: 4, marginTop: 4 }}
-                          />
+                            style={{ width: '100%', accentColor: '#FFC107', height: 4, marginTop: 4 }} />
                         </td>
                       </tr>
                     )
@@ -407,12 +352,12 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
             </div>
           )}
 
-          {/* Stats KPIs */}
+          {/* KPI cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12 }}>
             {(['planifié', 'en_cours', 'terminé', 'en_retard'] as const).map(s => (
               <div key={s} style={{ border: '1px solid #E8E8E8', borderRadius: 6, background: '#fff', padding: 12, textAlign: 'center' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', marginBottom: 4 }}>{statLabels[s]}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: statusColor(s) }}>{ganttRows.filter(r => r.statut === s).length}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: statusColor(s) }}>{rows.filter(r => r.statut === s).length}</div>
               </div>
             ))}
           </div>
