@@ -80,8 +80,9 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const active = chantiers.filter(c => c.dateDebut && c.dateFin && c.statut !== 'Terminé')
   const rows: GanttRow[] = []
   active.forEach((c, idx) => {
+    const adresseShort = c.client ? ` — ${c.client}` : ''
     rows.push({
-      id: c.id, nom: c.titre, responsable: c.equipe || c.client || '',
+      id: c.id, nom: `${c.titre}${adresseShort}`, responsable: c.equipe || c.client || '',
       debut: c.dateDebut, fin: c.dateFin, avancement: computeAvancement(c.dateDebut, c.dateFin),
       statut: mapChantierStatut(c.statut, c.dateFin), couleur: getChantierColor(idx), isChantier: true,
     })
@@ -96,10 +97,20 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
     })
   })
 
-  // Timeline months
+  // Timeline months — pad 1 month before/after, minimum 7 months displayed
   const allDates = rows.flatMap(r => [new Date(r.debut), new Date(r.fin)]).filter(d => !isNaN(d.getTime()))
-  const minDate = allDates.length ? new Date(Math.min(...allDates.map(d => d.getTime()))) : new Date()
-  const maxDate = allDates.length ? new Date(Math.max(...allDates.map(d => d.getTime()))) : new Date(Date.now() + 90 * 86400000)
+  const rawMin = allDates.length ? new Date(Math.min(...allDates.map(d => d.getTime()))) : new Date()
+  const rawMax = allDates.length ? new Date(Math.max(...allDates.map(d => d.getTime()))) : new Date(Date.now() + 90 * 86400000)
+  // Pad: 1 month before earliest, 1 month after latest
+  const minDate = new Date(rawMin.getFullYear(), rawMin.getMonth() - 1, 1)
+  const padMax = new Date(rawMax.getFullYear(), rawMax.getMonth() + 2, 0)
+  // Ensure at least 7 months displayed
+  const minMonths = 7
+  let maxDate = padMax
+  const diffMonths = (padMax.getFullYear() - minDate.getFullYear()) * 12 + padMax.getMonth() - minDate.getMonth() + 1
+  if (diffMonths < minMonths) {
+    maxDate = new Date(minDate.getFullYear(), minDate.getMonth() + minMonths - 1, 28)
+  }
 
   const months: { label: string; start: Date; end: Date }[] = []
   if (rows.length > 0) {
@@ -112,11 +123,14 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
     }
   }
 
-  // "Today" position in each month (% within the month cell, or null)
-  const todayInMonth = (m: { start: Date; end: Date }) => {
-    const now = Date.now(), ms = m.start.getTime(), me = m.end.getTime()
-    if (now < ms || now > me) return null
-    return ((now - ms) / (me - ms)) * 100
+  /** Progress-line position: where the row's avancement % falls within a month cell, or null */
+  const progressInMonth = (row: GanttRow, m: { start: Date; end: Date }) => {
+    const rStart = new Date(row.debut).getTime()
+    const rEnd = new Date(row.fin).getTime()
+    const progressTime = rStart + (rEnd - rStart) * (row.avancement / 100)
+    const ms = m.start.getTime(), me = m.end.getTime()
+    if (progressTime < ms || progressTime > me) return null
+    return ((progressTime - ms) / (me - ms)) * 100
   }
 
   const statusColor = (s: GanttRow['statut']) =>
@@ -130,7 +144,6 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   }
 
   const subTasks = rows.filter(r => !r.isChantier)
-  const todayLabel = new Date().toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' })
 
   // CSS-in-JS matching HTML mockup exactly
   const S = {
@@ -140,11 +153,11 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
     hdrCell: { padding: '6px 8px', fontSize: 10, fontWeight: 700 as const, textTransform: 'uppercase' as const, color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'center' as const },
     hdrFirst: { padding: '6px 8px', paddingLeft: 12, fontSize: 10, fontWeight: 700 as const, textTransform: 'uppercase' as const, color: '#999', background: '#FAFAFA', borderBottom: '2px solid #E8E8E8', textAlign: 'left' as const },
     row: { display: 'contents' as const },
-    cell: { padding: 8, borderBottom: '1px solid #F0F0F0', fontSize: 11, position: 'relative' as const },
-    nameCell: { padding: 8, paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 as const, display: 'flex' as const, alignItems: 'center' as const },
-    bar: { height: 20, borderRadius: 3, position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', minWidth: 4 },
+    cell: { padding: '6px 4px', borderBottom: '1px solid #F0F0F0', fontSize: 11, position: 'relative' as const, height: 36 },
+    nameCell: { padding: '6px 8px', paddingLeft: 12, borderBottom: '1px solid #F0F0F0', fontSize: 11, fontWeight: 600 as const, display: 'flex' as const, alignItems: 'center' as const, lineHeight: 1.3 },
+    bar: { height: 18, borderRadius: 3, position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', minWidth: 4 },
     barLabel: { position: 'absolute' as const, top: '50%', transform: 'translateY(-50%)', left: 6, fontSize: 9, fontWeight: 600 as const, color: '#fff', whiteSpace: 'nowrap' as const },
-    today: { position: 'absolute' as const, top: 0, bottom: 0, width: 2, background: '#E53935', zIndex: 2 },
+    progressLine: { position: 'absolute' as const, top: 2, bottom: 2, width: 2, background: '#E53935', zIndex: 2, borderRadius: 1 },
     diamond: { width: 10, height: 10, background: '#FFC107', transform: 'rotate(45deg)', position: 'absolute' as const, top: '50%', marginTop: -5, zIndex: 3 },
   }
 
@@ -259,7 +272,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                     {/* Month cells */}
                     {months.map((m, mi) => {
                       const seg = getSegment(rStart, rEnd, m.start.getTime(), m.end.getTime())
-                      const tp = todayInMonth(m)
+                      const pp = progressInMonth(row, m)
 
                       return (
                         <div key={mi} style={S.cell}>
@@ -279,9 +292,9 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
                             </div>
                           )}
 
-                          {/* Today red line — shown once per row in the right month cell */}
-                          {tp !== null && (
-                            <div style={{ ...S.today, left: `${tp}%` }} />
+                          {/* Progress line — per-row, positioned at avancement % within the bar */}
+                          {row.isChantier && pp !== null && row.avancement > 0 && row.avancement < 100 && (
+                            <div style={{ ...S.progressLine, left: `${pp}%` }} />
                           )}
 
                           {/* Diamond milestone at end of last segment */}
@@ -299,7 +312,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
 
           {/* Legend */}
           <div style={{ marginTop: 8, fontSize: 10, color: '#999' }}>
-            🔴 {isPt ? `Linha vermelha = hoje (${todayLabel})` : `Ligne rouge = aujourd'hui (${todayLabel})`} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = jalon clé' : 'Losange = jalon clé'}
+            🔴 {isPt ? 'Linha vermelha = avanço real do estaleiro' : 'Ligne rouge = avancement réel du chantier'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = jalon clé' : 'Losange = jalon clé'}
           </div>
 
           {/* Sub-task table */}
