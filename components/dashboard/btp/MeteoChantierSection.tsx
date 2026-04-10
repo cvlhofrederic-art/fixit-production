@@ -346,21 +346,22 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     }
   }, [isPt])
 
-  const chantiersRef = useRef<ChantierItem[]>([])
-  chantiersRef.current = chantiersAvecLocalisation
-
   // Reset fetchedRef when authUserId changes (ensures re-fetch with correct cache)
   useEffect(() => {
     fetchedRef.current = false
   }, [authUserId])
 
+  // Auto-fetch weather when chantiers are loaded
   useEffect(() => {
     if (chantiersLoading) return
-    if (chantiersRef.current.length === 0) return
+    if (chantiersAvecLocalisation.length === 0) return
     if (fetchedRef.current) return
     fetchedRef.current = true
-    fetchMeteo(chantiersRef.current)
-  }, [chantiersLoading, chantiersAvecLocalisation.length, fetchMeteo])
+    // Small delay to ensure Supabase data is settled
+    const timer = setTimeout(() => fetchMeteo(chantiersAvecLocalisation), 300)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chantiersLoading, chantiersAvecLocalisation.length])
 
   const nbOk = meteoData.filter(m => m.alert === 'ok').length
   const nbVigilance = meteoData.filter(m => m.alert === 'vigilance').length
@@ -377,7 +378,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
           <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         </div>
         {(meteoData.length > 0 || chantiersAvecLocalisation.length > 0) && (
-          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = false; fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
+          <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
             {meteoLoading ? (isPt ? 'A carregar...' : 'Chargement...') : (isPt ? 'Atualizar' : 'Actualiser')}
           </button>
         )}
@@ -407,8 +408,16 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
         </div>
       </div>
 
+      {/* Debug info — visible en dev pour diagnostic */}
+      {chantiersActifs.length === 0 && chantiers.length > 0 && (
+        <div className="v5-al info" style={{ marginBottom: '.75rem', fontSize: 11 }}>
+          {chantiers.length} chantier(s) chargés, mais aucun actif (statuts: {chantiers.map(c => c.statut).join(', ')}).
+          Seuls les chantiers &quot;En cours&quot; ou &quot;En attente&quot; sont affichés.
+        </div>
+      )}
+
       {/* Aucun chantier */}
-      {chantiersActifs.length === 0 && !chantiersError && (
+      {chantiersActifs.length === 0 && chantiers.length === 0 && !chantiersError && (
         <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏗️</div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhum estaleiro ativo' : 'Aucun chantier actif'}</h3>

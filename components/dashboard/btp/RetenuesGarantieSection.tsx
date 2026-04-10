@@ -64,7 +64,7 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
           {isV5 ? <h1>{t('proDash.btp.retenues.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.retenues.title')}</h1>}
           {isV5 ? <p>{t('proDash.btp.retenues.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.retenues.subtitle')}</p>}
         </div>
-        <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
+        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
           + {t('proDash.btp.retenues.nouvelleRetenue')}
         </button>
       </div>

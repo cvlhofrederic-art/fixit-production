@@ -66,7 +66,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
           {isV5 ? <h1>{t('proDash.btp.situations.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.situations.title')}</h1>}
           {isV5 ? <p>{t('proDash.btp.situations.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.situations.subtitle')}</p>}
         </div>
-        <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
+        <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(true)}>
           + {t('proDash.btp.situations.nouvelleSituation')}
         </button>
       </div>

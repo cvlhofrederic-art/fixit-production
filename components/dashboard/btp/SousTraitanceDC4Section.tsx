@@ -218,7 +218,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
 
           {/* Add button */}
           <div style={{ marginBottom: '.75rem' }}>
-            <button className={isV5 ? 'v5-btn v5-btn-action' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(!showForm)}>
+            <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-action'} onClick={() => setShowForm(!showForm)}>
               {showForm ? '\u2715 Fermer' : `+ ${isFR ? 'Nouveau DC4' : 'Novo DC4'}`}
             </button>
           </div>
