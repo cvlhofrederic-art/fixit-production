@@ -80,9 +80,8 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const active = chantiers.filter(c => c.dateDebut && c.dateFin && c.statut !== 'Terminé')
   const rows: GanttRow[] = []
   active.forEach((c, idx) => {
-    const adresseShort = c.client ? ` — ${c.client}` : ''
     rows.push({
-      id: c.id, nom: `${c.titre}${adresseShort}`, responsable: c.equipe || c.client || '',
+      id: c.id, nom: c.client || c.titre, responsable: c.equipe || c.client || '',
       debut: c.dateDebut, fin: c.dateFin, avancement: computeAvancement(c.dateDebut, c.dateFin),
       statut: mapChantierStatut(c.statut, c.dateFin), couleur: getChantierColor(idx), isChantier: true,
     })
