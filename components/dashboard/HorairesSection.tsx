@@ -42,7 +42,7 @@ export default function HorairesSection({
   return (
     <div className={isV5 ? 'v5-fade' : undefined}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
         {isV5 ? (
           <>
             <h1>{'⏱️'} Horaires chantier &amp; équipes</h1>

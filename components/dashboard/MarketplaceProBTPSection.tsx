@@ -556,7 +556,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {/* Header */}
       {isV5 ? (
         <>
-          <div className="v5-pg-t">
+          <div className="v5-pg-t" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
             <h1>Marketplace BTP</h1>
             <p>Achat/vente de mat&eacute;riaux et &eacute;quipements entre pros</p>
           </div>

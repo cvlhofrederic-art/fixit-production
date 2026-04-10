@@ -152,7 +152,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   return (
     <div>
       {/* Header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
         {isV5 ? (
           <>
             <h1>{isFR ? 'Sous-traitance & Appels d\'offres' : 'Subempreitada & Concursos'}</h1>

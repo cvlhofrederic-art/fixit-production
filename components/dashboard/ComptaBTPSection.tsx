@@ -219,7 +219,7 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
-      <div className={isV5 ? "v5-pg-t" : "v22-page-header"}>
+      <div className={isV5 ? "v5-pg-t" : "v22-page-header"} style={{ flexDirection: 'column' }}>
         <h1>{isPt ? 'Contabilidade Inteligente BTP' : 'Compta Intelligente BTP'}</h1>
         <p>{isPt ? 'Vista contabilística especializada BTP' : 'Vue comptable spécialisée BTP'}</p>
       </div>

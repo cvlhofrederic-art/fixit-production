@@ -268,8 +268,8 @@ export default function RFQSection({ artisan, orgRole }: Props) {
       )}
 
       {/* Page Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ marginBottom: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ marginBottom: 0, flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
           {isV5 ? <h1>{isFR ? 'Devis Fournisseurs (RFQ)' : 'Orçamentos Fornecedores (RFQ)'}</h1> : <div className="v22-page-title">{isFR ? 'Devis Fournisseurs (RFQ)' : 'Orçamentos Fornecedores (RFQ)'}</div>}
           {isV5 ? <p>{isFR ? 'Demandes de prix aux fournisseurs' : 'Pedidos de preço aos fornecedores'}</p> : <div className="v22-page-sub">{isFR ? 'Demandes de prix aux fournisseurs' : 'Pedidos de preço aos fornecedores'}</div>}
         </div>

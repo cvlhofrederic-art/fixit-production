@@ -53,7 +53,7 @@ export default function ModulesSection({
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Page header — exact v6: <div class="pg-t"><h1>Modules</h1><p>...</p></div> */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
         <div style={{ flex: 1 }}>
           {isV5 ? (
             <>

@@ -41,7 +41,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
         <div>
           {isV5 ? (
             <>

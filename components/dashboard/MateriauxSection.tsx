@@ -402,7 +402,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
       {/* Header */}
       {isV5 ? (
         <>
-          <div className="v5-pg-t">
+          <div className="v5-pg-t" style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
             <h1>Mat&eacute;riaux &amp; Appro</h1>
             <p>Stock, commandes, comparatif fournisseurs</p>
           </div>

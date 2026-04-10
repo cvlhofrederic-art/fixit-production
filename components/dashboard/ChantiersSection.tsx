@@ -73,7 +73,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
         {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded text-sm text-white" style={{ background: tv.green }}>{toast}</div>}
 
         {/* Back + header */}
-        <div className={isV5 ? 'v5-pg-t' : 'flex items-center gap-3'}>
+        <div className={isV5 ? 'v5-pg-t' : 'flex items-center gap-3'} style={{ flexDirection: 'column' }}>
           <button onClick={() => setSelectedId(null)} className={isV5 ? 'v5-btn' : 'p-1.5 rounded-md hover:bg-gray-100'} style={isV5 ? undefined : { border: `1px solid ${tv.border}` }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke={tv.text} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
@@ -192,7 +192,7 @@ export default function ChantiersSection({ artisan, navigateTo, orgRole }: Chant
     <div className={isV5 ? 'v5-fade' : 'space-y-3 font-[family-name:var(--font-dm-sans)]'}>
       {toast && <div className="fixed top-4 right-4 z-50 px-4 py-2 rounded text-sm text-white" style={{ background: tv.green }}>{toast}</div>}
 
-      <div className={isV5 ? 'v5-pg-t' : ''}>
+      <div className={isV5 ? 'v5-pg-t' : ''} style={{ flexDirection: 'column' }}>
         <h1 className={isV5 ? '' : 'text-lg font-semibold'} style={isV5 ? undefined : { color: tv.text }}>Chantiers</h1>
         {isV5 && <p>Suivi de vos chantiers en cours, à venir et clôturés</p>}
       </div>

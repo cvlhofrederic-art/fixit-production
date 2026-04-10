@@ -393,7 +393,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
 
       {/* ═══ V5 Page Header ═══ */}
       {isV5 && (
-        <div className="v5-pg-t" style={{ flexShrink: 0 }}>
+        <div className="v5-pg-t" style={{ flexShrink: 0, flexDirection: 'column' }}>
           <h1>Messagerie</h1>
           <p>Conversations avec vos clients et donneurs d&apos;ordres</p>
         </div>

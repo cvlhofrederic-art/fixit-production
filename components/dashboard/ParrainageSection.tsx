@@ -110,7 +110,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
   if (isV5) {
     return (
       <div className="v5-fade" style={{ maxWidth: 800, margin: '0 auto' }}>
-        <div className="v5-pg-t">
+        <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
           <h1>Parrainage entreprises</h1>
           <p>Programme B2B</p>
         </div>

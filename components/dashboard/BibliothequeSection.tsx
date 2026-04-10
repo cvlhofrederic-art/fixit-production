@@ -180,7 +180,7 @@ export default function BibliothequeSection({ artisan, orgRole = 'artisan', navi
   if (isV5) {
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t">
+        <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
           <h1>Biblioth&egrave;que d&apos;ouvrages</h1>
           <p>Base de donn&eacute;es de prix unitaires &mdash; {items.length} poste{items.length > 1 ? 's' : ''}</p>
         </div>

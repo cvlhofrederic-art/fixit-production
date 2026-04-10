@@ -78,7 +78,7 @@ export function DPGFSection({ userId, orgRole }: { userId: string; orgRole?: str
 
   return (
     <div>
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
         <div>
           {isV5 ? <h1>{t('proDash.btp.dpgf.title')}</h1> : <h1 className="v22-page-title">{t('proDash.btp.dpgf.title')}</h1>}
           {isV5 ? <p>{t('proDash.btp.dpgf.subtitle')}</p> : <p className="v22-page-sub">{t('proDash.btp.dpgf.subtitle')}</p>}

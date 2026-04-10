@@ -333,8 +333,8 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ marginBottom: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ marginBottom: 0, flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
           <h1>{isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants'}</h1>
           <p>{isPt ? 'Publique missões e encontre subempreiteiros qualificados' : 'Publiez vos offres et recevez des candidatures'}</p>
         </div>

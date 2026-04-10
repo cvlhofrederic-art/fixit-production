@@ -204,7 +204,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
   return (
     <div>
       {/* Page header */}
-      <div className={isV5 ? "v5-pg-t" : "v22-page-header"}>
+      <div className={isV5 ? "v5-pg-t" : "v22-page-header"} style={{ flexDirection: 'column' }}>
         <h1>{isPt ? 'Pointagem equipas' : 'Pointage équipes'}</h1>
         <p>{isPt ? 'Manual ou automático por GPS' : 'Suivi des heures'}</p>
       </div>

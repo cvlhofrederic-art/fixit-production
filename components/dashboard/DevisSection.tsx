@@ -289,7 +289,7 @@ function DevisSectionV5({
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t"><div><h1>Devis</h1><p>Gestion des devis entreprise</p></div></div>
+      <div className="v5-pg-t" style={{ flexDirection: 'column' }}><div><h1>Devis</h1><p>Gestion des devis entreprise</p></div></div>
 
       {/* Search + Create */}
       <div className="v5-search">

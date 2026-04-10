@@ -336,7 +336,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
     <div>
       {/* Header + bouton config */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+        <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
           <h1>{t('Rentabilité Chantier', 'Rentabilidade da Obra')}</h1>
           <p>{t('Budget prévu vs réalisé', 'Orçamento previsto vs realizado')}</p>
         </div>

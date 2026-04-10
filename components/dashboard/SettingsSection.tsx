@@ -490,7 +490,7 @@ export default function SettingsSection({
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
       {/* Page header */}
-      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
+      <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ flexDirection: 'column' }}>
         <div style={{ flex: 1 }}>
           {isV5 ? (
             <>

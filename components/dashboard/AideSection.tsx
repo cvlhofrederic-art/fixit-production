@@ -41,7 +41,7 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
   if (isSociete) {
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t">
+        <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
           <h1>Aide</h1>
           <p>Centre d&apos;assistance VITFIX &mdash; Soci&eacute;t&eacute; BTP</p>
         </div>

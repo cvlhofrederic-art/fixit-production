@@ -372,7 +372,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
 
   return (
     <div className="v5-fade">
-      <div className="v5-pg-t">
+      <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
         <div>
           <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
           <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>

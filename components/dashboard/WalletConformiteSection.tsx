@@ -514,7 +514,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
   if (isSociete) {
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t">
+        <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
           <h1>Conformit&eacute; r&eacute;glementaire</h1>
           <p>Documents entreprise</p>
         </div>

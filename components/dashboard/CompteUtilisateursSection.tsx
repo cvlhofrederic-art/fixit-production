@@ -301,7 +301,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   if (loading) {
     return (
       <div className="v5-fade">
-        <div className="v5-pg-t"><h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1></div>
+        <div className="v5-pg-t" style={{ flexDirection: 'column' }}><h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1></div>
         <div style={{ textAlign: 'center', padding: '4rem', color: '#999', fontSize: 12 }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
       </div>
     )
@@ -310,7 +310,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   return (
     <div className="v5-fade">
       {/* Header */}
-      <div className="v5-pg-t">
+      <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
         <div>
           <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
           <p>{isPt

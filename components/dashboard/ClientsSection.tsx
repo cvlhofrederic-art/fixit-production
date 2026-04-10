@@ -368,7 +368,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
         )}
 
         {/* Page title */}
-        <div className="v5-pg-t">
+        <div className="v5-pg-t" style={{ flexDirection: 'column' }}>
           <h1>Base clients</h1>
           <p>Ma&icirc;tres d&apos;ouvrage, syndics, architectes</p>
         </div>
