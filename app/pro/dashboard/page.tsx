@@ -298,6 +298,7 @@ function DashboardPage() {
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const aid = artisanData.id
+    console.log('[VITFIX-DEBUG] artisan.id =', aid, '| user.id =', user.id)
 
     // Seed demo localStorage data for super admin demo account (no-op for other accounts)
     seedDemoLocalStorage(aid)
@@ -308,6 +309,7 @@ function DashboardPage() {
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${aid}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${aid}`) || '[]')
+      console.log('[VITFIX-DEBUG] loaded docs:', docs.length, 'drafts:', drafts.length, 'key:', `fixit_documents_${aid}`)
       setSavedDocuments([...docs, ...drafts])
     } catch { console.warn('fixit_documents/drafts: JSON.parse failed (private browsing?)') }
 
