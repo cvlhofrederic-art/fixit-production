@@ -147,8 +147,8 @@ export default function RapportTableRow({
         {r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short', year: 'numeric' }) : '\u2014'}
         {r.startTime && <div className="v22-card-meta">{r.startTime}{r.endTime ? ` \u2192 ${r.endTime}` : ''}{duration ? ` (${duration})` : ''}</div>}
       </td>
-      <td><span className={st.tagClass}>{st.label}</span></td>
-      <td>
+      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}><span className={st.tagClass}>{st.label}</span></td>
+      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
         <span className={r.sentStatus === 'envoye' ? 'v22-tag v22-tag-green' : 'v22-tag v22-tag-gray'}>
           {r.sentStatus === 'envoye' ? 'Envoye' : 'Non envoye'}
         </span>

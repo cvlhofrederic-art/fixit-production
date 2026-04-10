@@ -965,8 +965,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                   <th>Client</th>
                   <th>Motif</th>
                   <th>Date</th>
-                  <th>Statut</th>
-                  <th>Envoi</th>
+                  <th style={{ textAlign: 'center' }}>Statut</th>
+                  <th style={{ textAlign: 'center' }}>Envoi</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
